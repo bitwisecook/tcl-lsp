@@ -19,7 +19,8 @@
 //! tcllib `base32` / `base32::hex` packages — base32 (RFC 4648) codecs.
 //!
 //! Public command surface from tcllib `modules/base32/{base32,base32hex}.man`.
-//! Both codecs are pure string transforms.  Requires Tcl 8.5+.
+//! Both codecs are pure string transforms, each on the direct route over
+//! `tcl_cmd_core::base32` (`value_transfer::tcllib`).  Requires Tcl 8.5+.
 
 use crate::prelude::*;
 
@@ -30,6 +31,7 @@ fn codec(
     synopsis: &'static [&'static str],
     summary: &'static str,
     return_value: &'static str,
+    route: SemanticsDeclaration,
 ) -> CommandSpec {
     CommandSpec {
         name,
@@ -45,6 +47,7 @@ fn codec(
         }),
         tcllib_package: Some(pkg),
         required_package: Some(pkg),
+        semantics: route,
         ..CommandSpec::DEFAULT
     }
 }
@@ -58,6 +61,7 @@ pub fn specs() -> Vec<CommandSpec> {
             &["base32::encode string"],
             "Encode a string using standard base32 (RFC 4648).",
             "The base32-encoded representation of the input.",
+            SemanticsDeclaration::Declared(&crate::value_transfer::tcllib::BASE32_ENCODE),
         ),
         codec(
             "base32::decode",
@@ -65,6 +69,7 @@ pub fn specs() -> Vec<CommandSpec> {
             &["base32::decode estring"],
             "Decode a standard base32 (RFC 4648) string.",
             "The decoded binary string.",
+            SemanticsDeclaration::Declared(&crate::value_transfer::tcllib::BASE32_DECODE),
         ),
         codec(
             "base32::hex::encode",
@@ -72,6 +77,7 @@ pub fn specs() -> Vec<CommandSpec> {
             &["base32::hex::encode string"],
             "Encode a string using extended-hex base32 (RFC 4648).",
             "The extended-hex base32-encoded representation of the input.",
+            SemanticsDeclaration::Declared(&crate::value_transfer::tcllib::BASE32_HEX_ENCODE),
         ),
         codec(
             "base32::hex::decode",
@@ -79,6 +85,7 @@ pub fn specs() -> Vec<CommandSpec> {
             &["base32::hex::decode estring"],
             "Decode an extended-hex base32 (RFC 4648) string.",
             "The decoded binary string.",
+            SemanticsDeclaration::Declared(&crate::value_transfer::tcllib::BASE32_HEX_DECODE),
         ),
     ]
 }

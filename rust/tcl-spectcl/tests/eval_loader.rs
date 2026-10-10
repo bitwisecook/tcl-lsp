@@ -38,7 +38,9 @@
 use std::path::{Path, PathBuf};
 
 use tcl_dialect::model::{Placement, SpecProvider};
-use tcl_spectcl::loader::{EvalOptions, Notice, Pack, evaluate_pack, evaluate_pack_with};
+use tcl_spectcl::loader::{
+    EvalOptions, Notice, Pack, eval_snapshot_key, evaluate_pack, evaluate_pack_with,
+};
 use tcl_spectcl::{LoadError, Tier};
 
 fn repo_root() -> PathBuf {
@@ -699,18 +701,19 @@ fn available_query_marks_the_pack_target_dependent_and_uncacheable() {
 
     // And the cache refuses it.
     let tier = Tier::Bundled;
-    let cached = tcl_spectcl::evaluate_pack_cached(source, tier);
+    let trust = tcl_dialect::model::WorkspaceTrust::Trusted;
+    let cached = tcl_spectcl::evaluate_pack_cached(source, tier, trust);
     assert!(cached.target_dependent);
     assert!(
-        !tcl_spectcl::snapshot_memoised(source, tier),
+        !tcl_spectcl::snapshot_memoised(source, tier, trust),
         "a target-dependent pack must not be memoised (E-R1)"
     );
 
     // A target-independent pack IS memoised, so the exclusion above is
     // meaningful.
     let independent = "speclib cacheable 2.0 {\n    command base { arity 1 }\n}\n";
-    let _ = tcl_spectcl::evaluate_pack_cached(independent, tier);
-    assert!(tcl_spectcl::snapshot_memoised(independent, tier));
+    let _ = tcl_spectcl::evaluate_pack_cached(independent, tier, trust);
+    assert!(tcl_spectcl::snapshot_memoised(independent, tier, trust));
 }
 
 #[test]
@@ -945,6 +948,104 @@ fn an_included_fragment_loads_identically_on_both_routes() {
     );
 }
 
+/// A pack command's `content_hash` is the value its file's snapshot key
+/// interns — the bytes as read, byte-order mark and all — when nothing is
+/// included, and it follows an `include`: the same root over an edited
+/// fragment hashes differently, and the fragment's own commands carry the
+/// same value as the root's. Both routes fold alike, and a row the loader
+/// drops folds nothing.
+#[test]
+fn a_content_hash_is_the_snapshot_keys_and_follows_an_included_fragment() {
+    let options = |fast_path: bool| EvalOptions {
+        static_fast_path: fast_path,
+        ..EvalOptions::default()
+    };
+    let hash_of = |pack: &Pack| {
+        assert!(pack.notices.is_empty(), "{:#?}", pack.notices);
+        let mut hashes = pack.commands.iter().map(|command| command.content_hash);
+        let first = hashes.next().expect("the pack declares a command");
+        assert!(
+            hashes.all(|hash| hash == first),
+            "every command of one load carries one hash"
+        );
+        first
+    };
+
+    let plain = "\u{feff}speclib probe 2.0 {\n command demo { arity 1 }\n}\n";
+    let stripped = plain.trim_start_matches('\u{feff}');
+    for fast_path in [true, false] {
+        let key = |source: &str| eval_snapshot_key(source, &options(fast_path)).content_hash;
+        assert_eq!(
+            hash_of(&evaluate_pack_with(plain, &options(fast_path))),
+            key(plain),
+            "a root that includes nothing hashes as its snapshot key does"
+        );
+        assert_ne!(
+            key(plain),
+            key(stripped),
+            "the key hashes the mark, so the pack's hash must be taken before it goes"
+        );
+    }
+
+    let root = "speclib probe 2.0 {\n include extra.frag\n command demo { arity 1 }\n}\n";
+    let including = |fragment: &'static str, fast_path: bool| {
+        let resolver = move |name: &str| match name {
+            "extra.frag" => Ok(fragment.to_owned()),
+            other => Err(format!("no such fragment `{other}`")),
+        };
+        tcl_spectcl::loader::evaluate_pack_in(
+            root,
+            &options(fast_path),
+            Some(std::rc::Rc::new(tcl_spectcl::IncludeContext::new(resolver))),
+        )
+    };
+    let original = "command extra {\n arity 2\n}\n";
+    let edited = "command extra {\n arity 3\n}\n";
+    for fast_path in [true, false] {
+        let before = including(original, fast_path);
+        let after = including(edited, fast_path);
+        assert!(before.command("extra").is_some() && before.command("demo").is_some());
+        assert_ne!(
+            hash_of(&before),
+            hash_of(&after),
+            "an edit to the fragment moves the hash while the root is unchanged"
+        );
+        assert_ne!(
+            hash_of(&before),
+            eval_snapshot_key(root, &options(fast_path)).content_hash,
+            "the fragment is folded into the root's own hash"
+        );
+    }
+    assert_eq!(
+        hash_of(&including(original, true)),
+        hash_of(&including(original, false)),
+        "the static route and the interpreter fold to one value"
+    );
+
+    for fast_path in [true, false] {
+        let dropped = tcl_spectcl::loader::evaluate_pack_in(
+            root,
+            &options(fast_path),
+            Some(std::rc::Rc::new(tcl_spectcl::IncludeContext::new(|name| {
+                Err(format!("no such fragment `{name}`"))
+            }))),
+        );
+        assert!(
+            dropped
+                .notices
+                .iter()
+                .any(|n| n.message.contains("did not resolve")),
+            "{:#?}",
+            dropped.notices
+        );
+        assert_eq!(
+            dropped.command("demo").map(|command| command.content_hash),
+            Some(eval_snapshot_key(root, &options(fast_path)).content_hash),
+            "a dropped include folds nothing"
+        );
+    }
+}
+
 /// The ratified words load identically on both routes: they are read at the
 /// one row seam, so the capture layer's shortcut cannot drift on them.
 #[test]
@@ -984,4 +1085,449 @@ speclib probe 2.0 {
         "{}",
         first_diff(&snapshot(&fast), &snapshot(&slow))
     );
+}
+
+/// A clause row whose `-timing` names no timing this build knows is dropped
+/// with a notice — never read as some other timing — on both paths, and the
+/// rows around it still load. A subcommand's grammar loads through the same
+/// reader.
+/// `semantic_operation` is a closed vocabulary, and the loader's own spelling
+/// of each operation — [`tcl_spectcl::semantic_operation_spelling`], what the
+/// studio's renderer writes — reads back as that operation, at command and
+/// subcommand level, through both evaluation paths.
+#[test]
+fn semantic_operation_round_trips_through_the_renderer() {
+    use std::fmt::Write as _;
+
+    let operations: Vec<_> = tcl_spectcl::semantic_operations().collect();
+    assert!(
+        operations.len() > 30,
+        "the whole vocabulary: {operations:?}"
+    );
+    let mut source = String::from("speclib probe 2.1 {\n");
+    for (index, operation) in operations.iter().enumerate() {
+        let spelling = tcl_spectcl::semantic_operation_spelling(*operation);
+        writeln!(
+            source,
+            "    command probe::op{index} {{\n        semantic_operation {{{spelling}}}\n        \
+             subcommand sub {{\n            arity 0\n            semantic_operation {{{spelling}}}\n        \
+             }}\n    }}"
+        )
+        .expect("writing to a String cannot fail");
+    }
+    source.push_str("}\n");
+    for pack in [
+        evaluate_pack(&source),
+        evaluate_through_the_interpreter(&source),
+    ] {
+        assert!(
+            pack.notices
+                .iter()
+                .all(|notice| !notice.message.contains("semantic_operation")),
+            "{:#?}",
+            pack.notices
+        );
+        for (index, operation) in operations.iter().enumerate() {
+            let command = pack
+                .command(&format!("probe::op{index}"))
+                .expect("the command loads");
+            assert_eq!(command.spec.semantic_operation, Some(*operation));
+            let sub = command
+                .spec
+                .subcommands
+                .iter()
+                .find(|sub| sub.name == "sub")
+                .expect("the subcommand loads");
+            assert_eq!(sub.semantic_operation, Some(*operation));
+        }
+    }
+}
+
+#[test]
+fn a_clause_grammar_row_with_an_unknown_timing_is_dropped_with_a_notice() {
+    let source = r"speclib probe 2.1 {
+    command probe::chain {
+        arity 2..
+        clause_grammar {
+            head {Expr Body} -timing selected
+            repeated also {Expr Body} -timing sometimes
+            tail ?otherwise? {Body} -timing selected
+        }
+        subcommand loop {
+            arity 3
+            clause_grammar {
+                head {LoopVarList Value} -timing per-iteration
+                tail {Body} -timing per-iteration
+                selection all
+            }
+        }
+    }
+}
+";
+    for pack in [
+        evaluate_pack(source),
+        evaluate_through_the_interpreter(source),
+    ] {
+        let dropped: Vec<&str> = pack
+            .notices
+            .iter()
+            .map(|notice| notice.message.as_str())
+            .filter(|message| message.contains("unknown clause timing `sometimes`"))
+            .collect();
+        assert_eq!(dropped.len(), 1, "{:#?}", pack.notices);
+        let command = pack.command("probe::chain").expect("the command loads");
+        let grammar = command.clause_grammar.expect("the grammar loads");
+        assert!(
+            grammar.rows.is_empty(),
+            "the unreadable row is dropped: {grammar:?}"
+        );
+        assert_eq!(grammar.keywords().collect::<Vec<_>>(), ["otherwise"]);
+        let plan = grammar.walk(&["c", "{a}", "{b}"], &[]);
+        assert_eq!(plan.defect, None);
+        let sub = command
+            .spec
+            .subcommands
+            .iter()
+            .find(|sub| sub.name == "loop")
+            .expect("the subcommand loads");
+        let loop_grammar = sub.clause_grammar.expect("the subcommand's grammar loads");
+        assert_eq!(
+            loop_grammar.selection,
+            tcl_registry::clause_grammar::ClauseSelection::All
+        );
+        assert!(
+            command
+                .hooks
+                .iter()
+                .any(|hook| hook.field == "arg_role_resolver"
+                    && hook.owner == tcl_spectcl::HookOwner::Subcommand("loop".to_owned())),
+            "the subcommand's derivation is recorded: {:#?}",
+            command.hooks
+        );
+    }
+}
+
+/// An option's `-effect` names a family by string, resolved by the generic
+/// walk against exactly the command's (or subcommand's) own
+/// `option_effect_family` rows — so a name matching none of them would
+/// otherwise narrow the axis silently rather than reading as absent.
+/// Dropped with a notice instead, at both command and subcommand scope
+/// (negative: a declared family's effect survives).
+#[test]
+fn an_effect_naming_an_undeclared_family_is_a_notice() {
+    let source = r"speclib probe 2.1 {
+    command probe::echo {
+        arity 0..
+        option_effect_family known { base all-on combine accumulate }
+        option -a -effect {disables substitution backslashes} -family known
+        option -b -effect {disables substitution commands} -family ghost
+        subcommand sub {
+            arity 0..
+            option -c -effect {disables substitution variables} -family ghost
+        }
+    }
+}
+";
+    for pack in [
+        evaluate_pack(source),
+        evaluate_through_the_interpreter(source),
+    ] {
+        let dropped: Vec<&str> = pack
+            .notices
+            .iter()
+            .map(|notice| notice.message.as_str())
+            .filter(|message| message.contains("naming family `ghost`"))
+            .collect();
+        assert_eq!(dropped.len(), 2, "{:#?}", pack.notices);
+        let command = pack.command("probe::echo").expect("the command loads");
+        let a = command
+            .spec
+            .options
+            .iter()
+            .find(|opt| opt.name == "-a")
+            .expect("-a loads");
+        assert!(a.effect.is_some(), "a declared family keeps its effect");
+        let b = command
+            .spec
+            .options
+            .iter()
+            .find(|opt| opt.name == "-b")
+            .expect("-b loads");
+        assert!(b.effect.is_none(), "an undeclared family drops the effect");
+        let sub = command
+            .spec
+            .subcommands
+            .iter()
+            .find(|sub| sub.name == "sub")
+            .expect("the subcommand loads");
+        let c = sub
+            .options
+            .iter()
+            .find(|opt| opt.name == "-c")
+            .expect("-c loads");
+        assert!(
+            c.effect.is_none(),
+            "the same rule applies at subcommand scope"
+        );
+    }
+}
+
+/// A `state_transitions` block loads every row the descriptor has — the
+/// composition, the argument shape, the widening rules, the effect coverage,
+/// the commit edge — and its `resolver` body is a hook of the
+/// `state_transitions` resolver family, carried as a placeholder until the
+/// host binds it. No row is dropped as "not yet loadable".
+#[test]
+fn a_state_transitions_block_loads_its_rows_and_its_resolver_body() {
+    use tcl_registry::pack_hooks::HookFamily;
+    use tcl_registry::state_transition::{
+        StateTransitionArgumentShape, StateTransitionCommit, StateTransitionDomain,
+        StateTransitionOperandLayout,
+    };
+    use tcl_registry::world_effect::{WorldEffectWriteSource, WorldStateDomain};
+    use tcl_spectcl::loader::HookSource;
+    let source = r"speclib probe 2.1 {
+    command probe::link {
+        arity 2..
+        state_transitions {
+            composition    Extend
+            argument_shape Positional
+            resolver {words ctx} { alias 1 0 }
+            widen  -operands EveryArgument -domains {VariableCells VariableTraces}
+            widen  -operands {Strided 0 2} -domains {VariableCells}
+            covers LegacyFrame -domains {VariableStore}
+            covers {LegacySideEffect Variable} -domains {VariableStore}
+            commit MayCommitBeforeAbruptCompletion
+        }
+    }
+}
+";
+    for pack in [
+        evaluate_pack(source),
+        evaluate_through_the_interpreter(source),
+    ] {
+        assert!(
+            !pack
+                .notices
+                .iter()
+                .any(|notice| notice.message.contains("state_transitions")),
+            "{:#?}",
+            pack.notices
+        );
+        let command = pack.command("probe::link").expect("the command loads");
+        let descriptor = command
+            .spec
+            .state_transitions
+            .expect("the descriptor loads");
+        assert_eq!(
+            descriptor.argument_shape,
+            StateTransitionArgumentShape::Positional
+        );
+        assert_eq!(
+            descriptor.commit,
+            StateTransitionCommit::MayCommitBeforeAbruptCompletion
+        );
+        assert!(descriptor.resolver.is_some(), "the body's placeholder");
+        assert_eq!(descriptor.dynamic_widening.len(), 2);
+        assert_eq!(
+            descriptor.dynamic_widening[0].operands,
+            StateTransitionOperandLayout::EveryArgument
+        );
+        assert_eq!(
+            descriptor.dynamic_widening[1].operands,
+            StateTransitionOperandLayout::Strided {
+                first: 0,
+                stride: 2
+            }
+        );
+        assert_eq!(
+            descriptor.dynamic_widening[0].domains,
+            [
+                StateTransitionDomain::VariableCells,
+                StateTransitionDomain::VariableTraces
+            ]
+        );
+        let sources: Vec<WorldEffectWriteSource> = descriptor
+            .effect_coverage
+            .iter()
+            .map(|coverage| coverage.source)
+            .collect();
+        assert_eq!(
+            sources,
+            [
+                WorldEffectWriteSource::LegacyFrame,
+                WorldEffectWriteSource::LegacySideEffect(
+                    tcl_registry::side_effects::SideEffectTarget::Variable
+                ),
+            ]
+        );
+        assert!(
+            descriptor
+                .effect_coverage
+                .iter()
+                .all(|coverage| coverage.domains == [WorldStateDomain::VariableStore])
+        );
+        let hook = command
+            .hooks
+            .iter()
+            .find(|hook| hook.family == HookFamily::StateTransitionResolver)
+            .expect("the resolver body is a hook");
+        assert_eq!(hook.field, "state_transitions.resolver");
+        assert!(
+            matches!(&hook.source, HookSource::Body { body, .. } if body.contains("alias 1 0"))
+        );
+    }
+}
+
+/// `resolver from-frame-effect` derives the alias pairs the command's own
+/// `frame_effect` lays out, whichever of the two is written first — at the
+/// command, and for a subcommand from its command's frame effect. With no
+/// `AliasPairs` frame effect there is nothing to derive: a notice, and the
+/// descriptor keeps no resolver (negative).
+#[test]
+fn from_frame_effect_derives_the_alias_pairs_resolver() {
+    use tcl_registry::InvocationArguments;
+    use tcl_registry::state_transition::StateTransition;
+    let source = r"speclib probe 2.1 {
+    command probe::alias {
+        arity 2..
+        state_transitions {
+            argument_shape Positional
+            resolver from-frame-effect
+        }
+        frame_effect -level-word ArityParity -layout AliasPairs
+        subcommand pair {
+            arity 2..
+            state_transitions { resolver from-frame-effect }
+        }
+    }
+    command probe::plain {
+        arity 1
+        state_transitions { resolver from-frame-effect }
+    }
+}
+";
+    for pack in [
+        evaluate_pack(source),
+        evaluate_through_the_interpreter(source),
+    ] {
+        let alias = pack.command("probe::alias").expect("the command loads");
+        let resolver = alias
+            .spec
+            .state_transitions
+            .and_then(|descriptor| descriptor.resolver)
+            .expect("the derived resolver");
+        let facts = resolver(InvocationArguments::literals(&["1", "other", "mine"]));
+        assert!(
+            matches!(
+                facts.facts().first().map(|fact| &fact.transition),
+                Some(StateTransition::VariableCellAlias(alias))
+                    if alias.local.literal() == Some("mine")
+            ),
+            "{facts:?}"
+        );
+        assert!(
+            alias.spec.subcommands[0]
+                .state_transitions
+                .and_then(|descriptor| descriptor.resolver)
+                .is_some(),
+            "the subcommand derives from its command's frame effect"
+        );
+        let plain = pack.command("probe::plain").expect("the command loads");
+        assert!(
+            plain
+                .spec
+                .state_transitions
+                .is_some_and(|descriptor| descriptor.resolver.is_none())
+        );
+        assert!(
+            pack.notices.iter().any(|notice| notice
+                .message
+                .contains("needs the command's `frame_effect -layout AliasPairs`")),
+            "{:#?}",
+            pack.notices
+        );
+    }
+}
+
+/// `runtime_backing` reads each of its five shapes, an unstated one is `none`,
+/// and one that does not read is dropped with a notice that leaves the
+/// command's other facts alone — through both evaluation paths, so the row
+/// word is known to the static fast path as well as to the interpreter.
+#[test]
+fn runtime_backing_reads_each_shape_through_both_paths() {
+    use tcl_registry::RuntimeBacking;
+
+    let source = r"speclib probe 2.1 {
+    command probe::bare { arity 3 }
+    command probe::none { arity 3; runtime_backing none }
+    command probe::host { arity 3; runtime_backing host-native }
+    command probe::shipped { arity 3; runtime_backing shipped-builtin lassign }
+    command probe::file { arity 3; runtime_backing tcl-body {-package-source init.tcl} }
+    command probe::text {
+        arity 3
+        runtime_backing tcl-body {-pack-text {proc p {a} {
+    return [list $a {b}]
+}}}
+    }
+    command probe::asserted {
+        arity 3
+        runtime_backing tcl-body {-pack-text {proc p {a} {return $a}} -evaluate}
+    }
+    command probe::asserted_file { arity 3; runtime_backing tcl-body {-evaluate -package-source init.tcl} }
+    command probe::unfinished { arity 3; runtime_backing tcl-body {-package-source} }
+    command probe::unknown { arity 3; runtime_backing native }
+}
+";
+    for pack in [
+        evaluate_pack(source),
+        evaluate_through_the_interpreter(source),
+    ] {
+        let backing = |name: &str| pack.command(name).expect(name).spec.runtime_backing;
+        assert_eq!(backing("probe::bare"), RuntimeBacking::None);
+        assert_eq!(backing("probe::none"), RuntimeBacking::None);
+        assert_eq!(backing("probe::host"), RuntimeBacking::HostNative);
+        assert_eq!(
+            backing("probe::shipped"),
+            RuntimeBacking::shipped("lassign")
+        );
+        assert_eq!(
+            backing("probe::file"),
+            RuntimeBacking::package_source("init.tcl")
+        );
+        assert_eq!(
+            backing("probe::text"),
+            RuntimeBacking::pack_text("proc p {a} {\n    return [list $a {b}]\n}")
+        );
+        // The author's assertion that the body may be evaluated is its own bit,
+        // before or after the source.
+        assert_eq!(
+            backing("probe::asserted"),
+            RuntimeBacking::pack_text("proc p {a} {return $a}").evaluated()
+        );
+        assert_eq!(
+            backing("probe::asserted_file"),
+            RuntimeBacking::package_source("init.tcl").evaluated()
+        );
+        // A declaration that does not read claims nothing, and costs the
+        // command no other fact.
+        for name in ["probe::unfinished", "probe::unknown"] {
+            let command = pack.command(name).expect(name);
+            assert_eq!(command.spec.runtime_backing, RuntimeBacking::None);
+            assert_eq!(command.spec.arity.min, 3, "{name} keeps its arity");
+        }
+        let dropped: Vec<&str> = pack
+            .notices
+            .iter()
+            .filter(|notice| notice.message.contains("unreadable `runtime_backing`"))
+            .map(|notice| notice.context.as_str())
+            .collect();
+        assert_eq!(
+            dropped,
+            ["command probe::unfinished", "command probe::unknown"],
+            "{:#?}",
+            pack.notices
+        );
+        assert_eq!(pack.notices.len(), 2, "{:#?}", pack.notices);
+    }
 }

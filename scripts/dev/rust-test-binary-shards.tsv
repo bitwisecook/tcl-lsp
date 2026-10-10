@@ -14,6 +14,7 @@
 @exclude	f5-cli
 @exclude	tcl-lsp-server
 @exclude	tcl-fuzz
+@exclude	tcl-engine-wasm
 1	tcl-compiler	lib	tcl-compiler	tcl_compiler
 2	bigip-report-gen-rust	lib	bigip-report-gen-rust	bigip_report_gen_rust
 2	bpf-tcl-codegen	lib	bpf-tcl-codegen	bpf_tcl_codegen
@@ -24,6 +25,7 @@
 2	tcl-bigip-io	lib	tcl-bigip-io	tcl_bigip_io
 2	tcl-bigip-query	lib	tcl-bigip-query	tcl_bigip_query
 2	tcl-bigip::integration	test	tcl-bigip	integration
+2	tcl-cli::value_transfers_cli	test	tcl-cli	value_transfers_cli
 2	tcl-compiler::alias_scoping	test	tcl-compiler	alias_scoping
 2	tcl-compiler::codegen	test	tcl-compiler	codegen
 2	tcl-compiler::codegen_golden	test	tcl-compiler	codegen_golden
@@ -37,8 +39,10 @@
 2	tcl-compiler::irules_event_context	test	tcl-compiler	irules_event_context
 2	tcl-compiler::phi_undef_memo	test	tcl-compiler	phi_undef_memo
 2	tcl-compiler::regex_source_oracle	test	tcl-compiler	regex_source_oracle
+2	tcl-compiler::value_transfer_witnesses	test	tcl-compiler	value_transfer_witnesses
 2	tcl-compiler::var_escape_cfg	test	tcl-compiler	var_escape_cfg
 2	tcl-engine-tclvm	lib	tcl-engine-tclvm	tcl_engine_tclvm
+2	tcl-engine-tclvm::doors	test	tcl-engine-tclvm	doors
 2	tcl-irules::resolve_args	test	tcl-irules	resolve_args
 2	tcl-lexer::differential_boundaries	test	tcl-lexer	differential_boundaries
 2	tcl-lexer::f5_lexical_conformance	test	tcl-lexer	f5_lexical_conformance
@@ -53,11 +57,14 @@
 2	tcl-lsp-core::semantic_tokens	test	tcl-lsp-core	semantic_tokens
 2	tcl-lsp-db::compiler_check_corpus	test	tcl-lsp-db	compiler_check_corpus
 2	tcl-lsp-db::dialect_seam	test	tcl-lsp-db	dialect_seam
+2	tcl-lsp-db::overlay_generations	test	tcl-lsp-db	overlay_generations
 2	tcl-pkg	lib	tcl-pkg	tcl_pkg
+2	tcl-pkg-model	lib	tcl-pkg-model	tcl_pkg_model
 2	tcl-regex::collating_names_oracle	test	tcl-regex	collating_names_oracle
 2	tcl-regex::dos_bounds	test	tcl-regex	dos_bounds
 2	tcl-regex::lazy_alt_backref	test	tcl-regex	lazy_alt_backref
 2	tcl-regex::nocase_posix_class	test	tcl-regex	nocase_posix_class
+2	tcl-regex::precision_oracle	test	tcl-regex	precision_oracle
 2	tcl-regex::z_anchor	test	tcl-regex	z_anchor
 2	tcl-registry::dialect_oracle	test	tcl-registry	dialect_oracle
 2	tcl-registry::provider_relation	test	tcl-registry	provider_relation
@@ -81,6 +88,7 @@
 2	tcl-syntax::expr_parser_coverage	test	tcl-syntax	expr_parser_coverage
 2	tcl-vm	lib	tcl-vm	tcl_vm
 2	tcl-vm-cli::channel_output	test	tcl-vm-cli	channel_output
+2	tcl-vm-cli::static_extensions	test	tcl-vm-cli	static_extensions
 2	tcl-vm::cmd_collections_e2e	test	tcl-vm	cmd_collections_e2e
 2	tcl-vm::cmd_coro_e2e	test	tcl-vm	cmd_coro_e2e
 2	tcl-vm::cmd_info_prefix_e2e	test	tcl-vm	cmd_info_prefix_e2e
@@ -158,6 +166,7 @@
 3	tcl-spec-studio::versions	test	tcl-spec-studio	versions
 3	tcl-spectcl::eda_loadables	test	tcl-spectcl	eda_loadables
 3	tcl-spectcl::pack_formatting	test	tcl-spectcl	pack_formatting
+3	tcl-spectcl::package_specs	test	tcl-spectcl	package_specs
 3	tcl-spectcl::workspace_packs	test	tcl-spectcl	workspace_packs
 3	tcl-sslictcl::config_adapters	test	tcl-sslictcl	config_adapters
 3	tcl-syntax	lib	tcl-syntax	tcl_syntax
@@ -242,6 +251,7 @@
 4	tcl-registry::spec_pack_provenance	test	tcl-registry	spec_pack_provenance
 4	tcl-registry::spectcl_pack	test	tcl-registry	spectcl_pack
 4	tcl-registry::tcltest_specs	test	tcl-registry	tcltest_specs
+4	tcl-registry::value_transfers	test	tcl-registry	value_transfers
 4	tcl-spec-studio::option_row_editing	test	tcl-spec-studio	option_row_editing
 4	tcl-spec-studio::pack_store	test	tcl-spec-studio	pack_store
 4	tcl-spec-studio::spectcl_roundtrip	test	tcl-spec-studio	spectcl_roundtrip
@@ -297,6 +307,8 @@
 5	tcl-compiler::wasm_codegen	test	tcl-compiler	wasm_codegen
 5	tcl-compiler::wasm_execute	test	tcl-compiler	wasm_execute
 5	tcl-compiler::wasm_real_link	test	tcl-compiler	wasm_real_link
+5	tcl-cshim::completion	test	tcl-cshim	completion
+5	tcl-cshim::doors_e2e	test	tcl-cshim	doors_e2e
 5	tcl-cshim::factory	test	tcl-cshim	factory
 5	tcl-cshim::sandbox_isolation	test	tcl-cshim	sandbox_isolation
 5	tcl-dialect::model_version_set	test	tcl-dialect	model_version_set
@@ -329,10 +341,12 @@
 5	tcl-spec-studio::web_contract	test	tcl-spec-studio	web_contract
 5	tcl-spectcl	lib	tcl-spectcl	tcl_spectcl
 5	tcl-spectcl::ambient_environment_floor	test	tcl-spectcl	ambient_environment_floor
+5	tcl-spectcl::codegen_stamps	test	tcl-spectcl	codegen_stamps
 5	tcl-spectcl::eda_environment_packs	test	tcl-spectcl	eda_environment_packs
 5	tcl-spectcl::environment_registration	test	tcl-spectcl	environment_registration
 5	tcl-spectcl::golden_packs	test	tcl-spectcl	golden_packs
 5	tcl-spectcl::surface_roster_trust	test	tcl-spectcl	surface_roster_trust
+5	tcl-spectcl::workspace_trust	test	tcl-spectcl	workspace_trust
 5	tcl-syntax::variable_resolution_conformance	test	tcl-syntax	variable_resolution_conformance
 5	tcl-version	lib	tcl-version	tcl_version
 5	tcl-vm-cli::bin/tclvm	bin	tcl-vm-cli	tclvm

@@ -15,6 +15,7 @@ function and the VM-local facts that authorised it:
 | `profile_generation` | The selected dialect grammar and command surface. |
 | `command_epoch` | The command and inlined-procedure source bindings, selected targets, and trace mode last validated for the unit. |
 | `compiler` | Either the `CompileService` generation that produced the unit or the generation at which an embedder-owned artifact was explicitly admitted as foreign. |
+| `manifest` | The `ArtefactIdentityManifest` of the module the unit came from, so the rungs a disagreeing field rests on are refused again whenever the unit is re-checked. `None` for a plain-dispatch child and for a scanner placeholder, which rest on nothing the manifest covers. |
 
 `Vm::compiled_unit` is the production path for VM-compiled assembly;
 `Vm::admitted_foreign_unit` is the explicit public-artifact admission path. A
@@ -73,6 +74,79 @@ namespace-local or namespace-path command shadowing an otherwise unchanged
 target. Constructed namespaces lose exactly one leading `::` root marker and
 are never passed through written Tcl name canonicalisation.
 
+A specialised command site records `FunctionAsm::command_bindings`: the
+source spelling, its resolution namespace, and the registry identity the
+site was compiled for. For a spec-pack command that declares `alias_of` and
+carries its target's own codegen stamp, that identity is the target's
+(`ResolvedCall::stamp_identity`), so admission follows one prefix-free
+`interp alias` hop from the pack spelling to the builtin; a proc, a native
+command, or anything else at the pack spelling refuses the site.
+
+A site whose emitted code rests on a spec pack's facts also records a
+`tcl_runtime_api::SiteClaim` in `FunctionAsm::site_claims`: `PackFacts` for a
+constant a pack-supplied spec's `const_fold` computed at compile time, and
+`BuiltinAlias` beside a binding whose identity came through `alias_of`. Each
+carries the pack's `PackFactStamp` — its name, the content hash its snapshot
+key interns, the loader's vocabulary version, the registry overlay
+generation, and the evaluator revision the site compiled under. A pack may
+claim; only the VM attests: admission (`function_command_bindings_match`)
+requires every claim's stamp to be one the VM holds, compared whole.
+`Vm::set_pack_facts` sets them; an embedder that compiles against a pack set
+hands the VM `tcl_spectcl::PackSet::fact_stamps` for that set. A VM holding
+no facts, the default, admits exactly the units that claim nothing — every
+unit compiled without a pack — and refuses the rest like any other failed
+binding: plain dispatch when the unit carries source and a compile service
+is installed, an admission error otherwise.
+
+`ReferenceBody` is the claim of a procedure binding the compiler took from a
+pack: a command a pack declares `TclBody`-backed has its definition inlined into
+the procedures that call it (`tcl_compiler::inlining::inline_reference_bodies`),
+which records the binding as it does for a procedure the module defines and
+codegen records the claim beside it, naming the binding, the kind of backing
+(`tcl_runtime_api::BackingKind`) and the pack's `PackFactStamp`. Admission holds
+the live command to the binding as it does any other, and beside the held stamp
+requires the claim's backing to be `TclBody` and its binding to be one the
+function carries (`site_claims_hold`): an exact match of a procedure's text says
+nothing about whether the command *is* that procedure, and the VM defines none
+from a claim. A definition's text is the spec's own for `PackText` and the file
+the loader read at load for `PackageSource`; the compiler reads no file, and the
+text it copies is appended to the compile's source and is no part of the
+artefact's (`ModuleAsm::source` is the module's own).
+
+Every module a compiler emits states an `ArtefactIdentityManifest`
+(`ModuleAsm::manifest`, `tcl_runtime_api::manifest`): the ABI version
+(`CODEGEN_ABI_VERSION`, a fingerprint of `CodegenAbiImportId`'s table), the
+environment, release and build of the profile the module carries, the package
+floors in force, the pack facts any function's sites claim (the claims'
+stamps, sorted and without repeats), the hash of the intrinsic table the
+emitter keyed against (`tcl_registry::intrinsic_table_hash`), and the revision
+of the Tcl library both runtimes embed. The VM states the same fields of
+itself (`Vm::held_identity`): the `RuntimeContext` it is pinned to, the pack
+facts it holds, and this build's tables. `Vm::pin_context` pins a context
+resolved through `tcl_registry::model::ingress`, the ingress the compiler
+uses, where an overlay nothing has installed is a `PinError` and never the
+un-overlaid generation under another name; the generation at the context's
+overlay is held for as long as the pin stands. `Vm::set_dialect_profile` is
+the profile form of the same pin.
+
+The manifest is checked as a whole, and a field that disagrees refuses the
+rungs that rest on it and no others:
+
+| Field | Refuses |
+|---|---|
+| `abi_version`, `environment`, `release`, `build` | every rung, since they decide what every word of the unit decoded to: the module is not run, and the error names the field and both values (`validate_module_profile`) |
+| `packages`, `packs` | rungs 1 and 2: a function with a pack-fact or builtin-alias claim |
+| `intrinsic_table_hash` | rung 4: a function with command bindings, whose specialisations rest on a shipped implementation's identity |
+| `embedded_stdlib_revision` | rungs 3 and 4: a function with procedure bindings, whose body may have been resolved from the library, and one with command bindings |
+
+Every pack the artefact states must be one the VM holds, and a VM may hold
+more; every other field must be equal. A function's rungs are
+read off what it records (`FunctionAsm::rungs`), and a refused function is
+recompiled plain or, without source or a compile service, an admission error,
+as for any other failed binding; a function with only generic-dispatch sites
+is admitted under a changed pack set. Assembly no compiler emitted, which
+carries no manifest, is admitted by its profile, bindings and claims alone.
+
 `BytecodeCompileService::for_profile` follows the profile's shared registry.
 `BytecodeCompileService::new(custom_registry)` owns the embedder registry and
 keeps it when `compile_for_profile` selects the profile grammar. Profile
@@ -89,6 +163,8 @@ two services for the same profile, therefore advances `compiler_generation`.
 | Dialect/profile | Clear | Recompile lazily | Fail closed |
 | Compile service | Clear | Recompile lazily | Fail closed |
 | Command/trace epoch | Revalidate, or compile plain dispatch | Recompile or revalidate lazily | Redispatch at a source-command boundary |
+| Pack facts (`set_pack_facts`) | Revalidate, or compile plain dispatch | Recompile or revalidate lazily | Redispatch at a source-command boundary |
+| Runtime context (`pin_context` to another context under the same profile) | Revalidate, or compile plain dispatch | Recompile or revalidate lazily | Redispatch at a source-command boundary |
 
 `set_compiler` clears both eval caches and `module_procs`. Procedures,
 methods, and function handles retain source and recompile on their next entry.
@@ -160,6 +236,37 @@ provenance changes must not bypass the central host bootstrap introduced by
   a self-contained source-less AOT module;
 - fail-closed suspended coroutines before injection, exactly-once stale
   cleanup traces, stack-wide handler/`finally` suspension or return, and
-  non-OK tail-call settlement after a compiler swap; and
+  non-OK tail-call settlement after a compiler swap;
 - terminal profile changes from inline and computed-head catch/try plus
-  variable-trace paths.
+  variable-trace paths; and
+- a module that claims no pack facts admitted under a VM holding facts for
+  a changed pack set (`a_rung_zero_module_is_admitted_under_a_changed_pack_set`);
+- the manifest's per-rung check: a manifest listing a pack the VM does not hold
+  refuses the unit with a pack-fact site and not the unit with only
+  generic-dispatch sites that carries it
+  (`a_manifest_disagreeing_on_packs_refuses_only_rung_one_sites`), a unit that
+  rests on no pack is admitted under every pack set
+  (`a_rung_zero_unit_is_admitted_under_a_changed_pack_set`), another ABI,
+  environment, release or build refuses the whole module
+  (`a_manifest_for_another_world_refuses_the_whole_module`), and another
+  intrinsic table refuses the unit whose specialisations rest on a shipped
+  implementation and no other
+  (`a_manifest_for_another_intrinsic_table_refuses_only_shipped_backing_sites`),
+  a pin to other package floors refuses the unit that rests on a pack
+  (`a_pin_to_other_package_floors_refuses_the_units_that_rest_on_packs`), and
+  a pin made part-way through a running function is seen at its next command
+  (`a_running_function_is_checked_against_its_manifest_when_the_pin_changes`).
+
+`rust/tcl-vm/tests/cross_version_command_surface_e2e.rs` covers the pin: the
+profile form is the context the profile names, the VM's held identity is the
+identity a module compiled for its pin states, a context the ingress refuses
+leaves the pin unchanged, and the `trace` option table is the pinned
+profile's and not the plain release its runtime version names.
+
+`rust/tcl-spectcl/tests/codegen_stamps.rs` covers a bundled spec pack's
+`alias_of lassign` command: its specialised site records `lassign`'s
+identity and the pack's facts, the VM holding those facts admits it through
+the alias hop with no plain recompile, and a proc at the pack spelling, or
+facts for a changed pack, is refused and recompiled plain. A bundled
+pack's `llength` override folding a constant through its `const_fold` is
+admitted only while the VM holds the pack's facts.

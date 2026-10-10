@@ -26,6 +26,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Assign list elements to variables.",
         synopsis: "struct::list assign sequence var ?var ...?",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -33,6 +36,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Perform a relational join on two lists.",
         synopsis: "struct::list dbJoin ?-inner|-left|-right|-full? ?-keys varname? keyedList1 keyedList2",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -40,6 +46,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Relational join on keyed lists.",
         synopsis: "struct::list dbJoinKeyed ?options? keyedList1 keyedList2",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -47,6 +56,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Test if two lists are structurally equal.",
         synopsis: "struct::list equal ?-simple? a b",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -56,6 +68,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "struct::list filter sequence cmdprefix",
         // cmdprefix invoked as `cmdprefix element` → 1 appended arg.
         command_prefixes: &[(1, AppendedArity::Exactly(1))],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::RUNS_A_CALLBACK,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -64,6 +79,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Filter using an expression over each element.",
         synopsis: "struct::list filterfor var sequence expr",
         arg_roles: &[(0, ArgRole::VarWrite), (2, ArgRole::Expr)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::tcllib::LOOP_CALLBACK),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -71,6 +87,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Flatten nested lists by one or more levels.",
         synopsis: "struct::list flatten ?-full? ?--? sequence",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -80,6 +99,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "struct::list fold sequence initialValue cmdprefix",
         // cmdprefix invoked as `cmdprefix accumulator element` → 2 appended args.
         command_prefixes: &[(2, AppendedArity::Exactly(2))],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::RUNS_A_CALLBACK,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -88,6 +110,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Iterate over all permutations of a list.",
         synopsis: "struct::list foreachperm var sequence body",
         arg_roles: &[(0, ArgRole::VarWrite), (2, ArgRole::Body)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::tcllib::LOOP_CALLBACK),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -95,6 +118,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Generate a list of integers 0..n-1.",
         synopsis: "struct::list iota n",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -102,6 +128,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(3),
         detail: "Invert a longest-common-subsequence result.",
         synopsis: "struct::list lcsInvert lcsData len1 len2",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -109,6 +138,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(2, 3),
         detail: "Find the longest common subsequence of two lists.",
         synopsis: "struct::list longestCommonSubsequence list1 list2 ?maxOccurs?",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -118,6 +150,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "struct::list map sequence cmdprefix",
         // cmdprefix invoked as `cmdprefix element` → 1 appended arg.
         command_prefixes: &[(1, AppendedArity::Exactly(1))],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::RUNS_A_CALLBACK,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -129,6 +164,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         // evaluated once per element (in the caller's frame), not an
         // expression — so it recurses as a body.
         arg_roles: &[(0, ArgRole::VarWrite), (2, ArgRole::Body)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::tcllib::LOOP_CALLBACK),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -136,6 +172,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Create a list by repeating elements.",
         synopsis: "struct::list repeat count element ?element ...?",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -143,6 +182,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Reverse the order of a list.",
         synopsis: "struct::list reverse sequence",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -150,6 +192,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Remove and return the first element.",
         synopsis: "struct::list shift listVar",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -157,6 +202,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Randomly reorder elements of a list.",
         synopsis: "struct::list shuffle list",
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -164,6 +210,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(3),
         detail: "Swap two elements in a list.",
         synopsis: "struct::list swap listVar i j",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -171,6 +220,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(2, 3),
         detail: "Find the longest common subsequence (alternate algorithm).",
         synopsis: "struct::list longestCommonSubsequence2 list1 list2 ?maxOccurs?",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -178,6 +230,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(3),
         detail: "Invert and merge a longest-common-subsequence result.",
         synopsis: "struct::list lcsInvertMerge lcsData len1 len2",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -189,6 +244,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         // appended arg.  `passVar`/`failVar` are result out-variables, not
         // prefixes.
         command_prefixes: &[(1, AppendedArity::Exactly(1))],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -196,6 +254,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Delete an element from a list variable by value.",
         synopsis: "struct::list delete listVar item",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -203,6 +264,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Create a (nested) list by repeating a value.",
         synopsis: "struct::list repeatn value count ?count ...?",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -210,6 +274,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Return the first permutation of a list.",
         synopsis: "struct::list firstperm list",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -217,6 +284,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Return the next permutation in lexicographic order.",
         synopsis: "struct::list nextperm perm",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -224,6 +294,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Return all permutations of a list.",
         synopsis: "struct::list permutations list",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
 ];
@@ -256,6 +329,9 @@ pub fn spec() -> CommandSpec {
         side_effects: SIDE_EFFECTS,
         subcommands: SUBCOMMANDS,
         tcllib_package: Some("struct::list"),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

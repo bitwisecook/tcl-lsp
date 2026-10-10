@@ -301,7 +301,7 @@ fn if_const_true_dead_branch_eliminated() {
 }
 
 #[test]
-fn registry_barrier_after_if_arm_call_keeps_the_arm_value() {
+fn unseen_call_marker_after_if_arm_call_keeps_the_arm_value() {
     let mut cfg = CfgFunction::new("::top", "entry_0");
     let entry = cfg.entry;
     let then = cfg.intern_block("if_then_1");
@@ -336,16 +336,7 @@ fn registry_barrier_after_if_arm_call_keeps_the_arm_value() {
             tokens: None,
             foreach_groups: None,
         },
-        Statement::Barrier {
-            span: sp(),
-            reason: "scalar facts".into(),
-            command: "<registry-barrier>".into(),
-            canonical_command: None,
-            args: vec![],
-            tokens: Some(tcl_compiler::ir::CommandTokens::marker(
-                tcl_compiler::ir::SyntheticMarker::RegistryBarrier,
-            )),
-        },
+        Statement::unseen_call_marker(sp()),
     ];
     cfg.blocks.get_mut(&then).unwrap().terminator = Some(Terminator::Goto {
         target: end,
@@ -614,6 +605,8 @@ fn switch_glob_emits_generic_invoke_not_jump_table() {
         Script::from_statements(vec![Statement::Switch {
             subject_braced: false,
             raw_arg_braced: Vec::new(),
+            raw_arg_quoted: Vec::new(),
+            command: "switch".into(),
             span: sp(),
             subject: "$x".into(),
             subject_span: sp(),
@@ -924,6 +917,7 @@ fn while_in_proc_emits_start_cmd() {
             name: "i".into(),
             name_braced: false,
             amount: None,
+            amount_braced: false,
             safe_on_uninit: false,
         });
     cfg.blocks.get_mut(&body).unwrap().terminator = Some(Terminator::Goto {
@@ -978,6 +972,9 @@ fn codegen_module_with_no_procs() {
         has_dynamic_trace: false,
         traced_variables: std::collections::BTreeSet::new(),
         has_dynamic_variable_trace: false,
+        deferred_writes: tcl_compiler::ir::DeferredWrites::default(),
+        reference_bodies: tcl_compiler::ir::ReferenceBodies::default(),
+        declared_frame_effects: std::collections::BTreeMap::new(),
     };
     let registry = CommandRegistry::build_default();
     let asm = codegen_module(&cfg_mod, &ir_mod, &registry);

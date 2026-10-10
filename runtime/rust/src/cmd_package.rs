@@ -16,12 +16,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `package` — the package database (toward running tcltest). C ref `tclPkg.c`.
+//! `package` — the package database. C ref `tclPkg.c`.
 //!
 //! Holds the provided-version map, the `ifneeded` load scripts, and the
 //! `unknown` handler. `require` returns a provided package's version (checking
-//! the requirements), else invokes the `unknown` handler (the pure-Tcl
-//! auto-loader, which needs the VFS — L2) and re-checks. Version requirements
+//! the requirements), else tries an `ifneeded` script and invokes the
+//! `unknown` handler to discover further loaders before retrying. The
+//! library's pure-Tcl autoloader reads through the VFS. Version requirements
 //! follow TIP 268 (`min-`, `min-max`, bare `min` = same major), verified vs
 //! tclsh 9.0. The core `tcl`/`Tcl` packages are pre-provided at interp start
 //! (as C does before sourcing `init.tcl`).
@@ -176,34 +177,49 @@ fn provide(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result_bytes(&v);
             Code::Ok
         }
-        4 => {
-            let name = obj_bytes(argv[2]);
-            let version = obj_bytes(argv[3]);
-            if !valid_version(&version, interp.runtime_version()) {
-                return invalid_version(interp, &version);
-            }
-            let existing = interp.packages.borrow().provided.get(&name).cloned();
-            if let Some(existing) = existing {
-                if compare_versions(&existing, &version, interp.runtime_version())
-                    != core::cmp::Ordering::Equal
-                {
-                    let mut message = b"conflicting versions provided for package \"".to_vec();
-                    message.extend_from_slice(&name);
-                    message.extend_from_slice(b"\": ");
-                    message.extend_from_slice(&existing);
-                    message.extend_from_slice(b", then ");
-                    message.extend_from_slice(&version);
-                    return interp.error_with_code(&message, b"TCL PACKAGE VERSIONCONFLICT");
-                }
+        // The command answers empty; the shared step leaves the result to
+        // its caller.
+        4 => match provide_package(interp, &obj_bytes(argv[2]), &obj_bytes(argv[3])) {
+            Code::Ok => {
                 interp.set_result_bytes(b"");
-                return Code::Ok;
+                Code::Ok
             }
-            interp.packages.borrow_mut().provided.insert(name, version);
-            interp.set_result_bytes(b"");
-            Code::Ok
-        }
+            refused => refused,
+        },
         _ => interp.wrong_args(b"package provide name ?version?"),
     }
+}
+
+/// `package provide name version`, and `Tcl_PkgProvideEx`: the version is
+/// validated for the release the interpreter emulates, and one already provided
+/// at another version is refused with Tcl's error. A package provided leaves
+/// the interpreter's result as the caller had it, as C Tcl's
+/// `Tcl_PkgProvideEx` does; the `package provide` command empties it itself.
+pub(crate) fn provide_package(interp: &mut Interp, name: &[u8], version: &[u8]) -> Code {
+    if !valid_version(version, interp.runtime_version()) {
+        return invalid_version(interp, version);
+    }
+    let existing = interp.packages.borrow().provided.get(name).cloned();
+    if let Some(existing) = existing {
+        if compare_versions(&existing, version, interp.runtime_version())
+            != core::cmp::Ordering::Equal
+        {
+            let mut message = b"conflicting versions provided for package \"".to_vec();
+            message.extend_from_slice(name);
+            message.extend_from_slice(b"\": ");
+            message.extend_from_slice(&existing);
+            message.extend_from_slice(b", then ");
+            message.extend_from_slice(version);
+            return interp.error_with_code(&message, b"TCL PACKAGE VERSIONCONFLICT");
+        }
+        return Code::Ok;
+    }
+    interp
+        .packages
+        .borrow_mut()
+        .provided
+        .insert(name.to_vec(), version.to_vec());
+    Code::Ok
 }
 
 /// `package require ?-exact? name ?requirement ...?`.

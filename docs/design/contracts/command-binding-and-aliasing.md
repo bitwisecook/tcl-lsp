@@ -4,7 +4,7 @@
 > `rename`, `interp alias`, `namespace import`/`export`/`forget`,
 > `namespace path`, ensembles, and the `::tcl::mathop` / `::tcl::mathfunc`
 > operator commands — and how an AOT compiler may snapshot it safely. The
-> as-built mechanics are [runtime/rename-alias.md](../runtime/rename-alias.md),
+> runtime mechanics are [runtime/rename-alias.md](../runtime/rename-alias.md),
 > [runtime/namespace-tree.md](../runtime/namespace-tree.md), and
 > [runtime/command-introspection.md](../runtime/command-introspection.md); the
 > LSP-side alias tracking is
@@ -200,17 +200,33 @@ redefinition.
   builtin — the same discipline the qualified-`foreach` fallback needs (see
   [compiled-scope-and-name-lowering.md](compiled-scope-and-name-lowering.md)).
 
-### Registry terminal facts and scalar analysis
+### Calls to code the module cannot see
 
-The binding lattice also projects the terminal registry invocation facts at a
-call site.  A resolved terminal whose registry traits include
-`EVALUATES_CODE`, `CREATES_BARRIER`, or `CREATES_DYNAMIC_BARRIER` is a scalar
-analysis boundary: SCCP must widen values after a direct call, and before a
-host statement whose command substitution reaches that terminal.  The CFG
-represents this boundary with a non-dispatching synthetic barrier, so codegen
-does not invoke the handler twice.  The projection follows terminal alias
-resolution and applies the same rule to direct and embedded invocations; it
-does not identify handlers by command spelling.
+A head the module can name brings its frame effect from the registry (a
+builtin's declared traits and variable roles), from the summary of a
+procedure the module defines, or from the document's declaration of a plain
+call — a stub that states its frame effect and nothing else the flow graph
+would have to read from it (`Module::declared_frame_effects`, see
+[dialect-stubs.md](dialect-stubs.md#frame-effect)), which the fresh
+interpreter's command table binds beside the registry's names. A head it
+cannot name may reach the frame it is called from — an autoloaded or
+unknown-handled callee runs `upvar 1` or `uplevel 1` there on every release —
+so the call widens the names that frame holds, once. The binding lattice
+decides which heads those are, at the call site and in Tcl's evaluation order:
+a spelling neither the registry ships for the dialect, nor the document
+declares as a plain call, nor the module binds, which Tcl dispatches to the
+unresolved-command handler; a binding the source-order timeline cannot name,
+after a `rename` or an alias of a computed name, or any spelling once a
+transition moved a name the timeline cannot name; a registry command the head
+reaches through another binding — an alias, a rename, the unresolved-command
+handler — whose traits include `EVALUATES_CODE`, `CREATES_BARRIER` or
+`CREATES_DYNAMIC_BARRIER`, since the flow graph lowers no code reached that
+way; and a computed head. The projection follows terminal alias resolution and
+applies the same rule to direct and embedded invocations; it does not identify
+handlers by command spelling. The CFG represents the widening with one
+non-dispatching statement, `SyntheticMarker::UnseenCall`, beside the call (or
+ahead of a host statement whose command substitution makes it), so codegen
+does not invoke the handler twice.
 
 The historical may-binding state remains a module-wide union for reachability;
 it therefore retains a registry fallback alongside a source-defined procedure.
@@ -220,20 +236,22 @@ call, in Tcl's substitution-before-direct order, and joins conditional and
 loop paths conservatively.  Procedure CFGs start from the timeline suffix
 reachable after their definition together with closed-root boundary state, so
 pre-definition fallbacks do not taint later procedures while later unknown
-rebinding still does.  Any opaque user target or uncertain resolution preserves
-the barrier.  The resulting `RegistryBarrier` is analysis-only and never
-dispatches or adds an executable command/frame/SSA/memory effect. SCCP assigns
-fresh overdefined value versions live after this boundary, including version-0 parameter
-seeds: a handler can change a caller parameter through `upvar` without a source
-assignment. Ordinary barriers retain the existing parameter-seed policy. Only the
-argument-sensitive rerun of an interprocedurally proven pure procedure retains
-its immutable caller-bound seeds. Backward liveness determines the affected
-names; fresh versions preserve earlier proofs even for a value used on both
-sides. The value-clobber sidecar records prior/fresh pairs separately from
-executable writes. Binding and provenance consumers follow the prior version:
-a possible value mutation does not establish a definite source assignment or
-erase existing taint and byte-array provenance. Undefined-variable analysis
-retains unset and after-loop binding evidence through the same lineage.
+rebinding still does.  The marker is analysis-only and never dispatches or adds
+an executable command/frame/SSA/memory effect. SCCP assigns fresh overdefined
+value versions to the names live after it, including version-0 parameter
+seeds: the code it reaches can change a caller parameter through `upvar`
+without a source assignment. Ordinary barriers retain the existing
+parameter-seed policy. Only the argument-sensitive rerun of an
+interprocedurally proven pure procedure retains its immutable caller-bound
+seeds. Backward liveness determines the affected names; fresh versions
+preserve earlier proofs even for a value used on both sides. The value-clobber
+sidecar records prior/fresh pairs separately from executable writes. Binding
+and provenance consumers follow the prior version: a possible value mutation
+does not establish a definite source assignment or erase existing taint and
+byte-array provenance. Undefined-variable analysis retains unset and
+after-loop binding evidence through the same lineage. The SSA also records the
+version each name holds where the marker stands: the code may read it, so a
+store to it is never dead.
 
 ## Hazards to design in (not patch)
 
@@ -273,21 +291,22 @@ retains unset and after-loop binding evidence through the same lineage.
 - [runtime/rename-alias.md](../runtime/rename-alias.md),
   [runtime/namespace-tree.md](../runtime/namespace-tree.md),
   [runtime/command-introspection.md](../runtime/command-introspection.md) —
-  as-built dispatch, redirect lists, and the rename sidecar.
+  runtime dispatch, redirect lists, and the rename sidecar.
 - [command-alias-resolution.md](command-alias-resolution.md) — LSP/analyser
   `interp alias` tracking (the static, editor-facing slice).
 
-Registry value boundaries allocate fresh SSA versions for values live after
-an invocation. The versions live in `SsaFunction::value_clobbers`, separately
-from executable statement writes, caller edges and frame evidence. SCCP marks
-the fresh versions overdefined and preserves the reaching versions for uses
-before the boundary. Explicit outputs of the invocation already have fresh
-versions and keep their binding evidence. Preliminary SSA supplies name-level
-liveness; the final rename walk places clobber joins through ordinary phis.
+The marker for code the module cannot see allocates fresh SSA versions for
+values live after the call. The versions live in `SsaFunction::value_clobbers`,
+separately from executable statement writes, caller edges and frame evidence.
+SCCP marks the fresh versions overdefined and preserves the reaching versions
+for uses before the call. Explicit outputs of the invocation already have
+fresh versions and keep their binding evidence. Preliminary SSA supplies
+name-level liveness; the final rename walk places clobber joins through
+ordinary phis.
 Brace-quoted expression substitutions use the canonical owner's complete
 command view for the same registry projection as ordinary substitutions. The
 owner records one evaluation-ordered index stream across the ordinary and
-in-frame expression inventories. Binding transitions and scalar barriers replay
+in-frame expression inventories. Binding transitions and the unseen-code question replay
 that stream; an earlier expression's nested renames reach both later siblings
 and following statements without changing the inventories used by call graphs.
 Both consumers use the same resolved registry head and alias-prepended argument
@@ -303,10 +322,11 @@ states. The shared expression AST owner identifies short-circuit and ternary
 paths; replay joins the incoming state after each possibly executed command,
 so a skipped alias replacement cannot erase an earlier evaluation target.
 
-Global-frame script and registry-handler boundaries are independent effects.
-When one statement reaches both, CFG construction retains both typed markers
-in ordinary substitutions, conditions, control inputs and direct calls; the
-global boundary cannot replace the registry value clobber for seeded parameters.
+Global-frame script boundaries and calls to code the module cannot see are
+independent effects. When one statement reaches both, CFG construction retains
+both typed markers in ordinary substitutions, conditions, control inputs and
+direct calls; the global boundary cannot replace the value clobber for seeded
+parameters.
 
 Compilation supplies the known entry bindings to SSA value clobber placement.
 An unbound local version zero has no prior value to invalidate; parameter
@@ -315,7 +335,7 @@ its executable definition identity. Raw CFG-only callers remain conservative
 when entry-binding facts are unavailable.
 
 Catch header substitutions materialise their effects before either inline or
-opaque dispatch. Registry-clobbered type reads widen rather than follow the
+opaque dispatch. Clobbered type reads widen rather than follow the
 binding domain's executable lineage; subsequent collection writes retain the
 unknown prior elements. Empty source-class factories retain collection type
 precision only under the straight-line, registry-described proof documented

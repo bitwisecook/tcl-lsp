@@ -37,7 +37,9 @@
 //! ([`string`], [`path`], …), platform-backed families under [`platform`].
 
 pub mod array;
+pub mod base32;
 pub mod binary;
+pub mod case;
 pub mod channel;
 pub mod clock;
 pub mod dict;
@@ -46,6 +48,7 @@ pub mod error;
 pub mod format;
 pub mod index;
 pub mod info;
+pub mod irules;
 pub mod list;
 pub mod lsearch;
 pub mod lseq;

@@ -53,6 +53,7 @@ pub const fn spec() -> CommandSpec {
         }],
         xc_translatable: Some(true),
         taint_source: Some(TaintColour::TAINTED.union(TaintColour::IP_ADDRESS)),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..CommandSpec::DEFAULT
     }
 }

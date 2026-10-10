@@ -42,11 +42,18 @@ use tcl_registry::Arity;
 
 use super::types::ParamDef;
 
+/// Whether a parameter list ends in the formal literally named `args`,
+/// which collects every argument past the others into one list.
+#[must_use]
+pub fn is_variadic(params: &[ParamDef]) -> bool {
+    params.last().is_some_and(|p| p.name == "args")
+}
+
 /// Compute a proc/method's declared `(min, max)` argument arity from its
 /// parsed parameter list.
 #[must_use]
 pub fn arity_of(params: &[ParamDef]) -> Arity {
-    let has_args = params.last().is_some_and(|p| p.name == "args");
+    let has_args = is_variadic(params);
     let counted = if has_args {
         &params[..params.len() - 1]
     } else {

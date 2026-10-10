@@ -78,6 +78,7 @@ pub const fn spec() -> CommandSpec {
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
+                effect: None,
             }]
         },
         side_effects: &[SideEffect {
@@ -87,6 +88,7 @@ pub const fn spec() -> CommandSpec {
             ..SideEffect::DEFAULT
         }],
         taint_source: Some(TaintColour::TAINTED),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..CommandSpec::DEFAULT
     }
 }

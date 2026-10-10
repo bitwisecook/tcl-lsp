@@ -52,7 +52,7 @@ const FORMS: &[FormSpec] = &[
     },
 ];
 
-/// D4-F2: `lassign list ?varName ...?` accepts variable-name args from index 1
+/// `lassign list ?varName ...?` accepts variable-name args from index 1
 /// onward to the end of the call.  Resolve `VarWrite` dynamically so calls with
 /// arbitrarily many vars don't false-fire W210 on the unmodelled tail.
 fn lassign_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
@@ -64,6 +64,7 @@ fn lassign_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lassign",
+        runtime_backing: RuntimeBacking::shipped("lassign"),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::FRAME_HASH_BUILTIN
             | Traits::BYTE_COMPILED
@@ -88,6 +89,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The empty string when every list element was assigned to a variable; otherwise a list of the elements left over after the last variable was assigned.",
         }),
         codegen_hook: Some(CodegenHookId::Lassign),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::destructure::LASSIGN),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         arg_role_resolver: Some(lassign_arg_roles),

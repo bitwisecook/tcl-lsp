@@ -52,6 +52,7 @@ pub const fn spec() -> CommandSpec {
             ..SideEffect::DEFAULT
         }],
         taint_source: Some(TaintColour::TAINTED.union(TaintColour::PORT)),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..CommandSpec::DEFAULT
     }
 }

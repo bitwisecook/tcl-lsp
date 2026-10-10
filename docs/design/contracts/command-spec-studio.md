@@ -281,7 +281,7 @@ the "opening `index.html` straight off disk still works" promise needs.
 
 ## The open-command strip
 
-A pack is many commands and one deliverable, so a strip above the workbench
+A pack contains many commands in one file, so a strip above the workbench
 tabs holds the commands that are open: two specs can be compared, or an option
 table copied across, without a round trip through the browser.
 `web/src/openTabs.ts` decides what it holds — opening, focus, eviction,
@@ -629,8 +629,8 @@ what makes the studio a *browser* of the registry as well as an editor.
 
 Some fields hold a function pointer (`arg_role_resolver`, `const_fold`,
 `taint_sink_gate`, …) or a reference to a **named** registry descriptor or
-constant (`definition_body`, `case_list`, `body_scope`, `frame_effect`,
-`bpf_op`, `event_requires`, `event_requirement_forms`, `data_collection`,
+constant (`case_list`, `body_scope`, `frame_effect`, `bpf_op`,
+`event_requires`, `event_requirement_forms`, `data_collection`,
 `side_switch_target`, `event_handler_priority`, and `command_forms`). Rust
 can observe that such a field is set, but not recover the expression — the
 constant's path — that set it.
@@ -658,6 +658,22 @@ spec. `object_class` is the same case one level deeper — a class name, a
 flag, superclass names, and a method table that *is* `&[SubCommand]` — so it
 is seeded as a JSON object whose methods are ordinary subcommand drafts and
 rendered as `object_class NAME ?-superclass {…}? ?-allow-unknown? { method … }`.
+
+`definition_body` and `semantic_operation` left the unrecoverable list
+together. A definer grammar is plain
+data once every member row states its `MemberEffect`, so seeding writes the
+name of the shipped grammar whose data it equals (`tcloo`, `snit`, … — a
+`const` has no single address, so the match is by data, not by pointer) or
+the whole grammar, and both renderers write it back out: `definition_body
+NAME` or the inline block with `-effect` on every member row, and
+`Some(&crate::definer::TCLOO_GRAMMAR)` or the full `DefinitionBodyGrammar`
+literal. `semantic_operation` is a closed vocabulary seeded as `{kind,
+detail}` from `SemanticOperationId::kind_str` / `detail_str` and written
+`semantic_operation Invoke|{Intrinsic ID}|{StructuredLowering ID}`. The form
+picks a shipped grammar by name and shows an inline grammar's rows read-only,
+as it does a clause grammar's; the semantic operation is a picker over the
+vocabulary. A form-level (`refine`) `semantic_operation` stays native — no
+shipped form sets one.
 
 One unrecoverable expression is not a top-level field. `OptionArity::Hook`
 holds a function pointer inside an *option row*, so it gets a `hook fn` text
@@ -857,13 +873,25 @@ each `proc` into a draft:
 |---|---|
 | `arity` | the parameter list — defaults are optional, trailing `args` is variadic |
 | `arg_roles` | `ProcArgTrait` from [proc-arg-trait inference](proc-arg-traits.md), deep pass enabled |
-| `traits` | the same trait observations |
+| `traits` | the same trait observations, and `PURE` as a proposal when the body is side-effect free |
+| `side_effects`, `return_type` | proposals from the compiler's summary of the body: the state outside its frame it writes or reads through a command, and the type every path answers |
 | `hover`, `forms` | the `proc`'s doc comment and parameter list |
 | `required_package`, `introduced_version` | `package provide` |
 
 `ProcArgTrait::DynamicNameLocal` maps to **no** role: it is callee-local, so
 passing a literal does not consume the caller's variable and marking it
 `VarWrite` would be wrong.
+
+What a body states comes from `infer::infer_from_body(params, body, dialect)`,
+which reads the interprocedural summary of a procedure built from the parameter
+list and the body (a name the list binds is local and any other is not), and the
+analyser's parameter traits for the parameters the body invokes as commands. Each
+fact is a proposal: a body is evidence of what the command does today, and whether
+a fact is part of its contract is the author's call, so each is added with its line
+of evidence and nothing the draft already states is replaced. The summary does
+not record a read of a global through a variable substitution, so a body that
+only reads one is still proposed `PURE`: the trait says side-effect free, not
+deterministic.
 
 Every inferred draft carries `Inferred::notes` — one line of evidence per
 guess, surfaced in the UI. **Inference reports its reasoning, never a bare
@@ -958,6 +986,19 @@ holds); a
 cannot say, with no `GAPS` entry, is a bug. New DSL words are **additive**:
 the `speclib` version word revs (1.0 → 1.1), `VOCABULARY_VERSION` bumps only
 on meaning changes, and the loader keeps accepting every older vocabulary.
+
+The value-transfer evaluation statements (`semantics`, `evaluate`, `facts`;
+DSL 2.2) are the newest rows to move this way: `EvaluatorCapability` and
+`DeclaredSemantics` on the registry side, `loader/semantics.rs`'s grammar,
+`render_spectcl.rs`'s `semantics_block` (or the `GAPS`-tracked
+`DraftOpaque` placeholder for a body it cannot recover), and the studio's
+`route` and `body` fields under the existing "Effects and purity" cluster
+all moved together
+([value-evaluation.md](../compiler/value-evaluation.md) § *The four
+surfaces, the parity tests, and `spectcl_check`*). The `GAPS` row for the
+whole family is gone; only a declared implementation's *body* — the one
+thing the draft can never recover from a compiled hook slot, `const_fold`
+included — and an option-level `-evaluate` decline stay `GAPS` entries.
 
 ## Publishing
 

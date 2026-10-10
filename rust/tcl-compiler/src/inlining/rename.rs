@@ -184,12 +184,22 @@ fn rewrite_assign_like(stmt: &Statement, rename: &HashMap<String, String>) -> St
             name,
             name_braced,
             amount,
+            amount_braced,
             safe_on_uninit,
         } => Statement::Incr {
             span: *span,
             name: rename_var_name(name, rename),
             name_braced: *name_braced,
-            amount: amount.as_ref().map(|a| rewrite_value_string(a, rename)),
+            // A braced amount substitutes nothing, so it names no variable
+            // a rename could reach.
+            amount: amount.as_ref().map(|a| {
+                if *amount_braced {
+                    a.clone()
+                } else {
+                    rewrite_value_string(a, rename)
+                }
+            }),
+            amount_braced: *amount_braced,
             safe_on_uninit: *safe_on_uninit,
         },
         Statement::ExprEval {
@@ -226,9 +236,21 @@ fn rewrite_call_like(stmt: &Statement, rename: &HashMap<String, String>) -> Stat
             span: *span,
             command: command.clone(),
             canonical_command: canonical_command.clone(),
+            // A braced word substitutes nothing, so a `$v` inside it is literal
+            // text and survives unrewritten.
             args: args
                 .iter()
-                .map(|a| rewrite_value_string(a, rename))
+                .enumerate()
+                .map(|(index, arg)| {
+                    let literal = tokens
+                        .as_ref()
+                        .is_some_and(|tokens| tokens.arg_is_braced_literal(index));
+                    if literal {
+                        arg.clone()
+                    } else {
+                        rewrite_value_string(arg, rename)
+                    }
+                })
                 .collect(),
             defs: defs.iter().map(|d| rename_var_name(d, rename)).collect(),
             reads: reads.iter().map(|r| rename_var_name(r, rename)).collect(),
@@ -246,7 +268,13 @@ fn rewrite_call_like(stmt: &Statement, rename: &HashMap<String, String>) -> Stat
             ..
         } => Statement::Return {
             span: *span,
-            value: value.as_ref().map(|v| rewrite_value_string(v, rename)),
+            value: value.as_ref().map(|v| {
+                if *braced {
+                    v.clone()
+                } else {
+                    rewrite_value_string(v, rename)
+                }
+            }),
             value_word: None,
             expr: expr.as_ref().map(|e| rewrite_expr(e, rename)),
             command_binding: command_binding.clone(),
@@ -433,7 +461,7 @@ fn rewrite_binding_scope(stmt: &Statement, rename: &HashMap<String, String>) -> 
             handlers: handlers
                 .iter()
                 .map(|h| TryHandler {
-                    kind: h.kind.clone(),
+                    kind: h.kind,
                     match_arg: h.match_arg.clone(),
                     trap_pattern: h.trap_pattern.clone(),
                     var_name: h.var_name.as_ref().map(|v| rename_local(v, rename)),
@@ -465,6 +493,8 @@ fn rewrite_switch(stmt: &Statement, rename: &HashMap<String, String>) -> Stateme
         nocase,
         raw_args,
         raw_arg_braced,
+        raw_arg_quoted,
+        command,
         patterns_braced,
     } = stmt
     else {
@@ -504,6 +534,8 @@ fn rewrite_switch(stmt: &Statement, rename: &HashMap<String, String>) -> Stateme
         nocase: *nocase,
         raw_args: raw_args.clone(),
         raw_arg_braced: raw_arg_braced.clone(),
+        raw_arg_quoted: raw_arg_quoted.clone(),
+        command: command.clone(),
         patterns_braced: *patterns_braced,
     }
 }

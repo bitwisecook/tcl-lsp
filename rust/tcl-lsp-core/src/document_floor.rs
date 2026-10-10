@@ -58,7 +58,7 @@ impl<'a> DocumentFloor<'a> {
     /// The guaranteed-available version floor for `spec`'s owning package.
     ///
     /// The profile's library pin supplies the base floor (§7.1: the shipped Tk
-    /// on a plain Tcl base, a keyed vendor surface at its D5 oldest-supported
+    /// on a plain Tcl base, a keyed vendor surface at its oldest-supported
     /// default); an explicit `package require` can only **raise** it. When
     /// several requires name the same package, the most restrictive (highest)
     /// lower bound wins.

@@ -49,6 +49,10 @@ tcl-registry = { path = "../tcl-registry" }
 tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-irules = { path = "../tcl-irules" }
+tcl-cmd-core = { path = "../tcl-cmd-core" }
+
+[dev-dependencies]
+tcl-test-support = { path = "../tcl-test-support" }
 
 [lints]
 workspace = true

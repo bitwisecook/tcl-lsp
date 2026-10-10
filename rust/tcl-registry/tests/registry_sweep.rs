@@ -65,6 +65,7 @@ use tcl_registry::hover::FormKind;
 use tcl_registry::lifecycle::Lifecycle;
 use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::side_effects::SideEffectTarget;
+use tcl_registry::stamp_window::StampWindow;
 use tcl_registry::taint::TaintColour;
 // `registry_for_dialect` is deliberately *not* imported: this file defines its
 // own below, routing the sweep through the shipped `.tclspec` loadables so the
@@ -353,6 +354,313 @@ fn arity_window_gate_rejects_each_malformed_shape() {
     );
 }
 
+/// Assert the invariants of a list of codegen-axis stamp windows.
+///
+/// A shipped-spec hard gate, like the arity windows': a pack degrades with a
+/// notice, a compiled-in spec fails the suite. Two properties, each a way a
+/// window set can be meaningless rather than merely unusual:
+///
+/// 1. every window's `Lifecycle` is ordered — an impossible window can never be
+///    selected;
+/// 2. no two windows overlap, because two stamps claiming one release make the
+///    selection depend on declaration order.
+///
+/// There is no containment check against the owner's own lifecycle: a stamp
+/// window is on the Tcl core's axis, and a package-owned command's lifecycle is
+/// on its package's.
+fn assert_stamp_windows_consistent<T: Copy>(windows: &[StampWindow<T>], what: &str) {
+    for (i, window) in windows.iter().enumerate() {
+        assert!(
+            window.lifecycle.validate().is_ok(),
+            "{what}: stamp window {i} has an impossible lifecycle"
+        );
+        for (j, other) in windows.iter().enumerate().skip(i + 1) {
+            assert!(
+                !window.overlaps(other),
+                "{what}: stamp windows {i} and {j} both cover a release"
+            );
+        }
+    }
+}
+
+/// Every stamp window list a command and its subcommands carry, through the
+/// gate above.
+fn assert_spec_stamp_windows_consistent(spec: &tcl_registry::CommandSpec, what: &str) {
+    assert_stamp_windows_consistent(spec.codegen_hook_windows, &format!("{what} codegen_hook"));
+    assert_stamp_windows_consistent(
+        spec.inline_codegen_hook_windows,
+        &format!("{what} inline_codegen_hook"),
+    );
+    assert_stamp_windows_consistent(
+        spec.semantic_operation_windows,
+        &format!("{what} semantic_operation"),
+    );
+    assert_stamp_windows_consistent(
+        spec.native_lowering_windows,
+        &format!("{what} native_lowering"),
+    );
+    for sub in spec.subcommands {
+        let what = format!("{what} {}", sub.name);
+        assert_stamp_windows_consistent(sub.codegen_hook_windows, &format!("{what} codegen_hook"));
+        assert_stamp_windows_consistent(
+            sub.inline_codegen_hook_windows,
+            &format!("{what} inline_codegen_hook"),
+        );
+        assert_stamp_windows_consistent(
+            sub.semantic_operation_windows,
+            &format!("{what} semantic_operation"),
+        );
+    }
+}
+
+/// No shipped spec carries two stamp windows that cover one release, or one
+/// that cannot be selected at any — and the gate that says so is live, not
+/// vacuous.
+///
+/// Every shipped spec currently declares empty stamp windows, so the sweep
+/// passes trivially and would keep passing if the gate's body were deleted.
+/// The malformed shapes below are what it exists to reject.
+#[test]
+fn stamp_windows_never_overlap() {
+    fn window(
+        introduced: Option<&'static str>,
+        retired: Option<&'static str>,
+        value: u8,
+    ) -> StampWindow<u8> {
+        StampWindow {
+            lifecycle: Lifecycle {
+                introduced,
+                deprecated: None,
+                retired,
+                deprecation_fix: None,
+            },
+            value,
+        }
+    }
+    fn rejects(windows: &[StampWindow<u8>], why: &str) {
+        let caught = std::panic::catch_unwind(|| {
+            assert_stamp_windows_consistent(windows, "probe");
+        });
+        assert!(caught.is_err(), "the gate must reject {why}");
+    }
+
+    let reg = CommandRegistry::build_default();
+    for name in reg.command_names() {
+        for spec in reg.specs(name) {
+            assert_spec_stamp_windows_consistent(spec, name);
+        }
+    }
+
+    // A well-formed pair is accepted, so the cases below fail for their stated
+    // reason and not because the helper rejects everything.
+    assert_stamp_windows_consistent(
+        &[window(None, Some("9.0"), 1), window(Some("9.0"), None, 2)],
+        "probe",
+    );
+    rejects(
+        &[window(Some("9.0"), Some("8.6"), 1)],
+        "a window retired before it was introduced",
+    );
+    rejects(
+        &[window(None, Some("9.0"), 1), window(Some("8.6"), None, 2)],
+        "two windows that both cover 8.6",
+    );
+    rejects(
+        &[window(None, None, 1), window(None, None, 2)],
+        "two unbounded windows",
+    );
+    rejects(
+        &[window(Some("9.0"), None, 1), window(Some("9.1"), None, 1)],
+        "two windows of one stamp that both cover 9.1",
+    );
+}
+
+/// The conservative fact for a command a native extension registers is the top
+/// of every axis, stated once (`docs/design/compiler/registry-consumer-contracts.md`
+/// § *C Tcl extensions*): unknown arity; every argument may be a script or a
+/// variable name at any level; unknown reads and writes; may create, rename
+/// and delete commands and establish traces; may complete with any code, a
+/// normal completion among them; a taint sink and source; unsafe and hidden in
+/// a safe interpreter; never pure; and host-native, so it names no stamp and no
+/// window and is dispatched plain at every release.
+///
+/// Two axes are the registry's own wildcard and are left unstated: a command
+/// with no state-transition descriptor resolves to `UnknownInvocation`, which a
+/// closed "unknown rebinding" statement could only narrow. The negative is the
+/// narrowing itself: a stated purity replaces the effect axes and no other, so
+/// a pure extension command is still a taint source and still hidden in a safe
+/// interpreter.
+/// The traits the design page names for the extension default, each by the name
+/// `traits.rs` gives it, and nothing else: a trait added to the default is a
+/// decision, not drift.
+fn extension_default_traits() -> Traits {
+    [
+        "EVALUATES_CODE",
+        "CREATES_BARRIER",
+        "CREATES_DYNAMIC_BARRIER",
+        "UNSAFE",
+        "SAFE_INTERP_HIDDEN",
+        "TAINT_SINK",
+        "TAINT_SOURCE",
+        "ESTABLISHES_VARIABLE_TRACE",
+    ]
+    .iter()
+    .map(|name| tcl_registry::traits::Trait::from_name(name).expect(name))
+    .collect()
+}
+
+/// What the default's own spec states, and what it leaves to the registry's
+/// wildcard.
+fn check_extension_default_spec(spec: &tcl_registry::CommandSpec) {
+    use tcl_registry::RuntimeBacking;
+    use tcl_registry::completion::{CompletionCodeDomain, CompletionDescriptor};
+    use tcl_registry::side_effects::SideEffect;
+
+    let expected = extension_default_traits();
+    assert_eq!(spec.traits, expected, "got {}", spec.traits);
+    assert!(!spec.traits.contains(Traits::PURE), "never pure");
+
+    assert_eq!(spec.arity, Arity::any());
+    assert_eq!(
+        spec.side_effects,
+        [SideEffect {
+            target: SideEffectTarget::Unknown,
+            reads: true,
+            writes: true,
+            ..SideEffect::DEFAULT
+        }],
+        "unknown reads and writes"
+    );
+    assert_eq!(spec.completion, Some(CompletionDescriptor::CONSERVATIVE));
+    assert_eq!(
+        CompletionDescriptor::CONSERVATIVE.codes,
+        CompletionCodeDomain::Any
+    );
+    assert_eq!(spec.runtime_backing, RuntimeBacking::HostNative);
+
+    // No stamp, no window and no hook: a host-native command is never
+    // specialised, whatever the release.
+    assert!(
+        spec.codegen_hook.is_none()
+            && spec.codegen_hook_windows.is_empty()
+            && spec.inline_codegen_hook.is_none()
+            && spec.inline_codegen_hook_windows.is_empty()
+            && spec.semantic_operation.is_none()
+            && spec.semantic_operation_windows.is_empty()
+            && spec.native_lowering.is_none()
+            && spec.native_lowering_windows.is_empty()
+            && spec.lowering_hook.is_none()
+            && spec.analyser_hook.is_none()
+    );
+    // The wildcard axes are unstated, not stated narrower.
+    assert!(
+        spec.command_table_effect.is_none()
+            && spec.state_transitions.is_none()
+            && spec.world_effects.is_none()
+    );
+}
+
+/// What a registry makes of the default at every arity and at every release.
+fn check_extension_default_resolution(spec: tcl_registry::CommandSpec) {
+    use tcl_registry::completion::CompletionDescriptor;
+    use tcl_registry::{SemanticOperationId, StateTransitionKnowledge};
+
+    let mut registry = CommandRegistry::build_default();
+    registry.insert(spec);
+    for words in [
+        &[][..],
+        &["a"][..],
+        &["a", "b", "c", "d", "e", "f", "g"][..],
+    ] {
+        let resolved = registry
+            .resolve_invocation("ext_cmd", words, None)
+            .expect("the extension command resolves");
+        let facts = resolved.facts();
+        assert!(
+            facts
+                .arity
+                .accepts(u16::try_from(words.len()).expect("small"))
+        );
+        assert_eq!(facts.completion, CompletionDescriptor::CONSERVATIVE);
+        assert_eq!(facts.operation, SemanticOperationId::Invoke);
+        assert!(
+            matches!(
+                facts.state_transitions,
+                StateTransitionKnowledge::UnknownInvocation
+            ),
+            "it may rebind any command and establish any trace"
+        );
+        assert!(resolved.effects().requires_world_barrier());
+    }
+    for point in [
+        None,
+        Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+        Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+        Some(SurfaceQuery::any_release(Family::Tcl)),
+    ] {
+        let call = registry
+            .resolve_call("ext_cmd", &["a"], point)
+            .expect("the extension command resolves");
+        assert!(
+            call.codegen_hook.is_none()
+                && call.inline_codegen_hook.is_none()
+                && call.lowering_hook.is_none()
+                && call.analyser_hook.is_none(),
+            "dispatched plain at {point:?}"
+        );
+    }
+}
+
+/// The declared form of the default is the spec's, and a stated purity narrows
+/// the effect axes and no other.
+fn check_extension_default_narrowing() {
+    use tcl_dialect::model::Provenance;
+    use tcl_registry::extension_default;
+    use tcl_registry::model::DeclaredCommand;
+
+    let declared =
+        DeclaredCommand::extension("ext_cmd".to_owned(), Vec::new(), Provenance::Document);
+    assert_eq!(declared.traits, extension_default_traits());
+    let pure = declared.narrowed_by(Traits::PURE, Vec::new());
+    assert!(pure.traits.contains(Traits::PURE));
+    assert!(
+        !pure.traits.intersects(extension_default::EFFECT_AXES) && pure.side_effects.is_empty(),
+        "purity replaces the effect axes: {}",
+        pure.traits
+    );
+    assert!(
+        pure.traits.contains(Traits::TAINT_SOURCE)
+            && pure.traits.contains(Traits::TAINT_SINK)
+            && pure.traits.contains(Traits::UNSAFE)
+            && pure.traits.contains(Traits::SAFE_INTERP_HIDDEN),
+        "purity says nothing of taint or safety: {}",
+        pure.traits
+    );
+}
+
+/// The conservative fact for a command a native extension registers is the top
+/// of every axis, stated once (`docs/design/compiler/registry-consumer-contracts.md`
+/// § *C Tcl extensions*): unknown arity; every argument may be a script or a
+/// variable name at any level; unknown reads and writes; may create, rename
+/// and delete commands and establish traces; may complete with any code, a
+/// normal completion among them; a taint sink and source; unsafe and hidden in
+/// a safe interpreter; never pure; and host-native, so it names no stamp and no
+/// window and is dispatched plain at every release.
+///
+/// Two axes are the registry's own wildcard and are left unstated: a command
+/// with no state-transition descriptor resolves to `UnknownInvocation`, which a
+/// closed "unknown rebinding" statement could only narrow. The negative is the
+/// narrowing itself: a stated purity replaces the effect axes and no other, so
+/// a pure extension command is still a taint source and still hidden in a safe
+/// interpreter.
+#[test]
+fn the_extension_default_is_at_the_top_of_every_axis() {
+    let spec = tcl_registry::CommandSpec::extension_default("ext_cmd");
+    check_extension_default_spec(&spec);
+    check_extension_default_resolution(spec);
+    check_extension_default_narrowing();
+}
+
 // SWEEP 1 — every command in every dialect, every accessor.
 /// Exercise every accessor on one command spec (and its subcommands)
 /// for a given dialect. Extracted from `sweep_every_command_every_accessor`
@@ -599,6 +907,202 @@ fn check_registry_queries(
             term.scan_start
         );
     }
+    check_derived_queries(reg, active, dname, name, spec);
+}
+
+/// Ask every derived query of representative resolutions of `name` — each
+/// subcommand (or none), with and without the command's first option, then
+/// enough ordinary words to fill a typical layout — and hold each answer to
+/// its own contract: positions inside the call, a sorted role table,
+/// operands after the level word. No query may panic on any shipped command.
+fn check_derived_queries(
+    reg: &CommandRegistry,
+    active: Option<SurfaceQuery<'_>>,
+    dname: &str,
+    name: &str,
+    spec: &tcl_registry::CommandSpec,
+) {
+    let heads: Vec<Option<&str>> = if spec.subcommands.is_empty() {
+        vec![None]
+    } else {
+        spec.subcommands.iter().map(|sub| Some(sub.name)).collect()
+    };
+    for head in heads {
+        for words in representative_calls(spec, head) {
+            check_derived_answers(reg, active, dname, name, &words);
+        }
+    }
+}
+
+/// The representative calls of `spec` after `head` (a subcommand word, or
+/// none): three ordinary words, and the same behind the command's first
+/// option.
+fn representative_calls<'s>(
+    spec: &'s tcl_registry::CommandSpec,
+    head: Option<&'s str>,
+) -> Vec<Vec<&'s str>> {
+    let first_option = spec.options.first().map(|option| option.name);
+    [None, first_option]
+        .into_iter()
+        .map(|option| {
+            head.into_iter()
+                .chain(option)
+                .chain(["w1", "w2", "w3"])
+                .collect()
+        })
+        .collect()
+}
+
+/// The derived queries of one resolution, each held to its own contract.
+fn check_derived_answers(
+    reg: &CommandRegistry,
+    active: Option<SurfaceQuery<'_>>,
+    dname: &str,
+    name: &str,
+    words: &[&str],
+) {
+    let arguments: Vec<tcl_registry::InvocationWord<'_>> = words
+        .iter()
+        .map(|word| tcl_registry::InvocationWord::Literal(word))
+        .collect();
+    let Some(invocation) = reg
+        .resolve_structured_invocation(
+            tcl_registry::InvocationWords::structured(
+                tcl_registry::InvocationWord::Literal(name),
+                &arguments,
+            ),
+            active,
+        )
+        .resolved()
+    else {
+        return;
+    };
+    let at = format!("{dname}/{name} {words:?}");
+    assert_eq!(invocation.dialect, active, "{at}: the resolution's query");
+    if let Some(roles) = invocation.arg_roles() {
+        assert!(
+            roles.windows(2).all(|pair| pair[0].0 <= pair[1].0),
+            "{at}: arg_roles sorted by position"
+        );
+        assert!(
+            roles.iter().all(|(index, _)| *index < words.len()),
+            "{at}: arg_roles inside the call: {roles:?}"
+        );
+    }
+    for pattern in invocation.pattern_args() {
+        assert!(
+            usize::from(pattern.index) < words.len(),
+            "{at}: pattern arg"
+        );
+    }
+    if let Some((case, clauses)) = invocation.case_invocation() {
+        for index in [
+            case.subject_index,
+            case.clause_list_index,
+            case.inline_clause_start,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            assert!(index <= words.len(), "{at}: case position {index}");
+        }
+        assert!(
+            clauses
+                .iter()
+                .all(|clause| clause.pattern_index < words.len())
+        );
+    }
+    if let Some((_, operands)) = invocation.frame_effect() {
+        assert!(
+            operands.iter().all(|operand| operand.0 < words.len()),
+            "{at}: frame operands inside the call"
+        );
+    }
+    let _ = invocation.return_type();
+    let _ = invocation.effects();
+    let effects = invocation.option_effects();
+    assert!(effects.option_end <= words.len(), "{at}: option_end");
+    let _ = invocation.substitutions_performed();
+    if let Some(plan) = invocation.clause_plan() {
+        assert!(
+            plan.roles.iter().all(|(index, _)| *index < words.len()),
+            "{at}: clause plan inside the call"
+        );
+    }
+}
+
+/// Hold the derived queries to the by-name registry answers they re-key, on
+/// one all-literal call under the registry's own release, wherever the
+/// resolution selected the descriptors the by-name lookup reads (the same
+/// spec, and the subcommand the dialect-blind lookup finds): `arg_roles` is
+/// `arg_indices_for_role_words` over every role, `pattern_args` is
+/// `pattern_args_words_for_dialect`, `case_invocation` is the registry's
+/// reading, `return_type` is `return_type_for_call`, and `frame_effect` is
+/// the descriptor resolved over the words.
+fn check_derived_query_parity(
+    reg: &CommandRegistry,
+    dname: &str,
+    name: &str,
+    spec: &tcl_registry::CommandSpec,
+    words: &[&str],
+) {
+    let own = reg.own_surface_query();
+    let Some(invocation) = reg.resolve_invocation(name, words, own) else {
+        return;
+    };
+    let same_spec = own
+        .map_or(Some(spec), |query| reg.get_for_surface(name, Some(query)))
+        .is_some_and(|selected| std::ptr::eq(selected, spec));
+    let by_name_sub = (!spec.subcommands.is_empty())
+        .then(|| words.first().and_then(|word| spec.resolve_subcommand(word)))
+        .flatten()
+        .map(|sub| sub.name);
+    let resolved_sub = invocation
+        .subcommand
+        .resolved()
+        .map(|sub| sub.canonical_name);
+    if !same_spec || by_name_sub != resolved_sub {
+        return;
+    }
+    let at = format!("{dname}/{name} {words:?}");
+    let literals = tcl_registry::InvocationArguments::literals(words);
+    let expected_roles = ArgRole::ALL
+        .iter()
+        .map(|&role| {
+            reg.arg_indices_for_role_words(name, literals, role)
+                .map(|indices| indices.into_iter().map(move |index| (index, role)))
+        })
+        .collect::<Option<Vec<_>>>()
+        .map(|per_role| {
+            // Concatenated in `ArgRole::ALL` order, so a stable sort by
+            // position is the derived table's order.
+            let mut roles: Vec<(usize, ArgRole)> = per_role.into_iter().flatten().collect();
+            roles.sort_by_key(|&(index, _)| index);
+            roles.dedup();
+            roles
+        });
+    assert_eq!(invocation.arg_roles(), expected_roles, "{at}: arg_roles");
+    assert_eq!(
+        invocation.pattern_args(),
+        reg.pattern_args_words_for_dialect(name, literals, own),
+        "{at}: pattern_args"
+    );
+    assert_eq!(
+        invocation.case_invocation().map(|(case, _)| case),
+        reg.case_invocation(name, words, own).map(|(_, case)| case),
+        "{at}: case_invocation"
+    );
+    assert_eq!(
+        invocation.return_type(),
+        spec.return_type_for_call(words),
+        "{at}: return_type"
+    );
+    if let Some(frame) = spec.frame_effect {
+        let (level, rest) = frame.resolve_for_version(words, reg.runtime_version());
+        let (derived_level, operands) = invocation.frame_effect().expect("a frame effect");
+        assert_eq!(operands.len(), rest.len(), "{at}: frame operands");
+        assert_eq!(derived_level, level, "{at}: frame level");
+    }
 }
 
 /// The headline sweep: for each loadable dialect, build the registry and
@@ -648,6 +1152,28 @@ fn sweep_every_command_every_accessor() {
         total_specs > 1000,
         "sweep unexpectedly small: {total_specs} specs"
     );
+}
+
+/// The derived-query layer re-keys the by-name answers and changes none of
+/// them: for every command of every loadable dialect, on the representative
+/// calls of its first subcommand (or of the command itself), each derived
+/// query equals the by-name answer it re-keys wherever the resolution
+/// selected the same descriptors.
+///
+/// registry-metadata: both sides read registry-internal data.
+#[test]
+fn derived_queries_agree_with_the_by_name_answers() {
+    for &dname in LOADABLE_DIALECTS {
+        let reg = registry_for_dialect(dname);
+        let names: Vec<String> = reg.command_names().map(ToOwned::to_owned).collect();
+        for name in &names {
+            let spec = reg.get(name).expect("a listed name resolves");
+            let head = spec.subcommands.first().map(|sub| sub.name);
+            for words in representative_calls(spec, head) {
+                check_derived_query_parity(&reg, dname, name, spec, &words);
+            }
+        }
+    }
 }
 
 /// Count the operand words a subcommand synopsis advertises after its
@@ -791,6 +1317,138 @@ fn sweep_deprecated_drop_in_replacements_resolve() {
         drop_ins >= 20,
         "expected the iRules drop-in rename family, got {drop_ins}"
     );
+}
+
+/// Every spec's `alias_of`, when set, must name a command that actually
+/// resolves *in the same registry* — the identity the loader's stamp
+/// rejection rule trusts and codegen records at a specialised site. No
+/// shipped spec declares one (`alias_of` is a pack command's field), so
+/// the live half sweeps forward-looking; the synthetic half pins what the
+/// live half would catch — an unknown target, and a target real only in
+/// another dialect's family.
+///
+/// registry-metadata: `alias_of` is registry data with no codegen effect
+/// yet.
+#[test]
+fn alias_of_names_a_shipped_command_of_the_same_family() {
+    for &dname in LOADABLE_DIALECTS {
+        let reg = registry_for_dialect(dname);
+        let names: Vec<String> = reg.command_names().map(ToOwned::to_owned).collect();
+        for name in &names {
+            let Some(spec) = reg.get(name) else { continue };
+            let Some(target) = spec.alias_of else {
+                continue;
+            };
+            assert!(
+                reg.get(target).is_some(),
+                "{dname}/{name}: alias_of {target:?} is not a registered command"
+            );
+        }
+    }
+
+    // Positive: a pack command naming a real shipped command resolves —
+    // proving the live sweep's own `reg.get(target).is_some()` assertion
+    // is meaningful, not vacuously true.
+    let mut with_real_target = CommandRegistry::build_default();
+    with_real_target.insert(tcl_registry::CommandSpec {
+        name: "vendor::unpack",
+        alias_of: Some("lsort"),
+        ..tcl_registry::CommandSpec::DEFAULT
+    });
+    let real_target = with_real_target
+        .get("vendor::unpack")
+        .and_then(|spec| spec.alias_of)
+        .expect("the fixture just declared it");
+    assert!(
+        with_real_target.get(real_target).is_some(),
+        "lsort must be a real shipped command for this fixture to prove anything"
+    );
+
+    // Negative: an unknown target does not resolve — what the live sweep
+    // above would fail on if a real spec ever declared one.
+    let mut with_unknown_target = CommandRegistry::build_default();
+    with_unknown_target.insert(tcl_registry::CommandSpec {
+        name: "vendor::unpack",
+        alias_of: Some("not_a_real_command_zzz"),
+        ..tcl_registry::CommandSpec::DEFAULT
+    });
+    let unknown_target = with_unknown_target
+        .get("vendor::unpack")
+        .and_then(|spec| spec.alias_of)
+        .expect("the fixture just declared it");
+    assert!(
+        with_unknown_target.get(unknown_target).is_none(),
+        "an unknown alias_of target must not silently resolve"
+    );
+
+    // Negative: "of the same family" — a command real only in another
+    // dialect does not resolve in the plain Tcl registry.
+    let plain = CommandRegistry::build_default();
+    assert!(
+        plain.get("HTTP::header").is_none(),
+        "HTTP::header is an f5-irules command; it must not resolve in the plain Tcl family"
+    );
+}
+
+/// The core Tcl commands the runtime must back, as the WASM command-parity
+/// gate (`rust/xtask/src/command_backing.rs`) defines them: the Tcl family's
+/// built-in specs (no `required_package`) available at Tcl 9.0 or later.
+fn is_core_command(spec: &tcl_registry::CommandSpec) -> bool {
+    spec.required_package.is_none()
+        && spec
+            .surface
+            .is_none_or(|rows| tcl_dialect::model::surface_admits_from(rows, Family::Tcl, "9.0"))
+}
+
+/// A command outside the core set claims nothing it does not have: the WASM
+/// command-parity gate asks the runtime about core commands only, so nothing
+/// else would hold a declaration elsewhere to anything. (A core command's
+/// declaration is the gate's to check against what each runtime reports.)
+///
+/// registry-metadata: `runtime_backing` is registry data.
+#[test]
+fn a_spec_outside_the_core_set_declares_no_backing() {
+    for spec in &tcl_registry::commands::tcl::tcl_command_specs() {
+        if !is_core_command(spec) {
+            assert!(
+                spec.runtime_backing.is_none(),
+                "{} is not a core command, so its backing must stay `None`, got {:?}",
+                spec.name,
+                spec.runtime_backing
+            );
+        }
+    }
+}
+
+/// A shipped builtin is attested by the command's own name, spelled as the
+/// spec spells it — a leading `::` kept — which is the identity the VM's
+/// builtin table is keyed by, and a body's source is a library file the
+/// runtime embeds.
+///
+/// registry-metadata: `runtime_backing` is registry data.
+#[test]
+fn a_shipped_builtin_is_attested_by_the_commands_own_name() {
+    use tcl_registry::{BodySource, RuntimeBacking};
+
+    let mut shipped = 0;
+    for spec in &tcl_registry::commands::tcl::tcl_command_specs() {
+        match spec.runtime_backing {
+            RuntimeBacking::ShippedBuiltin { identity } => {
+                assert_eq!(identity, spec.name, "{}", spec.name);
+                shipped += 1;
+            }
+            RuntimeBacking::TclBody {
+                source: BodySource::PackageSource { relative_path },
+                ..
+            } => assert!(
+                ["init.tcl", "package.tcl", "parray.tcl"].contains(&relative_path),
+                "{}: {relative_path:?} is not a library file the runtime embeds",
+                spec.name
+            ),
+            _ => {}
+        }
+    }
+    assert!(shipped > 300, "the core commands declare {shipped}");
 }
 
 /// Sweep the whole trait lattice through `commands_with_trait` in a few
@@ -2300,6 +2958,296 @@ fn repeated_arg_layouts_never_pair_conditional_binding_with_an_ssa_def_role() {
     );
 }
 
+/// One clause-grammar owner — a command or a subcommand — with the layouts
+/// its group rows cite and its own static role table.
+struct ClauseGrammarOwner {
+    path: String,
+    grammar: &'static tcl_registry::ClauseGrammarSpec,
+    layouts: &'static [tcl_registry::RepeatedArgLayout],
+    arg_roles: &'static [(u8, ArgRole)],
+}
+
+/// Every clause grammar of every loadable dialect's specs.
+fn clause_grammar_owners() -> Vec<ClauseGrammarOwner> {
+    let mut out = Vec::new();
+    for &dialect in LOADABLE_DIALECTS {
+        let reg = registry_for_dialect(dialect);
+        let names: Vec<String> = reg.command_names().map(str::to_owned).collect();
+        for name in &names {
+            let Some(spec) = reg.get(name) else { continue };
+            if let Some(grammar) = spec.clause_grammar {
+                out.push(ClauseGrammarOwner {
+                    path: format!("{dialect} {}", spec.name),
+                    grammar,
+                    layouts: spec.repeated_args,
+                    arg_roles: spec.arg_roles,
+                });
+            }
+            for sub in spec.subcommands {
+                if let Some(grammar) = sub.clause_grammar {
+                    out.push(ClauseGrammarOwner {
+                        path: format!("{dialect} {} {}", spec.name, sub.name),
+                        grammar,
+                        layouts: sub.repeated_args,
+                        arg_roles: sub.arg_roles,
+                    });
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Every slot of every row of `grammar`, with the row it sits in.
+fn clause_slots(
+    grammar: &tcl_registry::ClauseGrammarSpec,
+) -> Vec<(tcl_registry::ClauseRowId, tcl_registry::ClauseSlot)> {
+    grammar
+        .all_rows()
+        .flat_map(|(id, row)| row.slots().iter().map(move |slot| (id, *slot)))
+        .collect()
+}
+
+/// A group row cites a `repeated_args` layout by index; the stride and the
+/// trailing exclusion are that layout's facts, so the index must name one.
+#[test]
+fn clause_grammar_group_rows_cite_a_real_layout() {
+    let owners = clause_grammar_owners();
+    let mut groups = 0usize;
+    for owner in &owners {
+        for (_, row) in owner.grammar.all_rows() {
+            if let tcl_registry::ClauseRowShape::Group { layout } = row.shape {
+                groups += 1;
+                assert!(
+                    usize::from(layout) < owner.layouts.len(),
+                    "{}: a group row cites repeated_args[{layout}], but the spec declares {} layout(s)",
+                    owner.path,
+                    owner.layouts.len()
+                );
+                assert!(
+                    row.keyword.is_none(),
+                    "{}: a group row is keywordless by construction",
+                    owner.path
+                );
+            }
+        }
+    }
+    assert!(
+        groups > 0,
+        "the sweep must reach a group row (foreach's binder groups)"
+    );
+}
+
+/// The clause-slot sibling of
+/// `repeated_arg_layouts_never_pair_conditional_binding_with_an_ssa_def_role`:
+/// a slot whose names are bound only under a runtime data condition never
+/// carries `VarWrite`, which every def-use site reads as an unconditional
+/// definition.
+#[test]
+fn conditional_binding_clause_slots_never_carry_var_write() {
+    for owner in clause_grammar_owners() {
+        for (row, slot) in clause_slots(owner.grammar) {
+            assert!(
+                !(slot.conditional_binding && slot.role == ArgRole::VarWrite),
+                "{} {row:?}: a conditional_binding clause slot declares VarWrite",
+                owner.path
+            );
+        }
+    }
+}
+
+/// A clause slot speaks the six roles a clause uses — `Expr`, `Body`,
+/// `LoopVarList`, `Pattern`, `Keyword` (a `?noise?` word), `Value` — so a
+/// consumer reading the plan learns no seventh; a noise word is a `Keyword`
+/// slot and a handler rides a `Pattern` slot.
+#[test]
+fn clause_slots_use_only_the_six_roles() {
+    const CLAUSE_ROLES: &[ArgRole] = &[
+        ArgRole::Expr,
+        ArgRole::Body,
+        ArgRole::LoopVarList,
+        ArgRole::Pattern,
+        ArgRole::Keyword,
+        ArgRole::Value,
+    ];
+    let owners = clause_grammar_owners();
+    assert!(
+        !owners.is_empty(),
+        "the shipped clause grammars must be reached"
+    );
+    for owner in owners {
+        for (row, slot) in clause_slots(owner.grammar) {
+            assert!(
+                CLAUSE_ROLES.contains(&slot.role),
+                "{} {row:?}: clause slot role {:?} is not one of the six",
+                owner.path,
+                slot.role
+            );
+            assert_eq!(
+                slot.noise.is_some(),
+                slot.role == ArgRole::Keyword,
+                "{} {row:?}: a noise word is exactly a Keyword slot",
+                owner.path
+            );
+            assert!(
+                slot.handler.is_none() || slot.role == ArgRole::Pattern,
+                "{} {row:?}: a handler vocabulary rides a Pattern slot",
+                owner.path
+            );
+        }
+    }
+}
+
+/// Where a grammar-carrying command also keeps a static role table (`catch`,
+/// `for`, `while`, `dict for`, `array for`), the two describe one call: every
+/// flat role the walk assigns on a representative call is the table's role at
+/// that position, so folding both never gives a word two readings.
+#[test]
+fn clause_grammars_agree_with_their_static_role_tables() {
+    for owner in clause_grammar_owners() {
+        if owner.arg_roles.is_empty() {
+            continue;
+        }
+        let width = owner
+            .arg_roles
+            .iter()
+            .map(|(index, _)| usize::from(*index) + 1)
+            .max()
+            .unwrap_or(0);
+        let words: Vec<String> = (0..width).map(|index| format!("w{index}")).collect();
+        let args: Vec<&str> = words.iter().map(String::as_str).collect();
+        let plan = owner.grammar.walk(&args, owner.layouts);
+        assert_eq!(
+            plan.defect, None,
+            "{}: the representative call is well formed",
+            owner.path
+        );
+        for (index, role) in plan.roles {
+            assert!(
+                owner
+                    .arg_roles
+                    .iter()
+                    .any(|(at, found)| usize::from(*at) == index && *found == role),
+                "{}: the grammar gives word {index} {role:?}, which its arg_roles do not",
+                owner.path
+            );
+        }
+    }
+}
+
+/// One option-effect scope — a command's options (and its forms'), or one
+/// subcommand's — with the families declared beside them.
+struct OptionEffectScope {
+    path: String,
+    options: Vec<&'static tcl_registry::hover::OptionSpec>,
+    families: &'static [tcl_registry::OptionEffectFamily],
+}
+
+/// Every option-effect scope of every loadable dialect's specs.
+fn option_effect_scopes() -> Vec<OptionEffectScope> {
+    let mut scopes = Vec::new();
+    for &dialect in LOADABLE_DIALECTS {
+        let reg = registry_for_dialect(dialect);
+        let names: Vec<String> = reg.command_names().map(str::to_owned).collect();
+        for name in &names {
+            for spec in reg.specs(name) {
+                let mut options: Vec<&'static tcl_registry::hover::OptionSpec> =
+                    spec.options.iter().collect();
+                for form in spec.command_forms {
+                    options.extend(form.options.iter());
+                }
+                scopes.push(OptionEffectScope {
+                    path: format!("{dialect} {}", spec.name),
+                    options,
+                    families: spec.option_effect_families,
+                });
+                for sub in spec.subcommands {
+                    scopes.push(OptionEffectScope {
+                        path: format!("{dialect} {} {}", spec.name, sub.name),
+                        options: sub.options.iter().collect(),
+                        families: sub.option_effect_families,
+                    });
+                }
+            }
+        }
+    }
+    scopes
+}
+
+/// Every option that declares an effect names a family its own scope
+/// declares (`docs/design/compiler/registry-consumer-contracts.md` § *Options
+/// with semantic effects*): a family is where an axis starts and how its
+/// options combine, so an effect citing an undeclared one would be read
+/// against no base at all.
+#[test]
+fn every_option_effect_names_a_declared_family() {
+    let mut effects_checked = 0usize;
+    for scope in option_effect_scopes() {
+        for option in &scope.options {
+            let Some(effect) = option.effect else {
+                continue;
+            };
+            effects_checked += 1;
+            assert!(
+                scope
+                    .families
+                    .iter()
+                    .any(|family| family.name == effect.family),
+                "{}: option `{}` cites family `{}`, which the scope does not declare",
+                scope.path,
+                option.name,
+                effect.family,
+            );
+        }
+        let mut names: Vec<&str> = scope.families.iter().map(|family| family.name).collect();
+        names.sort_unstable();
+        names.dedup();
+        assert_eq!(
+            names.len(),
+            scope.families.len(),
+            "{}: a family is declared twice",
+            scope.path
+        );
+    }
+    assert!(
+        effects_checked > 0,
+        "the sweep must reach the shipped option effects (`subst`, `lsearch`, `regexp`, `switch`)"
+    );
+}
+
+/// A family's base mentions only axis values its own options move: an
+/// `Only(axis)` base that no option of the family selects or disables would
+/// start an axis no call can reach, which is a mis-declared family rather
+/// than a default.
+#[test]
+fn a_family_base_mentions_only_axes_its_options_mention() {
+    use tcl_registry::FamilyBase;
+    let mut bases_checked = 0usize;
+    for scope in option_effect_scopes() {
+        for family in scope.families {
+            let FamilyBase::Only(axis) = family.base else {
+                continue;
+            };
+            bases_checked += 1;
+            assert!(
+                scope
+                    .options
+                    .iter()
+                    .any(|option| option.effect.is_some_and(|effect| {
+                        effect.family == family.name && effect.kind.axis() == Some(axis)
+                    })),
+                "{}: family `{}` starts from {axis:?}, which none of its options moves",
+                scope.path,
+                family.name,
+            );
+        }
+    }
+    assert!(
+        bases_checked > 0,
+        "the sweep must reach an `Only` base (`lsearch`'s glob, `switch`'s exact)"
+    );
+}
+
 /// One spec level's semantic-optimisation declarations — a command spec or one
 /// of its subcommands — flattened so the sweeps below treat both uniformly.
 /// The registry expresses the same four fields at either level, and a
@@ -2680,4 +3628,230 @@ fn declared_event_emissions_name_known_events() {
         declaring.contains("TCP::notify") && declaring.contains("NAME::lookup"),
         "the seeded commands must still declare an emission; got {declaring:?}",
     );
+}
+
+// ── The member-effect descriptor ────────────────────────────────────────────
+
+/// Every definition-body grammar the sweep can reach: the shipped constants,
+/// the `SpecTcl` / `SslicTcl` document grammars, and every grammar a
+/// loadable dialect's command or subcommand hangs off `definition_body` (a
+/// pack's inline grammar included), each once.
+fn every_definition_grammar() -> Vec<(
+    String,
+    &'static tcl_registry::definer::DefinitionBodyGrammar,
+)> {
+    use tcl_registry::definer::{
+        ITCL_GRAMMAR, SNIT_GRAMMAR, SNIT_WIDGET_GRAMMAR, SPECTCL_GRAMMARS, SSLICTCL_GRAMMARS,
+        TCLOO_CONFIGURABLE_GRAMMAR, TCLOO_GRAMMAR,
+    };
+    let mut out: Vec<(
+        String,
+        &'static tcl_registry::definer::DefinitionBodyGrammar,
+    )> = vec![
+        ("TCLOO_GRAMMAR".to_owned(), &TCLOO_GRAMMAR),
+        (
+            "TCLOO_CONFIGURABLE_GRAMMAR".to_owned(),
+            &TCLOO_CONFIGURABLE_GRAMMAR,
+        ),
+        ("SNIT_GRAMMAR".to_owned(), &SNIT_GRAMMAR),
+        ("SNIT_WIDGET_GRAMMAR".to_owned(), &SNIT_WIDGET_GRAMMAR),
+        ("ITCL_GRAMMAR".to_owned(), &ITCL_GRAMMAR),
+    ];
+    for (index, grammar) in SPECTCL_GRAMMARS.iter().chain(SSLICTCL_GRAMMARS).enumerate() {
+        out.push((format!("document grammar #{index}"), *grammar));
+    }
+    for &dialect in LOADABLE_DIALECTS {
+        let reg = registry_for_dialect(dialect);
+        let names: Vec<String> = reg.command_names().map(str::to_owned).collect();
+        for name in &names {
+            let Some(spec) = reg.get(name) else { continue };
+            if let Some(grammar) = spec.definition_body {
+                out.push((format!("{dialect} {}", spec.name), grammar));
+            }
+        }
+    }
+    let mut seen: Vec<*const tcl_registry::definer::DefinitionBodyGrammar> = Vec::new();
+    out.retain(|(_, grammar)| {
+        let pointer: *const _ = *grammar;
+        let fresh = !seen.contains(&pointer);
+        seen.push(pointer);
+        fresh
+    });
+    out
+}
+
+/// The member-effect descriptor's agreement rules: what a member declares
+/// never contradicts the layout that positions it.
+///
+/// - a `Callable`'s name / params / body slots are the positions its
+///   `arg_roles` type `Name` / `ParamList` / `Body` — exactly the first such
+///   position, or `None` when there is none, which is the reading the
+///   `.tclspec` loader applies to an unwritten slot, so a shipped row
+///   renders and reloads as itself;
+/// - an `InitScript`'s body slot is a `Body` position;
+/// - a `Forward`'s name slot is a `Name` position and its prefix slot the
+///   target's `CommandName` (or a `CommandPrefix`) position;
+/// - a `Relation` row is a slot — or, like itcl's `inherit`, which takes no
+///   slot operation words, a plain list of class references; a
+///   `Retraction` row carries its
+///   `retraction`, and only it does; a `Visibility` row carries its
+///   `visibility_effect`, and only it does;
+/// - only a wrapper shifts what it wraps, and a wrapper is `Configuration`.
+#[test]
+fn every_member_carries_an_effect_that_agrees_with_its_roles() {
+    use tcl_registry::definer::{MemberEffect, MemberKind};
+    let grammars = every_definition_grammar();
+    let mut members = 0usize;
+    for (path, grammar) in &grammars {
+        for member in grammar.members {
+            members += 1;
+            let at = format!("{path} member `{}`", member.keyword);
+            let first = |role: ArgRole| member.indices_for(role).next();
+            let typed = |slot: u8, roles: &[ArgRole]| {
+                member
+                    .arg_roles
+                    .iter()
+                    .any(|(index, role)| *index == slot && roles.contains(role))
+            };
+            match member.effect {
+                MemberEffect::Callable {
+                    name_slot,
+                    params_slot,
+                    body_slot,
+                    ..
+                } => {
+                    for (slot, role) in [
+                        (name_slot, ArgRole::Name),
+                        (params_slot, ArgRole::ParamList),
+                        (body_slot, ArgRole::Body),
+                    ] {
+                        assert_eq!(
+                            slot.map(usize::from),
+                            first(role),
+                            "{at}: a callable's {role:?} slot is its first {role:?} position"
+                        );
+                    }
+                }
+                MemberEffect::InitScript { body_slot, .. } => {
+                    assert!(
+                        typed(body_slot, &[ArgRole::Body]),
+                        "{at}: body slot is a Body"
+                    );
+                }
+                MemberEffect::Forward {
+                    name_slot,
+                    prefix_slot,
+                } => {
+                    assert!(
+                        typed(name_slot, &[ArgRole::Name]),
+                        "{at}: name slot is a Name"
+                    );
+                    assert!(
+                        typed(prefix_slot, &[ArgRole::CommandName, ArgRole::CommandPrefix]),
+                        "{at}: prefix slot is the target command's position"
+                    );
+                }
+                MemberEffect::Relation { .. } => {
+                    assert!(
+                        member.slot.is_some()
+                            || member.all_args_ref
+                                == Some(tcl_registry::definer::MemberRefKind::Class),
+                        "{at}: a relation is a slot, or a plain list of class references"
+                    );
+                }
+                MemberEffect::StateDeclaration { .. }
+                | MemberEffect::Visibility
+                | MemberEffect::Retraction
+                | MemberEffect::Configuration => {}
+            }
+            assert_eq!(
+                member.retraction.is_some(),
+                member.effect == MemberEffect::Retraction,
+                "{at}: a retraction and its `retraction` go together"
+            );
+            assert_eq!(
+                member.visibility_effect.is_some(),
+                member.effect == MemberEffect::Visibility,
+                "{at}: a visibility change and its `visibility_effect` go together"
+            );
+            assert!(
+                member.slot.is_none()
+                    || matches!(
+                        member.effect,
+                        MemberEffect::Relation { .. } | MemberEffect::StateDeclaration { .. }
+                    ),
+                "{at}: a slot feeds a relation or declares state"
+            );
+            assert!(
+                member.wrapper_shift.is_none() || member.kind == MemberKind::Wrapper,
+                "{at}: only a wrapper shifts what it wraps"
+            );
+            assert!(
+                member.kind != MemberKind::Wrapper || member.effect == MemberEffect::Configuration,
+                "{at}: a wrapper configures and declares nothing of its own"
+            );
+        }
+    }
+    assert!(
+        grammars.len() >= 5 && members > 100,
+        "the shipped grammars must be reached ({} grammars, {members} members)",
+        grammars.len()
+    );
+}
+
+/// The vocabulary is family-neutral (negative): no effect, receiver, role,
+/// scope, relation or timing spells a class system's name, in its `Debug`
+/// form or its `.tclspec` spelling. `DefinerFamily` stays the one place a
+/// family is named.
+#[test]
+fn no_member_effect_names_a_family() {
+    use tcl_registry::definer::{
+        CallableRole, InitTiming, MemberEffect, MemberReceiver, RelationSlot, StateScope,
+    };
+    let mut spellings: Vec<String> = MemberEffect::KIND_SPELLINGS
+        .iter()
+        .map(|spelling| (*spelling).to_owned())
+        .collect();
+    spellings.extend(
+        MemberReceiver::ALL
+            .iter()
+            .flat_map(|v| [format!("{v:?}"), v.spelling().to_owned()]),
+    );
+    spellings.extend(
+        CallableRole::ALL
+            .iter()
+            .flat_map(|v| [format!("{v:?}"), v.spelling().to_owned()]),
+    );
+    spellings.extend(
+        StateScope::ALL
+            .iter()
+            .flat_map(|v| [format!("{v:?}"), v.spelling().to_owned()]),
+    );
+    spellings.extend(
+        RelationSlot::ALL
+            .iter()
+            .flat_map(|v| [format!("{v:?}"), v.spelling().to_owned()]),
+    );
+    spellings.extend(
+        InitTiming::ALL
+            .iter()
+            .flat_map(|v| [format!("{v:?}"), v.spelling().to_owned()]),
+    );
+    for (_, grammar) in every_definition_grammar() {
+        spellings.extend(
+            grammar
+                .members
+                .iter()
+                .map(|member| format!("{:?}", member.effect)),
+        );
+    }
+    for spelling in &spellings {
+        let lower = spelling.to_ascii_lowercase();
+        for family in ["tcloo", "snit", "itcl"] {
+            assert!(
+                !lower.contains(family),
+                "`{spelling}` names the {family} family"
+            );
+        }
+    }
 }

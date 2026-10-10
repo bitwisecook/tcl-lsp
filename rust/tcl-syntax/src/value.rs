@@ -179,7 +179,7 @@ where
     K: ?Sized + Eq + std::hash::Hash + 'a,
 {
     // Key → its slot's position in `slots`, so a duplicate is O(1) to find: a
-    // linear re-scan per element made this O(N²) on every dict operation (D3).
+    // linear re-scan per element made this O(N²) on every dict operation.
     // Both containers are sized from the iterator up front — this runs on every
     // VM dict opcode, so the growth reallocations are worth avoiding.
     let keys = keys.into_iter();
@@ -196,6 +196,13 @@ where
         }
     }
     slots
+}
+
+/// Whether this host's C `long` is 64 bits, as on every 64-bit Unix; 64-bit
+/// Windows and 32-bit builds have a 32-bit one.
+#[must_use]
+pub const fn host_long_is_wide() -> bool {
+    core::mem::size_of::<core::ffi::c_long>() == 8
 }
 
 /// The value operations a Tcl command core supplies its runtime.
@@ -305,6 +312,14 @@ pub trait ValueOps {
     /// can override this to retain its distinct overflow diagnostic.
     fn string_compare_length(&mut self, v: &Self::Value) -> Result<Option<usize>, ValueError> {
         Ok(usize::try_from(self.as_int(v)?).ok())
+    }
+
+    /// Whether an index word whose value turns on the width of the host's C
+    /// `long` takes the 64-bit reading: a runtime answers as C Tcl on
+    /// its own host does ([`host_long_is_wide`]); a model that names no host
+    /// records a decline and answers `false`.
+    fn reads_a_wide_long(&mut self) -> bool {
+        host_long_is_wide()
     }
 
     /// As a double (`Tcl_GetDoubleFromObj`).

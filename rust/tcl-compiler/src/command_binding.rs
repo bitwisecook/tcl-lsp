@@ -131,6 +131,12 @@ enum MayBinding {
 struct BindingBaseline {
     /// Registry-owned, generation-specific facts shared with CFG construction.
     semantics: Arc<EffectiveRegistrySemantics>,
+    /// The commands the analysed document declares as plain calls
+    /// ([`Module::declared_frame_effects`]), with the frame effect each
+    /// declaration states. The fresh interpreter binds them beside the
+    /// registry's names: the document states that they exist and what they
+    /// do to the frame that calls them.
+    declared: Arc<crate::ir::DeclaredFrameEffects>,
 }
 
 impl PartialEq for BindingBaseline {
@@ -138,22 +144,32 @@ impl PartialEq for BindingBaseline {
         self.semantics.binding_names() == other.semantics.binding_names()
             && self.semantics.unresolved_command_handlers()
                 == other.semantics.unresolved_command_handlers()
+            && self.declared == other.declared
     }
 }
 
 impl Eq for BindingBaseline {}
 
 impl BindingBaseline {
-    fn for_registry(registry: &CommandRegistry) -> Self {
+    fn for_module(registry: &CommandRegistry, module: &Module) -> Self {
         Self {
             semantics: registry.effective_semantics(),
+            declared: Arc::new(module.declared_frame_effects.clone()),
         }
+    }
+
+    /// Whether the fresh interpreter binds `key`, a normalised qualified
+    /// name: one the registry ships for the dialect, or one the document
+    /// declares as a plain call.
+    fn binds(&self, key: &str) -> bool {
+        self.semantics.binding_names().contains(key) || self.declared.contains_key(key)
     }
 }
 
 impl Hash for BindingBaseline {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.semantics.binding_fingerprint().hash(state);
+        self.declared.hash(state);
     }
 }
 
@@ -378,18 +394,20 @@ impl ModuleCommandBindings {
         }
     }
 
-    /// Resolve recovered substitutions in Tcl evaluation order for the
-    /// scalar-barrier projection. Each command advances the local source-order
-    /// state before the next one is resolved, including registry binding
-    /// transitions such as `rename` and opaque readable-eval bodies.
-    pub(crate) fn source_order_registry_barrier_for_command(
+    /// Advance this source-order state past one recovered command, in Tcl's
+    /// evaluation order: the registry binding transitions the command makes
+    /// (`rename`, `interp alias`, an opaque readable-eval body), and the closed
+    /// module effects of a retained user procedure it calls. A computed head,
+    /// or one whose namespace is not known, may change any binding. A command
+    /// expression control may skip (`conditional`) joins the state it leaves
+    /// with the one before it.
+    pub(crate) fn advance_source_order_for_command(
         &mut self,
         words: &[crate::ir_helpers::CommandWord],
         conditional: bool,
         registry: &CommandRegistry,
         namespace: &crate::ir_helpers::ExecutionNamespace,
-        barrier_traits: tcl_registry::Traits,
-    ) -> bool {
+    ) {
         if self.source_order_user_call_effects.is_none() {
             self.source_order_user_call_effects = Some(self.source_order_call_boundary());
         }
@@ -398,11 +416,11 @@ impl ModuleCommandBindings {
             .and_then(crate::ir_helpers::CommandWord::literal)
         else {
             self.mark_opaque_binding_mutation();
-            return true;
+            return;
         };
         let Some(command_namespace) = namespace.for_head(head) else {
             self.mark_opaque_binding_mutation();
-            return true;
+            return;
         };
         let skipped = conditional.then(|| self.clone());
         let source_may_be_unknown = self.target_may_be_unknown(head, command_namespace);
@@ -411,10 +429,6 @@ impl ModuleCommandBindings {
             .iter()
             .any(|target| !target.registry_backed);
         let facts = self.resolve_command_words(words, registry, command_namespace);
-        let barrier = source_may_be_unknown
-            || facts
-                .iter()
-                .any(|facts| facts.traits.intersects(barrier_traits));
         apply_resolved_may_transitions(facts, source_may_be_unknown, true, self, namespace);
         if reaches_user_procedure {
             self.mark_source_order_user_procedure_call();
@@ -422,7 +436,6 @@ impl ModuleCommandBindings {
         if let Some(skipped) = skipped {
             self.join(&skipped);
         }
-        barrier
     }
 
     #[cfg(test)]
@@ -657,7 +670,7 @@ impl ModuleCommandBindings {
             procedure_bodies.extend(discarded_module.procedures.keys().cloned());
         }
         let state = Self {
-            baseline: Arc::new(BindingBaseline::for_registry(registry)),
+            baseline: Arc::new(BindingBaseline::for_module(registry, module)),
             opaque_domain: opaque_binding_mutation,
             opaque_binding_mutation,
             dynamic_proc_binding,
@@ -1094,6 +1107,30 @@ impl ModuleCommandBindings {
         self.opaque_domain
     }
 
+    /// The commands the analysed document declares as plain calls, which
+    /// this state's command table binds beside the registry's names, with the
+    /// frame effect each declaration states ([`Module::declared_frame_effects`]).
+    #[must_use]
+    pub(crate) fn declared_frame_effects(&self) -> Arc<crate::ir::DeclaredFrameEffects> {
+        Arc::clone(&self.baseline.declared)
+    }
+
+    /// Whether this state holds a command table to resolve against: the
+    /// registry's baseline of the analysed module. A state built for no module
+    /// (`Default`) names no command, so it can say nothing about one.
+    #[must_use]
+    pub(crate) fn holds_a_command_table(&self) -> bool {
+        !self.baseline.semantics.binding_names().is_empty()
+    }
+
+    /// Whether a `rename`, an `interp alias` or a command delete moved a name
+    /// this lattice cannot name, so that no spelling can be claimed to denote
+    /// what it did before ([`Self::unnameable_rebinding_subject`]).
+    #[must_use]
+    pub(crate) const fn has_unnameable_rebinding_subject(&self) -> bool {
+        self.unnameable_rebinding_subject
+    }
+
     /// Project this already-computed binding summary into the optimiser's
     /// flow-insensitive command-binding trust view.
     ///
@@ -1108,7 +1145,7 @@ impl ModuleCommandBindings {
     pub(crate) fn mutation_projection(&self, registry: &CommandRegistry) -> ModuleCommandMutations {
         let mut names = std::collections::HashSet::new();
         for (name, observed) in self.bindings.iter() {
-            let original = Self::unmodified_bindings(name, self.baseline.semantics.binding_names());
+            let original = Self::unmodified_bindings(name, &self.baseline);
             if *observed == original {
                 continue;
             }
@@ -1235,6 +1272,62 @@ impl ModuleCommandBindings {
         self.resolve_target_may_be_unknown(name, namespace, &mut BTreeSet::new())
     }
 
+    /// Whether invoking `name` in `namespace` may reach no implementation the
+    /// module can name: the spelling is neither a command the registry ships
+    /// for the dialect nor one the module binds, so Tcl dispatches it through
+    /// the unresolved-command handler to whatever the running interpreter
+    /// holds — a procedure of another file, an autoloaded one. What runs
+    /// there is code the module does not contain.
+    ///
+    /// The narrower sibling of [`Self::target_resolution_may_be_unknown`],
+    /// which answers for an implementation that exists and cannot be named:
+    /// this one is true for an absent literal too, which that one leaves to
+    /// the handler's own summary.
+    #[must_use]
+    pub(crate) fn may_dispatch_unresolved(&self, name: &str, namespace: &str) -> bool {
+        self.dispatches_unresolved(name, namespace, &mut BTreeSet::new())
+    }
+
+    fn dispatches_unresolved(
+        &self,
+        name: &str,
+        namespace: &str,
+        visiting: &mut BTreeSet<String>,
+    ) -> bool {
+        let Some(key) = self.lookup_key(name, namespace) else {
+            return !self.baseline.binds(&nqn(name));
+        };
+        if !visiting.insert(key.clone()) {
+            return false;
+        }
+        // The module's binding is the join over its whole walk, so a
+        // procedure defined part way through holds `Missing` beside its
+        // target. A target the module names makes the head seen wherever it
+        // is called after the definition; only a head with no target at all
+        // is left to the handler.
+        let mut named = false;
+        let mut unresolved = false;
+        for binding in &self.bindings[&key] {
+            match binding {
+                MayBinding::Unknown => unresolved = true,
+                MayBinding::Missing => {}
+                MayBinding::Target(target) if target.terminal => named = true,
+                MayBinding::Target(target) => {
+                    named = true;
+                    unresolved |= self.dispatches_unresolved(&target.command, "::", visiting);
+                }
+            }
+        }
+        if !named {
+            let falls_back = !name.starts_with("::")
+                && namespace != "::"
+                && key == tcl_syntax::naming::qualify(namespace, name);
+            unresolved |= !falls_back || self.dispatches_unresolved(name, "::", visiting);
+        }
+        visiting.remove(&key);
+        unresolved
+    }
+
     fn lookup_key(&self, name: &str, namespace: &str) -> Option<String> {
         if name.starts_with("::") {
             let key = nqn(name);
@@ -1284,7 +1377,7 @@ impl ModuleCommandBindings {
             // Sparse state omits untouched registry commands. Any other
             // absent literal is dispatched through this dialect's active
             // registry-declared unknown-handler carrier, when one exists.
-            if self.baseline.semantics.binding_names().contains(&nqn(name)) {
+            if self.baseline.binds(&nqn(name)) {
                 return false;
             }
             return self.unresolved_target_may_be_unknown(name, visiting);
@@ -1360,7 +1453,7 @@ impl ModuleCommandBindings {
         visiting: &mut BTreeSet<String>,
     ) -> BTreeSet<ResolvedCommandTarget> {
         let Some(key) = self.lookup_key(name, namespace) else {
-            if self.baseline.semantics.binding_names().contains(&nqn(name)) {
+            if self.baseline.binds(&nqn(name)) {
                 return BTreeSet::from([ResolvedCommandTarget {
                     command: name.to_owned(),
                     prepended: Vec::new(),
@@ -1430,12 +1523,18 @@ impl ModuleCommandBindings {
     /// registry transition already identifies its exact key and should not
     /// rescan every unchanged binding merely to publish that one delta.
     fn join_binding_from(&mut self, other: &Self, key: &str) -> bool {
-        let mut joined = self.bindings.get(key).cloned().unwrap_or_else(|| {
-            Self::unmodified_bindings(key, self.baseline.semantics.binding_names())
-        });
-        joined.extend(other.bindings.get(key).cloned().unwrap_or_else(|| {
-            Self::unmodified_bindings(key, self.baseline.semantics.binding_names())
-        }));
+        let mut joined = self
+            .bindings
+            .get(key)
+            .cloned()
+            .unwrap_or_else(|| Self::unmodified_bindings(key, &self.baseline));
+        joined.extend(
+            other
+                .bindings
+                .get(key)
+                .cloned()
+                .unwrap_or_else(|| Self::unmodified_bindings(key, &self.baseline)),
+        );
         self.replace_bindings([(key.to_owned(), joined)])
     }
 
@@ -1443,11 +1542,8 @@ impl ModuleCommandBindings {
         self.replace(key, BTreeSet::from([MayBinding::Missing]));
     }
 
-    fn unmodified_bindings(
-        key: &str,
-        initial_registry_bindings: &BTreeSet<String>,
-    ) -> BTreeSet<MayBinding> {
-        if initial_registry_bindings.contains(key) {
+    fn unmodified_bindings(key: &str, baseline: &BindingBaseline) -> BTreeSet<MayBinding> {
+        if baseline.binds(key) {
             BTreeSet::from([MayBinding::Target(ResolvedCommandTarget {
                 command: key.to_owned(),
                 prepended: Vec::new(),
@@ -1515,12 +1611,18 @@ impl ModuleCommandBindings {
                 .cloned()
                 .collect();
             let joined = keys.into_iter().map(|key| {
-                let mut bindings = self.bindings.get(&key).cloned().unwrap_or_else(|| {
-                    Self::unmodified_bindings(&key, self.baseline.semantics.binding_names())
-                });
-                bindings.extend(other.bindings.get(&key).cloned().unwrap_or_else(|| {
-                    Self::unmodified_bindings(&key, self.baseline.semantics.binding_names())
-                }));
+                let mut bindings = self
+                    .bindings
+                    .get(&key)
+                    .cloned()
+                    .unwrap_or_else(|| Self::unmodified_bindings(&key, &self.baseline));
+                bindings.extend(
+                    other
+                        .bindings
+                        .get(&key)
+                        .cloned()
+                        .unwrap_or_else(|| Self::unmodified_bindings(&key, &self.baseline)),
+                );
                 (key, bindings)
             });
             changed |= self.replace_bindings(joined.collect::<Vec<_>>());
@@ -2504,13 +2606,14 @@ fn observe_exact_procedure_definition(
     // exact definition that state is the registry baseline; seed it explicitly
     // before joining the new procedure target.
     let mut history = bindings.clone();
-    let mut historical = ModuleCommandBindings::unmodified_bindings(
-        &key,
-        history.baseline.semantics.binding_names(),
+    let mut historical = ModuleCommandBindings::unmodified_bindings(&key, &history.baseline);
+    historical.extend(
+        bindings
+            .bindings
+            .get(&key)
+            .cloned()
+            .unwrap_or_else(|| ModuleCommandBindings::unmodified_bindings(&key, &history.baseline)),
     );
-    historical.extend(bindings.bindings.get(&key).cloned().unwrap_or_else(|| {
-        ModuleCommandBindings::unmodified_bindings(&key, history.baseline.semantics.binding_names())
-    }));
     history.replace(key, historical);
     *observed = Some(history);
     true
@@ -3325,7 +3428,7 @@ fn apply_may_binding_transition(
                         .unwrap_or_else(|| {
                             ModuleCommandBindings::unmodified_bindings(
                                 &from_key,
-                                bindings.baseline.semantics.binding_names(),
+                                &bindings.baseline,
                             )
                         }),
                 );
@@ -3434,12 +3537,22 @@ struct State {
 
 /// The unperturbed binding of `qname` before any rename/proc/alias.
 ///
-/// Only an unqualified global name the registry knows is a `Builtin`
-/// (`::string` → `string`); a namespaced tail (`::ns::foo`) or an
-/// unknown name is `Opaque`.
+/// A name the registry knows is a `Builtin`, global or namespaced alike:
+/// `::string` → `string`, a math function's wrapper — from 8.5
+/// `expr` dispatches `abs(…)` to `::tcl::mathfunc::abs`, so a `proc` or
+/// `rename` of it rebinds the builtin every `abs(…)` reaches (tclsh 8.5 to
+/// 9.1 run the module's `proc`) — and a package's command such as
+/// `::base32::encode`, which a `proc` of that name, or of `encode` inside
+/// `namespace eval base32`, replaces for every caller (tclsh 8.5 to 9.1 run
+/// the module's `proc`). A name the registry does not know is `Opaque`.
 fn default_binding(qname: &str, registry: &CommandRegistry) -> Binding {
     let bare = qname.strip_prefix("::").unwrap_or(qname);
-    if !bare.contains("::") && registry.get(bare).is_some() {
+    let builtin = if bare.contains("::") {
+        registry.get(qname).is_some()
+    } else {
+        registry.get(bare).is_some()
+    };
+    if builtin {
         Binding::of(BindingKind::Builtin)
     } else {
         Binding::of(BindingKind::Opaque)
@@ -4136,6 +4249,16 @@ impl ProcBindingTrustProjection {
     }
 }
 
+/// Hashes the complete projection [`ModuleCommandMutations::snapshot`] keeps
+/// — every field, the sets sorted — so two summaries equal as sets hash
+/// alike and the value can join an interned memo key beside the snapshot
+/// it was rebuilt from.
+impl std::hash::Hash for ModuleCommandMutations {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.snapshot().hash(state);
+    }
+}
+
 impl ModuleCommandMutations {
     /// Whether any command-table mutation has a dynamic source or target.
     ///
@@ -4214,20 +4337,6 @@ impl ModuleCommandMutations {
             && !self.names.contains(&nqn(command_name))
     }
 
-    /// Whether this summary reports no command-table mutation that could
-    /// change what a *builtin* name denotes — [`Self::trusts`] then answers
-    /// `true` for every name, exactly as [`Self::default`] does.
-    ///
-    /// The per-procedure lattice memo keys on the procedure's own body plus
-    /// the closed binding lattice, and can carry neither this whole-module
-    /// scan nor the namespace-local shadows only it sees. A module this
-    /// answers `true` for agrees with a memoised unit by construction; one it
-    /// answers `false` for must be rebuilt with the fact in hand.
-    #[must_use]
-    pub fn agrees_with_untouched_bindings(&self) -> bool {
-        !self.dynamic && self.names.is_empty() && self.opaque_namespaces.is_empty()
-    }
-
     /// Whether any body runs in a namespace chosen at run time while naming a
     /// command relatively.
     ///
@@ -4299,10 +4408,25 @@ impl ModuleCommandMutations {
     /// `rename otherProc thisName` or `interp alias {} thisName {} other`.
     #[must_use]
     pub fn trusts_proc_binding(&self, proc_name: &str) -> bool {
-        if self.dynamic || self.import_shadowed(proc_name) {
-            return false;
-        }
-        !self.rebound.contains(&nqn(proc_name))
+        !self.dynamic && self.observed_proc_binding(proc_name)
+    }
+
+    /// Whether the module may rebind any builtin: a shadowing `proc`, a
+    /// `rename` or alias onto a builtin's name, or a rebinding whose subject
+    /// this scan could not name.
+    #[must_use]
+    pub fn rebinds_builtins(&self) -> bool {
+        !self.names.is_empty() || self.rebinding_subjects != RebindingSubjects::AllNameable
+    }
+
+    /// The **named-subject** half of [`Self::trusts_proc_binding`], as
+    /// [`Self::observed_binding_is_the_builtin`] is of [`Self::trusts`]: no
+    /// `rename` or alias in the module names `proc_name`, and it sits in no
+    /// namespace whose resolution this scan could not enumerate. Omits the
+    /// unbounded `dynamic` top, which one unresolved command head raises.
+    #[must_use]
+    pub fn observed_proc_binding(&self, proc_name: &str) -> bool {
+        !self.import_shadowed(proc_name) && !self.rebound.contains(&nqn(proc_name))
     }
 }
 
@@ -4331,6 +4455,19 @@ pub struct CommandTrustSnapshot {
 }
 
 impl CommandTrustSnapshot {
+    /// The registry-neutral evidence this snapshot carries into the value
+    /// transfer's analysis context: the rebound builtins, the redefined
+    /// procedures, the dynamic flag, and the opaque namespaces.
+    #[must_use]
+    pub fn binding_evidence(&self) -> tcl_registry::value_transfer::BindingEvidence {
+        tcl_registry::value_transfer::BindingEvidence {
+            untrusted_builtins: self.untrusted_builtins.clone(),
+            rebound: self.rebound.clone(),
+            dynamic: self.dynamic,
+            opaque_namespaces: self.opaque_namespaces.clone(),
+        }
+    }
+
     /// Rebuild the queryable summary this snapshot was taken from.
     #[must_use]
     pub fn to_mutations(&self) -> ModuleCommandMutations {
@@ -4390,6 +4527,13 @@ fn collect_tampered_builtins(
 /// does — the two spellings disagreeing is the defect. Narrowing it to the
 /// defining namespace needs a resolution namespace at every call site, which
 /// `trusts` does not take.
+///
+/// A namespace-local math function is the same shape one level down: from
+/// 8.5 `expr` resolves `tcl::mathfunc::NAME` relative to the namespace it
+/// runs in before the global one, so `proc ::ns::tcl::mathfunc::abs` is what
+/// `abs(…)` calls inside `::ns` (tclsh 8.5 to 9.1 run it; 8.4 has no wrapper
+/// commands). The answer is the global wrapper it shadows, distrusted for
+/// the whole module as the `::n::expr` case is.
 fn builtin_shadowed_by_qualified_definition(
     name: &str,
     registry: &CommandRegistry,
@@ -4397,6 +4541,10 @@ fn builtin_shadowed_by_qualified_definition(
     let (holder, tail) = tcl_syntax::naming::key_holder_and_tail(name);
     if holder.is_empty() || tail.is_empty() {
         return None;
+    }
+    if tcl_registry::mathfunc::is_in_mathfunc_namespace(name) {
+        let wrapper = tcl_registry::mathfunc::qualified_name(tail);
+        return registry.get(&wrapper).is_some().then(|| nqn(&wrapper));
     }
     (default_binding(tail, registry).kind == BindingKind::Builtin).then(|| nqn(tail))
 }
@@ -4978,6 +5126,87 @@ mod tests {
         assert!(!m.has_runtime_selected_frames());
         assert!(m.trusts_proc_binding("::p"));
         assert!(m.trusts("puts"));
+    }
+
+    /// The snapshot is the per-procedure lattice memo's trust fact, so every
+    /// field of the summary must survive the round trip and take part in the
+    /// key: a memo taken under one binding state must never answer for
+    /// another. The literal names every field, so a field added to the
+    /// summary fails to compile here until it is carried.
+    #[test]
+    fn the_trust_snapshot_round_trips_every_mutation_field() {
+        let every = ModuleCommandMutations {
+            names: std::iter::once("llength".to_owned()).collect(),
+            rebound: std::iter::once("p".to_owned()).collect(),
+            dynamic: true,
+            rebinding_subjects: RebindingSubjects::SomeUnnameable,
+            runtime_selected_frames: true,
+            resolution_changed: true,
+            opaque_namespaces: std::iter::once("::ns".to_owned()).collect(),
+        };
+        assert_eq!(every.snapshot().to_mutations(), every);
+        let base = ModuleCommandMutations::default();
+        let one_field: [ModuleCommandMutations; 7] = [
+            ModuleCommandMutations {
+                names: every.names.clone(),
+                ..base.clone()
+            },
+            ModuleCommandMutations {
+                rebound: every.rebound.clone(),
+                ..base.clone()
+            },
+            ModuleCommandMutations {
+                dynamic: true,
+                ..base.clone()
+            },
+            ModuleCommandMutations {
+                rebinding_subjects: RebindingSubjects::SomeUnnameable,
+                ..base.clone()
+            },
+            ModuleCommandMutations {
+                runtime_selected_frames: true,
+                ..base.clone()
+            },
+            ModuleCommandMutations {
+                resolution_changed: true,
+                ..base.clone()
+            },
+            ModuleCommandMutations {
+                opaque_namespaces: every.opaque_namespaces.clone(),
+                ..base.clone()
+            },
+        ];
+        for m in &one_field {
+            assert_eq!(&m.snapshot().to_mutations(), m);
+            assert_ne!(m.snapshot(), base.snapshot(), "{m:?} is part of the key");
+        }
+
+        // A scanned summary answers both trust stances alike from the
+        // snapshot: `rename $a {}` names no subject, so no builtin is
+        // claimable (#2168), and an unknown head raises only the top.
+        let reg = CommandRegistry::build_default();
+        for src in [
+            "set a llength\nrename $a {}\n",
+            "someUnknownLibraryCall x\n",
+            "proc llength {l} { return 99 }\n",
+        ] {
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let scanned = scan_module_command_mutations(&cu.ir_module, &reg);
+            let restored = scanned.snapshot().to_mutations();
+            assert_eq!(restored, scanned, "{src:?}");
+            for name in ["llength", "list", "set"] {
+                assert_eq!(
+                    restored.observed_binding_is_the_builtin(name),
+                    scanned.observed_binding_is_the_builtin(name),
+                    "{src:?} {name}"
+                );
+                assert_eq!(
+                    restored.trusts(name),
+                    scanned.trusts(name),
+                    "{src:?} {name}"
+                );
+            }
+        }
     }
 
     /// The frame fact is part of the memo key: a summary taken with every

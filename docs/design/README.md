@@ -52,6 +52,52 @@ passes, and ownership matrices.
   pipeline, with diagrams and cross-links to the stage documents.
 - [example-walkthroughs.md](compiler/example-walkthroughs.md) — full pipeline
   traces for progressively complex Tcl scripts.
+- [value-transfers.md](compiler/value-transfers.md) — the registry's value
+  axis (issue #1943): the consumer interface contract under which the registry owns what an invocation computes and
+  writes and the analyser owns the generic operations that apply it — the
+  rulings, the answer protocol of result plus ordered storage outcomes, the
+  three permissions, the existence rung, completion paths, predicate
+  refinement as edge facts, the ordered evaluation state, proc-level
+  transfer summaries, and bounded-loop enumeration.
+- [value-evaluation.md](compiler/value-evaluation.md) — the evaluation
+  contract behind that interface — the direct, expression, and
+  declared-implementation routes, the shared cores behind `ConstOps` with
+  their admissibility axes, the regexp owner, the bounded engine, one
+  analysis context and one memo, budgets and cancellation, target
+  semantics, and the `.tclspec` authoring grammar as row shapes.
+- [value-transfers-examples.md](compiler/value-transfers-examples.md) —
+  worked examples — one program per optimisation and diagnostic code the
+  value axis touches and per rung, each with what the tool reports and the
+  rule behind it, the open defects the examples witness, and the
+  declarations behind the examples as they are written in the Rust command
+  registry and in `.tclspec` packs.
+- [value-transfers-migration.md](compiler/value-transfers-migration.md) —
+  the command-knowledge inventory — what the
+  registry owns and what remains elsewhere, what each analysis,
+  optimisation, and diagnostic reads, the third-party tiers, the drift gate
+  and its ledger, and the validation matrix.
+- [registry-consumer-contracts.md](compiler/registry-consumer-contracts.md)
+  — the description, identity, and backing contracts under which the
+  registry drives the analyser, codegen, and the runtimes: the three
+  descriptors (clause grammar, member effect, option effect) behind one
+  derived query per axis; the trust and stub rulings; alias identity with
+  the loader's stamp rejection, site claims and pack fact stamps the VM
+  checks at admission, and per-member guard identities; the take-shipped
+  floor and every core command's `runtime_backing`; the dependency-tier
+  capability matrix and the workspace overlay; the runtimes' backing query,
+  the intrinsic table by family, and the artefact manifest with its context
+  pin; rung 3 pack claims, `tcl spec test`, and the manifest's `spec`
+  directive with the lockfile's `spec_integrity`; versioned codegen stamps,
+  the evidence-gated vendor evaluation point, and package floors; and the
+  extension legs. Not built: rung 4's shipped implementation and the
+  identity kind codegen chooses from the backing.
+- [diagnostic-policy.md](compiler/diagnostic-policy.md) — one diagnostic
+  policy owner below every surface (issue #2089): typed producers,
+  one `Policy` holding the five documented suppression scopes, default-off
+  seeding, severity overrides, the optimiser and shimmer switches, overlap
+  precedence and encoding abstention, one `apply` that keeps a suppressed
+  finding with its reason, thin adapters for the editor, the CLI, the MCP
+  tools, code actions and `tcl opt`, and the truth table every adapter runs.
 
 ## contracts/
 
@@ -354,14 +400,6 @@ Starting shapes for a new design document.
 - [templates/README.md](templates/README.md) — the templates (contract,
   reference, ownership matrix), what a design doc looks like here, and the
   checklist to run before merging one.
-
-## lanes/
-
-Tracking documents for work handed to a background agent.
-
-- [lanes/README.md](lanes/README.md) — the protocol: tracking document,
-  checkpoint commits, explicit-path staging, orchestrator pushes. A file in
-  that folder means the work is in flight or was interrupted.
 
 ## spec-dsl-examples/
 

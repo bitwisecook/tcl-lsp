@@ -24,7 +24,7 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LexerConfig, LineIndex};
-use tcl_registry::CommandRegistry;
+use tcl_registry::{ArgRole, CommandRegistry};
 
 use super::{
     RefactorEdit, Refactoring, command_span_offsets, find_command_at, line_indent, reindent_body,
@@ -158,6 +158,10 @@ fn normalise_dg_name(name: &str) -> String {
 // Equality-condition parsing
 
 /// Recognised equality operators.
+// registry-axis-ok: irreducible — `eq` / `ne` are expr comparison-operator
+// spellings (`tcl_syntax::expr::operators`'s own vocabulary), read here as
+// parsed condition text; they coincide with `::tcl::mathop::eq` / `ne`'s
+// bare registration only by spelling; until never
 const EQ_OPS: &[&str] = &["==", "!=", "eq", "ne"];
 
 /// Parse a simple equality test `(var, value, negated)`.  Used by the
@@ -183,6 +187,8 @@ fn parse_eq(cond: &str) -> Option<(String, String, bool)> {
         if let Some(pos) = cond.find(&needle)
             && let Some(var) = parse_var_word(cond[..pos].trim())
         {
+            // registry-axis-ok: irreducible — expr operator text, not a
+            // command name; until never
             let is_ne = *op == "ne" || *op == "!=";
             return Some((
                 var,
@@ -197,6 +203,8 @@ fn parse_eq(cond: &str) -> Option<(String, String, bool)> {
         if let Some(pos) = cond.rfind(&needle)
             && let Some(var) = parse_var_word(cond[pos + needle.len()..].trim())
         {
+            // registry-axis-ok: irreducible — expr operator text, not a
+            // command name; until never
             let is_ne = *op == "ne" || *op == "!=";
             return Some((var, cond[..pos].trim().to_owned(), negated ^ is_ne));
         }
@@ -291,9 +299,16 @@ fn parse_set_or_return(text: &str, config: LexerConfig) -> Option<SetOrReturn> {
         let tok = cmd.argv[index];
         text[tok.span.start() as usize..token_end_offset(text, tok) as usize].to_owned()
     };
+    // registry-axis-ok: irreducible — `set` and `return` are recognised as
+    // Tcl's own primitive syntax for this one-command-body shape, not as a
+    // pack-authorable command; no registry query narrower than "is the word
+    // literally `set`/`return`" answers this, and neither is ever a pack's
+    // to redeclare; until never
     if cmd.texts[0] == "set" && cmd.texts.len() == 3 {
         return Some(SetOrReturn::Set(cmd.texts[1].clone(), raw(2)));
     }
+    // registry-axis-ok: irreducible — same primitive-syntax reason; until
+    // never
     if cmd.texts[0] == "return" && cmd.texts.len() == 2 {
         return Some(SetOrReturn::Return(raw(1)));
     }
@@ -377,7 +392,7 @@ pub fn extract_to_datagroup_from_if(
     config: LexerConfig,
 ) -> Option<Refactoring> {
     let cmd = find_command_at(source, cursor, Some("if"), registry, config)?;
-    let chain = parse_if_chain(&cmd.texts)?;
+    let chain = parse_if_chain(&cmd.texts, registry)?;
     if chain.values.len() < 2 {
         return None;
     }
@@ -449,30 +464,33 @@ struct IfChain {
     else_body: Option<String>,
 }
 
-/// Index of the body belonging to the condition at `cond`, skipping stock
-/// Tcl's optional `then` keyword (`if {$x} then {body}`, and the same after
-/// every `elseif`).  `None` when the command runs out of words before the
-/// body — which is not valid Tcl anyway, so the transform declines.
-fn body_index_after(texts: &[String], cond: usize) -> Option<usize> {
-    let mut body = cond + 1;
-    if texts.get(body).is_some_and(|w| w == "then") {
-        body += 1;
-    }
-    (body < texts.len()).then_some(body)
-}
-
 /// Parse the if/elseif chain (OR-chain in a single condition, or an
-/// `elseif` ladder).
-fn parse_if_chain(texts: &[String]) -> Option<IfChain> {
-    // OR-chain in a single condition.
-    if texts.len() >= 3
-        && let Some(body) = body_index_after(texts, 1)
-        && let Some((target_var, values)) = try_or_chain(&texts[1])
+/// `elseif` ladder) through `if`'s own clause grammar — the condition and
+/// body of each clause, and the default (`else`, or its optional-keyword
+/// bare final body) — rather than comparing keyword spellings by hand.
+fn parse_if_chain(texts: &[String], registry: &CommandRegistry) -> Option<IfChain> {
+    let args: Vec<&str> = texts.get(1..)?.iter().map(String::as_str).collect();
+    let resolved = registry.resolve_call("if", &args, None)?;
+    let plan = resolved.clause_plan(&args, None)?;
+    if plan.defect.is_some() {
+        return None;
+    }
+
+    // OR-chain in a single condition: `if {$x eq "a" || $x eq "b"} {…}` is
+    // one clause whose *condition* carries the `||`, which the grammar
+    // reads as one opaque `Expr` operand — tried on the head clause first
+    // and, when it matches, returned regardless of what follows, exactly
+    // as the retired word walk did.
+    if let Some(head) = plan.clauses.first()
+        && !head.is_default
+        && let Some(cond_idx) = head.operand(ArgRole::Expr)
+        && let Some(body_idx) = head.operand(ArgRole::Body)
+        && let Some((target_var, values)) = try_or_chain(args[cond_idx])
     {
         return Some(IfChain {
             target_var,
             values,
-            bodies: vec![texts[body].clone()],
+            bodies: vec![args[body_idx].to_owned()],
             else_body: None,
         });
     }
@@ -481,27 +499,14 @@ fn parse_if_chain(texts: &[String]) -> Option<IfChain> {
     let mut values: Vec<String> = Vec::new();
     let mut bodies: Vec<String> = Vec::new();
     let mut else_body: Option<String> = None;
-    let mut i = 1;
-    while i < texts.len() {
-        let word = &texts[i];
-        if word == "elseif" {
-            i += 1;
+    for clause in &plan.clauses {
+        let body = args[clause.operand(ArgRole::Body)?].to_owned();
+        if clause.is_default {
+            else_body = Some(body);
             continue;
         }
-        if word == "else" {
-            if i + 1 < texts.len() {
-                else_body = Some(texts[i + 1].clone());
-            }
-            break;
-        }
-        // `i` only ever lands on a condition, `elseif`, or `else`, never on
-        // the optional `then` — that keyword sits between a condition and
-        // its body, so it has to be skipped when the body offset is worked
-        // out, not at the top of the loop.
-        let body_at = body_index_after(texts, i)?;
-        let (var, value, negated) = parse_eq(word)?;
-        let body = texts[body_at].clone();
-        i = body_at + 1;
+        let condition = args[clause.operand(ArgRole::Expr)?];
+        let (var, value, negated) = parse_eq(condition)?;
         if negated {
             return None;
         }
@@ -623,14 +628,21 @@ pub fn extract_to_datagroup_from_switch(
     if pairs.len() < 3 {
         return None;
     }
+    // `switch`'s own case-list descriptor: the keyword pattern (`default`)
+    // and the fallthrough marker (`-`), read rather than hardcoded so a
+    // pack's differently-shaped case list (Expect's `timeout` / `eof`) is
+    // never silently read as `switch`'s.
+    let case_list = registry.get("switch").and_then(|spec| spec.case_list)?;
+    let default_word = case_list.keyword_patterns.first().copied();
+    let fallthrough_word = case_list.fallthrough_body;
 
     // Separate default from regular arms.
     let mut default_body: Option<String> = None;
     let mut regular_pairs: Vec<(String, String)> = Vec::new();
     for (pattern, body) in &pairs {
-        if pattern == "default" {
+        if Some(pattern.as_str()) == default_word {
             default_body = Some(body.clone());
-        } else if body.trim() == "-" {
+        } else if fallthrough_word.is_some_and(|marker| body.trim() == marker) {
             return None; // fallthrough — can't map
         } else {
             regular_pairs.push((pattern.clone(), body.clone()));

@@ -27,8 +27,8 @@
 //! validate a pack it has just written, and to read what its own loop
 //! actually registered.
 //!
-//! **There is exactly one loader** — and since the `one-loader` lane that is
-//! true of the tree, not just of this module. Every fact below comes from
+//! **There is exactly one loader** — true of the tree, not just of this
+//! module. Every fact below comes from
 //! [`tcl_spectcl::evaluate_pack`], which is now the only door from `.tclspec`
 //! text to a `Pack`: the LSP's discovery and reload path reaches the same
 //! function through `tcl_spectcl::evaluate_pack_cached` (the cache, not a
@@ -84,9 +84,13 @@
 use std::collections::BTreeSet;
 
 use serde_json::{Map, Value, json};
+use tcl_dialect::model::WorkspaceTrust;
 use tcl_registry::CommandRegistry;
 use tcl_registry::pack_hooks::HookInputs;
 use tcl_registry::spec::CommandSpec;
+use tcl_registry::value_transfer::{
+    DeclaredEvaluation, DeclaredInput, DeclaredSemantics, SemanticsDeclaration,
+};
 use tcl_spec_studio::draft::{self, Draft, UNRENDERABLE_KEY};
 use tcl_spectcl::{HookDecl, HookFamily, HookOwner, HookSource, PackCommand, Tier, evaluate_pack};
 
@@ -135,11 +139,33 @@ fn ctx_key_in_shape(key: &str) -> bool {
 /// evaluation can see — [`load_error`](tcl_spectcl::LoadError) for the four transactional
 /// failures (a determinism denial naming its axis, a blown budget naming its
 /// axis, a Tcl error, a provenance refusal), the target-dependence flag, and
-/// the workspace-tier provenance verdict below.
+/// the `tier`/`trust` provenance preview below.
+///
+/// The pack is always **evaluated** as trusted — the file is the author's
+/// own, and the authority ruling makes its declarative facts authoritative
+/// regardless of trust, so every command, notice, and hook the pack declares
+/// is reported whatever `tier`/`trust` name. `tier` (`bundled`, `user`,
+/// `workspace`, or `studio-override`; default `workspace`, the tier a
+/// workspace `.tclspec` file actually installs at) and `trust` (`trusted` or
+/// `untrusted`; default `trusted`) instead choose which install this report
+/// *previews*, over that one evaluated snapshot rather than a second,
+/// possibly-discarding evaluation: `untrusted_tier_refusal` is the E-R2
+/// refusal `tier` would draw from an untrusted install (never for the
+/// bundled or user tier, which no trust state makes untrusted), and
+/// `dormant_hooks` is every hook body that stays dormant under the
+/// `(tier, trust)` pair's provenance (redesign O4) — empty when that
+/// provenance is itself untrusted and refuses the pack, since a pack that
+/// does not load holds nothing dormant. `stamp_refusals` is, on the same
+/// terms, every codegen-axis stamp that install drops under the stamp
+/// rejection rule ([`tcl_spectcl::stamps`]): all of them outside a bundled
+/// pack, and a bundled pack's too unless its command's `alias_of` names the
+/// shipped builtin that carries the stamp.
 pub fn spectcl_check(args: &Value) -> Value {
     let source = args.get("source").and_then(Value::as_str).unwrap_or("");
     let dialect = crate::tools::declared_dialect(args);
     let registry = tcl_spectcl::bundled::registry_for_dialect(&dialect);
+    let tier = declared_tier(args);
+    let trust = declared_trust(args);
 
     let pack = evaluate_pack(source);
 
@@ -165,13 +191,13 @@ pub fn spectcl_check(args: &Value) -> Value {
         .collect();
     // The provenance verdict the *author's* tier does not raise. Checking
     // evaluates a pack as trusted, because the file is the author's own; a
-    // pack lands in a workspace or a Spec Studio override, where E-R2 refuses
-    // a `-override` on a compiled name, a `dialect` block, or a reserved
-    // `environment` name outright. Reporting it here is the difference
-    // between finding that out now and finding it out when the pack silently
-    // fails to load in an editor.
-    let provenance = tcl_spectcl::provenance_violation(&pack, Tier::Workspace);
-    if let Some((line, message)) = &provenance {
+    // pack lands at `tier` (default the workspace tier a `.tclspec` file
+    // actually installs at), where E-R2 refuses a `-override` on a compiled
+    // name, a `dialect` block, or a reserved `environment` name outright.
+    // Reporting it here is the difference between finding that out now and
+    // finding it out when the pack silently fails to load in an editor.
+    let tier_refusal = tcl_spectcl::provenance_violation(&pack, tier);
+    if let Some((line, message)) = &tier_refusal {
         notices.push(json!({
             "line": line,
             "context": "pack",
@@ -179,6 +205,11 @@ pub fn spectcl_check(args: &Value) -> Value {
             "reason": message,
         }));
     }
+    let provenance = tcl_spectcl::PackEnvironmentTier::of(tier, trust).provenance();
+    let InstallPreview {
+        dormant_hooks,
+        stamp_refusals,
+    } = install_preview(&pack, provenance, tier_refusal.is_some());
     let collisions: Vec<Value> = pack
         .commands
         .iter()
@@ -198,6 +229,12 @@ pub fn spectcl_check(args: &Value) -> Value {
         .flat_map(|c| c.hooks.iter())
         .filter(|h| declaration_conflict(h, &CtxScan::of(h)).is_some())
         .count();
+    let evaluate_finding_count: usize = pack
+        .commands
+        .iter()
+        .flat_map(|c| c.hooks.iter().map(move |h| evaluate_findings(h, c.spec)))
+        .map(|findings| findings.len())
+        .sum();
     let shadowed = collisions
         .iter()
         .filter(|c| c["effect"] == "shipped-spec-wins")
@@ -213,16 +250,131 @@ pub fn spectcl_check(args: &Value) -> Value {
         "collisions": collisions,
         "load_error": pack.load_error.as_ref().map(ToString::to_string),
         "target_dependent": pack.target_dependent,
-        "untrusted_tier_refusal": provenance.as_ref().map(|(_, message)| message.clone()),
+        "untrusted_tier_refusal": tier_refusal.as_ref().map(|(_, message)| message.clone()),
+        "provenance": tcl_registry::model::provenance_label(provenance),
+        "dormant_hooks": dormant_hooks,
+        "stamp_refusals": stamp_refusals,
         "summary": {
             "commands": pack.commands.len(),
             "notices": notice_count,
             "hooks": hook_count,
             "uncacheable_hooks": uncacheable,
             "declaration_conflicts": conflicts,
+            "evaluate_findings": evaluate_finding_count,
             "collisions": collisions.len(),
             "shadowed_commands": shadowed,
+            "dormant_hooks": dormant_hooks.len(),
+            "stamp_refusals": stamp_refusals.len(),
         },
+    })
+}
+
+/// What the install a `(tier, trust)` pair describes does to the pack's
+/// executable half: the hook bodies it holds dormant and the codegen-axis
+/// stamps it drops.
+struct InstallPreview {
+    dormant_hooks: Vec<Value>,
+    stamp_refusals: Vec<Value>,
+}
+
+/// The [`InstallPreview`] at `provenance` — the pair's own, which the report
+/// names so an author sees which install this preview is of. `dormant_hooks`
+/// gates on it (D3.12: only an untrusted workspace holds bodies dormant), and
+/// `stamp_refusals` is the stamp rejection rule's verdict under it, the
+/// warnings the load would publish on each command's row. When that
+/// provenance is itself untrusted and refuses the pack (`refused`), the pack
+/// does not load there at all, so both are empty — the report says one thing
+/// about one install.
+fn install_preview(
+    pack: &tcl_spectcl::Pack,
+    provenance: tcl_dialect::model::Provenance,
+    refused: bool,
+) -> InstallPreview {
+    if refused && tcl_registry::model::untrusted(provenance) {
+        return InstallPreview {
+            dormant_hooks: Vec::new(),
+            stamp_refusals: Vec::new(),
+        };
+    }
+    let dormant_hooks = tcl_spectcl::hooks::dormant_hooks(&pack.name, &pack.commands, provenance)
+        .iter()
+        .map(dormant_hook_json)
+        .collect();
+    let stamp_refusals = pack
+        .commands
+        .iter()
+        .flat_map(|command| {
+            tcl_spectcl::stamps::stamp_refusals(
+                command.spec,
+                provenance,
+                None,
+                tcl_spectcl::stamps::shipped(),
+            )
+            .into_iter()
+            .map(move |refusal| {
+                json!({
+                    "command": command.spec.name,
+                    "line": command.line,
+                    "message": refusal.message(),
+                })
+            })
+        })
+        .collect();
+    InstallPreview {
+        dormant_hooks,
+        stamp_refusals,
+    }
+}
+
+/// The `tier` argument's spelling of [`Tier::StudioOverride`] — the one
+/// tier whose own label ("Spec Studio override") is prose rather than a
+/// token an argument can carry.
+const STUDIO_OVERRIDE_ARGUMENT: &str = "studio-override";
+
+/// The four `tier` argument values the schema advertises: each discovery
+/// tier's own [`Tier::label`], and [`STUDIO_OVERRIDE_ARGUMENT`].
+pub(crate) const TIER_ARGUMENTS: [&str; 4] = [
+    Tier::Bundled.label(),
+    Tier::User.label(),
+    Tier::Workspace.label(),
+    STUDIO_OVERRIDE_ARGUMENT,
+];
+
+/// The tier `tier`/`trust` name, from the MCP arguments: the tier a
+/// workspace `.tclspec` file actually installs at by default, the other
+/// three discovery tiers on request, each by its own label.
+fn declared_tier(args: &Value) -> Tier {
+    let Some(named) = args.get("tier").and_then(Value::as_str) else {
+        return Tier::Workspace;
+    };
+    if named == STUDIO_OVERRIDE_ARGUMENT {
+        return Tier::StudioOverride;
+    }
+    [Tier::Bundled, Tier::User, Tier::Workspace]
+        .into_iter()
+        .find(|tier| tier.label() == named)
+        .unwrap_or(Tier::Workspace)
+}
+
+/// The editor's Workspace Trust state to preview `dormant_hooks` under —
+/// trusted by default, since the file is the author's own and that is what
+/// checking it has always meant.
+fn declared_trust(args: &Value) -> WorkspaceTrust {
+    match args.get("trust").and_then(Value::as_str) {
+        Some("untrusted") => WorkspaceTrust::Untrusted,
+        _ => WorkspaceTrust::Trusted,
+    }
+}
+
+/// One dormant hook, as `spectcl_check` reports it: the same fact
+/// [`tcl_spectcl::PackNotice::dormant`] turns into a load-time notice, keyed
+/// so an author can find the row.
+fn dormant_hook_json(hook: &tcl_spectcl::hooks::DormantHook) -> Value {
+    json!({
+        "command": hook.command,
+        "field": hook.field,
+        "line": hook.line,
+        "message": tcl_spectcl::PackNotice::dormant(hook).message,
     })
 }
 
@@ -299,7 +451,7 @@ fn command_json(cmd: &PackCommand, defaults: &Draft, sub_defaults: &Draft) -> Va
             })
         })
         .collect();
-    let hooks: Vec<Value> = cmd.hooks.iter().map(hook_json).collect();
+    let hooks: Vec<Value> = cmd.hooks.iter().map(|h| hook_json(h, cmd.spec)).collect();
     let families: BTreeSet<&str> = cmd.hooks.iter().map(|h| family_key(h.family)).collect();
 
     json!({
@@ -364,6 +516,8 @@ fn family_key(family: HookFamily) -> &'static str {
         HookFamily::ClauseShapeCheck => "clause_shape_check",
         HookFamily::Constraints => "constraints",
         HookFamily::OptionArity => "-arity-hook",
+        HookFamily::Evaluate => "evaluate",
+        HookFamily::StateTransitionResolver => "state_transitions.resolver",
     }
 }
 
@@ -379,7 +533,7 @@ fn owner_label(owner: &HookOwner) -> String {
     }
 }
 
-fn hook_json(hook: &HookDecl) -> Value {
+fn hook_json(hook: &HookDecl, spec: &CommandSpec) -> Value {
     let (kind, detail) = match &hook.source {
         HookSource::Body { params, .. } => ("body", params.join(" ")),
         HookSource::Native { id } => ("native", id.clone()),
@@ -390,6 +544,7 @@ fn hook_json(hook: &HookDecl) -> Value {
     json!({
         "owner": owner_label(&hook.owner),
         "field": hook.field,
+        "line": hook.line,
         "family": family_key(hook.family),
         "source": kind,
         "detail": detail,
@@ -398,10 +553,170 @@ fn hook_json(hook: &HookDecl) -> Value {
         "shape_cacheable": cacheable,
         "cache_reason": reason,
         "declaration_conflict": declaration_conflict(hook, &scan),
+        "evaluate_findings": evaluate_findings(hook, spec),
         "verbs": hook.family.verbs(),
         "silence_means": hook.family.silence(),
         "requires_all_literal": hook.family.requires_all_literal(),
     })
+}
+
+/// The declared plan a hook's owner states, when it is a pack's own
+/// (`as_declared`) rather than a shipped, compiled-in specialisation.
+fn declared_semantics_for<'a>(
+    spec: &'a CommandSpec,
+    owner: &HookOwner,
+) -> Option<&'a DeclaredSemantics> {
+    let declaration = match owner {
+        HookOwner::Command => spec.semantics,
+        HookOwner::Subcommand(name) => {
+            spec.subcommands
+                .iter()
+                .find(|sub| sub.name == name)?
+                .semantics
+        }
+        HookOwner::Option { .. } => return None,
+    };
+    match declaration {
+        SemanticsDeclaration::Declared(semantics) => semantics.as_declared(),
+        SemanticsDeclaration::Inherited | SemanticsDeclaration::Declined => None,
+    }
+}
+
+/// The three declared-implementation findings
+/// (`docs/design/compiler/value-evaluation.md` § *The four surfaces, the
+/// parity tests, and `spectcl_check`*): each a report over the declaration
+/// and — for the two that ask what the body *does* — the same pessimistic,
+/// textual style [`ctx_reads`] already uses for the other eleven families,
+/// applied to the `fold` / `write` / `preserve` verbs this one emits instead
+/// of a `dict get $ctx KEY` read (`evaluate -implementation`'s body takes no
+/// `ctx` at all — `tcl_spec_hooks::host::run` binds it only its declared
+/// inputs, positionally). Each is a report, never an enforcement: the driver
+/// already raises on a write to a non-target and declines a body silent on a
+/// declared target at run time (`answer_of`'s three rules); this is what an
+/// author sees before a user does.
+fn evaluate_findings(hook: &HookDecl, spec: &CommandSpec) -> Vec<String> {
+    let mut findings = Vec::new();
+    if hook.family != HookFamily::Evaluate {
+        return findings;
+    }
+    let HookSource::Body { body, .. } = &hook.source else {
+        return findings;
+    };
+    let Some(declared) = declared_semantics_for(spec, &hook.owner) else {
+        return findings;
+    };
+    let targets: &[usize] = declared
+        .structure
+        .stores
+        .map_or(&[], |stores| stores.targets);
+    let incoming: Vec<usize> = match declared.evaluation {
+        DeclaredEvaluation::Implementation(implementation) => implementation
+            .capability
+            .inputs
+            .iter()
+            .filter_map(|input| match input {
+                DeclaredInput::IncomingTarget { index } => Some(*index),
+                DeclaredInput::Operand { .. } | DeclaredInput::OptionValue { .. } => None,
+            })
+            .collect(),
+        DeclaredEvaluation::Route(_) => Vec::new(),
+    };
+
+    // An evaluator reads a target it did not declare: `inputs` names
+    // `target N incoming` for an `N` the structural plan never declared as
+    // one of its own targets, so the value it reads is not a target at all
+    // by this declaration's own other half — almost always a typo for
+    // `arg N exact`, or a `stores -targets` row an edit forgot to update.
+    for index in &incoming {
+        if !targets.contains(index) {
+            findings.push(format!(
+                "reads target {index} incoming, which `semantics`'s own `stores` \
+                 row does not declare as one of this evaluator's targets"
+            ));
+        }
+    }
+
+    if !targets.is_empty() {
+        let emissions = evaluate_emissions(body);
+        // A write names a non-target: reported first, target by target, so a
+        // typo'd index is named beside the row that would have accepted it.
+        for &index in &emissions.named {
+            if !targets.contains(&index) {
+                findings.push(format!(
+                    "writes or preserves target {index}, which is outside the \
+                     structural plan's declared targets {targets:?} — the write \
+                     raises at query time, a decline the pack can avoid"
+                ));
+            }
+        }
+        // An evaluator is silent on a declared target: the body answers
+        // *something* (a fold, or a write/preserve of another target) but
+        // never names this one, so rule 3 declines the whole answer and every
+        // fact the body did establish for the others is lost with it. Never
+        // reported when some write/preserve names an unattributable
+        // (computed) target — the body may cover it, and this scan can only
+        // ever be pessimistic in the direction of the target it can prove.
+        if emissions.any && !emissions.unattributed {
+            for &index in targets {
+                if !emissions.named.contains(&index) {
+                    findings.push(format!(
+                        "answers without a `write` or `preserve` for declared \
+                         target {index} — silence declines the whole answer, \
+                         not just this target"
+                    ));
+                }
+            }
+        }
+    }
+    findings
+}
+
+/// What an `evaluate -implementation` body's `fold` / `write` / `preserve`
+/// verb calls state, scanned the same pessimistic, textual way
+/// [`ctx_reads`] scans for `dict get $ctx KEY`.
+#[derive(Debug, Default)]
+struct EmissionScan {
+    /// Whether any of the three verbs was called at all.
+    any: bool,
+    /// Target indices a `write` or `preserve` names with a literal integer.
+    named: BTreeSet<usize>,
+    /// Whether some `write` / `preserve` names its target with something
+    /// other than a literal integer, so `named` is not the full set.
+    unattributed: bool,
+}
+
+fn evaluate_emissions(body: &str) -> EmissionScan {
+    let mut scan = EmissionScan::default();
+    let bytes = body.as_bytes();
+    for verb in ["fold", "write", "preserve"] {
+        let mut i = 0;
+        while let Some(at) = body[i..].find(verb).map(|p| p + i) {
+            let after = at + verb.len();
+            i = after;
+            // A whole word: not `unfold`, not `writeback`.
+            let before_ok = at == 0 || !is_name_byte(bytes[at - 1]);
+            let after_ok = bytes.get(after).is_none_or(|b| !is_name_byte(*b));
+            if !before_ok || !after_ok {
+                continue;
+            }
+            scan.any = true;
+            if verb == "fold" {
+                continue;
+            }
+            let rest = body[after..].trim_start();
+            let end = rest
+                .find(|c: char| c.is_whitespace() || c == ']' || c == '}' || c == ';')
+                .unwrap_or(rest.len());
+            match rest[..end].parse::<usize>() {
+                Ok(index) => {
+                    scan.named.insert(index);
+                }
+                Err(_) if rest[..end].is_empty() => {}
+                Err(_) => scan.unattributed = true,
+            }
+        }
+    }
+    scan
 }
 
 /// What a hook body reads out of its `ctx` dict.
@@ -799,6 +1114,36 @@ speclib timed 1.2 {
         );
     }
 
+    /// A pack-authored `state_transitions` resolver body is a hook like any
+    /// other family's: reported under the family's field spelling, with the
+    /// two verbs its sandbox defines and what its silence means.
+    #[test]
+    fn a_state_transition_resolver_is_reported_as_a_hook() {
+        let source = r"
+speclib linked 2.1 {
+    command linked::alias {
+        arity 2
+        state_transitions {
+            argument_shape Positional
+            resolver {words ctx} { alias 1 0 }
+        }
+    }
+}
+";
+        let result = check(source, "tcl9.0");
+        assert_eq!(result["notices"], json!([]), "{result}");
+        assert_eq!(
+            strings(&result["commands"][0]["hook_families"]),
+            vec!["state_transitions.resolver"]
+        );
+        let hook = &result["commands"][0]["hooks"][0];
+        assert_eq!(hook["family"], "state_transitions.resolver", "{hook}");
+        assert_eq!(hook["field"], "state_transitions.resolver", "{hook}");
+        assert_eq!(hook["source"], "body", "{hook}");
+        assert_eq!(hook["verbs"], json!(["alias", "namespace-variable"]));
+        assert_eq!(hook["silence_means"], "no transitions");
+    }
+
     /// A body that declares nothing may read anything, and is never cached —
     /// the safe default, and the reason a pack pays 28 µs per call site until
     /// it opts in. The keys it reads are still reported.
@@ -882,6 +1227,151 @@ speclib mylib 1.0 {
         let conflict = hook["declaration_conflict"].as_str().unwrap_or_default();
         assert!(conflict.contains("dialect"), "{hook}");
         assert_eq!(result["summary"]["declaration_conflicts"], 1, "{result}");
+    }
+
+    /// A declared implementation reading a target's incoming value that the
+    /// structural plan never named as one of its own targets: almost always
+    /// a typo for `arg N exact`, or a `stores -targets` row an edit forgot
+    /// to update.
+    #[test]
+    fn an_evaluator_reading_an_undeclared_target_is_flagged() {
+        let source = r"
+speclib probe 2.2 {
+    command probe::bad_input {
+        arity 1..3
+        semantics {
+            stores -targets {1} -outcome write
+        }
+        evaluate -implementation probe.bad_input.v1 -host bounded_tcl {
+            inputs {arg 0 exact target 2 incoming}
+            budget {-commands 100}
+            body {a b} { write 1 $a }
+        }
+    }
+}
+";
+        let result = check(source, "tcl9.0");
+        assert_eq!(result["notices"], json!([]), "{result}");
+        let hook = &result["commands"][0]["hooks"][0];
+        let findings = strings(&hook["evaluate_findings"]);
+        assert_eq!(findings.len(), 1, "{hook}");
+        assert!(
+            findings[0].contains("target 2 incoming") && findings[0].contains("stores"),
+            "{hook}"
+        );
+        assert_eq!(result["summary"]["evaluate_findings"], 1, "{result}");
+    }
+
+    /// A body that answers something but never names one of its own declared
+    /// targets: rule 3 declines the whole answer, so every fact the body did
+    /// establish for the targets it did name is lost with it.
+    #[test]
+    fn an_evaluator_silent_on_a_declared_target_is_flagged() {
+        let source = r"
+speclib probe 2.2 {
+    command probe::partial_split {
+        arity 1
+        semantics {
+            stores -targets {1 2} -outcome write_or_preserve
+        }
+        evaluate -implementation probe.partial_split.v1 -host bounded_tcl {
+            inputs {arg 0 exact}
+            body {value} { write 1 $value }
+        }
+    }
+}
+";
+        let result = check(source, "tcl9.0");
+        assert_eq!(result["notices"], json!([]), "{result}");
+        let hook = &result["commands"][0]["hooks"][0];
+        let findings = strings(&hook["evaluate_findings"]);
+        assert_eq!(findings.len(), 1, "{hook}");
+        assert!(
+            findings[0].contains("target 2") && findings[0].contains("silence"),
+            "{hook}"
+        );
+        assert_eq!(result["summary"]["evaluate_findings"], 1, "{result}");
+    }
+
+    /// A `write` naming an index outside the structural plan's declared
+    /// targets: it raises at query time, a decline the pack can avoid by
+    /// fixing the typo at load time instead.
+    #[test]
+    fn a_write_naming_a_non_target_is_flagged() {
+        let source = r"
+speclib probe 2.2 {
+    command probe::stray_write {
+        arity 1
+        semantics {
+            stores -targets {1} -outcome write
+        }
+        evaluate -implementation probe.stray_write.v1 -host bounded_tcl {
+            inputs {arg 0 exact}
+            body {value} { write 1 $value; write 2 $value }
+        }
+    }
+}
+";
+        let result = check(source, "tcl9.0");
+        assert_eq!(result["notices"], json!([]), "{result}");
+        let hook = &result["commands"][0]["hooks"][0];
+        let findings = strings(&hook["evaluate_findings"]);
+        assert_eq!(findings.len(), 1, "{hook}");
+        assert!(
+            findings[0].contains("target 2") && findings[0].contains("outside"),
+            "{hook}"
+        );
+        assert_eq!(result["summary"]["evaluate_findings"], 1, "{result}");
+    }
+
+    /// The other side of the previous three: a declaration whose inputs,
+    /// targets, and body all agree raises none of the three findings, and a
+    /// hook of a different family always reads `[]` regardless of what its
+    /// body does.
+    #[test]
+    fn a_consistent_declared_implementation_has_no_evaluate_findings() {
+        let source = r#"
+speclib probe 2.2 {
+    command tenant::label {
+        arity 1
+        evaluate -implementation tenant.label.v1 -host bounded_tcl {
+            inputs {arg 0 exact}
+            body {name} { fold [string cat "tenant:" $name] }
+        }
+    }
+    command probe::split3 {
+        arity 4
+        semantics {
+            stores -targets {1 2 3} -outcome write_or_preserve
+        }
+        evaluate -implementation probe.split3.v1 -host bounded_tcl {
+            inputs {arg 0 exact target 1 incoming}
+            body {sep incoming} {
+                write 1 $incoming
+                preserve 2
+                preserve 3
+            }
+        }
+    }
+    command mylib::with_var {
+        arity 2
+        const_fold {words ctx} { fold ok }
+    }
+}
+"#;
+        let result = check(source, "tcl9.0");
+        assert_eq!(result["notices"], json!([]), "{result}");
+        for command in result["commands"].as_array().expect("commands") {
+            for hook in command["hooks"].as_array().expect("hooks") {
+                assert_eq!(
+                    hook["evaluate_findings"],
+                    json!([]),
+                    "{}: {hook}",
+                    command["name"]
+                );
+            }
+        }
+        assert_eq!(result["summary"]["evaluate_findings"], 0, "{result}");
     }
 
     /// A `-native` hook has no VM body, so cacheability does not apply to it.
@@ -1223,6 +1713,42 @@ speclib mylib 1.0 {
         assert!(classes.contains(&"provenance"), "{result}");
     }
 
+    /// The bundled and user tiers are trusted whatever the editor says, and
+    /// the load never refuses them, so a preview at either draws no refusal
+    /// — even for an `-override` of a compiled command the workspace tier
+    /// would refuse — while the workspace default still does.
+    #[test]
+    fn a_bundled_or_user_tier_draws_no_refusal() {
+        let source =
+            "speclib sneaky 2.0 {\n    command lsort -override {\n        arity 1..\n    }\n}\n";
+        for (tier, provenance) in [("bundled", "bundled"), ("user", "user")] {
+            let result = dispatch(
+                "spectcl_check",
+                &json!({ "source": source, "dialect": "tcl9.0", "tier": tier }),
+            )
+            .expect("spectcl_check tool");
+            assert_eq!(
+                result["untrusted_tier_refusal"],
+                Value::Null,
+                "{tier}: {result}"
+            );
+            assert_eq!(result["provenance"], provenance, "{tier}: {result}");
+            let classes: Vec<&str> = result["notices"]
+                .as_array()
+                .expect("notices")
+                .iter()
+                .filter_map(|n| n["class"].as_str())
+                .collect();
+            assert!(!classes.contains(&"provenance"), "{tier}: {result}");
+            assert_eq!(result["summary"]["commands"], 1, "{tier}: {result}");
+        }
+        let workspace = check(source, "tcl9.0");
+        assert!(
+            workspace["untrusted_tier_refusal"].is_string(),
+            "the workspace default still previews the refusal: {workspace}"
+        );
+    }
+
     /// A pack that touches nothing reserved carries no refusal.
     #[test]
     fn an_ordinary_pack_carries_no_tier_refusal() {
@@ -1231,6 +1757,160 @@ speclib mylib 1.0 {
         assert_eq!(result["target_dependent"], json!(false), "{result}");
         assert_eq!(result["load_error"], Value::Null, "{result}");
     }
+
+    /// `tier`/`trust` default to `workspace`/`trusted` — the tier a
+    /// workspace `.tclspec` file actually installs at, previewed as if the
+    /// editor already trusts it — so a call naming neither answers exactly
+    /// as an explicit `workspace`/`trusted` call does, and the two fields
+    /// this item adds are present but vacuous at that default: no hook is
+    /// dormant, and the provenance names a trusted workspace.
+    #[test]
+    fn the_default_tier_and_trust_equal_an_explicit_workspace_trusted_call() {
+        let default = dispatch(
+            "spectcl_check",
+            &json!({ "source": VALID, "dialect": "tcl9.0" }),
+        )
+        .expect("spectcl_check tool");
+        let explicit = dispatch(
+            "spectcl_check",
+            &json!({
+                "source": VALID,
+                "dialect": "tcl9.0",
+                "tier": "workspace",
+                "trust": "trusted",
+            }),
+        )
+        .expect("spectcl_check tool");
+        assert_eq!(
+            default, explicit,
+            "default must equal an explicit workspace/trusted call"
+        );
+        assert_eq!(default["provenance"], "trusted workspace", "{default}");
+        assert_eq!(default["dormant_hooks"], json!([]), "{default}");
+        assert_eq!(default["summary"]["dormant_hooks"], 0, "{default}");
+    }
+
+    /// A `const_fold` body checked as `trust: untrusted` (tier still the
+    /// `workspace` default): the pack loads there, its body is held dormant,
+    /// and its command is still fully reported — holding a body dormant
+    /// costs no analysis fact.
+    #[test]
+    fn trust_untrusted_lists_the_hook_as_dormant() {
+        let result = dispatch(
+            "spectcl_check",
+            &json!({ "source": STRLEN_FOLD, "dialect": "tcl9.0", "trust": "untrusted" }),
+        )
+        .expect("spectcl_check tool");
+        assert_eq!(result["provenance"], "untrusted workspace", "{result}");
+        assert_eq!(result["untrusted_tier_refusal"], Value::Null, "{result}");
+        let dormant = result["dormant_hooks"].as_array().expect("dormant_hooks");
+        assert_eq!(dormant.len(), 1, "{result}");
+        assert_eq!(dormant[0]["command"], "trustfold::strlen", "{result}");
+        assert_eq!(dormant[0]["field"], "const_fold", "{result}");
+        assert_eq!(result["summary"]["dormant_hooks"], 1, "{result}");
+        assert_eq!(result["summary"]["commands"], 1, "{result}");
+        assert_eq!(result["load_error"], Value::Null, "{result}");
+    }
+
+    /// The same body beside an `-override` of a compiled command, checked as
+    /// `trust: untrusted`: that install refuses the whole pack, so the
+    /// report names the refusal and no dormant body — a pack that does not
+    /// load holds nothing dormant. The author's own check still reports both
+    /// commands (the authority ruling: the preview costs no analysis fact).
+    #[test]
+    fn a_pack_the_untrusted_install_refuses_holds_no_dormant_hook() {
+        let source = STRLEN_FOLD.replace(
+            "\n}\n",
+            "\n    command lsort -override {\n        arity 1..\n    }\n}\n",
+        );
+        let result = dispatch(
+            "spectcl_check",
+            &json!({ "source": source, "dialect": "tcl9.0", "trust": "untrusted" }),
+        )
+        .expect("spectcl_check tool");
+        assert_eq!(result["provenance"], "untrusted workspace", "{result}");
+        let refusal = result["untrusted_tier_refusal"]
+            .as_str()
+            .unwrap_or_default();
+        assert!(refusal.contains("design E-R2"), "{result}");
+        assert!(
+            refusal.contains("would not be loaded from the untrusted workspace tier"),
+            "{result}"
+        );
+        assert_eq!(result["dormant_hooks"], json!([]), "{result}");
+        assert_eq!(result["summary"]["dormant_hooks"], 0, "{result}");
+        assert_eq!(result["summary"]["commands"], 2, "{result}");
+        assert_eq!(result["load_error"], Value::Null, "{result}");
+
+        // Negative control: the trusted install loads the pack, so the
+        // refusal is only the preview's, and still no body is dormant there
+        // because a trusted workspace runs it.
+        let trusted = check(&source, "tcl9.0");
+        assert!(trusted["untrusted_tier_refusal"].is_string(), "{trusted}");
+        assert_eq!(trusted["dormant_hooks"], json!([]), "{trusted}");
+    }
+
+    /// The stamp rejection rule, previewed: a workspace install drops a
+    /// codegen-axis stamp even on `alias_of lassign`, a bundled one admits
+    /// it there, and a bundled one naming a target that does not carry it
+    /// drops it and names the target that does.
+    #[test]
+    fn stamp_refusals_preview_the_install_the_pair_describes() {
+        let unpack = |target: &str| {
+            format!(
+                "speclib vendor 2.0 {{\n    command vendor::unpack {{\n        arity 2..\n        \
+                 alias_of {target}\n        codegen_hook -native Lassign\n    }}\n}}\n"
+            )
+        };
+        let at = |source: &str, tier: &str| {
+            dispatch(
+                "spectcl_check",
+                &json!({ "source": source, "dialect": "tcl9.0", "tier": tier }),
+            )
+            .expect("spectcl_check tool")
+        };
+
+        let workspace = at(&unpack("lassign"), "workspace");
+        let refusals = workspace["stamp_refusals"]
+            .as_array()
+            .expect("stamp_refusals");
+        assert_eq!(refusals.len(), 1, "{workspace}");
+        assert_eq!(refusals[0]["command"], "vendor::unpack", "{workspace}");
+        assert_eq!(refusals[0]["line"], 2, "{workspace}");
+        assert_eq!(
+            refusals[0]["message"],
+            "`codegen_hook Lassign` refused for `vendor::unpack`: a trusted workspace pack may not \
+             name a codegen catalogue member; only a bundled pack may carry `alias_of lassign`'s \
+             own stamp",
+            "{workspace}"
+        );
+        assert_eq!(workspace["summary"]["stamp_refusals"], 1, "{workspace}");
+        // The author's own check still reports the stamp as a field set.
+        assert_eq!(workspace["summary"]["commands"], 1, "{workspace}");
+
+        let bundled = at(&unpack("lassign"), "bundled");
+        assert_eq!(bundled["stamp_refusals"], json!([]), "{bundled}");
+
+        let wrong = at(&unpack("lsort"), "bundled");
+        let refusals = wrong["stamp_refusals"].as_array().expect("stamp_refusals");
+        assert_eq!(refusals.len(), 1, "{wrong}");
+        let message = refusals[0]["message"].as_str().unwrap_or_default();
+        assert!(
+            message.contains("`alias_of lsort` names a shipped command that does not carry it")
+                && message.ends_with("the stamp would have to sit on `alias_of lassign`"),
+            "{wrong}"
+        );
+    }
+
+    /// One `const_fold` body — the hook the dormancy previews are about.
+    const STRLEN_FOLD: &str = "speclib trustfold 2.2 {\n    \
+         command trustfold::strlen {\n        \
+             arity 1\n        \
+             arg 0 -role Value\n        \
+             const_fold -inputs {words} {words ctx} {\n            \
+                 fold [string length [lindex $words 0]]\n        \
+             }\n    \
+         }\n}\n";
 
     // ── spectcl_expand ────────────────────────────────────────────────
 

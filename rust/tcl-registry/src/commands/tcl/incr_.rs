@@ -57,6 +57,7 @@ const INCR_EXPLICIT: CommandForm = CommandForm {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "incr",
+        runtime_backing: RuntimeBacking::shipped("incr"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
@@ -99,7 +100,6 @@ pub fn spec() -> CommandSpec {
         command_forms: &[INCR_IMPLICIT, INCR_EXPLICIT],
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
-        analyser_hook: Some(crate::hooks::AnalyserHookId::Incr),
         ..CommandSpec::DEFAULT
     }
 }

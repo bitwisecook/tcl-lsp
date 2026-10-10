@@ -37,8 +37,15 @@ use tcl_regex::defs::REG_ADVANCED;
 fn groups(re: &str, subject: &str) -> Option<Vec<Option<(usize, usize)>>> {
     let cps: Vec<u32> = subject.chars().map(|c| c as u32).collect();
     let rx = Regex::compile_str(re, REG_ADVANCED).expect("compiles");
-    rx.exec(&cps, 0, 0)
-        .map(|gs| gs.iter().map(|g| g.map(|s| (s.start, s.end))).collect())
+    match rx.exec(&cps, 0, 0) {
+        tcl_regex::ExecOutcome::Matched(gs) => {
+            Some(gs.iter().map(|g| g.map(|s| (s.start, s.end))).collect())
+        }
+        tcl_regex::ExecOutcome::NoMatch => None,
+        tcl_regex::ExecOutcome::Stopped(stop) => {
+            panic!("{re:?} over {subject:?} stopped ({stop:?}): neither a match nor a no-match")
+        }
+    }
 }
 
 fn g(re: &str, subject: &str) -> Vec<Option<(usize, usize)>> {

@@ -27,12 +27,9 @@ use crate::value::Value;
 
 pub(crate) fn register(vm: &mut Vm) {
     vm.register("dict", cmd_dict);
-    // Ensemble member commands the codegen rewrites `dict <sub>` into.
-    let registry = crate::environment::universal_store();
-    let mut member = |name: &'static str, handler: BuiltinFn| {
-        let spec = registry.get(name).expect("qualified dict member spec");
-        vm.register_spec_builtin(spec, handler);
-    };
+    // Ensemble member commands the codegen rewrites `dict <sub>` into, each
+    // under the rooted spelling the registry names it by.
+    let mut member = |name: &'static str, handler: BuiltinFn| vm.register_spelled(name, handler);
     member("::tcl::dict::create", |vm, a| member_op(vm, "create", a));
     member("::tcl::dict::get", |vm, a| member_op(vm, "get", a));
     member("::tcl::dict::exists", |vm, a| member_op(vm, "exists", a));
@@ -636,8 +633,11 @@ fn cmd_dict_update(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
                     return e;
                 }
             }
+            // A missing variable is no error here; a confined removal is.
             None => {
-                let _ = vm.unset_one(&var, false);
+                if let Err(e) = vm.unset_one(&var, false) {
+                    return e;
+                }
             }
         }
         i += 2;

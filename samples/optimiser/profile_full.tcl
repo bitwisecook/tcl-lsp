@@ -47,7 +47,7 @@ proc passthrough {x} {
 
 set half 15
 set threshold 40
-set candidate [expr {$request_count + 3}]
+set candidate [expr {$request_count + 1 + 2}]
 set route 42
 
 # O116: fold constant list
@@ -128,7 +128,7 @@ proc sum_list {lst} {
 
 
 # -------------
-# optimised: 35 rewrite(s)
+# optimised: 34 rewrite(s)
 # O102  Forward literal load of 'count' from its single reaching definition
 # O114  Use incr instead of set/expr
 # O100  Inline the constant value of 'count' proved at this read
@@ -141,7 +141,6 @@ proc sum_list {lst} {
 # O102  Forward literal load of 'timeout' from its single reaching definition
 # O100  Propagate constant and fold
 # O102  Forward literal load of 'timeout' from its single reaching definition
-# O110  Simplify expression (instcombine)
 # O103  Fold pure-proc call to '::passthrough' to its constant return
 # O116  Fold constant list command
 # O118  Fold constant lindex command

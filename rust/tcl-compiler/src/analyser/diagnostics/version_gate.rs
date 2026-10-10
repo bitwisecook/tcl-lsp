@@ -844,7 +844,7 @@ impl Analyser {
     /// version floor is below the required `min_version`. The floor comes
     /// from an explicit versioned `package require`, or — for a package the
     /// active profile pins (§7.1 axis C) — from the profile pin (the shipped
-    /// Tk on a plain Tcl base, a `Keyed` vendor surface at its D5
+    /// Tk on a plain Tcl base, a `Keyed` vendor surface at its
     /// oldest-supported default). Sites with no floor at all (unpinned +
     /// required without a version, or not required — the latter handled by
     /// W120) are skipped.
@@ -1386,7 +1386,7 @@ impl Analyser {
     ///
     /// The base is the active profile's library pin (§7.1: `TracksBase` →
     /// the embedded runtime version, `Pinned` → the shipped version,
-    /// `Keyed` → the session override or the D5 oldest-supported default).
+    /// `Keyed` → the session override or the oldest-supported default).
     /// The highest *guaranteed* lower bound among this file's
     /// `package require <pkg> <req>` lines can only **raise** that floor —
     /// an explicit require never lowers what the runtime already ships.
@@ -2288,7 +2288,7 @@ mod tests {
         // HTTP2::header was introduced in BIG-IP 16.1.0 (the backfilled
         // datum); the iRules profile keys its surface on BigipVersion.
         let src = "when HTTP_REQUEST {\n  HTTP2::header :path\n}\n";
-        // TN at the D5 oldest-supported default (16.1.0 meets 16.1.0)…
+        // TN at the oldest-supported default (16.1.0 meets 16.1.0)…
         assert!(
             version_diags_for(src, "f5-irules", None).is_empty(),
             "the default floor admits the 16.1.0 surface"
@@ -3313,7 +3313,7 @@ mod tests {
         // directive and nothing about it is Tcl-core-specific.
 
         /// A project declaring `Tk 8.5-8.6` gets warned about an item Tk
-        /// only grew at 8.6 — the deliverable's canonical case. `tk busy`
+        /// only grew at 8.6 — a representative case. `tk busy`
         /// is `Lifecycle::introduced_in("8.6")` on the `tk` ensemble.
         #[test]
         fn a_tk_range_warns_on_an_item_the_older_tk_lacks() {

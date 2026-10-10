@@ -195,14 +195,37 @@ but about the move itself, and there are exactly three cases:
 
 ### 3.5 Invalidation
 
-Nothing to invalidate.  Resolution is a live `BTreeMap` walk on every
-dispatch — there is no per-namespace command-reference epoch, no
+Nothing to invalidate for *resolution*.  It is a live `BTreeMap` walk on
+every dispatch — there is no per-namespace command-reference epoch, no
 resolver cache, and no proc-lookup LRU in this runtime, so a rename is
 observable on the very next resolve with no bookkeeping.  The one
 cache-shaped structure that does exist is the command-FQN ⇆ `CommandId`
 arena (`InterpState::cmd_arena`), and it is a name interner, not a
 binding cache: ids map to FQNs, and the FQN is re-resolved when a
 `dispatch_id` invokes it.
+
+A rename does change the *compiled* command environment, which is a
+different mechanism, and it does so per token.  The intrinsic guard table
+(`guarded_commands`) is keyed by command token generation, and a
+generation follows its command through `move_bound_command`, hide and
+expose, so a rename moves the attestation with the builtin: a guard over
+`string` resolves the name `string` afresh on every check and finds no
+attestation once `string` has been renamed away, and finds it again if the
+command is renamed back.  Nothing about a rename touches another command's
+guard, and neither `move_bound_command` nor `delete_bound_command` moves a
+guard domain's epoch; `invalidate_command_environment` is for the events
+that change the lookup environment itself: `namespace path`, `namespace
+export`, `namespace unknown`, `namespace delete`, a `namespace forget` that
+removes an imported command, the creation of a `TclOO` class or object,
+`oo::copy`'s copy of an object's namespace, `interp invokehidden` with
+`-namespace` or `-global` (whether or not the namespace it names exists yet),
+and the creation and deletion of a child interpreter (`namespace import` and a
+`namespace eval` that creates a namespace are not among them).  A compiled
+artefact's binding identities are a third mechanism again: they are
+re-resolved at admission rather than cached, so a rename changes what they
+resolve to and not whether they are checked
+([../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
+§ *Codegen and the registry today*).
 
 ## 4. ``interp alias``
 

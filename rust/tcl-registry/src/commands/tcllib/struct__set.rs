@@ -26,6 +26,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Test if set contains an element.",
         synopsis: "struct::set contains set element",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -33,6 +36,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Return elements in A but not in B.",
         synopsis: "struct::set difference setA setB",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -40,6 +46,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Test if a set is empty.",
         synopsis: "struct::set empty set",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -47,6 +56,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Test if two sets are equal.",
         synopsis: "struct::set equal setA setB",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -54,6 +66,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Remove elements from a set variable.",
         synopsis: "struct::set exclude setVar element",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -61,6 +76,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Add an element to a set variable.",
         synopsis: "struct::set include setVar element",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -68,6 +86,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "Return the intersection of two or more sets.",
         synopsis: "struct::set intersect ?set ...?",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -75,6 +96,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Test if A is a subset of B.",
         synopsis: "struct::set subsetof setA setB",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -82,6 +106,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Return the symmetric difference of two sets.",
         synopsis: "struct::set symdiff setA setB",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -89,6 +116,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "Return the union of two or more sets.",
         synopsis: "struct::set union ?set ...?",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -97,6 +127,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Return the number of elements in a set.",
         synopsis: "struct::set size set",
         pure: true,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -105,6 +138,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Return a three-element list: elements only in A, elements in both, elements only in B.",
         synopsis: "struct::set intersect3 setA setB",
         pure: true,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -112,6 +148,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Add elements of set B to set variable A.",
         synopsis: "struct::set add setVar setB",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -119,6 +158,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Remove elements of set B from set variable A.",
         synopsis: "struct::set subtract setVar setB",
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
 ];
@@ -151,6 +193,9 @@ pub fn spec() -> CommandSpec {
         side_effects: SIDE_EFFECTS,
         subcommands: SUBCOMMANDS,
         tcllib_package: Some("struct::set"),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

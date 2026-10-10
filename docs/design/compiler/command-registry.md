@@ -162,7 +162,7 @@ covers the compiler-facing ones.
 | `NEEDS_START_CMD` | Bytecode control flow: needs a `startCmd` instruction |
 | `CREATES_SCOPE_ALIAS` | Creates a scope alias (upvar-like binding) |
 | `ALIASES_GLOBAL` | Refines `CREATES_SCOPE_ALIAS`: binds the interpreter global namespace |
-| `STRUCTURALLY_CHECKED_ARITY` | Registry `arity` is a descriptive floor only; a `clause_shape_check` hook owns real arity + shape validation, so the generic E002/E003 floor/ceiling check steps aside (`if`) |
+| `STRUCTURALLY_CHECKED_ARITY` | Registry `arity` is a descriptive floor only; the clause grammar's walk (or a `clause_shape_check` escape hatch) owns real arity + shape validation, so the generic E002/E003 floor/ceiling check steps aside and the walk's defect is reported instead (`if`'s E004) |
 
 Traits compose across levels: a `SubCommand` carries its own `traits`, and
 consumers read the union of the command's and the resolved subcommand's bits.
@@ -250,17 +250,18 @@ execution trace is absent.
 | Field | Type | Default | Purpose |
 |-------|------|---------|---------|
 | `arg_roles` | `&'static [(u8, ArgRole)]` | `&[]` | Static arg roles: `Body`, `Expr`, `VarWrite`, `VarRead`, `Pattern`, etc. |
-| `arg_role_resolver` | `Option<ArgRoleResolver>` | `None` | Dynamic arg-role resolution for variable-layout commands (if, try, switch) |
+| `arg_role_resolver` | `Option<ArgRoleResolver>` | `None` | Dynamic arg-role resolution for variable-layout commands (`switch`, `regexp`) whose layout no descriptor spells |
+| `clause_grammar` | `Option<&'static ClauseGrammarSpec>` | `None` | The word grammar of a clause chain (`if`/`elseif`/`else`, `try`/`on`/`trap`/`finally`, `for`, `while`, `foreach`, `lmap`, `catch`; `dict for`/`map`/`update` and `array for` on the subcommand): a positional head, keyword and keywordless rows, a tail, and the fall-through, default and selection rules, each row with its `ClauseTiming`. First in the role resolution order: the registry walks it once per call (`ClauseGrammarSpec::walk`, `CommandSpec::clause_plan`, `ResolvedInvocation::clause_plan`) for the keywords', conditions' and scripts' roles and the chain's `ClauseShapeError` — see `tcl_registry::clause_grammar` |
 | `arg_presentation` | `&'static [(u8, ArgPresentation)]` | `&[]` | Formatter layout override per argument index -- see [ArgPresentation](#argpresentation----how-a-formatter-lays-an-argument-out) |
 | `repeated_args` | `&'static [RepeatedArgLayout]` | `&[]` | Roles that recur at a fixed stride over the argument tail (`global a b c`, `foreach v l ... body`) |
 | `command_prefixes` | `&'static [(u8, AppendedArity)]` | `&[]` | Static `ArgRole::CommandPrefix` positions with the arity appended to the callback |
 | `command_prefix_resolver` | `Option<CommandPrefixResolver>` | `None` | Dynamic command-prefix positions (`trace add …`, `interp alias`) |
 | `script_timing_resolver` | `Option<ScriptTimingResolver>` | `None` | Invocation-sensitive `SameInvocation` / `Deferred` / `ReferenceOnly` timing for positions already classified as executable |
 | `callback_taint_inputs` | `&'static [(u8, &'static [CallbackTaintInput])]` | `&[]` | User-controlled substitutions injected into deferred positional callbacks; generic taint replay never infers framework metadata |
-| `substitution_resolver` | `Option<SubstitutionResolver>` | `None` | Which of backslash / command / variable substitution a `PERFORMS_SUBSTITUTION` call runs over its own argument text, when switches change the answer (`subst -novariables`). The trait says *that* a command substitutes; this says *which kinds*, so a consumer asking "does this argument read a variable?" never matches option spellings itself. Absent means every kind on every call, and an unreadable call answers every kind -- see `tcl_registry::substitution`. |
-| `clause_shape_check` | `Option<ClauseShapeChecker>` | `None` | Validates a clause-chain shape a plain `min..=max` arity can't express (if's `elseif`/`else` chain -- see `tcl_registry::clause_shape`); the compiler dispatches on the hook's presence, not the command name |
+| `clause_shape_check` | `Option<ClauseShapeChecker>` | `None` | The escape hatch for a clause chain no `clause_grammar` can spell (see `tcl_registry::clause_shape`); a grammar derives the same `ClauseShapeError` from its rows, which is where `if`'s check went. The compiler reads the defect through `CommandRegistry::clause_shape_defect`, never the command name |
 | `frame_effect` | `Option<FrameEffectSpec>` | `None` | How the command crosses stack frames: the level word, the frame-selected variable arguments, and caller-frame scripts |
 | `option_relations` | `&'static [OptionRelation]` | `&[]` | Typed relations between the invocation's options and arguments: mutual exclusion, directional requires, requires-one-of, forbids — over terms naming an option, an option *value*, a positional argument, or a positional value. Evaluated natively by `OptionRelation::evaluate`, driving generic W147 / W152 without naming the command. |
+| `option_effect_families` | `&'static [OptionEffectFamily]` | `&[]` | The families the options' declared effects cite: where each axis starts (`AllOn`, `AllOff`, `Only(axis)`) and how two options of the family combine (`Accumulate`, `LastWins`). With the rows' `OptionSpec::effect`, the whole option-effect descriptor — read through `CommandSpec::option_effects`, never by spelling (see [OptionSpec and option terminators](#optionspec-and-option-terminators)). |
 | `option_placement` | `OptionPlacement` | `Leading` | Where the command's declared options may appear: a leading run stopping at the first non-option word (core Tcl), or anywhere between positionals up to `--` (`http::geturl`). |
 | `constraints` | `Option<ConstraintsHook>` | `None` | Escape hatch for a relation the declarative vocabulary cannot express, consulted only when every declarative relation reported nothing. |
 | `literal_argument_validator` | `Option<LiteralArgumentValidator>` | `None` | Registry callback for literal argument relationships or collection members whose legal domain depends on surrounding words. It returns Valid, Invalid with an optional replacement Tcl value, or a typed Abstain. |
@@ -441,6 +442,7 @@ only names which one applies. `rust/tcl-registry/src/hooks.rs` declares them.
 | `codegen_hook` | `Option<CodegenHookId>` | `None` | Bytecode specialisation for the `TclVM` emitter |
 | `inline_codegen_hook` | `Option<InlineCodegenHookId>` | `None` | Inline (value-position `[cmd …]` / catch-body) bytecode specialisation hook, dispatched by `tcl_compiler::codegen::{cmd_subst,control_flow}` |
 | `analyser_hook` | `Option<AnalyserHookId>` | `None` | Per-command handler family in the analyser's central dispatch |
+| `semantics` | `SemanticsDeclaration` | `Inherited` | The value-transfer specialisation at this scope — `Declared(&dyn CommandSemantics)`, `Declined` (an explicit abstention that stops inheritance and derivation), or `Inherited`, which derives from a descriptor stating the same operation (a cell read-modify-write, `DESTROYS_VARIABLE`). Also on `SubCommand` and `CommandForm`; the innermost declaration wins. [value-transfers.md](value-transfers.md) |
 | `semantic_operation` | `Option<SemanticOperationId>` | `None` | Target-neutral operation identity selected before backend dispatch |
 | `bpf_op` | `Option<&'static BpfOpSpec>` | `None` | Typed BPF-Tcl lowering descriptor |
 | `const_fold` | `Option<ConstFoldFn>` | `None` | Compile-time folder returning the command's constant result |
@@ -457,6 +459,7 @@ only names which one applies. `rust/tcl-registry/src/hooks.rs` declares them.
 | `pattern_type` | `Option<PatternType>` | `None` | Pattern metadata (e.g. glob, regex) |
 | `byte_array_effect` | `ByteArrayEffect` | `None` | How the command transforms a byte-array operand (S110) |
 | `defines_symbol` | `Option<SymbolDef>` | `None` | Command binds a navigable definition *name* the outline lists (`tcltest::test` → test case, `tcltest::testConstraint` → constraint, `tcltest::customMatch` → match mode).  `SymbolDef` carries the name argument index, an optional description-argument index, an optional `requires_arg` (record only when that argument is present — so a `testConstraint NAME value` setter defines but the `testConstraint NAME` getter does not), and the outline category (`DefinedSymbolKind`: `Test` / `Constraint` / `Matcher`).  Every symbol consumer (document + workspace symbols) reads it generically — no command-name check.  Distinct from `traits.DEFINES_PROCEDURE` / `definition_body`, which carry the richer proc / class records |
+| `definition_body` | `Option<&'static DefinitionBodyGrammar>` | `None` | The member grammar of a definer's body (`oo::class create`, `snit::type`, `itcl::class`, the `.tclspec` and `.sslictcl` document blocks): one `MemberSpec` per member keyword with its layout (`MemberKind`, `arg_roles`, an optional closed-vocabulary word) and its **effect** (`MemberSpec::effect`, a `MemberEffect`: `Callable` with receiver, role and name / params / body slots, `Forward`, `StateDeclaration`, `Relation`, `Visibility`, `Retraction`, `InitScript`, `Configuration`) — plus a wrapper's `WrapperShift` and the family's object model (built-in methods, manufacturers, member-body commands).  `DefinitionBodyGrammar::member_row` answers one member statement's `MemberRow` (effect, resolved receiver, literal name, `MemberArity`, visibility, body operand, slot operation, surface); a computed name abstains the name, a computed optional word the row.  See `tcl_registry::definer` |
 
 ### SubCommand field reference
 
@@ -1200,25 +1203,55 @@ analysis layers handle these at different levels:
 - The **registry** uses `SubCommand` entries on the parent `CommandSpec`.
   The parent's `arg_role_resolver`, or the subcommand's own `arg_roles` and
   `repeated_args`, assign roles to the remaining arguments.
-- The **analyser** dispatches on `analyser_hook`, whose `AnalyserHookId`
-  values include the compound forms directly (`DictFor`, `DictUpdate`,
-  `DictWith`, `NamespaceUpvar`, `InterpAlias`, …), so scope handling for a
-  compound command is selected by ID rather than by name.
+- The **analyser** reads the subcommand's descriptors through the same
+  generic tail as any other command: `dict for`'s loop variables are its
+  `LoopVarList` role, `namespace upvar`'s aliases are the
+  `VariableCellAliasTransition`s its `state_transitions` resolver states,
+  and a clause-carrying subcommand's bodies are walked at its clause
+  grammar's timings. Where the analyser still keeps policy of its own, the
+  subcommand carries an `analyser_hook` (`DictWith`, `InterpAlias`,
+  `NamespaceEval`, …) and scope handling is selected by that ID rather than
+  by name.
 - The **lowering** and **codegen** layers dispatch on `lowering_hook` /
   `codegen_hook` in the same way.
 
-When verifying whether a compound command is handled, check which hook IDs
-its spec carries before looking in a consumer: an unhandled compound form is
-usually a missing subcommand entry or an unset hook ID, not a missing branch.
+When verifying whether a compound command is handled, check its subcommand
+entry's descriptors (roles, clause grammar, state transitions) and the hook
+IDs it carries before looking in a consumer: an unhandled compound form is
+usually a missing subcommand entry, descriptor or hook ID, not a missing
+branch.
 
 ### OptionSpec and option terminators
 
-`OptionSpec { name, value, detail, surface, aliases, lifecycle, min_abbrev }`
+`OptionSpec { name, value, detail, surface, aliases, lifecycle, min_abbrev, effect }`
 declares `-flag` switches; `value` is an `OptionValue` saying whether the
 flag consumes a following word.  An `OptionSpec` whose `name` is `"--"`,
 on a `CommandSpec`, `SubCommand`, or `CommandForm`, declares `--` support;
 W304 ("use `--` before dynamic pattern") is derived automatically via
 `CommandRegistry::resolve_option_terminator`.
+
+`effect: Option<OptionEffect>` is what the option's presence does to the
+call ([registry-consumer-contracts.md](registry-consumer-contracts.md)
+§ *Options with semantic effects*): `Disables(axis)` / `Selects(axis)` over
+the closed `EffectAxis` catalogue (`Substitution(kind)`,
+`PatternLanguage(language)`, `CaseSensitivity`, `Selection(mode)`),
+`SuppressesRole(role)`, `ReservesTrailingWords(n)`, or `EndsOptions`, and the
+family it belongs to — an `OptionEffectFamily` declared beside the options in
+`option_effect_families`, carrying the axis's `base` and its `combine` rule.
+One generic walk answers every call, `CommandSpec::option_effects` (and
+`ResolvedInvocation::option_effects`): the scan ends at
+`reserved_trailing_words` before the end, spellings resolve through the
+profile-filtered table under the command's prefix policy, an unreadable word
+(computed, unresolvable, expanded) makes the answer `complete: false` with
+every axis value on, and two families over one axis value used together are
+unreadable too — the error itself is an option relation (W147). Four clients
+read it: `subst`'s switch families (`CommandRegistry::substitutions_performed`
+is its projection onto `SubstitutionKinds`), `lsearch`'s match styles (the
+pattern language `pattern_args` places on the pattern operand), `regexp`'s
+`-inline` / `-about` (the layout its argument-role resolver reads from the
+answer's shifts), and `switch`'s match modes, case folding and `--`
+(`CaseListSpec::invocation` classifies each option by its effect, so the
+descriptor names no switch).
 
 #### The audit-registry option-surface gate
 
@@ -1250,7 +1283,7 @@ either: a 9.0-only option is still declared, and whether its `surface` gate
 is *correct* is what the tclsh audit itself measures.
 
 A genuinely-missing option goes in `KNOWN_UNSPECIFIED` with the issue
-tracking the registry work -- migration debt is tracked, not grandfathered.
+tracking the registry work -- a gap is tracked, not grandfathered.
 A waiver whose option has since been declared,
 or that names no probe, fails the gate too, so an entry cannot outlive the
 gap it documents.
@@ -1492,6 +1525,63 @@ and the studio's use of it, is in
 | Code actions | registry-owned lifecycle and literal-validation edit plans; the generic analyser contributes only source spans and LSP conversion |
 | Completions | `arg_values`, `versioned_arg_values`, `options` |
 
+A consumer that has a call's words asks the **derived-query layer** rather
+than a per-name function: `CommandRegistry::invocation(words, ctx)` resolves
+the call once, under the surface query its `AnalysisContext` fixes, and the
+resolution answers each axis — `clause_plan`, `option_effects` (and
+`substitutions_performed`), `arg_roles`, `pattern_args`,
+`case_invocation`, `frame_effect`, `return_type`, `effects`,
+`state_transitions`, `facts` — in `resolved_invocation.rs`. Every answer is
+a value, carries its abstention (`None`, `complete: false`, a
+`FrameLevel::Dynamic`) rather than a default that reads as a fact, and is
+computed under the resolution's own release. A definition body's members
+answer one statement at a time through `DefinitionBodyGrammar::member_row`.
+The by-name functions (`arg_indices_for_role_words`, `pattern_args_words`,
+`command_prefixes`, `case_invocation`, `return_type_for_call`) share each
+query's rule and stay until their callers move
+([registry-consumer-contracts.md](registry-consumer-contracts.md)
+§ *The derived-query layer*).
+
+**The analyser's hook residue.** The analyser dispatches on one typed
+`match` over `AnalyserHookId` (`dispatch_analyser_hook` in
+`analyser/commands.rs`); a command with no stamp, or whose arm is void,
+continues to a tail that reads descriptors only — the scope aliases its
+state transitions state (`apply_state_transitions`), the `LoopVarList` and
+`VarWrite` positions its roles name (`handle_var_binding_command`), and its
+`Body` words, each walked at the depth its clause's timing gives and with
+its clause's variable lists bound (`dispatch_body_arguments`). A command
+whose handler would know only a position or a keyword a descriptor states —
+`try`, `for`, `dict for`, `dict update`, `incr`, `append`, `lappend`,
+`upvar`, `namespace upvar`, `global`, `variable`, `set` — has no variant:
+there are 31 variants on 42 stamp rows, which
+`rust/tcl-registry/tests/analyser_hooks.rs` pins. The variants are analyser
+policy over typed facts, documented where it runs:
+
+- procedure definition and the `all_procs` table — `Proc`, `OptProc`,
+  `Apply`;
+- dynamic-target synthetic domains — `Uplevel`, `NamespaceEval`;
+- export tombstone ordering and the namespace domain —
+  `NamespaceEnsemble`, `NamespaceImport`, `NamespaceExport`,
+  `NamespaceForget`, `NamespacePath`, `NamespaceUnknown`;
+- literal-iteration simulation — `Foreach`;
+- the case-list walk and the completion protocol — `Switch`, `Catch`;
+- the interpreter-domain stack and value binding of a created
+  interpreter — `InterpAlias`, `InterpEval`, `InterpCreate`,
+  `InterpDelete`, `InterpHide`, `InterpExpose`;
+- rename epochs — `Rename`;
+- member routing to `ClassDef` fields — `OoDefine`, `OoObjdefine`;
+- package-index bookkeeping — `PackageRequire`, `PackageProvide`,
+  `PackageIfneeded`, `PackagePrefer`;
+- source and library loading — `Source`, `Load`.
+
+Two more — `DictWith` and `RegexPatternCapture` — are command-specific,
+and each is a row of the compiler-owned handlers ledger
+([value-transfers-migration.md](value-transfers-migration.md) § *Compiler-owned
+handlers*). A new hook variant whose handler would implement one command's
+binding rules is a missing descriptor, not residue
+([registry-consumer-contracts.md](registry-consumer-contracts.md)
+§ *The analyser: the description contract*).
+
 ### Resolution order across the three levels
 
 `tcl_registry::resolved_invocation` resolves a call once, against the
@@ -1703,8 +1793,8 @@ gap for itself.
   `SubCommand` to the matching `LoweringHookId`.
 - If arity validation fails to fire, check that `arity` is set and subcommand
   arities are correct — and that `Traits::STRUCTURALLY_CHECKED_ARITY` is not
-  set, since it stands the generic check down in favour of
-  `clause_shape_check`.
+  set, since it stands the generic check down in favour of the clause
+  grammar's defect (or `clause_shape_check`).
 - Purity flows from command -> subcommand -> form; the most specific level wins.
 - To mark a command as safe on uninitialised variables: set `safe_on_uninit`
   on the `CommandSpec` or `SubCommand`.  Use `Some(SpecSurface::ALL_TCL)` for
@@ -1754,7 +1844,19 @@ The [Command Spec Studio](../contracts/command-spec-studio.md) is the other
 non-Rust route today: a browser front-end over this registry that browses
 the live command surface, edits every field described above, and exports
 the pack it builds as drop-in `.rs` modules — one per command, with the
-`mod.rs` that collects them — or as a stub. Each field carries
+`mod.rs` that collects them — or as a stub. That `.rs` export
+(`rust/tcl-spec-studio/src/render_rs.rs`) is a **contribution aid**, not a
+backend: its output is a draft a human reviews into the tree, and there is
+no ahead-of-time `.tclspec` → `.rs` path. The shipped code-generation
+catalogues — the intrinsic table, the per-command runtime-backing
+classification, and the ABI descriptor table — are generated from this Rust
+registry by an `xtask` build task, and a pack names a member of a closed
+catalogue without ever adding one
+([registry-consumer-contracts.md](registry-consumer-contracts.md)
+§ *Rulings*). The backing gate holds each core spec's declared
+`runtime_backing` to what `runtime/rust` and `tcl-vm` report registering
+(`backing_report`), and carries one waiver list, `KNOWN_UNBACKED`
+(`rust/xtask/src/command_backing.rs`). Each field carries
 a plain-language explanation written for Tcl developers with a worked Tcl
 example of that field, and a Reference tab searches the whole vocabulary —
 every field, trait, argument role, and taint colour, each with its own.

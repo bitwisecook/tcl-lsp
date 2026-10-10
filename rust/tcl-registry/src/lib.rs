@@ -56,7 +56,9 @@ pub mod body_kind;
 pub mod bpf_op;
 pub mod byte_array_effect;
 pub(crate) mod cache;
+pub mod clause_grammar;
 pub mod clause_shape;
+pub mod codegen_stamp;
 pub mod command_prefix_target;
 pub mod command_snapshot;
 pub mod command_table;
@@ -72,12 +74,15 @@ mod event_descriptions;
 pub mod event_facts;
 pub mod events;
 pub mod expr_surface;
+pub mod extension_default;
+pub mod extension_host;
 pub mod f5;
 pub mod forms;
 pub mod frame_effect;
 pub mod handle_binding;
 pub mod hooks;
 pub mod hover;
+pub mod implementation_hash;
 pub mod intrinsic;
 pub mod invocation_words;
 pub mod irules_policy;
@@ -86,7 +91,9 @@ pub mod literal_validation;
 pub mod mathfunc;
 pub mod model;
 pub mod native_lowering;
+pub mod option_effect;
 pub mod pack_hooks;
+pub mod pack_origin;
 pub mod patterns;
 pub mod presentation;
 pub mod private_tcl_namespaces;
@@ -101,6 +108,7 @@ pub mod representation;
 pub mod resolved_invocation;
 pub mod result_stability;
 pub mod return_type;
+pub mod runtime_backing;
 pub mod scoped;
 pub mod security_floor;
 pub mod semantic_operation;
@@ -108,6 +116,7 @@ pub mod side_effects;
 pub mod snapshot;
 pub mod spec;
 pub mod special_vars;
+pub mod stamp_window;
 pub mod state_transition;
 pub mod substitution;
 pub mod symbol_def;
@@ -115,6 +124,7 @@ pub mod taint;
 pub mod tk_geometry;
 pub mod traits;
 pub mod types;
+pub mod value_transfer;
 pub mod version;
 pub mod version_range;
 pub mod world_effect;
@@ -135,6 +145,10 @@ pub mod prelude {
         BpfVerdictKind,
     };
     pub use crate::byte_array_effect::ByteArrayEffect;
+    pub use crate::clause_grammar::{
+        ClauseGrammarSpec, ClauseRow, ClauseRowShape, ClauseSelection, ClauseSlot, ClauseTiming,
+        DefaultClause, LoopPhase,
+    };
     pub use crate::clause_shape::{ClauseShapeChecker, ClauseShapeError};
     pub use crate::command_table::CommandTableEffect;
     pub use crate::completion::{
@@ -142,8 +156,10 @@ pub mod prelude {
         CompletionPayloadObligations, CompletionValueSemantics,
     };
     pub use crate::definer::{
-        DefinerFamily, DefinitionBodyGrammar, MemberCurrentNamespace, MemberKind, MemberRefKind,
-        MemberRetraction, MemberSpec, MemberVisibility, RetractionWords,
+        CallableRole, DeclaredMemberVisibility, DefinerFamily, DefinitionBodyGrammar, InitTiming,
+        MemberArity, MemberCurrentNamespace, MemberEffect, MemberKind, MemberReceiver,
+        MemberRefKind, MemberRetraction, MemberRow, MemberSpec, MemberVisibility, RelationSlot,
+        RetractionWords, StateScope, WrapperShift,
     };
     pub use crate::deprecation::{DeprecationFixHook, DeprecationFixSafety};
     pub use crate::dispatch_stability::{
@@ -175,7 +191,7 @@ pub mod prelude {
         OptionArity, OptionSpec, OptionValue, OptionValueHook, OptionValueOutcome, ScriptTiming,
         VariableScope, first_positional_index, leading_option_specs,
     };
-    pub use crate::intrinsic::IntrinsicId;
+    pub use crate::intrinsic::{IntrinsicFamily, IntrinsicId};
     pub use crate::invocation_words::{CommandPrefixArguments, InvocationArguments};
     pub use crate::lifecycle::{Lifecycle, LifecycleState};
     pub use crate::literal_validation::{
@@ -183,6 +199,10 @@ pub mod prelude {
         LiteralValidationDecline,
     };
     pub use crate::native_lowering::{ArityRule, CellUpdate, NativeLowering, ScopeKind};
+    pub use crate::option_effect::{
+        EffectAxis, FamilyBase, FamilyCombine, OptionEffect, OptionEffectFamily, OptionEffectKind,
+        OptionEffects, SubstitutionKind,
+    };
     pub use crate::patterns::{FormatType, PatternArg, PatternType};
     pub use crate::presentation::ArgPresentation;
     pub use crate::relation::{
@@ -192,18 +212,19 @@ pub mod prelude {
     pub use crate::repeated::RepeatedArgLayout;
     pub use crate::representation::RepresentationEffect;
     pub use crate::result_stability::ResultStability;
+    pub use crate::runtime_backing::{BodySource, RuntimeBacking};
     pub use crate::scoped::{ScopedCommand, ScopedCommandEnv};
     pub use crate::semantic_operation::{InlineBodyErrorContext, SemanticOperationId};
     pub use crate::side_effects::{
         ConnectionSide, SideEffect, SideEffectTarget, SideSwitchTarget, StorageType,
     };
     pub use crate::spec::{
-        BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ConstraintReport,
-        ConstraintSlot, ConstraintsHook, ContextGate, DefaultFormFirstWord, InlineCaseClause,
-        ObjectClassSpec, OoContextFact, OptionFacts, OptionPlacement, OptionRelation, OptionScope,
-        OptionTerm, ScriptTimingResolver, SubCommand, SubSubCommand, VersionedArgValue,
-        leading_option_word_count, leading_option_word_count_with, resolve_option_prefix,
-        resolve_option_prefix_with,
+        BytePayloadSpec, CaseForceListShape, CaseListSpec, CaseMatchMode, CommandSpec,
+        ConstraintReport, ConstraintSlot, ConstraintsHook, ContextGate, DefaultFormFirstWord,
+        InlineCaseClause, ObjectClassSpec, OoContextFact, OptionFacts, OptionPlacement,
+        OptionRelation, OptionScope, OptionTerm, ScriptTimingResolver, SubCommand, SubSubCommand,
+        VersionedArgValue, leading_option_word_count, leading_option_word_count_with,
+        resolve_option_prefix, resolve_option_prefix_with,
     };
     pub use crate::state_transition::{
         CallerFrameSelection, ChildInterpreterSafety, CommandBindingDefinitionKind,
@@ -227,6 +248,7 @@ pub mod prelude {
     };
     pub use crate::traits::Traits;
     pub use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
+    pub use crate::value_transfer::{HandlerMatch, SemanticsDeclaration};
     pub use crate::world_effect::{
         CallbackEffect, CallbackKinds, EffectAccessMode, Reentrancy, StaticEffectAccess,
         StaticEffectFootprint, StaticInterpreterScope, StaticNamespaceScope, StaticSubjectScope,
@@ -242,8 +264,13 @@ pub use bigip::{BigipObjectSpec, BigipPropertySpec, BigipRegistry, ValueKind};
 pub use body_kind::{BodyInterpreter, BodyKind};
 pub use byte_array_effect::ByteArrayEffect;
 pub use cache::{
-    core_surface_generation, default_registry, register_core_surface_specs,
+    core_surface_generation, default_registry, overlay_epoch, register_core_surface_specs,
     registry_for_profile_with_overlay, safe_interp_hidden_commands,
+};
+pub use clause_grammar::{
+    ClauseAbstention, ClauseGrammarSpec, ClauseKeyword, ClausePlan, ClauseRow, ClauseRowId,
+    ClauseRowShape, ClauseSelection, ClauseSlot, ClauseTiming, DefaultClause, LoopPhase,
+    ResolvedClause,
 };
 pub use clause_shape::{ClauseShapeChecker, ClauseShapeError};
 pub use command_prefix_target::CommandPrefixTarget;
@@ -270,7 +297,7 @@ pub use handle_binding::{
     BoundHandle, HandleBindingSpec, HandleClassSource, HandleKeyword, HandleName,
 };
 pub use hover::{ArgValue, CallbackTaintInput, ScriptTiming, VariableScope};
-pub use intrinsic::IntrinsicId;
+pub use intrinsic::{IntrinsicFamily, IntrinsicId, intrinsic_table_hash};
 pub use invocation_words::{
     CommandPrefixArguments, InvocationArgument, InvocationArguments, InvocationWord,
     InvocationWordKind, InvocationWords, VariableReadProjection, VariableWriteProjection,
@@ -280,13 +307,17 @@ pub use literal_validation::{
     LiteralArgumentValidator, LiteralValidationDecline,
 };
 pub use native_lowering::{ArityRule, CellUpdate, NativeLowering, ScopeKind};
+pub use option_effect::{
+    EffectAxis, FamilyBase, FamilyCombine, OptionEffect, OptionEffectFamily, OptionEffectKind,
+    OptionEffects, SubstitutionKind,
+};
 pub use patterns::{FormatType, PatternType};
 pub use presentation::ArgPresentation;
 pub use profile_queries::VendorSurface;
 pub use registry::{
     CommandRegistry, EffectiveCommandSemantics, EffectiveRegistrySemantics, FormatStringArg,
     MethodDispatchKind, NameProviders, ProcedureWords, ResolvedCall, ResolvedTerminator,
-    TryClauseKind, TryCompletionSelector, TryControlClause, TryControlInvocation,
+    TryClauseKind, TryControlClause, TryControlInvocation,
 };
 pub use relation::{
     Relation, RelationFactSource, RelationKind, RelationMode, RelationTermKind, RelationVerdict,
@@ -300,13 +331,14 @@ pub use resolved_invocation::{
     StructuredInvocationResolution, SubcommandResolution, SubcommandResolutionKind,
 };
 pub use result_stability::ResultStability;
+pub use runtime_backing::{BodySource, RuntimeBacking};
 pub use semantic_operation::{InlineBodyErrorContext, SemanticOperationId};
 pub use side_effects::SideSwitchTarget;
 pub use spec::{
-    BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ConstraintReport,
-    ConstraintSlot, ConstraintsHook, ContextGate, DefaultFormFirstWord, InlineCaseClause,
-    ObjectClassSpec, OoContextFact, OptionFacts, OptionPlacement, OptionRelation, OptionScope,
-    OptionTerm, ScriptTimingResolver, SubCommand, SubSubCommand, VersionedArgValue,
+    BytePayloadSpec, CaseForceListShape, CaseListSpec, CaseMatchMode, CommandSpec,
+    ConstraintReport, ConstraintSlot, ConstraintsHook, ContextGate, DefaultFormFirstWord,
+    InlineCaseClause, ObjectClassSpec, OoContextFact, OptionFacts, OptionPlacement, OptionRelation,
+    OptionScope, OptionTerm, ScriptTimingResolver, SubCommand, SubSubCommand, VersionedArgValue,
 };
 pub use special_vars::{
     SPECIAL_VARS, SpecialVarKey, SpecialVarKind, SpecialVarSpec, StartupBinding, VarAccess,
@@ -315,7 +347,7 @@ pub use special_vars::{
     special_var_write_effect, special_vars_for_dialect,
 };
 pub use state_transition::{
-    AbruptTransitionTransfer, CallerFrameSelection, ChildInterpreterSafety,
+    AbruptTransitionTransfer, AliasWords, CallerFrameSelection, ChildInterpreterSafety,
     CommandBindingDefinitionKind, CommandBindingTransition, CommandResolutionImpact,
     InterpreterTransition, NamespaceTransition, NamespaceTransitionTarget, ObjectDispatchKind,
     ObjectDispatchLayer, ObjectDispatchTarget, ObjectDispatchTransition, ObjectPrivateNamespace,

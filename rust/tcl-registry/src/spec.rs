@@ -26,7 +26,7 @@ use crate::abbrev::{Keyword, KeywordMatch, KeywordTable, PrefixMatching};
 use crate::arg_role::ArgRole;
 use crate::arity::{Arity, ArityWindow};
 use crate::body_kind::{BodyInterpreter, BodyKind};
-use crate::clause_shape::ClauseShapeChecker;
+use crate::clause_shape::{ClauseShapeChecker, ClauseShapeError};
 use crate::command_table::CommandTableEffect;
 use crate::dispatch_stability::{DispatchDependencies, DispatchDependencyDescriptor};
 use crate::events::{EventRequirementForm, ResolvedEventRequirements};
@@ -40,7 +40,7 @@ use crate::hooks::{
 use crate::hover::{
     ArgValue, CallbackTaintInput, FormSpec, HoverSnippet, OptionSpec, ScriptTiming,
 };
-use crate::invocation_words::CommandPrefixArguments;
+use crate::invocation_words::{CommandPrefixArguments, InvocationArguments};
 use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::literal_validation::LiteralArgumentValidator;
 use crate::patterns::{FormatType, PatternType};
@@ -49,11 +49,13 @@ use crate::relation::{Relation, RelationFactSource, RelationTermKind, TermHolds}
 use crate::repeated::RepeatedArgLayout;
 use crate::representation::RepresentationEffect;
 use crate::side_effects::{SideEffect, StorageType};
+use crate::stamp_window::StampSelection;
 use crate::state_transition::StateTransitionDescriptor;
 use crate::symbol_def::SymbolDef;
 use crate::taint::{SetterConstraint, TaintColour, TaintNumericCoercion, TaintTransformCondition};
 use crate::traits::Traits;
 use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
+use crate::value_transfer::SemanticsDeclaration;
 use crate::world_effect::WorldEffectDescriptor;
 use tcl_dialect::model::SpecSurface;
 use tcl_dialect::model::SurfaceQuery;
@@ -337,6 +339,13 @@ impl ObjectClassSpec {
 /// spellings: `switch` decides regex-ness once for the whole list (`-regexp`)
 /// and takes a subject argument; `expect` decides it per clause (`-re`) and has
 /// no subject.  Both have patterns that are keywords rather than match text.
+///
+/// The command-level options that pick the match mode, fold case, or end the
+/// option run are not named here: each is the command's own option row,
+/// declaring its [`crate::option_effect::OptionEffect`]
+/// (`Selects(Selection(…))`, `Selects(CaseSensitivity)`, `EndsOptions`), so
+/// the fact is stated once per option. The descriptor keeps the clause-list
+/// *value* shape, which is what makes it a separate field at all.
 #[derive(Debug, Clone, Copy)]
 pub struct CaseListSpec {
     /// Non-option words between the command's options and the clause list —
@@ -348,16 +357,6 @@ pub struct CaseListSpec {
     /// Tcl 8.4 still scans it as an option and rejects the missing subject.
     /// `None` means this case-list descriptor has no such exception.
     pub two_arg_optionless_surface: Option<&'static [SpecSurface]>,
-    /// A *command* option that makes every pattern a regex (`switch -regexp`).
-    pub regex_option: Option<&'static str>,
-    /// Command option selecting literal equality (the default switch mode).
-    pub exact_option: Option<&'static str>,
-    /// Command option selecting Tcl glob matching.
-    pub glob_option: Option<&'static str>,
-    /// Command option making the selected comparison mode case-insensitive.
-    pub nocase_option: Option<&'static str>,
-    /// Command option ending command-level option parsing.
-    pub end_options_option: Option<&'static str>,
     /// Body word that falls through to the following clause's body.
     pub fallthrough_body: Option<&'static str>,
     /// Value-taking options legal only in regular-expression mode.
@@ -399,6 +398,49 @@ pub struct CaseListSpec {
     /// substituted word cannot be told apart from a first pattern. `None` for
     /// every descriptor without one.
     pub optional_subject_separator: Option<&'static str>,
+    /// The comparison a clause makes when no option selects one: `switch`'s
+    /// exact match, and the glob match `case` always makes
+    /// (`Tcl_CaseObjCmd` calls `Tcl_StringMatch`) and Expect's patterns
+    /// default to.
+    pub default_mode: CaseMatchMode,
+    /// How the command reads a pattern word: as one pattern, or — `case` —
+    /// as a list of patterns when it holds whitespace or a backslash.
+    pub pattern_words: PatternWords,
+}
+
+/// How a case list reads one pattern word.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PatternWords {
+    /// Every pattern word is one pattern: `switch`, Expect.
+    Single,
+    /// A pattern word holding whitespace or a backslash is a list of
+    /// patterns, any of which selects its clause, and one holding neither is
+    /// one pattern — `case`'s `Tcl_CaseObjCmd`, which splits such a word with
+    /// `Tcl_SplitList` and matches each element.
+    Lists,
+}
+
+impl PatternWords {
+    /// Every reading, in `.tclspec` vocabulary order.
+    pub const ALL: &'static [Self] = &[Self::Single, Self::Lists];
+
+    /// The `.tclspec` spelling of this reading.
+    #[must_use]
+    pub const fn spelling(self) -> &'static str {
+        match self {
+            Self::Single => "single",
+            Self::Lists => "lists",
+        }
+    }
+
+    /// The reading `word` spells, or `None` for any other word.
+    #[must_use]
+    pub fn from_spelling(word: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|reading| reading.spelling() == word)
+    }
 }
 
 /// Registry-owned position/arity shape for an outer clause-list selector.
@@ -434,6 +476,34 @@ pub enum CaseMatchMode {
     Other,
 }
 
+impl CaseMatchMode {
+    /// Every mode, in `.tclspec` vocabulary order — the option-effect
+    /// descriptor's `selection` axis spelling
+    /// (`docs/design/compiler/registry-consumer-contracts.md` § *Options
+    /// with semantic effects*).
+    pub const ALL: &'static [Self] = &[Self::Exact, Self::Glob, Self::Regexp, Self::Other];
+
+    /// The `.tclspec` spelling of this mode.
+    #[must_use]
+    pub const fn spelling(self) -> &'static str {
+        match self {
+            Self::Exact => "exact",
+            Self::Glob => "glob",
+            Self::Regexp => "regexp",
+            Self::Other => "other",
+        }
+    }
+
+    /// The mode `word` spells, or `None` for any other word.
+    #[must_use]
+    pub fn from_spelling(word: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|mode| mode.spelling() == word)
+    }
+}
+
 /// Validated command-level layout of a case-list invocation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CaseInvocation {
@@ -445,8 +515,10 @@ pub struct CaseInvocation {
     pub inline_clause_start: Option<usize>,
     /// Comparison mode selected by registry-declared options.
     pub mode: CaseMatchMode,
-    /// The canonical [`CaseListSpec::special_match_options`] entry that
-    /// selected [`CaseMatchMode::Other`] (`-integer`), else `None`.
+    /// The canonical spelling of the option that selected
+    /// [`CaseMatchMode::Other`] (`-integer`), whether its option row declares
+    /// that mode as its effect or it is a
+    /// [`CaseListSpec::special_match_options`] entry, else `None`.
     pub special_option: Option<&'static str>,
     /// Whether matching is case-insensitive.
     pub nocase: bool,
@@ -470,14 +542,11 @@ impl CaseListSpec {
     pub const SWITCH: Self = Self {
         subject_args: 1,
         two_arg_optionless_surface: Some(SpecSurface::TCL85_PLUS),
-        regex_option: Some("-regexp"),
-        exact_option: Some("-exact"),
-        glob_option: Some("-glob"),
-        nocase_option: Some("-nocase"),
-        end_options_option: Some("--"),
         fallthrough_body: Some("-"),
         value_options_require_regex: &["-matchvar", "-indexvar"],
-        special_match_options: &["-integer"],
+        // `-integer`'s mode is its option row's `Selects(Selection(Other))`
+        // effect, like the other three modes.
+        special_match_options: &[],
         clause_flags: &[],
         clause_regex_flag: None,
         clause_value_flags: &[],
@@ -490,6 +559,8 @@ impl CaseListSpec {
         keyword_patterns_require_final: true,
         optional_subject_separator: None,
         warn_unbraced_bodies: true,
+        default_mode: CaseMatchMode::Exact,
+        pattern_words: PatternWords::Single,
     };
 
     /// The obsolete Tcl 8.x `case string ?in? { pat body … }` shape.
@@ -503,11 +574,6 @@ impl CaseListSpec {
     pub const CASE: Self = Self {
         subject_args: 1,
         two_arg_optionless_surface: None,
-        regex_option: None,
-        exact_option: None,
-        glob_option: None,
-        nocase_option: None,
-        end_options_option: None,
         fallthrough_body: None,
         value_options_require_regex: &[],
         special_match_options: &[],
@@ -527,17 +593,14 @@ impl CaseListSpec {
         keyword_patterns_require_final: false,
         optional_subject_separator: Some("in"),
         warn_unbraced_bodies: true,
+        default_mode: CaseMatchMode::Glob,
+        pattern_words: PatternWords::Lists,
     };
 
     /// The Expect `expect { ?-flags? pat body … }` shape.
     pub const EXPECT: Self = Self {
         subject_args: 0,
         two_arg_optionless_surface: None,
-        regex_option: None,
-        exact_option: None,
-        glob_option: None,
-        nocase_option: Some("-nocase"),
-        end_options_option: Some("--"),
         fallthrough_body: None,
         // `-timeout` / `-i` are command-level, value-taking options.  In
         // Expect 5.45.4, after either option and its value, one braced word is
@@ -573,6 +636,8 @@ impl CaseListSpec {
         keyword_patterns_require_final: false,
         optional_subject_separator: None,
         warn_unbraced_bodies: false,
+        default_mode: CaseMatchMode::Glob,
+        pattern_words: PatternWords::Single,
     };
 
     /// Parse and validate this case-list command's option/subject/clause
@@ -586,7 +651,7 @@ impl CaseListSpec {
         options: &[&crate::hover::OptionSpec],
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<CaseInvocation> {
-        let mut mode = CaseMatchMode::Exact;
+        let mut mode = self.default_mode;
         let mut special_option = None;
         let mut saw_match_mode = false;
         let mut nocase = false;
@@ -633,59 +698,66 @@ impl CaseListSpec {
                 {
                     break;
                 }
-                // `--` is a descriptor-owned terminator, not necessarily a
-                // documented option entry. Recognise it before looking up a
-                // command option so the following hyphenated subject remains
-                // positional (notably `switch -- -x {...}`).
-                if self.end_options_option == Some(word) {
+                // The option row's declared effect classifies it — the match
+                // mode it selects, case folding, or the end of the option run
+                // (`--`, which is recognised before any other reading so the
+                // following hyphenated subject stays positional, notably
+                // `switch -- -x {...}`). The command's own option table is the
+                // one source: nothing here names a spelling.
+                let effect = option
+                    .and_then(|option| option.effect)
+                    .map(|effect| effect.kind);
+                if effect == Some(crate::option_effect::OptionEffectKind::EndsOptions) {
                     i += 1;
                     outer_options_ended = true;
                     break;
                 }
                 let option = option?;
                 let option_name = option.name;
-                if self.exact_option == Some(option_name) {
-                    if saw_match_mode {
-                        return None;
-                    }
-                    saw_match_mode = true;
-                    mode = CaseMatchMode::Exact;
-                    i += 1;
-                } else if self.glob_option == Some(option_name) {
-                    if saw_match_mode {
-                        return None;
-                    }
-                    saw_match_mode = true;
-                    mode = CaseMatchMode::Glob;
-                    i += 1;
-                } else if self.regex_option == Some(option_name) {
-                    if saw_match_mode {
-                        return None;
-                    }
-                    saw_match_mode = true;
-                    mode = CaseMatchMode::Regexp;
-                    i += 1;
-                } else if self.nocase_option == Some(option_name) {
-                    nocase = true;
-                    i += 1;
-                } else {
-                    let consumed = option.value_word_count(args, i);
-                    if consumed == 0 {
-                        if self.special_match_options.contains(&option_name) {
-                            if saw_match_mode {
-                                return None;
-                            }
-                            saw_match_mode = true;
-                            mode = CaseMatchMode::Other;
-                            special_option = Some(option_name);
-                            i += 1;
-                            continue;
+                match effect {
+                    Some(crate::option_effect::OptionEffectKind::Selects(
+                        crate::option_effect::EffectAxis::Selection(selected),
+                    )) => {
+                        // A second match mode is Tcl's `-exact option already
+                        // found` from 8.5; the invocation abstains.
+                        if saw_match_mode {
+                            return None;
                         }
-                        return None;
+                        saw_match_mode = true;
+                        mode = selected;
+                        // The descriptor-specialised mode (`-integer`) is
+                        // named by the option that selected it, so a reader
+                        // of the invocation asks for that spelling.
+                        if selected == CaseMatchMode::Other {
+                            special_option = Some(option_name);
+                        }
+                        i += 1;
                     }
-                    saw_regex_value_option |=
-                        self.value_options_require_regex.contains(&option_name);
-                    i += 1 + consumed;
+                    Some(crate::option_effect::OptionEffectKind::Selects(
+                        crate::option_effect::EffectAxis::CaseSensitivity,
+                    )) => {
+                        nocase = true;
+                        i += 1;
+                    }
+                    _ => {
+                        let consumed = option.value_word_count(args, i);
+                        if consumed == 0 {
+                            if self.special_match_options.contains(&option_name) {
+                                if saw_match_mode {
+                                    return None;
+                                }
+                                saw_match_mode = true;
+                                mode = CaseMatchMode::Other;
+                                special_option = Some(option_name);
+                                i += 1;
+                                continue;
+                            }
+                            return None;
+                        }
+                        saw_regex_value_option |=
+                            self.value_options_require_regex.contains(&option_name);
+                        i += 1 + consumed;
+                    }
                 }
             }
         }
@@ -957,6 +1029,15 @@ impl CaseListSpec {
     pub fn is_keyword_pattern(self, pattern: &str, index: usize, total: usize) -> bool {
         self.keyword_patterns.contains(&pattern)
             && (!self.keyword_patterns_require_final || index + 1 == total)
+    }
+
+    /// Whether the command reads the pattern word whose value is `pattern`
+    /// as a list of patterns rather than as one: only under a descriptor
+    /// whose pattern words may be lists ([`PatternWords::Lists`]), by the
+    /// shared `case` core's rule (`tcl_cmd_core::case::splits_as_list`).
+    #[must_use]
+    pub fn pattern_is_list(self, pattern: &str) -> bool {
+        self.pattern_words == PatternWords::Lists && tcl_cmd_core::case::splits_as_list(pattern)
     }
 }
 
@@ -1344,8 +1425,23 @@ pub struct CommandSpec {
     ///
     /// Source-aware projections consult this closed capability set when
     /// expansion or substitution prevents calling the value-dependent
-    /// resolver precisely.
+    /// resolver precisely. A command whose clause grammar took its
+    /// resolver's place keeps the set as the closed set of roles the
+    /// grammar's walk emits.
     pub arg_role_resolver_roles: &'static [ArgRole],
+
+    /// The word grammar of a clause chain — `if` / `elseif` / `else`, `try` /
+    /// `on` / `trap` / `finally`, `for`, `while`, `foreach`, `lmap`, `catch`.
+    /// See [`crate::clause_grammar`].
+    ///
+    /// First in the argument-role resolution order (`clause_grammar` →
+    /// `arg_role_resolver` → `arg_roles` → `assigns_variable_at`): the walk
+    /// answers where the clause structure's keywords, conditions and scripts
+    /// sit, and the command's own tables answer the rest. The walk also
+    /// derives the chain's [`crate::ClauseShapeError`], which is why
+    /// [`Self::clause_shape_check`] is only the escape hatch for a chain no
+    /// grammar can spell.
+    pub clause_grammar: Option<&'static crate::clause_grammar::ClauseGrammarSpec>,
 
     /// Formatter **presentation** overrides, keyed by 0-based argument index
     /// — how an argument should be *laid out*, as distinct from what
@@ -1408,14 +1504,6 @@ pub struct CommandSpec {
     /// actual invocation (`send -async`, callback registration/removal forms).
     /// Static option values carry timing directly on [`crate::hover::OptionArg`].
     pub script_timing_resolver: Option<ScriptTimingResolver>,
-
-    /// Which substitutions this call performs over its own argument text, for
-    /// a [`Traits::PERFORMS_SUBSTITUTION`] command whose switches change the
-    /// answer (`subst -novariables`).
-    ///
-    /// `None` means the trait alone describes the command: every kind runs on
-    /// every call. See [`crate::substitution`].
-    pub substitution_resolver: Option<crate::substitution::SubstitutionResolver>,
 
     /// External callback substitutions for deferred executable arguments,
     /// keyed by their argument index. Option values carry the same fact on
@@ -1522,6 +1610,13 @@ pub struct CommandSpec {
     /// existing common lowering descriptor supplies a structured operation.
     pub semantic_operation: Option<crate::semantic_operation::SemanticOperationId>,
 
+    /// Per-release semantic operations, for a command whose operation differs
+    /// across Tcl releases. See [`Self::codegen_hook_windows`] for the contract
+    /// every stamp window list shares.
+    pub semantic_operation_windows: &'static [crate::stamp_window::StampWindow<
+        crate::semantic_operation::SemanticOperationId,
+    >],
+
     /// Target-neutral completion semantics for this command.
     ///
     /// A resolved subcommand or invocation form can supply a more-specific
@@ -1566,6 +1661,21 @@ pub struct CommandSpec {
     /// `None` means the generic invoke emitter handles this command.
     pub codegen_hook: Option<CodegenHookId>,
 
+    /// Per-release codegen hooks, for a command whose bytecode emitter differs
+    /// across Tcl releases.
+    ///
+    /// Empty for every shipped command: a stamp that never varied needs no
+    /// windows, and [`Self::codegen_hook`] alone answers. When non-empty, the
+    /// window covering the primary release wins and the unversioned field
+    /// stands where none does; a query that does not settle the release — none
+    /// pinned, or the whole ladder across a window's edge — selects nothing and
+    /// the call is dispatched plain, never by a guess between windows. See
+    /// [`crate::stamp_window::StampSelection`], and read the answer through
+    /// [`Self::codegen_hook_at`]. Windows must not overlap, which the loader
+    /// notices for packs and `registry_sweep` rejects outright for shipped
+    /// specs.
+    pub codegen_hook_windows: &'static [crate::stamp_window::StampWindow<CodegenHookId>],
+
     /// Inline (value-position / catch-body) bytecode codegen hook ID —
     /// picks the per-command emitter on the compiler's
     /// command-substitution and catch-body paths
@@ -1573,6 +1683,11 @@ pub struct CommandSpec {
     /// `tcl_compiler::codegen::control_flow`). `None` means those
     /// paths use their generic invoke emission for this command.
     pub inline_codegen_hook: Option<InlineCodegenHookId>,
+
+    /// Per-release inline codegen hooks; the contract of
+    /// [`Self::codegen_hook_windows`].
+    pub inline_codegen_hook_windows:
+        &'static [crate::stamp_window::StampWindow<InlineCodegenHookId>],
 
     /// Target-neutral native lowering shape — which native code shape the
     /// executable-IR lowering (`tcl_compiler::native_lowering`) gives an
@@ -1582,6 +1697,26 @@ pub struct CommandSpec {
     /// invocation ([`crate::native_lowering::NativeLowering::Generic`]); read
     /// it through [`Self::native_lowering`].
     pub native_lowering: Option<crate::native_lowering::NativeLowering>,
+
+    /// Per-release native lowering shapes; the contract of
+    /// [`Self::codegen_hook_windows`], read through [`Self::native_lowering_at`].
+    /// A windowed shape is not a basis for a derived value-transfer
+    /// specialisation, which reads the unversioned field only.
+    pub native_lowering_windows:
+        &'static [crate::stamp_window::StampWindow<crate::native_lowering::NativeLowering>],
+
+    /// The value-transfer specialisation declared at command scope — what an
+    /// invocation computes, which storage it writes, and the evaluator route
+    /// that computes it (`docs/design/compiler/value-transfers.md`).
+    /// Three states: [`SemanticsDeclaration::Inherited`] says nothing here,
+    /// so a subcommand or form declaration applies or, failing one, a
+    /// specialisation is derived from a descriptor stating the same
+    /// operation ([`Self::native_lowering`]'s cell read-modify-write, the
+    /// `DESTROYS_VARIABLE` trait); [`SemanticsDeclaration::Declared`] names a
+    /// registry-owned specialisation; [`SemanticsDeclaration::Declined`]
+    /// abstains explicitly, stopping inheritance and derivation. Consumers
+    /// read it through the resolved invocation, never by command name.
+    pub semantics: SemanticsDeclaration,
 
     /// Analyser handler-family hook ID — picks the per-command
     /// handler in the analyser's central dispatch
@@ -1716,6 +1851,13 @@ pub struct CommandSpec {
     /// not a command-specific analyser rule, and checked natively with no
     /// hook and no VM entry.
     pub option_relations: &'static [OptionRelation],
+
+    /// The option-effect families this command's options cite — each one
+    /// names an axis's starting state and how two of its options combine
+    /// (`docs/design/compiler/registry-consumer-contracts.md` § *Options with
+    /// semantic effects*). Read through [`Self::option_effects`]; empty for a
+    /// command whose options move no declared axis.
+    pub option_effect_families: &'static [crate::option_effect::OptionEffectFamily],
 
     /// The `constraints` escape hatch: a hook consulted **only** when
     /// [`Self::option_relations`] reported nothing, for the rare rule no
@@ -1965,6 +2107,42 @@ pub struct CommandSpec {
     /// the surrounding syntax (`use pool` → `pool`), or are prose
     /// (`"(removed)"`) — those keep the message-only deprecation warning.
     pub deprecated_replacement_drop_in: bool,
+
+    /// The shipped builtin this pack command **is** — the only admissible
+    /// source of a builtin identity for a pack command, never inferred
+    /// from a realm alias (`rust/tcl-compiler/src/realm.rs` learns
+    /// aliases from script statements, which is a candidate, never
+    /// proof, so it may seed a Spec Studio suggestion and never admit a
+    /// site). `None` for every shipped command and every pack command
+    /// that declares no target.
+    ///
+    /// The stamp rejection rule (`tcl_spectcl::stamps`) reads it: a
+    /// codegen-axis stamp (`codegen_hook`, `inline_codegen_hook`,
+    /// `semantic_operation Intrinsic(…)`) on a pack command survives the
+    /// load only from a bundled pack, and only when this field names the
+    /// shipped builtin whose spec carries that same stamp at the same site
+    /// (`docs/design/compiler/registry-consumer-contracts.md` § *The
+    /// loader's stamp rejection rule*). Codegen reads it through
+    /// [`crate::ResolvedCall::stamp_identity`]: a site specialised on a
+    /// stamp this field's target carries records the target's identity, so
+    /// the VM's alias hop from the pack name to the builtin admits it.
+    pub alias_of: Option<&'static str>,
+
+    /// How this command's behaviour arrives at run time: a shipped builtin
+    /// attested by its registry identity, a Tcl body and where its text comes
+    /// from, a command the host registered natively, or nothing at all
+    /// (rung 4 of `docs/design/compiler/registry-consumer-contracts.md`
+    /// § *Four rungs of codegen meeting `.tclspec`*). One fact per command,
+    /// chosen from by code generation so that the identity a compiled
+    /// artefact records is never guessed from the command's name.
+    ///
+    /// Declared on every core Tcl command (the rows of
+    /// `docs/generated/wasm-command-backing.md`); [`RuntimeBacking::None`]
+    /// for every command that declares nothing. The take-shipped floor
+    /// ([`crate::security_floor`]) keeps a shipped command's backing through
+    /// any override. Declared vocabulary so far: nothing yet admits a
+    /// specialised site on it.
+    pub runtime_backing: crate::runtime_backing::RuntimeBacking,
 
     /// `<proto>::payload` byte-array layout — `Some` when this command's
     /// getter returns raw bytes (a binary source) and its `replace` form is a
@@ -2250,8 +2428,18 @@ pub fn leading_option_word_count_with(
     args: &[&str],
     prefix_matching: PrefixMatching,
 ) -> usize {
+    leading_option_run_with(options, args, prefix_matching).0
+}
+
+/// The leading option run of `args`: how many words its options (and their
+/// values) cover, and whether the declared end-of-options word ended it.
+fn leading_option_run_with(
+    options: &[OptionSpec],
+    args: &[&str],
+    prefix_matching: PrefixMatching,
+) -> (usize, bool) {
     if options.is_empty() {
-        return 0;
+        return (0, false);
     }
     let mut i = 0;
     while let Some(&word) = args.get(i) {
@@ -2268,10 +2456,10 @@ pub fn leading_option_word_count_with(
             // Without this, the loop above would keep matching option-shaped
             // words past the terminator and swallow a literal name meant to
             // land in a positional slot such as `defines_command_at`.
-            break;
+            return (i, true);
         }
     }
-    i
+    (i, false)
 }
 
 /// The trailing run of `?placeholder?` words in a synopsis, `?` stripped.
@@ -2325,8 +2513,9 @@ fn declares_variable_write(
 
 impl CommandSpec {
     /// This command's, and each subcommand's, `VarWrite` positions that
-    /// declare none of [`VARIABLE_WRITE_CLASSES`], named `name` or
-    /// `name sub`. A consumer treats such a target as possibly unset.
+    /// declare none of [`VARIABLE_WRITE_CLASSES`], as a trait or through a
+    /// pack's `stores` outcome, named `name` or `name sub`. A consumer
+    /// treats such a target as possibly unset.
     #[must_use]
     pub fn unclassified_variable_writers(&self) -> Vec<String> {
         let mut out = Vec::new();
@@ -2337,7 +2526,7 @@ impl CommandSpec {
                 self.repeated_args,
                 self.options,
             ))
-            && !self.traits.intersects(VARIABLE_WRITE_CLASSES)
+            && !(self.traits | self.semantics.write_class()).intersects(VARIABLE_WRITE_CLASSES)
         {
             out.push(self.name.to_owned());
         }
@@ -2347,10 +2536,11 @@ impl CommandSpec {
                 sub.arg_role_resolver_roles,
                 sub.repeated_args,
                 sub.options,
-            ) && !sub
-                .traits
-                .union(self.traits)
-                .intersects(VARIABLE_WRITE_CLASSES)
+            ) && !(sub.traits
+                | self.traits
+                | sub.semantics.write_class()
+                | self.semantics.write_class())
+            .intersects(VARIABLE_WRITE_CLASSES)
             {
                 out.push(format!("{} {}", self.name, sub.name));
             }
@@ -2370,6 +2560,7 @@ impl CommandSpec {
         arg_roles: &[],
         arg_role_resolver: None,
         arg_role_resolver_roles: &[],
+        clause_grammar: None,
         arg_presentation: &[],
         repeated_args: &[],
         frame_effect: None,
@@ -2377,7 +2568,6 @@ impl CommandSpec {
         command_prefixes: &[],
         command_prefix_resolver: None,
         script_timing_resolver: None,
-        substitution_resolver: None,
         callback_taint_inputs: &[],
         return_type: None,
         return_type_hook: None,
@@ -2395,6 +2585,7 @@ impl CommandSpec {
         forms: &[],
         command_forms: &[],
         semantic_operation: None,
+        semantic_operation_windows: &[],
         completion: None,
         result_stability: None,
         assigns_variable_at: None,
@@ -2404,8 +2595,12 @@ impl CommandSpec {
         lowering_hook: None,
         bpf_op: None,
         codegen_hook: None,
+        codegen_hook_windows: &[],
         inline_codegen_hook: None,
+        inline_codegen_hook_windows: &[],
         native_lowering: None,
+        native_lowering_windows: &[],
+        semantics: SemanticsDeclaration::Inherited,
         analyser_hook: None,
         command_table_effect: None,
         side_effects: &[],
@@ -2429,6 +2624,7 @@ impl CommandSpec {
         irules_top_level_effect: None,
         options: &[],
         option_relations: &[],
+        option_effect_families: &[],
         constraints: None,
         option_placement: OptionPlacement::Leading,
         reserved_trailing_words: 0,
@@ -2463,6 +2659,8 @@ impl CommandSpec {
         xc_translatable: None,
         deprecated_replacement: None,
         deprecated_replacement_drop_in: false,
+        alias_of: None,
+        runtime_backing: crate::runtime_backing::RuntimeBacking::None,
         byte_array_payload: None,
         byte_array_effect: crate::byte_array_effect::ByteArrayEffect::None,
         definition_body: None,
@@ -2480,6 +2678,33 @@ impl CommandSpec {
         oo_context_facts: &[],
         self_receiver_words: &[],
     };
+
+    /// The conservative fact for a command a native extension registers:
+    /// every axis at its top, stated once in [`crate::extension_default`].
+    ///
+    /// Unknown arity; every argument may be a script or a variable name at any
+    /// level (a dynamic barrier); unknown reads and writes; may establish a
+    /// variable trace; a taint sink and source; unsafe and hidden in a safe
+    /// interpreter; never pure; may complete with any code, a normal
+    /// completion among them; and [`RuntimeBacking::HostNative`], so no
+    /// procedure-binding check is ever emitted for it. It names no stamp and no
+    /// window, so a call is dispatched plain at every release.
+    ///
+    /// It declares no `command_table_effect`, `state_transitions` or
+    /// `world_effects` on purpose: a command with none resolves to
+    /// `StateTransitionKnowledge::UnknownInvocation`, the wildcard over every
+    /// identity domain that a closed statement could only narrow.
+    #[must_use]
+    pub const fn extension_default(name: &'static str) -> Self {
+        Self {
+            name,
+            traits: crate::extension_default::TRAITS,
+            side_effects: crate::extension_default::SIDE_EFFECTS,
+            completion: Some(crate::completion::CompletionDescriptor::CONSERVATIVE),
+            runtime_backing: crate::runtime_backing::RuntimeBacking::HostNative,
+            ..Self::DEFAULT
+        }
+    }
 
     /// Reusable base for a command whose successful result depends only on
     /// its evaluated arguments and which has no mutable-world effects or
@@ -2528,13 +2753,9 @@ impl CommandSpec {
         self.subcommands.iter().find(|s| s.name == name)
     }
 
-    /// All target-neutral intrinsic identities declared anywhere in this
-    /// command's command, subcommand, or invocation-form descriptors.
-    ///
-    /// The result is deduplicated and ordered by [`crate::IntrinsicId`], so a
-    /// runtime can attach every semantic identity to one live implementation
     /// The native lowering shape this command's invocations take, defaulting
-    /// to the generic argv invocation when no descriptor is stamped.
+    /// to the generic argv invocation when no descriptor is stamped. The plain
+    /// field alone: [`Self::native_lowering_at`] reads the windows too.
     #[must_use]
     pub const fn native_lowering(&self) -> crate::native_lowering::NativeLowering {
         match self.native_lowering {
@@ -2543,6 +2764,100 @@ impl CommandSpec {
         }
     }
 
+    /// What this command says about its codegen hook at the point `query` asks
+    /// about: the first [`Self::codegen_hook_windows`] window covering the
+    /// primary release, the unversioned [`Self::codegen_hook`] where none does,
+    /// and a decline where the point does not settle which.
+    #[must_use]
+    pub fn codegen_hook_selection(
+        &self,
+        query: Option<&SurfaceQuery<'_>>,
+    ) -> StampSelection<CodegenHookId> {
+        StampSelection::of(self.codegen_hook, self.codegen_hook_windows, query)
+    }
+
+    /// [`Self::codegen_hook_selection`] as the hook to act on, if any.
+    #[must_use]
+    pub fn codegen_hook_at(&self, query: Option<&SurfaceQuery<'_>>) -> Option<CodegenHookId> {
+        self.codegen_hook_selection(query).stamp()
+    }
+
+    /// [`Self::codegen_hook_selection`] for the inline codegen hook.
+    #[must_use]
+    pub fn inline_codegen_hook_selection(
+        &self,
+        query: Option<&SurfaceQuery<'_>>,
+    ) -> StampSelection<InlineCodegenHookId> {
+        StampSelection::of(
+            self.inline_codegen_hook,
+            self.inline_codegen_hook_windows,
+            query,
+        )
+    }
+
+    /// [`Self::inline_codegen_hook_selection`] as the hook to act on, if any.
+    #[must_use]
+    pub fn inline_codegen_hook_at(
+        &self,
+        query: Option<&SurfaceQuery<'_>>,
+    ) -> Option<InlineCodegenHookId> {
+        self.inline_codegen_hook_selection(query).stamp()
+    }
+
+    /// [`Self::codegen_hook_selection`] for the semantic operation.
+    #[must_use]
+    pub fn semantic_operation_selection(
+        &self,
+        query: Option<&SurfaceQuery<'_>>,
+    ) -> StampSelection<crate::semantic_operation::SemanticOperationId> {
+        StampSelection::of(
+            self.semantic_operation,
+            self.semantic_operation_windows,
+            query,
+        )
+    }
+
+    /// The native lowering shape this command's invocations take at the point
+    /// `query` asks about, the generic argv invocation where it states none or
+    /// the point does not settle which. [`Self::native_lowering`] is the
+    /// unversioned field alone.
+    #[must_use]
+    pub fn native_lowering_at(
+        &self,
+        query: Option<&SurfaceQuery<'_>>,
+    ) -> crate::native_lowering::NativeLowering {
+        StampSelection::of(self.native_lowering, self.native_lowering_windows, query)
+            .stamp()
+            .unwrap_or(crate::native_lowering::NativeLowering::Generic)
+    }
+
+    /// Every `(semantic operation, codegen hook, inline codegen hook)` this
+    /// command's own descriptors could resolve to at some release: the
+    /// unversioned stamps and each window's, in every combination. What a
+    /// surface-blind question asks of a command that may be stamped
+    /// differently at different releases.
+    pub(crate) fn descriptor_combinations(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            Option<crate::semantic_operation::SemanticOperationId>,
+            Option<CodegenHookId>,
+            Option<InlineCodegenHookId>,
+        ),
+    > + '_ {
+        descriptor_combinations(
+            (self.semantic_operation, self.semantic_operation_windows),
+            (self.codegen_hook, self.codegen_hook_windows),
+            (self.inline_codegen_hook, self.inline_codegen_hook_windows),
+        )
+    }
+
+    /// All target-neutral intrinsic identities declared anywhere in this
+    /// command's command, subcommand, or invocation-form descriptors, plain or
+    /// in a stamp window.
+    ///
+    /// The result is deduplicated and ordered by [`crate::IntrinsicId`], so a
+    /// runtime can attach every semantic identity to one live implementation
     /// without knowing the command's subcommand layout.
     #[must_use]
     pub fn intrinsic_ids(&self) -> Vec<crate::IntrinsicId> {
@@ -2554,12 +2869,9 @@ impl CommandSpec {
                 ids.insert(id);
             }
         };
-        add(
-            self.semantic_operation,
-            self.lowering_hook,
-            self.codegen_hook,
-            self.inline_codegen_hook,
-        );
+        for (semantic, codegen, inline_codegen) in self.descriptor_combinations() {
+            add(semantic, self.lowering_hook, codegen, inline_codegen);
+        }
         for form in self.command_forms {
             add(
                 form.semantic_operation,
@@ -2569,12 +2881,9 @@ impl CommandSpec {
             );
         }
         for subcommand in self.subcommands {
-            add(
-                subcommand.semantic_operation,
-                subcommand.lowering_hook,
-                subcommand.codegen_hook,
-                subcommand.inline_codegen_hook,
-            );
+            for (semantic, codegen, inline_codegen) in subcommand.descriptor_combinations() {
+                add(semantic, subcommand.lowering_hook, codegen, inline_codegen);
+            }
             for form in subcommand.subcommand_forms {
                 add(
                     form.semantic_operation,
@@ -3082,6 +3391,139 @@ impl CommandSpec {
         specs
     }
 
+    /// The option-effect answer for one call of this command
+    /// (`docs/design/compiler/registry-consumer-contracts.md` § *Options with
+    /// semantic effects*): the generic walk of
+    /// [`crate::option_effect::option_effects`] over this command's
+    /// [`Self::option_specs`] available at `dialect`, its
+    /// [`Self::option_effect_families`], its
+    /// [`Self::reserved_trailing_words`], and its prefix policy.
+    #[must_use]
+    pub fn option_effects(
+        &self,
+        args: InvocationArguments<'_>,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> crate::option_effect::OptionEffects {
+        self.option_effects_over(&self.option_specs(dialect), args, dialect)
+    }
+
+    /// [`Self::option_effects`] over an option table the caller has already
+    /// filtered for its profile.
+    #[must_use]
+    pub(crate) fn option_effects_over(
+        &self,
+        options: &[&OptionSpec],
+        args: InvocationArguments<'_>,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> crate::option_effect::OptionEffects {
+        crate::option_effect::option_effects_over(
+            options,
+            self.option_effect_families,
+            args,
+            self.reserved_trailing_words,
+            dialect,
+            self.prefix_matching,
+        )
+    }
+
+    /// Which substitutions this command performs over its own argument text
+    /// for one call, or `None` when it performs none — the projection of
+    /// [`Self::option_effects`] onto
+    /// [`crate::substitution::SubstitutionKinds`]. A
+    /// [`Traits::PERFORMS_SUBSTITUTION`] command whose options move no
+    /// substitution axis performs every kind on every call; an unreadable
+    /// call answers every kind, and so does a call whose option run stops
+    /// before the reserved operands (a word there is neither an option nor an
+    /// operand).
+    #[must_use]
+    pub fn substitutions_performed(
+        &self,
+        args: InvocationArguments<'_>,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<crate::substitution::SubstitutionKinds> {
+        if !self.traits.contains(Traits::PERFORMS_SUBSTITUTION) {
+            return None;
+        }
+        let effects = self.option_effects(args, dialect);
+        let reaches_operands = args
+            .exact_argv_len()
+            .is_some_and(|len| effects.option_end + self.reserved_trailing_words >= len);
+        Some(if reaches_operands {
+            effects.substitution_kinds()
+        } else {
+            crate::substitution::SubstitutionKinds::ALL
+        })
+    }
+
+    /// Whether an option of this command selects the language of its pattern
+    /// operand — an effect on the [`crate::option_effect::EffectAxis::PatternLanguage`]
+    /// axis (`lsearch -regexp`). Such a command's pattern layout is the
+    /// projection of [`Self::option_effects`], not a static role.
+    #[must_use]
+    pub fn option_selects_pattern_language(&self) -> bool {
+        self.options.iter().any(|option| {
+            option.effect.is_some_and(|effect| {
+                matches!(
+                    effect.kind.axis(),
+                    Some(crate::option_effect::EffectAxis::PatternLanguage(_))
+                )
+            })
+        })
+    }
+
+    /// The clause plan of a call to this command: its [`Self::clause_grammar`]
+    /// walked over `args` (the words after the command name), with the rows
+    /// gated to `dialect`. `None` when the command declares no grammar or the
+    /// grammar is unavailable at `dialect`.
+    #[must_use]
+    pub fn clause_plan(
+        &self,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<crate::clause_grammar::ClausePlan> {
+        let grammar = self.clause_grammar?;
+        grammar
+            .available(dialect)
+            .then(|| grammar.walk_at(args, self.repeated_args, dialect))
+    }
+
+    /// The structural defect a consumer reports in place of the generic arity
+    /// check (`if`'s E004): the clause grammar's, for a command whose arity is
+    /// checked structurally ([`Traits::STRUCTURALLY_CHECKED_ARITY`]), else the
+    /// [`Self::clause_shape_check`] escape hatch's.
+    ///
+    /// A grammar-carrying command without the trait (`for`, `foreach`, …)
+    /// keeps its arity range as the diagnostic's owner, so its walk's defect is
+    /// never reported a second time here.
+    #[must_use]
+    pub fn clause_shape_defect(
+        &self,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<ClauseShapeError> {
+        self.traits
+            .contains(Traits::STRUCTURALLY_CHECKED_ARITY)
+            .then(|| self.clause_plan(args, dialect))
+            .flatten()
+            .and_then(|plan| plan.defect)
+            .or_else(|| self.clause_shape_check.and_then(|check| check(args)))
+    }
+
+    /// The spelling of the option whose declared effect selects `axis`, when
+    /// one does — the generic way to name, say, the regex-mode switch of a
+    /// case-list command without spelling it.
+    #[must_use]
+    pub fn option_selecting(&self, axis: crate::option_effect::EffectAxis) -> Option<&'static str> {
+        self.options
+            .iter()
+            .find(|option| {
+                option.effect.is_some_and(|effect| {
+                    effect.kind == crate::option_effect::OptionEffectKind::Selects(axis)
+                })
+            })
+            .map(|option| option.name)
+    }
+
     /// [`leading_option_word_count`] against this command's own
     /// [`Self::options`] — how many of `args`' leading words are declared
     /// flags/options, so a positional argument index (e.g.
@@ -3089,6 +3531,15 @@ impl CommandSpec {
     #[must_use]
     pub fn leading_option_word_count(&self, args: &[&str]) -> usize {
         leading_option_word_count_with(self.options, args, self.prefix_matching)
+    }
+
+    /// Whether the end-of-options word ended [`Self::leading_option_word_count`]'s
+    /// run — after which every word is positional, so a name slot may hold a
+    /// word shaped like an option (`interp create -- -safe` names the child
+    /// `-safe`).
+    #[must_use]
+    pub fn leading_option_run_is_terminated(&self, args: &[&str]) -> bool {
+        leading_option_run_with(self.options, args, self.prefix_matching).1
     }
 
     /// Like [`Self::switch_names`], but optionally including documented
@@ -3265,6 +3716,12 @@ pub struct SubCommand {
     /// command-level field of the same name.
     pub arg_role_resolver_roles: &'static [ArgRole],
 
+    /// The subcommand's clause grammar (`dict for`, `dict map`, `dict
+    /// update`, `array for`) — the subcommand-level twin of
+    /// [`CommandSpec::clause_grammar`], walked over the words after the
+    /// subcommand word.
+    pub clause_grammar: Option<&'static crate::clause_grammar::ClauseGrammarSpec>,
+
     /// Formatter presentation overrides (after the subcommand word) — the
     /// subcommand-level twin of [`CommandSpec::arg_presentation`]. Empty
     /// means every body argument is laid out as a block, the default.
@@ -3336,17 +3793,34 @@ pub struct SubCommand {
     /// [`CommandSpec::codegen_hook`].
     pub codegen_hook: Option<CodegenHookId>,
 
+    /// Per-release codegen hooks; the contract of
+    /// [`CommandSpec::codegen_hook_windows`]. A subcommand whose windows state
+    /// nothing at the point inherits its command's hook, and one that declines
+    /// does not.
+    pub codegen_hook_windows: &'static [crate::stamp_window::StampWindow<CodegenHookId>],
+
     /// Inline (value-position / catch-body) bytecode codegen hook ID.
     /// See [`CommandSpec::inline_codegen_hook`]. Overrides the
     /// parent's when the call resolves to this subcommand
     /// (`dict get` / `info exists`).
     pub inline_codegen_hook: Option<InlineCodegenHookId>,
 
+    /// Per-release inline codegen hooks; the contract of
+    /// [`CommandSpec::codegen_hook_windows`].
+    pub inline_codegen_hook_windows:
+        &'static [crate::stamp_window::StampWindow<InlineCodegenHookId>],
+
     /// Analyser handler-family hook ID.
     /// See [`CommandSpec::analyser_hook`]. Overrides the parent's when
     /// the call resolves to this subcommand (`namespace eval` /
     /// `dict for`).
     pub analyser_hook: Option<AnalyserHookId>,
+
+    /// The value-transfer specialisation declared at subcommand scope. See
+    /// [`CommandSpec::semantics`]; a declaration here overrides the
+    /// command's, and an explicit abstention stops the command's from
+    /// applying to this subcommand.
+    pub semantics: SemanticsDeclaration,
 
     /// Command-table mutation descriptor.
     /// See [`CommandSpec::command_table_effect`]. Overrides the
@@ -3360,6 +3834,10 @@ pub struct SubCommand {
     /// Typed relations between this subcommand's options and arguments
     /// (E-R14), checked natively.
     pub option_relations: &'static [OptionRelation],
+
+    /// The option-effect families this subcommand's options cite — see
+    /// [`CommandSpec::option_effect_families`].
+    pub option_effect_families: &'static [crate::option_effect::OptionEffectFamily],
 
     /// The subcommand's `constraints` escape hatch — see
     /// [`CommandSpec::constraints`].
@@ -3402,6 +3880,12 @@ pub struct SubCommand {
     /// A matching form may override it. `None` inherits the parent command's
     /// semantic operation or its common structural-lowering descriptor.
     pub semantic_operation: Option<crate::semantic_operation::SemanticOperationId>,
+
+    /// Per-release semantic operations; the contract of
+    /// [`CommandSpec::codegen_hook_windows`].
+    pub semantic_operation_windows: &'static [crate::stamp_window::StampWindow<
+        crate::semantic_operation::SemanticOperationId,
+    >],
 
     /// Target-neutral completion semantics for this subcommand.
     ///
@@ -3687,6 +4171,95 @@ impl SubSubCommand {
     }
 }
 
+/// The product of three levels' candidate stamps. See
+/// [`CommandSpec::descriptor_combinations`].
+fn descriptor_combinations<'a>(
+    semantic: (
+        Option<crate::semantic_operation::SemanticOperationId>,
+        &'a [crate::stamp_window::StampWindow<crate::semantic_operation::SemanticOperationId>],
+    ),
+    codegen: (
+        Option<CodegenHookId>,
+        &'a [crate::stamp_window::StampWindow<CodegenHookId>],
+    ),
+    inline_codegen: (
+        Option<InlineCodegenHookId>,
+        &'a [crate::stamp_window::StampWindow<InlineCodegenHookId>],
+    ),
+) -> impl Iterator<
+    Item = (
+        Option<crate::semantic_operation::SemanticOperationId>,
+        Option<CodegenHookId>,
+        Option<InlineCodegenHookId>,
+    ),
+> + 'a {
+    use crate::stamp_window::candidates;
+    candidates(semantic.0, semantic.1).flat_map(move |semantic| {
+        candidates(codegen.0, codegen.1).flat_map(move |codegen| {
+            candidates(inline_codegen.0, inline_codegen.1)
+                .map(move |inline_codegen| (semantic, codegen, inline_codegen))
+        })
+    })
+}
+
+impl SubCommand {
+    /// The subcommand's own descriptor combinations; see
+    /// [`CommandSpec::descriptor_combinations`].
+    pub(crate) fn descriptor_combinations(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            Option<crate::semantic_operation::SemanticOperationId>,
+            Option<CodegenHookId>,
+            Option<InlineCodegenHookId>,
+        ),
+    > + '_ {
+        descriptor_combinations(
+            (self.semantic_operation, self.semantic_operation_windows),
+            (self.codegen_hook, self.codegen_hook_windows),
+            (self.inline_codegen_hook, self.inline_codegen_hook_windows),
+        )
+    }
+
+    /// What this subcommand says about its codegen hook at the point `query`
+    /// asks about; see [`CommandSpec::codegen_hook_selection`]. A subcommand
+    /// that states nothing there inherits its command's answer, and one that
+    /// declines does not.
+    #[must_use]
+    pub fn codegen_hook_selection(
+        &self,
+        query: Option<&SurfaceQuery<'_>>,
+    ) -> StampSelection<CodegenHookId> {
+        StampSelection::of(self.codegen_hook, self.codegen_hook_windows, query)
+    }
+
+    /// [`Self::codegen_hook_selection`] for the inline codegen hook.
+    #[must_use]
+    pub fn inline_codegen_hook_selection(
+        &self,
+        query: Option<&SurfaceQuery<'_>>,
+    ) -> StampSelection<InlineCodegenHookId> {
+        StampSelection::of(
+            self.inline_codegen_hook,
+            self.inline_codegen_hook_windows,
+            query,
+        )
+    }
+
+    /// [`Self::codegen_hook_selection`] for the semantic operation.
+    #[must_use]
+    pub fn semantic_operation_selection(
+        &self,
+        query: Option<&SurfaceQuery<'_>>,
+    ) -> StampSelection<crate::semantic_operation::SemanticOperationId> {
+        StampSelection::of(
+            self.semantic_operation,
+            self.semantic_operation_windows,
+            query,
+        )
+    }
+}
+
 impl SubCommand {
     /// Default value for all fields.
     pub const DEFAULT: Self = Self {
@@ -3700,6 +4273,7 @@ impl SubCommand {
         arg_roles: &[],
         arg_role_resolver: None,
         arg_role_resolver_roles: &[],
+        clause_grammar: None,
         arg_presentation: &[],
         repeated_args: &[],
         command_prefixes: &[],
@@ -3718,11 +4292,15 @@ impl SubCommand {
         const_fold_versioned: None,
         lowering_hook: None,
         codegen_hook: None,
+        codegen_hook_windows: &[],
         inline_codegen_hook: None,
+        inline_codegen_hook_windows: &[],
         analyser_hook: None,
+        semantics: SemanticsDeclaration::Inherited,
         command_table_effect: None,
         options: &[],
         option_relations: &[],
+        option_effect_families: &[],
         constraints: None,
         option_placement: OptionPlacement::Leading,
         min_abbrev: None,
@@ -3731,6 +4309,7 @@ impl SubCommand {
         versioned_arg_values: &[],
         subcommand_forms: &[],
         semantic_operation: None,
+        semantic_operation_windows: &[],
         completion: None,
         result_stability: None,
         surface: None,
@@ -3766,6 +4345,23 @@ impl SubCommand {
         defines_command_at: None,
         max_leading_option_words: None,
     };
+
+    /// The clause plan of a call to this subcommand: its
+    /// [`Self::clause_grammar`] walked over `args` — the words **after** the
+    /// subcommand word, so the plan's indices are the subcommand's own — with
+    /// the rows gated to `dialect`. `None` when the subcommand declares no
+    /// grammar or the grammar is unavailable at `dialect`.
+    #[must_use]
+    pub fn clause_plan(
+        &self,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<crate::clause_grammar::ClausePlan> {
+        let grammar = self.clause_grammar?;
+        grammar
+            .available(dialect)
+            .then(|| grammar.walk_at(args, self.repeated_args, dialect))
+    }
 
     /// Reusable base for a subcommand whose successful result depends only on
     /// its evaluated arguments and which has no mutable-world effects or
@@ -3968,6 +4564,19 @@ impl SubCommand {
             Some(cap) => counted.min(usize::from(cap)),
             None => counted,
         }
+    }
+
+    /// Whether the end-of-options word ended [`Self::leading_option_word_count`]'s
+    /// run within the subcommand's cap — after which every word is
+    /// positional, so a name slot may hold a word shaped like an option.
+    #[must_use]
+    pub fn leading_option_run_is_terminated(&self, args: &[&str]) -> bool {
+        let (counted, terminated) =
+            leading_option_run_with(self.options, args, self.prefix_matching);
+        terminated
+            && self
+                .max_leading_option_words
+                .is_none_or(|cap| counted <= usize::from(cap))
     }
 
     /// Run this subcommand's constant folder for `args` under a resolved Tcl

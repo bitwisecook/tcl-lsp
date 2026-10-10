@@ -70,7 +70,9 @@ The check recognises the common hand-decomposition shapes: splitting the
 URI on `?` or `&`; `string match` with a path-like or query-like pattern;
 `string first` looking for `?` or `&`; and the iRules word operators
 `starts_with`, `ends_with`, `contains`, and `matches_glob` applied to the
-URI with a path-like or query-like operand. It generalises to any `*::uri`
+URI with a path-like or query-like operand. `split`, `string match` and
+`string first` are recognised by the registry route each call resolves to,
+so `::split` is the same command as `split`. It generalises to any `*::uri`
 getter that has `*::path` or `*::query` siblings in the registry, not
 just `HTTP::`.
 

@@ -7,6 +7,7 @@
 speclib tcl 1.1 {
 
 command lsort {
+    runtime_backing shipped-builtin lsort
     dialects {all-tcl f5-irules}
 
     # NOT PURE/CSE_CANDIDATE: `-command cmdPrefix` names an arbitrary command

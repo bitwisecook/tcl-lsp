@@ -39,6 +39,7 @@ use std::sync::{Arc, Mutex};
 use tcl_dialect::DialectProfile;
 use tcl_lexer::LexerConfig;
 use tcl_registry::CommandRegistry;
+use tcl_registry::model::{KeyedVersions, OverlayMiss};
 use tcl_runtime_api::{
     CompileError, CompileService, FatalTail, ProcedureCompileTarget, ProcedureDispatch,
     ScriptCommandPlan, ScriptCompileTarget,
@@ -46,10 +47,39 @@ use tcl_runtime_api::{
 
 enum RegistryTarget {
     Owned {
-        registry: CommandRegistry,
+        // Boxed: a registry is far larger than the profile variant's one
+        // pointer.
+        registry: Box<CommandRegistry>,
         profile_views: Mutex<FxHashMap<&'static str, Arc<CommandRegistry>>>,
     },
     Profile(&'static CommandRegistry),
+    /// The generation a workspace's packs installed under `overlay`, looked
+    /// up at every compile: the packs' declarations are part of what a
+    /// compile means, so a generation that is not there is a refusal to
+    /// compile, never the plain registry under the packs' name.
+    Overlay {
+        profile: &'static DialectProfile,
+        overlay: u64,
+    },
+}
+
+/// The registry generation `overlay` names for `profile`, if its packs are
+/// installed.
+fn overlaid_registry(
+    profile: &'static DialectProfile,
+    overlay: u64,
+) -> Result<Arc<CommandRegistry>, OverlayMiss> {
+    let generation = tcl_registry::model::ingress::resolve_environment(profile.name)
+        .context_registry(&KeyedVersions::default(), overlay)?;
+    Ok(Arc::clone(generation.commands()))
+}
+
+/// The refusal a missing overlay becomes: the compile does not go ahead.
+fn overlay_refusal(miss: &OverlayMiss) -> CompileError {
+    CompileError(format!(
+        "{miss}: a compile without the workspace's packs would give commands the wrong \
+         meaning, so it is declined"
+    ))
 }
 
 enum ProfileRegistry<'a> {
@@ -67,10 +97,13 @@ impl AsRef<CommandRegistry> for ProfileRegistry<'_> {
 }
 
 impl RegistryTarget {
-    fn registry(&self) -> &CommandRegistry {
+    fn registry(&self) -> Result<ProfileRegistry<'_>, CompileError> {
         match self {
-            Self::Owned { registry, .. } => registry,
-            Self::Profile(registry) => registry,
+            Self::Owned { registry, .. } => Ok(ProfileRegistry::Borrowed(registry)),
+            Self::Profile(registry) => Ok(ProfileRegistry::Borrowed(registry)),
+            Self::Overlay { profile, overlay } => overlaid_registry(profile, *overlay)
+                .map(ProfileRegistry::Cached)
+                .map_err(|miss| overlay_refusal(&miss)),
         }
     }
 
@@ -79,8 +112,14 @@ impl RegistryTarget {
     /// An owned registry is an embedder's semantic command surface (including
     /// dynamically installed `SpecTcl` hooks), so changing the target profile
     /// must not replace it. A profile-backed service has no such override and
-    /// follows the newly requested profile's shared registry generation.
-    fn registry_for_profile(&self, profile: &'static DialectProfile) -> ProfileRegistry<'_> {
+    /// follows the newly requested profile's shared registry generation. An
+    /// overlay-backed service follows the requested profile too, at its own
+    /// overlay: the workspace's packs are installed for every dialect, and a
+    /// profile they are not installed for is a refusal.
+    fn registry_for_profile(
+        &self,
+        profile: &'static DialectProfile,
+    ) -> Result<ProfileRegistry<'_>, CompileError> {
         match self {
             Self::Owned {
                 registry,
@@ -90,11 +129,14 @@ impl RegistryTarget {
                 let view = views
                     .entry(profile.name)
                     .or_insert_with(|| Arc::new(registry.project_for_profile(profile)));
-                ProfileRegistry::Cached(Arc::clone(view))
+                Ok(ProfileRegistry::Cached(Arc::clone(view)))
             }
-            Self::Profile(_) => ProfileRegistry::Borrowed(
+            Self::Profile(_) => Ok(ProfileRegistry::Borrowed(
                 tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
-            ),
+            )),
+            Self::Overlay { overlay, .. } => overlaid_registry(profile, *overlay)
+                .map(ProfileRegistry::Cached)
+                .map_err(|miss| overlay_refusal(&miss)),
         }
     }
 }
@@ -117,7 +159,7 @@ impl BytecodeCompileService {
     pub fn new(registry: CommandRegistry) -> Self {
         Self {
             registry: RegistryTarget::Owned {
-                registry,
+                registry: Box::new(registry),
                 profile_views: Mutex::new(FxHashMap::default()),
             },
             config: LexerConfig::default(),
@@ -137,16 +179,47 @@ impl BytecodeCompileService {
         }
     }
 
+    /// Build a service for one resolved dialect profile whose registry
+    /// carries the workspace pack overlay `overlay` — the key the packs'
+    /// owner installed them under, which the editor's queries thread as
+    /// `spec_pack_key`. `0` is no overlay and is [`Self::for_profile`].
+    ///
+    /// The overlay is looked up, never built: its contents come from the
+    /// pack loader, which this crate cannot depend on. It is looked up again
+    /// for every compile, so a service built while the packs were installed
+    /// still declines to compile once their generation has been retired,
+    /// rather than compiling against the registry the packs are missing from.
+    ///
+    /// # Errors
+    ///
+    /// [`OverlayMiss`] when `overlay` is non-zero and its packs are not
+    /// installed for `profile`.
+    pub fn for_profile_with_overlay(
+        profile: &'static DialectProfile,
+        overlay: u64,
+    ) -> Result<Self, OverlayMiss> {
+        if overlay == 0 {
+            return Ok(Self::for_profile(profile));
+        }
+        overlaid_registry(profile, overlay)?;
+        Ok(Self {
+            registry: RegistryTarget::Overlay { profile, overlay },
+            config: LexerConfig::from_grammar(profile.grammar),
+            profile: Some(profile),
+        })
+    }
+
     fn compile_target(
         &self,
         source: &str,
         plain_command_dispatch: bool,
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        let registry = self.registry.registry()?;
         Self::compile_target_with(
             source,
             "",
             plain_command_dispatch,
-            self.registry.registry(),
+            registry.as_ref(),
             self.config,
             self.profile,
         )
@@ -158,7 +231,7 @@ impl BytecodeCompileService {
         plain_command_dispatch: bool,
         profile: &'static DialectProfile,
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let registry = self.registry.registry_for_profile(profile);
+        let registry = self.registry.registry_for_profile(profile)?;
         Self::compile_target_with(
             source,
             "",
@@ -188,6 +261,7 @@ impl BytecodeCompileService {
             profile,
             plain_command_dispatch,
         );
+        let ir = crate::inlining::inline_reference_bodies(ir, registry, config, profile);
         let prepared = prepare_cfg_context_bundle(&ir, registry);
         let cfg =
             build_cfg_codegen_with_registry_and_context(&ir, false, registry, &prepared, config);
@@ -222,6 +296,7 @@ impl BytecodeCompileService {
             Some(profile),
             plain_command_dispatch,
         );
+        let ir = crate::inlining::inline_reference_bodies(ir, registry, config, Some(profile));
         let prepared = prepare_cfg_context_bundle(&ir, registry);
         let cfg =
             build_cfg_codegen_with_registry_and_context(&ir, false, registry, &prepared, config);
@@ -267,7 +342,7 @@ impl CompileService for BytecodeCompileService {
         target: ScriptCompileTarget<'_>,
         profile: &'static DialectProfile,
     ) -> Result<Self::Module, CompileError> {
-        let registry = self.registry.registry_for_profile(profile);
+        let registry = self.registry.registry_for_profile(profile)?;
         Self::compile_target_with(
             target.source,
             target.namespace,
@@ -295,7 +370,7 @@ impl CompileService for BytecodeCompileService {
         target: ScriptCompileTarget<'_>,
         profile: &'static DialectProfile,
     ) -> Result<Self::Module, CompileError> {
-        let registry = self.registry.registry_for_profile(profile);
+        let registry = self.registry.registry_for_profile(profile)?;
         Self::compile_target_with(
             target.source,
             target.namespace,
@@ -335,7 +410,7 @@ impl CompileService for BytecodeCompileService {
         profile: &'static DialectProfile,
         dispatch: ProcedureDispatch,
     ) -> Result<Self::Module, CompileError> {
-        let registry = self.registry.registry_for_profile(profile);
+        let registry = self.registry.registry_for_profile(profile)?;
         Self::compile_procedure_target_with(
             target,
             dispatch == ProcedureDispatch::Plain,
@@ -434,6 +509,17 @@ fn fatal_tail_frame(
 mod tests {
     use super::*;
     use crate::lowering::lower_to_ir_for_bytecode_with_dialect;
+
+    /// The registry a profile-backed service compiles `profile` against.
+    fn profile_registry<'a>(
+        service: &'a BytecodeCompileService,
+        profile: &'static DialectProfile,
+    ) -> ProfileRegistry<'a> {
+        service
+            .registry
+            .registry_for_profile(profile)
+            .expect("a profile-backed registry")
+    }
 
     fn registry_with_custom_list_expr_hook() -> CommandRegistry {
         let mut registry = CommandRegistry::build_default();
@@ -636,7 +722,7 @@ mod tests {
                 .unwrap();
             let static_ir = lower_to_ir_for_bytecode_with_dialect(
                 &static_source,
-                service.registry.registry_for_profile(profile).as_ref(),
+                profile_registry(&service, profile).as_ref(),
                 LexerConfig::from_grammar(profile.grammar),
                 Some(profile),
             );
@@ -645,7 +731,7 @@ mod tests {
                 let direct_ir = lower_proc_body_module_for_bytecode(
                     body,
                     "matrix",
-                    service.registry.registry_for_profile(profile).as_ref(),
+                    profile_registry(&service, profile).as_ref(),
                     LexerConfig::from_grammar(profile.grammar),
                     Some(profile),
                     dispatch == ProcedureDispatch::Plain,
@@ -727,7 +813,7 @@ mod tests {
         let profile =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
         let service = BytecodeCompileService::for_profile(profile);
-        let registry = service.registry.registry_for_profile(profile);
+        let registry = profile_registry(&service, profile);
         let config = LexerConfig::from_grammar(profile.grammar);
         let body = "namespace export exposed\n\
                     proc child {} {return [namespace current]}\n\
@@ -925,6 +1011,189 @@ mod tests {
                 binding.name == "foreachLine" && binding.identity == "foreachLine"
             })
         );
+    }
+
+    /// A service over a pack overlay is built only if the packs are
+    /// installed; nothing builds one over a generation that is not there.
+    #[test]
+    fn a_service_for_an_uninstalled_overlay_is_not_built() {
+        const OVERLAY: u64 = 0x0C5E_0001;
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").expect("catalogue profile");
+        assert_eq!(
+            BytecodeCompileService::for_profile_with_overlay(profile, OVERLAY)
+                .err()
+                .expect("nothing installed the overlay"),
+            OverlayMiss {
+                environment: "tcl9.0".to_owned(),
+                overlay: OVERLAY,
+            }
+        );
+        assert!(
+            BytecodeCompileService::for_profile_with_overlay(profile, 0).is_ok(),
+            "no overlay is the plain profile service"
+        );
+    }
+
+    /// A command only the overlay declares is a known command to a service
+    /// built over it, whether it compiles for its own profile or is asked for
+    /// another release's, and an unknown one to the plain service: the packs
+    /// reach the compile through the very generation they were installed as.
+    #[test]
+    fn a_service_over_an_installed_overlay_compiles_its_commands() {
+        const OVERLAY: u64 = 0x0C5E_0002;
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").expect("catalogue profile");
+        let installed = tcl_registry::registry_for_profile_with_overlay(profile, OVERLAY, |r| {
+            let mut custom = r.get("llength").expect("llength spec").clone();
+            custom.name = "overlay::length";
+            custom.surface = None;
+            r.insert(custom);
+        });
+        let known = |module: &tcl_bytecode::ModuleAsm| {
+            module
+                .top_level
+                .command_bindings
+                .iter()
+                .any(|binding| binding.name == "overlay::length")
+        };
+        let source = "overlay::length {a b c}";
+
+        let service = BytecodeCompileService::for_profile_with_overlay(profile, OVERLAY)
+            .expect("installed, so the service is built");
+        assert!(std::ptr::eq(
+            service.registry.registry().expect("resolves").as_ref(),
+            Arc::as_ptr(&installed)
+        ));
+        assert!(known(&service.compile(source).unwrap()));
+        assert!(known(
+            &service.compile_for_profile(source, profile).unwrap()
+        ));
+
+        let plain = BytecodeCompileService::for_profile(profile);
+        assert!(
+            !known(&plain.compile(source).unwrap()),
+            "the plain service has never heard of it"
+        );
+    }
+
+    /// The overlay is looked up at every compile, so a service built while
+    /// its packs were installed declines each compile entry once the
+    /// generation is gone, and names the overlay: it does not compile against
+    /// the plain registry under the packs' name.
+    #[test]
+    fn a_service_whose_overlay_is_gone_declines_every_compile() {
+        const OVERLAY: u64 = 0x0C5E_0003;
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").expect("catalogue profile");
+        let service = BytecodeCompileService {
+            registry: RegistryTarget::Overlay {
+                profile,
+                overlay: OVERLAY,
+            },
+            config: LexerConfig::from_grammar(profile.grammar),
+            profile: Some(profile),
+        };
+        let source = "set x 1";
+        let script = ScriptCompileTarget {
+            source,
+            namespace: "",
+        };
+        let parameters = Vec::new();
+        let procedure = ProcedureCompileTarget {
+            source,
+            parameters: &parameters,
+            namespace: "",
+        };
+        let declined = |what: &str, result: Result<tcl_bytecode::ModuleAsm, CompileError>| {
+            let CompileError(message) = result.err().unwrap_or_else(|| panic!("{what} compiled"));
+            assert!(
+                message.contains("0xc5e0003") && message.contains("tcl9.0"),
+                "{what}: {message}"
+            );
+        };
+        declined("compile", service.compile(source));
+        declined("compile_traced", service.compile_traced(source));
+        declined(
+            "compile_for_profile",
+            service.compile_for_profile(source, profile),
+        );
+        declined(
+            "compile_traced_for_profile",
+            service.compile_traced_for_profile(source, profile),
+        );
+        declined(
+            "compile_script_for_profile",
+            service.compile_script_for_profile(script, profile),
+        );
+        declined(
+            "compile_plain_script_for_profile",
+            service.compile_plain_script_for_profile(script, profile),
+        );
+        for dispatch in [ProcedureDispatch::Optimised, ProcedureDispatch::Plain] {
+            declined(
+                "compile_procedure_for_profile",
+                service.compile_procedure_for_profile(procedure, profile, dispatch),
+            );
+        }
+    }
+
+    /// A module states the world its profile resolves to — environment,
+    /// release, build, package floors — beside this build's ABI, intrinsic
+    /// table and embedded library, whichever entry compiled it.
+    #[test]
+    fn a_module_states_the_world_it_was_compiled_for() {
+        for (name, release) in [
+            ("tcl8.4", "8.4"),
+            ("tcl8.6", "8.6"),
+            ("tcl9.0", "9.0"),
+            ("f5-irules", "tmm"),
+        ] {
+            let profile = tcl_dialect::DialectProfile::find(name).expect("catalogue profile");
+            let service = BytecodeCompileService::for_profile(profile);
+            let expected = tcl_registry::model::runtime_context_for_profile(profile)
+                .identity(&[], tcl_registry::intrinsic_table_hash());
+            assert_eq!(expected.environment, name);
+            assert_eq!(expected.release, release);
+            assert_eq!(
+                expected.abi_version,
+                tcl_runtime_api::codegen_abi::CODEGEN_ABI_VERSION
+            );
+            assert_eq!(
+                expected.embedded_stdlib_revision,
+                tcl_runtime_api::manifest::EMBEDDED_STDLIB_REVISION
+            );
+            let parameters = Vec::new();
+            let script = ScriptCompileTarget {
+                source: "set x 1",
+                namespace: "",
+            };
+            let procedure = ProcedureCompileTarget {
+                source: "set x 1",
+                parameters: &parameters,
+                namespace: "",
+            };
+            for (what, module) in [
+                ("compile", service.compile("set x 1")),
+                (
+                    "compile_for_profile",
+                    service.compile_for_profile("set x 1", profile),
+                ),
+                ("compile_traced", service.compile_traced("set x 1")),
+                (
+                    "compile_plain_script_for_profile",
+                    service.compile_plain_script_for_profile(script, profile),
+                ),
+                (
+                    "compile_procedure_for_profile",
+                    service.compile_procedure_for_profile(
+                        procedure,
+                        profile,
+                        ProcedureDispatch::Optimised,
+                    ),
+                ),
+            ] {
+                let module = module.unwrap_or_else(|e| panic!("{name} {what}: {}", e.0));
+                assert_eq!(module.manifest.as_deref(), Some(&expected), "{name} {what}");
+            }
+        }
     }
 
     #[test]

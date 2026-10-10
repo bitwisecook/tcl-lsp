@@ -1077,6 +1077,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         arg_role_resolver: Some(trace_add_arg_roles),
         arg_role_resolver_roles: &[ArgRole::VarWrite, ArgRole::CommandName],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::TRACE),
         command_prefix_resolver: Some(trace_add_command_prefixes),
         script_timing_resolver: Some(trace_add_script_timing),
         arg_values: &[(0, TRACE_TYPE_VALUES), (2, TRACE_OPS_VALUES)],
@@ -1125,6 +1126,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
         // measurements §5: 8.3-form-only on TMM — see `add` above.
         surface: Some(SpecSurface::ALL_TCL),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1141,6 +1143,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         arg_role_resolver: Some(trace_remove_arg_roles),
         arg_role_resolver_roles: &[ArgRole::VarWrite, ArgRole::CommandName],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::TRACE),
         command_prefix_resolver: Some(trace_remove_command_prefixes),
         script_timing_resolver: Some(trace_remove_script_timing),
         arg_values: &[(0, TRACE_TYPE_VALUES), (2, TRACE_OPS_VALUES)],
@@ -1171,6 +1174,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         arg_role_resolver: Some(trace_legacy_arg_roles),
         arg_role_resolver_roles: &[ArgRole::VarWrite],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::TRACE),
         command_prefix_resolver: Some(trace_variable_command_prefixes),
         script_timing_resolver: Some(trace_variable_script_timing),
         arg_values: &[(1, TRACE_LEGACY_OPS_VALUES)],
@@ -1210,6 +1214,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         arg_role_resolver: Some(trace_legacy_arg_roles),
         arg_role_resolver_roles: &[ArgRole::VarWrite],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::TRACE),
         command_prefix_resolver: Some(trace_vdelete_command_prefixes),
         script_timing_resolver: Some(trace_vdelete_script_timing),
         arg_values: &[(1, TRACE_LEGACY_OPS_VALUES)],
@@ -1258,6 +1263,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             SpecSurface::core(Family::F5Irules)
         ]),
         lifecycle: Lifecycle::deprecated_in("8.4").retired_from("9.0"),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
 ];
@@ -1292,6 +1298,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "trace",
+        runtime_backing: RuntimeBacking::shipped("trace"),
         // Present and unrestricted: `trace` carries an iRules row explicitly
         // (`ALL_TCL.union(IRULES)`), so it resolves under the bare `IRULES`
         // mask, and every dialect that hosts a real Tcl core (irules, iapps,

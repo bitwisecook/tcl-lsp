@@ -1,0 +1,716 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! The declared way an exact answer is computed
+//! (`docs/design/compiler/value-evaluation.md` § *Three routes, declared on
+//! the spec*). A route is a capability the spec names; purity never selects
+//! one.
+
+use tcl_dialect::model::SpecSurface;
+
+use super::const_ops::Needs;
+use super::context::BindingIdentity;
+use super::decline::{Axis, DeclineReason, NoRouteReason};
+
+/// The declared way an exact answer is computed. Resolved once per
+/// invocation, from the spec's three declaration states at command,
+/// subcommand, and form scope.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EvalRoute {
+    /// A registry-owned Rust function over the shared cores, named by its
+    /// catalogue id.
+    Direct {
+        /// The catalogue identity of the evaluator.
+        id: NativeEvalId,
+    },
+    /// The shared expression engine under a named language profile.
+    Expression {
+        /// The language whose arithmetic the engine runs under.
+        language: LanguageProfileId,
+    },
+    /// An implementation the spec names, run in the bounded host.
+    Implementation(EvaluatorCapability),
+    /// Declared absence: classification only. The driver answers
+    /// `Declined(NoRoute)` without consulting purity.
+    None {
+        /// Why there is no route.
+        reason: NoRouteReason,
+    },
+}
+
+impl EvalRoute {
+    /// Whether the route evaluates anything at all.
+    #[must_use]
+    pub const fn is_enabled(self) -> bool {
+        !matches!(self, Self::None { .. })
+    }
+
+    /// Stable spelling of the route family for the inventory and the
+    /// Explorer.
+    #[must_use]
+    pub const fn family(self) -> &'static str {
+        match self {
+            Self::Direct { .. } => "direct",
+            Self::Expression { .. } => "expression",
+            Self::Implementation(_) => "implementation",
+            Self::None { .. } => "none",
+        }
+    }
+}
+
+/// What an option row states about evaluation while the option is present
+/// (`-evaluate none`, `-evaluate-reason WORD`): the selected form has no
+/// evaluator, and the driver records this decline. A route belongs to a
+/// form, so these two flags are the whole of the option-level vocabulary;
+/// an option that selects a different evaluator is a `refine` block.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum OptionEvaluation {
+    /// `NoRoute` with the reason: `declared` for a bare `-evaluate none`,
+    /// `form_unsupported` or `callback` when the row names one.
+    NoRoute(NoRouteReason),
+    /// `release_ambiguous`: `ReleaseAmbiguous` on the option's availability
+    /// axis.
+    ReleaseAmbiguous,
+}
+
+impl OptionEvaluation {
+    /// The `-evaluate-reason` words and what each records.
+    pub const REASONS: &'static [(&'static str, Self)] = &[
+        (
+            "form_unsupported",
+            Self::NoRoute(NoRouteReason::FormUnsupported),
+        ),
+        ("callback", Self::NoRoute(NoRouteReason::Callback)),
+        ("release_ambiguous", Self::ReleaseAmbiguous),
+    ];
+
+    /// The option's decline for a bare `-evaluate none`.
+    pub const DECLARED: Self = Self::NoRoute(NoRouteReason::Declared);
+
+    /// The decline the driver records when the option is present, given
+    /// the option's own availability row: `release_ambiguous` is
+    /// `ReleaseAmbiguous` on that row's axis, so an option that declares no
+    /// availability of its own has no axis to name and gets `None`.
+    #[must_use]
+    pub const fn decline(self, surface: Option<SpecSurface>) -> Option<DeclineReason> {
+        match (self, surface) {
+            (Self::NoRoute(reason), _) => Some(DeclineReason::NoRoute(reason)),
+            (Self::ReleaseAmbiguous, Some(surface)) => {
+                Some(DeclineReason::ReleaseAmbiguous(Axis::Availability(surface)))
+            }
+            (Self::ReleaseAmbiguous, None) => None,
+        }
+    }
+}
+
+/// The language profile an expression route evaluates under.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LanguageProfileId {
+    /// Tcl `expr` arithmetic under the target's numeric tower.
+    TclExpr,
+    /// BPF-Tcl arithmetic: fixed width, truncating division.
+    BpfExpr,
+}
+
+impl LanguageProfileId {
+    /// Every language profile.
+    pub const ALL: &'static [Self] = &[Self::TclExpr, Self::BpfExpr];
+
+    /// Stable spelling.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::TclExpr => "tcl.expr",
+            Self::BpfExpr => "bpf.expr",
+        }
+    }
+}
+
+/// Everything a declared implementation states about itself
+/// (`docs/design/compiler/value-evaluation.md` § *The capability
+/// declaration*). Part of the route, so of the specialisation's identity and
+/// of every memo key: two declarations that differ in any field — the body's
+/// content hash, one input, one dependency, the budget — are two routes.
+///
+/// The page's shape with the tree's two constraints: [`EvalRoute`] is
+/// `Copy`, so the lists are `&'static` slices the loader leaks as it leaks
+/// every other pack field; and the registry does not depend on
+/// `tcl-engine-api`, so the budget is the registry-side
+/// [`ImplementationBudget`] the host converts and caps by its own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct EvaluatorCapability {
+    /// Which implementation this evaluator models, and at what revision.
+    pub identity: ImplementationIdentity,
+    /// Where it runs.
+    pub host: HostKind,
+    /// The target axes it supports, as the bits the direct route admits. An
+    /// axis absent here is one the evaluator declines; `PLATFORM` and
+    /// `WALL_CLOCK` are never satisfiable, because the host denies both.
+    pub target: Needs,
+    /// Exactly the inputs it reads, in the order its body's parameters bind
+    /// them. Nothing outside this list is supplied.
+    pub inputs: &'static [DeclaredInput],
+    /// The context dependencies the answer carries and the memo key holds,
+    /// in declaration order.
+    pub depends: &'static [ContextDependency],
+    /// Its own budget, capped by the host's and charged to the request.
+    pub budget: ImplementationBudget,
+    /// Which completions it models.
+    pub completion: CompletionSupport,
+}
+
+/// Which implementation a declared evaluator models: the pack, the declared
+/// id, and the content hash of the body, so an edited body is a different
+/// implementation even under the same id.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ImplementationIdentity {
+    /// The pack that declares it.
+    pub pack: &'static str,
+    /// The declared id (`tenant.label.v1`).
+    pub id: &'static str,
+    /// The content hash of the body.
+    pub content_hash: u64,
+}
+
+/// Where a declared implementation runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum HostKind {
+    /// The bounded Tcl engine behind the hook host, running the
+    /// declaration's body.
+    BoundedTcl,
+    /// A compiled C extension's command, run on the thread's extension host
+    /// ([`crate::extension_host`]): the declaration names the artefact
+    /// (`extension FILE PREFIX`), and its identity's content hash is the
+    /// artefact's ([`crate::extension_host::artefact_hash`]), so the memo key
+    /// carries it. A thread with no extension host installed declines every
+    /// evaluation `Transient`; the registry links no engine, so the language
+    /// server never links one.
+    WasmExtension,
+}
+
+impl HostKind {
+    /// Every host word.
+    pub const ALL: &'static [Self] = &[Self::BoundedTcl, Self::WasmExtension];
+
+    /// The DSL spelling (`-host bounded_tcl`, `-host wasm_extension`).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::BoundedTcl => "bounded_tcl",
+            Self::WasmExtension => "wasm_extension",
+        }
+    }
+}
+
+/// How exact a declared operand input must be.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Exactness {
+    /// The operand's exact value: a body is never invoked with a
+    /// placeholder.
+    Exact,
+}
+
+impl Exactness {
+    /// Every exactness word.
+    pub const ALL: &'static [Self] = &[Self::Exact];
+
+    /// The DSL spelling (`arg 0 exact`).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Exact => "exact",
+        }
+    }
+}
+
+/// One input a declared implementation reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DeclaredInput {
+    /// Operand `index` must be an exact value (`arg N exact`).
+    Operand {
+        /// The operand index.
+        index: usize,
+        /// How exact it must be.
+        exactness: Exactness,
+    },
+    /// The incoming value and existence of target `index`
+    /// (`target N incoming`).
+    IncomingTarget {
+        /// The target's operand index.
+        index: usize,
+    },
+    /// The value of option `name`, when present (`option -NAME exact`).
+    OptionValue {
+        /// The option, as written.
+        name: &'static str,
+    },
+}
+
+/// One context dependency an answer carries and the memo key holds.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ContextDependency {
+    /// The target profile (`tcl_profile`).
+    TclProfile,
+    /// The implementation identity (`implementation_identity`).
+    ImplementationIdentity,
+    /// The registry and overlay generation (`registry_generation`).
+    RegistryGeneration,
+    /// The evaluator generation (`evaluator_generation`).
+    EvaluatorGeneration,
+    /// One named command or math-function binding (`binding NAME`).
+    Binding(BindingIdentity),
+}
+
+impl ContextDependency {
+    /// The fieldless dependency words, in the DSL's order.
+    pub const WORDS: &'static [Self] = &[
+        Self::TclProfile,
+        Self::ImplementationIdentity,
+        Self::RegistryGeneration,
+        Self::EvaluatorGeneration,
+    ];
+
+    /// The DSL spelling (`depends {tcl_profile …}`); `binding` for a named
+    /// binding, whose name follows it.
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::TclProfile => "tcl_profile",
+            Self::ImplementationIdentity => "implementation_identity",
+            Self::RegistryGeneration => "registry_generation",
+            Self::EvaluatorGeneration => "evaluator_generation",
+            Self::Binding(_) => "binding",
+        }
+    }
+}
+
+/// A declared implementation's own per-evaluation budget: the registry-side
+/// mirror of `tcl_engine_api::Budget`. It narrows the host's, never widens
+/// it — the host converts it and caps each field by its own. `None` leaves
+/// the host's value for that field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct ImplementationBudget {
+    /// Dispatched commands (`-commands N`).
+    pub commands: Option<u64>,
+    /// Wall clock, in milliseconds (`-wall-clock MS`).
+    pub wall_clock_ms: Option<u64>,
+    /// The largest value the body may build, in bytes (`-value-bytes N`).
+    pub value_bytes: Option<u64>,
+}
+
+/// Which completions a declared implementation models.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CompletionSupport {
+    /// The normal path only: an implementation that raises declines, under
+    /// the DSL's "error means abstain" rule, and is never a completion fact.
+    NormalOnly,
+}
+
+/// The catalogue of registry-named direct evaluators.
+///
+/// The registry owns the catalogue; who implements each entry is stated by
+/// [`Self::owner`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum NativeEvalId {
+    /// The cell increment behind `incr`: read the cell, add under the
+    /// target's integer tower, write it back, return the new value.
+    CellIncrement,
+    /// The cell append behind `append`: read the cell, append the values'
+    /// bytes, write it back, return the new value.
+    CellAppend,
+    /// The cell list-append behind `lappend`: read the cell as a list,
+    /// append the values as elements, write it back, return the new value.
+    CellListAppend,
+    /// The exact-value write behind `set`: write the value and return it,
+    /// or return the value the cell holds.
+    CellWrite,
+    /// The constant's creation behind `const` (from 9.0): write the value
+    /// into an absent place and return the empty string.
+    ConstWrite,
+    /// `dict set`: the dictionary with a value at a key path.
+    DictSet,
+    /// `dict unset`: the dictionary without the key at a key path.
+    DictUnset,
+    /// `dict incr`: the dictionary with one key's integer incremented.
+    DictIncr,
+    /// `dict append`: the dictionary with strings appended to one key's
+    /// value.
+    DictAppend,
+    /// `dict lappend`: the dictionary with elements appended to one key's
+    /// list.
+    DictListAppend,
+    /// `string range string first last`: the shared string core, with the
+    /// index numerals pre-resolved under the target's grammar.
+    StringRange,
+    /// `list ?arg …?`: the arguments as one canonical list.
+    ListOfArgs,
+    /// `format template ?arg …?`: the rendered template.
+    FormatTemplate,
+    /// `llength list`: the element count.
+    ListLength,
+    /// `string length string`: the character count under the target's
+    /// character model.
+    StringLength,
+    /// `regexp`: the regexp owner's typed match over the shared plumbing and
+    /// the Tcl ARE engine — the count or the inline list as the result, and
+    /// one write or preserve per match variable.
+    RegexpMatch,
+    /// `regsub`: the regexp owner's substitution — the text as the result,
+    /// or the count with the text written to the result variable.
+    RegsubSubstitute,
+    /// `scan`: the shared matcher's conversions — the count with one write
+    /// per converted variable, or the inline list.
+    ScanFormat,
+    /// `binary scan`: the shared unpacker's fields, one write per scanned
+    /// variable.
+    BinaryScan,
+    /// `lassign`: the list's elements written in order, the rest returned.
+    ListAssign,
+    /// `array set`: one element write per pair.
+    ArraySet,
+    /// `binary format`: the shared packer's bytes, a byte array by
+    /// construction.
+    BinaryFormat,
+    /// `unset`: each named variable unbound in order, the first absent one
+    /// the command's error.
+    VariableUnset,
+    /// `error`: the `TCL_ERROR` completion with the message and `-errorcode`
+    /// its words give.
+    ErrorRaise,
+    /// `return`: the completion its `-code` and `-level` give, with its
+    /// result.
+    ReturnComplete,
+    /// `break`: the `TCL_BREAK` completion.
+    BreakComplete,
+    /// `continue`: the `TCL_CONTINUE` completion.
+    ContinueComplete,
+    /// `catch`: a closed script run under the protected policy, the code it
+    /// completes with, and the variables that receive it.
+    CatchProtected,
+    /// `info default`: a procedure parameter's default written to the
+    /// variable, where the analyser proves the procedure and the parameter.
+    ParameterDefault,
+    /// `lset`: the list a variable holds with the element at an index path
+    /// replaced, written back and returned.
+    ListSet,
+    /// `ledit`: the list a variable holds with a range replaced, written back
+    /// and returned.
+    ListEdit,
+    /// `lpop`: the element at an index path removed from the list a variable
+    /// holds, the rest written back and the element returned.
+    ListPop,
+    /// `b64encode`: the base64 of the bytes.
+    Base64Encode,
+    /// `b64decode`: the bytes a canonical base64 text spells.
+    Base64Decode,
+    /// `crc32`: zlib's CRC-32, sign-extended from 32 bits.
+    Crc32Checksum,
+    /// `md5`: the MD5 digest's bytes.
+    Md5Digest,
+    /// `sha1`: the SHA-1 digest's bytes.
+    Sha1Digest,
+    /// `sha256`: the SHA-256 digest's bytes.
+    Sha256Digest,
+    /// `sha384`: the SHA-384 digest's bytes.
+    Sha384Digest,
+    /// `sha512`: the SHA-512 digest's bytes.
+    Sha512Digest,
+    /// `findstr`: the text after a search string, to a terminator.
+    FindString,
+    /// `getfield`: one field of a separated string.
+    StringField,
+    /// `substr`: the text from an offset, to a terminator.
+    Substring,
+    /// `domain`: the last labels of a dotted name.
+    DomainLabels,
+    /// `URI::basename`: the last segment of a URI's path.
+    UriBasename,
+    /// `URI::path`: a URI path's directories, or their count.
+    UriPath,
+    /// `URI::query`: a URI's query, or one parameter's value.
+    UriQuery,
+    /// `URI::host`: a URI's host.
+    UriHost,
+    /// `URI::port`: a URI's port, or its scheme's default.
+    UriPort,
+    /// `URI::protocol`: a URI's scheme.
+    UriProtocol,
+    /// `URI::decode`: one pass of percent-decoding.
+    UriDecode,
+    /// `URI::encode`: percent-encoding.
+    UriEncode,
+    /// `URI::compare`: whether two URIs are equivalent.
+    UriCompare,
+    /// `IP::addr A equals B`: whether two addresses share a network.
+    IpAddrEquals,
+    /// `file join`: the names' elements after the last absolute name's.
+    PathJoin,
+    /// `file dirname`: a name's elements but the last.
+    PathDirname,
+    /// `file tail`: a name's last element.
+    PathTail,
+    /// `file extension`: a name from its last dot, no separator after it.
+    PathExtension,
+    /// `file rootname`: a name without its extension.
+    PathRootname,
+    /// `file split`: a name's elements, as a list.
+    PathSplit,
+    /// `split`: a string's pieces between separator characters, as a list.
+    ListSplit,
+    /// `string first`: the index of a needle's first occurrence.
+    StringFirst,
+    /// `string match`: whether a string matches a glob pattern.
+    StringMatch,
+    /// `base32::encode`: bytes as RFC 4648 base32.
+    Base32Encode,
+    /// `base32::decode`: a canonical base32 encoding's bytes.
+    Base32Decode,
+    /// `base32::hex::encode`: bytes as base32 over the extended-hex
+    /// alphabet.
+    Base32HexEncode,
+    /// `base32::hex::decode`: a canonical extended-hex encoding's bytes.
+    Base32HexDecode,
+}
+
+impl NativeEvalId {
+    /// Every catalogued evaluator, in catalogue order.
+    pub const ALL: &'static [Self] = &[
+        Self::CellIncrement,
+        Self::CellAppend,
+        Self::CellListAppend,
+        Self::CellWrite,
+        Self::ConstWrite,
+        Self::DictSet,
+        Self::DictUnset,
+        Self::DictIncr,
+        Self::DictAppend,
+        Self::DictListAppend,
+        Self::StringRange,
+        Self::ListOfArgs,
+        Self::FormatTemplate,
+        Self::ListLength,
+        Self::StringLength,
+        Self::RegexpMatch,
+        Self::RegsubSubstitute,
+        Self::ScanFormat,
+        Self::BinaryScan,
+        Self::ListAssign,
+        Self::ArraySet,
+        Self::BinaryFormat,
+        Self::VariableUnset,
+        Self::ErrorRaise,
+        Self::ReturnComplete,
+        Self::BreakComplete,
+        Self::ContinueComplete,
+        Self::CatchProtected,
+        Self::ParameterDefault,
+        Self::ListSet,
+        Self::ListEdit,
+        Self::ListPop,
+        Self::Base64Encode,
+        Self::Base64Decode,
+        Self::Crc32Checksum,
+        Self::Md5Digest,
+        Self::Sha1Digest,
+        Self::Sha256Digest,
+        Self::Sha384Digest,
+        Self::Sha512Digest,
+        Self::FindString,
+        Self::StringField,
+        Self::Substring,
+        Self::DomainLabels,
+        Self::UriBasename,
+        Self::UriPath,
+        Self::UriQuery,
+        Self::UriHost,
+        Self::UriPort,
+        Self::UriProtocol,
+        Self::UriDecode,
+        Self::UriEncode,
+        Self::UriCompare,
+        Self::IpAddrEquals,
+        Self::PathJoin,
+        Self::PathDirname,
+        Self::PathTail,
+        Self::PathExtension,
+        Self::PathRootname,
+        Self::PathSplit,
+        Self::ListSplit,
+        Self::StringFirst,
+        Self::StringMatch,
+        Self::Base32Encode,
+        Self::Base32Decode,
+        Self::Base32HexEncode,
+        Self::Base32HexDecode,
+    ];
+
+    /// Stable spelling for the inventory and the Explorer.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::CellIncrement => "cell-increment",
+            Self::CellAppend => "cell-append",
+            Self::CellListAppend => "cell-list-append",
+            Self::CellWrite => "cell-write",
+            Self::ConstWrite => "const-write",
+            Self::DictSet => "dict-set",
+            Self::DictUnset => "dict-unset",
+            Self::DictIncr => "dict-incr",
+            Self::DictAppend => "dict-append",
+            Self::DictListAppend => "dict-lappend",
+            Self::StringRange => "string-range",
+            Self::ListOfArgs => "list-of-args",
+            Self::FormatTemplate => "format-template",
+            Self::ListLength => "list-length",
+            Self::StringLength => "string-length",
+            Self::RegexpMatch => "regexp-match",
+            Self::RegsubSubstitute => "regsub-substitute",
+            Self::ScanFormat => "scan-format",
+            Self::BinaryScan => "binary-scan",
+            Self::ListAssign => "list-assign",
+            Self::ArraySet => "array-set",
+            Self::BinaryFormat => "binary-format",
+            Self::VariableUnset => "variable-unset",
+            Self::ErrorRaise => "error-raise",
+            Self::ReturnComplete => "return-complete",
+            Self::BreakComplete => "break-complete",
+            Self::ContinueComplete => "continue-complete",
+            Self::CatchProtected => "catch-protected",
+            Self::ParameterDefault => "parameter-default",
+            Self::ListSet => "list-set",
+            Self::ListEdit => "list-edit",
+            Self::ListPop => "list-pop",
+            Self::Base64Encode => "base64-encode",
+            Self::Base64Decode => "base64-decode",
+            Self::Crc32Checksum => "crc32-checksum",
+            Self::Md5Digest => "md5-digest",
+            Self::Sha1Digest => "sha1-digest",
+            Self::Sha256Digest => "sha256-digest",
+            Self::Sha384Digest => "sha384-digest",
+            Self::Sha512Digest => "sha512-digest",
+            Self::FindString => "find-string",
+            Self::StringField => "string-field",
+            Self::Substring => "substring",
+            Self::DomainLabels => "domain-labels",
+            Self::UriBasename => "uri-basename",
+            Self::UriPath => "uri-path",
+            Self::UriQuery => "uri-query",
+            Self::UriHost => "uri-host",
+            Self::UriPort => "uri-port",
+            Self::UriProtocol => "uri-protocol",
+            Self::UriDecode => "uri-decode",
+            Self::UriEncode => "uri-encode",
+            Self::UriCompare => "uri-compare",
+            Self::IpAddrEquals => "ip-addr-equals",
+            Self::PathJoin => "path-join",
+            Self::PathDirname => "path-dirname",
+            Self::PathTail => "path-tail",
+            Self::PathExtension => "path-extension",
+            Self::PathRootname => "path-rootname",
+            Self::PathSplit => "path-split",
+            Self::ListSplit => "list-split",
+            Self::StringFirst => "string-first",
+            Self::StringMatch => "string-match",
+            Self::Base32Encode => "base32-encode",
+            Self::Base32Decode => "base32-decode",
+            Self::Base32HexEncode => "base32-hex-encode",
+            Self::Base32HexDecode => "base32-hex-decode",
+        }
+    }
+
+    /// Who implements the evaluator.
+    #[must_use]
+    pub const fn owner(self) -> EvaluatorOwner {
+        match self {
+            Self::CellIncrement
+            | Self::CellAppend
+            | Self::CellListAppend
+            | Self::CellWrite
+            | Self::ConstWrite
+            | Self::DictSet
+            | Self::DictUnset
+            | Self::DictIncr
+            | Self::DictAppend
+            | Self::DictListAppend
+            | Self::StringRange
+            | Self::ListOfArgs
+            | Self::ListLength
+            | Self::StringLength
+            | Self::FormatTemplate
+            | Self::RegexpMatch
+            | Self::RegsubSubstitute
+            | Self::ScanFormat
+            | Self::BinaryScan
+            | Self::ListAssign
+            | Self::ArraySet
+            | Self::BinaryFormat
+            | Self::VariableUnset
+            | Self::ErrorRaise
+            | Self::ReturnComplete
+            | Self::BreakComplete
+            | Self::ContinueComplete
+            | Self::CatchProtected
+            | Self::ParameterDefault
+            | Self::ListSet
+            | Self::ListEdit
+            | Self::ListPop
+            | Self::Base64Encode
+            | Self::Base64Decode
+            | Self::Crc32Checksum
+            | Self::Md5Digest
+            | Self::Sha1Digest
+            | Self::Sha256Digest
+            | Self::Sha384Digest
+            | Self::Sha512Digest
+            | Self::FindString
+            | Self::StringField
+            | Self::Substring
+            | Self::DomainLabels
+            | Self::UriBasename
+            | Self::UriPath
+            | Self::UriQuery
+            | Self::UriHost
+            | Self::UriPort
+            | Self::UriProtocol
+            | Self::UriDecode
+            | Self::UriEncode
+            | Self::UriCompare
+            | Self::IpAddrEquals
+            | Self::PathJoin
+            | Self::PathDirname
+            | Self::PathTail
+            | Self::PathExtension
+            | Self::PathRootname
+            | Self::PathSplit
+            | Self::ListSplit
+            | Self::StringFirst
+            | Self::StringMatch
+            | Self::Base32Encode
+            | Self::Base32Decode
+            | Self::Base32HexEncode
+            | Self::Base32HexDecode => EvaluatorOwner::Registry,
+        }
+    }
+}
+
+/// Who implements a catalogued direct evaluator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EvaluatorOwner {
+    /// The registry: `CommandSemantics::evaluate` is the implementation.
+    Registry,
+}

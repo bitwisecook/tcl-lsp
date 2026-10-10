@@ -84,7 +84,7 @@ byte-identical:
 * the result string and the return code + options dict
   (`-errorcode`, `-errorinfo`, `-errorstack`, `-level`);
 * the `errorInfo` traceback text, including the "invoked from within …"
-  vs. "while executing …" distinction. In the as-built runtime that is the
+  vs. "while executing …" distinction. In the runtime runtime that is the
   `Interp::error_info` accumulator plus the `error_logged` flag (C's
   `ERR_ALREADY_LOGGED`): the *first* frame logged selects "while executing",
   `error_logged` stops the same bytecode frame being re-logged, and it is
@@ -131,4 +131,4 @@ design. Capabilities a backend genuinely lacks are declared as such — see
   frame the interpreter injects for `uplevel`/`eval`.
 - [numeric-tower-and-expr-semantics.md](numeric-tower-and-expr-semantics.md)
   — `expr` is a second grammar parsed by the same "parse once" discipline.
-- [parsing.md](parsing.md), [lexing.md](lexing.md) — as-built segmentation.
+- [parsing.md](parsing.md), [lexing.md](lexing.md) — runtime segmentation.

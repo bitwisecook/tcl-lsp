@@ -62,14 +62,12 @@
 //! the optimiser O-code fixes.  The W111 line length is configurable
 //! (`tclLsp.style.lineLength`, resolved per folder by the server and
 //! passed into [`style_diagnostics`]); the expected line ending is
-//! still the default `\n`.  Per-code on/off is handled by the
-//! file-level `# noqa` / `# tcl-lsp: disable` suppression plus the
-//! editor's `tclLsp.diagnostics.<CODE>` set.
+//! still the default `\n`.  The pass applies no policy: every check's
+//! findings are returned, and `# noqa`, `# tcl-lsp: disable` and the
+//! `tclLsp.diagnostics.<CODE>` set reach them through
+//! [`crate::diagnostic_policy::apply`] like every other code.
 
-use std::collections::{HashMap, HashSet};
-use std::hash::BuildHasher;
-
-use tcl_compiler::analyser::line_suppressed;
+use tcl_core_types::DiagCode;
 
 use crate::definition::{LspRange, utf16_len};
 
@@ -104,8 +102,9 @@ pub struct StyleDiagnostic {
     pub message: String,
     /// Severity.
     pub severity: StyleSeverity,
-    /// Diagnostic code (`W111` / `W112` / `W115` / `W118`).
-    pub code: &'static str,
+    /// Diagnostic code (`W111` / `W112` / `W115` / `W118`, or the byte-integrity
+    /// pass's `W107` / `W109`).
+    pub code: DiagCode,
     /// Optional quick-fix (W112 / W115 carry one; W111 / W118 do
     /// not).
     pub fix: Option<StyleFix>,
@@ -141,7 +140,7 @@ pub fn check_line_length(source: &str, max_length: usize) -> Vec<StyleDiagnostic
                 },
                 message: format!("Line exceeds {max_length} characters ({length} characters)"),
                 severity: StyleSeverity::Warning,
-                code: "W111",
+                code: DiagCode::W111,
                 fix: None,
             });
         }
@@ -176,7 +175,7 @@ pub fn check_trailing_whitespace(source: &str) -> Vec<StyleDiagnostic> {
                 range,
                 message: "Trailing whitespace".to_string(),
                 severity: StyleSeverity::Hint,
-                code: "W112",
+                code: DiagCode::W112,
                 fix: Some(StyleFix {
                     range,
                     new_text: String::new(),
@@ -260,7 +259,7 @@ pub fn check_line_endings(source: &str, expected: &str) -> Vec<StyleDiagnostic> 
         range: zero,
         message,
         severity: StyleSeverity::Hint,
-        code: "W118",
+        code: DiagCode::W118,
         fix: None,
     }]
 }
@@ -351,7 +350,7 @@ pub fn check_comment_continuation_for_dialect(
             range,
             message: "Backslash-newline in comment silently swallows the next line".to_string(),
             severity: StyleSeverity::Warning,
-            code: "W115",
+            code: DiagCode::W115,
             fix: Some(StyleFix {
                 range,
                 new_text,
@@ -404,100 +403,53 @@ pub fn comment_continuation_run_with_facts(
     Some(end.min(lines.len()))
 }
 
-/// Run every source-text check and return the merged, suppression-filtered
-/// diagnostics.
+/// Run every source-text check and return the merged diagnostics.
 ///
-/// Suppression and gating rules:
-///
-/// * W111 / W112 / W115 honour inline `# noqa` / file-level
-///   suppression (keyed by `suppressed`, the analyser's
-///   `suppressed_lines`).
-/// * W118 / W107 / W109 are file-level checks and are *not* line-suppressed;
-///   they are only gated by the `disabled` set.
-/// * Each code is skipped entirely when it appears in `disabled`
-///   (the LSP user-config disabled-diagnostics set).
+/// No policy is applied here: `# noqa`, `# tcl-lsp: disable=…` and the
+/// disabled set reach these codes through
+/// [`crate::diagnostic_policy::apply`], where W107, W109 and W118 are the
+/// whole-file codes an inline directive never reaches.
 ///
 /// `decode` is the byte-level decoder's report when the caller can prove the
 /// bytes belong to this exact text. `None` means only Unicode text is
 /// available, so W107/W109 abstain rather than infer malformed bytes from a
 /// valid character such as a literal `U+FFFD`.
 #[must_use]
-pub fn style_diagnostics<SD: BuildHasher, H: BuildHasher, I: BuildHasher>(
+pub fn style_diagnostics(
     source: &str,
     line_length: usize,
     line_ending: &str,
-    disabled: &HashSet<String, SD>,
-    suppressed: &HashMap<i32, HashSet<String, I>, H>,
     decode: Option<&crate::source_decode::DecodeReport>,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Vec<StyleDiagnostic> {
-    let mut out = Vec::new();
-
     // The line-oriented lints below split on `\n`, so a lone `\r` — a line
     // break to the editor and a command terminator to `tclsh` — must become
     // one first, or their line numbers drift from the client's (and from the
-    // analyser's, whose `suppressed_lines` key this function's own
-    // suppression check).  W118 is the one lint that must see the *real*
-    // terminators, so it keeps `source`.
+    // analyser's, whose `suppressed_lines` the policy step keys by).  W118 is
+    // the one lint that must see the *real* terminators, so it keeps
+    // `source`.
     let lines_source = tcl_lexer::normalise_lone_cr(source);
 
-    let push_line_suppressed = |diags: Vec<StyleDiagnostic>, out: &mut Vec<StyleDiagnostic>| {
-        for d in diags {
-            // The diagnostic line is always a real source line, so
-            // it fits `i32`; `MAX` is an unreachable fallback that
-            // can never collide with the `-1` file-level bucket.
-            let line = i32::try_from(d.range.start_line).unwrap_or(i32::MAX);
-            if line_suppressed(d.code, line, suppressed) {
-                continue;
-            }
-            out.push(d);
-        }
-    };
-
-    // A code is enabled unless it (or the `*` "disable all"
-    // sentinel from a `# tcl-lsp: disable=*` directive) appears in
-    // the disabled set.
-    let enabled = |code: &str| !disabled.contains("*") && !disabled.contains(code);
-
-    if enabled("W111") {
-        push_line_suppressed(check_line_length(&lines_source, line_length), &mut out);
-    }
-    if enabled("W112") {
-        push_line_suppressed(check_trailing_whitespace(&lines_source), &mut out);
-    }
-    if enabled("W115") {
-        push_line_suppressed(
-            check_comment_continuation_for_dialect(&lines_source, dialect),
-            &mut out,
-        );
-    }
-    if enabled("W118") {
-        out.extend(check_line_endings(source, line_ending));
-    }
+    let mut out = check_line_length(&lines_source, line_length);
+    out.extend(check_trailing_whitespace(&lines_source));
+    out.extend(check_comment_continuation_for_dialect(
+        &lines_source,
+        dialect,
+    ));
+    out.extend(check_line_endings(source, line_ending));
 
     // Source-text *integrity*.  These run on `source`, not
     // `lines_source`: a mis-decoded file's byte offsets must not be shifted by
     // a lone-CR rewrite.
-    for d in crate::source_decode::encoding_integrity_diagnostics(source, decode) {
-        if enabled(d.code) {
-            out.push(d);
-        }
-    }
+    out.extend(crate::source_decode::encoding_integrity_diagnostics(
+        source, decode,
+    ));
     out
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tcl_compiler::analyser::FILE_SUPPRESS_KEY;
-
-    fn no_suppress() -> HashMap<i32, HashSet<String>> {
-        HashMap::new()
-    }
-
-    fn no_disable() -> HashSet<String> {
-        HashSet::new()
-    }
 
     #[test]
     fn w111_flags_long_line() {
@@ -505,7 +457,7 @@ mod tests {
         let diags = check_line_length(&line, DEFAULT_LINE_LENGTH);
         assert_eq!(diags.len(), 1);
         let d = &diags[0];
-        assert_eq!(d.code, "W111");
+        assert_eq!(d.code, DiagCode::W111);
         assert_eq!(d.severity, StyleSeverity::Warning);
         assert_eq!(d.message, "Line exceeds 120 characters (125 characters)");
         assert_eq!(d.range.start_line, 0);
@@ -534,7 +486,7 @@ mod tests {
         let diags = check_trailing_whitespace(src);
         assert_eq!(diags.len(), 1);
         let d = &diags[0];
-        assert_eq!(d.code, "W112");
+        assert_eq!(d.code, DiagCode::W112);
         assert_eq!(d.severity, StyleSeverity::Hint);
         assert_eq!(d.range.start_line, 0);
         assert_eq!(d.range.start_character, 7);
@@ -569,7 +521,7 @@ mod tests {
         let diags = check_line_endings("a\r\nb\r\n", "\n");
         assert_eq!(diags.len(), 1);
         let d = &diags[0];
-        assert_eq!(d.code, "W118");
+        assert_eq!(d.code, DiagCode::W118);
         assert_eq!(d.severity, StyleSeverity::Hint);
         assert_eq!(d.message, "File uses CRLF line endings (2); expected LF");
         assert_eq!(d.range.start_line, 0);
@@ -603,17 +555,15 @@ mod tests {
             src,
             120,
             "\n",
-            &no_disable(),
-            &no_suppress(),
             None,
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
-        let w112: Vec<_> = diags.iter().filter(|d| d.code == "W112").collect();
+        let w112: Vec<_> = diags.iter().filter(|d| d.code == DiagCode::W112).collect();
         assert_eq!(w112.len(), 1, "{diags:?}");
         assert_eq!(w112[0].range.start_line, 1);
         assert_eq!(w112[0].range.start_character, 7);
         // W118 still reports the document's actual terminators.
-        let w118: Vec<_> = diags.iter().filter(|d| d.code == "W118").collect();
+        let w118: Vec<_> = diags.iter().filter(|d| d.code == DiagCode::W118).collect();
         assert_eq!(w118.len(), 1, "{diags:?}");
         assert_eq!(
             w118[0].message,
@@ -627,7 +577,7 @@ mod tests {
         let diags = check_comment_continuation(src);
         assert_eq!(diags.len(), 1);
         let d = &diags[0];
-        assert_eq!(d.code, "W115");
+        assert_eq!(d.code, DiagCode::W115);
         assert_eq!(d.severity, StyleSeverity::Warning);
         assert_eq!(d.range.start_line, 0);
         assert_eq!(d.range.end_line, 1);
@@ -691,7 +641,7 @@ mod tests {
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         assert_eq!(diags.len(), 1, "{diags:?}");
-        assert_eq!(diags[0].code, "W115");
+        assert_eq!(diags[0].code, DiagCode::W115);
         assert_eq!(diags[0].range.start_line, 2);
         let fix = diags[0].fix.as_ref().expect("W115 has an action vector");
         assert!(fix.new_text.contains("# puts hidden"), "{fix:?}");
@@ -716,79 +666,5 @@ mod tests {
     #[test]
     fn w115_trailing_space_breaks_the_continuation() {
         assert!(check_comment_continuation("# note \\ \nputs next\n").is_empty());
-    }
-
-    #[test]
-    fn orchestrator_respects_disabled_set() {
-        let mut disabled = HashSet::new();
-        disabled.insert("W112".to_string());
-        let src = "set x 1   ";
-        let diags = style_diagnostics(
-            src,
-            DEFAULT_LINE_LENGTH,
-            DEFAULT_LINE_ENDING,
-            &disabled,
-            &no_suppress(),
-            None,
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-        );
-        assert!(diags.iter().all(|d| d.code != "W112"));
-    }
-
-    #[test]
-    fn orchestrator_respects_noqa_line_suppression() {
-        // Trailing whitespace on line 0, suppressed via `# noqa`
-        // recorded against that line.
-        let mut suppressed: HashMap<i32, HashSet<String>> = HashMap::new();
-        suppressed.insert(0, std::iter::once("*".to_string()).collect());
-        let src = "set x 1   ";
-        let diags = style_diagnostics(
-            src,
-            DEFAULT_LINE_LENGTH,
-            DEFAULT_LINE_ENDING,
-            &no_disable(),
-            &suppressed,
-            None,
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-        );
-        assert!(diags.is_empty());
-    }
-
-    #[test]
-    fn orchestrator_file_suppression_suppresses_specific_code() {
-        let mut suppressed: HashMap<i32, HashSet<String>> = HashMap::new();
-        suppressed.insert(
-            FILE_SUPPRESS_KEY,
-            std::iter::once("W112".to_string()).collect(),
-        );
-        let src = "set x 1   ";
-        let diags = style_diagnostics(
-            src,
-            DEFAULT_LINE_LENGTH,
-            DEFAULT_LINE_ENDING,
-            &no_disable(),
-            &suppressed,
-            None,
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-        );
-        assert!(diags.iter().all(|d| d.code != "W112"));
-    }
-
-    #[test]
-    fn orchestrator_w118_is_not_line_suppressed() {
-        // A line-0 `*` noqa must NOT suppress the file-level W118
-        // (only W111/W112/W115 are line-suppressible).
-        let mut suppressed: HashMap<i32, HashSet<String>> = HashMap::new();
-        suppressed.insert(0, std::iter::once("*".to_string()).collect());
-        let diags = style_diagnostics(
-            "a\r\nb\r\n",
-            DEFAULT_LINE_LENGTH,
-            DEFAULT_LINE_ENDING,
-            &no_disable(),
-            &suppressed,
-            None,
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-        );
-        assert!(diags.iter().any(|d| d.code == "W118"));
     }
 }

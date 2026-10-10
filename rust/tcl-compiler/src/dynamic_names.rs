@@ -71,11 +71,15 @@
 //! |---|---|---|
 //! | `eval $body` | the frame it is written in | this module, directly |
 //! | `argparse {…}` | the frame that *called* it | this module, directly |
+//! | a stub's `-frame caller` | the frame that *called* it | this module, from [`CfgFunction::declared_frame_effects`] |
 //! | `uplevel 1 $body` in a proc | that proc's caller | the proc's [frame-effect summary][sum], read at each call site |
 //! | `upvar 1 $computed x` | that proc's caller | the same summary |
 //!
-//! The first two are visible in the function's own statements, so the walk
-//! below raises the flags itself.  The last two are visible only with the
+//! The first three are visible in the function's own statements, so the walk
+//! below raises the flags itself: a command the document declares as a plain
+//! call brings the frame effect its declaration states where the catalogue
+//! holds no command of that name ([`crate::ir::DeclaredFrameEffects`]), which
+//! the CFG builder records on the function for this walk.  The last two are visible only with the
 //! module-wide proc summaries, which the CFG builder holds and this
 //! per-function walk does not — so it records them on
 //! [`CfgFunction::caller_frame_barrier`], and
@@ -83,11 +87,13 @@
 //! the same three bits, so every consumer's abstention rule is unchanged
 //! and the cost stays `O(1)` per query.
 //!
-//! Deliberately **not** a per-call-site fact: every consumer of this
-//! lattice (`W210` / `W211` / `W220` / `I230`, `O101` / `O109` / `O126`)
-//! already reads it once per function and abstains for the whole function.
-//! A per-site fact would need flow-sensitivity none of them have, and would
-//! buy nothing — the flow-insensitive union is what they would compute.
+//! The function's flags are the flow-insensitive union, which every
+//! whole-function consumer (`W210` / `W211` / `W220`, `O109` / `O126`)
+//! reads once and abstains on. The one flow-sensitive consumer, the
+//! existence rung, reads each statement's own flags
+//! ([`statement_barrier`], [`terminator_barrier`]) and applies them from
+//! that statement on, so a computed name after a `[info exists …]` test no
+//! longer blinds the test.
 //!
 //! `uplevel 1 $body` written *inside* a proc raises nothing for that proc:
 //! the script runs one frame **up**, so the proc's own locals are
@@ -116,10 +122,8 @@
 //!   much larger question — the same one that puts `eval` / `uplevel` out of
 //!   scope above.
 //! - Unknown-command blindness already has an owner.  A `$cmd …` statement
-//!   lowers to [`Statement::Barrier`], and
-//!   [`existence_constant_branches`](crate::sccp::existence_constant_branches)
-//!   bails on a function containing any barrier before it consults these flags
-//!   at all.
+//!   lowers to [`Statement::Barrier`], which the existence rung already
+//!   treats as touching every place, before it consults these flags at all.
 //! - Raising a flag would be wildly over-broad: `$obj method`, `$cmd arg`, and
 //!   every `TclOO` dispatch would silence `W210` / `W211` / `W220` / `I230`
 //!   and switch off `O101` / `O109` / `O126` for the whole function.  An
@@ -133,7 +137,7 @@ use tcl_registry::{ArgRole, CommandRegistry, Traits};
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
 use crate::expr_ast::ExprNode;
-use crate::ir::Statement;
+use crate::ir::{DeclaredFrameEffects, Statement};
 
 /// Whether a function accesses variables whose *name* is computed at run
 /// time, split by the direction each blinds.
@@ -462,40 +466,102 @@ pub fn dynamic_name_barrier(
     // Caller-frame injection the CFG builder already resolved against the
     // module-wide proc summaries — the same three bits, joined in.
     let mut barrier = cfg.caller_frame_barrier;
+    let declared = &cfg.declared_frame_effects;
     for block in cfg.blocks.values() {
         for stmt in &block.statements {
-            scan_statement(stmt, registry, &mut barrier, config);
-            // The CFG builder flattens structured control flow, but a
-            // non-lowered (glob / regexp / fall-through) `switch` keeps its
-            // arm bodies inline; descend through whatever nests.
-            for script in crate::ir_helpers::nested_bodies(stmt) {
-                crate::ir::for_each_statement(script, &mut |inner| {
-                    scan_statement(inner, registry, &mut barrier, config);
-                });
-            }
+            barrier = barrier.union(statement_barrier(stmt, registry, declared, config));
         }
-        match &block.terminator {
-            Some(Terminator::Branch { condition, .. }) => {
-                scan_expr(condition, registry, &mut barrier, config);
-            }
-            // `return [set $n]` lowers to a terminator, not a statement.
-            Some(Terminator::Return { value, expr, .. }) => {
-                if let Some(v) = value {
-                    scan_text(v, registry, &mut barrier, 0, config);
-                }
-                if let Some(e) = expr {
-                    scan_expr(e, registry, &mut barrier, config);
-                }
-            }
-            _ => {}
+        if let Some(terminator) = &block.terminator {
+            barrier = barrier.union(terminator_barrier(terminator, registry, declared, config));
         }
     }
     barrier
 }
 
-fn scan_statement(
+/// The computed-name facts one statement raises, its `[…]` substitutions
+/// and nested bodies included: the per-statement half of
+/// [`dynamic_name_barrier`], for the one consumer that applies a computed
+/// name from the statement that performs it on — the existence rung
+/// (`docs/design/compiler/value-transfers.md` § *Existence*), where a
+/// dynamic write turns every unbound place may-bound from that statement
+/// on, and a dynamic destroy every bound one. `declared` is the function's
+/// [`CfgFunction::declared_frame_effects`].
+#[must_use]
+pub fn statement_barrier(
     stmt: &Statement,
     registry: &CommandRegistry,
+    declared: &DeclaredFrameEffects,
+    config: LexerConfig,
+) -> DynamicNameBarrier {
+    let commands = Commands { registry, declared };
+    let mut barrier = DynamicNameBarrier::default();
+    scan_statement(stmt, commands, &mut barrier, config);
+    // The CFG builder flattens structured control flow, but a non-lowered
+    // (glob / regexp / fall-through) `switch` keeps its arm bodies inline;
+    // descend through whatever nests.
+    for script in crate::ir_helpers::nested_bodies(stmt) {
+        crate::ir::for_each_statement(script, &mut |inner| {
+            scan_statement(inner, commands, &mut barrier, config);
+        });
+    }
+    barrier
+}
+
+/// The computed-name facts a block's terminator raises: a branch
+/// condition's substitutions, or a returned word's — `return [set $n]`
+/// lowers to a terminator, not a statement. `declared` is the function's
+/// [`CfgFunction::declared_frame_effects`].
+#[must_use]
+pub fn terminator_barrier(
+    terminator: &Terminator,
+    registry: &CommandRegistry,
+    declared: &DeclaredFrameEffects,
+    config: LexerConfig,
+) -> DynamicNameBarrier {
+    let commands = Commands { registry, declared };
+    let mut barrier = DynamicNameBarrier::default();
+    match terminator {
+        Terminator::Branch { condition, .. } => {
+            scan_expr(condition, commands, &mut barrier, config);
+        }
+        Terminator::Return { value, expr, .. } => {
+            if let Some(v) = value {
+                scan_text(v, commands, &mut barrier, 0, config);
+            }
+            if let Some(e) = expr {
+                scan_expr(e, commands, &mut barrier, config);
+            }
+        }
+        Terminator::Goto { .. } => {}
+    }
+    barrier
+}
+
+/// The commands a scan reads the frame effect and the name roles of: the
+/// catalogue, and the commands the document declares as plain calls, whose
+/// frame effect the declaration states ([`DeclaredFrameEffects`]).
+#[derive(Clone, Copy)]
+struct Commands<'a> {
+    registry: &'a CommandRegistry,
+    declared: &'a DeclaredFrameEffects,
+}
+
+impl Commands<'_> {
+    /// The frame effect the document's declaration states for the command
+    /// whose head is spelled `command`, when the catalogue does not hold it
+    /// and the document declares it as a plain call: what the catalogue's
+    /// [`tcl_registry::CommandSpec::frame_effect`] is for a command it holds.
+    fn declared_frame_effect(self, command: &str) -> Option<FrameEffectSpec> {
+        self.declared
+            .get(&tcl_syntax::naming::normalise_qualified_name(command))
+            .copied()
+            .flatten()
+    }
+}
+
+fn scan_statement(
+    stmt: &Statement,
+    commands: Commands<'_>,
     barrier: &mut DynamicNameBarrier,
     config: LexerConfig,
 ) {
@@ -532,30 +598,34 @@ fn scan_statement(
                     matches!(kind, tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd)
                 });
             if !head_dynamic {
-                scan_command(command, args, braced.as_deref(), registry, barrier);
+                let words = CommandWords {
+                    args,
+                    braced: braced.as_deref(),
+                };
+                scan_command(command, &words, commands, barrier, (0, config));
             }
             for arg in args {
-                scan_text(arg, registry, barrier, 0, config);
+                scan_text(arg, commands, barrier, 0, config);
             }
         }
         Statement::AssignConst { value, .. } | Statement::AssignValue { value, .. } => {
-            scan_text(value, registry, barrier, 0, config);
+            scan_text(value, commands, barrier, 0, config);
         }
         Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. } => {
-            scan_expr(expr, registry, barrier, config);
+            scan_expr(expr, commands, barrier, config);
         }
         Statement::Return { value, expr, .. } => {
             if let Some(v) = value {
-                scan_text(v, registry, barrier, 0, config);
+                scan_text(v, commands, barrier, 0, config);
             }
             if let Some(e) = expr {
-                scan_expr(e, registry, barrier, config);
+                scan_expr(e, commands, barrier, config);
             }
         }
         // A non-lowered `switch`'s subject is a word; its arm bodies are
         // reached by the caller's `nested_bodies` descent.
         Statement::Switch { subject, .. } => {
-            scan_text(subject, registry, barrier, 0, config);
+            scan_text(subject, commands, barrier, 0, config);
         }
         // `Incr` names its target literally: `try_lower_incr` declines the
         // specialisation for a computed name word — as `lower_set` does —
@@ -567,7 +637,7 @@ fn scan_statement(
 
 fn scan_expr(
     expr: &ExprNode,
-    registry: &CommandRegistry,
+    commands: Commands<'_>,
     barrier: &mut DynamicNameBarrier,
     config: LexerConfig,
 ) {
@@ -579,14 +649,14 @@ fn scan_expr(
             .strip_prefix('[')
             .and_then(|s| s.strip_suffix(']'))
             .unwrap_or(trimmed);
-        scan_script_text(inner, registry, barrier, 0, config);
+        scan_script_text(inner, commands, barrier, 0, config);
     }
 }
 
 /// Scan a word's raw text for nested `[…]` command substitutions.
 fn scan_text(
     text: &str,
-    registry: &CommandRegistry,
+    commands: Commands<'_>,
     barrier: &mut DynamicNameBarrier,
     depth: u32,
     config: LexerConfig,
@@ -601,7 +671,7 @@ fn scan_text(
         return;
     }
     for inner in crate::var_refs::command_subst_texts_with_config(text, config) {
-        scan_script_text(&inner, registry, barrier, depth + 1, config);
+        scan_script_text(&inner, commands, barrier, depth + 1, config);
     }
 }
 
@@ -609,7 +679,7 @@ fn scan_text(
 /// dynamic-name accesses, then descend into whatever `[…]` it nests.
 fn scan_script_text(
     text: &str,
-    registry: &CommandRegistry,
+    commands: Commands<'_>,
     barrier: &mut DynamicNameBarrier,
     depth: u32,
     config: LexerConfig,
@@ -630,25 +700,16 @@ fn scan_script_text(
         // content spelling has already dropped it.
         let arg_texts: Vec<String> = args.iter().map(|w| w.raw.clone()).collect();
         let braced: Vec<bool> = args.iter().map(|w| w.braced_literal).collect();
-        scan_command(&command.text, &arg_texts, Some(&braced), registry, barrier);
+        let words = CommandWords {
+            args: &arg_texts,
+            braced: Some(&braced),
+        };
+        scan_command(&command.text, &words, commands, barrier, (depth, config));
     }
     // The script's own words may nest further substitutions; `text` still has
     // their brackets intact (a word's raw spelling does not — a delimited
     // token's closer sits one past its span), so recurse from here.
-    scan_text(text, registry, barrier, depth, config);
-}
-
-/// Whether a template word handed to a substituting command was itself
-/// produced by substitution — i.e. its content comes from run-time data
-/// rather than from source text the ordinary scanners can read.
-///
-/// A brace-quoted word (`subst {$a}`) is the one literal form that can
-/// legally carry a `$`, and Tcl leaves it verbatim: the `$a` inside is
-/// source text naming `a`, so the read is *not* blind.  Every other word
-/// carrying `$` or `[` (`subst $t`, `subst "$t"`, `subst [gen]`) reaches
-/// `subst` already substituted, so the names it then expands come from data.
-fn template_word_is_substituted(word: &str, braced_literal: bool) -> bool {
-    !braced_literal && (word.contains('$') || word.contains('['))
+    scan_text(text, commands, barrier, depth, config);
 }
 
 /// Raise the flags a frame-crossing command imposes on the frame it is
@@ -716,27 +777,43 @@ fn script_words_are_opaque(words: &[&str], arg_braced: Option<&[bool]>, offset: 
     })
 }
 
-/// Apply the registry's name-role answers for one `command args…` call.
-///
-/// `arg_braced`, when present, says for each argument whether it is a single
-/// brace-quoted word — a distinction the segmenter's reconstructed `args`
-/// text has already erased, and the one thing that separates a literal name
-/// or template (`set {$n} 1`, `subst {$a}`) from a substituted one
-/// (`set $n 1`, `subst $a`).
+/// One call's argument words, as [`scan_command`] reads them.
+#[derive(Clone, Copy)]
+struct CommandWords<'a> {
+    /// The argument texts.
+    args: &'a [String],
+    /// When present, whether each argument is a single brace-quoted word —
+    /// a distinction the segmenter's reconstructed `args` text has already
+    /// erased, and the one thing that separates a literal name or template
+    /// (`set {$n} 1`, `subst {$a}`) from a substituted one (`set $n 1`,
+    /// `subst $a`).
+    braced: Option<&'a [bool]>,
+}
+
+/// Apply the registry's name-role answers for one `command args…` call,
+/// `at` the bracket depth and lexer configuration its script is read under.
 fn scan_command(
     command: &str,
-    args: &[String],
-    arg_braced: Option<&[bool]>,
-    registry: &CommandRegistry,
+    words: &CommandWords<'_>,
+    commands: Commands<'_>,
     barrier: &mut DynamicNameBarrier,
+    at: (u32, LexerConfig),
 ) {
-    let Some(spec) = registry.get(command) else {
-        return;
-    };
+    let CommandWords {
+        args,
+        braced: arg_braced,
+    } = *words;
+    let spec = commands.registry.get(command);
     let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-    if let Some(frame) = spec.frame_effect {
+    if let Some(frame) = spec.map_or_else(
+        || commands.declared_frame_effect(command),
+        |spec| spec.frame_effect,
+    ) {
         scan_frame_effect(frame, &arg_strs, arg_braced, barrier);
     }
+    let Some(spec) = spec else {
+        return;
+    };
     let destroys = spec.traits.contains(Traits::DESTROYS_VARIABLE);
     // A brace-quoted word is Tcl's literal spelling for a name that contains
     // `$` or `[`: `set {$n} v` creates a variable *called* `$n`, unrelated to
@@ -754,7 +831,10 @@ fn scan_command(
                 .is_some_and(|w| names_a_dynamic_variable(w))
     };
 
-    for idx in registry.arg_indices_for_role(command, &arg_strs, ArgRole::VarWrite) {
+    for idx in commands
+        .registry
+        .arg_indices_for_role(command, &arg_strs, ArgRole::VarWrite)
+    {
         if dynamic_name_at(idx) {
             if destroys {
                 barrier.destroys = true;
@@ -763,7 +843,10 @@ fn scan_command(
             }
         }
     }
-    for idx in registry.arg_indices_for_role(command, &arg_strs, ArgRole::VarRead) {
+    for idx in commands
+        .registry
+        .arg_indices_for_role(command, &arg_strs, ArgRole::VarRead)
+    {
         if dynamic_name_at(idx) {
             barrier.reads = true;
         }
@@ -778,8 +861,9 @@ fn scan_command(
     // covered precisely by the `VarRead` role walk above and raise
     // nothing here.  A dynamic subcommand word (`info $sub`) could be any
     // of them, so it counts as enumerating.
-    let introspecting: Vec<&str> =
-        registry.subcommands_with_trait(command, Traits::INTROSPECTS_BY_NAME);
+    let introspecting: Vec<&str> = commands
+        .registry
+        .subcommands_with_trait(command, Traits::INTROSPECTS_BY_NAME);
     if !introspecting.is_empty() {
         let enumerating = match arg_strs.first() {
             Some(word) if !word.contains('$') && !word.contains('[') => {
@@ -797,21 +881,53 @@ fn scan_command(
             barrier.reads = true;
         }
     }
-    // A template-expanding command (`subst`) performs `$name` substitution
-    // over its argument string. With a literal template the names are in the
-    // text and the ordinary scanners see them; with a computed one the names
-    // come from run-time data, so every local is reachable —
-    // `[subst $[subst $locVar]]` is exactly this shape.
-    if spec.traits.contains(Traits::PERFORMS_SUBSTITUTION)
-        && arg_strs.iter().enumerate().any(|(i, w)| {
-            !w.starts_with('-')
-                && template_word_is_substituted(
-                    w,
-                    arg_braced.and_then(|b| b.get(i)).copied().unwrap_or(false),
-                )
-        })
-    {
-        barrier.reads = true;
+    if spec.traits.contains(Traits::PERFORMS_SUBSTITUTION) {
+        scan_template(command, &arg_strs, arg_braced, commands, barrier, at);
+    }
+}
+
+/// A template-expanding command (`subst`) performs substitution over its
+/// template word, as the call's template-word plan says. A literal template
+/// names its reads in its text, which the ordinary scanners see, and each
+/// `[…]` region it runs is script in this frame, scanned here. A computed
+/// one reads names that come from run-time data whenever variable or
+/// command substitution runs over it — `[subst $[subst $locVar]]` is exactly
+/// this shape, and `subst -novariables $t` still runs `[set x]` — so every
+/// local is reachable; `subst -nocommands -novariables $t` reads none. A
+/// call with no plan to read keeps the conservative answer: any substituted
+/// word past the switches reads.
+fn scan_template(
+    command: &str,
+    args: &[&str],
+    arg_braced: Option<&[bool]>,
+    commands: Commands<'_>,
+    barrier: &mut DynamicNameBarrier,
+    (depth, config): (u32, LexerConfig),
+) {
+    use crate::value_transfer::SourceWord;
+    let source = |index: usize| {
+        let braced = arg_braced
+            .and_then(|b| b.get(index))
+            .copied()
+            .unwrap_or(false);
+        SourceWord::of(args.get(index).copied(), braced)
+    };
+    match crate::value_transfer::literal_template_plan(commands.registry, command, args, source) {
+        Some(plan) => {
+            if plan.dynamic && (plan.kinds.variables || plan.kinds.commands) {
+                barrier.reads = true;
+            }
+            for region in &plan.script_regions {
+                scan_script_text(&region.script.script, commands, barrier, depth + 1, config);
+            }
+        }
+        None => {
+            if args.iter().enumerate().any(|(index, word)| {
+                !word.starts_with('-') && source(index) == SourceWord::Substituted
+            }) {
+                barrier.reads = true;
+            }
+        }
     }
 }
 
@@ -1022,6 +1138,28 @@ mod tests {
     fn dynamic_subst_template_sets_the_read_flag() {
         let b = barrier_for("proc f {t} { return [subst $t] }\n");
         assert!(b.reads, "`subst $t` can dereference any name");
+    }
+
+    /// The barrier reads the call's template-word plan: a computed
+    /// template reads any name only when variable or command substitution
+    /// runs over it, so `subst -nocommands -novariables $t` no longer blinds
+    /// every read, while `subst -novariables $t` still does — its `[set x]`
+    /// reads `x` (tclsh 8.4 to 9.1: `proc f {t} {set x 1; return [subst
+    /// -novariables $t]}; f {[set x]}` is `1`, and removing the `set` as a
+    /// dead store makes it raise) — as `subst -nocommands $t` and `subst $t`
+    /// do; a braced template's `[…]` region is script in this frame and is
+    /// scanned as such.
+    #[test]
+    fn a_computed_template_blinds_reads_while_it_substitutes() {
+        let off = barrier_for("proc f {t} { return [subst -nocommands -novariables $t] }\n");
+        assert!(!off.reads, "no variable of the template is read");
+        assert!(barrier_for("proc f {t} { return [subst -novariables $t] }\n").reads);
+        assert!(barrier_for("proc f {t} { return [subst -nocommands $t] }\n").reads);
+        assert!(barrier_for("proc f {t} { return [subst $t] }\n").reads);
+        assert!(
+            barrier_for("proc f {n} { return [subst {x[set $n]}] }\n").reads,
+            "the region's own dynamic read"
+        );
     }
 
     #[test]

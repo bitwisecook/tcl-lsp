@@ -172,6 +172,9 @@ pub fn spec() -> CommandSpec {
             return_value: "An empty string on success — the directory that was found is available via varName, not via the return value. Raises an error if initScript cannot be located and sourced successfully in any candidate directory.",
         }),
         forms: FORMS,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::WRITES_A_HOST_PATH,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

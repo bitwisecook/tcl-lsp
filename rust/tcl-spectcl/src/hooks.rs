@@ -50,21 +50,50 @@
 //! Only bodies. A `-native ID` names engine code the pack cannot supply and a
 //! derivation keyword (`from-manufacturers`, `clause_grammar`) is the loader's
 //! own business; both keep the loader's installed behaviour untouched.
+//!
+//! ## What a workspace must be trusted for
+//!
+//! A body runs only for a pack whose provenance lets it
+//! ([`hook_bodies_run`]): in a workspace the editor has not marked trusted,
+//! [`plan_for`] allocates the pack's bodies no slot, so [`specialise`] leaves
+//! the loader's abstaining placeholder — the abstention a declared-but-unbound
+//! hook gives — while every declarative fact the pack states is installed as
+//! before. The same list, [`dormant_hooks`], is what the load reports on the
+//! pack file (`docs/design/compiler/registry-consumer-contracts.md` § *Ruling
+//! — trust gates execution, not authority*).
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
 
+use tcl_dialect::model::Provenance;
 use tcl_registry::hover::{OptionArity, OptionSpec, OptionValue};
 use tcl_registry::pack_hooks::{self, HookFamily, HookSlot};
 use tcl_registry::spec::{CommandSpec, SubCommand};
+use tcl_registry::value_transfer::{DeclaredSemantics, SemanticsDeclaration};
 use tcl_spec_hooks::{HookOwner, HookProgram, PackPrograms, tclvm_host};
 
-use crate::loader::{HookOwner as DeclOwner, HookSource, PackCommand};
+use crate::loader::{HookDecl, HookOwner as DeclOwner, HookSource, PackCommand};
 use crate::pack::PackSet;
 
 // The adapter: HookDecl → HookProgram
+
+/// Every hook **body** `commands` declare, beside the command it hangs off:
+/// what the host would run. A `-native ID` names engine code the pack cannot
+/// supply and a derivation keyword is the loader's own business, so neither
+/// is one. [`programs_of`] and [`dormant_hooks`] both read this, so the hooks
+/// a trusted workspace runs are exactly the ones an untrusted one reports.
+fn bodies(commands: &[PackCommand]) -> impl Iterator<Item = (&PackCommand, &HookDecl)> {
+    commands.iter().flat_map(|command| {
+        command
+            .hooks
+            .iter()
+            .filter(|hook| matches!(hook.source, HookSource::Body { .. }))
+            .map(move |hook| (command, hook))
+    })
+}
 
 /// One pack's declared hook **bodies**, as the host takes them.
 ///
@@ -81,30 +110,90 @@ pub fn programs_of(
     let mut programs = PackPrograms::new(pack);
     dsl_version.clone_into(&mut programs.dsl_version);
     content_hash.clone_into(&mut programs.content_hash);
-    for command in commands {
-        for hook in &command.hooks {
-            // Only a Tcl body crosses: `-native ID` names engine code and a
-            // derivation keyword is the loader's own business.
-            let HookSource::Body {
-                params,
-                body,
-                inputs,
-            } = &hook.source
-            else {
-                continue;
-            };
-            programs.programs.push(HookProgram {
-                command: command.spec.name.to_owned(),
-                owner: owner_of(&hook.owner),
-                family: hook.family,
-                parameters: params.clone(),
-                body: body.clone(),
-                inputs: inputs.clone(),
-                slot: None,
-            });
-        }
+    for (command, hook) in bodies(commands) {
+        let HookSource::Body {
+            params,
+            body,
+            inputs,
+        } = &hook.source
+        else {
+            continue;
+        };
+        programs.programs.push(HookProgram {
+            command: command.spec.name.to_owned(),
+            owner: owner_of(&hook.owner),
+            family: hook.family,
+            parameters: params.clone(),
+            body: body.clone(),
+            inputs: inputs.clone(),
+            slot: None,
+            // A declared implementation answers for the release the call is
+            // analysed under, so its body runs on an engine pinned to that
+            // release.
+            release_pinned: hook.family == HookFamily::Evaluate,
+        });
     }
     programs
+}
+
+// Execution gated on trust
+
+/// Whether a pack hook body of `provenance` runs — the execution half of the
+/// trust ruling (`docs/design/compiler/registry-consumer-contracts.md`
+/// § *Ruling — trust gates execution, not authority*).
+///
+/// Only a workspace the editor has not marked trusted holds its bodies
+/// dormant: a body runs per query on words the analysed document supplies,
+/// so it is the one pack surface whose inputs an untrusted workspace would
+/// choose. A Spec Studio override is untrusted for registration (it may not
+/// `-override` a compiled name) but runs — it is the author's own live edit,
+/// and its bodies answering is what the studio shows. Authority reads none
+/// of this: a dormant pack's declarative facts reach the registry unchanged.
+#[must_use]
+pub fn hook_bodies_run(provenance: Provenance) -> bool {
+    provenance != Provenance::WorkspaceUntrusted
+}
+
+/// A declared hook body that does not run, because its pack's provenance
+/// holds it dormant ([`hook_bodies_run`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DormantHook {
+    /// The pack that declares it.
+    pub pack: String,
+    /// The command it hangs off.
+    pub command: String,
+    /// The field it would fill (`const_fold`, `options.arity_hook`,
+    /// `state_transitions.resolver`, `evaluate`, …).
+    pub field: &'static str,
+    /// The file that declares it — the merge's record on the command, empty
+    /// for a pack evaluated from a source with no path.
+    pub file: PathBuf,
+    /// The line of the row that declares it ([`HookDecl::line`]).
+    pub line: u32,
+}
+
+/// The hook bodies `commands` declare that stay dormant for a pack named
+/// `pack` of `provenance`: every one when its bodies do not run, none
+/// otherwise. What the load reports ([`crate::pack::PackNotice::dormant`])
+/// and what [`HookPlan::dormant`] lists.
+#[must_use]
+pub fn dormant_hooks(
+    pack: &str,
+    commands: &[PackCommand],
+    provenance: Provenance,
+) -> Vec<DormantHook> {
+    if hook_bodies_run(provenance) {
+        return Vec::new();
+    }
+    bodies(commands)
+        .map(|(command, hook)| DormantHook {
+            pack: pack.to_owned(),
+            command: command.spec.name.to_owned(),
+            field: hook.field,
+            file: command.file.clone(),
+            line: hook.line,
+        })
+        .collect()
 }
 
 fn owner_of(owner: &DeclOwner) -> HookOwner {
@@ -129,24 +218,34 @@ fn owner_of(owner: &DeclOwner) -> HookOwner {
 #[derive(Debug, Clone, Default)]
 pub struct HookPlan {
     packs: Vec<PackPrograms>,
+    dormant: Vec<DormantHook>,
 }
 
 impl HookPlan {
-    /// One [`PackPrograms`] per pack, each program carrying its slot — what a
-    /// thread's host loads.
+    /// One [`PackPrograms`] per pack whose bodies run, each program carrying
+    /// its slot — what a thread's host loads. A pack whose bodies are dormant
+    /// has none here: its hooks are in [`Self::dormant`].
     #[must_use]
     pub fn packs(&self) -> &[PackPrograms] {
         &self.packs
     }
 
-    /// `true` when no pack declared a hook body, which is the common case and
-    /// the one that costs nothing.
+    /// Every body the plan allocated no slot because its pack's workspace is
+    /// untrusted ([`dormant_hooks`]) — what `spectcl_check` reports.
+    #[must_use]
+    pub fn dormant(&self) -> &[DormantHook] {
+        &self.dormant
+    }
+
+    /// `true` when no pack has a hook body to run, which is the common case
+    /// and the one that costs nothing. Dormant bodies do not count: a host
+    /// would have nothing to serve for them.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.packs.iter().all(|pack| pack.programs.is_empty())
     }
 
-    /// Every slot bound for `command`, as `(owner, family, slot)`.
+    /// Every slot bound for `command`, as `(pack, owner, family, slot)`.
     fn bindings_for<'a>(&'a self, command: &'a str) -> impl Iterator<Item = Binding<'a>> + 'a {
         self.packs.iter().flat_map(move |pack| {
             pack.programs.iter().filter_map(move |program| {
@@ -154,7 +253,7 @@ impl HookPlan {
                     .then(|| {
                         program
                             .slot
-                            .map(|slot| (&program.owner, program.family, slot))
+                            .map(|slot| (pack.pack.as_str(), &program.owner, program.family, slot))
                     })
                     .flatten()
             })
@@ -162,7 +261,7 @@ impl HookPlan {
     }
 }
 
-type Binding<'a> = (&'a HookOwner, HookFamily, HookSlot);
+type Binding<'a> = (&'a str, &'a HookOwner, HookFamily, HookSlot);
 
 /// The slot assignment for `packs`, allocated once per content key.
 #[must_use]
@@ -184,6 +283,16 @@ pub fn plan_for(packs: &PackSet) -> Arc<HookPlan> {
     let hash = format!("{:016x}", packs.key);
     let mut built = HookPlan::default();
     for pack in &packs.packs {
+        // An untrusted workspace's bodies get no slot, so `specialise` leaves
+        // the loader's abstaining placeholder on each field and no host ever
+        // sees the text. The pack's declarative facts install regardless.
+        let provenance = pack.provenance();
+        if !hook_bodies_run(provenance) {
+            built
+                .dormant
+                .extend(dormant_hooks(&pack.name, &pack.commands, provenance));
+            continue;
+        }
         let mut programs = programs_of(&pack.name, &pack.dsl_version, &hash, &pack.commands);
         // A family with no slots left installs no hook at all: the command
         // keeps its declarative facts, which is the documented degradation and
@@ -231,12 +340,12 @@ pub fn specialise(command: &PackCommand, plan: &HookPlan) -> &'static CommandSpe
         return spec;
     }
     let mut out: CommandSpec = spec.clone();
-    for &(owner, family, slot) in &bindings {
+    for &(pack, owner, family, slot) in &bindings {
         if matches!(owner, HookOwner::Command) {
-            bind_command(&mut out, family, slot);
+            bind_command(&mut out, pack, family, slot);
         }
     }
-    if bindings.iter().any(|(owner, ..)| {
+    if bindings.iter().any(|(_, owner, ..)| {
         matches!(
             owner,
             HookOwner::Option {
@@ -246,7 +355,7 @@ pub fn specialise(command: &PackCommand, plan: &HookPlan) -> &'static CommandSpe
         )
     }) {
         let mut options: Vec<OptionSpec> = out.options.to_vec();
-        for &(owner, _, slot) in &bindings {
+        for &(_, owner, _, slot) in &bindings {
             if let HookOwner::Option {
                 subcommand: None,
                 option,
@@ -259,7 +368,7 @@ pub fn specialise(command: &PackCommand, plan: &HookPlan) -> &'static CommandSpe
     }
     if bindings
         .iter()
-        .any(|(owner, ..)| owner.subcommand().is_some())
+        .any(|(_, owner, ..)| owner.subcommand().is_some())
     {
         let mut subs: Vec<SubCommand> = out.subcommands.to_vec();
         for sub in &mut subs {
@@ -270,7 +379,26 @@ pub fn specialise(command: &PackCommand, plan: &HookPlan) -> &'static CommandSpe
     Box::leak(Box::new(out))
 }
 
-fn bind_command(spec: &mut CommandSpec, family: HookFamily, slot: HookSlot) {
+/// `declaration` with its declared implementation's body bound to `slot`
+/// and its identity naming `pack`; any other declaration unchanged.
+fn bind_semantics(
+    declaration: SemanticsDeclaration,
+    pack: &str,
+    slot: HookSlot,
+) -> SemanticsDeclaration {
+    let SemanticsDeclaration::Declared(semantics) = declaration else {
+        return declaration;
+    };
+    let Some(declared) = semantics.as_declared() else {
+        return declaration;
+    };
+    let bound: &'static DeclaredSemantics = Box::leak(Box::new(
+        declared.bound(crate::loader::leak_str(pack), slot),
+    ));
+    SemanticsDeclaration::Declared(bound)
+}
+
+fn bind_command(spec: &mut CommandSpec, pack: &str, family: HookFamily, slot: HookSlot) {
     match family {
         HookFamily::ArgRoleResolver => {
             spec.arg_role_resolver = pack_hooks::arg_role_resolver_fn(slot);
@@ -294,6 +422,10 @@ fn bind_command(spec: &mut CommandSpec, family: HookFamily, slot: HookSlot) {
             spec.clause_shape_check = pack_hooks::clause_shape_check_fn(slot);
         }
         HookFamily::Constraints => spec.constraints = pack_hooks::constraints_fn(slot),
+        HookFamily::Evaluate => spec.semantics = bind_semantics(spec.semantics, pack, slot),
+        HookFamily::StateTransitionResolver => {
+            bind_transition_resolver(spec.state_transitions.as_mut(), slot);
+        }
         // An option's `-arity-hook` never hangs off the command itself.
         HookFamily::OptionArity => {}
     }
@@ -301,7 +433,7 @@ fn bind_command(spec: &mut CommandSpec, family: HookFamily, slot: HookSlot) {
 
 fn bind_subcommand(sub: &mut SubCommand, bindings: &[Binding<'_>]) {
     let mut options: Option<Vec<OptionSpec>> = None;
-    for &(owner, family, slot) in bindings {
+    for &(pack, owner, family, slot) in bindings {
         if owner.subcommand() != Some(sub.name) {
             continue;
         }
@@ -325,6 +457,12 @@ fn bind_subcommand(sub: &mut SubCommand, bindings: &[Binding<'_>]) {
                         pack_hooks::literal_argument_validator_fn(slot);
                 }
                 HookFamily::Constraints => sub.constraints = pack_hooks::constraints_fn(slot),
+                HookFamily::Evaluate => {
+                    sub.semantics = bind_semantics(sub.semantics, pack, slot);
+                }
+                HookFamily::StateTransitionResolver => {
+                    bind_transition_resolver(sub.state_transitions.as_mut(), slot);
+                }
                 // The loader declares no other family on a subcommand row.
                 HookFamily::TaintSinkGate
                 | HookFamily::ContextGate
@@ -343,6 +481,18 @@ fn bind_subcommand(sub: &mut SubCommand, bindings: &[Binding<'_>]) {
     }
     if let Some(options) = options {
         sub.options = Box::leak(options.into_boxed_slice());
+    }
+}
+
+/// A `state_transitions` block's resolver body bound to `slot`: the
+/// descriptor keeps its plain rows and takes the slot's thunk in place of
+/// the loader's abstaining placeholder.
+fn bind_transition_resolver(
+    descriptor: Option<&mut tcl_registry::state_transition::StateTransitionDescriptor>,
+    slot: HookSlot,
+) {
+    if let Some(descriptor) = descriptor {
+        descriptor.resolver = pack_hooks::state_transition_resolver_fn(slot);
     }
 }
 
@@ -397,6 +547,9 @@ pub fn publish(packs: &PackSet) {
     }
     *published = Some(plan);
     GENERATION.fetch_add(1, Ordering::Release);
+    // A new plan is new evaluators for every thread that serves it: a memo
+    // shared between threads re-keys on the process's evaluator epoch.
+    pack_hooks::advance_evaluator_epoch();
     // Teach the registry how to build a thread's host, so any thread that
     // dispatches a hook gets one whether or not its worker closure remembered
     // to call `ensure_thread_host`. Registered here because this is the moment
@@ -436,7 +589,9 @@ pub fn ensure_thread_host() {
             // on first crash, abstention on anything unexpected.
             let _installed = host.install_pack_hooks(programs.clone());
         }
-        pack_hooks::install_host(host);
+        // Every worker serving this plan shares one evaluator generation,
+        // so their memoised answers are shared too.
+        pack_hooks::install_plan_host(host, generation);
     }
     INSTALLED.with(|installed| installed.set(generation));
 }
@@ -482,6 +637,7 @@ speclib hooked 1 {
             tier: Tier::Workspace,
             path,
             origin: Origin::DotDir,
+            dependency_tier: None,
         }])
     }
 

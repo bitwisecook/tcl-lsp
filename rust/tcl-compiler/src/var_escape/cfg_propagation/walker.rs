@@ -584,9 +584,9 @@ fn handle_stmt_call_or_barrier(
     defs: &HashMap<String, Version>,
     registry: &tcl_registry::CommandRegistry,
 ) -> bool {
-    // RegistryBarrier is an analysis-only companion of the source command.
-    // It is represented as a Barrier so the scalar analyses can see it, but
-    // it must not make the escape analysis pessimistic as though it ran Tcl.
+    // The marker for a call to code the module cannot see is an analysis-only
+    // companion of the source command: it must not make the escape analysis
+    // pessimistic as though it ran Tcl.
     if matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. })
         && !stmt.is_executable_invocation()
     {
@@ -986,17 +986,8 @@ mod tests {
     }
 
     #[test]
-    fn registry_barrier_marker_has_no_escape_effect() {
-        let marker = Statement::Barrier {
-            span: tcl_lexer::Span::new(0, 0),
-            reason: "scalar facts".into(),
-            command: "<registry-barrier>".into(),
-            canonical_command: None,
-            args: Vec::new(),
-            tokens: Some(crate::ir::CommandTokens::marker(
-                crate::ir::SyntheticMarker::RegistryBarrier,
-            )),
-        };
+    fn the_unseen_call_marker_has_no_escape_effect() {
+        let marker = Statement::unseen_call_marker(tcl_lexer::Span::new(0, 0));
         let mut state = CfgState::new(["x".into()]);
 
         assert!(handle_stmt_call_or_barrier(

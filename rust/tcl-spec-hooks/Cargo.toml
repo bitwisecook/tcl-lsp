@@ -48,6 +48,9 @@ tcl-vm = { path = "../tcl-vm" }
 
 [dev-dependencies]
 tcl-compiler = { path = "../tcl-compiler" }
+# The runtime as a second engine (its `engine` feature): every family's test
+# runs on it as on the VM, so a body answers the same on both.
+tcl-runtime = { path = "../../runtime/rust", features = ["engine"] }
 # Deliberately no `tcl-spectcl`, even as a dev-dependency: the adapter that
 # joins a loaded pack to this host now lives in `tcl-spectcl::hooks`, so the
 # dependency runs one way — loader over host — and the pack-source proving case

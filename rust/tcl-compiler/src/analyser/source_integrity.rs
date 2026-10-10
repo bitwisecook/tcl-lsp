@@ -7,13 +7,12 @@
 //!
 //! These checks belong below the LSP/CLI/MCP adapters: every consumer of the
 //! analyser must see the same security verdict, and non-Tcl adapters can reuse
-//! the pure producer without copying the Unicode table or the message.
-
-use std::collections::{HashMap, HashSet};
-use std::hash::BuildHasher;
+//! the pure producer without copying the Unicode table or the message. The
+//! producer filters nothing: directives and disabled codes are the policy
+//! step's.
 
 use tcl_core_types::{DiagCode, Severity};
-use tcl_lexer::{LineIndex, Span};
+use tcl_lexer::Span;
 
 use super::confusables_table::bidi_control_name;
 use super::types::Diagnostic;
@@ -47,82 +46,4 @@ pub fn bidi_control_diagnostics(source: &str) -> Vec<Diagnostic> {
 ))
         })
         .collect()
-}
-
-/// Filter W305 findings through the disabled-code set and per-line suppressions.
-///
-/// `suppressed_lines` already maps a preceding `# noqa` comment onto the lines
-/// occupied by its following command; this only consumes that map, so a
-/// line-local directive never widens into a file-wide one.
-pub(super) fn bidi_control_diagnostics_with_suppressions(
-    source: &str,
-    disabled: &HashSet<String>,
-    suppressed_lines: &HashMap<i32, HashSet<String>>,
-) -> Vec<Diagnostic> {
-    let line_index = LineIndex::new(source);
-    bidi_control_diagnostics(source)
-        .into_iter()
-        .filter(|diagnostic| {
-            let code = diagnostic.code.as_str();
-            if disabled.contains("*") || disabled.contains(code) {
-                return false;
-            }
-            let line = i32::try_from(line_index.position_at(diagnostic.span.start()).line)
-                .unwrap_or(i32::MAX);
-            !super::utils::line_suppressed(code, line, suppressed_lines)
-        })
-        .collect()
-}
-
-/// W305 diagnostics filtered through editor and source suppression settings.
-///
-/// Non-Tcl document adapters (BIG-IP configuration and iApp APL) do not run
-/// the Tcl analyser, but they still use the same `# tcl-lsp: disable` and
-/// preceding `# noqa` conventions. Keeping that filtering beside the producer
-/// prevents each adapter from inventing a subtly different rule.
-#[must_use]
-pub fn filtered_bidi_control_diagnostics<S: BuildHasher>(
-    source: &str,
-    user_disabled: &HashSet<String, S>,
-    dialect: &'static tcl_dialect::DialectProfile,
-) -> Vec<Diagnostic> {
-    let mut disabled = super::utils::parse_file_suppression(source);
-    disabled.extend(user_disabled.iter().cloned());
-    let suppressed_lines = super::utils::parse_noqa_line_suppressions_for_dialect(source, dialect);
-    bidi_control_diagnostics_with_suppressions(source, &disabled, &suppressed_lines)
-}
-
-#[cfg(test)]
-mod tests {
-    use std::collections::HashSet;
-
-    use super::*;
-
-    #[test]
-    fn nested_switch_arm_noqa_suppresses_the_following_source_diagnostic() {
-        let source = "set result [switch $kind {\n    alpha {\n        # noqa: W305\n        puts \"\u{202e}\"\n    }\n}]\n";
-        assert_eq!(bidi_control_diagnostics(source).len(), 1);
-        assert!(
-            filtered_bidi_control_diagnostics(
-                source,
-                &HashSet::new(),
-                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
-            )
-            .is_empty(),
-            "the case-list arm's noqa must reach the next physical line"
-        );
-    }
-
-    #[test]
-    fn alias_declared_proc_body_noqa_suppresses_the_following_source_diagnostic() {
-        let source = "interp alias {} define {} proc\ndefine f {} {\n    # noqa: W305\n    puts \"\u{202e}\"\n}\n";
-        assert!(
-            filtered_bidi_control_diagnostics(
-                source,
-                &HashSet::new(),
-                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
-            )
-            .is_empty()
-        );
-    }
 }

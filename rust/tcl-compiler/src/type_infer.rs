@@ -426,13 +426,11 @@ fn arithmetic_result(lt: &TypeLattice, rt: &TypeLattice) -> TypeLattice {
     }
 }
 
-/// Resolve a Tcl `expr` math-function call to its result type.
-///
-/// `abs` is identity
-/// (preserves its operand's type), `max` / `min` join their operand
-/// types, every other built-in returns its declared type, and an
-/// unknown function is conservatively `Numeric` (an `expr` function
-/// always yields a number).
+/// Resolve a Tcl `expr` math-function call to its result type, from the
+/// function's class in the shared math-function table
+/// ([`tcl_syntax::expr::mathfunc::result_class`]): a fixed class is its type,
+/// a function whose result is one of its operands (`abs`, `max`, `min`) takes
+/// their join, and a name no release defines is conservatively `Numeric`.
 fn expr_call_type(
     function: &str,
     args: &[ExprNode],
@@ -440,49 +438,23 @@ fn expr_call_type(
     depth: u32,
     numbers: NumberSyntax,
 ) -> TypeLattice {
-    // `depth` is the level of the enclosing `Call` node; its args are one
-    // level deeper; `infer_expr_type` guards the cap itself.
-    // Identity: `abs` preserves the operand type (Int fallback).
-    if function == "abs" {
-        return match args.first() {
-            Some(a) => infer_expr_type(a, var_types, depth + 1, numbers),
-            None => TypeLattice::of(TclType::Int),
-        };
-    }
-    // Variadic join: `max` / `min` join all operand types.
-    if function == "max" || function == "min" {
-        let mut it = args.iter();
-        return match it.next() {
-            Some(first) => {
-                let mut acc = infer_expr_type(first, var_types, depth + 1, numbers);
-                for a in it {
-                    acc = type_join(&acc, &infer_expr_type(a, var_types, depth + 1, numbers));
-                }
-                acc
+    use tcl_syntax::expr::mathfunc::{MathResultClass, result_class};
+    match result_class(function) {
+        MathResultClass::Int => TypeLattice::of(TclType::Int),
+        MathResultClass::Float => TypeLattice::of(TclType::Double),
+        MathResultClass::Bool => TypeLattice::of(TclType::Boolean),
+        // `depth` is the level of the enclosing `Call` node; its args are one
+        // level deeper; `infer_expr_type` guards the cap itself.
+        MathResultClass::Numeric => {
+            let mut operands = args
+                .iter()
+                .map(|arg| infer_expr_type(arg, var_types, depth + 1, numbers));
+            match operands.next() {
+                Some(first) => operands.fold(first, |acc, next| type_join(&acc, &next)),
+                None => TypeLattice::of(TclType::Numeric),
             }
-            None => TypeLattice::of(TclType::Numeric),
-        };
-    }
-    match function {
-        // Integer-returning conversions. NB: `ceil`/`floor` are NOT here — they
-        // return a *double* in Tcl (`expr {ceil(3.14)}` → 4.0, `string is
-        // integer 4.0` → 0), unlike `round`/`int`/`entier` which round to an
-        // integer. Verified against tclsh8.6/9.0.
-        "int" | "round" | "isqrt" | "wide" | "entier" => TypeLattice::of(TclType::Int),
-        // Double-returning math (incl. ceil/floor, which yield N.0).  The
-        // Tcl 9.1 C99 additions (TIP 745, verified against tmp/tcl9.1-src) are
-        // all double-valued except the `signbit` predicate below.
-        "double" | "ceil" | "floor" | "sin" | "cos" | "tan" | "asin" | "acos" | "atan"
-        | "atan2" | "sinh" | "cosh" | "tanh" | "sqrt" | "exp" | "log" | "log10" | "pow"
-        | "hypot" | "fmod" | "rand" | "srand" | "acosh" | "asinh" | "atanh" | "cbrt"
-        | "copysign" | "dim" | "erf" | "erfc" | "exp2" | "expm1" | "fma" | "gamma" | "ldexp"
-        | "lgamma" | "log1p" | "log2" | "logb" | "nextafter" | "remainder" | "trunc" => {
-            TypeLattice::of(TclType::Double)
         }
-        // Boolean-returning predicates.  `signbit` yields 0/1 (Tcl 9.1, TIP 745).
-        "bool" | "isnan" | "isinf" | "signbit" => TypeLattice::of(TclType::Boolean),
-        // Unknown function — conservative.
-        _ => TypeLattice::of(TclType::Numeric),
+        MathResultClass::Any => TypeLattice::of(TclType::Numeric),
     }
 }
 
@@ -1073,7 +1045,7 @@ fn has_only_caller_safe_factories<S: std::hash::BuildHasher>(
         if let Some(marker) = stmt.synthetic_marker() {
             if !matches!(
                 marker,
-                crate::ir::SyntheticMarker::RegistryBarrier
+                crate::ir::SyntheticMarker::UnseenCall
                     | crate::ir::SyntheticMarker::GlobalFrameScript
             ) || !cfg.blocks[&cfg.entry]
                 .statements
@@ -1227,6 +1199,15 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
                 return DefTyping::Uniform(value_word_type(ctx, arg_refs[1]));
             }
 
+            // A destroying command's whole-variable kill (`unset x`) leaves
+            // nothing behind to carry a representation: its definition is the
+            // lattice's bottom, which a φ joins away, not the command's
+            // empty-string result (#2133). An element kill (`unset a(k)`)
+            // keeps the typing below — the array's other elements live on.
+            if kills_whole_variables(ctx.registry, canon, defs, &arg_refs) {
+                return DefTyping::Uniform(TypeLattice::unknown());
+            }
+
             let resolved = tcl_registry::model::resolve_invocation_in_context(
                 ctx.registry,
                 ctx.context,
@@ -1311,6 +1292,21 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
         // overdefined.
         _ => DefTyping::Uniform(TypeLattice::overdefined()),
     }
+}
+
+/// Whether the call `canon args…` is a destroying command
+/// (`Traits::DESTROYS_VARIABLE`, `unset`) naming each of `defs` whole — a
+/// word spelling the variable itself, never one of its elements.
+fn kills_whole_variables(
+    registry: &CommandRegistry,
+    canon: &str,
+    defs: &[String],
+    args: &[&str],
+) -> bool {
+    registry.get(canon).is_some_and(|spec| {
+        spec.traits
+            .contains(tcl_registry::Traits::DESTROYS_VARIABLE)
+    }) && defs.iter().all(|def| args.contains(&def.as_str()))
 }
 
 /// Positional element typing for a [`VarWriteTyping::ElementsOf`] writer.
@@ -1459,6 +1455,34 @@ fn foreach_var_lattice(container_shape: Option<&TypeShape>, nvars: usize, j: usi
     }
 }
 
+/// The types the fresh versions a call to code the module cannot see gives the
+/// names live after it start with, in the blocks that run: overdefined, since
+/// that code may rebind each — unless the function is
+/// the narrow straight-line case whose factories no handler can reach
+/// ([`has_only_caller_safe_factories`]), where they keep the lineage's types.
+fn registry_clobber_types<S: std::hash::BuildHasher>(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    sccp: &SccpResult,
+    registry: &CommandRegistry,
+    known_classes: &HashSet<String, S>,
+) -> HashMap<ValueKey, TypeLattice> {
+    let mut types = HashMap::new();
+    if has_only_caller_safe_factories(cfg, registry, known_classes) {
+        return types;
+    }
+    for (block, markers) in &ssa.value_clobbers {
+        if sccp.executable_blocks.contains(block) {
+            for versions in markers.values() {
+                for (&symbol, &(_, fresh)) in versions {
+                    types.insert((symbol, fresh), TypeLattice::overdefined());
+                }
+            }
+        }
+    }
+    types
+}
+
 /// Run type propagation over one SSA function.
 ///
 /// Returns a map from `(variable_name, ssa_version)` to inferred
@@ -1470,7 +1494,8 @@ fn foreach_var_lattice(container_shape: Option<&TypeShape>, nvars: usize, j: usi
 /// analyse_var_observability`]), named by `extra_global_escaping` (the
 /// whole-module `global`-declaration scan for the *top-level* unit — see
 /// [`crate::var_observability::scan_module_global_names`]), or traced
-/// *anywhere in the module* (`trace_facts`) — is forced `Overdefined` here,
+/// *anywhere in the module* (`trace_facts`), or written by a callback script
+/// of the module — is forced `Overdefined` here,
 /// reusing the exact predicate [`crate::sccp::sccp_with_extra_escaping`] and
 /// [`crate::optimiser::propagation`]'s O102 load-forwarding already apply to
 /// their own (separate) lattices, rather than re-deriving a third,
@@ -1502,6 +1527,7 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
         escaping.extend(extra_global_escaping.iter().cloned());
     }
     escaping.extend(trace_facts.traced_variables.iter().cloned());
+    escaping.extend(trace_facts.deferred_writes.names.iter().cloned());
     // Constructor heads written `[Foo new]` inside this function resolve
     // relative names against the function's own namespace.
     let namespace = function_namespace(&cfg.name);
@@ -1520,24 +1546,14 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
         known_classes,
         namespace: &namespace,
         values: &sccp.values,
+        folded: &sccp.folded_types,
         escaping: &escaping,
-        has_dynamic_variable_trace: trace_facts.has_dynamic_variable_trace,
+        has_dynamic_variable_trace: trace_facts.has_dynamic_variable_trace
+            || trace_facts.deferred_writes.any,
         numbers: numbers_of(registry),
     };
 
-    let mut types: HashMap<ValueKey, TypeLattice> = HashMap::new();
-    let caller_safe_factories = has_only_caller_safe_factories(cfg, registry, known_classes);
-    for (block, markers) in &ssa.value_clobbers {
-        if sccp.executable_blocks.contains(block) {
-            for versions in markers.values() {
-                for (&symbol, &(_, fresh)) in versions {
-                    if !caller_safe_factories {
-                        types.insert((symbol, fresh), TypeLattice::overdefined());
-                    }
-                }
-            }
-        }
-    }
+    let mut types = registry_clobber_types(cfg, ssa, sccp, registry, known_classes);
     let mut changed = true;
     while changed {
         changed = false;
@@ -1613,14 +1629,120 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
                 }
             }
 
-            // Statements.
-            if type_infer_process_statements(&mut types, ssa_block, &ctx) {
+            // Statements, under the type refinements in force at the block.
+            if type_refined_statements(&mut types, (sccp, *bn), ssa_block, &ctx) {
                 changed = true;
             }
         }
     }
 
     types
+}
+
+/// Type one block's statements under the type refinements in force there
+/// ([`types_at`]): a version a `string is` test or a numeric `==` proved a
+/// type of reads as that type in the block, and as its own past it. Whether
+/// a type moved.
+fn type_refined_statements<S: std::hash::BuildHasher>(
+    types: &mut HashMap<ValueKey, TypeLattice>,
+    (sccp, block): (&SccpResult, BlockId),
+    ssa_block: &crate::ssa::SsaBlock,
+    ctx: &StatementTypingCtx<'_, S>,
+) -> bool {
+    let narrowed: Vec<(ValueKey, Option<TypeLattice>)> = types_at(types, sccp, block)
+        .into_iter()
+        .map(|(key, ty)| (key, types.insert(key, ty)))
+        .collect();
+    let changed = type_infer_process_statements(types, ssa_block, ctx);
+    for (key, before) in narrowed {
+        match before {
+            Some(ty) => {
+                types.insert(key, ty);
+            }
+            None => {
+                types.remove(&key);
+            }
+        }
+    }
+    changed
+}
+
+/// The type each version a type refinement in force at `block` names holds
+/// there ([`SccpResult::refinements_in`]): the type the test proved, or the
+/// version's own where that is the proved one or narrower
+/// ([`refined_type`]), the refinements of one version applied in turn. The
+/// test's own conversion is why a type holds: `string is integer -strict
+/// $x` and `$x == 1` leave `x` with a numeric representation whatever it
+/// had.
+fn types_at(
+    types: &HashMap<ValueKey, TypeLattice>,
+    sccp: &SccpResult,
+    block: BlockId,
+) -> HashMap<ValueKey, TypeLattice> {
+    let mut narrowed: HashMap<ValueKey, TypeLattice> = HashMap::new();
+    for refinement in sccp.refinements_in(block) {
+        let tcl_registry::value_transfer::FactView::Domain(
+            tcl_registry::value_transfer::DomainFact::Type {
+                intrep: Some(proved),
+                ..
+            },
+        ) = &refinement.fact
+        else {
+            continue;
+        };
+        // A version-0 key is what the frame entered with, a parameter's
+        // argument among them, which no definition types: the live-in
+        // root, as a φ reads it.
+        let own = narrowed
+            .get(&refinement.key)
+            .or_else(|| types.get(&refinement.key))
+            .cloned()
+            .unwrap_or_else(|| {
+                if refinement.key.1 == 0 {
+                    TypeLattice::overdefined()
+                } else {
+                    TypeLattice::unknown()
+                }
+            });
+        let refined = refined_type(&own, *proved);
+        if refined != own {
+            narrowed.insert(refinement.key, refined);
+        }
+    }
+    narrowed
+}
+
+/// Per block, the type each version a type refinement in force there names
+/// holds there ([`types_at`]), over the function's settled `types`: what a
+/// use in the block reads, where it differs from the version's own type.
+#[must_use]
+pub(crate) fn types_in_force(
+    types: &HashMap<ValueKey, TypeLattice>,
+    sccp: &SccpResult,
+) -> HashMap<(BlockId, ValueKey), TypeLattice> {
+    sccp.refinements_at
+        .keys()
+        .flat_map(|&block| {
+            types_at(types, sccp, block)
+                .into_iter()
+                .map(move |(key, ty)| ((block, key), ty))
+        })
+        .collect()
+}
+
+/// What a version typed `own` is typed where a refinement proved `proved`:
+/// its own type where that is the proved one or narrower (an integer where
+/// a number is proved), the proved type otherwise, and the optimistic
+/// bottom for a version not typed yet.
+fn refined_type(own: &TypeLattice, proved: TclType) -> TypeLattice {
+    let within = |ty: TclType| {
+        ty == proved || (proved == TclType::Numeric && matches!(ty, TclType::Int | TclType::Double))
+    };
+    match own.kind() {
+        TypeKind::Unknown => own.clone(),
+        TypeKind::Known if own.tcl_type().is_some_and(within) => own.clone(),
+        _ => TypeLattice::of(proved),
+    }
 }
 
 /// Shared, read-only context for [`type_infer_process_statements`].
@@ -1634,6 +1756,10 @@ struct StatementTypingCtx<'a, S: std::hash::BuildHasher> {
     /// SCCP constants — purity evidence and constant list/index values for
     /// the element-inference helpers (see [`WordTypingCtx::values`]).
     values: &'a HashMap<ValueKey, LatticeValue>,
+    /// The folded types SCCP's evaluations state
+    /// ([`crate::sccp::SccpResult::folded_types`]): a definition the static
+    /// typing leaves unknown takes the type its evaluation proved.
+    folded: &'a HashMap<ValueKey, crate::value_transfer::FoldedType>,
     /// Names [`crate::sccp::is_externally_mutable`] should treat as
     /// unconditionally aliased/escaping (per-function `analyse_var_observability`
     /// union'd with the caller's whole-module `extra_global_escaping` and
@@ -1746,7 +1872,7 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
                     None => TypeLattice::overdefined(),
                 }
             } else {
-                match &inferred {
+                let inferred = match &inferred {
                     DefTyping::Uniform(t) => t.clone(),
                     // Positional element typing: a def the map does not
                     // name widens to Overdefined.
@@ -1754,7 +1880,8 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
                         .get(name)
                         .cloned()
                         .unwrap_or_else(TypeLattice::overdefined),
-                }
+                };
+                refined_by_folded_type(inferred, ctx.folded.get(&key))
             };
             let merged = type_join(&old, &def_type);
             if merged != old {
@@ -1764,6 +1891,29 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
         }
     }
     changed
+}
+
+/// A definition's static type, refined by the folded type its evaluation
+/// states: where the static typing knows nothing — a command with no
+/// declared return type, a destructured target — the type the evaluation
+/// proved for this call (its stated intrep, or the one the route
+/// constructed) is the definition's. A known static type stands: it can
+/// carry element facts the folded type does not, and the evaluation's own
+/// type is the same fact for every shipped route.
+fn refined_by_folded_type(
+    inferred: TypeLattice,
+    folded: Option<&crate::value_transfer::FoldedType>,
+) -> TypeLattice {
+    if inferred.kind() == TypeKind::Known {
+        return inferred;
+    }
+    let proved = folded.and_then(|folded| {
+        folded.intrep.or(match folded.representation {
+            tcl_registry::value_transfer::RepresentationEvidence::Constructed(built) => Some(built),
+            tcl_registry::value_transfer::RepresentationEvidence::Unknown => None,
+        })
+    });
+    proved.map_or(inferred, TypeLattice::of)
 }
 
 /// Infer a function's overall return type by joining the result types
@@ -1929,8 +2079,63 @@ mod tests {
         }
     }
 
+    /// A definition the static typing knows nothing of takes the type its
+    /// evaluation proved — the stated intrep, else the one the route
+    /// constructed — and a known static type stands, element facts and all.
+    #[test]
+    fn a_folded_type_refines_only_what_the_static_typing_leaves_unknown() {
+        use crate::value_transfer::FoldedType;
+        use tcl_registry::value_transfer::RepresentationEvidence;
+        let stated = FoldedType {
+            intrep: Some(TclType::String),
+            shape: None,
+            representation: RepresentationEvidence::Unknown,
+        };
+        let built = FoldedType {
+            intrep: None,
+            shape: None,
+            representation: RepresentationEvidence::Constructed(TclType::ByteArray),
+        };
+        assert_eq!(
+            refined_by_folded_type(TypeLattice::overdefined(), Some(&stated)),
+            TypeLattice::of(TclType::String)
+        );
+        assert_eq!(
+            refined_by_folded_type(TypeLattice::unknown(), Some(&built)),
+            TypeLattice::of(TclType::ByteArray)
+        );
+        assert_eq!(
+            refined_by_folded_type(TypeLattice::of(TclType::List), Some(&stated)),
+            TypeLattice::of(TclType::List),
+            "a known static type stands"
+        );
+        assert_eq!(
+            refined_by_folded_type(TypeLattice::overdefined(), None),
+            TypeLattice::overdefined()
+        );
+    }
+
     fn empty_sccp(f: &Function, blocks: &[&str]) -> SccpResult {
         SccpResult {
+            explanations: Vec::new(),
+            route_tally: crate::value_transfer::RouteTally::default(),
+            folded_types: HashMap::new(),
+            preserved: HashMap::new(),
+            raised: HashSet::default(),
+            template_plans: Vec::new(),
+            selections: Vec::new(),
+            existence: HashMap::new(),
+            existence_reads: HashMap::new(),
+            existence_exits: HashMap::new(),
+            existence_entries: HashMap::new(),
+            refinements: Vec::new(),
+            refinements_at: HashMap::new(),
+            value_entries: HashMap::new(),
+            query_places: Vec::new(),
+            existence_guards: Vec::new(),
+            loop_enumerations: Vec::new(),
+            reads_module: false,
+            completion: crate::sccp::RunCompletion::default(),
             values: HashMap::new(),
             executable_blocks: blocks
                 .iter()
@@ -2005,6 +2210,7 @@ mod tests {
             name: "n".to_owned(),
             name_braced: false,
             amount: None,
+            amount_braced: false,
             safe_on_uninit: false,
         };
         let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
@@ -2087,22 +2293,22 @@ mod tests {
 
     #[test]
     fn unannotated_multi_def_call_stays_overdefined_not_return_type() {
-        // A call that writes SEVERAL variables
-        // under the default `ReturnValue` typing must not broadcast its
-        // return type onto all of them. The synthetic `catch {body} resultVar
-        // optionsVar` call `emit_opaque_catch` builds carries the body's
-        // writes plus the result/options vars as defs, while `catch` returns
-        // an Int status code and declares no `VarWriteTyping` override — typing
-        // `msg`/`result`/`opts` as that Int would wrongly fire S100/W126. The
-        // default arm's multi-def guard keeps them OVERDEFINED.
+        // A call that writes SEVERAL variables under the default `ReturnValue`
+        // typing must not broadcast its return type onto all of them: a `try`
+        // returns what its body returns, not the message and options its
+        // handlers bind, and typing `msg`/`result`/`opts` alike would wrongly
+        // fire S100/W126. The default arm's multi-def guard keeps them
+        // OVERDEFINED.
         let stmt = Statement::Call {
             span: Span::new(0, 0),
-            command: "catch".to_owned(),
+            command: "try".to_owned(),
             canonical_command: None,
             args: vec![
                 "{set msg hello}".to_owned(),
-                "result".to_owned(),
-                "opts".to_owned(),
+                "on".to_owned(),
+                "error".to_owned(),
+                "{result opts}".to_owned(),
+                "{}".to_owned(),
             ],
             defs: vec!["msg".to_owned(), "result".to_owned(), "opts".to_owned()],
             reads: Vec::new(),
@@ -2114,6 +2320,34 @@ mod tests {
         let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
         let t = eval_def(&stmt, &registry(), &ssa, "__def__");
         assert_eq!(t, TypeLattice::overdefined());
+    }
+
+    /// The variables `catch` writes hold the script's result and its options
+    /// dictionary, not the integer completion code it returns: its registry
+    /// entry declares them destructured, so a call that writes only the result
+    /// variable types it as nothing known either.
+    #[test]
+    fn a_catch_result_variable_is_overdefined_not_the_completion_code() {
+        for (args, defs) in [
+            (vec!["{foo}", "msg"], vec!["msg"]),
+            (vec!["{foo}", "msg", "opts"], vec!["msg", "opts"]),
+        ] {
+            let stmt = Statement::Call {
+                span: Span::new(0, 0),
+                command: "catch".to_owned(),
+                canonical_command: None,
+                args: args.into_iter().map(str::to_owned).collect(),
+                defs: defs.into_iter().map(str::to_owned).collect(),
+                reads: Vec::new(),
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: None,
+                foreach_groups: None,
+            };
+            let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
+            let t = eval_def(&stmt, &registry(), &ssa, "__def__");
+            assert_eq!(t, TypeLattice::overdefined(), "{stmt:?}");
+        }
     }
 
     /// End-to-end lattice checks for the registry-driven `VarWriteTyping`:
@@ -2149,14 +2383,32 @@ mod tests {
         );
 
         // `regexp` capture — OVERDEFINED, never Int (the match count).
-        let cu = CompilationUnit::build_for("regexp {(.)} abc c", &registry(), false);
+        let cu = CompilationUnit::build_for("regexp {(.)} $s c", &registry(), false);
         let fu = cu.function("::top").unwrap();
         assert!(none_known(fu, "c"), "regexp capture must not be Known Int");
+        // Over exact operands the route writes the capture: the
+        // String it matched, still never the count.
+        let cu = CompilationUnit::build_for("regexp {(.)} abc c", &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        assert!(
+            any_known(fu, "c", TclType::String) && !any_known(fu, "c", TclType::Int),
+            "a written regexp capture is the String it matched: {:?}",
+            fu.types
+        );
 
         // `scan` target — OVERDEFINED (format-dependent), never Int.
-        let cu = CompilationUnit::build_for("scan hello %s word", &registry(), false);
+        let cu = CompilationUnit::build_for("scan $s %s word", &registry(), false);
         let fu = cu.function("::top").unwrap();
         assert!(none_known(fu, "word"), "scan target must not be Known Int");
+        // Over exact operands the route writes the conversion: the
+        // String `%s` built, still never the count.
+        let cu = CompilationUnit::build_for("scan hello %s word", &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        assert!(
+            any_known(fu, "word", TclType::String) && !any_known(fu, "word", TclType::Int),
+            "a written scan target is the String its conversion built: {:?}",
+            fu.types
+        );
 
         // `binary scan` target (subcommand-level typing) — OVERDEFINED.
         let cu = CompilationUnit::build_for("binary scan $d a3 chars", &registry(), false);
@@ -2563,6 +2815,20 @@ mod tests {
             );
         }
         assert_eq!(infer_str("signbit($x)").tcl_type(), Some(TclType::Boolean));
+        // The rest of TIP 521's classification family answers 0 or 1 like
+        // `isnan` (tclsh 9.0 and 9.1: `isfinite(1.0)` is 1, `isunordered(1,
+        // 2)` is 0); the table this reads classes them as `isnan` is.
+        for f in ["isfinite", "isnormal", "issubnormal"] {
+            assert_eq!(
+                infer_str(&format!("{f}($x)")).tcl_type(),
+                Some(TclType::Boolean),
+                "{f} should infer Boolean",
+            );
+        }
+        assert_eq!(
+            infer_str("isunordered($x, 1)").tcl_type(),
+            Some(TclType::Boolean)
+        );
         // Unknown function → Numeric (conservative).
         assert_eq!(infer_str("nope($x)").tcl_type(), Some(TclType::Numeric));
     }
@@ -2812,7 +3078,7 @@ mod tests {
         );
     }
 
-    // P3: registry-driven container element inference (type-tracking.md).
+    // registry-driven container element inference (type-tracking.md).
 
     /// Helper: the joined lattice of every version of `var` in `func`.
     fn type_of(
@@ -2979,7 +3245,7 @@ mod tests {
         );
     }
 
-    /// P5: constant-keyed array elements are independent variables — each
+    /// constant-keyed array elements are independent variables — each
     /// carries its own type ("array elements behave as independent
     /// scalars"), and the conflated base claims nothing.
     #[test]
@@ -3016,7 +3282,7 @@ mod tests {
         );
     }
 
-    /// P5: a dynamic-key write is a may-write over every known element —
+    /// a dynamic-key write is a may-write over every known element —
     /// the element's type JOINS with the written type (INT ⊔ INT stays
     /// INT; INT ⊔ STRING widens) instead of trusting either side.
     #[test]

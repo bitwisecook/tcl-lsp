@@ -65,6 +65,7 @@ members = [
     "rust/tcl-vm-cli",
     "rust/tcl-engine-api",
     "rust/tcl-engine-tclvm",
+    "rust/tcl-engine-wasm",
     "rust/tcl-spec-hooks",
     "rust/tcl-cshim",
     "rust/bpf-tcl-ir",
@@ -84,6 +85,7 @@ members = [
     "rust/tcl-cli-support",
     "rust/tcl-cli",
     "rust/tcl-pkg",
+    "rust/tcl-pkg-model",
     "rust/tcl-sandbox",
     "rust/tcl-mcp",
     "rust/f5-cli",
@@ -135,7 +137,7 @@ exclude = [
     # raw-pointer `unsafe` over the shared linear memory (c-extension-abi.md §9),
     # so it cannot inherit the workspace `unsafe_code = "forbid"` lint, and it
     # eventually targets wasm32 as a cdylib. Kept out of `cargo test --workspace`
-    # so the LSP/compiler workstream cannot regress on runtime-port churn.
+    # so the LSP/compiler checks cannot regress on runtime-port churn.
     # Gated separately via `make runtime-rust-test`.
     "runtime/rust",
     # CI gate that compiles the vendored tree-sitter-tcl grammar (C) and

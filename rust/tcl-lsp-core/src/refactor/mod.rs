@@ -399,10 +399,12 @@ impl FrameWalk {
     ///
     /// `subst {a[set x 1]b}` evaluates that bracket in the caller's frame, but
     /// the argument is one braced word to the script lexer, so the dispatch
-    /// walker cannot see inside it. Whether the brackets run at all is the
-    /// registry's per-call answer (`subst -nocommands` leaves them as text),
-    /// and the closer is [`tcl_lexer::command_substitution_end`]'s, so nothing
-    /// here re-derives either fact.
+    /// walker cannot see inside it. The regions are the call's template-word
+    /// plan's (`subst -nocommands` leaves its brackets as text, and an array
+    /// index runs its own whatever the switches say), so nothing here
+    /// re-derives which brackets run; a substituting command with no plan of
+    /// its own keeps the registry's per-call answer and the closer
+    /// [`tcl_lexer::command_substitution_end`] finds.
     fn push_substituted_commands(
         &self,
         source: &str,
@@ -411,6 +413,31 @@ impl FrameWalk {
     ) {
         let head = command.name();
         let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
+        if let Some(plan) = tcl_compiler::value_transfer::literal_template_plan(
+            self.nesting,
+            head,
+            &args,
+            |index| source_word(source, command, &args, index),
+        ) {
+            // Only a braced template hides its brackets from the script
+            // lexer; an unbraced one's are dispatch regions already.
+            let Some(token) = command.argv.get(plan.operand.0 + 1) else {
+                return;
+            };
+            if !plan.braced {
+                return;
+            }
+            let word = token.span.start() as usize;
+            for region in &plan.script_regions {
+                // The script inside the brackets is what runs.
+                let from = word + region.span.start() as usize + 1;
+                let to = (word + region.span.end() as usize).saturating_sub(1);
+                if from < to {
+                    out.push((from, to));
+                }
+            }
+            return;
+        }
         if !self
             .nesting
             .substitutions_performed(head, &args)
@@ -890,6 +917,23 @@ pub fn strip_quotes(s: &str) -> &str {
 #[cfg(test)]
 pub(crate) fn test_registry() -> CommandRegistry {
     CommandRegistry::build_default()
+}
+
+/// How the argument at `index` of `command` reads in `source`, for a
+/// template-word plan asked over the call's source words: a brace-quoted
+/// word, one the parser substitutes, or literal text.
+pub(crate) fn source_word(
+    source: &str,
+    command: &SegmentedCommand,
+    args: &[&str],
+    index: usize,
+) -> tcl_compiler::value_transfer::SourceWord {
+    let braced = command.argv.get(index + 1).is_some_and(|token| {
+        token.kind == TokenType::Str
+            && token.content_offset == 1
+            && source.as_bytes().get(token.span.start() as usize) == Some(&b'{')
+    });
+    tcl_compiler::value_transfer::SourceWord::of(args.get(index).copied(), braced)
 }
 
 #[cfg(test)]

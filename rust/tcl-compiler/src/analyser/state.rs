@@ -419,9 +419,8 @@ pub struct Analyser {
     /// A number rather than a registry handle, deliberately: the analyser must
     /// not depend on the pack loader (which depends on *it*), and a `u64`
     /// travels through a salsa input and a config struct with no new edge at
-    /// all. [`Self::profile_registry`] turns it into the registry, falling
-    /// back to the un-overlaid one when nothing has been installed under that
-    /// key.
+    /// all. [`Self::profile_registry`] turns it into the registry, reading the
+    /// un-overlaid one until something has been installed under that key.
     ///
     /// It is load-bearing since the EDA vendor libraries became bundled
     /// `.tclspec` loadables (`docs/design/registry/spec-packs.md`): without it a
@@ -513,6 +512,26 @@ pub struct Analyser {
     /// [`Self::flush_dsl_gate_diagnostics`] against the effective Tcl
     /// version.
     pub(super) dsl_gate_sites: Vec<super::diagnostics::version_gate::DslGateSite>,
+    /// The calls the walk dispatched with a word a literal-only check could
+    /// not read, which the CFG/SSA pass checks again over the words' proven
+    /// values.
+    pub(super) proven_sites: Vec<super::diagnostics::ProvenSite>,
+    /// The out-of-range `$var` index accesses the interval checks reported:
+    /// the code, the absolute span of the statement or terminator the
+    /// finding anchors at, and the index variable. The proven-word re-run
+    /// leaves each of these sites to them.
+    pub(super) interval_index_sites: HashSet<(DiagCode, Span, String)>,
+    /// The conditional loops the walk examined, each with what its text says
+    /// about its termination (W240 / W241 / W242). The CFG/SSA pass resolves
+    /// each against its unit's branch fact at the condition's span
+    /// ([`Self::resolve_loop_terminations`]); what no unit decides is
+    /// reported by [`Self::flush_loop_terminations`] as its text says.
+    pub(super) loop_candidates: Vec<super::bounds_checks::LoopTerminationCandidate>,
+    /// What the module's callback scripts and variable traces may write, for
+    /// the loops the CFG/SSA pass settles
+    /// ([`Self::resolve_loop_terminations`]): set from the compilation unit
+    /// the pass reads.
+    pub(super) loop_unseen_writes: super::bounds_checks::ModuleUnseenWrites,
     /// Proven W147 option conflicts whose `OptionRelation` is version-gated
     /// — decided post-walk by [`Self::flush_gated_option_conflicts`], which
     /// promotes the ones the resolved floor actually has onto
@@ -535,7 +554,7 @@ pub struct Analyser {
     /// Session/file pins for the keyed library-version axes
     /// (`--bigip-version`-style overrides, dialect-profile-model.md §7.1).
     /// Defaults to empty, in which case each keyed axis falls back to its
-    /// D5 oldest-supported default; feeds
+    /// oldest-supported default; feeds
     /// [`tcl_dialect::DialectProfile::library_floor`].
     pub library_versions: tcl_dialect::LibraryVersionOverrides,
     /// §5.4 range targeting — configuration-declared version targets
@@ -913,7 +932,7 @@ pub struct Analyser {
     /// the top of [`Self::analyse`] from `result.stub_commands` via
     /// [`super::types::build_declared_surface`] — inline
     /// `# tcl-lsp: stub` blocks and workspace `.tcl.stubs` sidecars as
-    /// provenance-tagged surface declarations (gap ruling R1).  Paired
+    /// provenance-tagged surface declarations.  Paired
     /// with the walk's registry generation by
     /// [`Self::command_surface`], the one door analyser and compiler
     /// queries ask; nothing mutates the shared
@@ -1072,6 +1091,12 @@ pub struct Analyser {
     /// of recursing into it immediately.  Set only for the shell pass; the
     /// per-body passes run with it `false` so nested defs walk in place.
     pub defer_proc_bodies: bool,
+    /// Set by the per-item shell walk when it meets a definer only the
+    /// workspace's packs declare — a command whose overlaid spec carries a
+    /// definition-body grammar the un-overlaid store the shell reads lacks —
+    /// so [`Self::analyse_per_item_with`] takes the full path
+    /// ([`super::per_item::PerItemFallback::PackDefiner`]).
+    pub(super) pack_definer_seen: bool,
     /// When `true`, [`Self::define_var`] runs in **structural rebind** mode:
     /// it skips the W215 unreachable-name check *and* the
     /// `record_qualified_var_ref` occurrence record.  Set only while the
@@ -1134,7 +1159,7 @@ pub struct Analyser {
     /// that names one fixed, frame-independent cell, which today means
     /// `upvar`'s `otherVar` word (`upvar ::tk::FocusGrab($i) data`, `upvar
     /// #0 counter c`; see
-    /// [`Analyser::handle_upvar_command`](super::state::Analyser)).
+    /// [`Analyser::apply_state_transitions`](super::state::Analyser)).
     ///
     /// The graft merges the fragment's *proc* scope, never its (throwaway)
     /// root, so without this capture such a cell reached `all_variables` but
@@ -1554,6 +1579,10 @@ impl Analyser {
             tk_domains: std::collections::BTreeMap::new(),
             version_gate_sites: Vec::new(),
             dsl_gate_sites: Vec::new(),
+            proven_sites: Vec::new(),
+            interval_index_sites: HashSet::new(),
+            loop_candidates: Vec::new(),
+            loop_unseen_writes: super::bounds_checks::ModuleUnseenWrites::default(),
             pending_option_conflicts: Vec::new(),
             pending_gated_arity: Vec::new(),
             pending_gated_bare_ensemble: Vec::new(),
@@ -1622,6 +1651,7 @@ impl Analyser {
             workspace_class_factories: None,
             workspace_subclass_methods: None,
             defer_proc_bodies: false,
+            pack_definer_seen: false,
             structural_rebind: false,
             deferred_bodies: Vec::new(),
             minted_synthetic_names: std::collections::HashSet::new(),
@@ -1664,11 +1694,13 @@ impl Analyser {
     /// exists.
     ///
     /// **Look-up only.** Building an overlay entry needs the pack
-    /// *contents*, which only the loader has, so a miss falls back to the
+    /// *contents*, which only the loader has, so a miss reads the
     /// un-overlaid generation rather than caching a pack-less one under
-    /// the pack's key forever. A miss means the packs are not installed
-    /// yet — the state the process was in a moment ago — so the fallback
-    /// is the honest answer, not a wrong one.
+    /// the pack's key forever
+    /// ([`crate::environment_ingress::analysis_registry`]). An analysis
+    /// advises and runs again once the packs are installed, so that is the
+    /// honest answer for the window in between; code that compiles reads the
+    /// overlay through a door that reports the miss.
     #[must_use]
     pub fn profile_registry(&self) -> std::sync::Arc<tcl_registry::registry::CommandRegistry> {
         std::sync::Arc::clone(self.analysis_context().commands())
@@ -1689,7 +1721,7 @@ impl Analyser {
         let environment = crate::environment_ingress::resolve_environment(self.profile.name);
         let keyed =
             crate::environment_ingress::DocumentEnvironment::keyed_versions(&self.library_versions);
-        environment.context_registry(&keyed, self.pack_overlay)
+        crate::environment_ingress::analysis_registry(&environment, &keyed, self.pack_overlay)
     }
 
     /// Resolve `dialect` at a walk ingress: stash
@@ -1705,7 +1737,8 @@ impl Analyser {
         self.unit_profile = Some(environment.unit_profile());
         let keyed =
             crate::environment_ingress::DocumentEnvironment::keyed_versions(&self.library_versions);
-        let generation = environment.context_registry(&keyed, self.pack_overlay);
+        let generation =
+            crate::environment_ingress::analysis_registry(&environment, &keyed, self.pack_overlay);
         let tk_ambient = generation.context().ambient_package("Tk");
         self.context = Some(generation);
         self.environment = Some(environment);
@@ -2636,7 +2669,8 @@ impl Analyser {
         let environment = crate::environment_ingress::resolve_environment(dialect);
         let keyed =
             crate::environment_ingress::DocumentEnvironment::keyed_versions(&self.library_versions);
-        let generation = environment.context_registry(&keyed, self.pack_overlay);
+        let generation =
+            crate::environment_ingress::analysis_registry(&environment, &keyed, self.pack_overlay);
         let known: std::collections::HashSet<&str> =
             generation.commands().command_names().collect();
         let recovery_cmds = crate::segmenter::segment_commands_with_recovery_and_config(
@@ -2677,6 +2711,7 @@ impl Analyser {
     pub(super) fn fresh_full_analyse(&self, new_text: &str, dialect: &str) -> AnalysisResult {
         let mut fresh = Analyser::with_disabled_diagnostics(self.disabled_diagnostics.clone())
             .with_non_ascii_mode(self.non_ascii_mode)
+            .with_pack_overlay(self.pack_overlay)
             .with_shared_extra_commands(Arc::clone(&self.extra_commands))
             .with_package_provides(self.package_provides.clone());
         fresh.analyse(new_text, dialect)
@@ -2983,14 +3018,13 @@ impl Analyser {
         self.expand_implied_package_requires();
         // Whole-source security checks belong in the analyser result so direct
         // consumers receive the same verdict as the LSP and CLI adapters. The
-        // pure producer is also reused by non-Tcl F5 document adapters.
-        self.result.diagnostics.extend(
-            super::source_integrity::bidi_control_diagnostics_with_suppressions(
-                source,
-                &self.disabled_diagnostics,
-                &self.result.suppressed_lines,
-            ),
-        );
+        // pure producer is also reused by non-Tcl F5 document adapters. Like
+        // every other finding it is emitted raw: an inline `# noqa` reaches
+        // the policy step through `suppressed_lines`, which records the
+        // suppression with its reason.
+        self.result
+            .diagnostics
+            .extend(super::source_integrity::bidi_control_diagnostics(source));
         // Replay the `<ensemble> <subcommand>` call sites the shell pass met
         // before the deferred body that declares the ensemble was walked
         // — before `finalise_invocation_resolutions`, so
@@ -3033,6 +3067,7 @@ impl Analyser {
         self.emit_package_require_ordering_hints(&diag_registry);
         self.emit_variable_usage_diagnostics();
         self.emit_cfg_ssa_diagnostics(source);
+        self.flush_loop_terminations();
         self.flush_objdefine_abort_diagnostics();
         self.emit_lexer_warning_diagnostics();
         self.emit_w116_w117_stub_shadows();
@@ -3206,6 +3241,10 @@ impl Analyser {
         // entries behind, and a reused analyser must not carry one document's
         // deferred calls into the next.
         self.deferred_class_creations.clear();
+        self.proven_sites.clear();
+        self.interval_index_sites.clear();
+        self.loop_candidates.clear();
+        self.loop_unseen_writes = super::bounds_checks::ModuleUnseenWrites::default();
         self.pending_bareword_dispatch_sites = None;
         self.line_offsets = None;
         self.cached_line_index = tcl_lexer::LineIndex::new("");
@@ -3631,6 +3670,23 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse(
             "oo::class create Dog { method bark {} {} }\nset d [Dog new]\n",
+            "tcl",
+        );
+        assert_eq!(
+            r.instance_classes.get("d").map(String::as_str),
+            Some("::Dog")
+        );
+    }
+
+    /// A rooted `::set d [Dog new]` binds `d` as `set` does: the
+    /// instance tracking reads `set`'s handle-binding layout, which the
+    /// rooted spelling resolves to, rather than comparing the spelling `set`
+    /// (tclsh 8.6.18 to 9.1b0: `$d bark` dispatches to `::Dog`).
+    #[test]
+    fn analyse_records_instance_class_rooted_set_new() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Dog { method bark {} {} }\n::set d [Dog new]\n",
             "tcl",
         );
         assert_eq!(
@@ -5340,10 +5396,9 @@ mod tests {
     #[test]
     fn analyse_w110_fires_on_for_condition() {
         // ``for {set i 0} {$x == "foo"} {incr i} {body}`` —
-        // ``handle_for_command`` returns early from
-        // ``process_command``, so the EXPR-role dispatch must
-        // run *before* the early-return handlers (otherwise
-        // W110 on a ``for`` condition would silently miss).
+        // the EXPR-role dispatch runs *before* the hook handlers,
+        // so W110 on a ``for`` condition fires whichever walk
+        // owns the bodies.
         let mut a = Analyser::new();
         let r = a.analyse("for {set i 0} {$x == \"foo\"} {incr i} { break }\n", "tcl");
         let w110: Vec<_> = r
@@ -5885,8 +5940,8 @@ mod tests {
     // Fires ``Severity::Error`` when an ``if`` invocation's structural
     // shape doesn't match
     // ``if COND BODY ?elseif COND BODY ...? ?else BODY?``.  Detection
-    // reads `tcl_registry::commands::tcl::if_::check_if_shape` via the
-    // spec's `clause_shape_check` hook — the grammar itself is not
+    // reads the registry's walk of `if`'s clause grammar through
+    // `CommandRegistry::clause_shape_defect` — the grammar itself is not
     // reimplemented here (see `emit_e004_clause_shape_diagnostic`).
     // Every case is cross-checked against tclsh 8.6 and Tcl 9.0.4's
     // `TclNRIfObjCmd` source; see the truth table in
@@ -6079,7 +6134,7 @@ mod tests {
     }
 
     // -- FN (documented, intentional scope boundary): a renamed `if` is
-    // not checked. `if`'s registry `clause_shape_check` hook is looked
+    // not checked. `if`'s registry clause grammar is looked
     // up by resolving `cmd_name` as written — namespace-qualification
     // (`::if`) resolves through it (see
     // `tp_qualified_double_colon_if_is_checked_too`), but a `rename if

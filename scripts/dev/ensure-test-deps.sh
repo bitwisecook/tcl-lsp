@@ -90,7 +90,7 @@ tcl_reference_load_toolchains "$REPO_ROOT"
 TCL_REFERENCE_SOURCE_PARENT="${TCL_LSP_TCL_SOURCE_PARENT:-$REPO_ROOT/tmp}"
 TCL_REFERENCE_BIN_DIR="$(tcl_reference_bin_dir)"
 
-# Most callers need the whole conformance matrix. Focused CI lanes may select
+# Most callers need the whole conformance matrix. Focused CI suites may select
 # a release-line subset (for example, SpecTcl needs only the pinned 9.0 oracle)
 # without duplicating any patchlevel or source-tag facts.
 requested_tcl_releases() {

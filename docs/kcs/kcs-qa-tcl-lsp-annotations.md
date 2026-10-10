@@ -78,9 +78,14 @@ the analyser a shape for the call: the argument count is checked, and each
 word is read as the kind of thing its role names rather than as an opaque
 string.
 
-Six flags are accepted — `-barrier`, `-loop`, `-pure`, `-mutator`,
-`-unsafe`, and `-scope_alias`. Only `-barrier` changes analysis: it marks
-the command a dynamic barrier for the call-graph scanner. See
+Seven flags are accepted — `-barrier`, `-loop`, `-pure`, `-mutator`,
+`-unsafe`, `-scope_alias`, and `-extension`. Each states a fact about the
+command and changes the analysis of a call to it: a barrier, a loop, a pure
+call, a mutation of its target, a command hidden in a safe interpreter, a
+scope alias, or a command a native extension registers, which starts from the
+most conservative reading of all. `-frame own`, `-frame none` and `-frame
+caller` say whether the command can reach the variables of the procedure that
+calls it; without one, the analyser assumes it can. See
 [kcs-howto-annotate-commands-with-stubs.md](kcs-howto-annotate-commands-with-stubs.md)
 for the full flag reference.
 

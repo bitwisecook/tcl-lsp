@@ -34,6 +34,9 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         required_package: Some("platform"),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

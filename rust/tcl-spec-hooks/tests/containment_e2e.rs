@@ -111,6 +111,10 @@ impl Engine for HostileEngine {
         Ok(())
     }
 
+    fn confine_stores(&mut self) -> Result<(), EngineError> {
+        Ok(())
+    }
+
     fn commands_spent(&self) -> Option<u64> {
         None
     }
@@ -132,6 +136,9 @@ fn call<'w>(words: &'w [HookWord<'w>]) -> HookCall<'w> {
         option: None,
         constraints: None,
         dialect: None,
+        targets: &[],
+        budget: tcl_registry::value_transfer::ImplementationBudget::default(),
+        depends: &[],
     }
 }
 
@@ -228,6 +235,130 @@ fn an_erroring_hook_abstains_forever_but_is_logged_once() {
     let log = host.error_log();
     assert_eq!(log.len(), 1, "{log:?}");
     assert!(log[0].contains("bad index"), "{log:?}");
+}
+
+/// A body that writes outside its activation raises and abstains, the same
+/// way on the first call and the thousandth. Unconfined, `fold [incr
+/// ::counter]` answers 1, 2, 3 … on one engine, so its answer would be the
+/// call's position rather than a function of its arguments. A second hook in
+/// the same pack, sharing the engine, finds nothing ever written. This runs
+/// on the real VM, because the confinement is the engine's
+/// (`Engine::confine_stores`); the hostile engine only claims it.
+#[test]
+fn a_body_with_a_global_counter_answers_identically_on_every_call() {
+    let host = tcl_spec_hooks::tclvm_host();
+    let installed = host.install_pack_hooks(
+        PackPrograms::new("mylib")
+            .with(HookProgram::new(
+                "mylib::count",
+                HookFamily::ConstFold,
+                "fold [incr ::counter]",
+            ))
+            .with(HookProgram::new(
+                "mylib::peek",
+                HookFamily::ConstFold,
+                "fold $::counter",
+            )),
+    );
+    let count = installed[0].slot.expect("installed");
+    let peek = installed[1].slot.expect("installed");
+    let words = [literal("x")];
+    for _ in 0..1000 {
+        assert_eq!(host.invoke(count, &call(&words)), HookAnswer::Abstain);
+    }
+    assert!(!host.is_quarantined(count), "an error is not a crash");
+    assert_eq!(
+        host.invoke(peek, &call(&words)),
+        HookAnswer::Abstain,
+        "nothing was ever written"
+    );
+    let log = host.error_log();
+    assert!(
+        log.iter()
+            .any(|line| line.contains("stores are confined to the activation")),
+        "{log:?}"
+    );
+    assert!(
+        log.iter().any(|line| line.contains("no such variable")),
+        "{log:?}"
+    );
+}
+
+/// The `rand()` generator is refused under every pinned release: its seed
+/// is interpreter state one invocation would leave for the next, so a
+/// `srand` in one hook and a `rand()` in another would fold a draw that
+/// depends on the order the analysis happened to call them in. Under 8.4
+/// and the releases derived from it (`f5-irules`) the functions are `expr`
+/// builtins the whitelist cannot remove, and the confined VM refuses them;
+/// from 8.5 they are commands the whitelist drops. The other math
+/// functions stay: `abs(-1)` folds under every release.
+#[test]
+fn the_generator_is_refused_under_every_pinned_release() {
+    let host = tcl_spec_hooks::tclvm_host();
+    let installed = host.install_pack_hooks(
+        PackPrograms::new("q")
+            .with(
+                HookProgram::new(
+                    "q::seed",
+                    HookFamily::ConstFold,
+                    "expr {srand([lindex $words 0])}; fold seeded",
+                )
+                .pinned_to_release(),
+            )
+            .with(
+                HookProgram::new("q::draw", HookFamily::ConstFold, "fold [expr {rand()}]")
+                    .pinned_to_release(),
+            )
+            .with(
+                HookProgram::new("q::abs", HookFamily::ConstFold, "fold [expr {abs(-1)}]")
+                    .pinned_to_release(),
+            ),
+    );
+    let [seed, draw, abs] = [0, 1, 2].map(|index| installed[index].slot.expect("installed"));
+    for release in ["tcl8.4", "f5-irules", "tcl8.6", "tcl9.0"] {
+        let words = [literal("7")];
+        let pinned = HookCall {
+            dialect: Some(release),
+            ..call(&words)
+        };
+        assert_eq!(
+            host.invoke(seed, &pinned),
+            HookAnswer::Abstain,
+            "{release}: srand"
+        );
+        for _ in 0..2 {
+            assert_eq!(
+                host.invoke(draw, &pinned),
+                HookAnswer::Abstain,
+                "{release}: rand"
+            );
+        }
+        assert_eq!(
+            host.invoke(abs, &pinned),
+            HookAnswer::Fold("1".to_owned()),
+            "{release}: abs"
+        );
+    }
+}
+
+/// The confinement leaves a body's own locals alone: a local accumulator
+/// answers `a b` on every call.
+#[test]
+fn a_local_accumulator_is_unaffected() {
+    let host = tcl_spec_hooks::tclvm_host();
+    let installed = host.install_pack_hooks(PackPrograms::new("mylib").with(HookProgram::new(
+        "mylib::acc",
+        HookFamily::ConstFold,
+        "set acc {}; foreach x {a b} {lappend acc $x}; fold $acc",
+    )));
+    let slot = installed[0].slot.expect("installed");
+    let words = [literal("x")];
+    for _ in 0..3 {
+        assert_eq!(
+            host.invoke(slot, &call(&words)),
+            HookAnswer::Fold("a b".to_owned())
+        );
+    }
 }
 
 #[test]
@@ -330,4 +461,100 @@ fn an_unknown_slot_abstains() {
     .expect("a slot");
     let words = [literal("x")];
     assert_eq!(host.invoke(orphan, &call(&words)), HookAnswer::Abstain);
+}
+
+/// A call's declared budget narrows the host's for that call alone
+/// (`value-evaluation.md` § *The three nested budgets*): a body that
+/// dispatches three hundred commands overruns a declared `-commands 100` and is
+/// quarantined like any other budget blowout, while the same body in a
+/// second hook on the same engine, called under the host's own budget
+/// afterwards, answers — the narrower budget did not outlive its call.
+#[test]
+fn a_declared_budget_narrows_the_host_for_its_call_only() {
+    let host = tcl_spec_hooks::tclvm_host();
+    // `format` is dispatched as a command, never inlined as bytecode, so
+    // each iteration spends one from the command budget.
+    let body = "for {set i 0} {$i < 300} {incr i} {set n [format %d $i]}; fold $i";
+    let installed = host.install_pack_hooks(
+        PackPrograms::new("mylib")
+            .with(HookProgram::new(
+                "mylib::narrow",
+                HookFamily::ConstFold,
+                body,
+            ))
+            .with(HookProgram::new("mylib::wide", HookFamily::ConstFold, body)),
+    );
+    let narrow = installed[0].slot.expect("installed");
+    let wide = installed[1].slot.expect("installed");
+    let words = [literal("x")];
+    let narrowed = HookCall {
+        budget: tcl_registry::value_transfer::ImplementationBudget {
+            commands: Some(100),
+            ..tcl_registry::value_transfer::ImplementationBudget::default()
+        },
+        ..call(&words)
+    };
+    assert_eq!(host.invoke(narrow, &narrowed), HookAnswer::Abstain);
+    assert!(host.is_quarantined(narrow), "an overrun quarantines");
+    assert!(!host.is_available(narrow));
+    let crashes = host.crash_records();
+    assert_eq!(crashes.len(), 1, "{crashes:?}");
+    assert_eq!(crashes[0].kind, CrashKind::CommandBudget);
+    assert_eq!(
+        host.invoke(wide, &call(&words)),
+        HookAnswer::Fold("300".to_owned())
+    );
+    assert!(host.is_available(wide));
+}
+
+/// A declared budget above the host's runs under the host's: the host caps
+/// each field a call declares at its own configuration, whatever that is,
+/// and it is the only place the rule lives — the
+/// loader records `budget {-commands 900000}` as written. Here the host is
+/// configured at two hundred commands, below the default, so a check
+/// against the default host would have let the declaration through: the
+/// body's three hundred commands overrun the host's two hundred and it is
+/// quarantined like any other budget blowout, while a body that fits the
+/// host's answers under the same declaration.
+#[test]
+fn a_declared_budget_above_the_hosts_runs_under_the_hosts() {
+    let host = tcl_spec_hooks::tclvm_host_with(tcl_spec_hooks::HostConfig {
+        budget: Budget::of_commands(200),
+        ..tcl_spec_hooks::HostConfig::default()
+    });
+    let spin = |count: u32| {
+        format!("for {{set i 0}} {{$i < {count}}} {{incr i}} {{set n [format %d $i]}}; fold $i")
+    };
+    let installed = host.install_pack_hooks(
+        PackPrograms::new("mylib")
+            .with(HookProgram::new(
+                "mylib::long",
+                HookFamily::ConstFold,
+                spin(300),
+            ))
+            .with(HookProgram::new(
+                "mylib::short",
+                HookFamily::ConstFold,
+                spin(50),
+            )),
+    );
+    let long = installed[0].slot.expect("installed");
+    let short = installed[1].slot.expect("installed");
+    let words = [literal("x")];
+    let widened = HookCall {
+        budget: tcl_registry::value_transfer::ImplementationBudget {
+            commands: Some(900_000),
+            ..tcl_registry::value_transfer::ImplementationBudget::default()
+        },
+        ..call(&words)
+    };
+    assert_eq!(host.invoke(long, &widened), HookAnswer::Abstain);
+    let crashes = host.crash_records();
+    assert_eq!(crashes.len(), 1, "{crashes:?}");
+    assert_eq!(crashes[0].kind, CrashKind::CommandBudget);
+    assert!(host.is_quarantined(long), "an overrun quarantines");
+    assert_eq!(
+        host.invoke(short, &widened),
+        HookAnswer::Fold("50".to_owned())
+    );
 }

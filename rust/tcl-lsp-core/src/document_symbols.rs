@@ -433,7 +433,7 @@ fn class_member_symbols(
         let name_range = span_to_range(source, line_index, ctor.name_span);
         let body_range = span_to_range(source, line_index, ctor.body_span);
         children.push(DocumentSymbol {
-            name: "constructor".to_string(),
+            name: ctor.kind.clone(),
             detail: Some(format_param_list(&ctor.params)),
             kind: SymbolKind::Constructor,
             range: merge_ranges(name_range, body_range),
@@ -446,7 +446,7 @@ fn class_member_symbols(
         let name_range = span_to_range(source, line_index, dtor.name_span);
         let body_range = span_to_range(source, line_index, dtor.body_span);
         children.push(DocumentSymbol {
-            name: "destructor".to_string(),
+            name: dtor.kind.clone(),
             detail: None,
             kind: SymbolKind::Method,
             range: merge_ranges(name_range, body_range),

@@ -45,7 +45,7 @@ with no `when` handler and a `.txt` name, say. Two ways to fix it:
   of the first few lines. This is the better fix, because the editor reads it
   too.
 
-Confirm with a two-line file, `probe.irule`:
+Confirm with a small file, `probe.irule`:
 
 ```tcl
 when HTTP_REQUEST {

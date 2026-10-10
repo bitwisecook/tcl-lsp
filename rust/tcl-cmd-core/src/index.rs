@@ -20,58 +20,133 @@
 //!
 //! One parser for every indexed command — `string index/range`, `lindex`,
 //! `lrange`, `linsert`, `lreplace`, … — so the accepted forms and the error
-//! message live once. The grammar is a **base** (`end`, or a signed integer)
-//! optionally followed by a **connector** (`+`/`-`) and a (possibly signed)
-//! integer operand: `5`, `-2`, `end`, `end-2`, `1+1`, `0-1`, `end--1`
-//! (= `end - (-1)`).
+//! message live once. The grammar is the release's: an integer, `end` with an
+//! offset (`end-2`, `end--1` = `end - (-1)`), and from 8.5 `end+N` and the
+//! sums `1+1` and `0-1`, each spelt and each integer read as that release
+//! reads it (`read`).
 
+use tcl_dialect::TclVersion;
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
-use tcl_syntax::number::ParseFlags;
+use tcl_syntax::number::{Number, NumberSyntax, ParseFlags, Radix};
 
-/// The release's numeral grammar, or [`None`] to take the one this runtime was
-/// built for (the ambient). See [`index_int_flags`].
-type Numbers = Option<tcl_syntax::number::NumberSyntax>;
-
-/// Resolve an index `spec` against a container length `len` (so `end` is
-/// `len - 1`). The result may be negative or `>= len`; callers clamp per their
-/// command's rules. Errors with the canonical message on an unparseable spec.
-pub fn resolve(spec: &str, len: usize) -> Result<i64, CmdError> {
-    parse(spec, len, None).ok_or_else(|| bad_index(spec.trim()))
+/// One index word as a release reads it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IndexReading {
+    /// The index the word names, negative or past the end as it falls.
+    At(i64),
+    /// No index: the release raises `bad index`.
+    Bad,
+    /// The index where the host's C `long` is 64 bits and `bad index` where
+    /// it is 32 bits — 64-bit Windows and every 32-bit build.
+    HostLong(i64),
+    /// A word 8.5 reads as [`Self::HostLong`] and 8.6 raises on, read under
+    /// the numeral grammar the two releases share with neither named.
+    Unsure,
 }
 
-/// [`resolve`] reading the index under an explicitly named release, for a
-/// compile-time caller (const-folding, the analyser) whose target need not be
-/// the release this process was built for.
-///
-/// # Errors
-/// `bad index "<spec>": …` on an unparseable spec.
-pub fn resolve_with(
-    spec: &str,
-    len: usize,
-    numbers: tcl_syntax::number::NumberSyntax,
-) -> Result<i64, CmdError> {
-    parse(spec, len, Some(numbers)).ok_or_else(|| bad_index(spec.trim()))
+impl IndexReading {
+    /// The index a runtime on this host reads: C Tcl's on the same host.
+    #[must_use]
+    pub fn on_this_host(self) -> Option<i64> {
+        match self {
+            Self::At(index) => Some(index),
+            Self::HostLong(index) if tcl_syntax::value::host_long_is_wide() => Some(index),
+            Self::HostLong(_) | Self::Bad | Self::Unsure => None,
+        }
+    }
+
+    fn map(self, f: impl FnOnce(i64) -> i64) -> Self {
+        match self {
+            Self::At(value) => Self::At(f(value)),
+            Self::HostLong(value) => Self::HostLong(f(value)),
+            other => other,
+        }
+    }
+
+    fn zip(self, other: Self, f: impl FnOnce(i64, i64) -> i64) -> Self {
+        match (self, other) {
+            (Self::Bad, _) | (_, Self::Bad) => Self::Bad,
+            (Self::Unsure, _) | (_, Self::Unsure) => Self::Unsure,
+            (Self::At(a), Self::At(b)) => Self::At(f(a, b)),
+            (Self::At(a) | Self::HostLong(a), Self::At(b) | Self::HostLong(b)) => {
+                Self::HostLong(f(a, b))
+            }
+        }
+    }
+}
+
+/// Resolve an index `spec` against a container length `len` (so `end` is
+/// `len - 1`) as this runtime's release reads it on this host. The result may
+/// be negative or `>= len`; callers clamp per their command's rules. Errors
+/// with the canonical message on an unparseable spec.
+pub fn resolve(spec: &str, len: usize) -> Result<i64, CmdError> {
+    resolve_opt(spec, len).ok_or_else(|| bad_index(spec.trim()))
 }
 
 /// Resolve an index `spec` against `len`, returning `None` (rather than an
 /// error) on an unparseable spec — the `lsearch`/`lsort -index` driving needs the
-/// raw option to classify "bad index" vs "out of range" itself.
+/// raw option to classify "bad index" vs "out of range" itself. The numeral
+/// grammar 8.5 and 8.6 share reads as 8.6 here.
 #[must_use]
 pub fn resolve_opt(spec: &str, len: usize) -> Option<i64> {
-    parse(spec, len, None)
+    read_with(spec, len, tcl_syntax::number::runtime_syntax()).on_this_host()
 }
 
-/// [`resolve_opt`] reading the index under an explicitly named release — see
-/// [`resolve_with`].
+/// [`resolve_opt`] reading the index under an explicitly named numeral
+/// grammar, for a compile-time caller whose target need not be the release
+/// this process was built for: `None` also for a spec whose reading turns on
+/// the host or on which release the grammar stands for, which
+/// [`read_with`] tells apart.
 #[must_use]
-pub fn resolve_opt_with(
-    spec: &str,
-    len: usize,
-    numbers: tcl_syntax::number::NumberSyntax,
-) -> Option<i64> {
-    parse(spec, len, Some(numbers))
+pub fn resolve_opt_with(spec: &str, len: usize, numbers: NumberSyntax) -> Option<i64> {
+    match read_with(spec, len, numbers) {
+        IndexReading::At(index) => Some(index),
+        IndexReading::Bad | IndexReading::HostLong(_) | IndexReading::Unsure => None,
+    }
+}
+
+/// One index `spec` against `len` as the numeral grammar `numbers` reads it;
+/// the grammar 8.5 and 8.6 share names neither release.
+#[must_use]
+pub fn read_with(spec: &str, len: usize, numbers: NumberSyntax) -> IndexReading {
+    read(spec, len, numbers, Range::of_numbers(numbers))
+}
+
+/// One index `spec` against `len` as `release` reads it.
+#[must_use]
+pub fn read_under(spec: &str, len: usize, release: TclVersion) -> IndexReading {
+    read(
+        spec,
+        len,
+        release.number_syntax(),
+        Range::of_release(release),
+    )
+}
+
+/// Whether `release` reads `spec` apart when it is a literal its compiler
+/// encodes: 8.6 compiles a literal index of `string index`, `string range`,
+/// `lindex` and `lrange` through `TclIndexEncode`, which places an `end`
+/// offset whose sum with `end` passes the 32-bit `int` after the end, where
+/// the same index read at run time wraps before the first element (measured,
+/// tclsh 8.6.18: `string range abcdefghijkl 0 end+2147483647` is the whole
+/// string, and the empty one with the index in a variable).
+#[must_use]
+pub fn compiles_apart(spec: &str, len: usize, release: TclVersion) -> bool {
+    release == TclVersion::V8_6
+        && spec.starts_with('e')
+        && spec
+            .strip_prefix("end")
+            .and_then(|rest| signed_operand(rest, release.number_syntax()))
+            .is_some_and(|(negative, number)| {
+                let offset = match int_32(&number, Range::Tcl86) {
+                    IndexReading::At(value) if negative => wrap_32(-value),
+                    IndexReading::At(value) => value,
+                    _ => return false,
+                };
+                offset > 0 && end_32(len) + offset > i64::from(i32::MAX)
+            })
 }
 
 /// Drill into a (nested) list `value` by an index `path` (`lsearch`/`lsort
@@ -121,8 +196,8 @@ pub fn drill<O: ValueOps>(
 #[must_use]
 pub fn encodable(spec: &str) -> Option<bool> {
     const BIG: usize = 1 << 20;
-    let r_big = parse(spec, BIG + 1, None)?; // None ⇒ syntactically bad
-    let r_small = parse(spec, 1, None)?;
+    let r_big = resolve_opt(spec, BIG + 1)?; // None ⇒ syntactically bad
+    let r_small = resolve_opt(spec, 1)?;
     let big = i64::try_from(BIG).unwrap_or(i64::MAX);
     Some(if r_big == r_small {
         // Absolute: encodable iff non-negative.
@@ -133,36 +208,344 @@ pub fn encodable(spec: &str) -> Option<bool> {
     })
 }
 
-fn parse(spec: &str, len: usize, numbers: Numbers) -> Option<i64> {
-    let s = spec.trim();
-    if s.is_empty() {
+/// Whose integer range reads an index's integers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Range {
+    Tcl84,
+    Tcl85,
+    Tcl86,
+    /// 8.5 or 8.6, the shared numeral grammar naming neither.
+    Tcl85Or86,
+    /// 9.0 on: a wide, a bignum truncated to one.
+    Wide,
+    Jim,
+}
+
+impl Range {
+    const fn of_release(release: TclVersion) -> Self {
+        match release {
+            TclVersion::V8_4 => Self::Tcl84,
+            TclVersion::V8_5 => Self::Tcl85,
+            TclVersion::V8_6 => Self::Tcl86,
+            TclVersion::V9_0 | TclVersion::V9_1 => Self::Wide,
+        }
+    }
+
+    const fn of_numbers(numbers: NumberSyntax) -> Self {
+        match numbers {
+            NumberSyntax::Tcl84 => Self::Tcl84,
+            NumberSyntax::Tcl85 => Self::Tcl85Or86,
+            NumberSyntax::Tcl90 => Self::Wide,
+            NumberSyntax::Jim | NumberSyntax::Jim080 => Self::Jim,
+        }
+    }
+}
+
+/// One index as a release reads it (`TclGetIntForIndex` up to 8.6,
+/// `GetWideForIndex` from 9.0), measured with `string index` on tclsh
+/// 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0:
+///
+/// - an integer, whitespace allowed either side (`Tcl_GetInt`);
+/// - `end` from its first byte, which 8.4 to 8.6 also read abbreviated (`e`,
+///   `en`), followed by an offset: `-N` in 8.4, whose `N` may start with
+///   whitespace (`end- 1`), and `+N` or `-N` from 8.5, whose `N` starts at once;
+/// - from 8.5, `M+N` or `M-N` after any leading whitespace, the operator right
+///   after `M` and `N` right after the operator.
+///
+/// Nothing else is an index: not `end+1`, `1+1` or `1-1` in 8.4, not ` end`,
+/// `end ` or `end -1` in any release. A Jim grammar reads the forms of Tcl 9.0
+/// with whitespace around `end` and each operand.
+///
+/// Each integer is read in its release's range (measured on each
+/// release's `tclsh`):
+///
+/// - 8.4 to 8.6 read one through `Tcl_GetInt`: a value within ±`UINT_MAX`
+///   (4,294,967,295) wraps to the 32-bit `int` — on every platform, the 64-bit
+///   `long` casting it and a 32-bit one taking it through
+///   `Tcl_GetLongFromObj`'s ±`ULONG_MAX` — so `2147483648` is
+///   −2147483648 and `-4294967295` is 1, and the sums and `end` offsets wrap
+///   alike (8.6's `1+2147483647` is −2147483648, `end-4294967295` is
+///   `end+1`); any other value is `bad index`, but for a magnitude from
+///   2^64 − 2^32 + 1 to 2^64 − 1, which 8.4 (`strtoul`) and 8.5 (the bignum
+///   branch) wrap into that range where `long` is 64 bits and raise on where it
+///   is 32 bits, and 8.6 raises on everywhere;
+/// - 9.0 and 9.1 read a wide, a bignum alone being the wide nearest it, and
+///   encode `end+1` as the widest wide: a sum that reaches it and a bignum
+///   offset after `end` name `end+1` (`lset` appends there), a larger `end+N`
+///   any index past it. This is the 64-bit `Tcl_Size` build every oracle is;
+///   a 32-bit one bounds an index at 2^31 − 1.
+fn read(spec: &str, len: usize, numbers: NumberSyntax, range: Range) -> IndexReading {
+    match range {
+        Range::Tcl84 => read_84(spec, len, numbers, range),
+        Range::Tcl85 | Range::Tcl86 | Range::Tcl85Or86 => read_85(spec, len, numbers, range),
+        Range::Wide => read_90(spec, len, numbers),
+        Range::Jim => {
+            let end = i64::try_from(len).unwrap_or(i64::MAX) - 1;
+            jim(spec, end, numbers).map_or(IndexReading::Bad, IndexReading::At)
+        }
+    }
+}
+
+/// C's `int` index of `end` for a container of `len` elements.
+fn end_32(len: usize) -> i64 {
+    wrap_32(i64::try_from(len).unwrap_or(i64::MAX) - 1)
+}
+
+/// `value` cast to C's 32-bit `int`: its low 32 bits, sign-extended.
+const fn wrap_32(value: i64) -> i64 {
+    (value << 32) >> 32
+}
+
+/// 8.4: `Tcl_GetInt` on the word; then `e`, `en`, `end`, or `end-` and a
+/// `Tcl_GetInt` integer, wherever `end` is the `int` before the first element.
+fn read_84(spec: &str, len: usize, numbers: NumberSyntax, range: Range) -> IndexReading {
+    if let Some(number) = whole_number(spec, numbers) {
+        return int_32(&number, range);
+    }
+    if !spec.starts_with('e') {
+        return IndexReading::Bad;
+    }
+    let end = end_32(len);
+    if spec.len() <= 3 {
+        return if "end".starts_with(spec) {
+            IndexReading::At(end)
+        } else {
+            IndexReading::Bad
+        };
+    }
+    let Some(number) = spec
+        .strip_prefix("end-")
+        .and_then(|operand| whole_number(operand, numbers))
+    else {
+        return IndexReading::Bad;
+    };
+    int_32(&number, range).map(|offset| wrap_32(end + wrap_32(-offset)))
+}
+
+/// 8.5 and 8.6: `Tcl_GetInt` on the word; then `end` with an offset, or a sum.
+fn read_85(spec: &str, len: usize, numbers: NumberSyntax, range: Range) -> IndexReading {
+    if let Some(number) = whole_number(spec, numbers) {
+        return int_32(&number, range);
+    }
+    if spec.starts_with('e') {
+        let end = end_32(len);
+        if spec.len() <= 3 && "end".starts_with(spec) {
+            return IndexReading::At(end);
+        }
+        return spec.strip_prefix("end").map_or(IndexReading::Bad, |rest| {
+            signed_32(rest, numbers, range).map(|offset| wrap_32(end + offset))
+        });
+    }
+    let Some((first, rest)) = sum_head(spec, numbers) else {
+        return IndexReading::Bad;
+    };
+    int_32(&first, range).zip(signed_32(rest, numbers, range), |a, b| wrap_32(a + b))
+}
+
+/// 9.0 on: `GetWideForIndex` on the word, then `GetEndOffsetFromObj`.
+fn read_90(spec: &str, len: usize, numbers: NumberSyntax) -> IndexReading {
+    let end = i64::try_from(len).unwrap_or(i64::MAX) - 1;
+    if let Some(number) = whole_number(spec, numbers) {
+        return match number {
+            Number::Int(value) => IndexReading::At(value),
+            Number::Big { negative, .. } => {
+                IndexReading::At(if negative { i64::MIN } else { i64::MAX })
+            }
+            _ => IndexReading::Bad,
+        };
+    }
+    if spec.starts_with('e') {
+        if spec == "end" {
+            return IndexReading::At(end);
+        }
+        return spec
+            .strip_prefix("end")
+            .and_then(|rest| signed_operand(rest, numbers))
+            .map_or(IndexReading::Bad, |(negative, number)| {
+                IndexReading::At(end_offset_90(end, negative, &number))
+            });
+    }
+    let Some((first, rest)) = sum_head(spec, numbers) else {
+        return IndexReading::Bad;
+    };
+    let Some((negative, second)) = signed_operand(rest, numbers) else {
+        return IndexReading::Bad;
+    };
+    match exact_sum(&first, negative, &second) {
+        // The sum's encoding when it reaches the widest wide is `end+1`.
+        Some(sum) if sum >= i128::from(i64::MAX) => IndexReading::At(end + 1),
+        Some(sum) => IndexReading::At(i64::try_from(sum).unwrap_or(i64::MIN)),
+        None => IndexReading::Unsure,
+    }
+}
+
+/// 9.0's `end+N` or `end-N`: a bignum offset is `end+1` or before the first
+/// element, `end+1` itself `end+1`, a larger offset any index past it.
+fn end_offset_90(end: i64, negative: bool, number: &Number) -> i64 {
+    let offset = match number {
+        Number::Big {
+            negative: below, ..
+        } => return if *below == negative { end + 1 } else { -1 },
+        Number::Int(value) if negative => value.checked_neg().unwrap_or(i64::MAX),
+        Number::Int(value) => *value,
+        _ => return -1,
+    };
+    end.saturating_add(offset)
+}
+
+/// The exact value of `first ± second` within `i128`, saturated where an
+/// operand is past it, or `None` where two such operands of opposite signs
+/// leave the sum unknown.
+fn exact_sum(first: &Number, negative: bool, second: &Number) -> Option<i128> {
+    let integer = |number: &Number| matches!(number, Number::Int(_) | Number::Big { .. });
+    if !integer(first) || !integer(second) {
         return None;
     }
-    let len = i64::try_from(len).unwrap_or(i64::MAX);
+    let a = wide_128(first);
+    let b = wide_128(second).map(|b| if negative { b.wrapping_neg() } else { b });
+    let sign = |number: &Number, flip: bool| -> i128 {
+        let below = matches!(number, Number::Int(v) if *v < 0)
+            || matches!(number, Number::Big { negative: true, .. });
+        if below == flip { i128::MAX } else { i128::MIN }
+    };
+    match (a, b) {
+        (Some(a), Some(b)) => Some(a.saturating_add(b)),
+        (Some(_), None) => Some(sign(second, negative)),
+        (None, Some(_)) => Some(sign(first, false)),
+        (None, None) => {
+            let (x, y) = (sign(first, false), sign(second, negative));
+            (x == y).then_some(x)
+        }
+    }
+}
 
-    // Base: `end` or a leading signed integer.
-    let (base, rest) = if let Some(r) = s.strip_prefix("end") {
-        (len - 1, r)
+/// An integer as an `i128`, `None` past it.
+fn wide_128(number: &Number) -> Option<i128> {
+    match number {
+        Number::Int(value) => Some(i128::from(*value)),
+        Number::Big {
+            negative,
+            radix,
+            digits,
+        } => magnitude(*radix, digits)
+            .and_then(|m| i128::try_from(m).ok())
+            .map(|m| if *negative { -m } else { m }),
+        _ => None,
+    }
+}
+
+/// An integer as `Tcl_GetInt` reads it before 9.0: see
+/// [`read`].
+fn int_32(number: &Number, range: Range) -> IndexReading {
+    const UINT_MAX: u64 = 0xffff_ffff;
+    match number {
+        Number::Int(value) if value.unsigned_abs() <= UINT_MAX => IndexReading::At(wrap_32(*value)),
+        Number::Big {
+            negative,
+            radix,
+            digits,
+        } => {
+            let Some(unsigned) = magnitude(*radix, digits).and_then(|m| u64::try_from(m).ok())
+            else {
+                return IndexReading::Bad;
+            };
+            let long = if *negative {
+                unsigned.cast_signed().wrapping_neg()
+            } else {
+                unsigned.cast_signed()
+            };
+            if long.unsigned_abs() > UINT_MAX {
+                return IndexReading::Bad;
+            }
+            match range {
+                Range::Tcl84 | Range::Tcl85 => IndexReading::HostLong(wrap_32(long)),
+                Range::Tcl85Or86 => IndexReading::Unsure,
+                Range::Tcl86 | Range::Wide | Range::Jim => IndexReading::Bad,
+            }
+        }
+        _ => IndexReading::Bad,
+    }
+}
+
+/// A bignum's magnitude, `None` past `u128`.
+fn magnitude(radix: Radix, digits: &str) -> Option<u128> {
+    let base = match radix {
+        Radix::Bin => 2,
+        Radix::Oct => 8,
+        Radix::Dec => 10,
+        Radix::Hex => 16,
+    };
+    digits.chars().try_fold(0_u128, |value, digit| {
+        value
+            .checked_mul(u128::from(base))?
+            .checked_add(u128::from(digit.to_digit(base)?))
+    })
+}
+
+/// Tcl's whitespace (`TclIsSpaceProc`).
+const fn is_space(c: char) -> bool {
+    matches!(c, ' ' | '\t' | '\n' | '\u{0b}' | '\u{0c}' | '\r')
+}
+
+/// The first integer of a sum `M+N` or `M-N` from 8.5, after any leading
+/// whitespace and with its operator right after it, and the rest from that
+/// operator.
+fn sum_head(spec: &str, numbers: NumberSyntax) -> Option<(Number, &str)> {
+    let body = spec.trim_start_matches(is_space);
+    let flags = ParseFlags {
+        no_whitespace: true,
+        ..index_int_flags(numbers)
+    };
+    let parsed = tcl_syntax::number::parse(body, flags)?;
+    Some((parsed.number, &body[parsed.end..]))
+}
+
+/// `+N` or `-N` with `N` a whole integer starting right after the operator:
+/// whether it subtracts, and `N`.
+fn signed_operand(rest: &str, numbers: NumberSyntax) -> Option<(bool, Number)> {
+    let negative = match rest.as_bytes().first()? {
+        b'-' => true,
+        b'+' => false,
+        _ => return None,
+    };
+    let operand = &rest[1..];
+    if operand.is_empty() || operand.starts_with(is_space) {
+        return None;
+    }
+    Some((negative, whole_number(operand, numbers)?))
+}
+
+/// [`signed_operand`] read through `Tcl_GetInt` before 9.0, as the value it
+/// adds.
+fn signed_32(rest: &str, numbers: NumberSyntax, range: Range) -> IndexReading {
+    signed_operand(rest, numbers).map_or(IndexReading::Bad, |(negative, number)| {
+        int_32(&number, range).map(|value| if negative { wrap_32(-value) } else { value })
+    })
+}
+
+/// A Jim index: a base (`end` or an integer) and an optional `+`/`-` operand,
+/// whitespace allowed around each.
+fn jim(spec: &str, end: i64, numbers: NumberSyntax) -> Option<i64> {
+    let s = spec.trim_matches(is_space);
+    let (base, rest) = if let Some(rest) = s.strip_prefix("end") {
+        (end, rest)
     } else {
         parse_int_prefix(s, numbers)?
     };
     if rest.is_empty() {
         return Some(base);
     }
-
-    // Optional offset: a `+`/`-` connector then a (possibly signed) integer, so
-    // `end--1` is `end - (-1)` and `0-1` is `0 - 1` (matches `GetEndOffsetFromObj`).
-    let connector = rest.as_bytes()[0];
-    if connector != b'+' && connector != b'-' {
-        return None;
-    }
-    let operand = parse_int_whole(rest[1..].trim(), numbers)?;
-    let offset = if connector == b'-' {
+    let negative = match rest.as_bytes()[0] {
+        b'-' => true,
+        b'+' => false,
+        _ => return None,
+    };
+    let operand = parse_int_whole(rest[1..].trim_matches(is_space), numbers)?;
+    Some(base.saturating_add(if negative {
         operand.saturating_neg()
     } else {
         operand
-    };
-    Some(base.saturating_add(offset))
+    }))
 }
 
 /// [`ParseFlags`](tcl_syntax::number::ParseFlags) for an index integer: reject a
@@ -181,36 +564,43 @@ fn parse(spec: &str, len: usize, numbers: Numbers) -> Option<i64> {
 /// | `lindex $l 1_0` | `bad index` | `k` |
 /// | `lindex $l 0d1` | `bad index` | `b` |
 ///
-/// `numbers` is [`None`] for the ordinary runtime path, which takes the grammar
-/// the interpreter was built for — the ambient installed once by
-/// `set_runtime_version`, exactly as C settles it at build time. A compile-time
-/// caller that must name a different release passes it explicitly through the
-/// `*_with` entry points.
-fn index_int_flags(numbers: Option<tcl_syntax::number::NumberSyntax>) -> ParseFlags {
-    let base = numbers.map_or_else(ParseFlags::default, ParseFlags::for_syntax);
+/// The ordinary runtime path takes the grammar the interpreter was built for —
+/// the ambient installed once by `set_runtime_version`, exactly as C settles it
+/// at build time; a compile-time caller that must name a different release
+/// passes it explicitly through [`read_with`] or [`read_under`].
+fn index_int_flags(numbers: NumberSyntax) -> ParseFlags {
     ParseFlags {
         integer_only: true,
-        ..base
+        ..ParseFlags::for_syntax(numbers)
     }
+}
+
+/// A whole integer word, whitespace allowed either side (`Tcl_GetInt`): a wide
+/// or a bignum.
+fn whole_number(s: &str, numbers: NumberSyntax) -> Option<Number> {
+    let parsed = tcl_syntax::number::parse(s, index_int_flags(numbers))?;
+    (s[parsed.end..].trim_matches(is_space).is_empty()
+        && matches!(parsed.number, Number::Int(_) | Number::Big { .. }))
+    .then_some(parsed.number)
 }
 
 /// Parse a leading Tcl integer, returning its value and the unconsumed tail via
 /// the canonical [`tcl_syntax::number`] parser (so every radix the runtime
 /// accepts resolves identically). `None` if `s` does not start with an integer,
 /// or the value is a non-integer / bignum (`Int` only).
-fn parse_int_prefix(s: &str, numbers: Numbers) -> Option<(i64, &str)> {
+fn parse_int_prefix(s: &str, numbers: NumberSyntax) -> Option<(i64, &str)> {
     let parsed = tcl_syntax::number::parse(s, index_int_flags(numbers))?;
     match parsed.number {
-        tcl_syntax::number::Number::Int(v) => Some((v, &s[parsed.end..])),
+        Number::Int(v) => Some((v, &s[parsed.end..])),
         _ => None,
     }
 }
 
 /// Parse `s` as a whole Tcl integer — the [`parse_int_prefix`] value only when
 /// nothing but trailing space follows it.
-fn parse_int_whole(s: &str, numbers: Numbers) -> Option<i64> {
+fn parse_int_whole(s: &str, numbers: NumberSyntax) -> Option<i64> {
     let (val, tail) = parse_int_prefix(s, numbers)?;
-    tail.trim().is_empty().then_some(val)
+    tail.trim_matches(is_space).is_empty().then_some(val)
 }
 
 /// The canonical `bad index "<spec>": …` error.
@@ -223,6 +613,7 @@ pub fn bad_index(spec: &str) -> CmdError {
 
 #[cfg(test)]
 mod tests {
+    use super::IndexReading::{At, Bad, HostLong};
     use super::*;
 
     #[test]
@@ -363,6 +754,252 @@ mod tests {
                 on_90,
                 "index {spec} on 9.0"
             );
+        }
+    }
+
+    /// The rows past 32 bits of [`each_release_reads_an_index_as_its_tclsh_does`]:
+    /// (spec, 8.4, 8.5, 8.6, 9.0 and 9.1).
+    const PAST_32_BITS: &[(&str, [IndexReading; 4])] = &[
+        (
+            "2147483647",
+            [
+                At(2_147_483_647),
+                At(2_147_483_647),
+                At(2_147_483_647),
+                At(2_147_483_647),
+            ],
+        ),
+        (
+            "2147483648",
+            [
+                At(-2_147_483_648),
+                At(-2_147_483_648),
+                At(-2_147_483_648),
+                At(2_147_483_648),
+            ],
+        ),
+        ("4294967295", [At(-1), At(-1), At(-1), At(4_294_967_295)]),
+        ("0xffffffff", [At(-1), At(-1), At(-1), At(4_294_967_295)]),
+        ("4294967296", [Bad, Bad, Bad, At(4_294_967_296)]),
+        ("0x100000000", [Bad, Bad, Bad, At(4_294_967_296)]),
+        (
+            "-2147483649",
+            [
+                At(2_147_483_647),
+                At(2_147_483_647),
+                At(2_147_483_647),
+                At(-2_147_483_649),
+            ],
+        ),
+        ("-4294967295", [At(1), At(1), At(1), At(-4_294_967_295)]),
+        ("-4294967296", [Bad, Bad, Bad, At(-4_294_967_296)]),
+        (
+            "end-2147483648",
+            [
+                At(-2_147_483_637),
+                At(-2_147_483_637),
+                At(-2_147_483_637),
+                At(-2_147_483_637),
+            ],
+        ),
+        (
+            "end-4294967295",
+            [At(12), At(12), At(12), At(-4_294_967_284)],
+        ),
+        ("end-4294967296", [Bad, Bad, Bad, At(-4_294_967_285)]),
+        (
+            "end+2147483647",
+            [
+                Bad,
+                At(-2_147_483_638),
+                At(-2_147_483_638),
+                At(2_147_483_658),
+            ],
+        ),
+        ("end+4294967295", [Bad, At(10), At(10), At(4_294_967_306)]),
+        (
+            "1+2147483647",
+            [
+                Bad,
+                At(-2_147_483_648),
+                At(-2_147_483_648),
+                At(2_147_483_648),
+            ],
+        ),
+        ("4294967295+1", [Bad, At(0), At(0), At(4_294_967_296)]),
+        (
+            "-2147483648-1",
+            [
+                Bad,
+                At(2_147_483_647),
+                At(2_147_483_647),
+                At(-2_147_483_649),
+            ],
+        ),
+        ("9223372036854775807", [Bad, Bad, Bad, At(i64::MAX)]),
+        ("9223372036854775808", [Bad, Bad, Bad, At(i64::MAX)]),
+        ("-9223372036854775809", [Bad, Bad, Bad, At(i64::MIN)]),
+        ("0x8000000000000000", [Bad, Bad, Bad, At(i64::MAX)]),
+        ("0x1ffffffffffffffff", [Bad, Bad, Bad, At(i64::MAX)]),
+        ("1+9223372036854775807", [Bad, Bad, Bad, At(12)]),
+        (
+            "9223372036854775807+9223372036854775807",
+            [Bad, Bad, Bad, At(12)],
+        ),
+        ("-9223372036854775808-1", [Bad, Bad, Bad, At(i64::MIN)]),
+        ("end+9223372036854775807", [Bad, Bad, Bad, At(i64::MAX)]),
+        ("end+9223372036854775808", [Bad, Bad, Bad, At(12)]),
+        ("end+99999999999999999999", [Bad, Bad, Bad, At(12)]),
+        ("end-9223372036854775808", [Bad, Bad, Bad, At(-1)]),
+        (
+            "18446744073709551615",
+            [HostLong(-1), HostLong(-1), Bad, At(i64::MAX)],
+        ),
+        (
+            "-0xffffffffffffffff",
+            [HostLong(1), HostLong(1), Bad, At(i64::MIN)],
+        ),
+        (
+            "18446744069414584321",
+            [HostLong(1), HostLong(1), Bad, At(i64::MAX)],
+        ),
+        (
+            "end-18446744073709551615",
+            [HostLong(12), HostLong(12), Bad, At(-1)],
+        ),
+        ("0xffffffffffffffff+1", [Bad, HostLong(0), Bad, At(12)]),
+    ];
+
+    /// Each release reads one index as its own `string index` does, measured on
+    /// tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 over `abcdefghijkl` (8.5
+    /// and 8.6 answer alike, as do 9.0 and 9.1, but for the integers the second
+    /// table reads): `None` is `bad index`. Past 32 bits each release reads in
+    /// its own range, measured with `string index`, `string
+    /// range` from each side and `lset`: 8.4 to 8.6 wrap an integer within
+    /// ±4294967295 to 32 bits and their sums and `end` offsets alike, 8.4 and
+    /// 8.5 read a magnitude from 2^64 − 2^32 + 1 to 2^64 − 1 as a 64-bit `long`
+    /// wraps it, which a 32-bit one cannot hold, and 9.0 reads a wide, a bignum
+    /// alone as the nearest wide and a sum that reaches the widest, or a bignum
+    /// offset after `end`, as `end+1`.
+    #[test]
+    fn each_release_reads_an_index_as_its_tclsh_does() {
+        use tcl_syntax::number::NumberSyntax::{Tcl84, Tcl85, Tcl90};
+        // (spec, 8.4, 8.5 and 8.6, 9.0 and 9.1)
+        type Row = (&'static str, Option<i64>, Option<i64>, Option<i64>);
+        let table: &[Row] = &[
+            ("1", Some(1), Some(1), Some(1)),
+            (" 1", Some(1), Some(1), Some(1)),
+            ("1 ", Some(1), Some(1), Some(1)),
+            ("+1", Some(1), Some(1), Some(1)),
+            (" +1", Some(1), Some(1), Some(1)),
+            ("- 1", None, None, None),
+            ("-1", Some(-1), Some(-1), Some(-1)),
+            ("0x2", Some(2), Some(2), Some(2)),
+            ("010", Some(8), Some(8), Some(10)),
+            ("0o10", None, Some(8), Some(8)),
+            ("0b10", None, Some(2), Some(2)),
+            ("1_0", None, None, Some(10)),
+            ("1e0", None, None, None),
+            ("end", Some(11), Some(11), Some(11)),
+            ("e", Some(11), Some(11), None),
+            ("en", Some(11), Some(11), None),
+            ("endx", None, None, None),
+            (" end", None, None, None),
+            ("end ", None, None, None),
+            ("end-1", Some(10), Some(10), Some(10)),
+            ("end+1", None, Some(12), Some(12)),
+            ("end--1", Some(12), Some(12), Some(12)),
+            ("end-+1", Some(10), Some(10), Some(10)),
+            ("end- 1", Some(10), None, None),
+            ("end+ 1", None, None, None),
+            ("end-1 ", Some(10), Some(10), Some(10)),
+            ("end-0x1", Some(10), Some(10), Some(10)),
+            ("end-010", Some(3), Some(3), Some(1)),
+            ("end-", None, None, None),
+            ("end+", None, None, None),
+            ("end-1-1", None, None, None),
+            ("end -1", None, None, None),
+            ("1+1", None, Some(2), Some(2)),
+            ("1-1", None, Some(0), Some(0)),
+            ("1+-1", None, Some(0), Some(0)),
+            ("1--1", None, Some(2), Some(2)),
+            ("1++1", None, Some(2), Some(2)),
+            ("+1+1", None, Some(2), Some(2)),
+            ("1+ 1", None, None, None),
+            ("1 +1", None, None, None),
+            (" 1+1", None, Some(2), Some(2)),
+            ("1+1 ", None, Some(2), Some(2)),
+            ("0x1+1", None, Some(2), Some(2)),
+            ("010+0", None, Some(8), Some(10)),
+            ("-1+2", None, Some(1), Some(1)),
+            ("1+end", None, None, None),
+            ("end-1+1", None, None, None),
+            ("1 0", None, None, None),
+            ("{1}", None, None, None),
+            ("", None, None, None),
+            (" ", None, None, None),
+        ];
+        for &(spec, on_84, on_85, on_90) in table {
+            assert_eq!(resolve_opt_with(spec, 12, Tcl84), on_84, "{spec:?} on 8.4");
+            assert_eq!(resolve_opt_with(spec, 12, Tcl85), on_85, "{spec:?} on 8.5");
+            assert_eq!(resolve_opt_with(spec, 12, Tcl90), on_90, "{spec:?} on 9.0");
+        }
+
+        for &(spec, readings) in PAST_32_BITS {
+            for (release, want) in TclVersion::ALL.into_iter().zip([
+                readings[0],
+                readings[1],
+                readings[2],
+                readings[3],
+                readings[3],
+            ]) {
+                assert_eq!(
+                    read_under(spec, 12, release),
+                    want,
+                    "{spec:?} on {release:?}"
+                );
+            }
+        }
+        // The grammar 8.5 and 8.6 share names neither, so it cannot say which
+        // reading a 64-bit `long` gives one of them.
+        assert_eq!(
+            read_with("18446744073709551615", 12, Tcl85),
+            IndexReading::Unsure
+        );
+        assert_eq!(
+            read_with("0xffffffffffffffff+1", 12, Tcl85),
+            IndexReading::Unsure
+        );
+        assert_eq!(resolve_opt_with("18446744073709551615", 12, Tcl84), None);
+    }
+
+    /// 8.6 encodes a literal `end` offset that is positive after the 32-bit
+    /// wrap as after the end, where the word read at run time sums with `end`
+    /// in an `int`; the two part where that sum passes `INT_MAX`.
+    /// Measured on a 12-element string and list, a literal against the same
+    /// word in a variable (`programs/s1/litvar.tcl`): only 8.6 parts, and
+    /// only on these rows.
+    #[test]
+    fn a_literal_end_offset_past_int_compiles_apart_in_8_6() {
+        for (spec, apart) in [
+            ("end+2147483647", true),
+            ("end+2147483637", true),
+            ("end+2147483636", false),
+            ("end-2147483649", true),
+            ("end--2147483647", true),
+            ("end-2147483648", false),
+            ("end-2147483647", false),
+            ("end+4294967296", false),
+            ("end+1", false),
+            ("2147483647", false),
+            ("1+2147483647", false),
+        ] {
+            assert_eq!(compiles_apart(spec, 12, TclVersion::V8_6), apart, "{spec}");
+            for release in TclVersion::ALL {
+                if release != TclVersion::V8_6 {
+                    assert!(!compiles_apart(spec, 12, release), "{spec} on {release:?}");
+                }
+            }
         }
     }
 

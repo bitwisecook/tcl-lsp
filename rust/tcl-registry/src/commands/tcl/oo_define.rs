@@ -436,6 +436,7 @@ pub(crate) fn collect_property_body_roles(args: &[&str], start: usize) -> Vec<(u
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::define",
+        runtime_backing: RuntimeBacking::shipped("oo::define"),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::LANGUAGE_KEYWORD
             | Traits::INSTALLS_NAMED_DEFINITION
@@ -549,7 +550,7 @@ mod tests {
                     )
             }));
 
-            let effects = invocation.effect_footprint();
+            let effects = invocation.effects();
             assert!(
                 !effects
                     .accesses()

@@ -332,8 +332,7 @@ pub fn analyse_tk_ui(
     let config = LexerConfig::for_file_grammar(dialect.grammar);
     let tk_active = crate::document_context_for_profile(dialect)
         .authoring_query()
-        .packages
-        .contains(&"Tk")
+        .carries("Tk")
         || source_requires_tk(source, config, dialect, registry, &identities);
     if !tk_active {
         return TkUiModel {

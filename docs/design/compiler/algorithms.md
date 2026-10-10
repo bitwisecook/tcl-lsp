@@ -55,8 +55,7 @@ against (`#[cfg(test)]`), because materialising the dominator *sets* is
 O(N²) memory on a multi-thousand-branch generated proc.
 
 Dominance is queried two ways.  The default is a walk up the `idom` chain
-(`loops::dominates`, `intervals::dominates`,
-`diagnostics::helpers::block_dominated_by`), which is O(depth).  On a flat
+(`loops::dominates`, `intervals::dominates`), which is O(depth).  On a flat
 N-branch dispatch chain the chain *is* the whole function, so a per-block-pair
 loop over it is O(V²); `SsaFunction::dominator_intervals` answers the same
 question in O(1) from a pre-order DFS numbering of the dominator tree
@@ -113,10 +112,12 @@ because they are shared state writable from other scopes, traces, and source
 files — folding through them is unsound across any opaque call (e.g.
 `set ::g 5; mut; $::g` must not fold to 5).
 
-`sccp` itself cannot decide an `[info exists X]` predicate — it is an opaque
-`ExprNode::Command`, and SCCP holds neither parameter nor existence facts —
-so `existence_constant_branches` runs as a post-pass with the frame's own
-facts and contributes extra `ConstantBranch` entries.
+`sccp` decides an `[info exists X]` predicate inside the fixed point: the
+existence rung (`ExistenceRun`) holds a bound / unbound fact per place, the
+condition reads it through the expression route's `nested` service like
+any other proven condition, and the decided branch is an ordinary
+`ConstantBranch` with applied reachability
+([value-transfers.md](value-transfers.md) § *Existence*).
 
 ## Semi-pruned SSA (φ-reduction)
 
@@ -158,12 +159,17 @@ reverse post-order with **widening at loop headers** so loop-induction values
 terminate at `[0, +inf)` instead of an iteration cap.  The header set comes from
 `intervals::loop_headers`, its own back-edge scan (`u → v` where `v` dominates
 `u`) rather than the `LoopForest`, because only the header *set* is needed.
-Constant-bound branch guards narrow via dominator-implied constraints
-(`build_guard_index` + `refine_interval`: `if {$i < 10}` ⇒ `i ∈ [lo, 9]` in the
-dominated region).  A *symbolic* bound (`$i < [llength $l]`) is left
-unrefined — `guard_constraint` requires a literal integer on one side, and a
-non-relational interval domain cannot relate the index to the list length: a
-deliberately-documented precision limit.
+Constant-bound branch guards narrow through the range refinements the
+condition's own `Selection` transfer states on its edges (`refine_interval`
+over `SccpResult::refinements_in`: `if {$i < 10}` ⇒ `i ∈ [lo, 9]` in every
+block each executable path into which crosses the true edge), for a version the
+type lattice or a `string is integer -strict` test proves an integer — a range
+from a comparison holds of an integer, and `end` passes `$i > 5` as a string.
+A *symbolic*
+bound (`$i < [llength $l]`) is left unrefined — the transfer refines a range
+only against an integer numeral, and a non-relational interval domain cannot
+relate the index to the list length: a deliberately-documented precision
+limit.
 
 The fixpoint is capped at 50 passes.  If it has not converged the result may
 still be ascending — intervals *narrower* than reality — so every value is

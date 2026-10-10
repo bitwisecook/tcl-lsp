@@ -436,12 +436,22 @@ fn literal_word_holes(
     // `subst {hello $name}` substitutes `$name` straight out of a braced word,
     // so a substituting command's arguments are not the inert text a braced
     // word usually is.  Which of the three substitutions this *call* runs is
-    // the registry's answer, not a switch spelling matched here: with
-    // `-novariables` the `$name` really is literal, and cutting it is right.
-    if registry
-        .substitutions_performed(head, &args)
-        .is_some_and(|kinds| kinds.variables)
-    {
+    // its template-word plan's answer, not a switch spelling matched here:
+    // with `-novariables` the `$name` really is literal, and cutting it is
+    // right. A substituting command with no plan keeps the registry's answer.
+    let variables =
+        tcl_compiler::value_transfer::literal_template_plan(registry, head, &args, |index| {
+            super::source_word(source, command, &args, index)
+        })
+        .map_or_else(
+            || {
+                registry
+                    .substitutions_performed(head, &args)
+                    .is_some_and(|kinds| kinds.variables)
+            },
+            |plan| plan.kinds.variables,
+        );
+    if variables {
         return;
     }
     let evaluated: Vec<usize> = registry.arg_indices_for_role(head, &args, ArgRole::Expr);

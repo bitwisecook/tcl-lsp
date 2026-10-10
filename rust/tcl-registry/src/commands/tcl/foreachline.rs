@@ -75,6 +75,7 @@ pub fn spec() -> CommandSpec {
         surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::new(3, 3),
         arg_roles: &[(0, ArgRole::VarWrite), (2, ArgRole::Body)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::FOREACH_LINE),
         return_type: Some(TclType::String),
         lowering_hook: Some(LoweringHookId::ForeachLine),
         side_effects: &[

@@ -78,6 +78,22 @@ lassign $point x y z
 set offset [expr {$x + $y + $z}]   ;# no S100 — x/y/z are elements, not lists
 ```
 
+### A branch that unsets the variable
+
+Where paths join, only the paths on which the variable still exists bring
+a value to the join. A path that unsets it brings none, so it cannot
+convert anything:
+
+```tcl
+set x 1
+if {$c} { unset x }
+puts $x            ;# no S100 — only the int arrives with a value
+```
+
+The read can still fail — on the `unset` path `x` does not exist — and
+`W210` reports that. When two of the joining paths still hold different
+types, the warning fires for those two, whatever a third path unsets.
+
 ### A variable named inside a brace-quoted word
 
 Tcl substitutes nothing inside `{…}`, so a `$name` written there is just the

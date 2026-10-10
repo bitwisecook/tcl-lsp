@@ -81,7 +81,7 @@ Five resolution questions, each with exactly one owner:
 | R-b | document bytes → resolved context | the detection chain over environment detection facts, plus overlays and targets; output `(environment, generation, overlay hash, targets, primary)` | the salsa `dialect: String` input shape (F8) |
 | R-c | command name at a call site → binding | candidate ordering is `tcl_syntax::naming::command_resolution_candidates` (conformance-gated against tclsh); the **`exists` oracle is one function**: `Analyser::command_existence_oracle` / `command_binding_knowledge` answer `Absent`/`Must`/`May`/`Unknown` per program point (W123 is the `Absent` verdict); the registry tier is the one context-filtered set (`builtin_command_names`) shared by settlement, const-dispatch, W113 and W123; head-identity consumers read the realm state's `knowledge_at` (`tcl_compiler::realm`) | unfiltered `registry.get` reads at ~40 compiler and ~10 LSP sites, for spec *content* rather than existence (F1) |
 | R-d | `package require` → train, floor, targets | one axis-typed `VersionSet` algebra (differentially tested against `package vsatisfies`) plus one floor engine with the assistance/semantic split; `PackageResolver` is the pkgIndex/tclIndex ingest and a source to it | `package_version_floor` and `DocumentFloor` are two copies (C9); three version comparators coexist (redesign §11 D18, R6) |
-| R-e | resolved binding → semantic hook | hook selection requires binding proof (invariant I4): with a context carried, the head must resolve to a spec's declaration under the document's environment (`ResolvedContext::resolve_spec`) before any analyser hook, lowering hook, type-infer spec fact, or side-effect hint is selected; `Absent` ⇒ no selection; no context ⇒ `NotRequired`, and every deliberately context-less reader is a documented widening query | the trust conjunct — `CommandTrustSnapshot` where a fold rewrites (C13) |
+| R-e | resolved binding → semantic hook | hook selection requires binding proof (invariant I4): with a context carried, the head must resolve to a spec's declaration under the document's environment (`ResolvedContext::resolve_spec`) before any analyser hook, lowering hook, type-infer spec fact, or side-effect hint is selected; `Absent` ⇒ no selection; no context ⇒ `NotRequired`, and every deliberately context-less reader is a documented widening query. Constant folding also requires the module's command-trust evidence; the shared value-transfer driver declines without it | — |
 
 The split the redesign's §5.2 mandates is enforced by type: **assistance
 queries** (completion, hover, annotations, W120) take `(environment,
@@ -140,15 +140,18 @@ resolve every dialect **name** through the seam and reach the registry
 as per-environment `ContextRegistry` generations, through one small
 `environment` module each: `profile_for_dialect`
 (`resolve_environment(…).unit_profile()`), `store_for_profile` /
-`store_for_dialect` (the generation's command store), and `surface_mask`
-(the resolved environment's document authoring point). Both engines
+`store_for_dialect` where provided (the generation's command store), and
+`surface_point` in the engines (the resolved environment's document
+`SurfaceQuery`). Both engines
 resolve the point *and* the store once per profile pin and cache them on
 the interpreter, because the builtin-surface gate is consulted on every
 command resolution. `codegen_abi`'s three raw name ingresses are
-`resolve_known_environment`, keeping the fail-closed decline. The only
-names these crates accept are the closed release set
-`TclVersion::dialect_profile_name` spells plus the fixed
-`f5-irules`/`tk`/`expect`/`f5-iapps` projection targets.
+`resolve_known_environment`, keeping the fail-closed decline. Release-based
+constructors use the closed release set `TclVersion::dialect_profile_name`
+spells and the fixed `f5-irules`/`tk`/`expect`/`f5-iapps` projection targets.
+Both engines also resolve explicit `RuntimeContext` pins through
+`environment::pin_context`, including registered environments and overlays;
+an overlay that has not been installed is an error.
 
 The WASM backend's `BackendRegistry`/`ProofStatus` and `try_bytecoded`'s
 trust gate implement I4's discipline; BPF is the cleanest fully
@@ -163,15 +166,16 @@ The two CLIs (`tcl-cli`, through the shared `tcl-cli-support`), the MCP
 server (`tcl-mcp`), the spec studio (`tcl-spec-studio`) and the pack
 loader's name ingress (`tcl-spectcl`) resolve every dialect **name**
 through the seam and answer availability from the resolved environment's
-`ResolvedContext`, each through one small `environment` module —
+`ResolvedContext`. Their small `environment` modules expose the ingress
+forms each consumer needs. `tcl-cli-support` supplies
 `profile_for_dialect`, `known_profile_for_dialect` (the validator),
-`context_for_dialect` (the assistance view), `store_for_dialect` (the
-generation's command store) — plus, where a crate genuinely needs both
-ingress forms, the exact analyser-profile twin
-(`analyser_profile_for_dialect` / `analyser_mask_for_dialect`, built on
-`DocumentEnvironment::analyser_profile`): the CLI's KCS help filter and
-the pack-carrying registry cache key deliberately sink `tk` to the
-permissive fallback rather than promoting it. One correctness note for
+`context_for_dialect` (the assistance view), and
+`analyser_profile_for_dialect`. The pack loader supplies
+`profile_for_dialect`, `catalogue_profile_for_dialect`, and `lenient_store`.
+The CLI's analyser-profile form and the pack loader's profile form use
+`DocumentEnvironment::analyser_profile`: the KCS help filter and the
+pack-carrying registry cache key deliberately sink `tk` to the permissive
+fallback rather than promoting it. One correctness note for
 every seam consumer: `resolve_known_environment("tcl")` is `Some` (the
 lenient sink's own environment id), so a caller needing the old refusal
 of a bare `tcl` composes the catalogue twin (`DialectProfile::find`) plus
@@ -219,10 +223,9 @@ string-keyed registry doors (`registry_for_dialect`,
 gate's escape hatch is `// retired-api-ok: <reason>` with a row here; its
 own tests prove it fails on a seeded violation of every retired family.
 
-The completion criterion: the migration is done when every row below is
-gone. Most of the remaining rows are the *payload* halves — user-visible
-enumerations, enums and row ids — held because re-keying them is a
-user-facing change (redesign §11 D15).
+The table below records the remaining independent representations and
+their owning APIs. Most rows describe user-visible enumerations, enums,
+and row ids whose keys form part of the public interface.
 
 ### Front end
 
@@ -230,7 +233,6 @@ user-facing change (redesign §11 D15).
 |---|---|---|
 | F1 | `get` / `get_for_dialect` as provider-facing surface at the LSP's ~10 direct readers, for spec *content* | the two typed views: assistance `(environment, floors)` and semantic realm `BindingKnowledge`; `get` registry-internal |
 | F6 | Environment-blind workspace index symbols (no dialect/environment field on any symbol), so cross-file arity, W123 suppression, and cross-document definition let an `f5-irules` proc satisfy a `tcl9.0` call | realm/environment-keyed index rows feeding the four-tier known-anywhere model |
-| F7 | `DocumentEnvironment::context_registry`'s silent un-overlaid fallback on a pack-overlay cache miss | fail-closed rebuild-or-error on a generation miss |
 | F8 | The `dialect: String` shape of the salsa `SourceFile` input (every read resolves through the seam; `LexerCfgKey` and `ProcBodyKey` already intern the resolved environment id and derive the whole `LexerConfig` from it) | `(environment id, generation, overlay hash, targets)` keys |
 | F10 | W120's fix-from-whole-file and the package-require code action's name-matching gate | assistance-labelled diagnostics; edits gated on `Must`/`May` declarations and the `PackageResolver` |
 | F11 | `TclVersion::from_dialect` in W123 refinement (`tcl-lsp-server/src/lib.rs`) | target `VersionSet` evaluation with honest `Unknown` on guard straddles |
@@ -246,7 +248,6 @@ user-facing change (redesign §11 D15).
 | C10 | `all_dialect_command_names()`'s hardcoded pack list and its EDA/SpecTcl exclusion policy (W002's known-anywhere source) | the four-tier known-anywhere model, with the exclusion policy as explicit tier data |
 | C11 | The ~20 hardcoded command-name match sites (terminal-action sets, `global\|variable\|upvar\|trace`, `set\|incr\|append\|lappend`, oo keywords, `on\|trap`, …) and the hardcoded `tcl8.5\|tcl8.6` profile-name match in the optimiser | registry descriptor data (traits, roles, clause grammars, definer grammars) and core-profile predicates |
 | C12 | `RuntimeExprSurface::for_tcl_version`; the free-function `binary_bp` in `rust/tcl-syntax/src/expr/parser.rs` keyed on operator text with no dialect parameter; `tcl-syntax/src/expr/mathfunc.rs` keyed on `TclVersion` floors (the shape that would offer `min`/`max`/`entier`/`bool`/`isqrt` under Jim). The **data** side is complete: `ExprGrammar` carries the whole release-keyed binding-power table, the release each word and symbolic operator arrives at, and the mathfunc set with its per-function build gate | `ExprGrammar` per core profile, `for_profile`-only derivation |
-| C13 | `optimiser`'s and `sccp`'s direct spec reads that bypass trust where a fold rewrites | `CommandTrustSnapshot` / `BindingKnowledge` everywhere a fold rewrites |
 
 ### Backends
 
@@ -254,15 +255,19 @@ user-facing change (redesign §11 D15).
 |---|---|---|
 | B1 | Duplicated `builtin_command_visible_for_surface` / `profile_admits_registry_builtin` in both engines (each reads a per-environment generation and its document authoring point; the two bodies differ because the engines carry different command tables and different "unknown to the registry" rules) | one shared availability query over declarations — an engine-contract change |
 | B2 | The `UNSAFE_PLATFORM` scrub name list in both `make_safe`s (`TODO(ledger B2-platform)`): `special_vars` models `tcl_platform`'s keys but has no "scrubbed when made safe" flag. The command half is done: `tcl_registry::safe_interp_hidden_commands()` is the one query, narrowed by what the interpreter carries | a `SpecialVarKey` field |
-| B5 | VM `package ifneeded\|forget\|unknown\|prefer` silent no-ops | real handling or honest `Unknown`-widening errors; fuzz-paired with the runtime |
 | B6 | Runtime expr parsing under `dialect = None`; both engines' `RuntimeExprSurface::for_tcl_version` (keyed by `TclVersion`, family-blind) | core-profile `ExprGrammar` threading |
 | B7 | `tcl-engine-api`'s bare `restrict_commands(&[&str])` with no profile pinning; `SANDBOX_COMMANDS`'s out-of-registry closed world in `tcl-spec-hooks` | an environment/policy handle on the engine contract; the sandbox surface as a closed-world environment |
-| B9 | The runtime-only, regex-shaped command-backing scan; no VM parity gate | structural registration parity for **both** engines against the catalogue, with per-family exclusions (a `Core(jim)`-only command is not a WASM obligation) |
-| B10 | `_registry_data.tcl` (orphaned, 2,086 lines, a frozen "tcl8.4 minus f5-irules" subtraction) bundled by `tcl-irule-test` (the replacement generator, `gen-irule-test-data`, already resolves through the seam and filters with `ResolvedContext::resolve_spec`) | `gen-irule-test-data` output |
-| B11 | The debugger's and vm-cli's plain-Tcl-only acceptance (a wider `--tcl-version` set in vm-cli, a dialect input the DAP surface lacks; both literals resolve through the seam and are marked `// P1:`) | environments incl. non-plain-Tcl |
+| B9 | `command-backing` reads structural registration reports from both engines and checks the generated report for drift, but its declared-versus-registered verdict is enforced only for the WASM runtime | enforce the declaration verdict for the VM as well, with explicit exceptions for backend differences |
+| B10 | `_registry_data.tcl`, the hand-maintained TMM command surface bundled by `tcl-irule-test`; `gen-irule-test-data` generates only `_event_data.tcl` and `_mock_stubs.tcl` | a generated TMM command surface |
+| B11 | The debugger's and vm-cli's plain-Tcl-only acceptance (a wider `--tcl-version` set in vm-cli, a dialect input the DAP surface lacks; both literals resolve through the seam) | environments incl. non-plain-Tcl |
 | B12 | The fuzzer's three-value `Engine` enum + generator name lists + persisted `TclVersion` findings field | environment-driven engine pairing against the oracle ledger; a findings-registry migration for the persisted release field |
 
-**Measured per release** (the reference interpreters on `PATH`; the
+The VM implements `package ifneeded`, `forget`, `unknown` and `prefer` in
+`rust/tcl-vm/src/cmd_package.rs`. Its package-loading contract and conformance
+tests cover loader registration, discovery, forgetting and version selection
+([package-loading.md](../contracts/package-loading.md)).
+
+**Measured per release** (the pinned reference interpreters; the
 engines' answers derive from these tables):
 
 Safe-interp hidden sets (`interp create -safe s; lsort [interp hidden s]`,
@@ -272,9 +277,9 @@ top-level names only):
 |---|---|
 | 8.4.20 | `cd encoding exec exit fconfigure file glob load open pwd socket source` (12) |
 | 8.5.19 | + `unload` (13) |
-| 8.6 | + `unload` (13) |
+| 8.6.18 | + `unload` (13) |
 | 9.0.4 | + `unload zipfs` (14) |
-| 9.1b0 | + `unload zipfs clock` (15) |
+| 9.1.0 | + `unload zipfs clock` (15) |
 
 The registry trait `Traits::SAFE_INTERP_HIDDEN`'s 14 specs are exactly the
 9.0 set; `unload` and `zipfs` are release-gated commands, so "hide what
@@ -292,9 +297,9 @@ Core provides (`package provide <name>` in a fresh `tclsh`):
 |---|---|---|---|---|
 | 8.4.20 | `8.4` | — | — | — |
 | 8.5.19 | `8.5.19` | — | — | — |
-| 8.6 | `8.6.x` | — | `1.1.0` | — |
+| 8.6.18 | `8.6.18` | — | `1.1.0` | — |
 | 9.0.4 | `9.0.4` | `9.0.4` | `1.3.1` | `1.3.1` |
-| 9.1b0 | `9.1b0` | `9.1b0` | `1.3.1` | `1.3.1` |
+| 9.1.0 | `9.1.0` | `9.1.0` | `1.3.1` | `1.3.1` |
 
 `TclVersion::core_provided_packages()` and `tcl_dialect::build_info` are
 the single tables; both engines re-derive their pre-provided core packages
@@ -330,10 +335,14 @@ under every pin.
   `Provenance::Document` for a buffer and `Provenance::WorkspaceUntrusted`
   for a sidecar), `DeclaredSurface` (the per-document generation) and
   `DocumentCommandSurface` (the one door). Cache invalidation rides the
-  document's own text and lsp-db's `sidecar_stubs_epoch` input. The role
-  lookup **unions** the catalogue's answer with the document's: an
-  untrusted addition may improve assistance and can never weaken a
-  shipped analysis fact.
+  document's own text and lsp-db's `sidecar_stubs_epoch` input. The
+  surface answers **nearest-wins**: for a name the document declares, the
+  declaration's roles, traits and side effects answer — its flags land on
+  the fields a catalogue command states them on — beneath the shipped
+  command's security traits and side effects (invariant I6); the catalogue
+  answers every other name
+  ([../contracts/dialect-stubs.md](../contracts/dialect-stubs.md)
+  § *Stubs are declarations*).
 - **R2 — the variable axis is part of the model.** Special variables are
   family/build-sensitive (Jim's `env`, picol 2's capital-initial
   globals); `special_vars.rs`'s table should become declarations
@@ -361,10 +370,10 @@ under every pin.
 - **R7 — `tcl spec check`.** The MCP-only checker is not promoted to a
   CLI verb. **Open.**
 - **R8 — per-family gate scoping.** The command-backing obligation is
-  scoped per family and backend: provider `tcl` at 9.0 for the WASM
-  runtime, with `Core(jim)`-only commands excluded rather than becoming
-  phantom obligations. B9's structural parity gate would carry the
-  scoping. **Open with B9.**
+  scoped to core Tcl commands available at 9.0 or later, excluding commands
+  with a `required_package` and `Core(jim)`-only commands. The gate checks
+  declarations against the WASM runtime and renders the VM's registration
+  report beside it; B9 records the remaining VM verdict gap.
 - **R9 — docs vocabulary follows.** The KCS "Applies-to" controlled
   vocabulary should consume environment names; it waits on the payload
   rows (T1/T3/T6/T7). **Open.**
@@ -420,16 +429,18 @@ under every pin.
 | Parity sweeps (`per_spec_visibility_matches_the_old_model_for_every_profile`, `spec_queries_reproduce_profile_queries_for_every_profile`) | the model reproduces the catalogue's answers; closed-world has one predicate | — |
 | Safe-interp trait conformance (both engines' `make_safe` tests) | engines hide exactly `Traits::SAFE_INTERP_HIDDEN` narrowed by what they carry | I1 |
 | Core-provider version tests | `package provide Tcl` ≡ pinned release in both engines | I1 |
+| Command backing (`cargo xtask command-backing --check`) | the WASM runtime's structural registration report agrees with core Tcl declarations or a live `KNOWN_UNBACKED` exception; the generated report includes both engines | R8; B9 records the remaining VM declaration check |
 | `every_route_to_a_documents_grammar_agrees` and the `dialect-drift` gate | a document has one grammar | I1 |
 | Upgrade equivalence (`tcl spec upgrade --verify`, §6) | a 1.x pack and its upgraded form load to byte-identical registry snapshots | I10 |
 | Golden pack snapshots (`cargo test -p tcl-spectcl --test golden_packs`, regenerated by `cargo xtask pack-goldens`) | a loader change cannot silently alter what a shipped `.tclspec` means: all 24 shipped packs load to their checked-in snapshots or the diff is written down | I10 |
 | Static fast-path gate (`tcl-spectcl/tests/eval_loader.rs`) | the loader's shortcut past the interpreter is an *optimisation*: all 24 shipped packs load byte-identically with `static_fast_path` on and off | I10 |
 | Security floor (`tcl-spectcl/tests/i6_security_floor.rs`) | an override cannot weaken a shipped security fact | I6 |
+| Fail-closed overlay (`an_uninstalled_overlay_is_an_error_not_the_plain_generation` in `rust/tcl-registry/src/model/ingress.rs`, `a_service_whose_overlay_is_gone_declines_every_compile` in `rust/tcl-compiler/src/compile_service.rs`, `rust/tcl-lsp-db/tests/overlay_generations.rs`) | a pack overlay nothing installed is an `OverlayMiss`: nothing that compiles reads the plain generation in its place, and the queries that only advise say so where they read it | I7 |
 | F5 conformance corpus (`rust/tcl-registry/src/f5/corpus.rs`) | every measured F5 row keeps agreeing, or diverging exactly where recorded | I1 |
 
-Not built: a generation-drop test (I7, redesign §11 D10), a fail-closed
-overlay test (F7), a structural engine parity gate (B9), and drift gates
-for the two hand-maintained projections (T13).
+Not built: a generation-drop test (I7, redesign §11 D10), enforcement of
+VM backing declarations (B9), and drift gates for the two hand-maintained
+projections (T13).
 
 ## 6. `tcl spec upgrade`: the 1.x → 2.0 specification
 
@@ -521,20 +532,23 @@ a parallel harness.
 
 ### 7.1 Reference interpreters
 
-`ensure-test-deps.sh`'s `ensure_tclsh` builds all five reference
-interpreters, each left at `<tree>/unix/tclsh` (the path
-`audit_option_dialects` reads) and exposed on `PATH` as
-`/usr/local/bin/tclsh{8.4,8.5,8.6,9.0,9.1}`. 8.4/8.5 build with
-`CFLAGS="-O2 -fcommon -Wno-implicit-int -Wno-implicit-function-declaration"`
-against modern gcc and only find `init.tcl` via a path relative to their
-own real on-disk location, so those two are exposed through a thin wrapper
-script that `exec`s the tree binary by its real path (`unset TCL_LIBRARY`
-first); 9.1 tolerates a plain symlink. The build is idempotent, keyed on
-`<tree>/unix/tclsh` reporting the expected `info patchlevel`.
-`resolve_tclsh90` in `rust/xtask/src/tcltest_sweep.rs` tries, in order,
-`TCL_LSP_TCLSH90`, `/usr/local/bin/tclsh9.0`, `tclsh9.0` on `PATH`, then
-the in-tree `tmp/tcl9.0.4/unix/tclsh`, and fails naming `make
-ensure-test-deps` when none exist. `audit_option_dialects` calls
+`ensure-test-deps.sh`'s `ensure_tclsh` provisions the five pinned
+interpreters declared in `rust/tcl-dialect/data/reference-toolchains.tsv`.
+`scripts/dev/tcl-reference-toolchains.sh` validates each source/build tree
+and publishes wrappers that execute its `unix/tclsh` with the matching
+library. `TCL_LSP_TCL_BIN_DIR` selects the wrapper directory; otherwise the
+helper chooses `~/.local/bin` or `/usr/local/bin` according to the
+available writable PATH location. An existing build is reused only when
+its reported `info patchlevel` matches the pinned patchlevel.
+
+`tcl_test_support::locate_tclsh(TclVersion)` validates the interpreter's
+exact pinned patchlevel. The `tcltest_sweep` instead binds the pinned Tcl
+9.0 source tree through `source_tree_for_sweep` and
+`tcl_test_support::locate_source_tree`, then obtains its interpreter with
+`tclsh_from_source_tree`. This keeps the test sources and executable from
+the same validated tree.
+
+`audit_option_dialects` calls
 `require_all_tclsh_built` before probing and fails immediately listing
 any missing binary (`AUDIT_ALLOW_MISSING_TCLSH=1` is the documented escape
 hatch for a deliberately partial run). `fetch_tcl_source.sh` fetches the
@@ -567,8 +581,8 @@ consumers executing the same bytes:
   parenthesis depth so an argument may contain commas and nested
   parentheses.
 - `rust/tcl-syntax/tests/support/mod.rs` is the five-binary matrix, keyed
-  `TCL_LSP_TCLSH84` … `TCL_LSP_TCLSH91` with PATH fallbacks; it verifies
-  the interpreter's reported version matches the name it was found under,
+  `TCL_LSP_TCLSH84` … `TCL_LSP_TCLSH91` with PATH fallbacks; it uses `tcl_test_support` to verify
+  the interpreter's reported patchlevel matches the pinned release,
   and skips a missing release loudly. The three suites
   (`command_resolution_conformance`, `variable_resolution_conformance`,
   `namespace_op_conformance`) run every row against every available

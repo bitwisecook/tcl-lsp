@@ -22,8 +22,9 @@
 //! bytecodes for `catch` and `try` commands.
 
 use tcl_bytecode::ErrorStackContext;
+use tcl_registry::completion::CompletionCode;
 use tcl_registry::hooks::{InlineCodegenHookId, LoweringHookId};
-use tcl_registry::{CommandRegistry, Traits, TryClauseKind, TryCompletionSelector};
+use tcl_registry::{CommandRegistry, Traits, TryClauseKind};
 use tcl_runtime_api::completion_options::ControlOptionPolicy;
 
 use crate::cfg::Function as CfgFunction;
@@ -217,7 +218,7 @@ impl CodegenCtx<'_> {
         let [clause] = invocation.clauses.as_slice() else {
             return None;
         };
-        if clause.kind != TryClauseKind::On(TryCompletionSelector::Error)
+        if clause.kind != TryClauseKind::On(CompletionCode::Error)
             || clause.fallthrough
             || !args[invocation.body_index].1
             || !args[clause.body_index].1
@@ -1786,7 +1787,7 @@ mod tests {
     }
 
     #[test]
-    fn inline_catch_ignores_a_trailing_registry_barrier() {
+    fn inline_catch_ignores_a_trailing_unseen_call_marker() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         let mut cfg = CfgFunction::new("::p", "entry_0");
@@ -1808,16 +1809,7 @@ mod tests {
                         tokens: None,
                         foreach_groups: None,
                     },
-                    Statement::Barrier {
-                        span: tcl_lexer::Span::new(0, 0),
-                        reason: "scalar facts".into(),
-                        command: "<registry-barrier>".into(),
-                        canonical_command: None,
-                        args: vec![],
-                        tokens: Some(crate::ir::CommandTokens::marker(
-                            crate::ir::SyntheticMarker::RegistryBarrier,
-                        )),
-                    },
+                    Statement::unseen_call_marker(tcl_lexer::Span::new(0, 0)),
                 ],
                 terminator: None,
             },

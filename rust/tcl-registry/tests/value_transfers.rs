@@ -1,0 +1,8242 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Contract tests for the value-transfer declarations
+//! (`docs/design/compiler/value-transfers.md`).
+//!
+//! Three things are pinned: the derivation agrees with the descriptor it
+//! derives from and derives from nothing else; the three declaration
+//! states resolve innermost-first at every scope; and the set of specs
+//! carrying each route, swept over every loadable dialect and the shipped
+//! `.tclspec` packs, so a route cannot appear, vanish, or move without this
+//! file changing beside it.
+
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
+
+use tcl_registry::forms::CommandForm;
+use tcl_registry::invocation_words::{InvocationWord, InvocationWords};
+use tcl_registry::native_lowering::{CellUpdate, NativeLowering};
+use tcl_registry::spec::{CommandSpec, SubCommand};
+use tcl_registry::types::VarWriteTyping;
+use tcl_registry::value_transfer::{
+    AnalysisContext, AnalysisInputs, Axis, BodyRegion, Budget, CommandSemantics, CompletionOutcome,
+    ConstOps, ConstValue, DeclarationScope, DeclineReason, DerivedSemantics, EvalAnswer, EvalRoute,
+    EvaluationState, EvaluatorOwner, ExactValue, ExactValueOrUnavailable, FactDomain, FactView,
+    InvocationLayout, LiftedAnswer, NativeEvalId, Needs, NoRouteReason, NumericValue, OperandId,
+    OperandView, ParameterDefault, PlaceRef, PlanAnswer, ResolvedInvocationView, ResolvedSemantics,
+    SemanticsDeclaration, SemanticsOrigin, StoreOutcome, TargetId, TransferAnswer, ValueIdentity,
+    WordPart, WordStructure, evaluate_lifted, resolve_semantics,
+};
+use tcl_registry::value_transfer::{
+    BindingIdentity, BindingKind, DependencyEvidence, DomainFact, Existence, ExistenceOutcome,
+    FactBounds, InvocationOutcome, IterableKind, ListGroup, TypeFacts,
+};
+use tcl_registry::value_transfer::{
+    CompletionSupport, ContextDependency, DeclaredInput, EvaluatorCapability, Exactness, HostKind,
+    ImplementationBudget, ImplementationIdentity,
+};
+use tcl_registry::{ArgRole, CommandRegistry, InvocationWordKind, Traits};
+use tcl_syntax::value::ValueOps as _;
+
+const LOADABLE_DIALECTS: &[&str] = &[
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "f5-irules",
+    "f5-iapps",
+    "expect",
+    "bpf",
+];
+
+fn full_registry() -> CommandRegistry {
+    let mut reg = CommandRegistry::build_default();
+    for name in LOADABLE_DIALECTS {
+        let profile = tcl_dialect::DialectProfile::find(name).expect("a compiled-in dialect name");
+        for &layer in profile.base_layers {
+            reg.load_surface(layer);
+        }
+    }
+    let packs = tcl_spectcl::bundled::load_from(
+        &std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../specs"),
+    );
+    assert!(
+        !packs.is_empty(),
+        "the shipped EDA loadables must be present"
+    );
+    for pack in &packs.packs {
+        for command in &pack.commands {
+            reg.insert(command.spec.clone());
+        }
+    }
+    reg
+}
+
+/// The nested service a test supplies: what the analysis answers for a
+/// script run under the state it is given.
+type NestedService<'a> = Box<dyn Fn(&str, &mut EvaluationState) -> EvalAnswer + 'a>;
+
+/// A test view: literal operands with the given roles, and a table of
+/// facts the driver would have proven.
+struct TestInputs<'a> {
+    view: ResolvedInvocationView<'a>,
+    operands: BTreeMap<usize, FactView>,
+    places: BTreeMap<usize, Result<PlaceRef, DeclineReason>>,
+    prior: BTreeMap<String, FactView>,
+    structures: BTreeMap<usize, WordStructure>,
+    bodies: BTreeMap<usize, BodyRegion>,
+    nested: Option<NestedService<'a>>,
+    defaults: BTreeMap<(String, String), ParameterDefault>,
+    context: AnalysisContext,
+}
+
+impl<'a> TestInputs<'a> {
+    fn new(command: &'a str, operands: Vec<OperandView<'a>>) -> Self {
+        Self {
+            view: ResolvedInvocationView {
+                canonical_command: command,
+                subcommand: None,
+                form: None,
+                layout: InvocationLayout::Source,
+                operands,
+                argument_offset: 0,
+                arity: None,
+            },
+            operands: BTreeMap::new(),
+            places: BTreeMap::new(),
+            prior: BTreeMap::new(),
+            structures: BTreeMap::new(),
+            bodies: BTreeMap::new(),
+            nested: None,
+            defaults: BTreeMap::new(),
+            context: AnalysisContext::detached(None),
+        }
+    }
+}
+
+fn literal(text: &str, role: Option<ArgRole>) -> OperandView<'_> {
+    OperandView {
+        text,
+        kind: InvocationWordKind::Literal,
+        role,
+    }
+}
+
+impl AnalysisInputs for TestInputs<'_> {
+    fn invocation(&self) -> &ResolvedInvocationView<'_> {
+        &self.view
+    }
+
+    fn operand(&self, id: OperandId, domain: FactDomain) -> FactView {
+        assert_eq!(domain, FactDomain::ExactValue);
+        self.operands.get(&id.0).cloned().unwrap_or_else(|| {
+            self.view
+                .operand(id)
+                .map_or(FactView::Top(DeclineReason::NotExact), |operand| {
+                    FactView::Exact(ExactValue::from_literal(operand.text), None)
+                })
+        })
+    }
+
+    fn place(&self, id: OperandId) -> Result<PlaceRef, DeclineReason> {
+        self.places.get(&id.0).cloned().unwrap_or_else(|| {
+            self.view
+                .operand(id)
+                .map(|operand| PlaceRef::scalar(operand.text))
+                .ok_or(DeclineReason::NotExact)
+        })
+    }
+
+    fn variable(&self, name: &str, _domain: FactDomain) -> FactView {
+        self.prior
+            .get(name)
+            .cloned()
+            .unwrap_or(FactView::Top(DeclineReason::NotExact))
+    }
+
+    fn prior_store(&self, place: &PlaceRef, domain: FactDomain) -> FactView {
+        self.variable(&place.name, domain)
+    }
+
+    fn word_structure(&self, id: OperandId) -> Result<WordStructure, DeclineReason> {
+        self.structures
+            .get(&id.0)
+            .cloned()
+            .ok_or(DeclineReason::Unsupported)
+    }
+
+    fn body(&self, id: OperandId) -> Result<BodyRegion, DeclineReason> {
+        self.bodies
+            .get(&id.0)
+            .cloned()
+            .ok_or(DeclineReason::Unsupported)
+    }
+
+    fn nested(&self, script: &str, state: &mut EvaluationState) -> EvalAnswer {
+        self.nested.as_ref().map_or(
+            EvalAnswer::Declined(DeclineReason::Unsupported),
+            |service| service(script, state),
+        )
+    }
+
+    fn math_function(&self, _name: &str) -> Result<BindingIdentity, DeclineReason> {
+        Err(DeclineReason::Unsupported)
+    }
+
+    fn parameter_default(&self, procedure: &str, parameter: &str) -> ParameterDefault {
+        self.defaults
+            .get(&(procedure.to_owned(), parameter.to_owned()))
+            .cloned()
+            .unwrap_or(ParameterDefault::Unknown)
+    }
+
+    fn context(&self) -> &AnalysisContext {
+        &self.context
+    }
+}
+
+/// `expr`'s argument words assemble as the command specifies: one braced
+/// word is the expression text, whose `$name` reads the engine performs
+/// itself; any other word reaches the engine already substituted; several
+/// words join with one space. `set a {1 + 1}; expr "$a * 2"` is 3 and
+/// `expr 1 + 2` is 3 under tclsh 8.4 to 9.1. A word that is not yet a
+/// value is pending, one that never is declines with its reason, no word
+/// at all is the program's `wrong # args`, and a BPF-Tcl expression is
+/// never assembled for the Tcl engine (`-7 / 2` is `-3` there, `-4` in
+/// Tcl).
+#[test]
+fn expression_assembly_follows_the_word_kinds() {
+    use tcl_registry::value_transfer::builtins::{BPF_EXPR, EXPR, ExpressionSource};
+    let dynamic = |text| OperandView {
+        text,
+        kind: InvocationWordKind::Dynamic,
+        role: None,
+    };
+    let span = tcl_lexer::Span::new;
+
+    let mut braced = TestInputs::new("expr", vec![literal("$a * 2", None)]);
+    braced.structures.insert(
+        0,
+        WordStructure {
+            braced: true,
+            quoted: false,
+            parts: vec![WordPart::Literal {
+                span: span(1, 7),
+                text: "$a * 2".to_owned(),
+            }],
+        },
+    );
+    assert_eq!(
+        EXPR.assemble(&braced),
+        Ok(ExpressionSource::Braced {
+            text: "$a * 2".to_owned(),
+            base: 1,
+        })
+    );
+    assert_eq!(EXPR.variable_reads(&braced), ["a"]);
+
+    let mut quoted = TestInputs::new("expr", vec![dynamic("${a} * 2")]);
+    quoted.structures.insert(
+        0,
+        WordStructure {
+            braced: false,
+            quoted: true,
+            parts: vec![
+                WordPart::VariableRead {
+                    span: span(0, 4),
+                    name: "a".to_owned(),
+                    element: None,
+                },
+                WordPart::Literal {
+                    span: span(4, 8),
+                    text: " * 2".to_owned(),
+                },
+            ],
+        },
+    );
+    quoted.operands.insert(0, held("1 + 1 * 2"));
+    let substituted = EXPR.assemble(&quoted).expect("the substituted text");
+    assert_eq!(substituted.text(), Ok("1 + 1 * 2"));
+    assert!(matches!(substituted, ExpressionSource::Substituted(_)));
+    // The substituted text is what the engine reads: its reads are its own.
+    assert!(EXPR.variable_reads(&quoted).is_empty());
+
+    let bare = TestInputs::new("expr", vec![literal("7", None)]);
+    assert_eq!(
+        EXPR.assemble(&bare)
+            .map(|source| source.text().map(str::to_owned)),
+        Ok(Ok("7".to_owned()))
+    );
+
+    let words = TestInputs::new(
+        "expr",
+        vec![literal("1", None), literal("+", None), literal("{2}", None)],
+    );
+    assert_eq!(
+        EXPR.assemble(&words)
+            .map(|source| source.text().map(str::to_owned)),
+        Ok(Ok("1 + {2}".to_owned()))
+    );
+
+    let mut pending = TestInputs::new("expr", vec![dynamic("$a")]);
+    pending.operands.insert(0, FactView::Pending);
+    assert_eq!(EXPR.assemble(&pending), Err(EvalAnswer::Pending));
+    let mut unknown = TestInputs::new("expr", vec![literal("1", None), dynamic("$a")]);
+    unknown
+        .operands
+        .insert(1, FactView::Top(DeclineReason::NotExact));
+    assert_eq!(
+        EXPR.assemble(&unknown),
+        Err(EvalAnswer::Declined(DeclineReason::NotExact))
+    );
+
+    let none = TestInputs::new("expr", Vec::new());
+    assert_eq!(
+        EXPR.assemble(&none),
+        Err(EvalAnswer::Declined(DeclineReason::Unsupported))
+    );
+    assert_eq!(
+        BPF_EXPR.assemble(&TestInputs::new("expr", vec![literal("-7 / 2", None)])),
+        Err(EvalAnswer::Declined(DeclineReason::Unsupported))
+    );
+}
+
+/// `CellReadModifyWrite(u)` on a spec ⇒ the resolved value transfer is the
+/// cell update `u` on the same target, with the descriptor's absent-cell
+/// rule, for the shipped specs and for a synthetic one.
+#[test]
+fn a_cell_read_modify_write_descriptor_derives_the_same_cell_update() {
+    let reg = CommandRegistry::build_default();
+    for (name, update) in [
+        ("incr", CellUpdate::Increment),
+        ("append", CellUpdate::Append),
+        ("lappend", CellUpdate::ListAppend),
+    ] {
+        let spec = reg.get(name).expect(name);
+        assert_eq!(
+            spec.native_lowering,
+            Some(NativeLowering::CellReadModifyWrite(update))
+        );
+        let resolved = resolve_semantics(spec, None, None);
+        let ResolvedSemantics::Derived(DerivedSemantics::CellUpdate(cell)) = resolved else {
+            panic!("{name}: expected a derived cell update, got {resolved:?}");
+        };
+        assert_eq!(cell.update, update, "{name}");
+        assert_eq!(cell.creates_absent, spec.safe_on_uninit, "{name}");
+        assert_eq!(resolved.origin(), SemanticsOrigin::Derived);
+        let inputs = TestInputs::new(name, vec![literal("v", Some(ArgRole::VarWrite))]);
+        match cell.structure(&inputs) {
+            PlanAnswer::CellReadModifyWrite {
+                target,
+                operation,
+                amount,
+                creates_absent,
+            } => {
+                assert_eq!(target, TargetId(OperandId(0)));
+                assert_eq!(operation, update);
+                assert_eq!(amount, None);
+                assert_eq!(creates_absent, spec.safe_on_uninit);
+            }
+            other => panic!("{name}: {other:?}"),
+        }
+    }
+}
+
+/// A cell update of a place the inputs prove unbound runs over no prior
+/// value only where every release the target names creates the cell
+/// (`docs/design/compiler/value-transfers.md` § *Existence*, the release
+/// rule): `incr fresh` is 1 and `incr fresh 2` is 2 from 8.5 and raises
+/// `can't read "fresh": no such variable` under 8.4, so the route answers
+/// that error under 8.4 and declines under the `tcl` profile that spans
+/// both; `append` and `lappend` create the cell in every release (tclsh 8.4
+/// to 9.1).
+#[test]
+fn an_absent_cell_is_created_where_every_release_creates_it() {
+    let reg = CommandRegistry::build_default();
+    let run = |name: &'static str, words: &[&'static str], dialect: &str| {
+        let semantics = resolve_semantics(reg.get(name).expect(name), None, None);
+        let semantics = semantics.semantics().expect("a cell update");
+        let mut operands = vec![literal("v", Some(ArgRole::VarWrite))];
+        operands.extend(words.iter().map(|word| literal(word, None)));
+        let mut inputs = TestInputs::new(name, operands);
+        inputs.prior.insert("v".to_owned(), absent());
+        inputs.context = AnalysisContext::detached(tcl_dialect::DialectProfile::find(dialect));
+        evaluated(semantics.evaluate(&inputs, &mut Budget::evaluation())).map(|outcome| {
+            if let Some(label) = error_label(&outcome) {
+                return label;
+            }
+            assert_eq!(
+                outcome.ordered_stores.len(),
+                1,
+                "{name} {words:?}: the one write"
+            );
+            let ExactValueOrUnavailable::Exact(result) = &outcome.result else {
+                panic!("unavailable");
+            };
+            String::from_utf8(result.bytes.clone()).expect("text")
+        })
+    };
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        assert_eq!(run("incr", &[], dialect), Ok("1".to_owned()), "{dialect}");
+        assert_eq!(
+            run("incr", &["2"], dialect),
+            Ok("2".to_owned()),
+            "{dialect}"
+        );
+    }
+    // Under 8.4 the program raises, and the route says so: the cell is
+    // absent, so no store ran. A profile naming no release cannot say which
+    // of the two it is, and declines.
+    assert_eq!(
+        run("incr", &[], "tcl8.4"),
+        Ok("error after 0".to_owned()),
+        "tcl8.4"
+    );
+    assert_eq!(
+        run("incr", &[], "tcl"),
+        Err(DeclineReason::UnboundPlace),
+        "tcl"
+    );
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "tcl"] {
+        assert_eq!(
+            run("append", &["foo"], dialect),
+            Ok("foo".to_owned()),
+            "{dialect}"
+        );
+        assert_eq!(
+            run("lappend", &["foo"], dialect),
+            Ok("foo".to_owned()),
+            "{dialect}"
+        );
+    }
+}
+
+/// 8.4's `incr` of an absent place raises `can't read "x": no such variable`
+/// with no `-errorcode` (tclsh 8.4.20), after no store; an element's message
+/// says whether its array exists, which the fact does not, so only its code
+/// is proven.
+#[test]
+fn an_increment_of_an_absent_place_under_8_4_is_the_commands_error() {
+    let t = target;
+    let message = |text: &str| Some(text.to_owned());
+    let run = |name: &str| {
+        completed(
+            "incr",
+            None,
+            &[t(name)],
+            &[(name, absent())],
+            Some("tcl8.4"),
+        )
+    };
+    assert_eq!(
+        raised(&run("fresh")),
+        Some((
+            0,
+            message("can't read \"fresh\": no such variable"),
+            message("NONE")
+        ))
+    );
+    assert_eq!(raised(&run("a(1)")), Some((0, None, message("NONE"))));
+}
+
+/// `catch` binds its result and options variables whatever the script's
+/// completion, with values the transfer need not know: it lists one path
+/// whose completion domain is any, binding each as a scalar, beside the
+/// route that evaluates a closed script. Tcl 8.4's two-word form binds its
+/// one variable, and a call that names none has nothing to bind.
+#[test]
+fn catch_binds_its_result_and_options_whatever_the_completion() {
+    use tcl_registry::completion::CompletionCodeDomain;
+    use tcl_registry::value_transfer::BindingKind;
+    let reg = CommandRegistry::build_default();
+    let resolved = resolve_semantics(reg.get("catch").expect("catch"), None, None);
+    let semantics = resolved.semantics().expect("declared");
+    assert_eq!(
+        semantics.route(),
+        EvalRoute::Direct {
+            id: NativeEvalId::CatchProtected
+        }
+    );
+    let bound = |words: Vec<OperandView<'static>>| {
+        let inputs = TestInputs::new("catch", words);
+        match semantics.transfer(FactDomain::Existence, &inputs, &mut Budget::unbounded()) {
+            TransferAnswer::Existence(transfer) => {
+                assert_eq!(transfer.paths.len(), 1);
+                assert_eq!(transfer.paths[0].completion, CompletionCodeDomain::Any);
+                transfer.paths[0].outcomes.clone()
+            }
+            other => panic!("{other:?}"),
+        }
+    };
+    let body = || literal("script", Some(ArgRole::Body));
+    let scalar = |at: usize| {
+        (
+            TargetId(OperandId(at)),
+            ExistenceOutcome::Bind(BindingKind::Scalar),
+        )
+    };
+    assert_eq!(
+        bound(vec![
+            body(),
+            literal("m", Some(ArgRole::VarWrite)),
+            literal("o", Some(ArgRole::VarWrite))
+        ]),
+        [scalar(1), scalar(2)]
+    );
+    assert_eq!(
+        bound(vec![body(), literal("m", Some(ArgRole::VarWrite))]),
+        [scalar(1)]
+    );
+    let bare = TestInputs::new("catch", vec![body()]);
+    assert_eq!(
+        semantics.transfer(FactDomain::Existence, &bare, &mut Budget::unbounded()),
+        TransferAnswer::Generic
+    );
+    assert_eq!(
+        semantics.transfer(FactDomain::Type, &bare, &mut Budget::unbounded()),
+        TransferAnswer::Generic
+    );
+}
+
+/// A nested service whose script wrote `writes` — each a scalar set to a text
+/// — and then ended as `completion` with `result`, an error counting every
+/// write the script made.
+fn script_ending(
+    writes: &'static [(&'static str, &'static str)],
+    completion: CompletionOutcome,
+    result: ExactValueOrUnavailable,
+) -> NestedService<'static> {
+    Box::new(move |_script, state| {
+        for &(name, value) in writes {
+            state.writes.push((
+                PlaceRef::scalar(name),
+                StoreOutcome::Write {
+                    target: TargetId(OperandId(0)),
+                    value: ExactValue::text(value),
+                },
+            ));
+        }
+        let completion = match &completion {
+            CompletionOutcome::Error {
+                message,
+                error_code,
+                ..
+            } => CompletionOutcome::Error {
+                written: state.writes.len(),
+                message: message.clone(),
+                error_code: error_code.clone(),
+            },
+            other => other.clone(),
+        };
+        EvalAnswer::Evaluated(Box::new(InvocationOutcome {
+            completion,
+            result: result.clone(),
+            nested_writes: Vec::new(),
+            ordered_stores: Vec::new(),
+            types: TypeFacts::default(),
+            evidence: DependencyEvidence::default(),
+        }))
+    })
+}
+
+/// The inputs of `catch` over `words` — the script, then the result and
+/// options variables — with the nested service `service` and the existence
+/// `facts` of the variables (unbound where none is given), under `dialect`.
+fn catch_inputs(
+    words: &[&'static str],
+    facts: &[(&str, FactView)],
+    dialect: Option<&str>,
+    service: NestedService<'static>,
+) -> TestInputs<'static> {
+    let operands = words
+        .iter()
+        .enumerate()
+        .map(|(at, text)| {
+            literal(
+                text,
+                Some(if at == 0 {
+                    ArgRole::Body
+                } else {
+                    ArgRole::VarWrite
+                }),
+            )
+        })
+        .collect();
+    let mut inputs = TestInputs::new("catch", operands);
+    if let Some(script) = words.first() {
+        inputs.bodies.insert(
+            0,
+            BodyRegion {
+                script: (*script).to_owned(),
+                base_offset: 0,
+                frame: tcl_registry::FrameLevel::Relative(0),
+            },
+        );
+    }
+    inputs.nested = Some(service);
+    let unbound = FactView::Domain(DomainFact::Existence(Existence::Unbound));
+    for name in words.iter().skip(1) {
+        inputs.prior.insert((*name).to_owned(), unbound.clone());
+    }
+    for (name, fact) in facts {
+        inputs.prior.insert((*name).to_owned(), fact.clone());
+    }
+    inputs.context = AnalysisContext::detached(
+        dialect.map(|name| tcl_dialect::DialectProfile::find(name).expect(name)),
+    );
+    inputs
+}
+
+/// `catch`'s route evaluated over [`catch_inputs`].
+fn caught(
+    words: &[&'static str],
+    facts: &[(&str, FactView)],
+    dialect: Option<&str>,
+    service: NestedService<'static>,
+) -> EvalAnswer {
+    let reg = CommandRegistry::build_default();
+    let resolved = resolve_semantics(reg.get("catch").expect("catch"), None, None);
+    let semantics = resolved.semantics().expect("declared");
+    let inputs = catch_inputs(words, facts, dialect, service);
+    semantics.evaluate(&inputs, &mut Budget::evaluation())
+}
+
+/// What `catch`'s answer proves: the code it returns, the writes of the
+/// script it carries, and each of its own stores — the text of an exact one,
+/// the prefix of an unavailable dictionary's text, `-` where there is none.
+fn caught_summary(answer: &EvalAnswer) -> (i64, Vec<String>, Vec<String>) {
+    let EvalAnswer::Evaluated(outcome) = answer else {
+        panic!("not evaluated: {answer:?}");
+    };
+    assert_eq!(outcome.completion, CompletionOutcome::Normal);
+    let ExactValueOrUnavailable::Exact(code) = &outcome.result else {
+        panic!("the code is certain: {:?}", outcome.result);
+    };
+    let writes = outcome
+        .nested_writes
+        .iter()
+        .map(|(place, _)| place.name.clone())
+        .collect();
+    let stores = outcome
+        .ordered_stores
+        .iter()
+        .map(|store| match store {
+            StoreOutcome::Write { target, value } => format!(
+                "write {} {}",
+                (target.0).0,
+                String::from_utf8_lossy(&value.bytes)
+            ),
+            StoreOutcome::WriteUnavailable { target, facts } => {
+                let prefix = facts
+                    .segments
+                    .as_ref()
+                    .and_then(|segments| segments.prefix.clone())
+                    .map_or_else(
+                        || "-".to_owned(),
+                        |bytes| String::from_utf8_lossy(&bytes).into_owned(),
+                    );
+                format!("unavailable {} {:?} {prefix}", (target.0).0, facts.intrep)
+            }
+            other => panic!("{other:?}"),
+        })
+        .collect();
+    (code.as_int().expect("an integer"), writes, stores)
+}
+
+/// `catch` completes normally whatever its script does, returning the code a
+/// caller of the script observes and storing what the script returned into
+/// its result variable, with the options dictionary beside it from 8.5 (the
+/// table measured under tclsh 8.5 to 9.1):
+///
+/// | script | code | result variable | options start |
+/// |---|---|---|---|
+/// | `set v 1` | 0 | `1` | `-code 0 -level 0` |
+/// | `return 5` | 2 | `5` | `-code 0 -level 1` |
+/// | `break` | 3 | empty | `-code 3 -level 0` |
+/// | `continue` | 4 | empty | `-code 4 -level 0` |
+/// | `return -code 5 custom` | 2 | `custom` | `-code 5 -level 1` |
+/// | `error boom` | 1 | `boom` | not stated |
+///
+/// An error's dictionary lists `-errorinfo` first when `error` is given an
+/// info word, so none of its text is claimed, and no dictionary is an exact
+/// value: `-errorinfo`, `-errorline` and `-errorstack` are the interpreter's,
+/// and from 8.6 a success carries a stale `-errorcode` after `incr` or
+/// `lappend` of an absent variable.
+#[test]
+fn catch_completes_with_the_code_its_script_observes() {
+    use tcl_registry::completion::CompletionCode;
+    let text = |text: &str| ExactValueOrUnavailable::exact_text(text);
+    let code = |code, level, result: &str| CompletionOutcome::Code {
+        code,
+        level,
+        result: text(result),
+    };
+    let table: [(CompletionOutcome, &str, i64, &str, Option<&str>); 6] = [
+        (
+            CompletionOutcome::Normal,
+            "1",
+            0,
+            "1",
+            Some("-code 0 -level 0"),
+        ),
+        (
+            code(CompletionCode::Ok, 1, "5"),
+            "5",
+            2,
+            "5",
+            Some("-code 0 -level 1"),
+        ),
+        (
+            code(CompletionCode::Break, 0, ""),
+            "",
+            3,
+            "",
+            Some("-code 3 -level 0"),
+        ),
+        (
+            code(CompletionCode::Continue, 0, ""),
+            "",
+            4,
+            "",
+            Some("-code 4 -level 0"),
+        ),
+        (
+            code(CompletionCode::Other(5), 1, "custom"),
+            "custom",
+            2,
+            "custom",
+            Some("-code 5 -level 1"),
+        ),
+        (
+            CompletionOutcome::Error {
+                written: 0,
+                message: text("boom"),
+                error_code: text("NONE"),
+            },
+            "",
+            1,
+            "boom",
+            None,
+        ),
+    ];
+    for dialect in [Some("tcl8.5"), Some("tcl8.6"), Some("tcl9.0")] {
+        for (completion, result, observed, stored, options) in &table {
+            let answer = caught(
+                &["script", "m", "o"],
+                &[],
+                dialect,
+                script_ending(&[], completion.clone(), text(result)),
+            );
+            let (reported, writes, stores) = caught_summary(&answer);
+            assert_eq!(reported, *observed, "{dialect:?} {completion:?}");
+            assert!(writes.is_empty());
+            let dictionary = format!("unavailable 2 Some(Dict) {}", options.unwrap_or("-"));
+            assert_eq!(stores, [format!("write 1 {stored}"), dictionary]);
+        }
+    }
+}
+
+/// The writes the script made are the command's own nested writes, ahead of
+/// its stores, and an error after some of them leaves exactly those: the
+/// answer states them in the order they ran. A result variable the script
+/// wrote itself is written again by the command, last. The answer rests on
+/// the route, the release it was proven under, and an integer code.
+#[test]
+fn catch_carries_the_writes_its_script_made() {
+    let text = ExactValueOrUnavailable::exact_text;
+    let boom = CompletionOutcome::Error {
+        written: 0,
+        message: text("boom"),
+        error_code: text("NONE"),
+    };
+    let answer = caught(
+        &["script", "m"],
+        &[],
+        Some("tcl8.6"),
+        script_ending(&[("a", "1"), ("b", "2")], boom, text("")),
+    );
+    assert_eq!(
+        caught_summary(&answer),
+        (
+            1,
+            vec!["a".to_owned(), "b".to_owned()],
+            vec!["write 1 boom".to_owned()]
+        )
+    );
+    let EvalAnswer::Evaluated(outcome) = &answer else {
+        panic!("{answer:?}");
+    };
+    assert_eq!(outcome.types.result, Some(tcl_registry::TclType::Int));
+    let route = outcome.evidence.route.expect("the route");
+    assert_eq!(
+        route.route,
+        EvalRoute::Direct {
+            id: NativeEvalId::CatchProtected
+        }
+    );
+    assert_eq!(
+        outcome.evidence.release,
+        Some(tcl_dialect::TclVersion::V8_6)
+    );
+
+    let rewritten = caught(
+        &["script", "m"],
+        &[],
+        Some("tcl8.6"),
+        script_ending(&[("m", "5")], CompletionOutcome::Normal, text("7")),
+    );
+    assert_eq!(
+        caught_summary(&rewritten),
+        (0, vec!["m".to_owned()], vec!["write 1 7".to_owned()])
+    );
+}
+
+/// A result that is not exact is still stored: the variable is certainly
+/// bound with a value the analysis cannot spell, which is what the options
+/// dictionary always is. An error whose message the route does not prove
+/// stores an unavailable string, whatever the code.
+#[test]
+fn catch_stores_an_unproven_result_as_an_unavailable_value() {
+    let answer = caught(
+        &["script", "m"],
+        &[],
+        Some("tcl8.6"),
+        script_ending(
+            &[],
+            CompletionOutcome::error_unproven(0),
+            ExactValueOrUnavailable::unproven_string(),
+        ),
+    );
+    assert_eq!(
+        caught_summary(&answer),
+        (
+            1,
+            Vec::new(),
+            vec!["unavailable 1 Some(String) -".to_owned()]
+        )
+    );
+    let normal = caught(
+        &["script", "m"],
+        &[],
+        Some("tcl8.6"),
+        script_ending(
+            &[],
+            CompletionOutcome::Normal,
+            ExactValueOrUnavailable::unproven_string(),
+        ),
+    );
+    assert_eq!(
+        caught_summary(&normal),
+        (
+            0,
+            Vec::new(),
+            vec!["unavailable 1 Some(String) -".to_owned()]
+        )
+    );
+}
+
+/// What `catch` will not state of its script and its words: the script's own
+/// decline or pending answer, a script word that is not text, a word count
+/// `wrong # args` answers, and an options word before 8.5 (declined under 8.4,
+/// and on a profile naming no release, which cannot say).
+#[test]
+fn catch_declines_what_its_script_and_words_do_not_prove() {
+    let text = ExactValueOrUnavailable::exact_text;
+    let ends = || script_ending(&[], CompletionOutcome::Normal, text("1"));
+    let evaluate = |inputs: &TestInputs<'_>| {
+        let reg = CommandRegistry::build_default();
+        let resolved = resolve_semantics(reg.get("catch").expect("catch"), None, None);
+        resolved
+            .semantics()
+            .expect("declared")
+            .evaluate(inputs, &mut Budget::evaluation())
+    };
+    let tcl86 = Some("tcl8.6");
+
+    assert_eq!(
+        caught(
+            &["s", "m"],
+            &[],
+            tcl86,
+            Box::new(|_, _| EvalAnswer::Pending)
+        ),
+        EvalAnswer::Pending
+    );
+    assert_eq!(
+        caught(
+            &["s", "m"],
+            &[],
+            tcl86,
+            Box::new(|_, _| EvalAnswer::Declined(DeclineReason::NotExact))
+        ),
+        EvalAnswer::Declined(DeclineReason::NotExact)
+    );
+    let mut no_text = catch_inputs(&["s", "m"], &[], tcl86, ends());
+    no_text.bodies.clear();
+    assert_eq!(
+        evaluate(&no_text),
+        EvalAnswer::Declined(DeclineReason::Unsupported)
+    );
+    for words in [&[][..], &["s", "a", "b", "c"][..]] {
+        assert_eq!(
+            caught(words, &[], tcl86, ends()),
+            EvalAnswer::Declined(DeclineReason::Unsupported),
+            "{words:?}"
+        );
+    }
+
+    assert_eq!(
+        caught(&["s", "m", "o"], &[], Some("tcl8.4"), ends()),
+        EvalAnswer::Declined(DeclineReason::Unsupported)
+    );
+    assert!(matches!(
+        caught(&["s", "m", "o"], &[], None, ends()),
+        EvalAnswer::Declined(DeclineReason::ReleaseAmbiguous(_))
+    ));
+    assert!(matches!(
+        caught(&["s", "m"], &[], Some("tcl8.4"), ends()),
+        EvalAnswer::Evaluated(_)
+    ));
+}
+
+/// A variable the store may fail on: an element, which may fail on its array,
+/// a place that may be an array or one the analysis knows nothing of. A fact
+/// not yet reached is pending, and a scalar or an absent place is written.
+#[test]
+fn catch_declines_a_variable_its_store_may_fail_on() {
+    let text = ExactValueOrUnavailable::exact_text;
+    let ends = || script_ending(&[], CompletionOutcome::Normal, text("1"));
+    let tcl86 = Some("tcl8.6");
+    let fact = |existence| FactView::Domain(DomainFact::Existence(existence));
+    let scalar = Existence::Bound(BindingKind::Scalar);
+    for ok in [Existence::Unbound, scalar] {
+        assert!(matches!(
+            caught(&["s", "m"], &[("m", fact(ok))], tcl86, ends()),
+            EvalAnswer::Evaluated(_)
+        ));
+    }
+    for unsafe_kind in [
+        Existence::Bound(BindingKind::Array),
+        Existence::Bound(BindingKind::Either),
+        Existence::MayBound,
+    ] {
+        assert_eq!(
+            caught(&["s", "m"], &[("m", fact(unsafe_kind))], tcl86, ends()),
+            EvalAnswer::Declined(DeclineReason::NotExact),
+            "{unsafe_kind:?}"
+        );
+    }
+    assert_eq!(
+        caught(
+            &["s", "m"],
+            &[("m", fact(Existence::Pending))],
+            tcl86,
+            ends()
+        ),
+        EvalAnswer::Pending
+    );
+    assert_eq!(
+        caught(&["s", "a(1)"], &[], tcl86, ends()),
+        EvalAnswer::Declined(DeclineReason::Unsupported)
+    );
+}
+
+/// The script wrote the variable `catch` stores into: a scalar write leaves a
+/// scalar, whatever the place held before, and anything else leaves it
+/// unknown.
+#[test]
+fn catch_declines_a_variable_its_script_left_unknown() {
+    let tcl86 = Some("tcl8.6");
+    let fact = |existence| FactView::Domain(DomainFact::Existence(existence));
+    let wrote = |store: fn(TargetId) -> StoreOutcome| -> NestedService<'static> {
+        Box::new(move |_, state| {
+            state
+                .writes
+                .push((PlaceRef::scalar("m"), store(TargetId(OperandId(0)))));
+            EvalAnswer::Evaluated(Box::new(InvocationOutcome {
+                completion: CompletionOutcome::Normal,
+                result: ExactValueOrUnavailable::exact_text("1"),
+                nested_writes: Vec::new(),
+                ordered_stores: Vec::new(),
+                types: TypeFacts::default(),
+                evidence: DependencyEvidence::default(),
+            }))
+        })
+    };
+    let array = &[("m", fact(Existence::Bound(BindingKind::Array)))];
+    assert!(matches!(
+        caught(
+            &["s", "m"],
+            array,
+            tcl86,
+            wrote(|target| StoreOutcome::Write {
+                target,
+                value: ExactValue::text("x"),
+            })
+        ),
+        EvalAnswer::Evaluated(_)
+    ));
+    for unknown in [
+        (|target| StoreOutcome::Unbind { target }) as fn(TargetId) -> StoreOutcome,
+        |target| StoreOutcome::MayWrite {
+            target,
+            facts: FactBounds {
+                existence: Existence::MayBound,
+                intrep: None,
+                shape: None,
+                segments: None,
+                taint: None,
+            },
+        },
+        |target| StoreOutcome::WriteUnavailable {
+            target,
+            facts: FactBounds {
+                existence: Existence::Bound(BindingKind::Scalar),
+                intrep: None,
+                shape: None,
+                segments: None,
+                taint: None,
+            },
+        },
+    ] {
+        assert_eq!(
+            caught(&["s", "m"], &[], tcl86, wrote(unknown)),
+            EvalAnswer::Declined(DeclineReason::StatefulNested)
+        );
+    }
+}
+
+/// `catch` is a body run in the frame it is written in whose completion is
+/// absorbed whole: the plan names the script, its result and options
+/// variables, and declines the counts `wrong # args` answers.
+#[test]
+fn catch_structure_is_a_protected_body() {
+    use tcl_registry::value_transfer::{BodyPlan, CompletionProtocol, Reconcile};
+    let reg = CommandRegistry::build_default();
+    let resolved = resolve_semantics(reg.get("catch").expect("catch"), None, None);
+    let semantics = resolved.semantics().expect("declared");
+    let plan = |words: &[&'static str]| {
+        let operands = words
+            .iter()
+            .enumerate()
+            .map(|(at, text)| {
+                literal(
+                    text,
+                    Some(if at == 0 {
+                        ArgRole::Body
+                    } else {
+                        ArgRole::VarWrite
+                    }),
+                )
+            })
+            .collect();
+        semantics.structure(&TestInputs::new("catch", operands))
+    };
+    let body = |result_var, options_var| PlanAnswer::Body {
+        binders: Vec::new(),
+        body: BodyPlan {
+            body: OperandId(0),
+            frame: tcl_registry::FrameLevel::Relative(0),
+        },
+        reconcile: Reconcile::None,
+        completion: CompletionProtocol::CatchAll {
+            result_var,
+            options_var,
+        },
+    };
+    let target = |at| Some(TargetId(OperandId(at)));
+    assert_eq!(plan(&["s"]), body(None, None));
+    assert_eq!(plan(&["s", "m"]), body(target(1), None));
+    assert_eq!(plan(&["s", "m", "o"]), body(target(1), target(2)));
+    assert_eq!(plan(&[]), PlanAnswer::Declined(DeclineReason::Unsupported));
+    assert_eq!(
+        plan(&["s", "a", "b", "c"]),
+        PlanAnswer::Declined(DeclineReason::Unsupported)
+    );
+}
+
+/// The handler chain of a `try` from `(selection, selector, falls_through)`
+/// rows, the selectors decoded under `dialect`'s numerals.
+fn handler_chain(
+    handlers: &[(&str, &'static str, bool)],
+    dialect: &str,
+) -> tcl_registry::value_transfer::completion::HandlerChain {
+    use tcl_registry::value_transfer::HandlerMatch;
+    use tcl_registry::value_transfer::completion::{HandlerChain, HandlerLink};
+    HandlerChain::new(
+        handlers
+            .iter()
+            .map(|&(matches, selector, falls_through)| HandlerLink {
+                matches: match matches {
+                    "on" => HandlerMatch::CompletionCode,
+                    "trap" => HandlerMatch::ErrorCodePrefix,
+                    other => panic!("{other}"),
+                },
+                selector,
+                falls_through,
+            }),
+        tcl_syntax::number::Numbers::of_dialect_name(Some(dialect)),
+    )
+}
+
+/// A handler's code is the selector's under the release's numerals, and
+/// `TCL_ERROR` for a `trap` whatever its pattern. Tclsh 8.6 runs `on 010`
+/// for `return -code 8 -level 0 x` and 9.0 and 9.1 for code 10; `on 0` is
+/// `ok`, `on 1` `error`, and `on 0x10` and `on 0o10` are 16 and 8 in every
+/// release that has `try`.
+#[test]
+fn a_handler_chain_names_the_code_each_handler_selects() {
+    use tcl_registry::completion::CompletionCode as Code;
+    let on = |selector: &'static str, dialect| handler_chain(&[("on", selector, false)], dialect);
+    for (selector, up_to_86, from_90) in [
+        ("ok", Some(Code::Ok), Some(Code::Ok)),
+        ("error", Some(Code::Error), Some(Code::Error)),
+        ("return", Some(Code::Return), Some(Code::Return)),
+        ("break", Some(Code::Break), Some(Code::Break)),
+        ("continue", Some(Code::Continue), Some(Code::Continue)),
+        ("0", Some(Code::Ok), Some(Code::Ok)),
+        ("1", Some(Code::Error), Some(Code::Error)),
+        ("5", Some(Code::from_int(5)), Some(Code::from_int(5))),
+        ("0x10", Some(Code::from_int(16)), Some(Code::from_int(16))),
+        ("0o10", Some(Code::from_int(8)), Some(Code::from_int(8))),
+        ("010", Some(Code::from_int(8)), Some(Code::from_int(10))),
+        ("nonsense", None, None),
+    ] {
+        assert_eq!(
+            on(selector, "tcl8.6").code(0),
+            up_to_86,
+            "on {selector}, 8.6"
+        );
+        assert_eq!(
+            on(selector, "tcl9.0").code(0),
+            from_90,
+            "on {selector}, 9.0"
+        );
+    }
+    // A target that may be either reads only what every release agrees on.
+    let unknown = tcl_registry::value_transfer::completion::HandlerChain::selected(
+        tcl_registry::value_transfer::HandlerMatch::CompletionCode,
+        "010",
+        tcl_syntax::number::Numbers::Unknown,
+    );
+    assert_eq!(unknown, None);
+    for selector in ["X Y", "", "$dynamic"] {
+        assert_eq!(
+            handler_chain(&[("trap", selector, false)], "tcl8.6").code(0),
+            Some(Code::Error),
+            "trap {selector}"
+        );
+    }
+}
+
+/// The first handler that matches runs, a `-` handler selects its own code and
+/// runs the next handler's script, and a handler that cannot be reached is
+/// the one an unconditional handler before its group pre-empts. Each program
+/// is tclsh 8.6, 9.0 and 9.1's, the script that ran given beside it.
+#[test]
+fn a_handler_chain_runs_the_first_match_as_tclsh_does() {
+    use tcl_registry::completion::CompletionCode as Code;
+    let (on_error, on_ok) = (("on", "error", false), ("on", "ok", false));
+    let dash = |selector| ("on", selector, true);
+
+    // try {error boom} on error {} {A} on error {} {B}                 ;# A
+    let chain = handler_chain(&[on_error, on_error], "tcl8.6");
+    assert_eq!(chain.first_taking(Code::Error), Some(0));
+    assert!(!chain.preempted(0) && chain.preempted(1));
+    assert_eq!(chain.live_group(0), [0]);
+    assert!(chain.live_group(1).is_empty());
+
+    // try {error boom} on error {} {A} on 1 {} {B}                      ;# A
+    let chain = handler_chain(&[on_error, ("on", "1", false)], "tcl8.6");
+    assert!(chain.preempted(1), "two spellings of one code");
+
+    // try {error boom} on error {} - on ok {} {X}                       ;# X
+    let chain = handler_chain(&[dash("error"), on_ok], "tcl8.6");
+    assert_eq!(chain.first_taking(Code::Error), Some(0));
+    assert_eq!((chain.owner(0), chain.owner(1)), (1, 1));
+    assert!(chain.live_group(0).is_empty());
+    assert_eq!(chain.live_group(1), [0, 1]);
+
+    // try {error boom} on error {} - on error {} {B} on ok {} {C}       ;# B
+    let chain = handler_chain(&[dash("error"), on_error, on_ok], "tcl8.6");
+    assert_eq!(chain.first_taking(Code::Error), Some(0));
+    assert!(!chain.preempted(0) && !chain.preempted(1), "one group");
+    assert_eq!(chain.live_group(1), [0, 1]);
+    assert_eq!(chain.live_group(2), [2]);
+
+    // try {error boom} on error {} {A} on error {} - on ok {} {C}       ;# A
+    let chain = handler_chain(&[on_error, dash("error"), on_ok], "tcl8.6");
+    assert!(chain.preempted(1) && !chain.preempted(2));
+    assert_eq!(chain.live_group(2), [2], "the pre-empted member leaves");
+
+    // try {error boom} on ok {} - on error {} {E}                       ;# E
+    let chain = handler_chain(&[dash("ok"), on_error], "tcl8.6");
+    assert_eq!(chain.first_taking(Code::Error), Some(1));
+    assert_eq!(chain.first_taking(Code::Ok), Some(0));
+    assert_eq!(chain.owner(chain.first_taking(Code::Ok).unwrap()), 1);
+
+    // try {error boom} trap {X} {} {T} on error {} {E}                  ;# E
+    // (T when the error's -errorcode is `X Y`: a trap pre-empts nothing)
+    let chain = handler_chain(&[("trap", "X", false), on_error], "tcl8.6");
+    assert!(!chain.preempted(1));
+    assert_eq!(chain.first_taking(Code::Error), None, "a trap may miss");
+
+    // try {error boom} on error {} {E} trap {} {} {T}                   ;# E
+    let chain = handler_chain(&[on_error, ("trap", "", false)], "tcl8.6");
+    assert!(chain.preempted(1));
+    assert!(chain.live_group(1).is_empty());
+
+    // The loop jumps a handler takes: a trap selects errors only, and a
+    // selector the registry cannot read might select anything.
+    //   foreach i 1 {try {break} trap {X} {} {T} on break {} {B}; …}    ;# B
+    let chain = handler_chain(&[("trap", "X", false), ("on", "break", false)], "tcl8.6");
+    assert_eq!(chain.first_taking(Code::Break), Some(1));
+    assert!(chain.misses(0, Code::Break) && !chain.misses(1, Code::Break));
+    assert!(chain.takes(1, Code::Break) && !chain.takes(0, Code::Error));
+    //   foreach i 1 {try {break} on break {} - on error {} {E}; …}      ;# E
+    let chain = handler_chain(&[dash("break"), on_error], "tcl8.6");
+    assert_eq!(chain.first_taking(Code::Break), Some(0));
+    assert_eq!(chain.owner(0), 1);
+    let chain = handler_chain(
+        &[("on", "$dynamic", false), ("on", "break", false)],
+        "tcl8.6",
+    );
+    assert_eq!(chain.first_taking(Code::Break), None);
+    assert!(!chain.misses(0, Code::Break));
+    assert_eq!(chain.first_taking(Code::Continue), None);
+    assert_eq!(
+        handler_chain(&[("on", "break", false)], "tcl8.6").first_taking(Code::Continue),
+        None
+    );
+
+    // A last handler that is `-` is the command's error; it owns itself.
+    let chain = handler_chain(&[dash("error")], "tcl8.6");
+    assert_eq!(chain.owner(0), 0);
+    assert_eq!(chain.len(), 1);
+    assert!(!chain.is_empty());
+}
+
+/// The plan of `try` with `words` as literal operands.
+fn try_plan(words: &[&'static str]) -> PlanAnswer {
+    let reg = CommandRegistry::build_default();
+    let resolved = resolve_semantics(reg.get("try").expect("try"), None, None);
+    let semantics = resolved.semantics().expect("declared");
+    semantics.structure(&TestInputs::new(
+        "try",
+        words.iter().map(|text| literal(text, None)).collect(),
+    ))
+}
+
+/// `try` declares the body, its handlers and `finally`: how each handler's
+/// pattern selects it, where the pattern stands, the names its variable list
+/// binds (the first two) and its script — none for a `-` handler.
+#[test]
+fn try_declares_its_handler_protocol() {
+    use tcl_registry::value_transfer::{
+        Binder, BinderName, BodyPlan, CompletionProtocol, HandlerMatch, HandlerPlan, Reconcile,
+    };
+    let names = |names: &[&str]| -> Vec<Binder> {
+        names
+            .iter()
+            .map(|name| Binder {
+                name: BinderName::Declared((*name).to_owned()),
+                kind: BindingKind::Scalar,
+            })
+            .collect()
+    };
+    let body = |handlers, finally| PlanAnswer::Body {
+        binders: Vec::new(),
+        body: BodyPlan {
+            body: OperandId(0),
+            frame: tcl_registry::FrameLevel::Relative(0),
+        },
+        reconcile: Reconcile::None,
+        completion: CompletionProtocol::Handlers { handlers, finally },
+    };
+    let at = |index| OperandId(index);
+
+    assert_eq!(
+        try_plan(&[
+            "b", "on", "error", "m o", "h", "trap", "X Y", "", "t", "finally", "f"
+        ]),
+        body(
+            vec![
+                HandlerPlan {
+                    matches: HandlerMatch::CompletionCode,
+                    pattern: at(2),
+                    binders: names(&["m", "o"]),
+                    body: Some(at(4)),
+                },
+                HandlerPlan {
+                    matches: HandlerMatch::ErrorCodePrefix,
+                    pattern: at(6),
+                    binders: Vec::new(),
+                    body: Some(at(8)),
+                },
+            ],
+            Some(at(10))
+        )
+    );
+    // A `-` handler has no script of its own.
+    assert_eq!(
+        try_plan(&["b", "on", "error", "", "-", "on", "ok", "r", "h"]),
+        body(
+            vec![
+                HandlerPlan {
+                    matches: HandlerMatch::CompletionCode,
+                    pattern: at(2),
+                    binders: Vec::new(),
+                    body: None,
+                },
+                HandlerPlan {
+                    matches: HandlerMatch::CompletionCode,
+                    pattern: at(6),
+                    binders: names(&["r"]),
+                    body: Some(at(8)),
+                },
+            ],
+            None
+        )
+    );
+    // No handler, and `finally` alone (tclsh 8.6 to 9.1: both are valid).
+    assert_eq!(try_plan(&["b"]), body(Vec::new(), None));
+    assert_eq!(
+        try_plan(&["b", "finally", "f"]),
+        body(Vec::new(), Some(at(2)))
+    );
+    // The operands count from the form's own arguments: a leading word that
+    // selects the form stands the same plan one operand on.
+    let reg = CommandRegistry::build_default();
+    let resolved = resolve_semantics(reg.get("try").expect("try"), None, None);
+    let mut shifted = TestInputs::new(
+        "try",
+        ["x", "b", "on", "error", "m", "h", "finally", "f"]
+            .iter()
+            .map(|text| literal(text, None))
+            .collect(),
+    );
+    shifted.view.argument_offset = 1;
+    assert_eq!(
+        resolved.semantics().expect("declared").structure(&shifted),
+        PlanAnswer::Body {
+            binders: Vec::new(),
+            body: BodyPlan {
+                body: at(1),
+                frame: tcl_registry::FrameLevel::Relative(0),
+            },
+            reconcile: Reconcile::None,
+            completion: CompletionProtocol::Handlers {
+                handlers: vec![HandlerPlan {
+                    matches: HandlerMatch::CompletionCode,
+                    pattern: at(3),
+                    binders: names(&["m"]),
+                    body: Some(at(5)),
+                }],
+                finally: Some(at(7)),
+            },
+        }
+    );
+}
+
+/// A handler's variable list binds its first two names, the result variable
+/// then the options variable: tclsh 8.6 to 9.1 give `on error {a b c} {set a}`
+/// the message `boom` and ignore the third, `on error {{} o}` binds the options
+/// alone and `on error {m {}}` the result alone, so an empty name keeps its
+/// place and binds nothing.
+#[test]
+fn try_binds_the_first_two_names_of_a_variable_list() {
+    use tcl_registry::value_transfer::{Binder, BinderName, CompletionProtocol};
+    let names = |names: &[&str]| -> Vec<Binder> {
+        names
+            .iter()
+            .map(|name| Binder {
+                name: BinderName::Declared((*name).to_owned()),
+                kind: BindingKind::Scalar,
+            })
+            .collect()
+    };
+    for (list, bound) in [
+        ("m o", names(&["m", "o"])),
+        ("a b c", names(&["a", "b"])),
+        ("{} o", names(&["", "o"])),
+        ("m {}", names(&["m", ""])),
+        ("m", names(&["m"])),
+        ("", Vec::new()),
+    ] {
+        let words = ["b", "on", "error", list, "h"];
+        let PlanAnswer::Body {
+            completion: CompletionProtocol::Handlers { handlers, .. },
+            ..
+        } = try_plan(&words)
+        else {
+            panic!("{list}");
+        };
+        assert_eq!(handlers[0].binders, bound, "{list}");
+    }
+}
+
+/// What the plan cannot place declines, and each is a call `try` itself
+/// rejects or decides by value (tclsh 8.6 to 9.1: `wrong # args`,
+/// `bad handler type "foo"`, `finally clause must be last`, `last non-finally
+/// clause must not have a body of "-"`, `unmatched open brace in list`).
+#[test]
+fn try_declines_what_its_plan_cannot_place() {
+    let reg = CommandRegistry::build_default();
+    let resolved = resolve_semantics(reg.get("try").expect("try"), None, None);
+    let semantics = resolved.semantics().expect("declared");
+    let declined = |reason| PlanAnswer::Declined(reason);
+    let wrong = declined(DeclineReason::WrongRepresentation);
+    assert_eq!(try_plan(&[]), wrong);
+    assert_eq!(try_plan(&["b", "foo", "bar"]), wrong);
+    assert_eq!(
+        try_plan(&["b", "finally", "f", "on", "error", "", "h"]),
+        wrong
+    );
+    assert_eq!(try_plan(&["b", "finally", "f", "finally", "f"]), wrong);
+    assert_eq!(try_plan(&["b", "on", "error", "", "-"]), wrong);
+    assert_eq!(try_plan(&["b", "on", "error", "{", "h"]), wrong);
+    assert_eq!(try_plan(&["b", "on", "error"]), wrong);
+
+    let computed = |text| OperandView {
+        text,
+        kind: InvocationWordKind::Dynamic,
+        role: None,
+    };
+    let plan = |words: Vec<OperandView<'static>>, facts: &[(usize, FactView)]| {
+        let mut inputs = TestInputs::new("try", words);
+        for (at, fact) in facts {
+            inputs.operands.insert(*at, fact.clone());
+        }
+        semantics.structure(&inputs)
+    };
+    // A keyword or a `-` that is computed is decided by its value, and so is a
+    // handler's script, which may be `-`; the variable list that is computed
+    // names no binders. The protected body and `finally` are never `-`, so a
+    // computed one is a place the plan names and does not read.
+    let literals = |words: &[&'static str]| -> Vec<OperandView<'static>> {
+        words.iter().map(|text| literal(text, None)).collect()
+    };
+    let with = |words: &[&'static str], at: usize, text| {
+        let mut operands = literals(words);
+        operands[at] = computed(text);
+        operands
+    };
+    assert_eq!(
+        plan(with(&["b", "on", "error"], 1, "$k"), &[]),
+        declined(DeclineReason::NotExact)
+    );
+    assert_eq!(
+        plan(
+            with(&["b", "on", "error", "", "-", "on", "ok", "", "h"], 4, "$d"),
+            &[]
+        ),
+        declined(DeclineReason::NotExact)
+    );
+    assert_eq!(
+        plan(with(&["b", "on", "error", "x", "h"], 4, "$script"), &[]),
+        declined(DeclineReason::NotExact)
+    );
+    for (fact, reason) in [
+        (
+            FactView::Top(DeclineReason::DynamicName),
+            DeclineReason::DynamicName,
+        ),
+        (FactView::Pending, DeclineReason::NotExact),
+    ] {
+        assert_eq!(
+            plan(
+                with(&["b", "on", "error", "x", "h"], 3, "$vars"),
+                &[(3, fact)]
+            ),
+            declined(reason)
+        );
+    }
+    assert!(matches!(
+        plan(
+            with(&["b", "on", "error", "m", "h", "finally", "f"], 0, "$body"),
+            &[]
+        ),
+        PlanAnswer::Body { .. }
+    ));
+    assert!(matches!(
+        plan(
+            with(&["b", "on", "error", "m", "h", "finally", "f"], 6, "$f"),
+            &[]
+        ),
+        PlanAnswer::Body { .. }
+    ));
+    // A word that expands leaves the clauses unknown.
+    let expanded = OperandView {
+        text: "$handlers",
+        kind: InvocationWordKind::Expanded,
+        role: None,
+    };
+    assert_eq!(
+        plan(vec![literal("b", None), expanded], &[]),
+        declined(DeclineReason::Unsupported)
+    );
+}
+
+/// `lassign` stores to its variables in order, each store failing where its
+/// place holds an array, and its existence transfer says so by path
+/// (`docs/design/compiler/value-transfers.md` § *`catch`, `try`, and
+/// completion*): every target is bound on the normal path, which a target
+/// proven an array removes; on the error path every target before the first
+/// that is not proven writable is bound, that target and the rest are
+/// may-bound where its kind is unknown, and untouched where it is certainly
+/// an array, since the command stops there. An element may fail on its array,
+/// so it is never proven writable.
+#[test]
+fn lassign_lists_its_completion_paths() {
+    use tcl_registry::completion::{CompletionCode, CompletionCodeDomain};
+    use tcl_registry::value_transfer::BindingKind;
+    let reg = CommandRegistry::build_default();
+    let resolved = resolve_semantics(reg.get("lassign").expect("lassign"), None, None);
+    let semantics = resolved.semantics().expect("declared");
+    let scalar = bound_as(BindingKind::Scalar);
+    let array = bound_as(BindingKind::Array);
+    let paths = |facts: &[(&str, FactView)], names: &[&'static str]| {
+        let mut words = vec![literal("list", None)];
+        words.extend(
+            names
+                .iter()
+                .map(|name| literal(name, Some(ArgRole::VarWrite))),
+        );
+        let mut inputs = TestInputs::new("lassign", words);
+        for (name, fact) in facts {
+            inputs.prior.insert((*name).to_owned(), fact.clone());
+        }
+        match semantics.transfer(FactDomain::Existence, &inputs, &mut Budget::unbounded()) {
+            TransferAnswer::Existence(transfer) => transfer.paths,
+            other => panic!("{other:?}"),
+        }
+    };
+    let bind = |at: usize| {
+        (
+            TargetId(OperandId(at)),
+            ExistenceOutcome::Bind(BindingKind::Scalar),
+        )
+    };
+    let may = |at: usize| {
+        (
+            TargetId(OperandId(at)),
+            ExistenceOutcome::MayBind(BindingKind::Scalar),
+        )
+    };
+    let normal = CompletionCodeDomain::Exact(&[CompletionCode::Ok]);
+    let error = CompletionCodeDomain::Exact(&[CompletionCode::Error]);
+
+    // Every place writable: the normal path alone.
+    let all = paths(&[("a", scalar.clone()), ("b", absent())], &["a", "b"]);
+    assert_eq!(all.len(), 1);
+    assert_eq!(
+        (all[0].completion, all[0].outcomes.clone()),
+        (normal, vec![bind(1), bind(2)])
+    );
+
+    // `b` proven an array: the error path alone, `a` bound, `b` and `c`
+    // untouched.
+    let certain = paths(
+        &[("a", scalar.clone()), ("b", array.clone())],
+        &["a", "b", "c"],
+    );
+    assert_eq!(certain.len(), 1);
+    assert_eq!(
+        (certain[0].completion, certain[0].outcomes.clone()),
+        (error, vec![bind(1)])
+    );
+
+    // `b` of a kind the rung does not state: both paths, `a` bound on the
+    // error path and `b` and `c` may-bound.
+    let unknown = paths(&[("a", scalar.clone())], &["a", "b", "c"]);
+    assert_eq!(unknown.len(), 2);
+    assert_eq!(unknown[0].outcomes, vec![bind(1), bind(2), bind(3)]);
+    assert_eq!(
+        (unknown[1].completion, unknown[1].outcomes.clone()),
+        (error, vec![bind(1), may(2), may(3)])
+    );
+
+    // An element is never proven writable.
+    let element = paths(&[], &["a", "k(1)"]);
+    assert_eq!(element.len(), 2);
+    assert_eq!(element[1].outcomes, vec![may(1), may(2)]);
+    assert_eq!(
+        semantics.transfer(
+            FactDomain::Type,
+            &TestInputs::new("lassign", vec![]),
+            &mut Budget::unbounded()
+        ),
+        TransferAnswer::Generic
+    );
+}
+
+/// Descriptor availability and enabled evaluation are separate columns:
+/// the increment has a registry-owned direct route; append and list-append
+/// carry the descriptor and no route.
+#[test]
+fn every_cell_update_has_a_registry_owned_route() {
+    let reg = CommandRegistry::build_default();
+    let route = |name: &str| resolve_semantics(reg.get(name).expect(name), None, None).route();
+    for (name, id) in [
+        ("incr", NativeEvalId::CellIncrement),
+        ("append", NativeEvalId::CellAppend),
+        ("lappend", NativeEvalId::CellListAppend),
+    ] {
+        assert_eq!(route(name), Some(EvalRoute::Direct { id }), "{name}");
+        assert_eq!(id.owner(), EvaluatorOwner::Registry, "{name}");
+    }
+    assert_eq!(NativeEvalId::StringRange.owner(), EvaluatorOwner::Registry);
+}
+
+/// The targets whose incoming value an evaluation reads: the cell update's
+/// target by default, and none for a route that reads no storage.
+#[test]
+fn incoming_targets_default_to_the_cell_update_target() {
+    use tcl_registry::value_transfer::builtins::STRING_RANGE;
+    let reg = CommandRegistry::build_default();
+    let incr = resolve_semantics(reg.get("incr").expect("incr"), None, None);
+    let incr = incr.semantics().expect("the derived cell update");
+    let inputs = TestInputs::new("incr", vec![literal("n", Some(ArgRole::VarWrite))]);
+    assert_eq!(incr.incoming_targets(&inputs), [TargetId(OperandId(0))]);
+    let inputs = TestInputs::new(
+        "string",
+        vec![
+            literal("range", None),
+            literal("abc", None),
+            literal("0", None),
+            literal("1", None),
+        ],
+    );
+    assert!(STRING_RANGE.incoming_targets(&inputs).is_empty());
+}
+
+/// `set name value` writes the value byte for byte and returns it; `set
+/// name` returns what the place holds, passes a pending prior through, and
+/// declines an unbound one, since reading an absent variable is an error.
+#[test]
+fn the_cell_write_route_writes_and_reads_the_exact_value() {
+    use tcl_registry::value_transfer::cell_write::CELL_WRITE;
+    let write = TestInputs::new(
+        "set",
+        vec![literal("v", Some(ArgRole::VarWrite)), literal(" a ", None)],
+    );
+    let outcome =
+        evaluated(CELL_WRITE.evaluate(&write, &mut Budget::evaluation())).expect("a write");
+    assert_eq!(
+        outcome.result,
+        ExactValueOrUnavailable::Exact(ExactValue::from_literal(" a "))
+    );
+    assert_eq!(
+        outcome.ordered_stores,
+        [StoreOutcome::Write {
+            target: TargetId(OperandId(0)),
+            value: ExactValue::from_literal(" a "),
+        }]
+    );
+    assert!(CELL_WRITE.incoming_targets(&write).is_empty());
+
+    let read_inputs = |prior: FactView| {
+        let mut inputs = TestInputs::new("set", vec![literal("v", Some(ArgRole::VarRead))]);
+        inputs.prior.insert("v".to_owned(), prior);
+        inputs
+    };
+    let read =
+        |prior: FactView| CELL_WRITE.evaluate(&read_inputs(prior), &mut Budget::evaluation());
+    let seven = ExactValue::from_literal("7");
+    let outcome = evaluated(read(FactView::Exact(seven.clone(), None))).expect("a read");
+    assert_eq!(outcome.result, ExactValueOrUnavailable::Exact(seven));
+    assert!(outcome.ordered_stores.is_empty());
+    assert_eq!(read(FactView::Pending), EvalAnswer::Pending);
+    assert_eq!(
+        read(FactView::Top(DeclineReason::UnboundPlace)),
+        EvalAnswer::Declined(DeclineReason::UnboundPlace)
+    );
+    assert_eq!(
+        CELL_WRITE.incoming_targets(&read_inputs(FactView::Pending)),
+        [TargetId(OperandId(0))]
+    );
+}
+
+/// One keyed update, `dict <sub> d <words…>`, with `d` holding `prior`
+/// under `dialect`: the new dictionary, which is both the result and the
+/// one store, or the decline.
+fn keyed_update(
+    sub: &'static str,
+    prior: FactView,
+    words: &[&'static str],
+    dialect: Option<&str>,
+) -> Result<String, DeclineReason> {
+    let reg = CommandRegistry::build_default();
+    let spec = reg.get("dict").expect("dict");
+    let resolved = resolve_semantics(spec, Some(spec.subcommand(sub).expect(sub)), None);
+    let semantics = resolved.semantics().expect("a keyed update");
+    let mut operands = vec![literal(sub, None), literal("d", Some(ArgRole::VarWrite))];
+    operands.extend(words.iter().map(|word| literal(word, None)));
+    let mut inputs = TestInputs::new("dict", operands);
+    inputs.prior.insert("d".to_owned(), prior);
+    inputs.context = AnalysisContext::detached(dialect.and_then(tcl_dialect::DialectProfile::find));
+    let outcome = evaluated(semantics.evaluate(&inputs, &mut Budget::evaluation()))?;
+    if let Some(label) = error_label(&outcome) {
+        return Ok(label);
+    }
+    let ExactValueOrUnavailable::Exact(result) = &outcome.result else {
+        panic!("unavailable");
+    };
+    assert_eq!(
+        outcome.ordered_stores,
+        [StoreOutcome::Write {
+            target: TargetId(OperandId(1)),
+            value: result.clone(),
+        }],
+        "{sub} {words:?}: the new dictionary is the one store"
+    );
+    Ok(String::from_utf8(result.bytes.clone()).expect("text"))
+}
+
+fn held(text: &str) -> FactView {
+    FactView::Exact(ExactValue::from_literal(text), None)
+}
+
+fn absent() -> FactView {
+    FactView::Domain(tcl_registry::value_transfer::DomainFact::Existence(
+        tcl_registry::value_transfer::Existence::Unbound,
+    ))
+}
+
+/// The five keyed updates run the shared dict cores, each answer the one
+/// tclsh 8.5 to 9.1 give: order kept, duplicates canonicalised, a key path
+/// walked level by level, an absent variable the empty dictionary, and a
+/// malformed dictionary the program's error.
+#[test]
+fn keyed_updates_run_the_shared_dict_cores() {
+    let set = |prior: FactView, words: &[&'static str]| keyed_update("set", prior, words, None);
+    let first = set(absent(), &["a", "1"]).expect("dict set");
+    let second = set(held(&first), &["b", "2"]).expect("dict set");
+    assert_eq!(set(held(&second), &["a", "3"]).as_deref(), Ok("a 3 b 2"));
+    assert_eq!(
+        set(held("a {x 1}"), &["a", "y", "2"]).as_deref(),
+        Ok("a {x 1 y 2}")
+    );
+    assert_eq!(
+        set(held("b 2 a 1"), &["c", "3"]).as_deref(),
+        Ok("b 2 a 1 c 3")
+    );
+    assert_eq!(set(held(" a  1 "), &["b", "2"]).as_deref(), Ok("a 1 b 2"));
+    assert_eq!(set(held("a 1 a 2"), &["b", "3"]).as_deref(), Ok("a 2 b 3"));
+    assert_eq!(
+        set(held("a 1 b"), &["c", "3"]).as_deref(),
+        Ok("error after 0")
+    );
+    assert_eq!(
+        set(held("a b"), &["a", "c", "d"]).as_deref(),
+        Ok("error after 0"),
+        "an intermediate value that is not a dictionary"
+    );
+
+    let unset = |prior: FactView, words: &[&'static str]| keyed_update("unset", prior, words, None);
+    assert_eq!(unset(held("a 1 b 2"), &["a"]).as_deref(), Ok("b 2"));
+    assert_eq!(unset(absent(), &["a"]).as_deref(), Ok(""));
+    assert_eq!(unset(held(" a  1 "), &["zz"]).as_deref(), Ok("a 1"));
+    assert_eq!(unset(held("a {x 1}"), &["a", "x"]).as_deref(), Ok("a {}"));
+    assert_eq!(
+        unset(held("a 1"), &["x", "y"]),
+        Err(DeclineReason::WrongRepresentation),
+        "a missing intermediate key"
+    );
+
+    let incr = |prior: FactView, words: &[&'static str], dialect: Option<&str>| {
+        keyed_update("incr", prior, words, dialect)
+    };
+    assert_eq!(incr(absent(), &["k"], None).as_deref(), Ok("k 1"));
+    assert_eq!(incr(held("k 5"), &["k", "-7"], None).as_deref(), Ok("k -2"));
+    assert_eq!(incr(held("k { 5 }"), &["k"], None).as_deref(), Ok("k 6"));
+    assert_eq!(incr(absent(), &["k", " 5"], None).as_deref(), Ok("k { 5}"));
+    assert_eq!(
+        incr(absent(), &["k", "010"], Some("tcl8.6")).as_deref(),
+        Ok("k 010")
+    );
+    assert_eq!(
+        incr(held("k 010"), &["k"], Some("tcl8.6")).as_deref(),
+        Ok("k 9")
+    );
+    assert_eq!(
+        incr(held("k 010"), &["k"], Some("tcl9.0")).as_deref(),
+        Ok("k 11")
+    );
+    assert_eq!(
+        incr(held("k 010"), &["k"], None),
+        Err(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar))
+    );
+    assert_eq!(
+        incr(held("k abc"), &["k"], None).as_deref(),
+        Ok("error after 0")
+    );
+
+    let append =
+        |prior: FactView, words: &[&'static str]| keyed_update("append", prior, words, None);
+    let foo = append(absent(), &["k", "foo"]).expect("dict append");
+    assert_eq!(append(held(&foo), &["k", "bar"]).as_deref(), Ok("k foobar"));
+    assert_eq!(
+        append(held("k 1"), &["k", "2", "3"]).as_deref(),
+        Ok("k 123")
+    );
+    assert_eq!(append(absent(), &["k"]).as_deref(), Ok("k {}"));
+
+    let lappend =
+        |prior: FactView, words: &[&'static str]| keyed_update("lappend", prior, words, None);
+    assert_eq!(
+        lappend(absent(), &["k", "a", "b c"]).as_deref(),
+        Ok("k {a {b c}}")
+    );
+    assert_eq!(lappend(held("k v"), &["k"]).as_deref(), Ok("k v"));
+    assert_eq!(
+        lappend(held("k \\{"), &["k", "v"]).as_deref(),
+        Ok("error after 0")
+    );
+
+    // A prior the solver cannot prove is never taken for an absent one.
+    assert_eq!(
+        keyed_update(
+            "set",
+            FactView::Top(DeclineReason::NotExact),
+            &["a", "1"],
+            None
+        ),
+        Err(DeclineReason::NotExact)
+    );
+}
+
+/// `::tcl::dict::incr d k` answers as `dict incr d k`: the qualified spec
+/// carries the subcommand's declaration, and the dictionary operand is
+/// found by its role in either layout.
+#[test]
+fn the_qualified_dict_spellings_share_the_declaration() {
+    let reg = CommandRegistry::build_default();
+    let qualified = reg.get("::tcl::dict::incr").expect("::tcl::dict::incr");
+    let resolved = resolve_semantics(qualified, None, None);
+    let semantics = resolved.semantics().expect("the keyed update");
+    assert_eq!(semantics.identity(), "keyed-update:incr");
+    let mut inputs = TestInputs::new(
+        "::tcl::dict::incr",
+        vec![literal("d", Some(ArgRole::VarWrite)), literal("k", None)],
+    );
+    inputs.prior.insert("d".to_owned(), held("k 41"));
+    let outcome =
+        evaluated(semantics.evaluate(&inputs, &mut Budget::evaluation())).expect("evaluated");
+    assert_eq!(
+        outcome.ordered_stores,
+        [StoreOutcome::Write {
+            target: TargetId(OperandId(0)),
+            value: match outcome.result.clone() {
+                ExactValueOrUnavailable::Exact(value) => value,
+                ExactValueOrUnavailable::Unavailable(_) => panic!("unavailable"),
+            },
+        }]
+    );
+    assert_eq!(
+        keyed_update("incr", held("k 41"), &["k"], None).as_deref(),
+        Ok("k 42")
+    );
+    assert_eq!(
+        semantics.incoming_targets(&inputs),
+        [TargetId(OperandId(0))]
+    );
+}
+
+/// A route that reads its target's prior value declares the read where
+/// every consumer asks for it: [`Traits::READS_BEFORE_WRITE`] on the scope
+/// that carries the route. The dictionary's keyed updates had the route but
+/// not the trait, so a spelling the lowering reaches by head —
+/// `::tcl::dict::set`, an alias of `dict set` — recorded no read, and O109
+/// deleted the store it read: `set d {a 1}; ::tcl::dict::set d k v` printed
+/// `k v` where tclsh 8.5 to 9.1 print `a 1 k v`.
+#[test]
+fn a_route_that_reads_its_target_declares_the_read() {
+    let reg = full_registry();
+    let mut names: Vec<&str> = reg.command_names().collect();
+    names.sort_unstable();
+    let mut checked = BTreeSet::new();
+    for name in names {
+        let Some(spec) = reg.get(name) else {
+            continue;
+        };
+        let scopes = std::iter::once(None).chain(spec.subcommands.iter().map(Some));
+        for sub in scopes {
+            let resolved = resolve_semantics(spec, sub, None);
+            let Some(identity) = resolved.semantics().map(CommandSemantics::identity) else {
+                continue;
+            };
+            if !(identity.starts_with("cell-update:") || identity.starts_with("keyed-update:")) {
+                continue;
+            }
+            let traits = spec.traits | sub.map_or_else(Traits::empty, |sub| sub.traits);
+            let label = sub.map_or_else(
+                || spec.name.to_owned(),
+                |sub| format!("{} {}", spec.name, sub.name),
+            );
+            assert!(
+                traits.contains(Traits::READS_BEFORE_WRITE),
+                "{label} reads its target through `{identity}` but does not declare the read"
+            );
+            checked.insert(label);
+        }
+    }
+    for label in [
+        "incr",
+        "append",
+        "lappend",
+        "dict set",
+        "dict unset",
+        "dict incr",
+        "dict append",
+        "dict lappend",
+        "::tcl::dict::set",
+        "::tcl::dict::lappend",
+    ] {
+        assert!(
+            checked.contains(label),
+            "{label} was not checked: {checked:?}"
+        );
+    }
+}
+
+/// `list`, `llength` and `string length` run the shared cores over
+/// `ConstOps` on registry-owned routes (tclsh 8.4 to 9.1 give `a {b c} {}`
+/// and 2; `llength "a {b"` raises; `string length héllo` read from a UTF-8
+/// file is 6 up to 8.6 and 5 from 9.0, so a non-ASCII subject declines
+/// where the target does not decode source as UTF-8).
+#[test]
+fn list_and_length_routes_run_the_shared_cores() {
+    use tcl_registry::value_transfer::builtins::{LIST_LENGTH, LIST_OF_ARGS, STRING_LENGTH};
+    let run = |semantics: &dyn CommandSemantics,
+               command: &'static str,
+               words: &[&'static str],
+               dialect: Option<&str>| {
+        let mut inputs = TestInputs::new(
+            command,
+            words.iter().map(|word| literal(word, None)).collect(),
+        );
+        inputs.context =
+            AnalysisContext::detached(dialect.and_then(tcl_dialect::DialectProfile::find));
+        evaluated(semantics.evaluate(&inputs, &mut Budget::evaluation())).map(|outcome| {
+            if let Some(label) = error_label(&outcome) {
+                return label;
+            }
+            assert!(
+                outcome.ordered_stores.is_empty(),
+                "{command} writes nothing"
+            );
+            match outcome.result {
+                ExactValueOrUnavailable::Exact(value) => String::from_utf8(value.bytes).unwrap(),
+                ExactValueOrUnavailable::Unavailable(_) => panic!("unavailable"),
+            }
+        })
+    };
+    assert_eq!(
+        run(&LIST_OF_ARGS, "list", &["a", "b c", ""], None).as_deref(),
+        Ok("a {b c} {}")
+    );
+    // A first element starting with `#` is brace-quoted from 8.5 and bare
+    // in 8.4 (tclsh 8.4 prints `# a` for `puts [list # a]`, 8.5 to 9.1
+    // print `{#} a`), so a profile naming no release cannot render it; a
+    // `#` anywhere else is data in every release. `f5-irules` renders as
+    // its 8.4 base does (ruling 8).
+    for (dialect, want) in [
+        (Some("tcl8.4"), Ok("# a")),
+        (Some("tcl8.5"), Ok("{#} a")),
+        (Some("tcl9.1"), Ok("{#} a")),
+        (
+            None,
+            Err(DeclineReason::ReleaseAmbiguous(Axis::ListRendering)),
+        ),
+        (Some("f5-irules"), Ok("# a")),
+    ] {
+        assert_eq!(
+            run(&LIST_OF_ARGS, "list", &["#", "a"], dialect),
+            want.map(str::to_owned),
+            "{dialect:?}"
+        );
+    }
+    assert_eq!(
+        run(&LIST_OF_ARGS, "list", &["a", "#b"], None).as_deref(),
+        Ok("a #b")
+    );
+    assert_eq!(
+        run(&LIST_LENGTH, "llength", &["a {b c}"], None).as_deref(),
+        Ok("2")
+    );
+    assert_eq!(
+        run(&LIST_LENGTH, "llength", &["a {b"], None).as_deref(),
+        Ok("error after 0"),
+        "a value that is no list is the command's error, after no store"
+    );
+    assert_eq!(
+        run(
+            &STRING_LENGTH,
+            "string",
+            &["length", "héllo"],
+            Some("tcl9.0")
+        )
+        .as_deref(),
+        Ok("5")
+    );
+    for dialect in [Some("tcl8.6"), None] {
+        assert_eq!(
+            run(&STRING_LENGTH, "string", &["length", "héllo"], dialect),
+            Err(DeclineReason::ReleaseAmbiguous(Axis::SourceEncoding)),
+            "{dialect:?}"
+        );
+    }
+    assert_eq!(
+        run(&STRING_LENGTH, "string", &["length", " a "], None).as_deref(),
+        Ok("3")
+    );
+    for id in [
+        NativeEvalId::ListOfArgs,
+        NativeEvalId::ListLength,
+        NativeEvalId::StringLength,
+        NativeEvalId::FormatTemplate,
+    ] {
+        assert_eq!(id.owner(), EvaluatorOwner::Registry, "{id:?}");
+    }
+}
+
+/// `format` over literal words under `dialect`'s release, through the
+/// registry-owned route.
+fn format_under(dialect: Option<&str>, words: &[&str]) -> Result<String, DeclineReason> {
+    use tcl_registry::value_transfer::builtins::FORMAT_TEMPLATE;
+    let profile = dialect.map(|name| tcl_dialect::DialectProfile::find(name).expect(name));
+    let operands = words.iter().map(|word| literal(word, None)).collect();
+    let mut inputs = TestInputs::new("format", operands);
+    inputs.context = AnalysisContext::detached(profile);
+    let outcome = evaluated(FORMAT_TEMPLATE.evaluate(&inputs, &mut Budget::evaluation()))?;
+    match outcome.result {
+        ExactValueOrUnavailable::Exact(value) => Ok(String::from_utf8(value.bytes).expect("text")),
+        ExactValueOrUnavailable::Unavailable(_) => panic!("unavailable"),
+    }
+}
+
+/// `format` runs the shared format core over `ConstOps` on its
+/// registry-owned route. Oracle, tclsh 8.4 to 9.1: `format %5.2f 3.14159`
+/// is ` 3.14`, `format %x 255` is `ff`, `format %s-%d a 5` is `a-5`,
+/// `format %c 65` is `A`, `format %5s hi` is `   hi`, and `format %d abc`
+/// raises — in every release, so under a profile that names none too.
+#[test]
+fn format_runs_the_shared_core() {
+    for dialect in [
+        Some("tcl8.4"),
+        Some("tcl8.5"),
+        Some("tcl8.6"),
+        Some("tcl9.0"),
+        Some("tcl9.1"),
+        Some("f5-irules"),
+        None,
+    ] {
+        for (words, want) in [
+            (&["%5.2f", "3.14159"][..], " 3.14"),
+            (&["%x", "255"][..], "ff"),
+            (&["%s-%d", "a", "5"][..], "a-5"),
+            (&["%c", "65"][..], "A"),
+            (&["%5s", "hi"][..], "   hi"),
+        ] {
+            assert_eq!(
+                format_under(dialect, words),
+                Ok(want.to_owned()),
+                "{dialect:?} {words:?}"
+            );
+        }
+        assert_eq!(
+            format_under(dialect, &["%d", "abc"]),
+            Err(DeclineReason::WrongRepresentation),
+            "{dialect:?}"
+        );
+    }
+}
+
+/// `format` answers under the target release's grammar, and a profile that
+/// names no release answers only where every release agrees. Oracle,
+/// tclsh 8.4 to 9.1: `%b` raises before 8.6 and `%p` and `%llu` before
+/// 9.0; `format %d 010` is 8 up to 8.6 and 10 from 9.0; an unmodified `%d`
+/// of 2147483648 is itself up to 8.6 and wraps to -2147483648 from 9.0;
+/// `%#o 8` is `010` against `0o10` and `%#d 5` is `5` against `0d5`; and
+/// `%.0d 0` is empty under 8.4, which formats through C's `printf`, and `0`
+/// from 8.5.
+#[test]
+fn format_answers_per_release() {
+    let error = Err(DeclineReason::WrongRepresentation);
+    for (words, eight_four, eight_five, eight_six, nine) in [
+        (&["%b", "5"][..], error, error, Ok("101"), Ok("101")),
+        (&["%p", "255"][..], error, error, error, Ok("0xff")),
+        (&["%llu", "5"][..], error, error, error, Ok("5")),
+        (&["%d", "010"][..], Ok("8"), Ok("8"), Ok("8"), Ok("10")),
+        (
+            &["%d", "2147483648"][..],
+            Ok("2147483648"),
+            Ok("2147483648"),
+            Ok("2147483648"),
+            Ok("-2147483648"),
+        ),
+        (
+            &["%#o", "8"][..],
+            Ok("010"),
+            Ok("010"),
+            Ok("010"),
+            Ok("0o10"),
+        ),
+        (&["%#d", "5"][..], Ok("5"), Ok("5"), Ok("5"), Ok("0d5")),
+        (&["%.0d", "0"][..], Ok(""), Ok("0"), Ok("0"), Ok("0")),
+    ] {
+        for (dialect, want) in [
+            ("tcl8.4", eight_four),
+            ("tcl8.5", eight_five),
+            ("tcl8.6", eight_six),
+            ("tcl9.0", nine),
+            ("tcl9.1", nine),
+        ] {
+            assert_eq!(
+                format_under(Some(dialect), words),
+                want.map(str::to_owned),
+                "{dialect} {words:?}"
+            );
+        }
+        // `f5-irules` formats as its 8.4 base does (ruling 8): tclsh 8.4
+        // raises `bad field specifier` for `%b`, `%p` and `%llu`, and prints
+        // 8, 2147483648, `010` and 5 for the rest.
+        assert_eq!(
+            format_under(Some("f5-irules"), words),
+            eight_four.map(str::to_owned),
+            "f5-irules {words:?}"
+        );
+        let answer = format_under(None, words);
+        assert!(
+            matches!(
+                answer,
+                Err(DeclineReason::ReleaseAmbiguous(
+                    Axis::FormatVerbs | Axis::NumeralGrammar
+                ))
+            ),
+            "{words:?}: {answer:?}"
+        );
+    }
+}
+
+/// `ElementsOf` states a type relationship and `LOOP_LIST_HEADER` a CFG
+/// shape; neither states iteration, so a spec carrying both and declaring
+/// nothing derives nothing.
+#[test]
+fn elements_of_and_loop_list_header_derive_nothing() {
+    let spec = CommandSpec {
+        name: "vendor_each",
+        traits: Traits::LOOP_LIST_HEADER | Traits::HAS_LOOP_BODY,
+        arg_roles: &[(0, ArgRole::VarWrite), (2, ArgRole::Body)],
+        var_write_typing: VarWriteTyping::ElementsOf { container_arg: 1 },
+        ..CommandSpec::DEFAULT
+    };
+    let resolved = resolve_semantics(&spec, None, None);
+    assert!(
+        matches!(resolved, ResolvedSemantics::None),
+        "iteration must be declared, never derived: {resolved:?}"
+    );
+    // The shipped loops declare it explicitly.
+    let reg = CommandRegistry::build_default();
+    for name in ["foreach", "lmap"] {
+        let resolved = resolve_semantics(reg.get(name).expect(name), None, None);
+        assert_eq!(
+            resolved.origin(),
+            SemanticsOrigin::Declared(DeclarationScope::Command),
+            "{name}"
+        );
+    }
+    // `dict for` carries the header shape and declares no iteration: its
+    // declaration is the callback's `none`, which plans nothing.
+    let dict = reg.get("dict").expect("dict");
+    let sub = dict.subcommand("for").expect("dict for");
+    assert!(sub.loop_list_header);
+    let resolved = resolve_semantics(dict, Some(sub), None);
+    assert_eq!(
+        resolved.route(),
+        Some(EvalRoute::None {
+            reason: NoRouteReason::Callback
+        })
+    );
+    assert_eq!(
+        resolved.semantics().map(CommandSemantics::identity),
+        Some("no-route:callback")
+    );
+}
+
+/// The three states resolve innermost-first: a form's abstention hides a
+/// subcommand's declaration, a subcommand's abstention hides the
+/// command's, and an abstention anywhere also stops the derivation.
+#[test]
+fn abstention_exists_at_command_subcommand_and_form_scope() {
+    // Any declared specialisation stands in for the subcommand's own.
+    static DECLARED: &tcl_registry::value_transfer::builtins::ListLengthSemantics =
+        &tcl_registry::value_transfer::builtins::LIST_LENGTH;
+    let declined_form = CommandForm {
+        name: "declined",
+        semantics: SemanticsDeclaration::Declined,
+        ..CommandForm::DEFAULT
+    };
+    let inherited_form = CommandForm {
+        name: "inherited",
+        ..CommandForm::DEFAULT
+    };
+    let declared_sub = SubCommand {
+        name: "declared",
+        semantics: SemanticsDeclaration::Declared(DECLARED),
+        ..SubCommand::DEFAULT
+    };
+    let declined_sub = SubCommand {
+        name: "declined",
+        semantics: SemanticsDeclaration::Declined,
+        ..SubCommand::DEFAULT
+    };
+    let inherited_sub = SubCommand {
+        name: "inherited",
+        ..SubCommand::DEFAULT
+    };
+    let derived_command = CommandSpec {
+        name: "bump",
+        native_lowering: Some(NativeLowering::CellReadModifyWrite(CellUpdate::Increment)),
+        ..CommandSpec::DEFAULT
+    };
+    let declined_command = CommandSpec {
+        name: "bump",
+        semantics: SemanticsDeclaration::Declined,
+        native_lowering: Some(NativeLowering::CellReadModifyWrite(CellUpdate::Increment)),
+        ..CommandSpec::DEFAULT
+    };
+
+    // Form scope wins over a declared subcommand.
+    assert_eq!(
+        resolve_semantics(&derived_command, Some(&declared_sub), Some(&declined_form)).origin(),
+        SemanticsOrigin::Declined(DeclarationScope::Form)
+    );
+    // A subcommand's declaration wins over the command's derivation.
+    assert_eq!(
+        resolve_semantics(&derived_command, Some(&declared_sub), Some(&inherited_form)).origin(),
+        SemanticsOrigin::Declared(DeclarationScope::Subcommand)
+    );
+    // A subcommand's abstention stops the command's derivation.
+    assert_eq!(
+        resolve_semantics(&derived_command, Some(&declined_sub), None).origin(),
+        SemanticsOrigin::Declined(DeclarationScope::Subcommand)
+    );
+    // An inheriting form falls through to the command's derivation.
+    assert_eq!(
+        resolve_semantics(&derived_command, None, Some(&inherited_form)).origin(),
+        SemanticsOrigin::Derived
+    );
+    // A resolved subcommand selects an operation of its own, so the
+    // command-level descriptor — which states the whole command's
+    // operation — derives nothing for it.
+    assert_eq!(
+        resolve_semantics(
+            &derived_command,
+            Some(&inherited_sub),
+            Some(&inherited_form)
+        )
+        .origin(),
+        SemanticsOrigin::None
+    );
+    // The command's own abstention stops its derivation.
+    assert_eq!(
+        resolve_semantics(&declined_command, None, None).origin(),
+        SemanticsOrigin::Declined(DeclarationScope::Command)
+    );
+}
+
+/// The increment route over `n` holding `old`, stepped by `amount`, under
+/// `dialect`'s profile — `None` is a profile naming no release.
+fn evaluate_increment(
+    cell: &dyn CommandSemantics,
+    dialect: Option<&str>,
+    old: FactView,
+    amount: Option<&'static str>,
+) -> EvalAnswer {
+    let mut operands = vec![literal("n", Some(ArgRole::VarWrite))];
+    if let Some(amount) = amount {
+        operands.push(literal(amount, None));
+    }
+    let mut inputs = TestInputs::new("incr", operands);
+    inputs.prior.insert("n".to_owned(), old);
+    inputs.context = AnalysisContext::detached(dialect.and_then(tcl_dialect::DialectProfile::find));
+    cell.evaluate(&inputs, &mut Budget::evaluation())
+}
+
+/// The value an evaluated increment answers, or the reason it declined.
+fn increment_result(answer: EvalAnswer) -> Result<ExactValue, DeclineReason> {
+    match answer {
+        EvalAnswer::Evaluated(outcome) => match outcome.result {
+            // An error the command raises reads as `error after N`.
+            ExactValueOrUnavailable::Unavailable(_) if error_label(&outcome).is_some() => {
+                Ok(ExactValue::text(error_label(&outcome).expect("an error")))
+            }
+            ExactValueOrUnavailable::Exact(value) => Ok(value),
+            ExactValueOrUnavailable::Unavailable(_) => panic!("unavailable"),
+        },
+        EvalAnswer::Declined(reason) => Err(reason),
+        EvalAnswer::Pending => panic!("pending"),
+    }
+}
+
+/// What the increment route answers: the integer `ConstOps` built, with the
+/// representation it constructed as evidence.
+fn built_int(i: i64) -> ExactValue {
+    ExactValue {
+        representation: tcl_registry::value_transfer::RepresentationEvidence::Constructed(
+            tcl_registry::TclType::Int,
+        ),
+        ..ExactValue::int(i)
+    }
+}
+
+/// The increment reads its numerals under the target's release, as the
+/// adapter does, and a profile naming no release declines wherever the
+/// releases differ; the evidence names the route and the release.
+#[test]
+fn the_increment_route_reads_numerals_under_the_target_release() {
+    let cell = resolve_semantics(
+        CommandRegistry::build_default().get("incr").expect("incr"),
+        None,
+        None,
+    );
+    let cell = cell.semantics().expect("derived");
+    let exact = |i: i64| FactView::Exact(ExactValue::int(i), None);
+    let text = |t: &str| FactView::Exact(ExactValue::text(t), None);
+
+    // A leading zero reads as octal up to 8.6 and decimal from 9.0 (tclsh
+    // 8.4 to 8.6: `set x 010; incr x` is 9; 9.0 and 9.1: 11). `f5-irules`
+    // reads it as its 8.4 base does (ruling 8).
+    for (dialect, want) in [
+        ("tcl8.6", 9),
+        ("tcl8.4", 9),
+        ("tcl9.0", 11),
+        ("f5-irules", 9),
+    ] {
+        assert_eq!(
+            increment_result(evaluate_increment(cell, Some(dialect), text("010"), None)),
+            Ok(built_int(want)),
+            "{dialect}"
+        );
+    }
+    assert_eq!(
+        increment_result(evaluate_increment(cell, None, text("010"), None)),
+        Err(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar)),
+    );
+    // A whitespace-padded step is an integer in every release (tclsh 8.4,
+    // 8.6, 9.0: `set x 1; incr x " 5"` is 6).
+    assert_eq!(
+        increment_result(evaluate_increment(cell, None, exact(1), Some(" 5"))),
+        Ok(built_int(6))
+    );
+    // Past the wide boundary 8.5 onward widens; 8.4 prints a value the
+    // model does not compute; a profile naming no release cannot say.
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let value = increment_result(evaluate_increment(
+            cell,
+            Some(dialect),
+            exact(i64::MAX),
+            None,
+        ))
+        .expect(dialect);
+        assert_eq!(value.bytes, b"9223372036854775808", "{dialect}");
+        assert_eq!(value.numeric, None, "{dialect}");
+    }
+    assert_eq!(
+        increment_result(evaluate_increment(
+            cell,
+            Some("tcl8.4"),
+            exact(i64::MAX),
+            None
+        )),
+        Err(DeclineReason::WrongRepresentation)
+    );
+    assert_eq!(
+        increment_result(evaluate_increment(cell, None, exact(i64::MAX), None)),
+        Err(DeclineReason::ReleaseAmbiguous(Axis::IntTower))
+    );
+    // The evidence names the route and the release the answer depended on.
+    match evaluate_increment(cell, Some("tcl8.6"), exact(1), None) {
+        EvalAnswer::Evaluated(outcome) => {
+            assert_eq!(
+                outcome.evidence.release,
+                Some(tcl_dialect::TclVersion::V8_6)
+            );
+            assert_eq!(
+                outcome.evidence.route.map(|r| r.route),
+                Some(EvalRoute::Direct {
+                    id: NativeEvalId::CellIncrement
+                })
+            );
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+/// The registry-owned increment: read the proven old value, add the exact
+/// step, return the new value and one write of it to the target — and
+/// decline, never guess, on a pending, non-integer, or set-valued input.
+#[test]
+fn the_increment_route_runs_the_shared_core_under_the_target_semantics() {
+    let cell = resolve_semantics(
+        CommandRegistry::build_default().get("incr").expect("incr"),
+        None,
+        None,
+    );
+    let cell = cell.semantics().expect("derived");
+    let evaluate =
+        |old: FactView, amount: Option<&'static str>| evaluate_increment(cell, None, old, amount);
+    let exact = |i: i64| FactView::Exact(ExactValue::int(i), None);
+
+    match evaluate(exact(5), None) {
+        EvalAnswer::Evaluated(outcome) => {
+            assert_eq!(outcome.result, ExactValueOrUnavailable::Exact(built_int(6)));
+            assert_eq!(
+                outcome.ordered_stores,
+                vec![StoreOutcome::Write {
+                    target: TargetId(OperandId(0)),
+                    value: built_int(6)
+                }]
+            );
+        }
+        other => panic!("{other:?}"),
+    }
+    assert!(matches!(
+        evaluate(exact(3), Some("10")),
+        EvalAnswer::Evaluated(outcome) if outcome.result == ExactValueOrUnavailable::Exact(built_int(13))
+    ));
+    assert!(matches!(
+        evaluate(exact(10), Some("-2")),
+        EvalAnswer::Evaluated(outcome) if outcome.result == ExactValueOrUnavailable::Exact(built_int(8))
+    ));
+    assert_eq!(evaluate(FactView::Pending, None), EvalAnswer::Pending);
+    assert_eq!(
+        evaluate(FactView::Top(DeclineReason::NotExact), None),
+        EvalAnswer::Declined(DeclineReason::NotExact)
+    );
+    // A value or a step that is no integer is the command's error, raised
+    // before any store; the message is the numeral's (`expected integer but
+    // got "abc"`), whose spelling this route does not prove.
+    assert_eq!(
+        raised(&evaluate(
+            FactView::Exact(ExactValue::text("abc"), None),
+            None
+        )),
+        Some((0, None, None))
+    );
+    assert_eq!(
+        raised(&evaluate(exact(1), Some("2.5"))),
+        Some((0, None, None))
+    );
+    // A finite set that reaches the evaluator is one the lift did not pin.
+    assert_eq!(
+        evaluate(
+            FactView::Finite(
+                vec![ExactValue::int(1), ExactValue::int(2)],
+                Some(ValueIdentity(7))
+            ),
+            None
+        ),
+        EvalAnswer::Declined(DeclineReason::CorrelatedSets)
+    );
+    // The type transfer names the result and the target as integers.
+    let inputs = TestInputs::new("incr", vec![literal("n", Some(ArgRole::VarWrite))]);
+    match cell.transfer(FactDomain::Type, &inputs, &mut Budget::unbounded()) {
+        TransferAnswer::Type(facts) => {
+            assert_eq!(facts.result, Some(tcl_registry::TclType::Int));
+            assert_eq!(
+                facts.per_target,
+                vec![(TargetId(OperandId(0)), tcl_registry::TclType::Int)]
+            );
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+/// The unbind derived from `DESTROYS_VARIABLE`: every resolvable
+/// variable-writing operand is unbound on the normal path, and nothing
+/// else is touched.
+#[test]
+fn destroys_variable_derives_an_unbind_transfer() {
+    let reg = CommandRegistry::build_default();
+    let unset = reg.get("unset").expect("unset");
+    let resolved = resolve_semantics(unset, None, None);
+    assert!(matches!(
+        resolved,
+        ResolvedSemantics::Derived(DerivedSemantics::Unbind(_))
+    ));
+    let inputs = TestInputs::new(
+        "unset",
+        vec![
+            literal("-nocomplain", Some(ArgRole::Option)),
+            literal("p", Some(ArgRole::VarWrite)),
+            literal("q", Some(ArgRole::VarWrite)),
+        ],
+    );
+    let semantics = resolved.semantics().expect("derived");
+    match semantics.transfer(FactDomain::Existence, &inputs, &mut Budget::unbounded()) {
+        TransferAnswer::Existence(transfer) => {
+            assert_eq!(transfer.paths.len(), 1);
+            assert_eq!(
+                transfer.paths[0].outcomes,
+                vec![
+                    (TargetId(OperandId(1)), ExistenceOutcome::Unbind),
+                    (TargetId(OperandId(2)), ExistenceOutcome::Unbind),
+                ]
+            );
+        }
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(
+        semantics.transfer(FactDomain::Type, &inputs, &mut Budget::unbounded()),
+        TransferAnswer::Generic
+    );
+}
+
+/// The may-write declarations: each
+/// answers a may-bind of its `VarWrite` operand on the normal path, as the
+/// kind the command binds — an array for `file stat` and `file lstat`, a
+/// scalar for `file tempfile`'s name variable, `gets`, `chan gets` and
+/// `tk_optionMenu`, either for the four `trace` forms — except `vwait`,
+/// whose wait an unset ends too, so its transfer stays generic.
+#[test]
+fn each_may_write_declaration_answers_a_may_bind_of_its_target() {
+    use tcl_registry::value_transfer::{BindingKind, LiteralInputs};
+    type Declaration = (
+        &'static str,
+        Option<&'static str>,
+        &'static [&'static str],
+        Option<BindingKind>,
+    );
+    let declarations: [Declaration; 11] = [
+        ("file", Some("stat"), &["f", "st"], Some(BindingKind::Array)),
+        (
+            "file",
+            Some("lstat"),
+            &["f", "st"],
+            Some(BindingKind::Array),
+        ),
+        (
+            "file",
+            Some("tempfile"),
+            &["path"],
+            Some(BindingKind::Scalar),
+        ),
+        ("gets", None, &["chan", "line"], Some(BindingKind::Scalar)),
+        (
+            "chan",
+            Some("gets"),
+            &["chan", "line"],
+            Some(BindingKind::Scalar),
+        ),
+        ("vwait", None, &["done"], None),
+        (
+            "tk_optionMenu",
+            None,
+            &[".m", "choice", "a", "b"],
+            Some(BindingKind::Scalar),
+        ),
+        (
+            "trace",
+            Some("add"),
+            &["variable", "v", "write", "cb"],
+            Some(BindingKind::Either),
+        ),
+        (
+            "trace",
+            Some("remove"),
+            &["variable", "v", "write", "cb"],
+            Some(BindingKind::Either),
+        ),
+        (
+            "trace",
+            Some("variable"),
+            &["v", "w", "cb"],
+            Some(BindingKind::Either),
+        ),
+        (
+            "trace",
+            Some("vdelete"),
+            &["v", "w", "cb"],
+            Some(BindingKind::Either),
+        ),
+    ];
+    let reg = full_registry();
+    for (command, sub, args, kind) in declarations {
+        let spec = reg.get(command).expect(command);
+        let resolved = match sub {
+            Some(name) => resolve_semantics(spec, Some(spec.subcommand(name).expect(name)), None),
+            None => resolve_semantics(spec, None, None),
+        };
+        let semantics = resolved.semantics().expect("a declared semantics");
+        assert_eq!(semantics.identity(), "may_write", "{command} {sub:?}");
+        let words: Vec<&str> = sub.into_iter().chain(args.iter().copied()).collect();
+        let targets = reg.arg_indices_for_role(command, &words, ArgRole::VarWrite);
+        assert_eq!(targets.len(), 1, "{command} {sub:?}: one variable operand");
+        let target = TargetId(OperandId(targets[0]));
+        let inputs =
+            LiteralInputs::new(command, sub, args, None).with_role(target.0, ArgRole::VarWrite);
+        let answer = semantics.transfer(FactDomain::Existence, &inputs, &mut Budget::unbounded());
+        match (kind, answer) {
+            (Some(kind), TransferAnswer::Existence(transfer)) => {
+                assert_eq!(transfer.paths.len(), 1, "{command} {sub:?}");
+                assert_eq!(
+                    transfer.paths[0].outcomes,
+                    vec![(target, ExistenceOutcome::MayBind(kind))],
+                    "{command} {sub:?}"
+                );
+            }
+            (None, TransferAnswer::Generic) => {}
+            (kind, answer) => panic!("{command} {sub:?}: {kind:?} answered {answer:?}"),
+        }
+        assert_eq!(
+            semantics.transfer(FactDomain::Type, &inputs, &mut Budget::unbounded()),
+            TransferAnswer::Generic,
+            "{command} {sub:?}"
+        );
+    }
+}
+
+/// A consumer with no SSA reads no existence: literal-word inputs
+/// answer every existence read — a variable, a prior store, an operand —
+/// `Unavailable` at the structure tier, which is neither bound nor unbound,
+/// and a variable's exact value `NotExact`.
+#[test]
+fn literal_inputs_answer_existence_unavailable() {
+    use tcl_registry::value_transfer::{AnalysisTier, LiteralInputs};
+    let inputs = LiteralInputs::new("set", None, &["x", "1"], None);
+    let unavailable = FactView::Top(DeclineReason::Unavailable(AnalysisTier::Structure));
+    assert_eq!(inputs.variable("x", FactDomain::Existence), unavailable);
+    assert_eq!(
+        inputs.prior_store(&PlaceRef::scalar("x"), FactDomain::Existence),
+        unavailable
+    );
+    assert_eq!(
+        inputs.operand(OperandId(0), FactDomain::Existence),
+        unavailable
+    );
+    assert_eq!(
+        inputs.variable("x", FactDomain::ExactValue),
+        FactView::Top(DeclineReason::NotExact)
+    );
+}
+
+/// `const` binds only an absent place: over an unbound place it
+/// writes the value and returns the empty string; over any other place it
+/// declines, since an existing variable raises and an existing constant
+/// keeps its value (tclsh 9.0 and 9.1: `const c 5; const c 7; set c` is 5,
+/// `set x 1; const x 2` raises `can't make constant "x": variable already
+/// exists`). Its existence transfer binds a scalar on the normal path.
+#[test]
+fn const_binds_only_an_absent_place() {
+    use tcl_registry::value_transfer::{BindingKind, DomainFact, Existence};
+    let reg = CommandRegistry::build_default();
+    let resolved = resolve_semantics(reg.get("const").expect("const"), None, None);
+    let semantics = resolved.semantics().expect("a declared route");
+    assert_eq!(semantics.identity(), "const-write");
+    let with_prior = |fact: Existence| {
+        let mut inputs = TestInputs::new(
+            "const",
+            vec![
+                literal("c", Some(ArgRole::VarWrite)),
+                literal("5", Some(ArgRole::Value)),
+            ],
+        );
+        inputs.prior.insert(
+            "c".to_owned(),
+            FactView::Domain(DomainFact::Existence(fact)),
+        );
+        inputs
+    };
+    let absent = with_prior(Existence::Unbound);
+    let EvalAnswer::Evaluated(outcome) = semantics.evaluate(&absent, &mut Budget::unbounded())
+    else {
+        panic!("an absent place is written");
+    };
+    assert_eq!(
+        outcome.result,
+        ExactValueOrUnavailable::Exact(ExactValue::from_literal(""))
+    );
+    assert_eq!(
+        outcome.ordered_stores,
+        vec![StoreOutcome::Write {
+            target: TargetId(OperandId(0)),
+            value: ExactValue::from_literal("5"),
+        }]
+    );
+    for fact in [
+        Existence::Bound(BindingKind::Scalar),
+        Existence::MayBound,
+        Existence::Bound(BindingKind::Either),
+    ] {
+        assert_eq!(
+            semantics.evaluate(&with_prior(fact), &mut Budget::unbounded()),
+            EvalAnswer::Declined(DeclineReason::Unsupported),
+            "{fact:?}"
+        );
+    }
+    match semantics.transfer(FactDomain::Existence, &absent, &mut Budget::unbounded()) {
+        TransferAnswer::Existence(transfer) => assert_eq!(
+            transfer.paths[0].outcomes,
+            vec![(
+                TargetId(OperandId(0)),
+                ExistenceOutcome::Bind(BindingKind::Scalar)
+            )]
+        ),
+        other => panic!("{other:?}"),
+    }
+}
+
+/// `array unset`: without a pattern it unbinds an array and keeps
+/// a scalar or an absent name, which it leaves alone without raising
+/// (tclsh 8.4 to 9.1: `set s 1; array unset s` leaves `s`); a place that
+/// may be either keeps the generic widening. With a pattern the array
+/// stays. `array default` (from 9.0) may bind its name as an array.
+#[test]
+fn array_unset_unbinds_only_an_array() {
+    use tcl_registry::value_transfer::{BindingKind, DomainFact, Existence};
+    let reg = CommandRegistry::build_default();
+    let array = reg.get("array").expect("array");
+    let unset = resolve_semantics(array, Some(array.subcommand("unset").expect("unset")), None);
+    let unset = unset.semantics().expect("a declared semantics");
+    let run = |words: Vec<OperandView<'static>>, fact: Existence| {
+        let mut inputs = TestInputs::new("array", words);
+        inputs.prior.insert(
+            "a".to_owned(),
+            FactView::Domain(DomainFact::Existence(fact)),
+        );
+        unset.transfer(FactDomain::Existence, &inputs, &mut Budget::unbounded())
+    };
+    let outcome = |answer: TransferAnswer| match answer {
+        TransferAnswer::Existence(transfer) => Some(transfer.paths[0].outcomes.clone()),
+        TransferAnswer::Generic => None,
+        other => panic!("{other:?}"),
+    };
+    let whole = || {
+        vec![
+            literal("unset", None),
+            literal("a", Some(ArgRole::VarWrite)),
+        ]
+    };
+    let target = TargetId(OperandId(1));
+    for (fact, want) in [
+        (
+            Existence::Bound(BindingKind::Array),
+            Some(ExistenceOutcome::Unbind),
+        ),
+        (
+            Existence::Bound(BindingKind::Scalar),
+            Some(ExistenceOutcome::Preserve),
+        ),
+        (Existence::Unbound, Some(ExistenceOutcome::Preserve)),
+        (Existence::Bound(BindingKind::Either), None),
+    ] {
+        assert_eq!(
+            outcome(run(whole(), fact)),
+            want.map(|want| vec![(target, want)]),
+            "{fact:?}"
+        );
+    }
+    let patterned = vec![
+        literal("unset", None),
+        literal("a", Some(ArgRole::VarWrite)),
+        literal("k*", None),
+    ];
+    assert_eq!(
+        outcome(run(patterned, Existence::Bound(BindingKind::Array))),
+        Some(vec![(target, ExistenceOutcome::Preserve)])
+    );
+    let default = resolve_semantics(
+        array,
+        Some(array.subcommand("default").expect("default")),
+        None,
+    );
+    let default = default.semantics().expect("a declared semantics");
+    let inputs = TestInputs::new(
+        "array",
+        vec![
+            literal("default", None),
+            literal("set", None),
+            literal("a", Some(ArgRole::VarWrite)),
+            literal("7", None),
+        ],
+    );
+    match default.transfer(FactDomain::Existence, &inputs, &mut Budget::unbounded()) {
+        TransferAnswer::Existence(transfer) => assert_eq!(
+            transfer.paths[0].outcomes,
+            vec![(
+                TargetId(OperandId(2)),
+                ExistenceOutcome::MayBind(BindingKind::Array)
+            )]
+        ),
+        other => panic!("{other:?}"),
+    }
+}
+
+/// The synthetic loop header projects to the declared iteration protocol:
+/// one list iterable at operand 0, the header's binders in order.
+#[test]
+fn the_loop_header_projects_to_the_declared_iteration_plan() {
+    let reg = CommandRegistry::build_default();
+    let binders = vec!["x".to_owned()];
+    for name in ["foreach", "lmap"] {
+        let resolved = resolve_semantics(reg.get(name).expect(name), None, None);
+        let semantics = resolved.semantics().expect("declared");
+        let mut inputs = TestInputs::new(name, vec![literal("a b c", None)]);
+        inputs.view.layout = InvocationLayout::LoopHeader { binders: &binders };
+        match semantics.structure(&inputs) {
+            PlanAnswer::Iterate(plan) => {
+                assert_eq!(plan.binders.len(), 1);
+                assert_eq!(plan.iterable, IterableKind::List(OperandId(0)));
+                assert!(plan.body.is_none());
+            }
+            other => panic!("{name}: {other:?}"),
+        }
+        // A source layout without its body is the command's error.
+        let source = TestInputs::new(name, vec![literal("x", None), literal("a b c", None)]);
+        assert!(matches!(
+            semantics.structure(&source),
+            PlanAnswer::Declined(DeclineReason::WrongRepresentation)
+        ));
+    }
+}
+
+/// The value axis is a projection of the invocation resolver: resolving
+/// `string length` selects the subcommand's declaration, and resolving a
+/// head with no declaration and no derivable descriptor answers none.
+#[test]
+fn the_resolver_projects_the_declaration_state() {
+    let reg = CommandRegistry::build_default();
+    let words = [
+        InvocationWord::Literal("length"),
+        InvocationWord::Literal("abc"),
+    ];
+    let resolved = reg
+        .resolve_structured_invocation(
+            InvocationWords::structured(InvocationWord::Literal("string"), &words),
+            None,
+        )
+        .resolved()
+        .expect("string length resolves");
+    assert_eq!(
+        resolved.semantics.value.origin(),
+        SemanticsOrigin::Declared(DeclarationScope::Subcommand)
+    );
+    assert_eq!(
+        resolved.semantics.value.route(),
+        Some(EvalRoute::Direct {
+            id: NativeEvalId::StringLength
+        })
+    );
+    let puts = reg
+        .resolve_invocation("puts", &["hello"], None)
+        .expect("puts resolves");
+    assert!(matches!(puts.semantics.value, ResolvedSemantics::None));
+    assert_eq!(puts.semantics.value.route(), None);
+}
+
+/// Every route stamp `reg` carries — `(spelling, route, owner)` — over each
+/// command's resolved declaration and each subcommand that declares its own.
+/// The binders that link a local to a cell another frame holds state that
+/// plan and no value: `global`, `variable`, `my variable` and `sharedvar`
+/// each name the locals they link — the operands the resolver gives the
+/// `VarWrite` role, so `variable`'s values are not among them — and where
+/// the cells live, and none has a route.
+#[test]
+fn the_binders_state_their_scope_alias_plan() {
+    use tcl_registry::value_transfer::scope_alias::{GLOBAL, MY_VARIABLE, SHAREDVAR, VARIABLE};
+    use tcl_registry::value_transfer::{AliasFrame, ScopeAliasPlan};
+    for (semantics, frame) in [
+        (&GLOBAL, AliasFrame::Global),
+        (&VARIABLE, AliasFrame::Namespace),
+        (&MY_VARIABLE, AliasFrame::Object),
+        (&SHAREDVAR, AliasFrame::Connection),
+    ] {
+        let inputs = TestInputs::new(
+            "variable",
+            vec![
+                literal("a", Some(ArgRole::VarWrite)),
+                literal("1", None),
+                literal("b", Some(ArgRole::VarWrite)),
+            ],
+        );
+        assert_eq!(
+            semantics.structure(&inputs),
+            PlanAnswer::ScopeAlias(ScopeAliasPlan {
+                locals: vec![OperandId(0), OperandId(2)],
+                frame,
+            }),
+            "{}",
+            semantics.identity
+        );
+        assert_eq!(
+            semantics.route(),
+            EvalRoute::None {
+                reason: NoRouteReason::Declared
+            }
+        );
+        assert_eq!(
+            semantics.evaluate(&inputs, &mut Budget::evaluation()),
+            EvalAnswer::Declined(DeclineReason::NoRoute(NoRouteReason::Declared))
+        );
+    }
+}
+
+/// What a consumer with no compilation unit reads of a binder: a
+/// scope alias's frame, from its plan, for the invocation it holds — none for
+/// `upvar`, whose frame its level word selects — and an alias-pair call's
+/// level and pairs, the level word present by argument-count parity.
+#[test]
+fn a_binder_names_its_frame_and_its_level() {
+    use tcl_registry::frame_effect::FrameLevel;
+    use tcl_registry::value_transfer::AliasFrame;
+    let registry = tcl_registry::default_registry();
+    for (name, args, frame) in [
+        ("global", &["a", "b"][..], Some(AliasFrame::Global)),
+        ("::global", &["a"][..], Some(AliasFrame::Global)),
+        ("variable", &["a", "1"][..], Some(AliasFrame::Namespace)),
+        ("my", &["variable", "a"][..], Some(AliasFrame::Object)),
+        ("upvar", &["1", "a", "b"][..], None),
+        ("set", &["a", "1"][..], None),
+    ] {
+        assert_eq!(
+            registry.alias_frame(name, args, None),
+            frame,
+            "{name} {args:?}"
+        );
+    }
+    let upvar = registry
+        .frame_effect("upvar")
+        .expect("upvar's frame effect");
+    for (args, level, pairs) in [
+        (
+            &["$lvl", "a", "b"][..],
+            FrameLevel::Dynamic,
+            &["a", "b"][..],
+        ),
+        (&["1", "b"][..], FrameLevel::DEFAULT, &["1", "b"][..]),
+        (
+            &["#0", "a", "b"][..],
+            FrameLevel::Absolute(0),
+            &["a", "b"][..],
+        ),
+        (
+            &["0", "a", "b", "c", "d"][..],
+            FrameLevel::Relative(0),
+            &["a", "b", "c", "d"][..],
+        ),
+    ] {
+        assert_eq!(upvar.resolve_in(args, registry), (level, pairs), "{args:?}");
+    }
+}
+
+/// `info default procname arg varname` writes the variable on every normal
+/// completion — the parameter's default and the result 1, or the empty
+/// string and the result 0 for a parameter with none — as tclsh 8.4 to 9.1
+/// do; where the analysis proves neither the procedure nor the parameter,
+/// the variable is still written, with a value the source does not give,
+/// and the result is an unknown boolean.
+#[test]
+fn info_default_writes_the_default_the_analysis_proves() {
+    use tcl_registry::value_transfer::scope_alias::INFO_DEFAULT;
+    let inputs = |defaults: &[((&str, &str), ParameterDefault)]| {
+        let mut inputs = TestInputs::new(
+            "info",
+            vec![
+                literal("default", None),
+                literal("f", None),
+                literal("b", None),
+                literal("v", Some(ArgRole::VarWrite)),
+            ],
+        );
+        inputs.view.argument_offset = 1;
+        inputs.defaults = defaults
+            .iter()
+            .map(|((procedure, parameter), default)| {
+                (
+                    ((*procedure).to_owned(), (*parameter).to_owned()),
+                    default.clone(),
+                )
+            })
+            .collect();
+        inputs
+    };
+    let target = TargetId(OperandId(3));
+    let run = |defaults: &[((&str, &str), ParameterDefault)]| {
+        evaluated(INFO_DEFAULT.evaluate(&inputs(defaults), &mut Budget::evaluation()))
+            .expect("info default evaluates")
+    };
+    let five = ExactValue::from_literal("5");
+    let outcome = run(&[(("f", "b"), ParameterDefault::Value(five.clone()))]);
+    assert_eq!(
+        outcome.result,
+        ExactValueOrUnavailable::Exact(ExactValue::from_literal("1"))
+    );
+    assert_eq!(
+        outcome.ordered_stores,
+        [StoreOutcome::Write {
+            target,
+            value: five
+        }]
+    );
+    let outcome = run(&[(("f", "b"), ParameterDefault::None)]);
+    assert_eq!(
+        outcome.result,
+        ExactValueOrUnavailable::Exact(ExactValue::from_literal("0"))
+    );
+    assert_eq!(
+        outcome.ordered_stores,
+        [StoreOutcome::Write {
+            target,
+            value: ExactValue::from_literal("")
+        }]
+    );
+    let outcome = run(&[]);
+    assert!(matches!(
+        outcome.result,
+        ExactValueOrUnavailable::Unavailable(_)
+    ));
+    assert!(matches!(
+        outcome.ordered_stores.as_slice(),
+        [StoreOutcome::WriteUnavailable { target: written, .. }] if *written == target
+    ));
+    assert_eq!(
+        INFO_DEFAULT.route(),
+        EvalRoute::Direct {
+            id: NativeEvalId::ParameterDefault
+        }
+    );
+}
+
+fn route_stamps(reg: &CommandRegistry) -> BTreeSet<(String, &'static str, &'static str)> {
+    let mut stamps: BTreeSet<(String, &'static str, &'static str)> = BTreeSet::new();
+    for name in reg.command_names() {
+        for spec in reg.specs(name) {
+            if let Some(route) = resolve_semantics(spec, None, None).route() {
+                stamps.insert((spec.name.to_owned(), route_label(route), route_owner(route)));
+            }
+            for sub in spec.subcommands {
+                if let SemanticsDeclaration::Declared(semantics) = sub.semantics {
+                    stamps.insert((
+                        format!("{} {}", spec.name, sub.name),
+                        route_label(semantics.route()),
+                        route_owner(semantics.route()),
+                    ));
+                }
+            }
+        }
+    }
+    stamps
+}
+
+/// The route stamps of every loadable dialect and the shipped packs.
+const PINNED_ROUTE_STAMPS: &[(&str, &str, &str)] = &[
+    ("!", "none:unauthored", "-"),
+    ("!=", "none:unauthored", "-"),
+    ("%", "none:unauthored", "-"),
+    ("&", "none:unauthored", "-"),
+    ("*", "none:unauthored", "-"),
+    ("**", "none:unauthored", "-"),
+    ("+", "none:unauthored", "-"),
+    ("-", "none:unauthored", "-"),
+    ("/", "none:unauthored", "-"),
+    ("::tcl::dict::append", "direct:dict-append", "registry"),
+    ("::tcl::dict::create", "none:unauthored", "-"),
+    ("::tcl::dict::exists", "none:unauthored", "-"),
+    ("::tcl::dict::filter", "none:unauthored", "-"),
+    ("::tcl::dict::for", "none:callback", "-"),
+    ("::tcl::dict::get", "none:unauthored", "-"),
+    ("::tcl::dict::getdef", "none:unauthored", "-"),
+    ("::tcl::dict::getwithdefault", "none:unauthored", "-"),
+    ("::tcl::dict::incr", "direct:dict-incr", "registry"),
+    ("::tcl::dict::info", "none:unauthored", "-"),
+    ("::tcl::dict::keys", "none:unauthored", "-"),
+    ("::tcl::dict::lappend", "direct:dict-lappend", "registry"),
+    ("::tcl::dict::map", "none:callback", "-"),
+    ("::tcl::dict::merge", "none:unauthored", "-"),
+    ("::tcl::dict::remove", "none:unauthored", "-"),
+    ("::tcl::dict::replace", "none:unauthored", "-"),
+    ("::tcl::dict::set", "direct:dict-set", "registry"),
+    ("::tcl::dict::size", "none:unauthored", "-"),
+    ("::tcl::dict::unset", "direct:dict-unset", "registry"),
+    ("::tcl::dict::update", "none:unauthored", "-"),
+    ("::tcl::dict::values", "none:unauthored", "-"),
+    ("::tcl::dict::with", "none:unauthored", "-"),
+    ("::tcl::idna decode", "none:unauthored", "-"),
+    ("::tcl::idna encode", "none:unauthored", "-"),
+    ("::tcl::idna puny", "none:unauthored", "-"),
+    ("::tcl::idna version", "none:unauthored", "-"),
+    ("::tcl::mathfunc::abs", "none:unauthored", "-"),
+    ("::tcl::mathfunc::acos", "none:unauthored", "-"),
+    ("::tcl::mathfunc::acosh", "none:unauthored", "-"),
+    ("::tcl::mathfunc::asin", "none:unauthored", "-"),
+    ("::tcl::mathfunc::asinh", "none:unauthored", "-"),
+    ("::tcl::mathfunc::atan", "none:unauthored", "-"),
+    ("::tcl::mathfunc::atan2", "none:unauthored", "-"),
+    ("::tcl::mathfunc::atanh", "none:unauthored", "-"),
+    ("::tcl::mathfunc::bool", "none:unauthored", "-"),
+    ("::tcl::mathfunc::cbrt", "none:unauthored", "-"),
+    ("::tcl::mathfunc::ceil", "none:unauthored", "-"),
+    ("::tcl::mathfunc::copysign", "none:unauthored", "-"),
+    ("::tcl::mathfunc::cos", "none:unauthored", "-"),
+    ("::tcl::mathfunc::cosh", "none:unauthored", "-"),
+    ("::tcl::mathfunc::dim", "none:unauthored", "-"),
+    ("::tcl::mathfunc::double", "none:unauthored", "-"),
+    ("::tcl::mathfunc::entier", "none:unauthored", "-"),
+    ("::tcl::mathfunc::erf", "none:unauthored", "-"),
+    ("::tcl::mathfunc::erfc", "none:unauthored", "-"),
+    ("::tcl::mathfunc::exp", "none:unauthored", "-"),
+    ("::tcl::mathfunc::exp2", "none:unauthored", "-"),
+    ("::tcl::mathfunc::expm1", "none:unauthored", "-"),
+    ("::tcl::mathfunc::floor", "none:unauthored", "-"),
+    ("::tcl::mathfunc::fma", "none:unauthored", "-"),
+    ("::tcl::mathfunc::fmod", "none:unauthored", "-"),
+    ("::tcl::mathfunc::gamma", "none:unauthored", "-"),
+    ("::tcl::mathfunc::hypot", "none:unauthored", "-"),
+    ("::tcl::mathfunc::int", "none:unauthored", "-"),
+    ("::tcl::mathfunc::isfinite", "none:unauthored", "-"),
+    ("::tcl::mathfunc::isinf", "none:unauthored", "-"),
+    ("::tcl::mathfunc::isnan", "none:unauthored", "-"),
+    ("::tcl::mathfunc::isnormal", "none:unauthored", "-"),
+    ("::tcl::mathfunc::isqrt", "none:unauthored", "-"),
+    ("::tcl::mathfunc::issubnormal", "none:unauthored", "-"),
+    ("::tcl::mathfunc::isunordered", "none:unauthored", "-"),
+    ("::tcl::mathfunc::ldexp", "none:unauthored", "-"),
+    ("::tcl::mathfunc::lgamma", "none:unauthored", "-"),
+    ("::tcl::mathfunc::log", "none:unauthored", "-"),
+    ("::tcl::mathfunc::log10", "none:unauthored", "-"),
+    ("::tcl::mathfunc::log1p", "none:unauthored", "-"),
+    ("::tcl::mathfunc::log2", "none:unauthored", "-"),
+    ("::tcl::mathfunc::logb", "none:unauthored", "-"),
+    ("::tcl::mathfunc::max", "none:unauthored", "-"),
+    ("::tcl::mathfunc::min", "none:unauthored", "-"),
+    ("::tcl::mathfunc::nextafter", "none:unauthored", "-"),
+    ("::tcl::mathfunc::pow", "none:unauthored", "-"),
+    ("::tcl::mathfunc::rand", "none:declared", "-"),
+    ("::tcl::mathfunc::remainder", "none:unauthored", "-"),
+    ("::tcl::mathfunc::round", "none:unauthored", "-"),
+    ("::tcl::mathfunc::signbit", "none:unauthored", "-"),
+    ("::tcl::mathfunc::sin", "none:unauthored", "-"),
+    ("::tcl::mathfunc::sinh", "none:unauthored", "-"),
+    ("::tcl::mathfunc::sqrt", "none:unauthored", "-"),
+    ("::tcl::mathfunc::srand", "none:declared", "-"),
+    ("::tcl::mathfunc::tan", "none:unauthored", "-"),
+    ("::tcl::mathfunc::tanh", "none:unauthored", "-"),
+    ("::tcl::mathfunc::trunc", "none:unauthored", "-"),
+    ("::tcl::mathfunc::wide", "none:unauthored", "-"),
+    ("::tcl::mathop::!", "none:unauthored", "-"),
+    ("::tcl::mathop::!=", "none:unauthored", "-"),
+    ("::tcl::mathop::%", "none:unauthored", "-"),
+    ("::tcl::mathop::&", "none:unauthored", "-"),
+    ("::tcl::mathop::*", "none:unauthored", "-"),
+    ("::tcl::mathop::**", "none:unauthored", "-"),
+    ("::tcl::mathop::+", "none:unauthored", "-"),
+    ("::tcl::mathop::-", "none:unauthored", "-"),
+    ("::tcl::mathop::/", "none:unauthored", "-"),
+    ("::tcl::mathop::<", "none:unauthored", "-"),
+    ("::tcl::mathop::<<", "none:unauthored", "-"),
+    ("::tcl::mathop::<=", "none:unauthored", "-"),
+    ("::tcl::mathop::==", "none:unauthored", "-"),
+    ("::tcl::mathop::>", "none:unauthored", "-"),
+    ("::tcl::mathop::>=", "none:unauthored", "-"),
+    ("::tcl::mathop::>>", "none:unauthored", "-"),
+    ("::tcl::mathop::^", "none:unauthored", "-"),
+    ("::tcl::mathop::eq", "none:unauthored", "-"),
+    ("::tcl::mathop::ge", "none:unauthored", "-"),
+    ("::tcl::mathop::gt", "none:unauthored", "-"),
+    ("::tcl::mathop::in", "none:unauthored", "-"),
+    ("::tcl::mathop::le", "none:unauthored", "-"),
+    ("::tcl::mathop::lt", "none:unauthored", "-"),
+    ("::tcl::mathop::ne", "none:unauthored", "-"),
+    ("::tcl::mathop::ni", "none:unauthored", "-"),
+    ("::tcl::mathop::|", "none:unauthored", "-"),
+    ("::tcl::mathop::~", "none:unauthored", "-"),
+    ("::tcl::unsupported::grapheme index", "none:unauthored", "-"),
+    (
+        "::tcl::unsupported::grapheme length",
+        "none:unauthored",
+        "-",
+    ),
+    ("::tcl::unsupported::grapheme next", "none:unauthored", "-"),
+    (
+        "::tcl::unsupported::grapheme offset",
+        "none:unauthored",
+        "-",
+    ),
+    ("::tcl::unsupported::grapheme prev", "none:unauthored", "-"),
+    ("::tcl::unsupported::grapheme range", "none:unauthored", "-"),
+    (
+        "::tcl::unsupported::grapheme reverse",
+        "none:unauthored",
+        "-",
+    ),
+    ("::tcl::unsupported::grapheme split", "none:unauthored", "-"),
+    ("<", "none:unauthored", "-"),
+    ("<<", "none:unauthored", "-"),
+    ("<=", "none:unauthored", "-"),
+    ("==", "none:unauthored", "-"),
+    (">", "none:unauthored", "-"),
+    (">=", "none:unauthored", "-"),
+    (">>", "none:unauthored", "-"),
+    ("ACCESS::acl lookup", "none:declared", "-"),
+    ("ACCESS::acl matched", "none:declared", "-"),
+    ("ACCESS::acl result", "none:declared", "-"),
+    ("ACCESS::perflow get", "none:declared", "-"),
+    ("ACCESS::policy agent_id", "none:declared", "-"),
+    ("ACCESS::policy result", "none:declared", "-"),
+    ("ACCESS::policy uri", "none:declared", "-"),
+    ("ACCESS::saml assertion", "none:declared", "-"),
+    ("ACCESS::saml authn", "none:declared", "-"),
+    ("ACCESS::saml slo_req", "none:declared", "-"),
+    ("ACCESS::saml slo_resp", "none:declared", "-"),
+    ("ACCESS::session exists", "none:declared", "-"),
+    ("ACCESS::session sid", "none:declared", "-"),
+    ("ACCESS::user getkey", "none:declared", "-"),
+    ("ACCESS::user getsid", "none:declared", "-"),
+    ("DIAMETER::avp code", "none:declared", "-"),
+    ("DIAMETER::avp count", "none:declared", "-"),
+    ("DIAMETER::avp data", "none:declared", "-"),
+    ("DIAMETER::avp flags", "none:declared", "-"),
+    ("DIAMETER::avp length", "none:declared", "-"),
+    ("DIAMETER::header application_id", "none:declared", "-"),
+    ("DIAMETER::header command_code", "none:declared", "-"),
+    ("DIAMETER::header eflag", "none:declared", "-"),
+    ("DIAMETER::header end_to_end_id", "none:declared", "-"),
+    ("DIAMETER::header hop_by_hop_id", "none:declared", "-"),
+    ("DIAMETER::header length", "none:declared", "-"),
+    ("DIAMETER::header pflag", "none:declared", "-"),
+    ("DIAMETER::header rflag", "none:declared", "-"),
+    ("DIAMETER::header tflag", "none:declared", "-"),
+    ("DIAMETER::header version", "none:declared", "-"),
+    ("DNS::header aa", "none:declared", "-"),
+    ("DNS::header ad", "none:declared", "-"),
+    ("DNS::header ancount", "none:declared", "-"),
+    ("DNS::header arcount", "none:declared", "-"),
+    ("DNS::header cd", "none:declared", "-"),
+    ("DNS::header id", "none:declared", "-"),
+    ("DNS::header nscount", "none:declared", "-"),
+    ("DNS::header opcode", "none:declared", "-"),
+    ("DNS::header qdcount", "none:declared", "-"),
+    ("DNS::header qr", "none:declared", "-"),
+    ("DNS::header ra", "none:declared", "-"),
+    ("DNS::header rcode", "none:declared", "-"),
+    ("DNS::header rd", "none:declared", "-"),
+    ("DNS::header tc", "none:declared", "-"),
+    ("GTP::header extension", "none:declared", "-"),
+    ("GTP::header npdu", "none:declared", "-"),
+    ("GTP::header sequence", "none:declared", "-"),
+    ("GTP::header teid", "none:declared", "-"),
+    ("GTP::header type", "none:declared", "-"),
+    ("GTP::header version", "none:declared", "-"),
+    ("HTTP2::stream", "none:declared", "-"),
+    ("HTTP2::stream id", "none:declared", "-"),
+    ("HTTP2::stream priority", "none:declared", "-"),
+    ("HTTP::cookie", "none:declared", "-"),
+    ("HTTP::cookie attribute", "none:declared", "-"),
+    ("HTTP::cookie comment", "none:declared", "-"),
+    ("HTTP::cookie commenturl", "none:declared", "-"),
+    ("HTTP::cookie count", "none:declared", "-"),
+    ("HTTP::cookie decrypt", "none:declared", "-"),
+    ("HTTP::cookie domain", "none:declared", "-"),
+    ("HTTP::cookie encrypt", "none:declared", "-"),
+    ("HTTP::cookie exists", "none:declared", "-"),
+    ("HTTP::cookie expires", "none:declared", "-"),
+    ("HTTP::cookie httponly", "none:declared", "-"),
+    ("HTTP::cookie insert", "none:declared", "-"),
+    ("HTTP::cookie maxage", "none:declared", "-"),
+    ("HTTP::cookie names", "none:declared", "-"),
+    ("HTTP::cookie path", "none:declared", "-"),
+    ("HTTP::cookie ports", "none:declared", "-"),
+    ("HTTP::cookie remove", "none:declared", "-"),
+    ("HTTP::cookie replace", "none:declared", "-"),
+    ("HTTP::cookie sanitize", "none:declared", "-"),
+    ("HTTP::cookie secure", "none:declared", "-"),
+    ("HTTP::cookie value", "none:declared", "-"),
+    ("HTTP::cookie version", "none:declared", "-"),
+    ("HTTP::has_responded", "none:declared", "-"),
+    ("HTTP::header", "none:declared", "-"),
+    ("HTTP::header at", "none:declared", "-"),
+    ("HTTP::header count", "none:declared", "-"),
+    ("HTTP::header exists", "none:declared", "-"),
+    ("HTTP::header insert", "none:declared", "-"),
+    ("HTTP::header insert_modssl_fields", "none:declared", "-"),
+    ("HTTP::header is_keepalive", "none:declared", "-"),
+    ("HTTP::header is_redirect", "none:declared", "-"),
+    ("HTTP::header lws", "none:declared", "-"),
+    ("HTTP::header names", "none:declared", "-"),
+    ("HTTP::header remove", "none:declared", "-"),
+    ("HTTP::header replace", "none:declared", "-"),
+    ("HTTP::header sanitize", "none:declared", "-"),
+    ("HTTP::header value", "none:declared", "-"),
+    ("HTTP::header values", "none:declared", "-"),
+    ("HTTP::host", "none:declared", "-"),
+    ("HTTP::is_keepalive", "none:declared", "-"),
+    ("HTTP::is_redirect", "none:declared", "-"),
+    ("HTTP::method", "none:declared", "-"),
+    ("HTTP::path", "none:declared", "-"),
+    ("HTTP::payload", "none:declared", "-"),
+    ("HTTP::proxy addr", "none:declared", "-"),
+    ("HTTP::proxy exists", "none:declared", "-"),
+    ("HTTP::proxy iptuple", "none:declared", "-"),
+    ("HTTP::proxy port", "none:declared", "-"),
+    ("HTTP::proxy rtdom", "none:declared", "-"),
+    ("HTTP::query", "none:declared", "-"),
+    ("HTTP::request", "none:declared", "-"),
+    ("HTTP::request_num", "none:declared", "-"),
+    ("HTTP::status", "none:declared", "-"),
+    ("HTTP::uri", "none:declared", "-"),
+    ("HTTP::version", "none:declared", "-"),
+    ("IP::addr", "direct:ip-addr-equals", "registry"),
+    ("IP::client_addr", "none:declared", "-"),
+    ("IP::local_addr", "none:declared", "-"),
+    ("IP::protocol", "none:declared", "-"),
+    ("IP::remote_addr", "none:declared", "-"),
+    ("IP::server_addr", "none:declared", "-"),
+    ("IP::stats age", "none:declared", "-"),
+    ("IP::stats bytes", "none:declared", "-"),
+    ("IP::stats in", "none:declared", "-"),
+    ("IP::stats out", "none:declared", "-"),
+    ("IP::stats pkts", "none:declared", "-"),
+    ("IP::tos", "none:declared", "-"),
+    ("LB::connlimit node", "none:declared", "-"),
+    ("LB::connlimit poolmember", "none:declared", "-"),
+    ("LB::connlimit virtual", "none:declared", "-"),
+    ("LB::persist cookie", "none:declared", "-"),
+    ("LB::persist key", "none:declared", "-"),
+    ("LB::server addr", "none:declared", "-"),
+    ("LB::server name", "none:declared", "-"),
+    ("LB::server pool", "none:declared", "-"),
+    ("LB::server port", "none:declared", "-"),
+    ("LB::server priority", "none:declared", "-"),
+    ("LB::server ratio", "none:declared", "-"),
+    ("LB::server ripeness", "none:declared", "-"),
+    ("LB::server route_domain", "none:declared", "-"),
+    ("LB::server weight", "none:declared", "-"),
+    ("LB::status node", "none:declared", "-"),
+    ("LB::status pool", "none:declared", "-"),
+    ("MQTT::payload length", "none:declared", "-"),
+    ("MQTT::topic count", "none:declared", "-"),
+    ("MQTT::topic index", "none:declared", "-"),
+    ("MQTT::topic list", "none:declared", "-"),
+    ("MQTT::topic qos", "none:declared", "-"),
+    ("SIP::header at", "none:declared", "-"),
+    ("SIP::header count", "none:declared", "-"),
+    ("SIP::header exists", "none:declared", "-"),
+    ("SIP::header names", "none:declared", "-"),
+    ("SIP::header value", "none:declared", "-"),
+    ("SIP::header values", "none:declared", "-"),
+    ("SIP::response code", "none:declared", "-"),
+    ("SIP::response phrase", "none:declared", "-"),
+    ("SIP::via branch", "none:declared", "-"),
+    ("SIP::via maddr", "none:declared", "-"),
+    ("SIP::via proto", "none:declared", "-"),
+    ("SIP::via received", "none:declared", "-"),
+    ("SIP::via sent_by", "none:declared", "-"),
+    ("SIP::via ttl", "none:declared", "-"),
+    ("SSL::cert", "none:declared", "-"),
+    ("SSL::cert count", "none:declared", "-"),
+    ("SSL::cert issuer", "none:declared", "-"),
+    ("SSL::cert mode", "none:declared", "-"),
+    ("SSL::cipher", "none:declared", "-"),
+    ("SSL::cipher bits", "none:declared", "-"),
+    ("SSL::cipher clientlist", "none:declared", "-"),
+    ("SSL::cipher name", "none:declared", "-"),
+    ("SSL::cipher version", "none:declared", "-"),
+    ("SSL::extensions", "none:declared", "-"),
+    ("SSL::forward_proxy cert", "none:declared", "-"),
+    ("SSL::sni name", "none:declared", "-"),
+    ("SSL::sni required", "none:declared", "-"),
+    ("SSL::tls13_secret client", "none:declared", "-"),
+    ("SSL::tls13_secret server", "none:declared", "-"),
+    ("TCP::bandwidth", "none:declared", "-"),
+    ("TCP::client_port", "none:declared", "-"),
+    ("TCP::local_port", "none:declared", "-"),
+    ("TCP::option get", "none:declared", "-"),
+    ("TCP::remote_port", "none:declared", "-"),
+    ("TCP::rtt", "none:declared", "-"),
+    ("TCP::server_port", "none:declared", "-"),
+    ("URI::basename", "direct:uri-basename", "registry"),
+    ("URI::compare", "direct:uri-compare", "registry"),
+    ("URI::decode", "direct:uri-decode", "registry"),
+    ("URI::encode", "direct:uri-encode", "registry"),
+    ("URI::host", "direct:uri-host", "registry"),
+    ("URI::path", "direct:uri-path", "registry"),
+    ("URI::port", "direct:uri-port", "registry"),
+    ("URI::protocol", "direct:uri-protocol", "registry"),
+    ("URI::query", "direct:uri-query", "registry"),
+    ("WS::frame eom", "none:declared", "-"),
+    ("WS::frame mask", "none:declared", "-"),
+    ("WS::frame orig_masked", "none:declared", "-"),
+    ("WS::frame type", "none:declared", "-"),
+    ("WS::request extension", "none:declared", "-"),
+    ("WS::request key", "none:declared", "-"),
+    ("WS::request protocol", "none:declared", "-"),
+    ("WS::request version", "none:declared", "-"),
+    ("WS::response extension", "none:declared", "-"),
+    ("WS::response key", "none:declared", "-"),
+    ("WS::response protocol", "none:declared", "-"),
+    ("WS::response valid", "none:declared", "-"),
+    ("WS::response version", "none:declared", "-"),
+    ("^", "none:unauthored", "-"),
+    ("after info", "none:declared", "-"),
+    ("append", "direct:cell-append", "registry"),
+    ("append_to_collection", "none:declared", "-"),
+    ("array default", "none:declared", "-"),
+    ("array set", "direct:array-set", "registry"),
+    ("array unset", "none:unauthored", "-"),
+    ("ascii85::decode", "none:unauthored", "-"),
+    ("ascii85::encode", "none:unauthored", "-"),
+    ("auto_qualify", "none:unauthored", "-"),
+    ("b64decode", "direct:base64-decode", "registry"),
+    ("b64encode", "direct:base64-encode", "registry"),
+    ("base32::core::define", "none:unauthored", "-"),
+    ("base32::core::valid", "none:unauthored", "-"),
+    ("base32::decode", "direct:base32-decode", "registry"),
+    ("base32::encode", "direct:base32-encode", "registry"),
+    (
+        "base32::hex::decode",
+        "direct:base32-hex-decode",
+        "registry",
+    ),
+    (
+        "base32::hex::encode",
+        "direct:base32-hex-encode",
+        "registry",
+    ),
+    ("binary", "none:unauthored", "-"),
+    ("binary decode", "none:unauthored", "-"),
+    ("binary encode", "none:unauthored", "-"),
+    ("binary format", "direct:binary-format", "registry"),
+    ("binary scan", "direct:binary-scan", "registry"),
+    ("break", "direct:break-complete", "registry"),
+    ("case", "none:unauthored", "-"),
+    ("catch", "direct:catch-protected", "registry"),
+    ("chan blocked", "none:declared", "-"),
+    ("chan eof", "none:declared", "-"),
+    ("chan gets", "none:declared", "-"),
+    ("chan isbinary", "none:declared", "-"),
+    ("chan names", "none:declared", "-"),
+    ("chan pending", "none:declared", "-"),
+    ("chan tell", "none:declared", "-"),
+    ("checkbutton cget", "none:declared", "-"),
+    ("class anymore", "none:declared", "-"),
+    ("class element", "none:declared", "-"),
+    ("class exists", "none:declared", "-"),
+    ("class get", "none:declared", "-"),
+    ("class lookup", "none:declared", "-"),
+    ("class match", "none:declared", "-"),
+    ("class names", "none:declared", "-"),
+    ("class search", "none:declared", "-"),
+    ("class size", "none:declared", "-"),
+    ("class type", "none:declared", "-"),
+    ("clock", "none:platform", "-"),
+    ("clock add", "none:platform", "-"),
+    ("clock clicks", "none:platform", "-"),
+    ("clock format", "none:platform", "-"),
+    ("clock microseconds", "none:platform", "-"),
+    ("clock milliseconds", "none:platform", "-"),
+    ("clock monotonic", "none:platform", "-"),
+    ("clock scan", "none:platform", "-"),
+    ("clock seconds", "none:platform", "-"),
+    ("cmdline::getArgv0", "none:declared", "-"),
+    ("cmdline::getKnownOpt", "none:unauthored", "-"),
+    ("cmdline::getKnownOptions", "none:unauthored", "-"),
+    ("cmdline::typedGetopt", "none:unauthored", "-"),
+    ("cmdline::typedGetoptions", "none:unauthored", "-"),
+    ("cmdline::typedUsage", "none:declared", "-"),
+    ("cmdline::usage", "none:declared", "-"),
+    ("concat", "none:unauthored", "-"),
+    ("const", "direct:const-write", "registry"),
+    ("continue", "direct:continue-complete", "registry"),
+    ("control::no-op", "none:unauthored", "-"),
+    ("counter::exists", "none:declared", "-"),
+    ("counter::get", "none:declared", "-"),
+    ("counter::histHtmlDisplay", "none:declared", "-"),
+    ("counter::names", "none:declared", "-"),
+    ("crc32", "direct:crc32-checksum", "registry"),
+    ("crc::buypass", "none:unauthored", "-"),
+    ("crc::cksum", "none:unauthored", "-"),
+    ("crc::cms", "none:unauthored", "-"),
+    ("crc::crc-ccitt", "none:unauthored", "-"),
+    ("crc::crc-sdlc", "none:unauthored", "-"),
+    ("crc::crc-usb", "none:unauthored", "-"),
+    ("crc::crc-x25", "none:unauthored", "-"),
+    ("crc::crc16", "none:unauthored", "-"),
+    ("crc::crc32", "none:unauthored", "-"),
+    ("crc::genibus", "none:unauthored", "-"),
+    ("crc::gsm", "none:unauthored", "-"),
+    ("crc::kermit", "none:unauthored", "-"),
+    ("crc::maxim", "none:unauthored", "-"),
+    ("crc::mcrf4xx", "none:unauthored", "-"),
+    ("crc::modbus", "none:unauthored", "-"),
+    ("crc::sum", "none:unauthored", "-"),
+    ("crc::umts", "none:unauthored", "-"),
+    ("crc::unknown2", "none:unauthored", "-"),
+    ("crc::unknown3", "none:unauthored", "-"),
+    ("crc::unknown4", "none:unauthored", "-"),
+    ("crc::xmodem", "none:unauthored", "-"),
+    ("csv::iscomplete", "none:unauthored", "-"),
+    ("csv::joinlist", "none:unauthored", "-"),
+    ("dict", "none:unauthored", "-"),
+    ("dict append", "direct:dict-append", "registry"),
+    ("dict create", "none:unauthored", "-"),
+    ("dict exists", "none:unauthored", "-"),
+    ("dict filter", "none:unauthored", "-"),
+    ("dict for", "none:callback", "-"),
+    ("dict get", "none:unauthored", "-"),
+    ("dict getd", "none:unauthored", "-"),
+    ("dict getdef", "none:unauthored", "-"),
+    ("dict getwithdefault", "none:unauthored", "-"),
+    ("dict incr", "direct:dict-incr", "registry"),
+    ("dict info", "none:unauthored", "-"),
+    ("dict keys", "none:unauthored", "-"),
+    ("dict lappend", "direct:dict-lappend", "registry"),
+    ("dict map", "none:callback", "-"),
+    ("dict merge", "none:unauthored", "-"),
+    ("dict remove", "none:unauthored", "-"),
+    ("dict replace", "none:unauthored", "-"),
+    ("dict set", "direct:dict-set", "registry"),
+    ("dict size", "none:unauthored", "-"),
+    ("dict unset", "direct:dict-unset", "registry"),
+    ("dict update", "none:unauthored", "-"),
+    ("dict values", "none:unauthored", "-"),
+    ("dict with", "none:unauthored", "-"),
+    ("divmod", "none:unauthored", "-"),
+    ("domain", "direct:domain-labels", "registry"),
+    ("encoding names", "none:platform", "-"),
+    ("encoding profiles", "none:unauthored", "-"),
+    ("encoding user", "none:platform", "-"),
+    ("entry bbox", "none:declared", "-"),
+    ("entry cget", "none:declared", "-"),
+    ("entry get", "none:declared", "-"),
+    ("entry index", "none:declared", "-"),
+    ("eq", "none:unauthored", "-"),
+    ("error", "direct:error-raise", "registry"),
+    ("exp_pid", "none:platform", "-"),
+    ("expr", "expression:tcl.expr", "-"),
+    ("file dirname", "direct:path-dirname", "registry"),
+    ("file extension", "direct:path-extension", "registry"),
+    ("file join", "direct:path-join", "registry"),
+    ("file lstat", "none:platform", "-"),
+    ("file nativename", "none:platform", "-"),
+    ("file normalize", "none:platform", "-"),
+    ("file pathtype", "none:platform", "-"),
+    ("file rootname", "direct:path-rootname", "registry"),
+    ("file separator", "none:platform", "-"),
+    ("file split", "direct:path-split", "registry"),
+    ("file stat", "none:platform", "-"),
+    ("file tail", "direct:path-tail", "registry"),
+    ("file tempfile", "none:platform", "-"),
+    ("fileutil::foreachLine", "none:platform", "-"),
+    ("fileutil::jail", "none:platform", "-"),
+    ("fileutil::lexnormalize", "none:unauthored", "-"),
+    ("fileutil::relative", "none:unauthored", "-"),
+    ("fileutil::relativeUrl", "none:unauthored", "-"),
+    ("fileutil::stripN", "none:unauthored", "-"),
+    ("fileutil::stripPwd", "none:platform", "-"),
+    ("fileutil::test", "none:platform", "-"),
+    ("findstr", "direct:find-string", "registry"),
+    ("for", "none:unauthored", "-"),
+    ("foreach", "none:unauthored", "-"),
+    ("foreachLine", "none:unauthored", "-"),
+    ("foreach_in_collection", "none:declared", "-"),
+    ("format", "direct:format-template", "registry"),
+    ("fpclassify", "none:unauthored", "-"),
+    ("frexp", "none:unauthored", "-"),
+    ("ge", "none:unauthored", "-"),
+    ("getfield", "direct:string-field", "registry"),
+    ("gets", "none:declared", "-"),
+    ("global", "none:declared", "-"),
+    ("gt", "none:unauthored", "-"),
+    ("html::doctype", "none:unauthored", "-"),
+    ("html::html_entities", "none:unauthored", "-"),
+    ("html::mailto", "none:unauthored", "-"),
+    ("html::nl2br", "none:unauthored", "-"),
+    ("html::quoteFormValue", "none:unauthored", "-"),
+    ("html::tagstrip", "none:unauthored", "-"),
+    ("html::urlParent", "none:unauthored", "-"),
+    ("htonl", "none:platform", "-"),
+    ("htons", "none:platform", "-"),
+    ("http::formatQuery", "none:declared", "-"),
+    ("http::postError", "none:declared", "-"),
+    ("http::quoteString", "none:declared", "-"),
+    ("http::reasonPhrase", "none:unauthored", "-"),
+    ("http::requestHeaderValue", "none:declared", "-"),
+    ("http::requestHeaders", "none:declared", "-"),
+    ("http::requestLine", "none:declared", "-"),
+    ("http::responseBody", "none:declared", "-"),
+    ("http::responseCode", "none:declared", "-"),
+    ("http::responseHeaderValue", "none:declared", "-"),
+    ("http::responseHeaders", "none:declared", "-"),
+    ("http::responseInfo", "none:declared", "-"),
+    ("http::responseLine", "none:declared", "-"),
+    ("in", "none:unauthored", "-"),
+    ("incr", "direct:cell-increment", "registry"),
+    ("info args", "none:declared", "-"),
+    ("info body", "none:declared", "-"),
+    ("info class", "none:declared", "-"),
+    ("info cmdcount", "none:declared", "-"),
+    ("info cmdtype", "none:declared", "-"),
+    ("info commands", "none:declared", "-"),
+    ("info complete", "none:unauthored", "-"),
+    ("info constant", "none:declared", "-"),
+    ("info consts", "none:declared", "-"),
+    ("info coroutine", "none:declared", "-"),
+    ("info default", "direct:parameter-default", "registry"),
+    ("info errorstack", "none:declared", "-"),
+    ("info exists", "none:declared", "-"),
+    ("info frame", "none:declared", "-"),
+    ("info functions", "none:declared", "-"),
+    ("info globals", "none:declared", "-"),
+    ("info hostname", "none:platform", "-"),
+    ("info level", "none:declared", "-"),
+    ("info library", "none:platform", "-"),
+    ("info loaded", "none:declared", "-"),
+    ("info locals", "none:declared", "-"),
+    ("info nameofexecutable", "none:platform", "-"),
+    ("info object", "none:declared", "-"),
+    ("info patchlevel", "none:platform", "-"),
+    ("info procs", "none:declared", "-"),
+    ("info script", "none:declared", "-"),
+    ("info sharedlibextension", "none:platform", "-"),
+    ("info tclversion", "none:unauthored", "-"),
+    ("info vars", "none:declared", "-"),
+    ("ini::commentchar", "none:declared", "-"),
+    ("ini::exists", "none:declared", "-"),
+    ("ini::filename", "none:declared", "-"),
+    ("ini::get", "none:declared", "-"),
+    ("ini::keys", "none:declared", "-"),
+    ("ini::sections", "none:declared", "-"),
+    ("ini::value", "none:declared", "-"),
+    ("interp aliases", "none:declared", "-"),
+    ("interp children", "none:declared", "-"),
+    ("interp exists", "none:declared", "-"),
+    ("interp hidden", "none:declared", "-"),
+    ("interp issafe", "none:declared", "-"),
+    ("interp slaves", "none:declared", "-"),
+    ("interp target", "none:declared", "-"),
+    ("ip::collapse", "none:unauthored", "-"),
+    ("ip::contract", "none:unauthored", "-"),
+    ("ip::equal", "none:unauthored", "-"),
+    ("ip::is", "none:unauthored", "-"),
+    ("ip::mask", "none:unauthored", "-"),
+    ("ip::normalize", "none:unauthored", "-"),
+    ("ip::prefix", "none:unauthored", "-"),
+    ("ip::subtract", "none:unauthored", "-"),
+    ("ip::type", "none:unauthored", "-"),
+    ("ip::version", "none:unauthored", "-"),
+    ("join", "none:unauthored", "-"),
+    ("json::list2json", "none:unauthored", "-"),
+    ("json::many-json2dict", "none:unauthored", "-"),
+    ("json::string2json", "none:unauthored", "-"),
+    ("json::validate", "none:unauthored", "-"),
+    ("lappend", "direct:cell-list-append", "registry"),
+    ("lassign", "direct:list-assign", "registry"),
+    ("le", "none:unauthored", "-"),
+    ("ledit", "direct:list-edit", "registry"),
+    ("lindex", "none:unauthored", "-"),
+    ("linsert", "none:unauthored", "-"),
+    ("list", "direct:list-of-args", "registry"),
+    ("listbox bbox", "none:declared", "-"),
+    ("listbox cget", "none:declared", "-"),
+    ("listbox curselection", "none:declared", "-"),
+    ("listbox get", "none:declared", "-"),
+    ("listbox index", "none:declared", "-"),
+    ("listbox itemcget", "none:declared", "-"),
+    ("listbox nearest", "none:declared", "-"),
+    ("listbox size", "none:declared", "-"),
+    ("llength", "direct:list-length", "registry"),
+    ("lmap", "none:unauthored", "-"),
+    ("logger::levels", "none:declared", "-"),
+    ("lpop", "direct:list-pop", "registry"),
+    ("lrange", "none:unauthored", "-"),
+    ("lremove", "none:unauthored", "-"),
+    ("lrepeat", "none:unauthored", "-"),
+    ("lreplace", "none:unauthored", "-"),
+    ("lreverse", "none:unauthored", "-"),
+    ("lsearch", "none:unauthored", "-"),
+    ("lset", "direct:list-set", "registry"),
+    ("lt", "none:unauthored", "-"),
+    ("math::cov", "none:unauthored", "-"),
+    ("math::fibonacci", "none:unauthored", "-"),
+    ("math::fuzzy::tceil", "none:unauthored", "-"),
+    ("math::fuzzy::teq", "none:unauthored", "-"),
+    ("math::fuzzy::tfloor", "none:unauthored", "-"),
+    ("math::fuzzy::tge", "none:unauthored", "-"),
+    ("math::fuzzy::tgt", "none:unauthored", "-"),
+    ("math::fuzzy::tle", "none:unauthored", "-"),
+    ("math::fuzzy::tlt", "none:unauthored", "-"),
+    ("math::fuzzy::tne", "none:unauthored", "-"),
+    ("math::fuzzy::tround", "none:unauthored", "-"),
+    ("math::fuzzy::troundn", "none:unauthored", "-"),
+    ("math::integrate", "none:unauthored", "-"),
+    ("math::max", "none:unauthored", "-"),
+    ("math::mean", "none:unauthored", "-"),
+    ("math::min", "none:unauthored", "-"),
+    ("math::product", "none:unauthored", "-"),
+    ("math::roman::expr", "none:unauthored", "-"),
+    ("math::roman::sort", "none:unauthored", "-"),
+    ("math::roman::tointeger", "none:unauthored", "-"),
+    ("math::roman::toroman", "none:unauthored", "-"),
+    ("math::sigma", "none:unauthored", "-"),
+    (
+        "math::statistics::analyse-Kruskal-Wallis",
+        "none:unauthored",
+        "-",
+    ),
+    ("math::statistics::autocorr", "none:unauthored", "-"),
+    ("math::statistics::basic-stats", "none:unauthored", "-"),
+    ("math::statistics::control-Rchart", "none:unauthored", "-"),
+    ("math::statistics::control-xbar", "none:unauthored", "-"),
+    ("math::statistics::corr", "none:unauthored", "-"),
+    ("math::statistics::crosscorr", "none:unauthored", "-"),
+    ("math::statistics::filter", "none:callback", "-"),
+    ("math::statistics::group-rank", "none:unauthored", "-"),
+    ("math::statistics::histogram", "none:unauthored", "-"),
+    ("math::statistics::histogram-alt", "none:unauthored", "-"),
+    (
+        "math::statistics::interval-mean-stdev",
+        "none:unauthored",
+        "-",
+    ),
+    ("math::statistics::lillieforsFit", "none:unauthored", "-"),
+    ("math::statistics::linear-model", "none:unauthored", "-"),
+    ("math::statistics::linear-residuals", "none:unauthored", "-"),
+    ("math::statistics::map", "none:callback", "-"),
+    ("math::statistics::max", "none:unauthored", "-"),
+    ("math::statistics::mean", "none:unauthored", "-"),
+    (
+        "math::statistics::mean-histogram-limits",
+        "none:unauthored",
+        "-",
+    ),
+    ("math::statistics::median", "none:unauthored", "-"),
+    ("math::statistics::min", "none:unauthored", "-"),
+    (
+        "math::statistics::minmax-histogram-limits",
+        "none:unauthored",
+        "-",
+    ),
+    ("math::statistics::number", "none:unauthored", "-"),
+    ("math::statistics::print-2x2", "none:unauthored", "-"),
+    ("math::statistics::pstdev", "none:unauthored", "-"),
+    ("math::statistics::pvar", "none:unauthored", "-"),
+    ("math::statistics::quantiles", "none:unauthored", "-"),
+    ("math::statistics::samplescount", "none:callback", "-"),
+    ("math::statistics::spearman-rank", "none:unauthored", "-"),
+    (
+        "math::statistics::spearman-rank-extended",
+        "none:unauthored",
+        "-",
+    ),
+    ("math::statistics::stdev", "none:unauthored", "-"),
+    ("math::statistics::t-test-mean", "none:unauthored", "-"),
+    ("math::statistics::test-2x2", "none:unauthored", "-"),
+    ("math::statistics::test-Duckworth", "none:unauthored", "-"),
+    ("math::statistics::test-Dunnett", "none:unauthored", "-"),
+    (
+        "math::statistics::test-Kruskal-Wallis",
+        "none:unauthored",
+        "-",
+    ),
+    ("math::statistics::test-Rchart", "none:unauthored", "-"),
+    ("math::statistics::test-Tukey-range", "none:unauthored", "-"),
+    ("math::statistics::test-Wilcoxon", "none:unauthored", "-"),
+    ("math::statistics::test-anova-F", "none:unauthored", "-"),
+    ("math::statistics::test-normal", "none:unauthored", "-"),
+    ("math::statistics::test-xbar", "none:unauthored", "-"),
+    ("math::statistics::var", "none:unauthored", "-"),
+    ("math::stats", "none:unauthored", "-"),
+    ("math::sum", "none:unauthored", "-"),
+    ("md4::hmac", "none:unauthored", "-"),
+    ("md4::md4", "none:unauthored", "-"),
+    ("md5", "direct:md5-digest", "registry"),
+    ("md5::md5", "none:unauthored", "-"),
+    ("md5crypt::aprcrypt", "none:unauthored", "-"),
+    ("md5crypt::md5crypt", "none:unauthored", "-"),
+    ("memory info", "none:declared", "-"),
+    ("mime::field_decode", "none:unauthored", "-"),
+    ("mime::getContentType", "none:declared", "-"),
+    ("mime::getTransferEncoding", "none:declared", "-"),
+    ("mime::getheader", "none:declared", "-"),
+    ("mime::getsize", "none:declared", "-"),
+    ("mime::mapencoding", "none:unauthored", "-"),
+    ("mime::parseaddress", "none:unauthored", "-"),
+    ("mime::parsedatetime", "none:platform", "-"),
+    ("mime::reversemapencoding", "none:unauthored", "-"),
+    ("mime::word_decode", "none:unauthored", "-"),
+    ("mime::word_encode", "none:unauthored", "-"),
+    ("modf", "none:unauthored", "-"),
+    ("my variable", "none:declared", "-"),
+    ("namespace children", "none:declared", "-"),
+    ("namespace code", "none:declared", "-"),
+    ("namespace current", "none:declared", "-"),
+    ("namespace exists", "none:declared", "-"),
+    ("namespace origin", "none:declared", "-"),
+    ("namespace parent", "none:declared", "-"),
+    ("namespace qualifiers", "none:unauthored", "-"),
+    ("namespace tail", "none:unauthored", "-"),
+    ("namespace which", "none:declared", "-"),
+    ("ne", "none:unauthored", "-"),
+    ("ni", "none:unauthored", "-"),
+    ("node", "none:declared", "-"),
+    ("ntohl", "none:platform", "-"),
+    ("ntohs", "none:platform", "-"),
+    ("oo::Helpers::self", "none:declared", "-"),
+    ("otp::otp-md4", "none:unauthored", "-"),
+    ("otp::otp-md5", "none:unauthored", "-"),
+    ("otp::otp-rmd160", "none:unauthored", "-"),
+    ("otp::otp-sha1", "none:unauthored", "-"),
+    ("package files", "none:declared", "-"),
+    ("package names", "none:declared", "-"),
+    ("package present", "none:declared", "-"),
+    ("package vcompare", "none:unauthored", "-"),
+    ("package versions", "none:declared", "-"),
+    ("package vsatisfies", "none:unauthored", "-"),
+    ("platform::generic", "none:platform", "-"),
+    ("platform::identify", "none:platform", "-"),
+    ("platform::patterns", "none:unauthored", "-"),
+    ("radiobutton cget", "none:declared", "-"),
+    ("re_quote", "none:unauthored", "-"),
+    ("regex::quote", "none:unauthored", "-"),
+    ("regex_quote", "none:unauthored", "-"),
+    ("regexp", "direct:regexp-match", "registry"),
+    ("regexp::quote", "none:unauthored", "-"),
+    ("regsub", "direct:regsub-substitute", "registry"),
+    ("remove_from_collection", "none:declared", "-"),
+    ("remquo", "none:unauthored", "-"),
+    ("return", "direct:return-complete", "registry"),
+    ("ripemd::hmac128", "none:unauthored", "-"),
+    ("ripemd::hmac160", "none:unauthored", "-"),
+    ("ripemd::ripemd128", "none:unauthored", "-"),
+    ("ripemd::ripemd160", "none:unauthored", "-"),
+    ("scale cget", "none:declared", "-"),
+    ("scale coords", "none:declared", "-"),
+    ("scale get", "none:declared", "-"),
+    ("scale identify", "none:declared", "-"),
+    ("scan", "direct:scan-format", "registry"),
+    ("self", "none:declared", "-"),
+    ("session count", "none:declared", "-"),
+    ("session lookup", "none:declared", "-"),
+    ("set", "direct:cell-write", "registry"),
+    ("sha1", "direct:sha1-digest", "registry"),
+    ("sha1::sha1", "none:unauthored", "-"),
+    ("sha256", "direct:sha256-digest", "registry"),
+    ("sha2::sha256", "none:unauthored", "-"),
+    ("sha384", "direct:sha384-digest", "registry"),
+    ("sha512", "direct:sha512-digest", "registry"),
+    ("sharedvar", "none:declared", "-"),
+    ("soundex::knuth", "none:unauthored", "-"),
+    ("spinbox bbox", "none:declared", "-"),
+    ("spinbox cget", "none:declared", "-"),
+    ("spinbox get", "none:declared", "-"),
+    ("spinbox identify", "none:declared", "-"),
+    ("spinbox index", "none:declared", "-"),
+    ("split", "direct:list-split", "registry"),
+    ("string", "none:unauthored", "-"),
+    ("string bytelength", "none:unauthored", "-"),
+    ("string cat", "none:unauthored", "-"),
+    ("string compare", "none:unauthored", "-"),
+    ("string equal", "none:unauthored", "-"),
+    ("string first", "direct:string-first", "registry"),
+    ("string index", "none:unauthored", "-"),
+    ("string insert", "none:unauthored", "-"),
+    ("string is", "none:unauthored", "-"),
+    ("string last", "none:unauthored", "-"),
+    ("string length", "direct:string-length", "registry"),
+    ("string map", "none:unauthored", "-"),
+    ("string match", "direct:string-match", "registry"),
+    ("string range", "direct:string-range", "registry"),
+    ("string repeat", "none:unauthored", "-"),
+    ("string replace", "none:unauthored", "-"),
+    ("string reverse", "none:unauthored", "-"),
+    ("string tolower", "none:unauthored", "-"),
+    ("string totitle", "none:unauthored", "-"),
+    ("string toupper", "none:unauthored", "-"),
+    ("string trim", "none:unauthored", "-"),
+    ("string trimleft", "none:unauthored", "-"),
+    ("string trimright", "none:unauthored", "-"),
+    ("string wordend", "none:unauthored", "-"),
+    ("string wordstart", "none:unauthored", "-"),
+    ("stringprep::compare", "none:unauthored", "-"),
+    ("stringprep::stringprep", "none:unauthored", "-"),
+    ("struct::list", "none:unauthored", "-"),
+    ("struct::list assign", "none:unauthored", "-"),
+    ("struct::list dbJoin", "none:unauthored", "-"),
+    ("struct::list dbJoinKeyed", "none:unauthored", "-"),
+    ("struct::list delete", "none:unauthored", "-"),
+    ("struct::list equal", "none:unauthored", "-"),
+    ("struct::list filter", "none:callback", "-"),
+    ("struct::list filterfor", "none:callback", "-"),
+    ("struct::list firstperm", "none:unauthored", "-"),
+    ("struct::list flatten", "none:unauthored", "-"),
+    ("struct::list fold", "none:callback", "-"),
+    ("struct::list foreachperm", "none:callback", "-"),
+    ("struct::list iota", "none:unauthored", "-"),
+    ("struct::list lcsInvert", "none:unauthored", "-"),
+    ("struct::list lcsInvertMerge", "none:unauthored", "-"),
+    (
+        "struct::list longestCommonSubsequence",
+        "none:unauthored",
+        "-",
+    ),
+    (
+        "struct::list longestCommonSubsequence2",
+        "none:unauthored",
+        "-",
+    ),
+    ("struct::list map", "none:callback", "-"),
+    ("struct::list mapfor", "none:callback", "-"),
+    ("struct::list nextperm", "none:unauthored", "-"),
+    ("struct::list permutations", "none:unauthored", "-"),
+    ("struct::list repeat", "none:unauthored", "-"),
+    ("struct::list repeatn", "none:unauthored", "-"),
+    ("struct::list reverse", "none:unauthored", "-"),
+    ("struct::list shift", "none:unauthored", "-"),
+    ("struct::list shuffle", "none:declared", "-"),
+    ("struct::list split", "none:unauthored", "-"),
+    ("struct::list swap", "none:unauthored", "-"),
+    ("struct::set", "none:unauthored", "-"),
+    ("struct::set add", "none:unauthored", "-"),
+    ("struct::set contains", "none:unauthored", "-"),
+    ("struct::set difference", "none:unauthored", "-"),
+    ("struct::set empty", "none:unauthored", "-"),
+    ("struct::set equal", "none:unauthored", "-"),
+    ("struct::set exclude", "none:unauthored", "-"),
+    ("struct::set include", "none:unauthored", "-"),
+    ("struct::set intersect", "none:unauthored", "-"),
+    ("struct::set intersect3", "none:unauthored", "-"),
+    ("struct::set size", "none:unauthored", "-"),
+    ("struct::set subsetof", "none:unauthored", "-"),
+    ("struct::set subtract", "none:unauthored", "-"),
+    ("struct::set symdiff", "none:unauthored", "-"),
+    ("struct::set union", "none:unauthored", "-"),
+    ("subst", "none:unauthored", "-"),
+    ("substr", "direct:substring", "registry"),
+    ("switch", "none:unauthored", "-"),
+    ("tcl::idna decode", "none:unauthored", "-"),
+    ("tcl::idna encode", "none:unauthored", "-"),
+    ("tcl::idna puny", "none:unauthored", "-"),
+    ("tcl::idna version", "none:unauthored", "-"),
+    ("tcl::idna::decode", "none:unauthored", "-"),
+    ("tcl::idna::encode", "none:unauthored", "-"),
+    ("tcl::mathfunc", "none:unauthored", "-"),
+    ("tcl::mathfunc::abs", "none:unauthored", "-"),
+    ("tcl::mathfunc::acos", "none:unauthored", "-"),
+    ("tcl::mathfunc::acosh", "none:unauthored", "-"),
+    ("tcl::mathfunc::asin", "none:unauthored", "-"),
+    ("tcl::mathfunc::asinh", "none:unauthored", "-"),
+    ("tcl::mathfunc::atan", "none:unauthored", "-"),
+    ("tcl::mathfunc::atan2", "none:unauthored", "-"),
+    ("tcl::mathfunc::atanh", "none:unauthored", "-"),
+    ("tcl::mathfunc::bool", "none:unauthored", "-"),
+    ("tcl::mathfunc::cbrt", "none:unauthored", "-"),
+    ("tcl::mathfunc::ceil", "none:unauthored", "-"),
+    ("tcl::mathfunc::copysign", "none:unauthored", "-"),
+    ("tcl::mathfunc::cos", "none:unauthored", "-"),
+    ("tcl::mathfunc::cosh", "none:unauthored", "-"),
+    ("tcl::mathfunc::dim", "none:unauthored", "-"),
+    ("tcl::mathfunc::double", "none:unauthored", "-"),
+    ("tcl::mathfunc::entier", "none:unauthored", "-"),
+    ("tcl::mathfunc::erf", "none:unauthored", "-"),
+    ("tcl::mathfunc::erfc", "none:unauthored", "-"),
+    ("tcl::mathfunc::exp", "none:unauthored", "-"),
+    ("tcl::mathfunc::exp2", "none:unauthored", "-"),
+    ("tcl::mathfunc::expm1", "none:unauthored", "-"),
+    ("tcl::mathfunc::floor", "none:unauthored", "-"),
+    ("tcl::mathfunc::fma", "none:unauthored", "-"),
+    ("tcl::mathfunc::fmod", "none:unauthored", "-"),
+    ("tcl::mathfunc::gamma", "none:unauthored", "-"),
+    ("tcl::mathfunc::hypot", "none:unauthored", "-"),
+    ("tcl::mathfunc::int", "none:unauthored", "-"),
+    ("tcl::mathfunc::isfinite", "none:unauthored", "-"),
+    ("tcl::mathfunc::isinf", "none:unauthored", "-"),
+    ("tcl::mathfunc::isnan", "none:unauthored", "-"),
+    ("tcl::mathfunc::isnormal", "none:unauthored", "-"),
+    ("tcl::mathfunc::isqrt", "none:unauthored", "-"),
+    ("tcl::mathfunc::issubnormal", "none:unauthored", "-"),
+    ("tcl::mathfunc::isunordered", "none:unauthored", "-"),
+    ("tcl::mathfunc::ldexp", "none:unauthored", "-"),
+    ("tcl::mathfunc::lgamma", "none:unauthored", "-"),
+    ("tcl::mathfunc::log", "none:unauthored", "-"),
+    ("tcl::mathfunc::log10", "none:unauthored", "-"),
+    ("tcl::mathfunc::log1p", "none:unauthored", "-"),
+    ("tcl::mathfunc::log2", "none:unauthored", "-"),
+    ("tcl::mathfunc::logb", "none:unauthored", "-"),
+    ("tcl::mathfunc::max", "none:unauthored", "-"),
+    ("tcl::mathfunc::min", "none:unauthored", "-"),
+    ("tcl::mathfunc::nextafter", "none:unauthored", "-"),
+    ("tcl::mathfunc::pow", "none:unauthored", "-"),
+    ("tcl::mathfunc::rand", "none:declared", "-"),
+    ("tcl::mathfunc::remainder", "none:unauthored", "-"),
+    ("tcl::mathfunc::round", "none:unauthored", "-"),
+    ("tcl::mathfunc::signbit", "none:unauthored", "-"),
+    ("tcl::mathfunc::sin", "none:unauthored", "-"),
+    ("tcl::mathfunc::sinh", "none:unauthored", "-"),
+    ("tcl::mathfunc::sqrt", "none:unauthored", "-"),
+    ("tcl::mathfunc::srand", "none:declared", "-"),
+    ("tcl::mathfunc::tan", "none:unauthored", "-"),
+    ("tcl::mathfunc::tanh", "none:unauthored", "-"),
+    ("tcl::mathfunc::trunc", "none:unauthored", "-"),
+    ("tcl::mathfunc::wide", "none:unauthored", "-"),
+    ("tcl::mathop", "none:unauthored", "-"),
+    ("tcl::mathop::!", "none:unauthored", "-"),
+    ("tcl::mathop::!=", "none:unauthored", "-"),
+    ("tcl::mathop::%", "none:unauthored", "-"),
+    ("tcl::mathop::&", "none:unauthored", "-"),
+    ("tcl::mathop::*", "none:unauthored", "-"),
+    ("tcl::mathop::**", "none:unauthored", "-"),
+    ("tcl::mathop::+", "none:unauthored", "-"),
+    ("tcl::mathop::-", "none:unauthored", "-"),
+    ("tcl::mathop::/", "none:unauthored", "-"),
+    ("tcl::mathop::<", "none:unauthored", "-"),
+    ("tcl::mathop::<<", "none:unauthored", "-"),
+    ("tcl::mathop::<=", "none:unauthored", "-"),
+    ("tcl::mathop::==", "none:unauthored", "-"),
+    ("tcl::mathop::>", "none:unauthored", "-"),
+    ("tcl::mathop::>=", "none:unauthored", "-"),
+    ("tcl::mathop::>>", "none:unauthored", "-"),
+    ("tcl::mathop::^", "none:unauthored", "-"),
+    ("tcl::mathop::eq", "none:unauthored", "-"),
+    ("tcl::mathop::ge", "none:unauthored", "-"),
+    ("tcl::mathop::gt", "none:unauthored", "-"),
+    ("tcl::mathop::in", "none:unauthored", "-"),
+    ("tcl::mathop::le", "none:unauthored", "-"),
+    ("tcl::mathop::lt", "none:unauthored", "-"),
+    ("tcl::mathop::ne", "none:unauthored", "-"),
+    ("tcl::mathop::ni", "none:unauthored", "-"),
+    ("tcl::mathop::|", "none:unauthored", "-"),
+    ("tcl::mathop::~", "none:unauthored", "-"),
+    ("tcl::prefix all", "none:unauthored", "-"),
+    ("tcl::prefix longest", "none:unauthored", "-"),
+    ("tcl::prefix match", "none:unauthored", "-"),
+    ("tcl::unsupported::grapheme index", "none:unauthored", "-"),
+    ("tcl::unsupported::grapheme length", "none:unauthored", "-"),
+    ("tcl::unsupported::grapheme next", "none:unauthored", "-"),
+    ("tcl::unsupported::grapheme offset", "none:unauthored", "-"),
+    ("tcl::unsupported::grapheme prev", "none:unauthored", "-"),
+    ("tcl::unsupported::grapheme range", "none:unauthored", "-"),
+    ("tcl::unsupported::grapheme reverse", "none:unauthored", "-"),
+    ("tcl::unsupported::grapheme split", "none:unauthored", "-"),
+    ("tcl_endOfWord", "none:platform", "-"),
+    ("tcl_findLibrary", "none:platform", "-"),
+    ("tcl_startOfNextWord", "none:platform", "-"),
+    ("tcl_startOfPreviousWord", "none:platform", "-"),
+    ("tcl_wordBreakAfter", "none:platform", "-"),
+    ("tcl_wordBreakBefore", "none:platform", "-"),
+    ("tcltest::normalizePath", "none:platform", "-"),
+    ("text bbox", "none:declared", "-"),
+    ("text cget", "none:declared", "-"),
+    ("text compare", "none:declared", "-"),
+    ("text count", "none:declared", "-"),
+    ("text dlineinfo", "none:declared", "-"),
+    ("text get", "none:declared", "-"),
+    ("text index", "none:declared", "-"),
+    ("text locale", "none:declared", "-"),
+    ("text pendingsync", "none:declared", "-"),
+    ("text search", "none:declared", "-"),
+    ("textutil::blank", "none:unauthored", "-"),
+    ("textutil::cap", "none:unauthored", "-"),
+    ("textutil::capEachWord", "none:unauthored", "-"),
+    ("textutil::chop", "none:unauthored", "-"),
+    ("textutil::longestCommonPrefix", "none:unauthored", "-"),
+    ("textutil::longestCommonPrefixList", "none:unauthored", "-"),
+    ("textutil::splitn", "none:unauthored", "-"),
+    ("textutil::strRepeat", "none:unauthored", "-"),
+    (
+        "textutil::string::longestCommonPrefix",
+        "none:unauthored",
+        "-",
+    ),
+    ("textutil::tabify", "none:unauthored", "-"),
+    ("textutil::tabify2", "none:unauthored", "-"),
+    ("textutil::tabify::tabify", "none:unauthored", "-"),
+    ("textutil::tabify::tabify2", "none:unauthored", "-"),
+    ("textutil::tabify::untabify", "none:unauthored", "-"),
+    ("textutil::tabify::untabify2", "none:unauthored", "-"),
+    ("textutil::tail", "none:unauthored", "-"),
+    ("textutil::trim::trimleft", "none:unauthored", "-"),
+    ("textutil::trim::trimright", "none:unauthored", "-"),
+    ("textutil::trimEmptyHeading", "none:unauthored", "-"),
+    ("textutil::trimPrefix", "none:unauthored", "-"),
+    ("textutil::trimleft", "none:unauthored", "-"),
+    ("textutil::trimright", "none:unauthored", "-"),
+    ("textutil::uncap", "none:unauthored", "-"),
+    ("textutil::untabify", "none:unauthored", "-"),
+    ("textutil::untabify2", "none:unauthored", "-"),
+    ("tie::tie", "none:callback", "-"),
+    ("tie::untie", "none:callback", "-"),
+    ("timer info", "none:declared", "-"),
+    ("tk::checkbutton cget", "none:declared", "-"),
+    ("tk::entry bbox", "none:declared", "-"),
+    ("tk::entry cget", "none:declared", "-"),
+    ("tk::entry get", "none:declared", "-"),
+    ("tk::entry index", "none:declared", "-"),
+    ("tk::listbox bbox", "none:declared", "-"),
+    ("tk::listbox cget", "none:declared", "-"),
+    ("tk::listbox curselection", "none:declared", "-"),
+    ("tk::listbox get", "none:declared", "-"),
+    ("tk::listbox index", "none:declared", "-"),
+    ("tk::listbox itemcget", "none:declared", "-"),
+    ("tk::listbox nearest", "none:declared", "-"),
+    ("tk::listbox size", "none:declared", "-"),
+    ("tk::radiobutton cget", "none:declared", "-"),
+    ("tk::scale cget", "none:declared", "-"),
+    ("tk::scale coords", "none:declared", "-"),
+    ("tk::scale get", "none:declared", "-"),
+    ("tk::scale identify", "none:declared", "-"),
+    ("tk::spinbox bbox", "none:declared", "-"),
+    ("tk::spinbox cget", "none:declared", "-"),
+    ("tk::spinbox get", "none:declared", "-"),
+    ("tk::spinbox identify", "none:declared", "-"),
+    ("tk::spinbox index", "none:declared", "-"),
+    ("tk::text bbox", "none:declared", "-"),
+    ("tk::text cget", "none:declared", "-"),
+    ("tk::text compare", "none:declared", "-"),
+    ("tk::text count", "none:declared", "-"),
+    ("tk::text dlineinfo", "none:declared", "-"),
+    ("tk::text get", "none:declared", "-"),
+    ("tk::text index", "none:declared", "-"),
+    ("tk::text locale", "none:declared", "-"),
+    ("tk::text pendingsync", "none:declared", "-"),
+    ("tk::text search", "none:declared", "-"),
+    ("tk_optionMenu", "none:declared", "-"),
+    ("trace add", "none:callback", "-"),
+    ("trace info", "none:declared", "-"),
+    ("trace remove", "none:callback", "-"),
+    ("trace variable", "none:callback", "-"),
+    ("trace vdelete", "none:callback", "-"),
+    ("trace vinfo", "none:declared", "-"),
+    ("try", "none:unauthored", "-"),
+    ("ttk::button cget", "none:declared", "-"),
+    ("ttk::button identify", "none:declared", "-"),
+    ("ttk::button style", "none:declared", "-"),
+    ("ttk::checkbutton cget", "none:declared", "-"),
+    ("ttk::checkbutton identify", "none:declared", "-"),
+    ("ttk::checkbutton style", "none:declared", "-"),
+    ("ttk::combobox cget", "none:declared", "-"),
+    ("ttk::combobox get", "none:declared", "-"),
+    ("ttk::combobox identify", "none:declared", "-"),
+    ("ttk::combobox index", "none:declared", "-"),
+    ("ttk::combobox style", "none:declared", "-"),
+    ("ttk::entry bbox", "none:declared", "-"),
+    ("ttk::entry cget", "none:declared", "-"),
+    ("ttk::entry get", "none:declared", "-"),
+    ("ttk::entry identify", "none:declared", "-"),
+    ("ttk::entry index", "none:declared", "-"),
+    ("ttk::entry style", "none:declared", "-"),
+    ("ttk::frame cget", "none:declared", "-"),
+    ("ttk::frame identify", "none:declared", "-"),
+    ("ttk::frame style", "none:declared", "-"),
+    ("ttk::label cget", "none:declared", "-"),
+    ("ttk::label identify", "none:declared", "-"),
+    ("ttk::label style", "none:declared", "-"),
+    ("ttk::labelframe cget", "none:declared", "-"),
+    ("ttk::labelframe identify", "none:declared", "-"),
+    ("ttk::labelframe style", "none:declared", "-"),
+    ("ttk::menubutton cget", "none:declared", "-"),
+    ("ttk::menubutton identify", "none:declared", "-"),
+    ("ttk::menubutton style", "none:declared", "-"),
+    ("ttk::notebook cget", "none:declared", "-"),
+    ("ttk::notebook identify", "none:declared", "-"),
+    ("ttk::notebook index", "none:declared", "-"),
+    ("ttk::notebook style", "none:declared", "-"),
+    ("ttk::notebook tabs", "none:declared", "-"),
+    ("ttk::panedwindow cget", "none:declared", "-"),
+    ("ttk::panedwindow identify", "none:declared", "-"),
+    ("ttk::panedwindow style", "none:declared", "-"),
+    ("ttk::progressbar cget", "none:declared", "-"),
+    ("ttk::progressbar identify", "none:declared", "-"),
+    ("ttk::progressbar style", "none:declared", "-"),
+    ("ttk::radiobutton cget", "none:declared", "-"),
+    ("ttk::radiobutton identify", "none:declared", "-"),
+    ("ttk::radiobutton style", "none:declared", "-"),
+    ("ttk::scale cget", "none:declared", "-"),
+    ("ttk::scale get", "none:declared", "-"),
+    ("ttk::scale identify", "none:declared", "-"),
+    ("ttk::scale style", "none:declared", "-"),
+    ("ttk::scrollbar cget", "none:declared", "-"),
+    ("ttk::scrollbar delta", "none:declared", "-"),
+    ("ttk::scrollbar fraction", "none:declared", "-"),
+    ("ttk::scrollbar get", "none:declared", "-"),
+    ("ttk::scrollbar identify", "none:declared", "-"),
+    ("ttk::scrollbar style", "none:declared", "-"),
+    ("ttk::separator cget", "none:declared", "-"),
+    ("ttk::separator identify", "none:declared", "-"),
+    ("ttk::separator style", "none:declared", "-"),
+    ("ttk::sizegrip cget", "none:declared", "-"),
+    ("ttk::sizegrip identify", "none:declared", "-"),
+    ("ttk::sizegrip style", "none:declared", "-"),
+    ("ttk::spinbox bbox", "none:declared", "-"),
+    ("ttk::spinbox cget", "none:declared", "-"),
+    ("ttk::spinbox get", "none:declared", "-"),
+    ("ttk::spinbox identify", "none:declared", "-"),
+    ("ttk::spinbox index", "none:declared", "-"),
+    ("ttk::spinbox style", "none:declared", "-"),
+    ("ttk::toggleswitch cget", "none:declared", "-"),
+    ("ttk::toggleswitch get", "none:declared", "-"),
+    ("ttk::toggleswitch identify", "none:declared", "-"),
+    ("ttk::toggleswitch style", "none:declared", "-"),
+    ("ttk::toggleswitch xcoord", "none:declared", "-"),
+    ("ttk::treeview after", "none:declared", "-"),
+    ("ttk::treeview bbox", "none:declared", "-"),
+    ("ttk::treeview before", "none:declared", "-"),
+    ("ttk::treeview cget", "none:declared", "-"),
+    ("ttk::treeview current", "none:declared", "-"),
+    ("ttk::treeview depth", "none:declared", "-"),
+    ("ttk::treeview detached", "none:declared", "-"),
+    ("ttk::treeview exists", "none:declared", "-"),
+    ("ttk::treeview haschildren", "none:declared", "-"),
+    ("ttk::treeview id", "none:declared", "-"),
+    ("ttk::treeview identifier", "none:declared", "-"),
+    ("ttk::treeview identify", "none:declared", "-"),
+    ("ttk::treeview index", "none:declared", "-"),
+    ("ttk::treeview next", "none:declared", "-"),
+    ("ttk::treeview parent", "none:declared", "-"),
+    ("ttk::treeview prev", "none:declared", "-"),
+    ("ttk::treeview range", "none:declared", "-"),
+    ("ttk::treeview search", "none:declared", "-"),
+    ("ttk::treeview size", "none:declared", "-"),
+    ("ttk::treeview style", "none:declared", "-"),
+    ("ttk::treeview visible", "none:declared", "-"),
+    ("unicode", "none:unauthored", "-"),
+    ("unicode tonfc", "none:unauthored", "-"),
+    ("unicode tonfd", "none:unauthored", "-"),
+    ("unicode tonfkc", "none:unauthored", "-"),
+    ("unicode tonfkd", "none:unauthored", "-"),
+    ("unicode::fromstring", "none:unauthored", "-"),
+    ("unicode::normalize", "none:unauthored", "-"),
+    ("unicode::normalizeS", "none:unauthored", "-"),
+    ("unicode::tostring", "none:unauthored", "-"),
+    ("units::convert", "none:unauthored", "-"),
+    ("units::reduce", "none:unauthored", "-"),
+    ("unset", "direct:variable-unset", "registry"),
+    ("uri::canonicalize", "none:unauthored", "-"),
+    ("uri::isrelative", "none:unauthored", "-"),
+    ("uuencode::decode", "none:unauthored", "-"),
+    ("uuencode::encode", "none:unauthored", "-"),
+    ("variable", "none:declared", "-"),
+    ("virtual", "none:declared", "-"),
+    ("vwait", "none:declared", "-"),
+    ("while", "none:unauthored", "-"),
+    ("yaml::list2yaml", "none:unauthored", "-"),
+    ("yencode::decode", "none:unauthored", "-"),
+    ("yencode::encode", "none:unauthored", "-"),
+    ("zlib adler32", "none:unauthored", "-"),
+    ("zlib compress", "none:platform", "-"),
+    ("zlib crc32", "none:unauthored", "-"),
+    ("zlib decompress", "none:unauthored", "-"),
+    ("zlib deflate", "none:platform", "-"),
+    ("zlib gzip", "none:platform", "-"),
+    ("zlib inflate", "none:unauthored", "-"),
+    ("|", "none:unauthored", "-"),
+    ("~", "none:unauthored", "-"),
+];
+
+/// [`PINNED_ROUTE_STAMPS`] as the set [`route_stamps`] answers.
+fn pinned_route_stamps() -> BTreeSet<(String, &'static str, &'static str)> {
+    PINNED_ROUTE_STAMPS
+        .iter()
+        .map(|&(name, route, owner)| (name.to_owned(), route, owner))
+        .collect()
+}
+
+/// The pinned-set gate: the specs carrying each route, over every loadable
+/// dialect and the shipped packs. A route cannot appear, vanish, or move
+/// without this list changing beside it.
+#[test]
+fn route_stamps_match_the_pinned_set() {
+    let actual = route_stamps(&full_registry());
+    let expected = pinned_route_stamps();
+    let missing: Vec<_> = expected.difference(&actual).collect();
+    let extra: Vec<_> = actual.difference(&expected).collect();
+    assert!(
+        missing.is_empty() && extra.is_empty(),
+        "route stamps drifted from the pinned set\nmissing: {missing:?}\nextra: {extra:?}"
+    );
+}
+
+/// Shipped builtins stay on the direct route
+/// (`docs/design/compiler/value-transfers-migration.md`): a workspace pack
+/// declaring evaluators of its own moves no shipped route. Installing the
+/// value-transfer design's executable example over every loadable
+/// dialect and the shipped packs adds exactly its three spellings, each on
+/// the implementation route; every shipped stamp is still the pinned set's,
+/// and every direct route is still the registry's own.
+#[test]
+fn shipped_builtins_stay_on_the_direct_route() {
+    let packs = tcl_spectcl::pack::load_in_memory(vec![(
+        tcl_spectcl::PackFile {
+            tier: tcl_spectcl::Tier::Workspace,
+            path: std::path::PathBuf::from("/workspace/.tcl-lsp/tenant.tclspec"),
+            origin: tcl_spectcl::discovery::Origin::DotDir,
+            dependency_tier: None,
+        },
+        include_str!("../../tcl-compiler/tests/fixtures/value_transfers/tenant.tclspec").to_owned(),
+    )]);
+    assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
+    let mut reg = full_registry();
+    for pack in &packs.packs {
+        for command in &pack.commands {
+            reg.insert(command.spec.clone());
+        }
+    }
+    let actual = route_stamps(&reg);
+    let pinned = pinned_route_stamps();
+    let moved: Vec<_> = pinned.difference(&actual).collect();
+    assert!(moved.is_empty(), "a shipped route moved: {moved:?}");
+    let added: Vec<(&str, &str, &str)> = actual
+        .difference(&pinned)
+        .map(|(name, route, owner)| (name.as_str(), *route, *owner))
+        .collect();
+    assert_eq!(
+        added,
+        [
+            ("tenant label", "implementation", "-"),
+            ("tenant::label", "implementation", "-"),
+            ("tenant::tag", "implementation", "-"),
+        ]
+    );
+    assert!(
+        actual
+            .iter()
+            .filter(|(_, route, _)| route.starts_with("direct:"))
+            .all(|(_, _, owner)| *owner == "registry"),
+        "{actual:#?}"
+    );
+}
+
+/// Who implements a direct route, for the pinned set; `-` for any other
+/// family.
+fn route_owner(route: EvalRoute) -> &'static str {
+    match route {
+        EvalRoute::Direct { id } => match id.owner() {
+            EvaluatorOwner::Registry => "registry",
+        },
+        EvalRoute::Expression { .. } | EvalRoute::Implementation(_) | EvalRoute::None { .. } => "-",
+    }
+}
+
+fn route_label(route: EvalRoute) -> &'static str {
+    match route {
+        EvalRoute::Direct { id } => match id {
+            NativeEvalId::CellIncrement => "direct:cell-increment",
+            NativeEvalId::CellAppend => "direct:cell-append",
+            NativeEvalId::CellListAppend => "direct:cell-list-append",
+            NativeEvalId::CellWrite => "direct:cell-write",
+            NativeEvalId::ConstWrite => "direct:const-write",
+            NativeEvalId::DictSet => "direct:dict-set",
+            NativeEvalId::DictUnset => "direct:dict-unset",
+            NativeEvalId::DictIncr => "direct:dict-incr",
+            NativeEvalId::DictAppend => "direct:dict-append",
+            NativeEvalId::DictListAppend => "direct:dict-lappend",
+            NativeEvalId::StringRange => "direct:string-range",
+            NativeEvalId::ListOfArgs => "direct:list-of-args",
+            NativeEvalId::FormatTemplate => "direct:format-template",
+            NativeEvalId::ListLength => "direct:list-length",
+            NativeEvalId::StringLength => "direct:string-length",
+            NativeEvalId::RegexpMatch => "direct:regexp-match",
+            NativeEvalId::RegsubSubstitute => "direct:regsub-substitute",
+            NativeEvalId::ScanFormat => "direct:scan-format",
+            NativeEvalId::BinaryScan => "direct:binary-scan",
+            NativeEvalId::ListAssign => "direct:list-assign",
+            NativeEvalId::ArraySet => "direct:array-set",
+            NativeEvalId::BinaryFormat => "direct:binary-format",
+            NativeEvalId::VariableUnset => "direct:variable-unset",
+            NativeEvalId::ErrorRaise => "direct:error-raise",
+            NativeEvalId::ReturnComplete => "direct:return-complete",
+            NativeEvalId::BreakComplete => "direct:break-complete",
+            NativeEvalId::ContinueComplete => "direct:continue-complete",
+            NativeEvalId::CatchProtected => "direct:catch-protected",
+            NativeEvalId::ParameterDefault => "direct:parameter-default",
+            NativeEvalId::ListSet => "direct:list-set",
+            NativeEvalId::ListEdit => "direct:list-edit",
+            NativeEvalId::ListPop => "direct:list-pop",
+            NativeEvalId::Base64Encode => "direct:base64-encode",
+            NativeEvalId::Base64Decode => "direct:base64-decode",
+            NativeEvalId::Crc32Checksum => "direct:crc32-checksum",
+            NativeEvalId::Md5Digest => "direct:md5-digest",
+            NativeEvalId::Sha1Digest => "direct:sha1-digest",
+            NativeEvalId::Sha256Digest => "direct:sha256-digest",
+            NativeEvalId::Sha384Digest => "direct:sha384-digest",
+            NativeEvalId::Sha512Digest => "direct:sha512-digest",
+            NativeEvalId::FindString => "direct:find-string",
+            NativeEvalId::StringField => "direct:string-field",
+            NativeEvalId::Substring => "direct:substring",
+            NativeEvalId::DomainLabels => "direct:domain-labels",
+            NativeEvalId::UriBasename => "direct:uri-basename",
+            NativeEvalId::UriPath => "direct:uri-path",
+            NativeEvalId::UriQuery => "direct:uri-query",
+            NativeEvalId::UriHost => "direct:uri-host",
+            NativeEvalId::UriPort => "direct:uri-port",
+            NativeEvalId::UriProtocol => "direct:uri-protocol",
+            NativeEvalId::UriDecode => "direct:uri-decode",
+            NativeEvalId::UriEncode => "direct:uri-encode",
+            NativeEvalId::UriCompare => "direct:uri-compare",
+            NativeEvalId::IpAddrEquals => "direct:ip-addr-equals",
+            NativeEvalId::PathJoin => "direct:path-join",
+            NativeEvalId::PathDirname => "direct:path-dirname",
+            NativeEvalId::PathTail => "direct:path-tail",
+            NativeEvalId::PathExtension => "direct:path-extension",
+            NativeEvalId::PathRootname => "direct:path-rootname",
+            NativeEvalId::PathSplit => "direct:path-split",
+            NativeEvalId::ListSplit => "direct:list-split",
+            NativeEvalId::StringFirst => "direct:string-first",
+            NativeEvalId::StringMatch => "direct:string-match",
+            NativeEvalId::Base32Encode => "direct:base32-encode",
+            NativeEvalId::Base32Decode => "direct:base32-decode",
+            NativeEvalId::Base32HexEncode => "direct:base32-hex-encode",
+            NativeEvalId::Base32HexDecode => "direct:base32-hex-decode",
+        },
+        EvalRoute::Expression { .. } => "expression:tcl.expr",
+        EvalRoute::Implementation(_) => "implementation",
+        EvalRoute::None { reason } => match reason {
+            NoRouteReason::Unauthored => "none:unauthored",
+            NoRouteReason::Declared => "none:declared",
+            NoRouteReason::FormUnsupported => "none:form-unsupported",
+            NoRouteReason::Callback => "none:callback",
+            NoRouteReason::Platform => "none:platform",
+        },
+    }
+}
+
+/// The capability is part of the route (`value-evaluation.md` § *The
+/// capability declaration*): two declared implementations that differ in any
+/// one field — the pack, the id, the body's content hash, the target axes,
+/// an input, a dependency, the budget — are two routes, so nothing keyed by
+/// the route can serve one's answer for the other. The same declaration
+/// twice is one route.
+#[test]
+fn the_capability_is_part_of_the_route_identity() {
+    static INPUTS: [DeclaredInput; 1] = [DeclaredInput::Operand {
+        index: 0,
+        exactness: Exactness::Exact,
+    }];
+    static OTHER_INPUTS: [DeclaredInput; 1] = [DeclaredInput::IncomingTarget { index: 0 }];
+    static DEPENDS: [ContextDependency; 2] = [
+        ContextDependency::TclProfile,
+        ContextDependency::ImplementationIdentity,
+    ];
+    static FEWER_DEPENDS: [ContextDependency; 1] = [ContextDependency::TclProfile];
+    let base = EvaluatorCapability {
+        identity: ImplementationIdentity {
+            pack: "tenant",
+            id: "tenant.label.v1",
+            content_hash: 1,
+        },
+        host: HostKind::BoundedTcl,
+        target: Needs::NONE,
+        inputs: &INPUTS,
+        depends: &DEPENDS,
+        budget: ImplementationBudget {
+            commands: Some(2000),
+            wall_clock_ms: Some(20),
+            value_bytes: Some(65536),
+        },
+        completion: CompletionSupport::NormalOnly,
+    };
+    let variants = [
+        EvaluatorCapability {
+            identity: ImplementationIdentity {
+                pack: "other",
+                ..base.identity
+            },
+            ..base
+        },
+        EvaluatorCapability {
+            identity: ImplementationIdentity {
+                id: "tenant.label.v2",
+                ..base.identity
+            },
+            ..base
+        },
+        EvaluatorCapability {
+            identity: ImplementationIdentity {
+                content_hash: 2,
+                ..base.identity
+            },
+            ..base
+        },
+        EvaluatorCapability {
+            target: Needs::NUMERAL_GRAMMAR,
+            ..base
+        },
+        EvaluatorCapability {
+            inputs: &OTHER_INPUTS,
+            ..base
+        },
+        EvaluatorCapability {
+            depends: &FEWER_DEPENDS,
+            ..base
+        },
+        EvaluatorCapability {
+            budget: ImplementationBudget {
+                commands: Some(1000),
+                ..base.budget
+            },
+            ..base
+        },
+    ];
+    let route = EvalRoute::Implementation(base);
+    assert_eq!(route, EvalRoute::Implementation(base));
+    assert_eq!(route.family(), "implementation");
+    assert!(route.is_enabled());
+    let mut routes = BTreeSet::new();
+    routes.insert(format!("{route:?}"));
+    let mut hashed = std::collections::HashSet::from([route]);
+    for variant in variants {
+        let other = EvalRoute::Implementation(variant);
+        assert_ne!(other, route, "{variant:?}");
+        assert!(hashed.insert(other), "{variant:?}");
+        assert!(routes.insert(format!("{other:?}")), "{variant:?}");
+    }
+    assert_eq!(hashed.len(), variants.len() + 1);
+}
+
+fn evaluated(
+    answer: EvalAnswer,
+) -> Result<Box<tcl_registry::value_transfer::InvocationOutcome>, DeclineReason> {
+    match answer {
+        EvalAnswer::Evaluated(outcome) => Ok(outcome),
+        EvalAnswer::Declined(reason) => Err(reason),
+        EvalAnswer::Pending => panic!("pending"),
+    }
+}
+
+/// How an outcome that ended in the command's error reads in a comparison:
+/// `error after N`, N the stores that ran before it.
+fn error_label(outcome: &tcl_registry::value_transfer::InvocationOutcome) -> Option<String> {
+    match outcome.completion {
+        CompletionOutcome::Error { written, .. } => Some(format!("error after {written}")),
+        CompletionOutcome::Normal | CompletionOutcome::Code { .. } => None,
+    }
+}
+
+/// What an answer that evaluated to the command's error proves: the stores
+/// that ran, and the message and `-errorcode` where they are exact.
+fn raised(answer: &EvalAnswer) -> Option<(usize, Option<String>, Option<String>)> {
+    let EvalAnswer::Evaluated(outcome) = answer else {
+        return None;
+    };
+    let CompletionOutcome::Error {
+        written,
+        message,
+        error_code,
+    } = &outcome.completion
+    else {
+        return None;
+    };
+    let text = |field: &ExactValueOrUnavailable| match field {
+        ExactValueOrUnavailable::Exact(value) => String::from_utf8(value.bytes.clone()).ok(),
+        ExactValueOrUnavailable::Unavailable(_) => None,
+    };
+    Some((*written, text(message), text(error_code)))
+}
+
+/// The targets an evaluated answer publishes a type for, in order.
+fn typed_targets(answer: &EvalAnswer) -> Vec<usize> {
+    let EvalAnswer::Evaluated(outcome) = answer else {
+        panic!("not evaluated: {answer:?}");
+    };
+    outcome
+        .types
+        .per_target
+        .iter()
+        .map(|(target, _)| (target.0).0)
+        .collect()
+}
+
+/// `append` and `lappend` are the runtime adapters' value computations —
+/// `var::append_bytes` and `var::lappend_value` — with the lattice write as
+/// the store: byte-exact, list-rendered canonically, and a list append over
+/// a value that is not a list is the program's error, never a value.
+#[test]
+fn append_and_list_append_run_the_shared_cores() {
+    let reg = CommandRegistry::build_default();
+    let evaluate = |command: &'static str, prior: FactView, values: &[&'static str]| {
+        let cell = resolve_semantics(reg.get(command).expect(command), None, None);
+        let cell = cell.semantics().expect("derived");
+        let mut operands = vec![literal("v", Some(ArgRole::VarWrite))];
+        operands.extend(values.iter().map(|value| literal(value, None)));
+        let mut inputs = TestInputs::new(command, operands);
+        inputs.prior.insert("v".to_owned(), prior);
+        evaluated(cell.evaluate(&inputs, &mut Budget::evaluation()))
+    };
+    let text = |t: &str| FactView::Exact(ExactValue::text(t), None);
+
+    let outcome = evaluate("append", text("foo"), &["bar", " baz"]).expect("appends");
+    assert_eq!(
+        outcome.result,
+        ExactValueOrUnavailable::Exact(ExactValue {
+            bytes: b"foobar baz".to_vec(),
+            numeric: None,
+            representation: tcl_registry::value_transfer::RepresentationEvidence::Constructed(
+                tcl_registry::TclType::String
+            ),
+        })
+    );
+    assert_eq!(outcome.ordered_stores.len(), 1);
+    assert_eq!(outcome.types.result, Some(tcl_registry::TclType::String));
+    let padded = evaluate("append", text(" a "), &["b"]).expect("exact bytes");
+    assert!(matches!(padded.result, ExactValueOrUnavailable::Exact(ref v) if v.bytes == b" a b"));
+    let numeric = evaluate("append", text("4"), &["2"]).expect("appends digits");
+    assert!(
+        matches!(numeric.result, ExactValueOrUnavailable::Exact(ref v) if v.bytes == b"42" && v.numeric == Some(NumericValue::Int(42)))
+    );
+
+    let outcome = evaluate("lappend", text("a b"), &["c", "d e"]).expect("appends elements");
+    assert!(
+        matches!(outcome.result, ExactValueOrUnavailable::Exact(ref v) if v.bytes == b"a b c {d e}")
+    );
+    assert_eq!(outcome.types.result, Some(tcl_registry::TclType::List));
+    let outcome = evaluate("lappend", text(""), &["c"]).expect("appends to the empty list");
+    assert!(matches!(outcome.result, ExactValueOrUnavailable::Exact(ref v) if v.bytes == b"c"));
+    let raises = evaluate("lappend", text("{"), &["v"]).expect("the error is an outcome");
+    assert_eq!(
+        raises.completion,
+        CompletionOutcome::Error {
+            written: 0,
+            message: ExactValueOrUnavailable::exact_text("unmatched open brace in list"),
+            error_code: ExactValueOrUnavailable::unproven_string(),
+        },
+        "`lappend` over `{{` raises `unmatched open brace in list`, after no store"
+    );
+    assert!(raises.ordered_stores.is_empty());
+    assert!(matches!(
+        raises.result,
+        ExactValueOrUnavailable::Unavailable(_)
+    ));
+    let mut inputs = TestInputs::new(
+        "lappend",
+        vec![literal("v", Some(ArgRole::VarWrite)), literal("x", None)],
+    );
+    inputs.prior.insert("v".to_owned(), FactView::Pending);
+    let cell = resolve_semantics(reg.get("lappend").expect("lappend"), None, None);
+    assert_eq!(
+        cell.semantics()
+            .expect("derived")
+            .evaluate(&inputs, &mut Budget::evaluation()),
+        EvalAnswer::Pending
+    );
+}
+
+/// `string range` on the direct route: the shared core, with the index
+/// numerals pre-resolved under the target's grammar and a non-ASCII operand
+/// admitted only where the target decodes source as UTF-8. The shipped
+/// `const_fold` is the same evaluator.
+#[test]
+fn string_range_runs_the_shared_core_with_the_index_grammar() {
+    use tcl_registry::value_transfer::builtins::STRING_RANGE;
+    let evaluate = |dialect: Option<&str>, args: [&'static str; 3]| {
+        let mut inputs = TestInputs::new(
+            "string",
+            vec![
+                literal("range", None),
+                literal(args[0], None),
+                literal(args[1], None),
+                literal(args[2], None),
+            ],
+        );
+        inputs.context =
+            AnalysisContext::detached(dialect.and_then(tcl_dialect::DialectProfile::find));
+        evaluated(STRING_RANGE.evaluate(&inputs, &mut Budget::evaluation())).map(|outcome| {
+            if let Some(label) = error_label(&outcome) {
+                return label;
+            }
+            match outcome.result {
+                ExactValueOrUnavailable::Exact(value) => String::from_utf8(value.bytes).unwrap(),
+                ExactValueOrUnavailable::Unavailable(_) => panic!("unavailable"),
+            }
+        })
+    };
+    assert_eq!(evaluate(None, ["hello", "1", "3"]).as_deref(), Ok("ell"));
+    assert_eq!(evaluate(None, [" a ", "0", "end"]).as_deref(), Ok(" a "));
+    assert_eq!(evaluate(None, ["abcdef", "-2", "2"]).as_deref(), Ok("abc"));
+    assert_eq!(evaluate(None, ["abc", "end-1", "end"]).as_deref(), Ok("bc"));
+    assert_eq!(evaluate(None, ["abc", "3", "1"]).as_deref(), Ok(""));
+    // tclsh 8.4, 8.5, 8.6: `ijkl`; tclsh 9.0, 9.1: `kl`.
+    assert_eq!(
+        evaluate(Some("tcl8.6"), ["abcdefghijkl", "010", "end"]).as_deref(),
+        Ok("ijkl")
+    );
+    assert_eq!(
+        evaluate(Some("tcl9.0"), ["abcdefghijkl", "010", "end"]).as_deref(),
+        Ok("kl")
+    );
+    assert_eq!(
+        evaluate(None, ["abcdefghijkl", "010", "end"]),
+        Err(DeclineReason::ReleaseAmbiguous(Axis::IndexGrammar))
+    );
+    // A malformed index is the command's error, after no store; the message
+    // is the release's, which `a_malformed_string_range_index_is_the_commands_error`
+    // words.
+    assert_eq!(
+        evaluate(None, ["abc", "x", "1"]).as_deref(),
+        Ok("error after 0")
+    );
+    assert_eq!(
+        evaluate(Some("tcl9.0"), ["café", "0", "2"]).as_deref(),
+        Ok("caf")
+    );
+    assert_eq!(
+        evaluate(Some("tcl9.0"), ["café", "3", "3"]).as_deref(),
+        Ok("é")
+    );
+    for dialect in [None, Some("tcl8.6")] {
+        assert_eq!(
+            evaluate(dialect, ["café", "0", "2"]),
+            Err(DeclineReason::ReleaseAmbiguous(Axis::SourceEncoding)),
+            "{dialect:?}"
+        );
+    }
+
+    let reg = CommandRegistry::build_default();
+    let range = reg
+        .get("string")
+        .expect("string")
+        .subcommand("range")
+        .expect("range");
+    assert!(matches!(
+        range.semantics,
+        SemanticsDeclaration::Declared(semantics) if semantics.route() == EvalRoute::Direct { id: NativeEvalId::StringRange }
+    ));
+    assert_eq!(
+        range.run_const_fold(&["hello", "1", "3"], None).as_deref(),
+        Some("ell")
+    );
+    assert_eq!(
+        range
+            .run_const_fold(
+                &["abcdefghijkl", "010", "end"],
+                Some(tcl_dialect::TclVersion::V9_0)
+            )
+            .as_deref(),
+        Some("kl")
+    );
+    assert_eq!(
+        range
+            .run_const_fold(
+                &["abcdefghijkl", "010", "end"],
+                Some(tcl_dialect::TclVersion::V8_6)
+            )
+            .as_deref(),
+        Some("ijkl")
+    );
+    assert_eq!(
+        range.run_const_fold(&["abcdefghijkl", "010", "end"], None),
+        None
+    );
+    assert_eq!(range.run_const_fold(&["café", "0", "2"], None), None);
+}
+
+/// A malformed `string range` index is the command's error, after no store;
+/// its message is the release's (8.4 `integer or end?-integer?`, 8.5 on
+/// `integer?[+-]integer? or end?[+-]integer?`) and its `-errorcode` is 8.6's
+/// `TCL VALUE INDEX`, so a profile naming no release proves neither.
+#[test]
+fn a_malformed_string_range_index_is_the_commands_error() {
+    use tcl_registry::value_transfer::builtins::STRING_RANGE;
+    let inputs = |dialect: Option<&str>| {
+        let mut inputs = TestInputs::new(
+            "string",
+            vec![
+                literal("range", None),
+                literal("abc", None),
+                literal("x", None),
+                literal("1", None),
+            ],
+        );
+        inputs.context =
+            AnalysisContext::detached(dialect.and_then(tcl_dialect::DialectProfile::find));
+        inputs
+    };
+    let run = |dialect: Option<&str>| {
+        raised(&STRING_RANGE.evaluate(&inputs(dialect), &mut Budget::evaluation()))
+    };
+    for (dialect, wording, code) in [
+        ("tcl8.4", "integer or end?-integer?", "NONE"),
+        ("tcl8.5", "integer?[+-]integer? or end?[+-]integer?", "NONE"),
+        (
+            "tcl8.6",
+            "integer?[+-]integer? or end?[+-]integer?",
+            "TCL VALUE INDEX",
+        ),
+        (
+            "tcl9.0",
+            "integer?[+-]integer? or end?[+-]integer?",
+            "TCL VALUE INDEX",
+        ),
+    ] {
+        assert_eq!(
+            run(Some(dialect)),
+            Some((
+                0,
+                Some(format!("bad index \"x\": must be {wording}")),
+                Some(code.to_owned())
+            )),
+            "{dialect}"
+        );
+    }
+    assert_eq!(
+        run(None),
+        Some((0, None, None)),
+        "the releases word it differently"
+    );
+}
+
+/// The correlated finite-set limit: exactly one distinct SSA value among an
+/// invocation's inputs may be finite, and it is evaluated per member; two
+/// distinct finite inputs decline as correlated, and two reads of one
+/// identity are one distinct value.
+#[test]
+fn the_lift_evaluates_per_member_over_one_finite_input() {
+    let reg = CommandRegistry::build_default();
+    let cell = resolve_semantics(reg.get("incr").expect("incr"), None, None);
+    let cell = cell.semantics().expect("derived");
+    let set = |identity: u64, members: &[i64]| {
+        FactView::Finite(
+            members.iter().map(|i| ExactValue::int(*i)).collect(),
+            Some(ValueIdentity(identity)),
+        )
+    };
+    let results = |answer: LiftedAnswer| match answer {
+        LiftedAnswer::Evaluated(outcomes) => Ok(outcomes
+            .into_iter()
+            .map(|outcome| match outcome.result {
+                ExactValueOrUnavailable::Exact(value) => value.as_int().expect("an integer"),
+                ExactValueOrUnavailable::Unavailable(_) => panic!("unavailable"),
+            })
+            .collect::<Vec<_>>()),
+        LiftedAnswer::Declined(reason) => Err(reason),
+        LiftedAnswer::Pending => panic!("pending"),
+    };
+
+    // One finite input: the prior value of the target.
+    let mut inputs = TestInputs::new(
+        "incr",
+        vec![literal("x", Some(ArgRole::VarWrite)), literal("10", None)],
+    );
+    inputs.prior.insert("x".to_owned(), set(1, &[1, 2]));
+    assert_eq!(
+        results(evaluate_lifted(
+            cell,
+            &inputs,
+            &mut Budget::evaluation(),
+            32
+        )),
+        Ok(vec![11, 12])
+    );
+    // Two distinct finite inputs: the target's prior and the step.
+    let mut inputs = TestInputs::new(
+        "incr",
+        vec![literal("x", Some(ArgRole::VarWrite)), literal("$a", None)],
+    );
+    inputs.prior.insert("x".to_owned(), set(1, &[1, 2]));
+    inputs.operands.insert(1, set(2, &[1, 2]));
+    assert_eq!(
+        results(evaluate_lifted(
+            cell,
+            &inputs,
+            &mut Budget::evaluation(),
+            32
+        )),
+        Err(DeclineReason::CorrelatedSets)
+    );
+    // The same identity read twice is one distinct value: `incr x $x`.
+    let mut inputs = TestInputs::new(
+        "incr",
+        vec![literal("x", Some(ArgRole::VarWrite)), literal("$x", None)],
+    );
+    inputs.prior.insert("x".to_owned(), set(1, &[1, 2]));
+    inputs.operands.insert(1, set(1, &[1, 2]));
+    assert_eq!(
+        results(evaluate_lifted(
+            cell,
+            &inputs,
+            &mut Budget::evaluation(),
+            32
+        )),
+        Ok(vec![2, 4])
+    );
+    // The member cap is a precision limit.
+    let mut inputs = TestInputs::new("incr", vec![literal("x", Some(ArgRole::VarWrite))]);
+    inputs.prior.insert("x".to_owned(), set(1, &[1, 2, 3]));
+    assert_eq!(
+        results(evaluate_lifted(cell, &inputs, &mut Budget::evaluation(), 2)),
+        Err(DeclineReason::TooManyMembers)
+    );
+    // No finite input evaluates once.
+    let mut inputs = TestInputs::new("incr", vec![literal("x", Some(ArgRole::VarWrite))]);
+    inputs
+        .prior
+        .insert("x".to_owned(), FactView::Exact(ExactValue::int(4), None));
+    assert_eq!(
+        results(evaluate_lifted(
+            cell,
+            &inputs,
+            &mut Budget::evaluation(),
+            32
+        )),
+        Ok(vec![5])
+    );
+}
+
+/// The correlated limit holds for a keyed update: the dictionary the
+/// variable holds is one input, so a finite prior evaluates per member,
+/// and a finite key beside it is a second distinct value, which declines
+/// as correlated — the lattice holds no pairing of a dictionary with a
+/// key. The same identity read as the value is one distinct value.
+#[test]
+fn a_keyed_update_lifts_its_dictionary_as_one_finite_input() {
+    use tcl_registry::value_transfer::keyed_update::{DICT_INCR, DICT_SET};
+    let dictionaries = |identity: u64| {
+        FactView::Finite(
+            vec![ExactValue::text("a 1"), ExactValue::text("a 2")],
+            Some(ValueIdentity(identity)),
+        )
+    };
+    let results = |answer: LiftedAnswer| match answer {
+        LiftedAnswer::Evaluated(outcomes) => Ok(outcomes
+            .into_iter()
+            .map(|outcome| match outcome.result {
+                ExactValueOrUnavailable::Exact(value) => {
+                    String::from_utf8(value.bytes).expect("text")
+                }
+                ExactValueOrUnavailable::Unavailable(_) => panic!("unavailable"),
+            })
+            .collect::<Vec<_>>()),
+        LiftedAnswer::Declined(reason) => Err(reason),
+        LiftedAnswer::Pending => panic!("pending"),
+    };
+
+    // One finite input: the dictionary's prior.
+    let mut inputs = TestInputs::new(
+        "::tcl::dict::incr",
+        vec![literal("d", Some(ArgRole::VarWrite)), literal("a", None)],
+    );
+    inputs.prior.insert("d".to_owned(), dictionaries(1));
+    assert_eq!(
+        results(evaluate_lifted(
+            &DICT_INCR,
+            &inputs,
+            &mut Budget::evaluation(),
+            32
+        )),
+        Ok(vec!["a 2".to_owned(), "a 3".to_owned()])
+    );
+    // Two distinct finite inputs: the dictionary and the key.
+    let mut inputs = TestInputs::new(
+        "::tcl::dict::incr",
+        vec![literal("d", Some(ArgRole::VarWrite)), literal("$k", None)],
+    );
+    inputs.prior.insert("d".to_owned(), dictionaries(1));
+    inputs.operands.insert(
+        1,
+        FactView::Finite(
+            vec![ExactValue::text("a"), ExactValue::text("b")],
+            Some(ValueIdentity(2)),
+        ),
+    );
+    assert_eq!(
+        results(evaluate_lifted(
+            &DICT_INCR,
+            &inputs,
+            &mut Budget::evaluation(),
+            32
+        )),
+        Err(DeclineReason::CorrelatedSets)
+    );
+    // The dictionary's own identity read again as the value is one
+    // distinct value: `dict set d b $d` nests each member under `b`.
+    let mut inputs = TestInputs::new(
+        "::tcl::dict::set",
+        vec![
+            literal("d", Some(ArgRole::VarWrite)),
+            literal("b", None),
+            literal("$d", None),
+        ],
+    );
+    inputs.prior.insert("d".to_owned(), dictionaries(1));
+    inputs.operands.insert(2, dictionaries(1));
+    assert_eq!(
+        results(evaluate_lifted(
+            &DICT_SET,
+            &inputs,
+            &mut Budget::evaluation(),
+            32
+        )),
+        Ok(vec!["a 1 b {a 1}".to_owned(), "a 2 b {a 2}".to_owned()])
+    );
+}
+
+/// Every core a registry-owned direct route calls reads only axes the
+/// route admits: under an empty admissibility set each poisons the run,
+/// except the byte append, which reads nothing release-dependent.
+#[test]
+fn the_cores_the_routes_call_read_only_admitted_axes() {
+    use tcl_registry::value_transfer::builtins::{
+        ListLengthSemantics, ListOfArgsSemantics, StringLengthSemantics,
+    };
+    use tcl_registry::value_transfer::keyed_update::{DICT_INCR, DICT_SET};
+    let context = AnalysisContext::detached(None);
+    let closed = |ops: ConstOps<'_>| ops.take(ConstValue::int(0)).err();
+
+    let mut budget = Budget::evaluation();
+    let mut ops = ConstOps::admit(&context, &mut budget, Needs::NONE).expect("admits");
+    let _ = ops.int_add(Some(&ConstValue::int(1)), &ConstValue::int(1));
+    assert_eq!(
+        closed(ops),
+        Some(DeclineReason::MalformedAnswer),
+        "incr's core"
+    );
+
+    let mut budget = Budget::evaluation();
+    let mut ops = ConstOps::admit(&context, &mut budget, Needs::NONE).expect("admits");
+    let _ = tcl_cmd_core::var::lappend_value(
+        &mut ops,
+        Some(ConstValue::text("a")),
+        &[ConstValue::text("b")],
+    );
+    assert_eq!(
+        closed(ops),
+        Some(DeclineReason::MalformedAnswer),
+        "lappend's core"
+    );
+
+    let mut budget = Budget::evaluation();
+    let mut ops = ConstOps::admit(&context, &mut budget, Needs::NONE).expect("admits");
+    let _ = ops.index(&ConstValue::text("1"), 3);
+    assert_eq!(
+        closed(ops),
+        Some(DeclineReason::MalformedAnswer),
+        "string range's index"
+    );
+
+    let mut budget = Budget::evaluation();
+    let mut ops = ConstOps::admit(&context, &mut budget, Needs::NONE).expect("admits");
+    let _ = tcl_cmd_core::var::append_bytes(
+        &mut ops,
+        Some(ConstValue::text("a")),
+        &[ConstValue::text("b")],
+    );
+    assert_eq!(closed(ops), None, "append's core reads no axis");
+
+    let increment = resolve_semantics(
+        CommandRegistry::build_default().get("incr").expect("incr"),
+        None,
+        None,
+    );
+    let DerivedSemantics::CellUpdate(cell) = (match increment {
+        ResolvedSemantics::Derived(derived) => derived,
+        other => panic!("{other:?}"),
+    }) else {
+        panic!("a cell update")
+    };
+    assert_eq!(cell.needs(), Needs::NUMERAL_GRAMMAR | Needs::INT_TOWER);
+    assert_eq!(
+        tcl_registry::value_transfer::builtins::StringRangeSemantics::NEEDS,
+        Needs::INDEX_GRAMMAR | Needs::CHAR_INDEXING | Needs::SOURCE_ENCODING
+    );
+
+    let mut budget = Budget::evaluation();
+    let mut ops = ConstOps::admit(&context, &mut budget, Needs::LIST_RENDERING).expect("admits");
+    let _ = ops.dict_pairs(&ConstValue::text("a 1"));
+    assert_eq!(
+        closed(ops),
+        Some(DeclineReason::MalformedAnswer),
+        "the dict cores' canonical pairs"
+    );
+
+    let mut budget = Budget::evaluation();
+    let mut ops = ConstOps::admit(&context, &mut budget, Needs::NONE).expect("admits");
+    let _ = tcl_cmd_core::list::llength(&mut ops, &ConstValue::text("a {b c}"));
+    assert_eq!(closed(ops), None, "llength's core reads no axis");
+
+    let mut budget = Budget::evaluation();
+    let mut ops = ConstOps::admit(&context, &mut budget, Needs::NONE).expect("admits");
+    let _ = tcl_cmd_core::string::length(&mut ops, &ConstValue::text("abc"));
+    assert_eq!(
+        closed(ops),
+        Some(DeclineReason::MalformedAnswer),
+        "string length's core"
+    );
+
+    assert_eq!(ListOfArgsSemantics::NEEDS, Needs::LIST_RENDERING);
+    assert_eq!(ListLengthSemantics::NEEDS, Needs::NONE);
+    assert_eq!(
+        StringLengthSemantics::NEEDS,
+        Needs::CHAR_MODEL | Needs::SOURCE_ENCODING
+    );
+    assert_eq!(DICT_SET.needs(), Needs::DICT_ORDER | Needs::LIST_RENDERING);
+    assert_eq!(
+        DICT_INCR.needs(),
+        Needs::DICT_ORDER | Needs::LIST_RENDERING | Needs::NUMERAL_GRAMMAR | Needs::INT_TOWER
+    );
+}
+
+/// The driver's structural checks before anything publishes
+/// (`validate_outcome`): a store names a declared target — a `VarWrite`
+/// operand the driver passes, or the place a cell-update plan names — and
+/// each target has one outcome at most; the type facts name only targets;
+/// and an error completion runs no more stores than it lists. Two targets
+/// spelling one variable (`lassign … a a`) are two outcomes here: the
+/// driver composes them once they resolve to one place.
+#[test]
+fn validate_outcome_rejects_a_store_to_a_non_target() {
+    use tcl_registry::value_transfer::{
+        CompletionOutcome, DependencyEvidence, InvocationOutcome, TypeFacts, validate_outcome,
+    };
+    let target = |index| TargetId(OperandId(index));
+    let write = |index| StoreOutcome::Write {
+        target: target(index),
+        value: ExactValue::text("v"),
+    };
+    let outcome = |stores: Vec<StoreOutcome>| InvocationOutcome {
+        completion: CompletionOutcome::Normal,
+        nested_writes: Vec::new(),
+        result: ExactValueOrUnavailable::Exact(ExactValue::int(1)),
+        ordered_stores: stores,
+        types: TypeFacts::default(),
+        evidence: DependencyEvidence::default(),
+    };
+    let declared = [target(2), target(3)];
+    let plan = PlanAnswer::NoStructure;
+
+    assert_eq!(
+        validate_outcome(
+            &plan,
+            &declared,
+            &outcome(vec![write(2), StoreOutcome::Preserve { target: target(3) }]),
+        ),
+        Ok(()),
+        "a write and a preserve of two declared targets"
+    );
+    assert_eq!(
+        validate_outcome(&plan, &declared, &outcome(vec![write(1)])),
+        Err(DeclineReason::MalformedAnswer),
+        "a store to an operand that is no declared target"
+    );
+    assert_eq!(
+        validate_outcome(&plan, &declared, &outcome(vec![write(4)])),
+        Err(DeclineReason::MalformedAnswer),
+        "a store past the declared targets"
+    );
+    assert_eq!(
+        validate_outcome(
+            &plan,
+            &declared,
+            &outcome(vec![write(2), StoreOutcome::Preserve { target: target(2) }]),
+        ),
+        Err(DeclineReason::MalformedAnswer),
+        "two outcomes for one target"
+    );
+    assert_eq!(
+        validate_outcome(&plan, &[], &outcome(Vec::new())),
+        Ok(()),
+        "an outcome with no stores needs no target"
+    );
+
+    // A cell update's plan names its own target, whatever roles the
+    // resolver gave the words.
+    let cell = PlanAnswer::CellReadModifyWrite {
+        target: target(0),
+        operation: CellUpdate::Append,
+        amount: Some(OperandId(1)),
+        creates_absent: None,
+    };
+    assert_eq!(
+        validate_outcome(&cell, &[], &outcome(vec![write(0)])),
+        Ok(())
+    );
+    assert_eq!(
+        validate_outcome(&cell, &[], &outcome(vec![write(1)])),
+        Err(DeclineReason::MalformedAnswer)
+    );
+
+    // The type facts name declared targets only.
+    let mut typed = outcome(vec![write(2)]);
+    typed.types.per_target = vec![(target(5), tcl_registry::TclType::Int)];
+    assert_eq!(
+        validate_outcome(&plan, &declared, &typed),
+        Err(DeclineReason::MalformedAnswer)
+    );
+
+    // An error completion lists how many stores ran before it.
+    let mut failed = outcome(vec![write(2)]);
+    failed.completion = CompletionOutcome::Error {
+        written: 2,
+        message: ExactValueOrUnavailable::Exact(ExactValue::text("boom")),
+        error_code: ExactValueOrUnavailable::Exact(ExactValue::text("NONE")),
+    };
+    assert_eq!(
+        validate_outcome(&plan, &declared, &failed),
+        Err(DeclineReason::MalformedAnswer)
+    );
+
+    // The count runs across the writes its substitutions made and then its
+    // own stores.
+    failed.nested_writes = vec![(PlaceRef::scalar("n"), write(0))];
+    assert_eq!(validate_outcome(&plan, &declared, &failed), Ok(()));
+    failed.completion = CompletionOutcome::Error {
+        written: 3,
+        message: ExactValueOrUnavailable::Exact(ExactValue::text("boom")),
+        error_code: ExactValueOrUnavailable::Exact(ExactValue::text("NONE")),
+    };
+    assert_eq!(
+        validate_outcome(&plan, &declared, &failed),
+        Err(DeclineReason::MalformedAnswer)
+    );
+}
+
+/// The ordered evaluation state's read rule (`docs/design/compiler/
+/// value-transfers.md` § `expr`): the last write naming a place decides what
+/// a read of it holds, a preserve changes nothing, a write that only shares
+/// storage with the place (an element of the array a read names, or the array
+/// of the element it names) leaves it unknown, a may-write or an unbind
+/// leaves no value, and a place no write reaches is the program point's.
+#[test]
+fn the_ordered_state_reads_its_own_writes_first() {
+    use tcl_registry::value_transfer::{FactBounds, NestedPolicy, WrittenPlace, written_in};
+    let target = TargetId(OperandId(0));
+    let write = |value: &str| StoreOutcome::Write {
+        target,
+        value: ExactValue::text(value),
+    };
+    let mut state = EvaluationState::new(NestedPolicy::LocalWrites);
+    assert_eq!(state.written("x"), WrittenPlace::Untouched);
+
+    state.writes.push((PlaceRef::scalar("x"), write("1")));
+    state.writes.push((PlaceRef::scalar("y"), write("9")));
+    state.writes.push((PlaceRef::scalar("x"), write("2")));
+    assert_eq!(
+        state.written("x"),
+        WrittenPlace::Exact(ExactValue::text("2")),
+        "the last write decides"
+    );
+    assert_eq!(
+        state.written("y"),
+        WrittenPlace::Exact(ExactValue::text("9"))
+    );
+    assert_eq!(
+        state.written("z"),
+        WrittenPlace::Untouched,
+        "a place no write reaches"
+    );
+
+    state
+        .writes
+        .push((PlaceRef::scalar("x"), StoreOutcome::Preserve { target }));
+    assert_eq!(
+        state.written("x"),
+        WrittenPlace::Exact(ExactValue::text("2")),
+        "a preserve changes nothing"
+    );
+
+    state.writes.push((
+        PlaceRef::scalar("x"),
+        StoreOutcome::MayWrite {
+            target,
+            facts: FactBounds {
+                existence: tcl_registry::value_transfer::Existence::MayBound,
+                intrep: None,
+                shape: None,
+                segments: None,
+                taint: None,
+            },
+        },
+    ));
+    assert_eq!(state.written("x"), WrittenPlace::Unknown, "a may-write");
+    state.writes.push((PlaceRef::scalar("x"), write("3")));
+    assert_eq!(
+        state.written("x"),
+        WrittenPlace::Exact(ExactValue::text("3")),
+        "a later write decides again"
+    );
+    state
+        .writes
+        .push((PlaceRef::scalar("x"), StoreOutcome::Unbind { target }));
+    assert_eq!(state.written("x"), WrittenPlace::Unknown, "an unbind");
+
+    // An element and its array share storage: a write to one leaves a read
+    // of the other unknown, and a read of another element untouched.
+    let element = |key: &str| PlaceRef {
+        name: format!("a({key})"),
+        kind: tcl_registry::value_transfer::PlaceKind::Element {
+            base: "a".to_owned(),
+            key: key.to_owned(),
+        },
+    };
+    let writes = vec![(
+        element("k"),
+        StoreOutcome::WriteElement {
+            target,
+            key: "k".to_owned(),
+            value: ExactValue::text("v"),
+        },
+    )];
+    assert_eq!(
+        written_in(&writes, "a(k)"),
+        WrittenPlace::Exact(ExactValue::text("v"))
+    );
+    assert_eq!(written_in(&writes, "a"), WrittenPlace::Unknown);
+    assert_eq!(written_in(&writes, "a(j)"), WrittenPlace::Untouched);
+}
+
+/// The regexp owner's route for `command words…` over literal operands,
+/// those marked `true` given the `VarWrite` role the resolver gives match
+/// and result variables, with its store targets checked by the driver's
+/// own validation before the answer is returned.
+fn regex_route(command: &str, words: &[(&str, bool)], budget: &mut Budget) -> EvalAnswer {
+    use tcl_registry::value_transfer::validate_outcome;
+    let reg = CommandRegistry::build_default();
+    let semantics = resolve_semantics(reg.get(command).expect(command), None, None);
+    let semantics = semantics.semantics().expect("the regexp owner's route");
+    let operands = words
+        .iter()
+        .map(|&(text, target)| literal(text, target.then_some(ArgRole::VarWrite)))
+        .collect();
+    let inputs = TestInputs::new(command, operands);
+    let answer = semantics.evaluate(&inputs, budget);
+    if let EvalAnswer::Evaluated(outcome) = &answer {
+        assert_eq!(
+            validate_outcome(
+                &semantics.structure(&inputs),
+                &semantics.store_targets(&inputs),
+                outcome
+            ),
+            Ok(()),
+            "{command} {words:?}"
+        );
+    }
+    answer
+}
+
+/// The result text and each store as `(operand, Some(written text))` for a
+/// write or `(operand, None)` for a preserve, of an evaluated answer.
+fn regex_stores(answer: &EvalAnswer) -> (String, Vec<(usize, Option<String>)>) {
+    let EvalAnswer::Evaluated(outcome) = answer else {
+        panic!("not evaluated: {answer:?}");
+    };
+    let ExactValueOrUnavailable::Exact(result) = &outcome.result else {
+        panic!("no exact result: {outcome:?}");
+    };
+    let stores = outcome
+        .ordered_stores
+        .iter()
+        .map(|store| match store {
+            StoreOutcome::Write { target, value } => (
+                (target.0).0,
+                Some(String::from_utf8(value.bytes.clone()).expect("text")),
+            ),
+            StoreOutcome::Preserve { target } => ((target.0).0, None),
+            other => panic!("unexpected store {other:?}"),
+        })
+        .collect();
+    (
+        String::from_utf8(result.bytes.clone()).expect("text"),
+        stores,
+    )
+}
+
+/// `regexp` writes or preserves its match variables (the Storage
+/// row's "`regexp` no-match" and the Regexp row): a match writes one value
+/// per match variable — an unmatched subgroup the empty string, or `-1 -1`
+/// with `-indices` — and answers the count; a completed no-match preserves
+/// every one and answers 0; `-inline` writes nothing and answers the list;
+/// `-all` counts, the variables holding the last match; `-about` answers
+/// the pattern's shape. Each answer is tclsh 8.4.20 to 9.1b0's
+/// (`regexp_witnesses_match_every_release_on_path`).
+#[test]
+fn regexp_writes_or_preserves_its_match_variables() {
+    use tcl_registry::TclType;
+    let budget = || Budget::evaluation();
+    let t = |text| (text, true);
+    let w = |text| (text, false);
+
+    // A completed no-match preserves every match variable.
+    let answer = regex_route(
+        "regexp",
+        &[w("(x)(y)"), w("zz"), t("a"), t("b")],
+        &mut budget(),
+    );
+    assert_eq!(
+        regex_stores(&answer),
+        ("0".into(), vec![(2, None), (3, None)])
+    );
+
+    // A match writes each one; the unmatched subgroup writes the empty
+    // string, or `-1 -1` with `-indices`, typed as the value it built.
+    let answer = regex_route(
+        "regexp",
+        &[w("(a)(b)?"), w("ac"), t("m"), t("g1"), t("g2")],
+        &mut budget(),
+    );
+    assert_eq!(
+        regex_stores(&answer),
+        (
+            "1".into(),
+            vec![
+                (2, Some("a".into())),
+                (3, Some("a".into())),
+                (4, Some(String::new()))
+            ]
+        )
+    );
+    let answer = regex_route(
+        "regexp",
+        &[
+            w("-indices"),
+            w("(a)(b)?"),
+            w("ac"),
+            t("m"),
+            t("g1"),
+            t("g2"),
+        ],
+        &mut budget(),
+    );
+    assert_eq!(
+        regex_stores(&answer),
+        (
+            "1".into(),
+            vec![
+                (3, Some("0 0".into())),
+                (4, Some("0 0".into())),
+                (5, Some("-1 -1".into()))
+            ]
+        )
+    );
+    let EvalAnswer::Evaluated(outcome) = &answer else {
+        unreachable!()
+    };
+    assert_eq!(outcome.types.result, Some(TclType::Int));
+    assert!(
+        outcome
+            .types
+            .per_target
+            .iter()
+            .all(|(_, ty)| *ty == TclType::List),
+        "{:?}",
+        outcome.types
+    );
+
+    // `-inline` writes nothing and answers the list; `-all` counts, its
+    // variables holding the last match; `-about` answers the pattern.
+    for (words, want) in [
+        (
+            &[w("-inline"), w("-indices"), w("(a)(b)?"), w("ac")][..],
+            "{0 0} {0 0} {-1 -1}",
+        ),
+        (&[w("-all"), w("a*"), w("xaax")][..], "3"),
+        (&[w("-about"), w("(?:a)")][..], "0 REG_UNONPOSIX"),
+        (&[w("-about"), w("a(b)c")][..], "1 {}"),
+        (
+            &[w("-start"), w("2"), w("-inline"), w("."), w("abcdef")][..],
+            "c",
+        ),
+    ] {
+        assert_eq!(
+            regex_stores(&regex_route("regexp", words, &mut budget())),
+            (want.into(), Vec::new()),
+            "{words:?}"
+        );
+    }
+    let answer = regex_route(
+        "regexp",
+        &[w("-all"), w("(a)"), w("banana"), t("m"), t("g")],
+        &mut budget(),
+    );
+    assert_eq!(
+        regex_stores(&answer),
+        (
+            "3".into(),
+            vec![(3, Some("a".into())), (4, Some("a".into()))]
+        )
+    );
+}
+
+/// A `regexp` that established neither a match nor a no-match declines the
+/// whole answer, never a no-match: a search cut short by the budget is
+/// `Approximate`; a malformed pattern is the command's error, never a
+/// value; a `-start` index the releases read differently is not evaluated;
+/// and the variables the core writes must be the operands the resolver
+/// named, or nothing is published.
+#[test]
+fn a_regexp_that_established_nothing_declines() {
+    let budget = || Budget::evaluation();
+    let t = |text| (text, true);
+    let w = |text| (text, false);
+
+    // A search cut short declines the whole answer: never a no-match.
+    let mut starved = Budget::evaluation();
+    starved.fuel = 5_000;
+    let long = "a".repeat(300);
+    assert_eq!(
+        regex_route("regexp", &[w("^(a+)+b$"), w(&long), t("m")], &mut starved),
+        EvalAnswer::Declined(DeclineReason::Approximate)
+    );
+    // The command's error is no value: it is the completion, after no store.
+    assert_eq!(
+        raised(&regex_route("regexp", &[w("("), w("x")], &mut budget())),
+        Some((0, None, None))
+    );
+    // A `-start` index the releases read differently (8 up to 8.6, 10
+    // from 9.0) is not evaluated.
+    assert_eq!(
+        regex_route(
+            "regexp",
+            &[
+                w("-start"),
+                w("010"),
+                w("-inline"),
+                w("."),
+                w("abcdefghijkl")
+            ],
+            &mut budget()
+        ),
+        EvalAnswer::Declined(DeclineReason::Unsupported)
+    );
+    // The variables the core writes are the operands the resolver named,
+    // or nothing is published: here `-nocase` is an option the roles took
+    // for the pattern.
+    assert_eq!(
+        regex_route(
+            "regexp",
+            &[w("-nocase"), w("A"), t("a"), t("m")],
+            &mut budget()
+        ),
+        EvalAnswer::Declined(DeclineReason::Unsupported)
+    );
+}
+
+/// `regsub` answers the substituted text, or the count with the text
+/// written to its variable — whether or not anything matched, as tclsh 8.4
+/// to 9.1 do — and its callback form (`-command`, from 9.0) has no route.
+#[test]
+fn regsub_writes_its_variable_and_declines_its_callback() {
+    let budget = || Budget::evaluation();
+    let t = |text| (text, true);
+    let w = |text| (text, false);
+
+    // `regsub`: the text, or the count with the text written — whether or
+    // not anything matched; the callback form has no route.
+    assert_eq!(
+        regex_stores(&regex_route(
+            "regsub",
+            &[w("-all"), w(""), w("abc"), w("-")],
+            &mut budget()
+        )),
+        ("-a-b-c".into(), Vec::new())
+    );
+    assert_eq!(
+        regex_stores(&regex_route(
+            "regsub",
+            &[w("-all"), w("a"), w("banana"), w("o"), t("v")],
+            &mut budget()
+        )),
+        ("3".into(), vec![(4, Some("bonono".into()))])
+    );
+    assert_eq!(
+        regex_stores(&regex_route(
+            "regsub",
+            &[w("z"), w("abc"), w("X"), t("v")],
+            &mut budget()
+        )),
+        ("0".into(), vec![(3, Some("abc".into()))])
+    );
+    assert_eq!(
+        regex_route(
+            "regsub",
+            &[w("-command"), w("a"), w("abc"), w("string toupper")],
+            &mut budget()
+        ),
+        EvalAnswer::Declined(DeclineReason::NoRoute(NoRouteReason::Callback))
+    );
+}
+
+/// A writing route's answer for `command words…` under `dialect`'s profile,
+/// the words marked `true` given the `VarWrite` role, rendered for
+/// comparison: the result, then each store in order as `write N value`,
+/// `element N key value` or `preserve N` — or the decline.
+fn destructured(
+    command: &str,
+    sub: Option<&str>,
+    words: &[(&str, bool)],
+    dialect: Option<&str>,
+) -> Result<(String, Vec<String>), DeclineReason> {
+    use tcl_registry::value_transfer::validate_outcome;
+    let reg = CommandRegistry::build_default();
+    let spec = reg.get(command).expect(command);
+    let semantics = match sub {
+        Some(name) => resolve_semantics(spec, Some(spec.subcommand(name).expect(name)), None),
+        None => resolve_semantics(spec, None, None),
+    };
+    let semantics = semantics.semantics().expect("a destructuring route");
+    let operands = words
+        .iter()
+        .map(|&(text, target)| literal(text, target.then_some(ArgRole::VarWrite)))
+        .collect();
+    let mut inputs = TestInputs::new(command, operands);
+    inputs.context = AnalysisContext::detached(
+        dialect.map(|name| tcl_dialect::DialectProfile::find(name).expect(name)),
+    );
+    match semantics.evaluate(&inputs, &mut Budget::evaluation()) {
+        EvalAnswer::Evaluated(outcome) => {
+            assert_eq!(
+                validate_outcome(
+                    &semantics.structure(&inputs),
+                    &semantics.store_targets(&inputs),
+                    &outcome
+                ),
+                Ok(()),
+                "{command} {words:?}"
+            );
+            let text = |value: &ExactValue| String::from_utf8(value.bytes.clone()).expect("text");
+            let result = match &outcome.result {
+                ExactValueOrUnavailable::Exact(result) => text(result),
+                ExactValueOrUnavailable::Unavailable(_) => {
+                    error_label(&outcome).unwrap_or_else(|| panic!("no exact result: {outcome:?}"))
+                }
+            };
+            let stores = outcome
+                .ordered_stores
+                .iter()
+                .map(|store| match store {
+                    StoreOutcome::Write { target, value } => {
+                        format!("write {} {}", (target.0).0, text(value))
+                    }
+                    StoreOutcome::WriteElement { target, key, value } => {
+                        format!("element {} {key} {}", (target.0).0, text(value))
+                    }
+                    StoreOutcome::Preserve { target } => format!("preserve {}", (target.0).0),
+                    other => panic!("unexpected store {other:?}"),
+                })
+                .collect();
+            Ok((result, stores))
+        }
+        EvalAnswer::Declined(reason) => Err(reason),
+        EvalAnswer::Pending => panic!("pending over literal words"),
+    }
+}
+
+/// A word the destructuring tests pass: its text, and whether the resolver
+/// gives it the `VarWrite` role.
+const fn target(text: &str) -> (&str, bool) {
+    (text, true)
+}
+
+/// A word the resolver gives no `VarWrite` role.
+const fn word(text: &str) -> (&str, bool) {
+    (text, false)
+}
+
+/// [`destructured`]'s rendering of an answer: the result and each store.
+fn answered(result: &str, stores: &[&str]) -> (String, Vec<String>) {
+    (
+        result.to_owned(),
+        stores.iter().map(ToString::to_string).collect(),
+    )
+}
+
+/// The destructuring writers run the shared cores (the Storage row's
+/// "partial `scan`; … repeated targets; array and base overlap"): a
+/// converted field writes its variable and a field the input did not reach
+/// preserves it (`scan {12 nope} {%d %d} a b` is 1, `a` 12, `b` as it was);
+/// `lassign` writes in order, a repeated variable twice, and returns the
+/// rest; `binary scan` writes each field it scanned; `array set` writes one
+/// element per key. Every answer is tclsh's under 8.4 to 9.1 (8.5 on for
+/// `lassign`, `destructuring_witnesses_match_every_release_on_path`), and a
+/// form a release reads differently declines on its axis.
+#[test]
+fn destructuring_writers_run_the_shared_cores() {
+    let (t, w) = (target, word);
+    let tcl90 = Some("tcl9.0");
+
+    assert_eq!(
+        destructured(
+            "scan",
+            None,
+            &[w("12 nope"), w("%d %d"), t("a"), t("b")],
+            tcl90
+        ),
+        Ok(answered("1", &["write 2 12", "preserve 3"]))
+    );
+    assert_eq!(
+        destructured("scan", None, &[w(""), w("%d %d"), t("a"), t("b")], tcl90),
+        Ok(answered("-1", &["preserve 2", "preserve 3"])),
+        "the input ended before any conversion"
+    );
+    assert_eq!(
+        destructured("scan", None, &[w("12 34"), w("%d %d")], None),
+        Ok(answered("12 34", &[])),
+        "the inline form"
+    );
+    assert_eq!(
+        destructured("scan", None, &[w("abc"), w("%d")], None),
+        Ok(answered("{}", &[])),
+        "a failed inline field is the empty string"
+    );
+    // Past the 32-bit range the releases disagree: `4294967296` is kept up
+    // to 8.6 and clamps to `2147483647` from 9.0, so no release is taken.
+    assert_eq!(
+        destructured("scan", None, &[w("4294967296"), w("%d"), t("a")], tcl90),
+        Err(DeclineReason::ReleaseAmbiguous(Axis::IntTower))
+    );
+    // `%b` arrives in 8.6.
+    assert!(matches!(
+        destructured("scan", None, &[w("101"), w("%b"), t("a")], Some("tcl8.5")),
+        Err(DeclineReason::ReleaseAmbiguous(Axis::Availability(_)))
+    ));
+    assert_eq!(
+        destructured("scan", None, &[w("101"), w("%b"), t("a")], Some("tcl8.6")),
+        Ok(answered("1", &["write 2 5"]))
+    );
+
+    assert_eq!(
+        destructured(
+            "lassign",
+            None,
+            &[w("first second extra"), t("a"), t("a")],
+            tcl90
+        ),
+        Ok(answered("extra", &["write 1 first", "write 2 second"]))
+    );
+    assert_eq!(
+        destructured("lassign", None, &[w("a b"), t("x"), t("y"), t("z")], tcl90),
+        Ok(answered("", &["write 1 a", "write 2 b", "write 3 "])),
+        "past the end the variable is the empty string"
+    );
+    assert!(matches!(
+        destructured("lassign", None, &[w("a b"), t("x")], Some("tcl8.4")),
+        Err(DeclineReason::ReleaseAmbiguous(Axis::Availability(_)))
+    ));
+
+    scan_declines_what_the_matcher_reads_apart();
+    the_byte_and_array_writers_run_the_shared_cores();
+}
+
+/// [`destructuring_writers_run_the_shared_cores`]'s `scan` declines where
+/// the shared matcher and the releases part: `%u` (the matcher reads it
+/// signed, where `scan -1 %u` is `18446744073709551615` on every release),
+/// an infinity spelling (`-Inf` from 8.5, no conversion in the matcher) and
+/// a negative zero (`scan -0 %f` is `0.0` from 8.5).
+fn scan_declines_what_the_matcher_reads_apart() {
+    let (t, w) = (target, word);
+    let tcl90 = Some("tcl9.0");
+    for (subject, format) in [("-1", "%u"), ("-inf", "%f"), ("-0", "%f")] {
+        assert_eq!(
+            destructured("scan", None, &[w(subject), w(format), t("v")], tcl90),
+            Err(DeclineReason::Unsupported),
+            "scan {subject} {format}"
+        );
+    }
+}
+
+/// [`destructuring_writers_run_the_shared_cores`]'s `binary scan` and
+/// `array set` half.
+fn the_byte_and_array_writers_run_the_shared_cores() {
+    let (t, w) = (target, word);
+    let tcl90 = Some("tcl9.0");
+    assert_eq!(
+        destructured(
+            "binary",
+            Some("scan"),
+            &[w("scan"), w("\u{1}\u{2}"), w("cc"), t("a"), t("b")],
+            tcl90
+        ),
+        Ok(answered("2", &["write 3 1", "write 4 2"]))
+    );
+    assert_eq!(
+        destructured(
+            "binary",
+            Some("scan"),
+            &[w("scan"), w("\u{1}"), w("cc"), t("a"), t("b")],
+            tcl90
+        ),
+        Ok(answered("1", &["write 3 1", "preserve 4"])),
+        "the data ran out before the second field"
+    );
+    assert_eq!(
+        destructured(
+            "binary",
+            Some("scan"),
+            &[w("scan"), w("\u{1}\u{2}"), w("cc"), t("a")],
+            tcl90
+        ),
+        Err(DeclineReason::WrongRepresentation),
+        "a field without a variable raises once the scan reaches it with data left"
+    );
+
+    assert_eq!(
+        destructured(
+            "array",
+            Some("set"),
+            &[w("set"), t("arr"), w("k1 v1 k2 v2 k1 v3")],
+            None
+        ),
+        Ok(answered("", &["element 1 k1 v3", "element 1 k2 v2"]))
+    );
+    assert_eq!(
+        destructured(
+            "array",
+            Some("set"),
+            &[w("set"), t("arr"), w("k1 v1 k2")],
+            None
+        ),
+        Ok(answered("error after 0", &[])),
+        "an odd-length list raises, after no store"
+    );
+}
+
+/// `array set a {x}` raises `list must have an even number of elements` in
+/// every release (tclsh 8.4 to 9.1), after no store, with the `-errorcode`
+/// `TCL ARGUMENT FORMAT` from 8.6 and `NONE` before; a profile that names no
+/// release proves the message alone. A list that does not parse raises the
+/// parser's error first.
+#[test]
+fn an_odd_array_set_list_is_the_commands_error() {
+    let (t, w) = (target, word);
+    let message = |text: &str| Some(text.to_owned());
+    for (dialect, code) in [
+        (Some("tcl8.4"), message("NONE")),
+        (Some("tcl8.5"), message("NONE")),
+        (Some("tcl8.6"), message("TCL ARGUMENT FORMAT")),
+        (Some("tcl9.0"), message("TCL ARGUMENT FORMAT")),
+        (Some("tcl9.1"), message("TCL ARGUMENT FORMAT")),
+        (None, None),
+    ] {
+        let odd = completed(
+            "array",
+            Some("set"),
+            &[w("set"), t("a"), w("x")],
+            &[],
+            dialect,
+        );
+        assert_eq!(
+            raised(&odd),
+            Some((
+                0,
+                message("list must have an even number of elements"),
+                code
+            )),
+            "{dialect:?}"
+        );
+        assert_eq!(planned(&odd), Vec::<String>::new(), "{dialect:?}");
+    }
+    let malformed = completed(
+        "array",
+        Some("set"),
+        &[w("set"), t("a"), w("{x")],
+        &[],
+        Some("tcl8.6"),
+    );
+    assert_eq!(
+        raised(&malformed),
+        Some((
+            0,
+            message("unmatched open brace in list"),
+            message("TCL VALUE LIST BRACE")
+        ))
+    );
+}
+
+/// The loops' source layout answers an iteration plan: one binder
+/// per name of the var-list word, padded past the list's end, over the one
+/// list, the body in the caller's frame with `break` and `continue`
+/// absorbed, nothing bound on the zero-iteration path, and the empty string
+/// (`foreach`) or the body's results (`lmap`) as the result. A var-list the
+/// analysis does not know names no binders; an empty one is the command's
+/// error.
+#[test]
+fn the_source_layout_answers_an_iteration_plan() {
+    use tcl_registry::FrameLevel;
+    use tcl_registry::value_transfer::{
+        Binder, BinderName, BindingKind, BodyPlan, CompletionProtocol, ExitRule, IterationPlan,
+        LoopResult,
+    };
+    let reg = CommandRegistry::build_default();
+    for (name, result) in [
+        ("foreach", LoopResult::Empty),
+        ("lmap", LoopResult::Collected),
+    ] {
+        let resolved = resolve_semantics(reg.get(name).expect(name), None, None);
+        let semantics = resolved.semantics().expect("declared");
+        let words = |var_list| {
+            TestInputs::new(
+                name,
+                vec![
+                    literal(var_list, None),
+                    literal("1 10 2 20", None),
+                    literal("puts $a", Some(ArgRole::Body)),
+                ],
+            )
+        };
+        let PlanAnswer::Iterate(plan) = semantics.structure(&words("a b")) else {
+            panic!("{name}: no iteration plan");
+        };
+        assert_eq!(
+            plan,
+            IterationPlan {
+                binders: ["a", "b"]
+                    .map(|binder| Binder {
+                        name: BinderName::Declared(binder.to_owned()),
+                        kind: BindingKind::Scalar,
+                    })
+                    .to_vec(),
+                iterable: IterableKind::List(OperandId(1)),
+                body: Some(BodyPlan {
+                    body: OperandId(2),
+                    frame: FrameLevel::Relative(0),
+                }),
+                exit: ExitRule::Exhaustion,
+                zero_iterations_bind: false,
+                completion: CompletionProtocol::Absorb(&[
+                    tcl_registry::completion::CompletionCode::Break,
+                    tcl_registry::completion::CompletionCode::Continue,
+                ]),
+                result,
+            },
+            "{name}"
+        );
+        assert_eq!(
+            semantics.structure(&words("")),
+            PlanAnswer::Declined(DeclineReason::WrongRepresentation),
+            "{name}: an empty var-list"
+        );
+        let mut unknown = words("a b");
+        unknown
+            .operands
+            .insert(0, FactView::Top(DeclineReason::NotExact));
+        assert_eq!(
+            semantics.structure(&unknown),
+            PlanAnswer::Declined(DeclineReason::NotExact),
+            "{name}: an unknown var-list"
+        );
+    }
+}
+
+/// Several var-list and list pairs step their lists in lockstep: the plan
+/// binds each group's names in order, the next of its binders from its own
+/// list, over the lists in the order the words give them, with the body the
+/// last word.
+#[test]
+fn several_lists_step_in_lockstep() {
+    use tcl_registry::FrameLevel;
+    use tcl_registry::value_transfer::{BinderName, BodyPlan};
+    let reg = CommandRegistry::build_default();
+    for name in ["foreach", "lmap"] {
+        let resolved = resolve_semantics(reg.get(name).expect(name), None, None);
+        let semantics = resolved.semantics().expect("declared");
+        let lockstep = TestInputs::new(
+            name,
+            vec![
+                literal("a", None),
+                literal("1 2", None),
+                literal("b", None),
+                literal("3 4", None),
+                literal("puts $a$b", Some(ArgRole::Body)),
+            ],
+        );
+        let PlanAnswer::Iterate(plan) = semantics.structure(&lockstep) else {
+            panic!("{name}: no lockstep plan");
+        };
+        assert_eq!(
+            plan.binders
+                .iter()
+                .map(|binder| binder.name.clone())
+                .collect::<Vec<_>>(),
+            ["a", "b"].map(|name| BinderName::Declared(name.to_owned())),
+            "{name}"
+        );
+        assert_eq!(
+            plan.iterable,
+            IterableKind::Lockstep(vec![
+                ListGroup {
+                    binders: 1,
+                    list: OperandId(1),
+                },
+                ListGroup {
+                    binders: 1,
+                    list: OperandId(3),
+                },
+            ]),
+            "{name}: two lists in lockstep"
+        );
+        assert_eq!(
+            plan.body,
+            Some(BodyPlan {
+                body: OperandId(4),
+                frame: FrameLevel::Relative(0),
+            }),
+            "{name}"
+        );
+    }
+}
+
+/// The counted and the conditional loop name the words their bound and step
+/// are read from: `for start test next body` iterates `Counted` over the start
+/// script, the condition and the step script, `while test body` over the
+/// condition alone, each with the body run in the caller's frame, `break` and
+/// `continue` absorbed, a false condition as the exit, nothing bound per
+/// pass, and the empty string as the result. Another word count is the
+/// command's error, and the CFG's loop header, a branch, asks neither.
+#[test]
+fn the_loop_plans_name_their_bound_and_step() {
+    use tcl_registry::FrameLevel;
+    use tcl_registry::value_transfer::{
+        BodyPlan, CompletionProtocol, ExitRule, IterationPlan, LoopResult,
+    };
+    let reg = CommandRegistry::build_default();
+    let absorbed = CompletionProtocol::Absorb(&[
+        tcl_registry::completion::CompletionCode::Break,
+        tcl_registry::completion::CompletionCode::Continue,
+    ]);
+    let plan_of = |name: &str, words: Vec<_>| {
+        let resolved = resolve_semantics(reg.get(name).expect(name), None, None);
+        let semantics = resolved.semantics().expect("declared");
+        semantics.structure(&TestInputs::new(name, words))
+    };
+    let counted = plan_of(
+        "for",
+        vec![
+            literal("set i 0", Some(ArgRole::Body)),
+            literal("$i < 10", Some(ArgRole::Expr)),
+            literal("incr i 2", Some(ArgRole::Body)),
+            literal("puts $i", Some(ArgRole::Body)),
+        ],
+    );
+    assert_eq!(
+        counted,
+        PlanAnswer::Iterate(IterationPlan {
+            binders: Vec::new(),
+            iterable: IterableKind::Counted {
+                init: OperandId(0),
+                condition: OperandId(1),
+                next: OperandId(2),
+            },
+            body: Some(BodyPlan {
+                body: OperandId(3),
+                frame: FrameLevel::Relative(0),
+            }),
+            exit: ExitRule::FalseCondition,
+            zero_iterations_bind: false,
+            completion: absorbed.clone(),
+            result: LoopResult::Empty,
+        })
+    );
+    let conditional = plan_of(
+        "while",
+        vec![
+            literal("$i < 10", Some(ArgRole::Expr)),
+            literal("incr i", Some(ArgRole::Body)),
+        ],
+    );
+    assert_eq!(
+        conditional,
+        PlanAnswer::Iterate(IterationPlan {
+            binders: Vec::new(),
+            iterable: IterableKind::Condition(OperandId(0)),
+            body: Some(BodyPlan {
+                body: OperandId(1),
+                frame: FrameLevel::Relative(0),
+            }),
+            exit: ExitRule::FalseCondition,
+            zero_iterations_bind: false,
+            completion: absorbed,
+            result: LoopResult::Empty,
+        })
+    );
+    assert_eq!(
+        plan_of("while", vec![literal("1", Some(ArgRole::Expr))]),
+        PlanAnswer::Declined(DeclineReason::WrongRepresentation)
+    );
+    for name in ["for", "while"] {
+        let resolved = resolve_semantics(reg.get(name).expect(name), None, None);
+        let semantics = resolved.semantics().expect("declared");
+        let binders = Vec::new();
+        let mut header = TestInputs::new(name, vec![literal("1", None)]);
+        header.view.layout = InvocationLayout::LoopHeader { binders: &binders };
+        assert_eq!(
+            semantics.structure(&header),
+            PlanAnswer::NoStructure,
+            "{name}"
+        );
+    }
+}
+
+/// The structural plan `dict SUB` (or its `::tcl::dict::` spelling when
+/// `qualified`) answers over `words`, with `d` holding `prior` when it is
+/// not empty.
+fn dict_body_plan(
+    reg: &CommandRegistry,
+    sub: &str,
+    qualified: bool,
+    words: &[(&'static str, Option<ArgRole>)],
+    prior: &str,
+) -> PlanAnswer {
+    let dict = reg.get("dict").expect("dict");
+    let (semantics, command) = if qualified {
+        let spec = reg
+            .get(if sub == "with" {
+                "::tcl::dict::with"
+            } else {
+                "::tcl::dict::update"
+            })
+            .expect("the qualified spelling");
+        (resolve_semantics(spec, None, None), spec.name)
+    } else {
+        (
+            resolve_semantics(dict, Some(dict.subcommand(sub).expect(sub)), None),
+            "dict",
+        )
+    };
+    let semantics = semantics.semantics().expect("a body plan");
+    let mut operands: Vec<OperandView<'static>> = Vec::new();
+    if !qualified {
+        operands.push(literal(if sub == "with" { "with" } else { "update" }, None));
+    }
+    operands.extend(words.iter().map(|&(text, role)| literal(text, role)));
+    let mut inputs = TestInputs::new(command, operands);
+    if !qualified {
+        inputs.view.argument_offset = 1;
+    }
+    if !prior.is_empty() {
+        inputs.prior.insert(
+            "d".to_owned(),
+            FactView::Exact(ExactValue::from_literal(prior), None),
+        );
+    }
+    semantics.structure(&inputs)
+}
+
+/// `dict with` and `dict update` are structural plans, under both
+/// spellings: the binders are a projection on body entry — the proven keys
+/// of the dictionary for `dict with` (`set d {a 1}; dict with d {incr a;
+/// set result done}` binds `a`; tclsh 8.5 to 9.1 answer `done` and leave
+/// `d` as `a 2`), a key path's nested dictionary's keys, and the declared
+/// variables for `dict update` — the body runs in the caller's frame, the
+/// bound keys are written back into the dictionary operand, and the body's
+/// completion is the command's. A dictionary the analysis does not know
+/// names no binders, so `dict with` declines; a path key it lacks, or a
+/// value that is no dictionary, is the command's error.
+#[test]
+fn dict_with_binds_the_proven_keys() {
+    use tcl_registry::FrameLevel;
+    use tcl_registry::value_transfer::{
+        Binder, BinderName, BindingKind, BodyPlan, CompletionProtocol, Reconcile,
+    };
+    let reg = CommandRegistry::build_default();
+    let plan_of = |sub, qualified, words: &[(&'static str, Option<ArgRole>)], prior| {
+        dict_body_plan(&reg, sub, qualified, words, prior)
+    };
+    let declared = |names: &[&str]| -> Vec<Binder> {
+        names
+            .iter()
+            .map(|name| Binder {
+                name: BinderName::Declared((*name).to_owned()),
+                kind: BindingKind::Scalar,
+            })
+            .collect()
+    };
+    let body = |at: usize| BodyPlan {
+        body: OperandId(at),
+        frame: FrameLevel::Relative(0),
+    };
+    let var = ("d", Some(ArgRole::VarWrite));
+    let script = ("incr a; set result done", Some(ArgRole::Body));
+    for qualified in [false, true] {
+        let offset = usize::from(!qualified);
+        assert_eq!(
+            plan_of("with", qualified, &[var, script], "a 1"),
+            PlanAnswer::Body {
+                binders: declared(&["a"]),
+                body: body(offset + 1),
+                reconcile: Reconcile::WriteBackKeys(OperandId(offset)),
+                completion: CompletionProtocol::TclBody,
+            },
+            "qualified: {qualified}"
+        );
+        assert_eq!(
+            plan_of(
+                "with",
+                qualified,
+                &[var, ("x", None), script],
+                "x {a 1 b 2 a 3} y 4"
+            ),
+            PlanAnswer::Body {
+                binders: declared(&["a", "b"]),
+                body: body(offset + 2),
+                reconcile: Reconcile::WriteBackKeys(OperandId(offset)),
+                completion: CompletionProtocol::TclBody,
+            },
+            "qualified: {qualified}: a key path"
+        );
+        assert_eq!(
+            plan_of("with", qualified, &[var, script], ""),
+            PlanAnswer::Declined(DeclineReason::NotExact),
+            "qualified: {qualified}: an unknown dictionary"
+        );
+        assert_eq!(
+            plan_of("with", qualified, &[var, ("z", None), script], "x 1"),
+            PlanAnswer::Declined(DeclineReason::WrongRepresentation),
+            "qualified: {qualified}: a path key the dictionary lacks"
+        );
+        assert_eq!(
+            plan_of(
+                "update",
+                qualified,
+                &[
+                    var,
+                    ("k", None),
+                    ("v", None),
+                    ("j", None),
+                    ("w", None),
+                    script
+                ],
+                ""
+            ),
+            PlanAnswer::Body {
+                binders: [offset + 2, offset + 4]
+                    .map(|at| Binder {
+                        name: BinderName::Operand(OperandId(at)),
+                        kind: BindingKind::Scalar,
+                    })
+                    .to_vec(),
+                body: body(offset + 5),
+                reconcile: Reconcile::WriteBackKeys(OperandId(offset)),
+                completion: CompletionProtocol::TclBody,
+            },
+            "qualified: {qualified}: dict update"
+        );
+    }
+}
+
+/// `subst switches… {template}` under `dialect`'s profile through `subst`'s
+/// declared template plan: the template braced, its content from 1, and
+/// each switch overridden by the fact the driver would prove.
+fn template_plan_of(
+    dialect: &str,
+    switches: &[(&'static str, Option<FactView>)],
+    template: &'static str,
+) -> PlanAnswer {
+    let reg = CommandRegistry::build_default();
+    let semantics = resolve_semantics(reg.get("subst").expect("subst"), None, None);
+    let semantics = semantics.semantics().expect("the template plan");
+    let mut operands: Vec<OperandView<'static>> = switches
+        .iter()
+        .map(|&(text, _)| literal(text, None))
+        .collect();
+    operands.push(literal(template, None));
+    let last = operands.len() - 1;
+    let mut inputs = TestInputs::new("subst", operands);
+    for (index, (_, fact)) in switches.iter().enumerate() {
+        if let Some(fact) = fact {
+            inputs.operands.insert(index, fact.clone());
+        }
+    }
+    inputs.structures.insert(
+        last,
+        WordStructure {
+            braced: true,
+            quoted: false,
+            parts: vec![WordPart::Literal {
+                span: tcl_lexer::Span::new(1, 1 + small(template.len())),
+                text: template.to_owned(),
+            }],
+        },
+    );
+    // `tcl` is the permissive sink, which names no release; an empty name
+    // is no profile at all.
+    let profile = tcl_dialect::DialectProfile::find(dialect)
+        .or_else(|| (dialect == "tcl").then(tcl_dialect::DialectProfile::plain_tcl));
+    inputs.context = AnalysisContext::detached(profile);
+    semantics.structure(&inputs)
+}
+
+/// A short offset as a span coordinate.
+fn small(offset: usize) -> u32 {
+    u32::try_from(offset).expect("a small offset")
+}
+
+/// A literal switch word, its own spelling.
+fn switch(text: &'static str) -> (&'static str, Option<FactView>) {
+    (text, None)
+}
+
+/// The kinds `backslashes`, `commands`, `variables`.
+fn kinds(
+    backslashes: bool,
+    commands: bool,
+    variables: bool,
+) -> tcl_registry::substitution::SubstitutionKinds {
+    tcl_registry::substitution::SubstitutionKinds {
+        backslashes,
+        commands,
+        variables,
+    }
+}
+
+/// The `[script]` region at word offset `start`.
+fn region(start: usize, script: &str) -> tcl_registry::value_transfer::ScriptRegion {
+    tcl_registry::value_transfer::ScriptRegion {
+        span: tcl_lexer::Span::new(small(start), small(start + script.len() + 2)),
+        script: BodyRegion {
+            script: script.to_owned(),
+            base_offset: start + 1,
+            frame: tcl_registry::FrameLevel::Relative(0),
+        },
+    }
+}
+
+/// The `$name` read at word offset `start`.
+fn read(start: usize, name: &str) -> tcl_registry::value_transfer::VariableRead {
+    tcl_registry::value_transfer::VariableRead {
+        span: tcl_lexer::Span::new(small(start), small(start + 1 + name.len())),
+        name: name.to_owned(),
+        element: None,
+    }
+}
+
+/// A braced template's plan, the template operand at `operand`.
+fn braced_plan(
+    operand: usize,
+    kinds: tcl_registry::substitution::SubstitutionKinds,
+    script_regions: Vec<tcl_registry::value_transfer::ScriptRegion>,
+    reads: Vec<tcl_registry::value_transfer::VariableRead>,
+    escapes: Vec<tcl_lexer::Span>,
+) -> PlanAnswer {
+    PlanAnswer::TemplateWord(tcl_registry::value_transfer::TemplateWordPlan {
+        operand: OperandId(operand),
+        kinds,
+        braced: true,
+        dynamic: false,
+        script_regions,
+        reads,
+        escapes,
+    })
+}
+
+/// The page's first five template programs under `dialect`, each the
+/// plan and the plan the program must have: the kinds the switches run
+/// and the regions, reads and escapes they leave.
+fn switch_witnesses(dialect: &str) -> Vec<(PlanAnswer, PlanAnswer)> {
+    let span = tcl_lexer::Span::new;
+    vec![
+        // `a$b5`: the bracket still runs.
+        (
+            template_plan_of(dialect, &[switch("-novariables")], "a$b[set b]"),
+            braced_plan(
+                1,
+                kinds(true, true, false),
+                vec![region(4, "set b")],
+                vec![],
+                vec![],
+            ),
+        ),
+        // `a5[set b]`.
+        (
+            template_plan_of(dialect, &[switch("-nocommands")], "a$b[set b]"),
+            braced_plan(
+                1,
+                kinds(true, false, true),
+                vec![],
+                vec![read(2, "b")],
+                vec![],
+            ),
+        ),
+        // `x6`: `$b` inside the region substitutes, as the region's own.
+        (
+            template_plan_of(dialect, &[switch("-novariables")], "x[expr {$b+1}]"),
+            braced_plan(
+                1,
+                kinds(true, true, false),
+                vec![region(2, "expr {$b+1}")],
+                vec![],
+                vec![],
+            ),
+        ),
+        // `a1`.
+        (
+            template_plan_of(dialect, &[switch("-novariables")], "a[string length $b]"),
+            braced_plan(
+                1,
+                kinds(true, true, false),
+                vec![region(2, "string length $b")],
+                vec![],
+                vec![],
+            ),
+        ),
+        // `a$b[set b]A`: only the escape materialises.
+        (
+            template_plan_of(
+                dialect,
+                &[switch("-novariables"), switch("-nocommands")],
+                "a$b[set b]\\x41",
+            ),
+            braced_plan(
+                2,
+                kinds(true, false, false),
+                vec![],
+                vec![],
+                vec![span(11, 15)],
+            ),
+        ),
+    ]
+}
+
+/// The page's next six template programs under `dialect`, as
+/// [`switch_witnesses`]: escapes, a proven switch, the regions that run in
+/// the caller's frame, and the two families together.
+fn template_witnesses(dialect: &str) -> Vec<(PlanAnswer, PlanAnswer)> {
+    let span = tcl_lexer::Span::new;
+    let proven = |text: &str| Some(FactView::Exact(ExactValue::from_literal(text), None));
+    vec![
+        // `a\tb`, four characters.
+        (
+            template_plan_of(dialect, &[switch("-nobackslashes")], "a\\tb"),
+            braced_plan(1, kinds(false, true, true), vec![], vec![], vec![]),
+        ),
+        // `a$b5`: the escape protects the `$`.
+        (
+            template_plan_of(dialect, &[], "a\\$b[set b]"),
+            braced_plan(
+                0,
+                kinds(true, true, true),
+                vec![region(5, "set b")],
+                vec![],
+                vec![span(2, 4)],
+            ),
+        ),
+        // `set opt -novariables; subst $opt {hello $name}` is `hello
+        // $name`: the proven switch reads as its spelling.
+        (
+            template_plan_of(dialect, &[("$opt", proven("-novariables"))], "hello $name"),
+            braced_plan(1, kinds(true, true, false), vec![], vec![], vec![]),
+        ),
+        // `p` returns 2: the region runs in the caller's frame.
+        (
+            template_plan_of(dialect, &[], "[set c 2]"),
+            braced_plan(
+                0,
+                kinds(true, true, true),
+                vec![region(1, "set c 2")],
+                vec![],
+                vec![],
+            ),
+        ),
+        // `q` returns `2 2`.
+        (
+            template_plan_of(dialect, &[switch("-novariables")], "[incr c]"),
+            braced_plan(
+                1,
+                kinds(true, true, false),
+                vec![region(1, "incr c")],
+                vec![],
+                vec![],
+            ),
+        ),
+        // The two families together: an error on every release.
+        (
+            template_plan_of(
+                dialect,
+                &[switch("-nocommands"), switch("-variables")],
+                "a$b",
+            ),
+            PlanAnswer::Declined(DeclineReason::WrongRepresentation),
+        ),
+    ]
+}
+
+/// `subst`'s template-word plan answers the page's fourteen
+/// programs (`docs/design/compiler/value-transfers.md` § *The template-word
+/// plan*): the kinds its switches run, read over their proven values, and
+/// the braced template's script regions, variable reads and escapes under
+/// those kinds, each at its offset in the word (the content from 1). A
+/// template the parser substitutes reaches the command computed. The two
+/// families together are an error on every release.
+#[test]
+fn the_template_plan_answers_the_fourteen_witnesses() {
+    let span = tcl_lexer::Span::new;
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let rows = switch_witnesses(dialect)
+            .into_iter()
+            .chain(template_witnesses(dialect));
+        for (index, (got, want)) in rows.enumerate() {
+            assert_eq!(got, want, "{dialect}: row {index}");
+        }
+    }
+    // `set t {a$b}; subst -nocommands $t` is `a5`: a template the parser
+    // substitutes reaches the command computed.
+    let mut dynamic = TestInputs::new(
+        "subst",
+        vec![literal("-nocommands", None), literal("$t", None)],
+    );
+    dynamic.structures.insert(
+        1,
+        WordStructure {
+            braced: false,
+            quoted: false,
+            parts: vec![WordPart::VariableRead {
+                span: span(0, 2),
+                name: "t".to_owned(),
+                element: None,
+            }],
+        },
+    );
+    let reg = CommandRegistry::build_default();
+    let semantics = resolve_semantics(reg.get("subst").expect("subst"), None, None);
+    assert_eq!(
+        semantics
+            .semantics()
+            .expect("the template plan")
+            .structure(&dynamic),
+        PlanAnswer::TemplateWord(tcl_registry::value_transfer::TemplateWordPlan {
+            operand: OperandId(1),
+            kinds: kinds(true, false, true),
+            braced: false,
+            dynamic: true,
+            script_regions: vec![],
+            reads: vec![],
+            escapes: vec![],
+        })
+    );
+}
+
+/// The 9.1 positive family: it answers under a 9.1 profile, is the
+/// command's error below it (`bad switch "-variables"` on tclsh 8.4 and
+/// 8.5, `bad option` on 8.6 and 9.0), and declines as release-ambiguous
+/// under a profile that spans both, while a question with no profile reads
+/// every switch; the two families together raise on every release, so
+/// they raise under the spanning profile too.
+#[test]
+fn the_positive_switches_are_9_1s() {
+    let span = tcl_lexer::Span::new;
+    let spanning = PlanAnswer::Declined(DeclineReason::ReleaseAmbiguous(Axis::Availability(
+        tcl_dialect::model::SpecSurface::TCL91[0],
+    )));
+    let positive = [
+        (
+            "-variables",
+            "a$b[set b]",
+            braced_plan(
+                1,
+                kinds(false, false, true),
+                vec![],
+                vec![read(2, "b")],
+                vec![],
+            ),
+        ),
+        (
+            "-backslashes",
+            "a$b[set b]\\x41",
+            braced_plan(
+                1,
+                kinds(true, false, false),
+                vec![],
+                vec![],
+                vec![span(11, 15)],
+            ),
+        ),
+    ];
+    for (word, template, answered) in positive {
+        assert_eq!(
+            template_plan_of("tcl9.1", &[switch(word)], template),
+            answered
+        );
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+            assert_eq!(
+                template_plan_of(dialect, &[switch(word)], template),
+                PlanAnswer::Declined(DeclineReason::WrongRepresentation),
+                "{dialect} {word}"
+            );
+        }
+        assert_eq!(template_plan_of("tcl", &[switch(word)], template), spanning);
+        // With no profile at all the question is surface-blind, as a
+        // profile-less registry's own: every switch is available.
+        assert_eq!(
+            template_plan_of("", &[switch(word)], template),
+            template_plan_of("tcl9.1", &[switch(word)], template)
+        );
+    }
+    assert_eq!(
+        template_plan_of("tcl", &[switch("-nocommands"), switch("-variables")], "a$b"),
+        PlanAnswer::Declined(DeclineReason::WrongRepresentation)
+    );
+}
+
+/// A finite set of switch values joins per member, a raising member
+/// contributing nothing; an unproven switch runs every kind; a call without
+/// its template, or a template holding a construct `subst` rejects, is the
+/// command's error; and an array index substitutes
+/// whatever the kinds say — `subst -nocommands {$a([set b])}` runs `set b`
+/// (tclsh 8.4 to 9.1 read `a(5)`).
+#[test]
+fn a_template_plan_joins_proven_switches_and_reads_indexes() {
+    let set = |members: &[&str]| {
+        Some(FactView::Finite(
+            members
+                .iter()
+                .map(|member| ExactValue::from_literal(member))
+                .collect(),
+            None,
+        ))
+    };
+    assert_eq!(
+        template_plan_of("tcl9.1", &[("$s", set(&["-variables", "-commands"]))], "x"),
+        braced_plan(1, kinds(false, true, true), vec![], vec![], vec![])
+    );
+    assert_eq!(
+        template_plan_of("tcl8.6", &[("$s", set(&["-novariables", "-bogus"]))], "x"),
+        braced_plan(1, kinds(true, true, false), vec![], vec![], vec![])
+    );
+    assert_eq!(
+        template_plan_of(
+            "tcl8.6",
+            &[("$s", Some(FactView::Top(DeclineReason::NotExact)))],
+            "a$b"
+        ),
+        braced_plan(
+            1,
+            kinds(true, true, true),
+            vec![],
+            vec![read(2, "b")],
+            vec![]
+        )
+    );
+    let reg = CommandRegistry::build_default();
+    let semantics = resolve_semantics(reg.get("subst").expect("subst"), None, None);
+    assert_eq!(
+        semantics
+            .semantics()
+            .expect("the template plan")
+            .structure(&TestInputs::new("subst", vec![])),
+        PlanAnswer::Declined(DeclineReason::WrongRepresentation)
+    );
+    // A construct `subst` rejects is the command's error: `subst {a[set b}`
+    // raises `missing close-bracket` on tclsh 8.4 to 9.1.
+    assert_eq!(
+        template_plan_of("tcl8.6", &[], "a[set b"),
+        PlanAnswer::Declined(DeclineReason::WrongRepresentation)
+    );
+    assert_eq!(
+        template_plan_of("tcl8.6", &[switch("-nocommands")], "a[set b"),
+        braced_plan(1, kinds(true, false, true), vec![], vec![], vec![])
+    );
+    let PlanAnswer::TemplateWord(indexed) =
+        template_plan_of("tcl8.6", &[switch("-nocommands")], "$a([set b])")
+    else {
+        panic!("a template plan");
+    };
+    assert_eq!(
+        indexed.reads,
+        [tcl_registry::value_transfer::VariableRead {
+            span: tcl_lexer::Span::new(1, 12),
+            name: "a".to_owned(),
+            element: Some("[set b]".to_owned()),
+        }]
+    );
+    assert_eq!(
+        indexed
+            .script_regions
+            .iter()
+            .map(|region| region.script.script.as_str())
+            .collect::<Vec<_>>(),
+        ["set b"]
+    );
+}
+
+/// `switch words…` under `dialect` (`tcl` is the lenient sink, which names
+/// no release) over literal words, the operand at `subject` holding `fact`
+/// when one is given: the inputs a selection runs over.
+fn switch_inputs<'a>(
+    dialect: &str,
+    words: &[&'a str],
+    subject: Option<(usize, FactView)>,
+) -> TestInputs<'a> {
+    let operands = words.iter().map(|&text| literal(text, None)).collect();
+    let mut inputs = TestInputs::new("switch", operands);
+    if let Some((index, fact)) = subject {
+        inputs.operands.insert(index, fact);
+    }
+    let profile = tcl_dialect::DialectProfile::find(dialect)
+        .or_else(|| (dialect == "tcl").then(tcl_dialect::DialectProfile::plain_tcl));
+    inputs.context = AnalysisContext::detached(profile);
+    inputs
+}
+
+/// A selection as the selected arms, the arms whose bodies run, and each
+/// member's writes as `(operand, written text)`.
+type SelectionRead = (
+    Vec<Option<usize>>,
+    Vec<Option<usize>>,
+    Vec<Vec<(usize, String)>>,
+);
+
+/// The `Selection` transfer of `switch words…` under `dialect`, read as a
+/// [`SelectionRead`], or the decline.
+fn switch_selection(
+    dialect: &str,
+    words: &[&str],
+    subject: Option<(usize, FactView)>,
+) -> Result<SelectionRead, DeclineReason> {
+    selection_of("switch", dialect, words, subject, Vec::new())
+}
+
+/// A literal operand's structure, delimited as said: its text as one run
+/// from offset 0, or from 1 past a brace or a quote.
+fn delimited(text: &str, braced: bool, quoted: bool) -> WordStructure {
+    let start = u32::from(braced || quoted);
+    WordStructure {
+        braced,
+        quoted,
+        parts: vec![WordPart::Literal {
+            span: tcl_lexer::Span::new(start, start + small(text.len())),
+            text: text.to_owned(),
+        }],
+    }
+}
+
+/// The `Selection` transfer of `command words…` under `dialect`, with the
+/// operands' structures where given, read as a [`SelectionRead`], or the
+/// decline.
+fn selection_of(
+    command: &str,
+    dialect: &str,
+    words: &[&str],
+    subject: Option<(usize, FactView)>,
+    structures: Vec<(usize, WordStructure)>,
+) -> Result<SelectionRead, DeclineReason> {
+    let reg = CommandRegistry::build_default();
+    let semantics = resolve_semantics(reg.get(command).expect(command), None, None);
+    let semantics = semantics.semantics().expect("a selection contract");
+    let mut inputs = switch_inputs(dialect, words, subject);
+    inputs.view.canonical_command = if command == "case" { "case" } else { "switch" };
+    inputs.structures.extend(structures);
+    match semantics.transfer(FactDomain::Selection, &inputs, &mut Budget::evaluation()) {
+        TransferAnswer::Selection(fact) => Ok((
+            fact.selected,
+            fact.bodies,
+            fact.writes
+                .into_iter()
+                .map(|writes| {
+                    writes
+                        .into_iter()
+                        .map(|store| match store {
+                            StoreOutcome::Write { target, value } => {
+                                ((target.0).0, String::from_utf8(value.bytes).expect("text"))
+                            }
+                            other => panic!("unexpected store {other:?}"),
+                        })
+                        .collect()
+                })
+                .collect(),
+        )),
+        TransferAnswer::Declined(reason) => Err(reason),
+        other => panic!("not a selection: {other:?}"),
+    }
+}
+
+/// No write for any member of a one-member selection.
+fn no_writes() -> Vec<Vec<(usize, String)>> {
+    vec![Vec::new()]
+}
+
+/// The plan `switch`'s `CaseListSpec` reads: the inline form names each
+/// pair, a `-` arm with no body; the one-word form names its clause list.
+fn the_case_list_plan_names_each_form() {
+    use tcl_registry::value_transfer::CaseArms;
+    let reg = CommandRegistry::build_default();
+    let semantics = resolve_semantics(reg.get("switch").expect("switch"), None, None);
+    let semantics = semantics.semantics().expect("switch's selection contract");
+    let PlanAnswer::CaseList { subject, arms, .. } = semantics.structure(&switch_inputs(
+        "tcl8.6",
+        &["-glob", "--", "x", "a*", "-", "b", "B"],
+        None,
+    )) else {
+        panic!("a case list");
+    };
+    assert_eq!(subject, OperandId(2));
+    assert_eq!(
+        arms,
+        CaseArms::Words(vec![
+            (OperandId(3), None),
+            (OperandId(5), Some(OperandId(6)))
+        ])
+    );
+    let PlanAnswer::CaseList { arms, .. } =
+        semantics.structure(&switch_inputs("tcl8.6", &["x", "a A"], None))
+    else {
+        panic!("a case list");
+    };
+    assert_eq!(arms, CaseArms::List(OperandId(1)));
+}
+
+/// What every release selects alike: ordered first match, the final
+/// `default` (a non-final one is a literal pattern), a `-` arm supplying
+/// the next body, a `ConstSet` subject per member, and a malformed regexp
+/// declining.
+fn every_release_selects_alike(dialect: &str) {
+    assert_eq!(
+        switch_selection(
+            dialect,
+            &["-glob", "--", "abc", "a* A ab* B default D"],
+            None
+        ),
+        Ok((vec![Some(0)], vec![Some(0)], no_writes())),
+        "{dialect}"
+    );
+    assert_eq!(
+        switch_selection(
+            dialect,
+            &["-exact", "--", "zzz", "a", "A", "default", "D"],
+            None
+        ),
+        Ok((vec![Some(1)], vec![Some(1)], no_writes())),
+        "{dialect}"
+    );
+    assert_eq!(
+        switch_selection(dialect, &["--", "zzz", "default", "A", "b", "B"], None),
+        Ok((vec![None], vec![None], no_writes())),
+        "{dialect}"
+    );
+    assert_eq!(
+        switch_selection(dialect, &["-glob", "--", "x", "x - y Y"], None),
+        Ok((vec![Some(0)], vec![Some(1)], no_writes())),
+        "{dialect}"
+    );
+    let members = FactView::Finite(
+        vec![
+            ExactValue::from_literal("a"),
+            ExactValue::from_literal("b"),
+            ExactValue::from_literal("z"),
+        ],
+        None,
+    );
+    assert_eq!(
+        switch_selection(
+            dialect,
+            &["-exact", "--", "$s", "a", "A", "b", "B"],
+            Some((2, members))
+        ),
+        Ok((
+            vec![Some(0), Some(1), None],
+            vec![Some(0), Some(1), None],
+            vec![Vec::new(), Vec::new(), Vec::new()]
+        )),
+        "{dialect}"
+    );
+    assert_eq!(
+        switch_selection(dialect, &["-regexp", "--", "abc", "( A"], None),
+        Err(DeclineReason::WrongRepresentation),
+        "{dialect}"
+    );
+}
+
+/// What 8.5 onwards selects: the captures — the index variable's write,
+/// then the match variable's; the default arm's empty write — `-nocase`,
+/// and a subject spelled like an option in the one-word form.
+fn from_85_the_captures_and_nocase_select(dialect: &str) {
+    assert_eq!(
+        switch_selection(
+            dialect,
+            &[
+                "-regexp",
+                "-matchvar",
+                "m",
+                "-indexvar",
+                "i",
+                "--",
+                "abc",
+                "(a)(x)?b M"
+            ],
+            None
+        ),
+        Ok((
+            vec![Some(0)],
+            vec![Some(0)],
+            vec![vec![
+                (4, "{0 1} {0 0} {-1 -1}".to_owned()),
+                (2, "ab a {}".to_owned())
+            ]]
+        )),
+        "{dialect}"
+    );
+    assert_eq!(
+        switch_selection(
+            dialect,
+            &["-regexp", "-matchvar", "m", "--", "abc", "x X default D"],
+            None
+        ),
+        Ok((vec![Some(1)], vec![Some(1)], vec![vec![(2, String::new())]])),
+        "{dialect}"
+    );
+    assert_eq!(
+        switch_selection(dialect, &["-nocase", "--", "ABC", "abc A"], None),
+        Ok((vec![Some(0)], vec![Some(0)], no_writes())),
+        "{dialect}"
+    );
+    assert_eq!(
+        switch_selection(
+            dialect,
+            &["-glob", "$s", "a A default D"],
+            Some((1, FactView::Exact(ExactValue::from_literal("-x"), None)))
+        ),
+        Ok((vec![Some(1)], vec![Some(1)], no_writes())),
+        "{dialect}"
+    );
+}
+
+/// `switch` declares its selection contract (§ *`switch`* of the interface
+/// page): the case-list plan its `CaseListSpec` reads — each arm a pair of words,
+/// or the elements of one clause-list word — and, per member of a proven
+/// subject, the arm the shared core selects: ordered first match, the final
+/// `default` (a non-final one is a literal pattern), a `-` arm supplying
+/// the body of an arm whose pattern never matches, the regexp mode's
+/// captures as `Write`s of the `-indexvar` and `-matchvar` words, and a
+/// `ConstSet` subject one entry per member. A malformed regexp, an option
+/// the release lacks, a subject that release scans as an option, and 9.1's
+/// `-integer` decline. Each answer is tclsh 8.4.20 to 9.1b0's
+/// (`switch_witnesses_match_every_release_on_path`).
+#[test]
+fn switch_selection_runs_the_shared_core() {
+    the_case_list_plan_names_each_form();
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl9.1", "tcl"] {
+        every_release_selects_alike(dialect);
+    }
+    for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+        from_85_the_captures_and_nocase_select(dialect);
+    }
+    // 8.4 has no `-nocase` and scans every leading word spelled like an
+    // option, and a profile naming no release reads both ways.
+    let dashed = || Some((1, FactView::Exact(ExactValue::from_literal("-x"), None)));
+    for dialect in ["tcl8.4", "tcl"] {
+        assert!(
+            switch_selection(dialect, &["-nocase", "--", "ABC", "abc A"], None).is_err(),
+            "{dialect}"
+        );
+        assert!(
+            switch_selection(dialect, &["-glob", "$s", "a A default D"], dashed()).is_err(),
+            "{dialect}"
+        );
+    }
+    // With two arms after the subject every release scans it.
+    assert!(
+        switch_selection(
+            "tcl8.6",
+            &["-glob", "$s", "a", "A", "default", "D"],
+            dashed()
+        )
+        .is_err()
+    );
+    // 9.1's `-integer` is not the core's comparison.
+    assert_eq!(
+        switch_selection("tcl9.1", &["-integer", "--", "1", "1 A"], None),
+        Err(DeclineReason::Unsupported)
+    );
+}
+
+/// 9.1b0's byte-compiled `switch` reads only a bare `-` as the fall-through
+/// body, its interpreted path the word's value: measured on tclsh
+/// 9.1b0, `switch -glob -- a a "-" b {…}` runs `-` as a command inside a
+/// procedure and falls through at a script's top level, where 8.4.20 to
+/// 9.0.4 fall through on both paths. So under a profile that may be 9.1 a
+/// member whose selection reaches a quoted or braced `-` body — selecting
+/// its arm, or falling through into it — declines the whole fact on the
+/// availability axis; a bare `-`, a substituted word, the one-word form's
+/// elements, and a member that never reaches the arm still decide.
+#[test]
+fn a_delimited_fallthrough_body_reads_two_ways_under_91() {
+    let words = ["-glob", "--", "a", "a", "-", "b", "B"];
+    let ambiguous = Err(DeclineReason::ReleaseAmbiguous(Axis::Availability(
+        tcl_dialect::model::SpecSurface::TCL91[0],
+    )));
+    let decided = Ok((vec![Some(0)], vec![Some(1)], vec![Vec::new()]));
+    for (braced, quoted) in [(false, true), (true, false)] {
+        let body = || vec![(4, delimited("-", braced, quoted))];
+        for dialect in ["tcl9.1", "tcl"] {
+            assert_eq!(
+                selection_of("switch", dialect, &words, None, body()),
+                ambiguous,
+                "{dialect} braced {braced} quoted {quoted}"
+            );
+        }
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+            assert_eq!(
+                selection_of("switch", dialect, &words, None, body()),
+                decided,
+                "{dialect} braced {braced} quoted {quoted}"
+            );
+        }
+        // A member that selects the next arm directly never reads it.
+        let direct = ["-glob", "--", "b", "a", "-", "b", "B"];
+        assert_eq!(
+            selection_of("switch", "tcl9.1", &direct, None, body()),
+            Ok((vec![Some(1)], vec![Some(1)], vec![Vec::new()]))
+        );
+    }
+    // A bare `-` reads alike on both paths.
+    for dialect in ["tcl9.1", "tcl", "tcl8.6"] {
+        assert_eq!(
+            selection_of(
+                "switch",
+                dialect,
+                &words,
+                None,
+                vec![(4, delimited("-", false, false))]
+            ),
+            decided,
+            "{dialect}"
+        );
+    }
+    // A word with a substitution sends the command to the interpreted path.
+    let substituted = WordStructure {
+        braced: false,
+        quoted: true,
+        parts: vec![WordPart::VariableRead {
+            span: tcl_lexer::Span::new(1, 3),
+            name: "d".to_owned(),
+            element: None,
+        }],
+    };
+    assert_eq!(
+        selection_of(
+            "switch",
+            "tcl9.1",
+            &["-glob", "--", "a", "a", "\"$d\"", "b", "B"],
+            Some((4, FactView::Exact(ExactValue::from_literal("-"), None))),
+            vec![(4, substituted)]
+        ),
+        decided
+    );
+    // The one-word form's elements are read by content on both paths, and
+    // a body whose structure is not given is not known to be bare.
+    assert_eq!(
+        selection_of(
+            "switch",
+            "tcl9.1",
+            &["-glob", "--", "a", "a {-} b B"],
+            None,
+            Vec::new()
+        ),
+        decided
+    );
+    assert_eq!(
+        selection_of("switch", "tcl9.1", &words, None, Vec::new()),
+        ambiguous
+    );
+}
+
+/// `case` declares its own selection contract: no options, glob
+/// matching, a pattern word holding whitespace or a backslash a list of
+/// patterns, a `default` fallback wherever it stands and still matched
+/// literally, the first match winning, and no fall-through body. Each
+/// answer is tclsh 8.4.20 to 8.6.18's (`case_witnesses_match_every_release_on_path`);
+/// `case` is not a command from 9.0.
+#[test]
+fn case_selection_runs_tcl_case_obj_cmd() {
+    let case = |words: &[&str]| selection_of("case", "tcl8.6", words, None, Vec::new());
+    let arm = |arm: usize| Ok((vec![Some(arm)], vec![Some(arm)], vec![Vec::new()]));
+    assert_eq!(case(&["abc", "in", "a*", "Y", "default", "N"]), arm(0));
+    assert_eq!(case(&["abc", "a*", "Y", "default", "N"]), arm(0));
+    assert_eq!(case(&["abc", "a* Y default N"]), arm(0));
+    assert_eq!(case(&["zzz", "in", "a*", "Y", "default", "N"]), arm(1));
+    assert_eq!(case(&["abc", "in", "abc", "X"]), arm(0));
+    assert_eq!(case(&["abc", "in", "x a*", "L", "default", "N"]), arm(0));
+    assert_eq!(case(&["abc", "in", "a\\*", "E", "default", "N"]), arm(0));
+    assert_eq!(case(&["zzz", "in", "default", "D", "a", "A"]), arm(0));
+    assert_eq!(
+        case(&["default", "in", "default", "D", "def*", "X"]),
+        arm(0)
+    );
+    assert_eq!(case(&["abc", "in", "-", "D", "default", "N"]), arm(1));
+    assert_eq!(
+        case(&["abc", "in", "q", "Q"]),
+        Ok((vec![None], vec![None], vec![Vec::new()]))
+    );
+    // A word after the subject whose value is the separator is one the
+    // command skips: the plan read it as a pattern, so the fact declines.
+    assert_eq!(
+        selection_of(
+            "case",
+            "tcl8.6",
+            &["abc", "$w", "a*", "Y"],
+            Some((1, FactView::Exact(ExactValue::from_literal("in"), None))),
+            Vec::new()
+        ),
+        Err(DeclineReason::Unsupported)
+    );
+}
+
+/// A pack's `vendor::double`, backed by a Tcl body of `body`'s text that its
+/// author asserts may be evaluated, for a workspace the load trusts.
+fn reference_pack(command_rows: &str, body: &str) -> tcl_spectcl::pack::PackSet {
+    asserting_pack(command_rows, body, " -evaluate")
+}
+
+/// The same, with `flag` after the body: the author's assertion, or nothing.
+fn asserting_pack(command_rows: &str, body: &str, flag: &str) -> tcl_spectcl::pack::PackSet {
+    let source = format!(
+        "speclib vendor 2.0 {{\n    command vendor::double {{\n        arity 1\n        \
+         {command_rows}\n        runtime_backing tcl-body {{-pack-text {{{body}}}{flag}}}\n    }}\n}}\n"
+    );
+    tcl_spectcl::pack::load_in_memory(vec![(
+        tcl_spectcl::discovery::PackFile {
+            tier: tcl_spectcl::discovery::Tier::Workspace,
+            path: std::path::PathBuf::from("vendor.tclspec"),
+            origin: tcl_spectcl::discovery::Origin::Setting,
+            dependency_tier: None,
+        },
+        source,
+    )])
+}
+
+/// A command a pack backs with a Tcl body its author asserts may be evaluated
+/// (`-evaluate`) is, when the sandbox can express the body, a declared
+/// implementation the driver runs as it runs any other: the route is the
+/// implementation route, its capability reads one exact operand for each of the
+/// body's parameters, and the pack's hook list holds the body the host will run.
+/// The same command with a body that reaches for the frame (`upvar`) derives
+/// nothing and says why; so does one whose declared arity is not the body's
+/// parameters, and one whose author stated its evaluation.
+#[test]
+fn a_reference_body_is_a_declared_implementation_when_the_sandbox_can_express_it() {
+    use tcl_registry::pack_hooks::HookFamily;
+
+    let derived = reference_pack("", "proc vendor::double {x} {expr {$x * 2}}");
+    assert!(
+        !derived
+            .notices
+            .iter()
+            .any(|notice| notice.message.contains("`-evaluate` asks")),
+        "{:?}",
+        derived.notices
+    );
+    let command = &derived.packs[0].commands[0];
+    let SemanticsDeclaration::Declared(declared) = command.spec.semantics else {
+        panic!(
+            "the body derives a declaration: {:?}",
+            command.spec.semantics
+        );
+    };
+    let EvalRoute::Implementation(capability) = declared.route() else {
+        panic!("the implementation route: {:?}", declared.route());
+    };
+    assert_eq!(capability.identity.id, "vendor::double.reference");
+    assert_eq!(
+        capability.inputs,
+        &[DeclaredInput::Operand {
+            index: 0,
+            exactness: Exactness::Exact
+        }]
+    );
+    assert_eq!(capability.host, HostKind::BoundedTcl);
+    assert_eq!(capability.completion, CompletionSupport::NormalOnly);
+    let [hook] = &command.hooks[..] else {
+        panic!("one hook body: {:?}", command.hooks);
+    };
+    assert_eq!(hook.family, HookFamily::Evaluate);
+    let tcl_spectcl::loader::HookSource::Body { params, body, .. } = &hook.source else {
+        panic!("a Tcl body: {:?}", hook.source);
+    };
+    assert_eq!(params, &["x".to_owned()]);
+    assert_eq!(body, "fold [\nexpr {$x * 2}\n]");
+
+    // The negative: a body that reaches for the caller's frame derives nothing,
+    // the command keeps the declaration it had, and the load says which command
+    // the sandbox would not take.
+    let upvar = reference_pack("", "proc vendor::double {x} {upvar 1 $x y; expr {$y * 2}}");
+    let command = &upvar.packs[0].commands[0];
+    assert!(
+        matches!(command.spec.semantics, SemanticsDeclaration::Inherited),
+        "{:?}",
+        command.spec.semantics
+    );
+    assert!(command.hooks.is_empty(), "{:?}", command.hooks);
+    assert!(
+        upvar
+            .notices
+            .iter()
+            .any(|notice| notice.message.contains("`upvar`")
+                && notice.context == "command vendor::double"),
+        "{:?}",
+        upvar.notices
+    );
+
+    // A body for another arity than the command declares would answer a call the
+    // declaration admits without being given its arguments.
+    let source = "speclib vendor 2.0 {\n    command vendor::double {\n        arity 1..2\n        \
+                  runtime_backing tcl-body {-pack-text {proc vendor::double {x} {expr {$x * 2}}} -evaluate}\n    }\n}\n";
+    let wide = tcl_spectcl::pack::load_in_memory(vec![(
+        tcl_spectcl::discovery::PackFile {
+            tier: tcl_spectcl::discovery::Tier::Workspace,
+            path: std::path::PathBuf::from("vendor.tclspec"),
+            origin: tcl_spectcl::discovery::Origin::Setting,
+            dependency_tier: None,
+        },
+        source.to_owned(),
+    )]);
+    assert!(wide.packs[0].commands[0].hooks.is_empty());
+    assert!(
+        wide.notices
+            .iter()
+            .any(|notice| notice.message.contains("another arity")),
+        "{:?}",
+        wide.notices
+    );
+
+    // What the author states, stands: `semantics none` abstains for the command,
+    // and no body is derived under it.
+    let declined = reference_pack("semantics none", "proc vendor::double {x} {expr {$x * 2}}");
+    let command = &declined.packs[0].commands[0];
+    assert!(matches!(
+        command.spec.semantics,
+        SemanticsDeclaration::Declined
+    ));
+    assert!(command.hooks.is_empty(), "{:?}", command.hooks);
+}
+
+/// The negative the derivation turns on: a body its author did not assert is not
+/// run, however plainly the sandbox could, and nothing is said of it.
+#[test]
+fn a_body_nobody_asserted_is_not_derived_from_however_plain_it_is() {
+    use tcl_registry::value_transfer::SemanticsDeclaration;
+
+    for body in [
+        "proc vendor::double {x} {expr {$x * 2}}",
+        "proc vendor::double {x} {upvar 1 $x y; expr {$y * 2}}",
+    ] {
+        let silent = asserting_pack("", body, "");
+        let command = &silent.packs[0].commands[0];
+        assert!(
+            matches!(command.spec.semantics, SemanticsDeclaration::Inherited),
+            "{body}: {:?}",
+            command.spec.semantics
+        );
+        assert!(command.hooks.is_empty(), "{body}: {:?}", command.hooks);
+        assert!(
+            !silent
+                .notices
+                .iter()
+                .any(|notice| notice.message.contains("`-evaluate` asks")),
+            "{body}: {:?}",
+            silent.notices
+        );
+    }
+}
+/// The existence fact of a place the rung proves bound as `kind`.
+fn bound_as(kind: tcl_registry::value_transfer::BindingKind) -> FactView {
+    FactView::Domain(tcl_registry::value_transfer::DomainFact::Existence(
+        tcl_registry::value_transfer::Existence::Bound(kind),
+    ))
+}
+
+/// The completion a writing route proves for `command words…` under
+/// `dialect`, with the places named in `facts` holding the existence fact
+/// given: the stores that ran, the message and the `-errorcode` where they
+/// are exact, and each planned store as `write N`, `preserve N` or
+/// `unbind N`.
+fn completed(
+    command: &str,
+    sub: Option<&str>,
+    words: &[(&str, bool)],
+    facts: &[(&str, FactView)],
+    dialect: Option<&str>,
+) -> EvalAnswer {
+    let reg = CommandRegistry::build_default();
+    let spec = reg.get(command).expect(command);
+    let semantics = match sub {
+        Some(name) => resolve_semantics(spec, Some(spec.subcommand(name).expect(name)), None),
+        None => resolve_semantics(spec, None, None),
+    };
+    let semantics = semantics.semantics().expect("a registry-owned route");
+    let operands = words
+        .iter()
+        .map(|&(text, target)| literal(text, target.then_some(ArgRole::VarWrite)))
+        .collect();
+    let mut inputs = TestInputs::new(command, operands);
+    for (name, fact) in facts {
+        inputs.prior.insert((*name).to_owned(), fact.clone());
+    }
+    inputs.context = AnalysisContext::detached(
+        dialect.map(|name| tcl_dialect::DialectProfile::find(name).expect(name)),
+    );
+    semantics.evaluate(&inputs, &mut Budget::evaluation())
+}
+
+/// Each store an answer plans, in order.
+fn planned(answer: &EvalAnswer) -> Vec<String> {
+    let EvalAnswer::Evaluated(outcome) = answer else {
+        panic!("not evaluated: {answer:?}");
+    };
+    outcome
+        .ordered_stores
+        .iter()
+        .map(|store| match store {
+            StoreOutcome::Write { target, .. } => format!("write {}", (target.0).0),
+            StoreOutcome::WriteElement { target, key, .. } => {
+                format!("element {} {key}", (target.0).0)
+            }
+            StoreOutcome::Preserve { target } => format!("preserve {}", (target.0).0),
+            StoreOutcome::Unbind { target } => format!("unbind {}", (target.0).0),
+            StoreOutcome::MayWrite { target, .. } => format!("may-write {}", (target.0).0),
+            StoreOutcome::WriteUnavailable { target, .. } => {
+                format!("write-unavailable {}", (target.0).0)
+            }
+        })
+        .collect()
+}
+
+/// An error is a completion, not a decline (the prefix rule, `Error {
+/// written, … }`): a route that proves the command raises answers the
+/// completion, after the stores that ran. `lassign {new second} a b` over
+/// an array `b` writes `a` and raises on `b` — tclsh 8.5 to 9.1 leave `a`
+/// at `new` and say `can't set "b": variable is array` — so it is `Error {
+/// written: 1 }` with both stores planned; the message is the same in every
+/// release and the `-errorcode` is 8.6's (`TCL WRITE VARNAME`, `NONE`
+/// before), each exact where the target names a release. A place the rung
+/// does not prove an array is no error: the answer stays the normal
+/// completion's, as it was.
+#[test]
+fn a_route_error_is_a_completion() {
+    use tcl_registry::value_transfer::BindingKind;
+    let (t, w) = (target, word);
+    let array = || bound_as(BindingKind::Array);
+    let message = |text: &str| Some(text.to_owned());
+
+    for (dialect, code) in [
+        ("tcl8.5", "NONE"),
+        ("tcl8.6", "TCL WRITE VARNAME"),
+        ("tcl9.0", "TCL WRITE VARNAME"),
+        ("tcl9.1", "TCL WRITE VARNAME"),
+    ] {
+        let answer = completed(
+            "lassign",
+            None,
+            &[w("new second"), t("a"), t("b")],
+            &[("b", array())],
+            Some(dialect),
+        );
+        assert_eq!(
+            raised(&answer),
+            Some((
+                1,
+                message("can't set \"b\": variable is array"),
+                message(code)
+            )),
+            "{dialect}"
+        );
+        assert_eq!(planned(&answer), ["write 1", "write 2"], "{dialect}");
+        let EvalAnswer::Evaluated(outcome) = &answer else {
+            unreachable!()
+        };
+        assert!(matches!(
+            outcome.result,
+            ExactValueOrUnavailable::Unavailable(_)
+        ));
+    }
+    // The failing step is the first write to an array: here the second of
+    // three, so the third did not run (`c` stays as it was).
+    let three = completed(
+        "lassign",
+        None,
+        &[w("x y z"), t("a"), t("b"), t("c")],
+        &[("b", array())],
+        Some("tcl8.6"),
+    );
+    assert_eq!(raised(&three).map(|raised| raised.0), Some(1));
+    assert_eq!(planned(&three), ["write 1", "write 2", "write 3"]);
+    let first = completed(
+        "lassign",
+        None,
+        &[w("x y"), t("a"), t("b")],
+        &[("a", array())],
+        Some("tcl8.6"),
+    );
+    assert_eq!(raised(&first).map(|raised| raised.0), Some(0));
+    // A place that is not proven an array is no proof of an error: a bound
+    // scalar, an absent place, a fact the rung does not state.
+    for fact in [
+        bound_as(BindingKind::Scalar),
+        absent(),
+        bound_as(BindingKind::Either),
+        FactView::Top(DeclineReason::NotExact),
+    ] {
+        let answer = completed(
+            "lassign",
+            None,
+            &[w("new second"), t("a"), t("b")],
+            &[("b", fact)],
+            Some("tcl8.6"),
+        );
+        assert_eq!(raised(&answer), None);
+        let EvalAnswer::Evaluated(outcome) = &answer else {
+            panic!("{answer:?}");
+        };
+        assert_eq!(outcome.completion, CompletionOutcome::Normal);
+        assert_eq!(outcome.ordered_stores.len(), 2);
+    }
+    // A list that does not parse is the command's error, after no store; the
+    // parser's message is every release's and its `-errorcode` the
+    // release's (`TCL VALUE LIST BRACE` from 8.6, `NONE` before).
+    for (dialect, code) in [
+        (Some("tcl8.5"), message("NONE")),
+        (Some("tcl8.6"), message("TCL VALUE LIST BRACE")),
+        (Some("tcl9.1"), message("TCL VALUE LIST BRACE")),
+    ] {
+        let malformed = completed("lassign", None, &[w("{x"), t("a")], &[], dialect);
+        assert_eq!(
+            raised(&malformed),
+            Some((0, message("unmatched open brace in list"), code)),
+            "{dialect:?}"
+        );
+    }
+    // Before 8.5 there is no `lassign`: that is no error this route proves.
+    assert_eq!(
+        completed("lassign", None, &[w("x"), t("a")], &[], Some("tcl8.4")),
+        EvalAnswer::Declined(DeclineReason::ReleaseAmbiguous(Axis::Availability(
+            tcl_dialect::model::SpecSurface::TCL85_PLUS[0]
+        )))
+    );
+}
+
+/// What writing to an array raises by command and release (tclsh 8.4 to
+/// 9.1): `scan`, `regexp` and `regsub` say `couldn't set variable "b"` up to
+/// 8.5 and `can't set "b": variable is array` from 8.6; `binary scan`, `set`,
+/// `append` and `lappend` the latter in every release; `incr` says `can't
+/// read` up to 8.4. The `-errorcode` is `NONE` before 8.6. The stores before
+/// the failing one ran: `scan {1 2} {%d %d} a b` and `regexp {(x)(y)} xy a
+/// b` write `a` first, and the outcome types only the store that ran.
+#[test]
+fn writing_to_an_array_is_the_commands_error_with_its_prefix() {
+    use tcl_registry::value_transfer::BindingKind;
+    let (t, w) = (target, word);
+    let array = || bound_as(BindingKind::Array);
+    let sub = |text: &str| Some(text.to_owned());
+    let cant_set = |name: &str| Some(format!("can't set \"{name}\": variable is array"));
+    let couldnt = |name: &str| Some(format!("couldn't set variable \"{name}\""));
+    let b = [("b", array())];
+
+    for (dialect, scan_message, code) in [
+        ("tcl8.4", couldnt("b"), "NONE"),
+        ("tcl8.5", couldnt("b"), "NONE"),
+        ("tcl8.6", cant_set("b"), "TCL WRITE VARNAME"),
+        ("tcl9.0", cant_set("b"), "TCL WRITE VARNAME"),
+        ("tcl9.1", cant_set("b"), "TCL WRITE VARNAME"),
+    ] {
+        let scan = completed(
+            "scan",
+            None,
+            &[w("1 2"), w("%d %d"), t("a"), t("b")],
+            &b,
+            Some(dialect),
+        );
+        assert_eq!(
+            raised(&scan),
+            Some((2, scan_message.clone(), sub(code))),
+            "scan under {dialect}"
+        );
+        assert_eq!(planned(&scan), ["write 2", "preserve 3"], "{dialect}");
+        assert_eq!(
+            typed_targets(&scan),
+            [2],
+            "the type of the store that ran, not of the one that did not"
+        );
+        let regexp = completed(
+            "regexp",
+            None,
+            &[w("(x)(y)"), w("xy"), t("a"), t("b")],
+            &b,
+            Some(dialect),
+        );
+        assert_eq!(
+            raised(&regexp),
+            Some((1, scan_message.clone(), sub(code))),
+            "regexp under {dialect}"
+        );
+        let regsub = completed(
+            "regsub",
+            None,
+            &[w("x"), w("xyz"), w("Q"), t("b")],
+            &b,
+            Some(dialect),
+        );
+        assert_eq!(
+            raised(&regsub),
+            Some((0, scan_message, sub(code))),
+            "regsub under {dialect}"
+        );
+        let set_like = completed(
+            "binary",
+            Some("scan"),
+            &[w("scan"), w("abcd"), w("a2a2"), t("a"), t("b")],
+            &b,
+            Some(dialect),
+        );
+        assert_eq!(
+            raised(&set_like),
+            Some((1, cant_set("b"), sub(code))),
+            "binary scan under {dialect}"
+        );
+        let incr_message = if dialect == "tcl8.4" {
+            Some("can't read \"b\": variable is array".to_owned())
+        } else {
+            cant_set("b")
+        };
+        let incr = completed("incr", None, &[t("b")], &b, Some(dialect));
+        assert_eq!(
+            raised(&incr),
+            Some((0, incr_message, sub(code))),
+            "incr under {dialect}"
+        );
+        for command in ["append", "lappend"] {
+            let appended = completed(command, None, &[t("b"), w("v")], &b, Some(dialect));
+            assert_eq!(
+                raised(&appended),
+                Some((0, cant_set("b"), sub(code))),
+                "{command} under {dialect}"
+            );
+        }
+        let set = completed("set", None, &[t("b"), w("1")], &b, Some(dialect));
+        assert_eq!(
+            raised(&set),
+            Some((0, cant_set("b"), sub(code))),
+            "set under {dialect}"
+        );
+    }
+}
+
+/// `scan` goes on past a write it cannot make where `regexp` stops (tclsh
+/// 8.4 to 9.1): `scan {1 2} {%d %d} b a` with `b` an array writes `a` after
+/// failing on `b`, its error comes after both stores, and the failing store
+/// preserves its place and types nothing; with two failures the message is
+/// the first from 8.6 and both, run together, before.
+#[test]
+fn scan_goes_on_past_a_write_to_an_array() {
+    use tcl_registry::value_transfer::BindingKind;
+    let (t, w) = (target, word);
+    let b = [("b", bound_as(BindingKind::Array))];
+    let sub = |text: &str| Some(text.to_owned());
+    let couldnt = |name: &str| format!("couldn't set variable \"{name}\"");
+    let cant_set = |name: &str| format!("can't set \"{name}\": variable is array");
+    for (dialect, code) in [
+        ("tcl8.4", "NONE"),
+        ("tcl8.5", "NONE"),
+        ("tcl8.6", "TCL WRITE VARNAME"),
+        ("tcl9.0", "TCL WRITE VARNAME"),
+        ("tcl9.1", "TCL WRITE VARNAME"),
+    ] {
+        let before_8_6 = dialect == "tcl8.4" || dialect == "tcl8.5";
+        let one = if before_8_6 {
+            couldnt("b")
+        } else {
+            cant_set("b")
+        };
+        let past = completed(
+            "scan",
+            None,
+            &[w("1 2"), w("%d %d"), t("b"), t("a")],
+            &b,
+            Some(dialect),
+        );
+        assert_eq!(
+            (raised(&past), planned(&past), typed_targets(&past)),
+            (
+                Some((2, Some(one.clone()), sub(code))),
+                vec!["preserve 2".to_owned(), "write 3".to_owned()],
+                vec![3]
+            ),
+            "scan goes on past the array under {dialect}"
+        );
+        let twice = completed(
+            "scan",
+            None,
+            &[w("1 2"), w("%d %d"), t("b"), t("b")],
+            &b,
+            Some(dialect),
+        );
+        let both = if before_8_6 { one.repeat(2) } else { one };
+        assert_eq!(
+            raised(&twice),
+            Some((2, Some(both), sub(code))),
+            "two failures under {dialect}"
+        );
+    }
+}
+
+/// A profile that names no release proves a field of the array-write error
+/// only where every release agrees: `scan` is worded differently by 8.5 and
+/// 8.6, so neither field is proven, and `set` is worded alike but its
+/// `-errorcode` is not. Where no write reaches the array nothing is raised:
+/// a no-match and a scan that stopped before the second conversion preserve
+/// it.
+#[test]
+fn a_write_to_an_array_is_proven_only_where_every_release_agrees() {
+    use tcl_registry::value_transfer::BindingKind;
+    let (t, w) = (target, word);
+    let cant_set = |name: &str| Some(format!("can't set \"{name}\": variable is array"));
+    let b = [("b", bound_as(BindingKind::Array))];
+    let spanning = completed(
+        "scan",
+        None,
+        &[w("1 2"), w("%d %d"), t("a"), t("b")],
+        &b,
+        None,
+    );
+    assert_eq!(raised(&spanning), Some((2, None, None)));
+    let set = completed("set", None, &[t("b"), w("1")], &b, None);
+    assert_eq!(raised(&set), Some((0, cant_set("b"), None)));
+    // Nothing written to the array, nothing raised: a no-match and a scan
+    // that stopped before the second conversion preserve it.
+    for answer in [
+        completed(
+            "regexp",
+            None,
+            &[w("zzz"), w("abc"), t("a"), t("b")],
+            &b,
+            Some("tcl8.6"),
+        ),
+        completed(
+            "scan",
+            None,
+            &[w("1 x"), w("%d %d"), t("a"), t("b")],
+            &b,
+            Some("tcl8.6"),
+        ),
+    ] {
+        assert_eq!(raised(&answer), None, "{answer:?}");
+        assert!(matches!(
+            &answer,
+            EvalAnswer::Evaluated(outcome) if outcome.completion == CompletionOutcome::Normal
+        ));
+    }
+}
+
+/// `unset p nosuch q` raises on the absent name — `can't unset "nosuch": no
+/// such variable` in every release (tclsh 8.4 to 9.1), with the
+/// `-errorcode` `TCL LOOKUP VARNAME nosuch` from 8.6. `unset` unbinds in
+/// order, so the names before the absent one are gone and the names after
+/// it are not touched: `p` is unbound and `q` is 2 after `catch {unset p
+/// nosuch q}`. With `-nocomplain` an absent name is no error, and a name an
+/// earlier word of the command unset is absent by then. A name whose
+/// existence the rung does not prove decides nothing.
+#[test]
+fn unset_raises_on_the_first_absent_name() {
+    use tcl_registry::value_transfer::BindingKind;
+    let (t, w) = (target, word);
+    let scalar = || bound_as(BindingKind::Scalar);
+    let facts = || [("p", scalar()), ("nosuch", absent()), ("q", scalar())];
+    for (dialect, code) in [
+        (Some("tcl8.4"), Some("NONE")),
+        (Some("tcl8.5"), Some("NONE")),
+        (Some("tcl8.6"), Some("TCL LOOKUP VARNAME nosuch")),
+        (Some("tcl9.0"), Some("TCL LOOKUP VARNAME nosuch")),
+        (Some("tcl9.1"), Some("TCL LOOKUP VARNAME nosuch")),
+        (None, None),
+    ] {
+        let answer = completed(
+            "unset",
+            None,
+            &[t("p"), t("nosuch"), t("q")],
+            &facts(),
+            dialect,
+        );
+        assert_eq!(
+            raised(&answer),
+            Some((
+                1,
+                Some("can't unset \"nosuch\": no such variable".to_owned()),
+                code.map(str::to_owned)
+            )),
+            "{dialect:?}"
+        );
+        assert_eq!(
+            planned(&answer),
+            ["unbind 0", "unbind 1", "unbind 2"],
+            "{dialect:?}"
+        );
+    }
+    let nocomplain = completed(
+        "unset",
+        None,
+        &[w("-nocomplain"), t("p"), t("nosuch"), t("q")],
+        &facts(),
+        Some("tcl8.6"),
+    );
+    assert_eq!(raised(&nocomplain), None);
+    assert_eq!(planned(&nocomplain), ["unbind 1", "preserve 2", "unbind 3"]);
+    let twice = completed(
+        "unset",
+        None,
+        &[t("p"), t("p")],
+        &[("p", scalar())],
+        Some("tcl8.6"),
+    );
+    assert_eq!(raised(&twice).map(|raised| raised.0), Some(1));
+    // Every name bound: the command completes and leaves each unbound.
+    let all = completed(
+        "unset",
+        None,
+        &[t("p"), t("q")],
+        &[("p", scalar()), ("q", bound_as(BindingKind::Array))],
+        Some("tcl8.6"),
+    );
+    assert_eq!(raised(&all), None);
+    assert_eq!(planned(&all), ["unbind 0", "unbind 1"]);
+    // A name the rung does not prove bound or unbound decides nothing.
+    for fact in [
+        bound_as(BindingKind::Either),
+        FactView::Top(DeclineReason::NotExact),
+    ] {
+        let unproven = completed(
+            "unset",
+            None,
+            &[t("p"), t("q")],
+            &[("p", scalar()), ("q", fact)],
+            Some("tcl8.6"),
+        );
+        assert!(matches!(
+            unproven,
+            EvalAnswer::Evaluated(_) | EvalAnswer::Declined(DeclineReason::NotExact)
+        ));
+    }
+}
+
+/// `error message ?info? ?code?` is the `TCL_ERROR` completion after no
+/// store: the message its first word gives and the `-errorcode` its third,
+/// `NONE` where none is given, in every release (tclsh 8.4 to 9.1). A word
+/// the analysis does not prove leaves its field unproven and the
+/// completion certain; a count `error` does not take is not worded.
+#[test]
+fn error_raises_its_message_and_code() {
+    let w = word;
+    let message = |text: &str| Some(text.to_owned());
+    let raise = |words: &[(&str, bool)]| completed("error", None, words, &[], Some("tcl8.6"));
+    assert_eq!(
+        raised(&raise(&[w("boom")])),
+        Some((0, message("boom"), message("NONE")))
+    );
+    assert_eq!(
+        raised(&raise(&[w("boom"), w("some info"), w("CODE1")])),
+        Some((0, message("boom"), message("CODE1")))
+    );
+    assert_eq!(
+        raised(&raise(&[w("boom"), w("some info")])),
+        Some((0, message("boom"), message("NONE")))
+    );
+    for dialect in ["tcl8.4", "tcl8.5", "tcl9.0", "tcl9.1"] {
+        assert_eq!(
+            raised(&completed("error", None, &[w("boom")], &[], Some(dialect))),
+            Some((0, message("boom"), message("NONE"))),
+            "{dialect}"
+        );
+    }
+    let answer = raise(&[w("boom")]);
+    let EvalAnswer::Evaluated(outcome) = &answer else {
+        panic!("{answer:?}");
+    };
+    assert!(outcome.ordered_stores.is_empty());
+    assert!(matches!(
+        outcome.result,
+        ExactValueOrUnavailable::Unavailable(_)
+    ));
+    // A message the analysis does not prove: the error stays certain.
+    let mut inputs = TestInputs::new("error", vec![literal("$msg", None)]);
+    inputs
+        .operands
+        .insert(0, FactView::Top(DeclineReason::NotExact));
+    let reg = CommandRegistry::build_default();
+    let semantics = resolve_semantics(reg.get("error").expect("error"), None, None);
+    let semantics = semantics.semantics().expect("the error route");
+    assert_eq!(
+        raised(&semantics.evaluate(&inputs, &mut Budget::evaluation())),
+        Some((0, None, message("NONE")))
+    );
+    inputs.operands.insert(0, FactView::Pending);
+    assert_eq!(
+        semantics.evaluate(&inputs, &mut Budget::evaluation()),
+        EvalAnswer::Pending
+    );
+    assert_eq!(raise(&[]), EvalAnswer::Declined(DeclineReason::Unsupported));
+    assert_eq!(
+        raise(&[w("a"), w("b"), w("c"), w("d")]),
+        EvalAnswer::Declined(DeclineReason::Unsupported)
+    );
+}
+
+/// What a completion route proves of a command's completion: the code a
+/// caller observes (what `catch` returns), the `-code` and `-level` of its
+/// return options, and the result where it is exact.
+fn code_completion(answer: &EvalAnswer) -> Option<(i64, i64, u32, Option<String>)> {
+    let EvalAnswer::Evaluated(outcome) = answer else {
+        return None;
+    };
+    let (code, level) = outcome.completion.options_code_and_level();
+    let result = match &outcome.result {
+        ExactValueOrUnavailable::Exact(value) => String::from_utf8(value.bytes.clone()).ok(),
+        ExactValueOrUnavailable::Unavailable(_) => None,
+    };
+    Some((outcome.completion.observed_code(), code, level, result))
+}
+
+/// `break` and `continue` complete with the code of the same name, which a
+/// caller observes as `catch` does (tclsh 8.4 to 9.0): `catch {break}` is 3
+/// and `catch {continue}` 4, each with the empty result and the options
+/// `-code N -level 0`. The commands take no word, and a word is `wrong #
+/// args`, which the route does not word.
+#[test]
+fn break_and_continue_complete_with_their_codes() {
+    let w = word;
+    for dialect in [Some("tcl8.4"), Some("tcl8.6"), Some("tcl9.0"), None] {
+        let run =
+            |command: &str, words: &[(&str, bool)]| completed(command, None, words, &[], dialect);
+        assert_eq!(
+            code_completion(&run("break", &[])),
+            Some((3, 3, 0, Some(String::new())))
+        );
+        assert_eq!(
+            code_completion(&run("continue", &[])),
+            Some((4, 4, 0, Some(String::new())))
+        );
+        for command in ["break", "continue"] {
+            assert_eq!(
+                run(command, &[w("extra")]),
+                EvalAnswer::Declined(DeclineReason::Unsupported)
+            );
+        }
+    }
+}
+
+/// `return` is `TCL_RETURN`, 2, with the result its last word gives and the
+/// `-code` and `-level` it carries (tclsh 8.4 to 9.0, measured through
+/// `catch`): `return -code error boom` is 2 with `-code 1 -level 1` until a
+/// procedure consumes the level, and from 8.5, where `-level` begins,
+/// `return -level 0 val` is a normal completion, `return -level 0 -code
+/// error msg` the error, and `-level 0 -code break` the code 3 itself. A
+/// lone word is the result whatever it starts with: `return -x` is `-x`.
+#[test]
+fn return_completes_with_its_code_and_level() {
+    let w = word;
+    let text = |text: &str| Some(text.to_owned());
+    for dialect in [Some("tcl8.4"), Some("tcl8.6"), Some("tcl9.0"), None] {
+        let seen = |words: &[(&str, bool)]| {
+            code_completion(&completed("return", None, words, &[], dialect))
+        };
+        // Under every target a level the form does not name is 1.
+        assert_eq!(seen(&[]), Some((2, 0, 1, text(""))));
+        assert_eq!(seen(&[w("abc")]), Some((2, 0, 1, text("abc"))));
+        assert_eq!(seen(&[w("-x")]), Some((2, 0, 1, text("-x"))));
+        for (words, code, result) in [
+            (&[w("-code"), w("error")][..], 1, ""),
+            (&[w("-code"), w("error"), w("boom")][..], 1, "boom"),
+            (&[w("-code"), w("5"), w("custom")][..], 5, "custom"),
+            (&[w("-code"), w("break")][..], 3, ""),
+            (&[w("-code"), w("continue"), w("x")][..], 4, "x"),
+            (&[w("-code"), w("ok"), w("val")][..], 0, "val"),
+            (&[w("-code"), w("-3"), w("neg")][..], -3, "neg"),
+        ] {
+            assert_eq!(seen(words), Some((2, code, 1, text(result))), "{words:?}");
+        }
+    }
+
+    for dialect in [
+        Some("tcl8.5"),
+        Some("tcl8.6"),
+        Some("tcl9.0"),
+        Some("tcl9.1"),
+    ] {
+        let run = |words: &[(&str, bool)]| completed("return", None, words, &[], dialect);
+        let seen = |words: &[(&str, bool)]| code_completion(&run(words));
+        assert_eq!(
+            seen(&[w("-level"), w("0"), w("val")]),
+            Some((0, 0, 0, text("val"))),
+            "{dialect:?}"
+        );
+        assert_eq!(
+            seen(&[w("-code"), w("ok"), w("-level"), w("0"), w("val")]),
+            Some((0, 0, 0, text("val")))
+        );
+        assert_eq!(
+            seen(&[w("-level"), w("2"), w("val")]),
+            Some((2, 0, 2, text("val")))
+        );
+        assert_eq!(
+            seen(&[w("-level"), w("0"), w("-code"), w("break")]),
+            Some((3, 3, 0, text("")))
+        );
+        assert_eq!(
+            seen(&[w("-level"), w("0"), w("-code"), w("7"), w("seven")]),
+            Some((7, 7, 0, text("seven")))
+        );
+        assert_eq!(
+            raised(&run(&[
+                w("-level"),
+                w("0"),
+                w("-code"),
+                w("error"),
+                w("msg")
+            ])),
+            Some((0, text("msg"), text("NONE")))
+        );
+    }
+
+    // 8.4 reads three options and rejects `-level` ("bad option "-level":
+    // must be -code, -errorcode, or -errorinfo"), an error the route does not
+    // word; a target that names no release leaves it to the release.
+    assert_eq!(
+        raised(&completed(
+            "return",
+            None,
+            &[w("-level"), w("0")],
+            &[],
+            Some("tcl8.4")
+        )),
+        Some((0, None, None))
+    );
+    assert!(matches!(
+        completed("return", None, &[w("-level"), w("0")], &[], None),
+        EvalAnswer::Declined(DeclineReason::ReleaseAmbiguous(_))
+    ));
+}
+
+/// `return` reads its options as the release does (tclsh 8.6 and 9.0,
+/// measured through `catch`): from 8.5 any pair is kept in the options
+/// dictionary and changes nothing (`return a b` is 2 with the empty result),
+/// `-errorcode` beside `-code error` leaves the completion pending a level, a
+/// code or level is read with the release's numerals (`-code 010` is 8 in 8.6
+/// and 10 from 9.0, `0x5` and `+5` are 5, `2147483648` wraps to
+/// `-2147483648`, `-level 01` is 1), and a code or level the release rejects
+/// is the error it raises, which the route does not word. `-options`, whose
+/// dictionary the route does not merge, declines; so does a word that is not
+/// exact. A result the analysis does not prove leaves the completion certain,
+/// and a word not yet reached leaves the answer pending.
+#[test]
+fn return_reads_its_options_as_the_release_does() {
+    let w = word;
+    let text = |text: &str| Some(text.to_owned());
+    for (dialect, octal) in [(Some("tcl8.6"), 8), (Some("tcl9.0"), 10)] {
+        let run = |words: &[(&str, bool)]| completed("return", None, words, &[], dialect);
+        let seen = |words: &[(&str, bool)]| code_completion(&run(words));
+        for (words, code, result) in [
+            (
+                &[w("-errorcode"), w("A"), w("-code"), w("error"), w("m")][..],
+                1,
+                "m",
+            ),
+            (&[w("a"), w("b")][..], 0, ""),
+            (&[w("-foo"), w("bar")][..], 0, ""),
+            (&[w("-code"), w("010"), w("x")][..], octal, "x"),
+            (&[w("-code"), w("0x5"), w("x")][..], 5, "x"),
+            (&[w("-code"), w("+5"), w("x")][..], 5, "x"),
+            (
+                &[w("-code"), w("2147483648"), w("x")][..],
+                -2_147_483_648,
+                "x",
+            ),
+            (&[w("-level"), w("01"), w("x")][..], 0, "x"),
+        ] {
+            assert_eq!(
+                seen(words),
+                Some((2, code, 1, text(result))),
+                "{dialect:?}: {words:?}"
+            );
+        }
+        for words in [
+            &[w("-code"), w("notacode"), w("x")][..],
+            &[w("-level"), w("-1"), w("x")][..],
+        ] {
+            assert_eq!(
+                raised(&run(words)),
+                Some((0, None, None)),
+                "{dialect:?}: {words:?}"
+            );
+        }
+        assert_eq!(
+            run(&[w("-options"), w("{-code 1}"), w("m")]),
+            EvalAnswer::Declined(DeclineReason::Unsupported)
+        );
+        // `-code return` is `ok` one level further out: `catch {return -code
+        // return x} m o` leaves `o` holding `-code 0 -level 2`.
+        assert_eq!(
+            seen(&[w("-code"), w("return"), w("x")]),
+            Some((2, 0, 2, text("x")))
+        );
+        // From 8.5 an `-errorcode` that is no list is rejected ("bad
+        // -errorcode value: expected a list").
+        assert_eq!(
+            raised(&run(&[w("-errorcode"), w("a {b"), w("x")])),
+            Some((0, None, None))
+        );
+        // At level 0 the error carries the `-errorcode` given.
+        assert_eq!(
+            raised(&run(&[
+                w("-level"),
+                w("0"),
+                w("-code"),
+                w("error"),
+                w("-errorcode"),
+                w("A B"),
+                w("msg")
+            ])),
+            Some((0, text("msg"), text("A B")))
+        );
+    }
+
+    let reg = CommandRegistry::build_default();
+    let semantics = resolve_semantics(reg.get("return").expect("return"), None, None);
+    let semantics = semantics.semantics().expect("the return route");
+    let mut inputs = TestInputs::new(
+        "return",
+        vec![
+            literal("-code", None),
+            literal("5", None),
+            literal("$v", None),
+        ],
+    );
+    inputs
+        .operands
+        .insert(2, FactView::Top(DeclineReason::NotExact));
+    assert_eq!(
+        code_completion(&semantics.evaluate(&inputs, &mut Budget::evaluation())),
+        Some((2, 5, 1, None))
+    );
+    inputs
+        .operands
+        .insert(1, FactView::Top(DeclineReason::NotExact));
+    assert_eq!(
+        semantics.evaluate(&inputs, &mut Budget::evaluation()),
+        EvalAnswer::Declined(DeclineReason::NotExact)
+    );
+    inputs.operands.insert(1, FactView::Pending);
+    assert_eq!(
+        semantics.evaluate(&inputs, &mut Budget::evaluation()),
+        EvalAnswer::Pending
+    );
+}
+
+/// Reading an absent variable, and a value that is no integer, are the
+/// command's error: `set x` over an unbound `x` is `can't read "x": no such
+/// variable` in every release (tclsh 8.4 to 9.1) with `-errorcode` `NONE`
+/// before 8.6 and `TCL LOOKUP VARNAME x` from it; `incr n abc` raises
+/// `expected integer but got "abc"` after no store. Neither is a value, and
+/// the integer tower's overflow — a value 8.4 computes and the model does
+/// not — is no error.
+#[test]
+fn a_read_of_nothing_and_a_non_integer_are_errors() {
+    let reg = CommandRegistry::build_default();
+    let set = resolve_semantics(reg.get("set").expect("set"), None, None);
+    let set = set.semantics().expect("the cell write");
+    let read = |fact: FactView, dialect: Option<&str>| {
+        let mut inputs = TestInputs::new("set", vec![literal("x", Some(ArgRole::VarRead))]);
+        inputs.prior.insert("x".to_owned(), fact);
+        inputs.context = AnalysisContext::detached(
+            dialect.map(|name| tcl_dialect::DialectProfile::find(name).expect(name)),
+        );
+        set.evaluate(&inputs, &mut Budget::evaluation())
+    };
+    for (dialect, code) in [
+        (Some("tcl8.4"), Some("NONE")),
+        (Some("tcl8.5"), Some("NONE")),
+        (Some("tcl8.6"), Some("TCL LOOKUP VARNAME x")),
+        (Some("tcl9.1"), Some("TCL LOOKUP VARNAME x")),
+        (None, None),
+    ] {
+        assert_eq!(
+            raised(&read(absent(), dialect)),
+            Some((
+                0,
+                Some("can't read \"x\": no such variable".to_owned()),
+                code.map(str::to_owned)
+            )),
+            "{dialect:?}"
+        );
+    }
+    // A place that may be bound is read for its value, not for an error.
+    let either = bound_as(tcl_registry::value_transfer::BindingKind::Either);
+    assert_eq!(raised(&read(either, Some("tcl8.6"))), None);
+    // A whole array read as a scalar is the command's error too, with `TCL
+    // READ VARNAME` from 8.6.
+    for (dialect, code) in [
+        (Some("tcl8.5"), Some("NONE")),
+        (Some("tcl8.6"), Some("TCL READ VARNAME")),
+        (None, None),
+    ] {
+        let array = bound_as(tcl_registry::value_transfer::BindingKind::Array);
+        assert_eq!(
+            raised(&read(array, dialect)),
+            Some((
+                0,
+                Some("can't read \"x\": variable is array".to_owned()),
+                code.map(str::to_owned)
+            )),
+            "{dialect:?}"
+        );
+    }
+    // An element's message and code say whether its array exists, which the
+    // fact does not: the error is certain and its wording unproven.
+    let mut element = TestInputs::new("set", vec![literal("a(1)", Some(ArgRole::VarRead))]);
+    element.prior.insert("a(1)".to_owned(), absent());
+    element.context = AnalysisContext::detached(tcl_dialect::DialectProfile::find("tcl8.6"));
+    assert_eq!(
+        raised(&set.evaluate(&element, &mut Budget::evaluation())),
+        Some((0, None, None))
+    );
+    // The overflow of 8.4's fixed-width increment is a value, not an error.
+    let cell = resolve_semantics(
+        CommandRegistry::build_default().get("incr").expect("incr"),
+        None,
+        None,
+    );
+    let cell = cell.semantics().expect("derived");
+    assert_eq!(
+        evaluate_increment(
+            cell,
+            Some("tcl8.4"),
+            FactView::Exact(ExactValue::int(i64::MAX), None),
+            None
+        ),
+        EvalAnswer::Declined(DeclineReason::WrongRepresentation)
+    );
+}
+
+/// A host that loads any artefact as one command and answers its words
+/// joined, for an artefact it has loaded.
+struct Joiner {
+    loaded: std::cell::RefCell<std::collections::HashSet<u64>>,
+    loads: std::cell::Cell<u32>,
+}
+
+impl tcl_registry::extension_host::ExtensionHost for Joiner {
+    fn load(
+        &self,
+        artefact: &[u8],
+        prefix: &str,
+    ) -> Result<tcl_registry::extension_host::LoadedExtension, DeclineReason> {
+        self.loads.set(self.loads.get() + 1);
+        let hash = tcl_registry::extension_host::artefact_hash(artefact);
+        self.loaded.borrow_mut().insert(hash);
+        Ok(tcl_registry::extension_host::LoadedExtension {
+            hash,
+            prefix: prefix.to_owned(),
+            commands: vec!["pkga_join".to_owned()],
+        })
+    }
+
+    fn evaluate(
+        &self,
+        hash: u64,
+        words: &[String],
+        _budget: &ImplementationBudget,
+    ) -> Result<String, DeclineReason> {
+        if self.loaded.borrow().contains(&hash) {
+            Ok(words.join(":"))
+        } else {
+            Err(DeclineReason::Transient)
+        }
+    }
+}
+
+/// A workspace pack declaring `pkga_join` on the extension host, loaded from a
+/// scratch directory beside the artefact `artefact`.
+fn extension_pack(artefact: &[u8]) -> tcl_spectcl::PackSet {
+    let dir = std::env::temp_dir().join(format!("tcl-lsp-wasm-extension-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("a scratch directory");
+    std::fs::write(dir.join("pkga.wasm"), artefact).expect("the artefact");
+    let pack = dir.join("pkga.tclspec");
+    std::fs::write(
+        &pack,
+        "speclib pkga 2.2 {\n\
+         \x20   command pkga_join {\n\
+         \x20       arity 2\n\
+         \x20       evaluate -implementation pkga.join.v1 -host wasm_extension {\n\
+         \x20           extension pkga.wasm Pkga\n\
+         \x20           inputs {arg 0 exact arg 1 exact}\n\
+         \x20       }\n\
+         \x20   }\n\
+         }\n",
+    )
+    .expect("the pack");
+    let packs = tcl_spectcl::pack::load(&[tcl_spectcl::PackFile {
+        tier: tcl_spectcl::Tier::Workspace,
+        path: pack,
+        origin: tcl_spectcl::discovery::Origin::DotDir,
+        dependency_tier: None,
+    }]);
+    std::fs::remove_dir_all(&dir).ok();
+    packs
+}
+
+/// A `-host wasm_extension` implementation runs its extension's command on
+/// the thread's extension host. The pack load reads the artefact beside the
+/// pack, and the identity names the pack and carries the artefact's content
+/// hash, so the memo key does; the first evaluation loads the artefact on
+/// the host, which then runs the command over the declared inputs, and the
+/// next reuses the load; a worker with no host installed declines
+/// `Transient`, a state of the worker, never a verdict on the inputs.
+#[test]
+fn a_wasm_extension_implementation_runs_on_the_extension_host() {
+    use tcl_registry::extension_host;
+    use tcl_registry::value_transfer::{LiteralInputs, evaluate_literal};
+
+    let artefact = b"\0asm\x01\0\0\0pkga";
+    let packs = extension_pack(artefact);
+    assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
+    let command = packs
+        .packs
+        .iter()
+        .flat_map(|pack| &pack.commands)
+        .find(|command| command.spec.name == "pkga_join")
+        .expect("the command");
+    let SemanticsDeclaration::Declared(semantics) = command.spec.semantics else {
+        panic!("a declaration: {:?}", command.spec.semantics);
+    };
+    let EvalRoute::Implementation(capability) = semantics.route() else {
+        panic!("an implementation: {:?}", semantics.route());
+    };
+    assert_eq!(capability.host, HostKind::WasmExtension);
+    assert_eq!(capability.identity.pack, "pkga");
+    assert_eq!(
+        capability.identity.content_hash,
+        extension_host::artefact_hash(artefact)
+    );
+
+    let release = Some(tcl_dialect::TclVersion::V9_0);
+    let run = || evaluate_literal(semantics, "pkga_join", None, &["a", "b"], release);
+    extension_host::clear_extension_host();
+    let profile = tcl_dialect::DialectProfile::find("tcl9.0");
+    let unhosted = semantics.evaluate(
+        &LiteralInputs::new("pkga_join", None, &["a", "b"], profile),
+        &mut Budget::evaluation(),
+    );
+    assert!(
+        matches!(unhosted, EvalAnswer::Declined(DeclineReason::Transient)),
+        "{unhosted:?}"
+    );
+    assert_eq!(run(), None);
+
+    let host = std::rc::Rc::new(Joiner {
+        loaded: std::cell::RefCell::default(),
+        loads: std::cell::Cell::new(0),
+    });
+    extension_host::install_extension_host(host.clone());
+    assert_eq!(run().as_deref(), Some("pkga_join:a:b"));
+    assert_eq!(run().as_deref(), Some("pkga_join:a:b"));
+    assert_eq!(host.loads.get(), 1, "the artefact loads once on the host");
+    extension_host::clear_extension_host();
+}

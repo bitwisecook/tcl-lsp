@@ -98,12 +98,18 @@ use tcl_registry::arg_role::{AppendedArity, ArgRole};
 use tcl_registry::arity::{Arity, ArityWindow};
 use tcl_registry::body_kind::BodyKind;
 use tcl_registry::byte_array_effect::ByteArrayEffect;
+use tcl_registry::clause_grammar::{
+    ClauseGrammarSpec, ClauseRow, ClauseRowShape, ClauseSelection, ClauseSlot, ClauseTiming,
+    DefaultClause,
+};
 use tcl_registry::clause_shape::ClauseShapeError;
 use tcl_registry::command_table::CommandTableEffect;
 use tcl_registry::definer::{
-    BuiltinMethodReceiver, BuiltinObjectMethod, DefinerFamily, DefinitionBodyGrammar,
-    ManufacturerMethod, MemberBodyCommand, MemberKind, MemberRefKind, MemberRetraction, MemberSpec,
-    MemberVisibility, SlotOp, SlotSpec,
+    BuiltinMethodReceiver, BuiltinObjectMethod, CallableRole, DeclaredMemberVisibility,
+    DefinerFamily, DefinitionBodyGrammar, InitTiming, ManufacturerMethod, MemberBodyCommand,
+    MemberEffect, MemberKind, MemberOptionValue, MemberReceiver, MemberRefKind, MemberRetraction,
+    MemberSpec, MemberVisibility, OptionalMemberArgument, RelationSlot, SlotOp, SlotSpec,
+    StateScope, WrapperShift,
 };
 use tcl_registry::deprecation::{DeprecationFixHook, DeprecationFixSafety};
 use tcl_registry::events::{
@@ -125,6 +131,9 @@ use tcl_registry::hover::{
 use tcl_registry::intrinsic::IntrinsicId;
 use tcl_registry::lifecycle::Lifecycle;
 use tcl_registry::literal_validation::LiteralArgumentValidation;
+use tcl_registry::option_effect::{
+    EffectAxis, FamilyBase, FamilyCombine, OptionEffect, OptionEffectFamily, OptionEffectKind,
+};
 use tcl_registry::pack_hooks::HookInputs;
 use tcl_registry::patterns::{FormatType, PatternType};
 use tcl_registry::presentation::ArgPresentation;
@@ -139,14 +148,23 @@ use tcl_registry::spec::{
     BytePayloadSpec, CaseListSpec, CommandSpec, DefaultFormFirstWord, OptionPlacement, SubCommand,
     SubSubCommand,
 };
+use tcl_registry::stamp_window::StampWindow;
+use tcl_registry::state_transition::{
+    StateTransitionArgumentShape, StateTransitionCommit, StateTransitionComposition,
+    StateTransitionDescriptor, StateTransitionDomain, StateTransitionOperandLayout,
+    StateTransitionResolver, StateTransitionWideningRule, StateTransitions,
+};
 use tcl_registry::symbol_def::{DefinedSymbolKind, SymbolDef};
 use tcl_registry::taint::{SetterConstraint, TaintNumericCoercion, TaintTransformCondition};
 use tcl_registry::traits::Traits;
 use tcl_registry::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 use tcl_registry::world_effect::WorldEffectDescriptor;
-use tcl_registry::world_effect::WorldStateDomain;
+use tcl_registry::world_effect::{
+    TransitionEffectCoverage, WorldEffectWriteSource, WorldStateDomain,
+};
 use tcl_registry::{CommandPrefixArguments, InvocationArguments};
 
+use crate::backing::BackingSyntax;
 use crate::catalogue;
 use tcl_dialect::model::SpecSurface;
 
@@ -154,6 +172,8 @@ mod available;
 mod dialect_block;
 mod environment_block;
 mod eval;
+mod reference;
+mod semantics;
 mod surface_roster;
 mod vocabulary_class;
 
@@ -163,8 +183,9 @@ pub use environment_block::{PackCore, PackEnvironment, PackEnvironmentTier};
 pub(crate) use eval::static_stmt;
 pub use eval::{
     EvalOptions, EvalSnapshotKey, LOADER_EVAL_VERSION, eval_snapshot_key, evaluate_pack,
-    evaluate_pack_in, evaluate_pack_with, provenance_violation,
+    evaluate_pack_in, evaluate_pack_with, pack_file_hash, provenance_violation,
 };
+pub(crate) use reference::derive_implementations;
 pub use surface_roster::{PackRosterName, PackSurfaceRoster, family_named};
 pub use vocabulary_class::VocabularyClass;
 
@@ -228,6 +249,9 @@ struct Log {
     /// Whether a semantic-class unknown word was seen in the spec being
     /// read. Reset by [`Log::begin_spec`].
     semantic_unknown: bool,
+    /// The command whose body is being read, for the scope a subcommand's
+    /// `semantics`, `evaluate` and `facts` ids are spelled under.
+    command: String,
 }
 
 impl Log {
@@ -654,9 +678,9 @@ fn leak_one<T>(value: T) -> &'static T {
     Box::leak(Box::new(value))
 }
 
-// Hook bodies — carried as text, never run
+// Hook declarations: bodies are carried as text for the hook host.
 
-/// Which of the ten hook families a body belongs to.
+/// Which hook family a body belongs to.
 ///
 /// The family is what decides a body's emitter verbs, what its *silence*
 /// means, and whether it may run at all against a call carrying a dynamic
@@ -668,9 +692,9 @@ fn leak_one<T>(value: T) -> &'static T {
 /// with, so the two cannot drift into disagreeing about what silence means.
 pub use tcl_registry::pack_hooks::HookFamily;
 
-/// The whitelist a hook body is evaluated against once the sandbox lands.
+/// The whitelist the hook host evaluates a body against.
 ///
-/// Recorded here so the loader can already report a body reaching for
+/// Recorded here so the loader can report a body reaching for
 /// something it will never be given. Deliberately absent: `open`, `exec`,
 /// `source`, `socket`, `after`, `interp`, `uplevel`, `upvar`, `trace`,
 /// `namespace`, `proc`, `rename`, `info`, `subst`.
@@ -729,8 +753,8 @@ pub enum HookOwner {
     },
 }
 
-/// One declared hook: what it is attached to, which field, which family, and
-/// the text or name that supplies it.
+/// One declared hook: what it is attached to, which field, which family, the
+/// text or name that supplies it, and where it was written.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HookDecl {
     /// What the hook hangs off.
@@ -741,6 +765,14 @@ pub struct HookDecl {
     pub family: HookFamily,
     /// Body text, native id, or derivation keyword.
     pub source: HookSource,
+    /// The line of the row that declares it: the hook property, the
+    /// `option` row carrying an `-arity-hook`, a `state_transitions`
+    /// block's `resolver` row, the `evaluate` statement a declared
+    /// implementation came from, or the `clause_grammar` a derivation reads.
+    /// A notice about the hook itself — a dormant body in an untrusted
+    /// workspace ([`crate::hooks::dormant_hooks`]) — goes here, in the file
+    /// the merge records on the command.
+    pub line: u32,
 }
 
 // The abstaining implementations installed for every pack-declared hook until
@@ -792,6 +824,12 @@ fn no_constraint_reports(
     Vec::new()
 }
 
+/// The `state_transitions` resolver placeholder a declared-but-unbound body
+/// carries: no transitions, the family's silence.
+fn abstain_state_transitions(_args: InvocationArguments<'_>) -> StateTransitions {
+    StateTransitions::default()
+}
+
 /// Silence still consumes one word — `consume 0` is a report, not an
 /// abstention.
 fn consume_one_word(_args: &[&str], _start: usize) -> OptionValueOutcome {
@@ -812,9 +850,11 @@ pub struct PackCommand {
     pub overrides_shipped: bool,
     /// Every hook the command (or one of its subcommands / options) declares.
     pub hooks: Vec<HookDecl>,
-    /// The `clause_grammar` the command declares, when it has one. Both hook
-    /// behaviours are derived from it by [`ClauseGrammar::walk`].
-    pub clause_grammar: Option<ClauseGrammar>,
+    /// The `clause_grammar` the command declares, when it has one — the same
+    /// descriptor its spec carries. The registry's walk
+    /// ([`ClauseGrammarSpec::walk`]) derives both the argument roles and the
+    /// clause-shape defect from it.
+    pub clause_grammar: Option<&'static ClauseGrammarSpec>,
     /// Whether an assistance-class word this build does not speak was
     /// dropped from the spec (§6.1).
     ///
@@ -837,6 +877,25 @@ pub struct PackCommand {
     /// during the merge, so every command in a [`crate::MergedPack`] carries
     /// exact `(file, line)` attribution even when the pack spans many files.
     pub file: std::path::PathBuf,
+    /// The content hash of the source the command was declared in: the xxh3
+    /// of the pack file's bytes — the value its [`EvalSnapshotKey`] interns —
+    /// folded with every fragment an `include` row brought in, so an edit
+    /// to either moves it. The pack-fact stamp a specialised site records
+    /// is built from it.
+    pub content_hash: u64,
+    /// How far the package that ships the declaring file sits from the
+    /// workspace root ([`crate::discovery::PackFile::dependency_tier`]);
+    /// `None` as the loader builds it, and for a command no package ships.
+    /// The merge fills it in beside [`Self::file`], the two facts about the
+    /// file only it knows, and the capability gate reads it
+    /// ([`crate::stamps`]).
+    pub dependency_tier: Option<tcl_dialect::model::DependencyTier>,
+    /// The text a `tcl-body {-package-source PATH}` backing pointed at,
+    /// read from the package that ships the declaring file when the load had
+    /// a store to read it through ([`crate::package_sources`]); `None` as the
+    /// loader builds it and for every other backing. A `PackText` body is the
+    /// spec's own and is not copied here.
+    pub reference_text: Option<std::sync::Arc<str>>,
 }
 
 /// A loaded `.tclspec` pack.
@@ -876,6 +935,11 @@ pub struct Pack {
     /// modelled as a pack without having to be compiled into `tcl-dialect`
     /// first.
     pub ambient_packages: Vec<AmbientPackage>,
+    /// The interpreter-provided globals this pack declares with
+    /// `special_var`, in declaration order — the pack-authored rows of the
+    /// special-variable registry, installed through
+    /// [`tcl_registry::CommandRegistry::insert_special_var`].
+    pub special_vars: Vec<PackSpecialVar>,
     /// The `environment NAME { … }` blocks the pack declares (`SpecTcl`
     /// 2.0, §6.2), in declaration order, with the rejected ones dropped.
     pub environments: Vec<PackEnvironment>,
@@ -976,7 +1040,7 @@ pub struct PackProvides {
 }
 
 /// One `co_provides NAME ?-requires-exact PACKAGE? ?-when PREDICATE?`
-/// row (`SpecTcl` 2.0, review B11): loading this pack's package
+/// row (`SpecTcl` 2.0): loading this pack's package
 /// co-provides `NAME`; requiring `NAME` requires the named package at
 /// the exact loaded version; all of it under an optional build
 /// predicate. Data only — see [`Pack::co_provides`].
@@ -1002,6 +1066,17 @@ pub struct AmbientPackage {
     pub name: &'static str,
     /// The version the runtime provides — a floor, not an exact release.
     pub version: &'static str,
+    /// The declaring line, for notices and editors.
+    pub line: u32,
+}
+
+/// One `special_var NAME -kind K -access A -origin O ?-dialects {…}?
+/// ?-startup B?` row: a global the pack's dialect provides, as the
+/// special-variable registry states one.
+#[derive(Debug, Clone, Copy)]
+pub struct PackSpecialVar {
+    /// The row, built as a shipped [`tcl_registry::SpecialVarSpec`] is.
+    pub spec: &'static tcl_registry::SpecialVarSpec,
     /// The declaring line, for notices and editors.
     pub line: u32,
 }
@@ -1049,6 +1124,7 @@ fn empty_pack() -> Pack {
         provides: Vec::new(),
         co_provides: Vec::new(),
         ambient_packages: Vec::new(),
+        special_vars: Vec::new(),
         environments: Vec::new(),
         dialects: Vec::new(),
         surface_rosters: Vec::new(),
@@ -1212,6 +1288,22 @@ fn apply_pack_stmt(pack: &mut Pack, tables: &mut PackTables, stmt: &Stmt, log: &
                 pack.ambient_packages.push(row);
             }
         }
+        "special_var" => {
+            if let Some(row) = special_var_row(stmt, tables.defaults.surface, log) {
+                if pack
+                    .special_vars
+                    .iter()
+                    .any(|prior| prior.spec.name == row.spec.name)
+                {
+                    log.say(
+                        stmt.line,
+                        format!("`special_var {}` redeclared; first wins", row.spec.name),
+                    );
+                } else {
+                    pack.special_vars.push(row);
+                }
+            }
+        }
         "provides" => {
             log.v20(stmt.line, "provides");
             if let Some(row) = provides_row(stmt, log) {
@@ -1357,10 +1449,11 @@ fn finish_pack_cores(pack: &mut Pack, log: &mut Log) {
 /// pack declaring a newer minor loads maximally and reports words this build
 /// does not know. Only an unsupported major fails closed (see
 /// [`check_vocabulary_version`]).
-pub const KNOWN_VOCABULARY_VERSIONS: &[&str] = &["1", "1.0", "1.1", "1.2", "2", "2.0", "2.1"];
+pub const KNOWN_VOCABULARY_VERSIONS: &[&str] =
+    &["1", "1.0", "1.1", "1.2", "2", "2.0", "2.1", "2.2"];
 
 /// The newest vocabulary this loader speaks, for the notice below.
-pub const NEWEST_VOCABULARY_VERSION: &str = "2.1";
+pub const NEWEST_VOCABULARY_VERSION: &str = "2.2";
 
 /// The newest `speclib` **major** this loader supports.
 ///
@@ -1410,7 +1503,10 @@ const AMBIENT_SCOPE_FLAG: &str = "-dialects";
 ///
 /// Both words are required. A row naming no version is dropped rather than
 /// defaulted: an ambient package with no version would floor at nothing, which
-/// is what the row exists to stop being the case.
+/// is what the row exists to stop being the case. A word that is not a package
+/// version is no version either, and the row is dropped with it: the version is
+/// a floor, and a floor the comparison cannot read orders against the profile's
+/// pin as it happens to.
 ///
 /// The row is **unscoped by construction**: it floors its package for every
 /// document the pack is active in. Scoping the claim to some of a pack's
@@ -1428,6 +1524,13 @@ fn ambient_package_row(stmt: &Stmt, log: &mut Log) -> Option<AmbientPackage> {
         log.say(
             stmt.line,
             format!("`ambient_package {name}` needs the version the runtime provides; dropped"),
+        );
+        return None;
+    }
+    if !tcl_dialect::validate_version(version) {
+        log.say(
+            stmt.line,
+            format!("`ambient_package {name}` names `{version}`, which is not a package version; dropped"),
         );
         return None;
     }
@@ -1458,6 +1561,158 @@ fn ambient_package_row(stmt: &Stmt, log: &mut Log) -> Option<AmbientPackage> {
         name: leak_str(name),
         version: leak_str(version),
         line: stmt.line,
+    })
+}
+
+/// `special_var NAME -kind K -access A -origin O ?-dialects {…}? ?-startup B?`
+/// — one interpreter-provided global the pack's dialect has, as the
+/// special-variable registry states one: its value shape (`Scalar`, `Array`,
+/// `Namespace`), whether user code writes it (`ReadOnly`, `ReadWrite`), where
+/// it comes from (`Interpreter`, `AutoLoader`, `Platform`, `Environment`,
+/// `Dialect`), the dialects that provide it — the pack's `default dialects`
+/// when the row names none, else every Tcl release — and the lifecycle event
+/// that makes it readable before user code (`None`, the default;
+/// `Interpreter`, `TclInit`, `TclMain`, `AppInit`; or `ReadTrace`, a core read
+/// trace materialising it on first read).
+///
+/// The three descriptors are required: a row missing one is dropped rather
+/// than defaulted, since a guessed kind or access would state a fact the pack
+/// never made. The row's remaining facts — known array keys, a runtime-observed
+/// write, a write's interpreter effect, a read's taint, the hover summary —
+/// take the shipped table's empty values.
+fn special_var_row(
+    stmt: &Stmt,
+    default_surface: Option<&'static [SpecSurface]>,
+    log: &mut Log,
+) -> Option<PackSpecialVar> {
+    use tcl_registry::{SpecialVarKind, SpecialVarSpec, StartupBinding, VarAccess};
+    let name = stmt.word_text(1);
+    if name.is_empty() || name.starts_with('-') {
+        log.say(stmt.line, "`special_var` needs a variable name");
+        return None;
+    }
+    let (mut kind, mut access, mut origin, mut surface) = (None, None, None, None);
+    let mut startup = Some(StartupBinding::None);
+    // A `-dialects` naming nothing this build knows narrows to nothing it
+    // can honour: the row goes rather than widening to every dialect.
+    let mut dialects_unread = false;
+    let words = &stmt.words;
+    let mut i = 2;
+    while i < words.len() {
+        let flag = words[i].text.clone();
+        if !["-kind", "-access", "-origin", "-dialects", "-startup"].contains(&flag.as_str()) {
+            // An unknown flag consumes no value.
+            log.unknown_flag("special_var", stmt.line, &flag);
+            i += 1;
+            continue;
+        }
+        let value = next_text(words, &mut i);
+        let recognised = match flag.as_str() {
+            "-kind" => {
+                kind = match value.as_str() {
+                    "Scalar" => Some(SpecialVarKind::Scalar),
+                    "Array" => Some(SpecialVarKind::Array),
+                    "Namespace" => Some(SpecialVarKind::Namespace),
+                    _ => None,
+                };
+                kind.is_some()
+            }
+            "-access" => {
+                access = match value.as_str() {
+                    "ReadOnly" => Some(VarAccess::ReadOnly),
+                    "ReadWrite" => Some(VarAccess::ReadWrite),
+                    _ => None,
+                };
+                access.is_some()
+            }
+            "-origin" => {
+                origin = special_var_origin(&value);
+                origin.is_some()
+            }
+            "-dialects" => {
+                surface = parse_dialects(&value, stmt.line, log);
+                dialects_unread |= surface.is_none();
+                surface.is_some()
+            }
+            _ => {
+                startup = startup_binding(&value);
+                startup.is_some()
+            }
+        };
+        if !recognised {
+            log.say(
+                stmt.line,
+                format!("`special_var {name} {flag} {value}` names no such value; dropped"),
+            );
+        }
+        i += 1;
+    }
+    let (Some(kind), Some(access), Some(origin), Some(startup), false) =
+        (kind, access, origin, startup, dialects_unread)
+    else {
+        log.say(
+            stmt.line,
+            format!(
+                "`special_var {name}` needs `-kind`, `-access` and `-origin`, and every \
+                 flag it writes must name a value this build reads; dropped rather than \
+                 widened"
+            ),
+        );
+        return None;
+    };
+    let surface = surface.or(default_surface).unwrap_or(SpecSurface::ALL_TCL);
+    let (initially_bound, lazily_readable): (&'static [SpecSurface], &'static [SpecSurface]) =
+        match startup {
+            StartupBinding::None => (&[], &[]),
+            StartupBinding::ReadTrace => (&[], surface),
+            _ => (surface, &[]),
+        };
+    Some(PackSpecialVar {
+        spec: leak_one(SpecialVarSpec {
+            name: leak_str(name),
+            kind,
+            access,
+            origin,
+            surface,
+            initially_bound,
+            lazily_readable,
+            startup_binding: startup,
+            keys: &[],
+            externally_read: false,
+            cmp_unsafe: false,
+            write_effect: None,
+            read_taint: None,
+            summary: "",
+        }),
+        line: stmt.line,
+    })
+}
+
+/// A `special_var -origin` value.
+fn special_var_origin(value: &str) -> Option<tcl_registry::VarOrigin> {
+    use tcl_registry::VarOrigin;
+    Some(match value {
+        "Interpreter" => VarOrigin::Interpreter,
+        "AutoLoader" => VarOrigin::AutoLoader,
+        "Platform" => VarOrigin::Platform,
+        "Environment" => VarOrigin::Environment,
+        "Dialect" => VarOrigin::Dialect,
+        _ => return None,
+    })
+}
+
+/// A `special_var -startup` value: the lifecycle event that makes the
+/// variable readable before user code.
+fn startup_binding(value: &str) -> Option<tcl_registry::StartupBinding> {
+    use tcl_registry::StartupBinding;
+    Some(match value {
+        "None" => StartupBinding::None,
+        "Interpreter" => StartupBinding::Interpreter,
+        "TclInit" => StartupBinding::TclInit,
+        "TclMain" => StartupBinding::TclMain,
+        "AppInit" => StartupBinding::AppInit,
+        "ReadTrace" => StartupBinding::ReadTrace,
+        _ => return None,
     })
 }
 
@@ -1972,6 +2227,158 @@ fn checked_arity_windows(
     leak_slice(kept)
 }
 
+/// How a stamp statement is gated: not at all, to a window, or not usably.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StampGate {
+    /// No lifecycle flag: the stamp is the command's plain one, for every
+    /// release.
+    Plain,
+    /// `-introduced V ?-deprecated V? ?-retired V?`: one window of the stamp.
+    Window(Lifecycle),
+    /// A lifecycle that cannot be selected at any release; the row is dropped.
+    Dropped,
+}
+
+/// The lifecycle flags a stamp statement may end with, read from word `from`
+/// on (`SpecTcl` 2.2).
+///
+/// A gated row is one *window* of a stamp that is not the same at every
+/// release, and several may be declared for one command. An impossibly ordered
+/// window is dropped and not widened to every release, unlike an `arity`
+/// window, which degrades to the plain arity: a stamp applied at a release its
+/// author never meant it for specialises there, where a signature only gates
+/// less.
+fn stamp_gate(stmt: &Stmt, from: usize, what: &str, log: &mut Log) -> StampGate {
+    let words = &stmt.words;
+    let mut lifecycle = Lifecycle::UNSPECIFIED;
+    let mut gated = false;
+    let mut i = from;
+    while i < words.len() {
+        let flag = words[i].text.clone();
+        if lifecycle_flag(&mut lifecycle, &flag, words, &mut i) {
+            log.since(stmt.line, &flag, "2.2");
+            gated = true;
+        } else {
+            log.unknown_flag(stmt.word_text(0), stmt.line, &flag);
+        }
+        i += 1;
+    }
+    if !gated {
+        return StampGate::Plain;
+    }
+    let lifecycle = checked_lifecycle(lifecycle, &format!("{what} window"), stmt.line, log);
+    if lifecycle == Lifecycle::UNSPECIFIED {
+        log.say(
+            stmt.line,
+            format!(
+                "{what} window dropped: a stamp widened to every release would specialise \
+                 where its author never meant it to"
+            ),
+        );
+        return StampGate::Dropped;
+    }
+    StampGate::Window(lifecycle)
+}
+
+/// Whether a form's stamp statement is the plain, ungated row a form can carry.
+///
+/// A form is already a shape picked out by the call's arguments, and it has no
+/// window list to put a gated row in. A row that asks for one is dropped with a
+/// notice and not read as an ungated stamp, which would apply it at every
+/// release.
+fn form_stamp_is_plain(stmt: &Stmt, from: usize, what: &str, log: &mut Log) -> bool {
+    if stamp_gate(stmt, from, what, log) == StampGate::Plain {
+        return true;
+    }
+    log.say(
+        stmt.line,
+        format!(
+            "{what} on a form takes no lifecycle window; the row is dropped — declare the \
+             windows on the command or the subcommand"
+        ),
+    );
+    false
+}
+
+/// Put one stamp statement's value where its gate says: the unversioned field
+/// for a plain row, the window list for a gated one, nowhere for a dropped one.
+fn place_stamp<T: Copy>(
+    value: Option<T>,
+    gate: StampGate,
+    unversioned: &mut Option<T>,
+    windows: &mut Vec<StampWindow<T>>,
+) {
+    match gate {
+        StampGate::Plain => *unversioned = value,
+        StampGate::Window(lifecycle) => {
+            if let Some(value) = value {
+                windows.push(StampWindow { lifecycle, value });
+            }
+        }
+        StampGate::Dropped => {}
+    }
+}
+
+/// The stamp windows a body declared, with overlapping ones dropped.
+///
+/// The twin of [`checked_arity_windows`]: two windows covering one release make
+/// the stamp depend on declaration order, which a pack cannot have meant. The
+/// pack keeps the first and gets a notice naming the one dropped.
+fn checked_stamp_windows<T: Copy + fmt::Debug>(
+    windows: Vec<StampWindow<T>>,
+    what: &str,
+    field: &str,
+    line: u32,
+    log: &mut Log,
+) -> &'static [StampWindow<T>] {
+    let mut kept: Vec<StampWindow<T>> = Vec::with_capacity(windows.len());
+    for window in windows {
+        if let Some(clash) = kept.iter().find(|other| other.overlaps(&window)) {
+            log.say(
+                line,
+                format!(
+                    "{what} {field} window {:?} overlaps {:?}, which would make the stamp \
+                     depend on declaration order; the later one is dropped",
+                    window.value, clash.value
+                ),
+            );
+            continue;
+        }
+        kept.push(window);
+    }
+    leak_slice(kept)
+}
+
+/// Drop an option's `-effect` when its `-family` names no
+/// `option_effect_family` this command or subcommand declares — the
+/// generic walk resolves a family by name against exactly this table, so
+/// an unresolvable name would otherwise silently narrow every axis the
+/// family covers rather than reading as absent.
+fn checked_option_effect_families(
+    mut options: Vec<OptionSpec>,
+    families: &[OptionEffectFamily],
+    what: &str,
+    line: u32,
+    log: &mut Log,
+) -> &'static [OptionSpec] {
+    for option in &mut options {
+        if let Some(effect) = option.effect
+            && !families.iter().any(|family| family.name == effect.family)
+        {
+            log.say(
+                line,
+                format!(
+                    "{what} option `{}` declares `-effect` naming family `{}`, which no \
+                     `option_effect_family` here declares; the effect is dropped",
+                    option.name, effect.family
+                ),
+            );
+            option.effect = None;
+        }
+    }
+    leak_slice(options)
+}
+
 /// A parsed lifecycle, or nothing when its releases are impossibly ordered.
 ///
 /// An entity whose lifecycle is rejected still loads: the declaration is a
@@ -2374,9 +2781,6 @@ const RETURN_TYPE_HOOKS: &[ReturnTypeHookId] = &[
 ];
 
 const ANALYSER_HOOKS: &[AnalyserHookId] = &[
-    AnalyserHookId::Set,
-    AnalyserHookId::Variable,
-    AnalyserHookId::Global,
     AnalyserHookId::Proc,
     AnalyserHookId::OptProc,
     AnalyserHookId::Apply,
@@ -2388,15 +2792,9 @@ const ANALYSER_HOOKS: &[AnalyserHookId] = &[
     AnalyserHookId::NamespaceForget,
     AnalyserHookId::NamespacePath,
     AnalyserHookId::NamespaceUnknown,
-    AnalyserHookId::NamespaceUpvar,
     AnalyserHookId::Foreach,
-    AnalyserHookId::For,
     AnalyserHookId::Switch,
     AnalyserHookId::Catch,
-    AnalyserHookId::Try,
-    AnalyserHookId::Upvar,
-    AnalyserHookId::DictFor,
-    AnalyserHookId::DictUpdate,
     AnalyserHookId::DictWith,
     AnalyserHookId::InterpAlias,
     AnalyserHookId::InterpEval,
@@ -2412,10 +2810,7 @@ const ANALYSER_HOOKS: &[AnalyserHookId] = &[
     AnalyserHookId::PackageIfneeded,
     AnalyserHookId::PackagePrefer,
     AnalyserHookId::Source,
-    AnalyserHookId::Append,
-    AnalyserHookId::Lappend,
     AnalyserHookId::RegexPatternCapture,
-    AnalyserHookId::Incr,
     AnalyserHookId::Load,
 ];
 
@@ -2905,6 +3300,41 @@ fn parse_defines_symbol(stmt: &Stmt, log: &mut Log) -> Option<SymbolDef> {
         requires_arg,
         kind,
     })
+}
+
+/// Every semantic operation a pack can write, in the vocabulary's order:
+/// `Invoke`, then each intrinsic, then each structured lowering — the closed
+/// set [`parse_semantic_operation`] reads.
+pub fn semantic_operations() -> impl Iterator<Item = SemanticOperationId> {
+    std::iter::once(SemanticOperationId::Invoke)
+        .chain(
+            INTRINSICS
+                .iter()
+                .copied()
+                .map(SemanticOperationId::Intrinsic),
+        )
+        .chain(
+            LOWERING_HOOKS
+                .iter()
+                .copied()
+                .map(SemanticOperationId::StructuredLowering),
+        )
+}
+
+/// The `.tclspec` value of a `semantic_operation` row — `Invoke`,
+/// `Intrinsic ID` or `StructuredLowering ID`, the list
+/// [`parse_semantic_operation`] reads back.
+#[must_use]
+pub fn semantic_operation_spelling(operation: SemanticOperationId) -> String {
+    match operation {
+        SemanticOperationId::Invoke => "Invoke".to_owned(),
+        SemanticOperationId::Intrinsic(intrinsic) => {
+            format!("Intrinsic {}", catalogue::variant_name(&intrinsic))
+        }
+        SemanticOperationId::StructuredLowering(lowering) => {
+            format!("StructuredLowering {}", catalogue::variant_name(&lowering))
+        }
+    }
 }
 
 /// `Invoke` / `{Intrinsic ID}` / `{StructuredLowering ID}`.
@@ -3407,6 +3837,129 @@ fn validated_callback_taint_input_table(
         .collect()
 }
 
+/// `AXIS` or `AXIS VALUE` — the operand(s) of a `disables` / `selects` /
+/// `only` word, read off an already-listed value.
+fn effect_axis_words(words: &[String], line: u32, log: &mut Log) -> Option<EffectAxis> {
+    let axis = match words {
+        [axis] => EffectAxis::from_words(axis, None),
+        [axis, value] => EffectAxis::from_words(axis, Some(value)),
+        _ => None,
+    };
+    if axis.is_none() {
+        log.say(
+            line,
+            format!("unknown option-effect axis `{}`", words.join(" ")),
+        );
+    }
+    axis
+}
+
+/// `-effect VALUE` on an `option` row: `{disables AXIS VALUE}`,
+/// `{selects AXIS VALUE}`, `{suppresses-role ROLE}`,
+/// `{reserves-trailing-words N}`, or the bare `ends-options` — the
+/// option-effect descriptor's own spellings
+/// (`docs/design/compiler/registry-consumer-contracts.md` § *Options with
+/// semantic effects*). `None` (with a notice) for anything else.
+fn option_effect_kind(text: &str, line: u32, log: &mut Log) -> Option<OptionEffectKind> {
+    let words = list_words(text);
+    let kind = words
+        .split_first()
+        .and_then(|(kind, rest)| match (kind.as_str(), rest) {
+            ("disables", axis) => {
+                effect_axis_words(axis, line, log).map(OptionEffectKind::Disables)
+            }
+            ("selects", axis) => effect_axis_words(axis, line, log).map(OptionEffectKind::Selects),
+            ("suppresses-role", [role]) => {
+                by_name(ArgRole::ALL, role).map(OptionEffectKind::SuppressesRole)
+            }
+            ("reserves-trailing-words", [n]) => {
+                n.parse().ok().map(OptionEffectKind::ReservesTrailingWords)
+            }
+            ("ends-options", []) => Some(OptionEffectKind::EndsOptions),
+            _ => None,
+        });
+    if kind.is_none() {
+        log.say(line, format!("unreadable option effect `{text}`; dropped"));
+    }
+    kind
+}
+
+/// `option_effect_family NAME { base all-on|all-off|{only AXIS VALUE} \
+/// combine accumulate|last-wins ?-introduced V? }` at command or subcommand
+/// scope — the families an option row's `-effect` cites by name.
+fn option_effect_family_row(stmt: &Stmt, log: &mut Log) -> Option<OptionEffectFamily> {
+    let name = leak_str(stmt.word_text(1));
+    let Some(block_word) = stmt.arg(2) else {
+        log.say(
+            stmt.line,
+            format!("`option_effect_family {name}` needs a `{{ … }}` block; dropped"),
+        );
+        return None;
+    };
+    let words: Vec<Word> = block(block_word)
+        .into_iter()
+        .flat_map(|row| row.words)
+        .collect();
+    let mut base: Option<FamilyBase> = None;
+    let mut combine: Option<FamilyCombine> = None;
+    let mut surface = None;
+    let mut i = 0;
+    while i < words.len() {
+        match words[i].text.as_str() {
+            "base" => {
+                let text = next_text(&words, &mut i);
+                let parts = list_words(&text);
+                base = match parts.split_first() {
+                    Some((head, [])) if head == "all-on" => Some(FamilyBase::AllOn),
+                    Some((head, [])) if head == "all-off" => Some(FamilyBase::AllOff),
+                    Some((head, axis)) if head == "only" => {
+                        effect_axis_words(axis, stmt.line, log).map(FamilyBase::Only)
+                    }
+                    _ => None,
+                };
+                if base.is_none() {
+                    log.say(
+                        stmt.line,
+                        format!("unreadable `option_effect_family` base `{text}`"),
+                    );
+                }
+            }
+            "combine" => {
+                let text = next_text(&words, &mut i);
+                combine = FamilyCombine::from_spelling(&text);
+                if combine.is_none() {
+                    log.say(
+                        stmt.line,
+                        format!("unknown option-effect family combine rule `{text}` dropped"),
+                    );
+                }
+            }
+            "-introduced" => {
+                let text = next_text(&words, &mut i);
+                surface =
+                    available::from_texts(&["tcl".to_owned(), format!("{text}-")], stmt.line, log)
+                        .surface;
+            }
+            other => log.unknown_flag("option_effect_family", stmt.line, other),
+        }
+        i += 1;
+    }
+    if let (Some(base), Some(combine)) = (base, combine) {
+        Some(OptionEffectFamily {
+            name,
+            base,
+            combine,
+            surface,
+        })
+    } else {
+        log.say(
+            stmt.line,
+            format!("`option_effect_family {name}` needs both `base` and `combine`; dropped"),
+        );
+        None
+    }
+}
+
 /// Parse one `option NAME …` row, returning the spec and any `-arity-hook`.
 #[allow(clippy::too_many_lines)]
 fn option_row(
@@ -3428,6 +3981,10 @@ fn option_row(
     let mut wrote_callback_taint_inputs = false;
     let mut wrote_variable_scope = false;
     let mut wrote_taints_var_write = false;
+    let mut effect_kind: Option<OptionEffectKind> = None;
+    let mut effect_family: Option<&'static str> = None;
+    let mut wrote_effect = false;
+    let mut wrote_family = false;
 
     let words = &stmt.words;
     let mut i = 2;
@@ -3455,6 +4012,15 @@ fn option_row(
                 apply_availability(&mut option.surface, availability, "option", stmt.line, log);
             }
             "-min-abbrev" => option.min_abbrev = next_text(words, &mut i).parse().ok(),
+            "-effect" => {
+                wrote_effect = true;
+                let text = next_text(words, &mut i);
+                effect_kind = option_effect_kind(&text, stmt.line, log);
+            }
+            "-family" => {
+                wrote_family = true;
+                effect_family = Some(leak_str(&next_text(words, &mut i)));
+            }
             // The data form only: `{-replace WORD ?-replace-arg N? …}`, read by
             // the same flag reader the command-level `deprecation_fix`
             // statement uses. The contextual-callback variant stays
@@ -3671,6 +4237,28 @@ fn option_row(
         }
         option.value = OptionValue::Takes(arg);
     }
+    option.effect = if let (Some(kind), Some(family)) = (effect_kind, effect_family) {
+        Some(OptionEffect { kind, family })
+    } else {
+        if wrote_effect && !wrote_family {
+            log.say(
+                stmt.line,
+                format!(
+                    "option `{}` declares `-effect` without `-family`; dropped",
+                    option.name
+                ),
+            );
+        } else if wrote_family && !wrote_effect {
+            log.say(
+                stmt.line,
+                format!(
+                    "option `{}` declares `-family` without `-effect`; dropped",
+                    option.name
+                ),
+            );
+        }
+        None
+    };
     option.lifecycle = checked_lifecycle(
         option.lifecycle,
         &format!("option `{}`", option.name),
@@ -3744,11 +4332,6 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
     let mut spec = CaseListSpec {
         subject_args: 0,
         two_arg_optionless_surface: None,
-        regex_option: None,
-        exact_option: None,
-        glob_option: None,
-        nocase_option: None,
-        end_options_option: None,
         fallthrough_body: None,
         value_options_require_regex: &[],
         special_match_options: &[],
@@ -3764,6 +4347,11 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
         keyword_patterns_require_final: false,
         optional_subject_separator: None,
         warn_unbraced_bodies: false,
+        // Unless the block says otherwise, a pack's case list compares
+        // exactly where no option row selects a mode, and reads each
+        // pattern word as one pattern.
+        default_mode: tcl_registry::spec::CaseMatchMode::Exact,
+        pattern_words: tcl_registry::spec::PatternWords::Single,
     };
     for stmt in stmts {
         let value = stmt.word_text(1).to_owned();
@@ -3772,11 +4360,18 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
             "two_arg_optionless_surface" => {
                 spec.two_arg_optionless_surface = parse_dialects(&value, stmt.line, log);
             }
-            "exact_option" => spec.exact_option = Some(leak_str(&value)),
-            "glob_option" => spec.glob_option = Some(leak_str(&value)),
-            "regex_option" => spec.regex_option = Some(leak_str(&value)),
-            "nocase_option" => spec.nocase_option = Some(leak_str(&value)),
-            "end_options_option" => spec.end_options_option = Some(leak_str(&value)),
+            // The command-level switches that pick the match mode, fold case
+            // or end the option run are the command's own option rows, each
+            // declaring its effect; the descriptor no longer names them.
+            retired @ ("exact_option" | "glob_option" | "regex_option" | "nocase_option"
+            | "end_options_option") => log.say(
+                stmt.line,
+                format!(
+                    "`case_list` row `{retired}` is retired: a match-mode, case-folding or \
+                     terminator switch is the command's own option row, declaring its effect; \
+                     dropped"
+                ),
+            ),
             "fallthrough_body" => spec.fallthrough_body = Some(leak_str(&value)),
             "value_options_require_regex" => {
                 spec.value_options_require_regex = leak_strs(&list_words(&value));
@@ -3803,6 +4398,30 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
                 spec.optional_subject_separator = Some(leak_str(&value));
             }
             "warn_unbraced_bodies" => spec.warn_unbraced_bodies = parse_flag(stmt.tail()),
+            // A specialised comparison is an option row's, never the
+            // default a clause makes.
+            "default_mode" => match tcl_registry::spec::CaseMatchMode::from_spelling(&value)
+                .filter(|mode| *mode != tcl_registry::spec::CaseMatchMode::Other)
+            {
+                Some(mode) => spec.default_mode = mode,
+                None => log.say(
+                    stmt.line,
+                    format!(
+                        "`case_list` row `default_mode` takes `exact`, `glob` or `regexp`, not \
+                         `{value}`; kept `exact`"
+                    ),
+                ),
+            },
+            "pattern_words" => match tcl_registry::spec::PatternWords::from_spelling(&value) {
+                Some(reading) => spec.pattern_words = reading,
+                None => log.say(
+                    stmt.line,
+                    format!(
+                        "`case_list` row `pattern_words` takes `single` or `lists`, not \
+                         `{value}`; kept `single`"
+                    ),
+                ),
+            },
             "keyword_patterns" => {
                 spec.keyword_patterns = leak_strs(&list_words(&value));
                 spec.keyword_patterns_require_final =
@@ -3814,139 +4433,35 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
     spec
 }
 
-/// The clause grammar, kept as declared so a later walk can derive both hook
-/// behaviours from it.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct ClauseGrammar {
-    /// The mandatory leading clause's slots, matched positionally.
-    pub head: Vec<String>,
-    /// Zero-or-more clauses, each introduced by its literal keyword.
-    pub repeated: Vec<(String, Vec<String>)>,
-    /// At most one trailing clause; the keyword is optional when written
-    /// `?else?`.
-    pub tail: Option<(Option<String>, bool, Vec<String>)>,
-}
-
-/// The outcome of walking a call against a [`ClauseGrammar`].
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ClauseWalk {
-    /// The roles the walk assigns, 0-based after the command name.
-    pub roles: Vec<(u8, ArgRole)>,
-    /// The first structural defect, or `None` for any shape the grammar
-    /// accepts.
-    pub error: Option<ClauseShapeError>,
-}
-
-impl ClauseGrammar {
-    /// Walk `args` against the grammar, deriving **both** hook behaviours at
-    /// once — the roles `arg_role_resolver` would assign and the defect
-    /// `clause_shape_check` would report.
-    ///
-    /// **Normative — where keywords match.** A keyword is compared only at a
-    /// clause boundary and at a `?noise?` position; every other slot is filled
-    /// positionally and consumes whatever word is there, *including one
-    /// spelled like a keyword*. That is what makes `if else {a}` a well-formed
-    /// `if` whose condition is the bareword `else`, and `if 1 a elseif else b`
-    /// a well-formed chain whose second condition is the bareword `else`. The
-    /// one-line version: at each step the walk asks "does a clause start
-    /// here?", and only that question ever compares a word against a keyword.
-    #[must_use]
-    pub fn walk(&self, args: &[&str]) -> ClauseWalk {
-        let mut roles = Vec::new();
-        let n = args.len();
-        let mut i = 0usize;
-
-        if let Err(error) = Self::fill(&self.head, args, &mut i, &mut roles) {
-            return ClauseWalk { roles, error };
-        }
-
-        loop {
-            if i >= n {
-                return ClauseWalk { roles, error: None };
-            }
-            if let Some((_, slots)) = self.repeated.iter().find(|(keyword, _)| args[i] == keyword) {
-                push_role(&mut roles, i, ArgRole::Keyword);
-                i += 1;
-                if let Err(error) = Self::fill(slots, args, &mut i, &mut roles) {
-                    return ClauseWalk { roles, error };
-                }
-                continue;
-            }
-            let Some((keyword, optional, slots)) = &self.tail else {
-                return ClauseWalk {
-                    roles,
-                    error: Some(ClauseShapeError::ExtraWords { first_extra: i }),
-                };
-            };
-            match keyword {
-                Some(keyword) if args[i] == *keyword => {
-                    push_role(&mut roles, i, ArgRole::Keyword);
-                    i += 1;
-                }
-                // A tail whose keyword is mandatory does not match here, so
-                // nothing more is a clause and everything left is extra.
-                Some(_) if !optional => {
-                    return ClauseWalk {
-                        roles,
-                        error: Some(ClauseShapeError::ExtraWords { first_extra: i }),
-                    };
-                }
-                // `?else?` — the optional introducing keyword that makes a
-                // bare trailing body legal with no keyword at all.
-                _ => {}
-            }
-            if let Err(error) = Self::fill(slots, args, &mut i, &mut roles) {
-                return ClauseWalk { roles, error };
-            }
-            // `tail` is last, which is what makes anything after it an error.
-            let error = (i < n).then_some(ClauseShapeError::ExtraWords { first_extra: i });
-            return ClauseWalk { roles, error };
-        }
-    }
-
-    /// Fill one clause's slots positionally from `args[*i..]`.
-    fn fill(
-        slots: &[String],
-        args: &[&str],
-        i: &mut usize,
-        roles: &mut Vec<(u8, ArgRole)>,
-    ) -> Result<(), Option<ClauseShapeError>> {
-        for slot in slots {
-            if let Some(noise) = slot
-                .strip_prefix('?')
-                .and_then(|rest| rest.strip_suffix('?'))
-            {
-                if args.get(*i).is_some_and(|word| *word == noise) {
-                    push_role(roles, *i, ArgRole::Keyword);
-                    *i += 1;
-                }
-                continue;
-            }
-            let role = by_name(ArgRole::ALL, slot).unwrap_or(ArgRole::Value);
-            if *i >= args.len() {
-                let after = i.checked_sub(1);
-                return Err(Some(if role == ArgRole::Expr {
-                    ClauseShapeError::MissingExpr { after }
-                } else {
-                    // `after` is the index of the last present word; a body
-                    // slot always has one, because a clause is never entered
-                    // with nothing before it.
-                    ClauseShapeError::MissingBody {
-                        after: after.unwrap_or(0),
-                    }
-                }));
-            }
-            push_role(roles, *i, role);
-            *i += 1;
-        }
-        Ok(())
+/// Record the two hook behaviours a `clause_grammar` derives, as derivations:
+/// the registry's walk answers both, so neither is installed as a hook.
+/// `line` is the `clause_grammar` row's.
+fn record_clause_grammar_derivations(hooks: &mut Vec<HookDecl>, owner: &HookOwner, line: u32) {
+    for (field, family) in [
+        ("arg_role_resolver", HookFamily::ArgRoleResolver),
+        ("clause_shape_check", HookFamily::ClauseShapeCheck),
+    ] {
+        hooks.push(HookDecl {
+            owner: owner.clone(),
+            field,
+            family,
+            source: HookSource::Derived {
+                keyword: "clause_grammar".to_owned(),
+            },
+            line,
+        });
     }
 }
 
-/// Record a role, dropping an index the `u8` tables cannot hold.
-fn push_role(roles: &mut Vec<(u8, ArgRole)>, index: usize, role: ArgRole) {
-    if let Ok(index) = u8::try_from(index) {
-        roles.push((index, role));
+/// The notice a clause grammar that declares no clause at all earns.
+///
+/// `STRUCTURALLY_CHECKED_ARITY` is neither implied nor required: it is the
+/// opt-in that makes the walk's defect the command's arity diagnostic (`if`'s
+/// E004), where `try` and the loops keep an ordinary arity range beside their
+/// grammar.
+fn check_clause_grammar(grammar: &ClauseGrammarSpec, line: u32, log: &mut Log) {
+    if grammar.head.slots().is_empty() && grammar.rows.is_empty() && grammar.tail.is_none() {
+        log.say(line, "a `clause_grammar` declares no clause");
     }
 }
 
@@ -3983,33 +4498,368 @@ pub fn roles_from_manufacturers(spec: &CommandSpec, args: &[&str]) -> Vec<(u8, A
     }
 }
 
-fn clause_grammar_block(stmts: &[Stmt], log: &mut Log) -> ClauseGrammar {
-    let mut grammar = ClauseGrammar::default();
+/// `clause_grammar { … } ?-available V?` — the clause-grammar descriptor, a
+/// [`ClauseGrammarSpec`] the registry walks (`tcl_registry::clause_grammar`).
+///
+/// One row per statement:
+///
+/// - `head {SLOTS} ?FLAGS?` — the positional leading clause;
+/// - `repeated KEYWORD {SLOTS} ?FLAGS?` — zero or more keyword clauses;
+/// - `once ?KEYWORD? {SLOTS} ?FLAGS?` — one clause, keywordless ones entered
+///   in declaration order;
+/// - `group N ?FLAGS?` — the keywordless groups `repeated_args[N]` lays out;
+/// - `tail ?KEYWORD? {SLOTS} ?FLAGS?` — at most one trailing clause;
+/// - `fallthrough_body WORD`, `default_clause ROW|tail ?-final-only?`,
+///   `selection first-match|all` — the chain-level rules.
+///
+/// A slot is a role name (`Expr`, `Body`, `LoopVarList`, `Pattern`, `Value`),
+/// `?word?` for a noise word, or `{ROLE optional}` for a slot that may be
+/// absent. A keyword spelt `?word?` is optional. The row flags are
+/// `-timing selected|always|per-iteration|init|next|protected` (default
+/// `selected`), `-pattern completion-code|error-code-prefix` (the handler of
+/// the row's `Pattern` slot), `-conditional` (its `LoopVarList` slots bind
+/// only when a data condition holds), `-optional-keyword`, and
+/// `-available V`. A row this build cannot read is dropped with a notice,
+/// never guessed.
+fn clause_grammar_value(stmt: &Stmt, log: &mut Log) -> Option<&'static ClauseGrammarSpec> {
+    let body = stmt.arg(1)?;
+    let mut grammar = clause_grammar_block(&block(body), log);
+    let words = &stmt.words;
+    let mut i = 2;
+    while i < words.len() {
+        match words[i].text.as_str() {
+            "-available" => {
+                log.v20(stmt.line, "-available");
+                let text = next_text(words, &mut i);
+                let availability = available::from_flag(&text, stmt.line, log);
+                apply_availability(
+                    &mut grammar.surface,
+                    availability,
+                    "clause grammar",
+                    stmt.line,
+                    log,
+                );
+            }
+            other => log.unknown_flag("clause_grammar", stmt.line, other),
+        }
+        i += 1;
+    }
+    Some(leak_one(grammar))
+}
+
+fn clause_grammar_block(stmts: &[Stmt], log: &mut Log) -> ClauseGrammarSpec {
+    let mut grammar = ClauseGrammarSpec {
+        head: ClauseRow::EMPTY_HEAD,
+        rows: &[],
+        tail: None,
+        fallthrough_body: None,
+        default_clause: None,
+        selection: ClauseSelection::FirstMatch,
+        surface: None,
+    };
+    let mut rows: Vec<ClauseRow> = Vec::new();
     for stmt in stmts {
         match stmt.word_text(0) {
-            "head" => grammar.head = list_words(stmt.word_text(1)),
-            "repeated" => grammar
-                .repeated
-                .push((stmt.word_text(1).to_owned(), list_words(stmt.word_text(2)))),
-            "tail" => {
-                let (keyword, slots) = if stmt.words.len() >= 3 {
-                    (
-                        Some(stmt.word_text(1).to_owned()),
-                        list_words(stmt.word_text(2)),
-                    )
-                } else {
-                    (None, list_words(stmt.word_text(1)))
-                };
-                let optional = keyword
-                    .as_deref()
-                    .is_some_and(|k| k.starts_with('?') && k.ends_with('?') && k.len() > 1);
-                let keyword = keyword.map(|k| k.trim_matches('?').to_owned());
-                grammar.tail = Some((keyword, optional, slots));
+            "head" => {
+                if let Some(row) = clause_row(stmt, ClauseRowKind::Head, log) {
+                    grammar.head = row;
+                }
             }
+            "repeated" => {
+                if let Some(row) = clause_row(stmt, ClauseRowKind::Repeated, log) {
+                    rows.push(row);
+                }
+            }
+            "once" => {
+                if let Some(row) = clause_row(stmt, ClauseRowKind::Once, log) {
+                    rows.push(row);
+                }
+            }
+            "group" => {
+                if let Some(row) = clause_row(stmt, ClauseRowKind::Group, log) {
+                    rows.push(row);
+                }
+            }
+            "tail" => grammar.tail = clause_row(stmt, ClauseRowKind::Tail, log),
+            "fallthrough_body" => grammar.fallthrough_body = Some(leak_str(stmt.word_text(1))),
+            "default_clause" => {
+                let row = match stmt.word_text(1) {
+                    "tail" => Some(None),
+                    index => index.parse::<u8>().ok().map(Some),
+                };
+                match row {
+                    Some(row) => {
+                        grammar.default_clause = Some(DefaultClause {
+                            row,
+                            final_only: stmt.words.iter().any(|word| word.text == "-final-only"),
+                        });
+                    }
+                    None => log.say(
+                        stmt.line,
+                        format!(
+                            "`default_clause` names a row index or `tail`, not `{}`; dropped",
+                            stmt.word_text(1)
+                        ),
+                    ),
+                }
+            }
+            "selection" => match ClauseSelection::from_spelling(stmt.word_text(1)) {
+                Some(selection) => grammar.selection = selection,
+                None => log.say(
+                    stmt.line,
+                    format!(
+                        "unknown clause selection `{}` (first-match, all); `first-match` kept",
+                        stmt.word_text(1)
+                    ),
+                ),
+            },
             _ => log.unknown_property(stmt),
         }
     }
+    grammar.rows = leak_slice(rows);
     grammar
+}
+
+/// Which statement a clause row came from — what its positional words mean.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ClauseRowKind {
+    Head,
+    Repeated,
+    Once,
+    Group,
+    Tail,
+}
+
+/// The row flags a clause row may carry; any other word is positional.
+const CLAUSE_ROW_FLAGS: &[&str] = &[
+    "-timing",
+    "-pattern",
+    "-conditional",
+    "-optional-keyword",
+    "-available",
+];
+
+/// One `head` / `repeated` / `once` / `group` / `tail` row, or `None` (with a
+/// notice) when a word of it cannot be read.
+fn clause_row(stmt: &Stmt, kind: ClauseRowKind, log: &mut Log) -> Option<ClauseRow> {
+    let words = &stmt.words;
+    let mut positional: Vec<&str> = Vec::new();
+    let mut i = 1;
+    while i < words.len() && !CLAUSE_ROW_FLAGS.contains(&words[i].text.as_str()) {
+        positional.push(words[i].text.as_str());
+        i += 1;
+    }
+    let row = clause_row_shape(stmt, kind, &positional, log)?;
+    clause_row_flags(row, stmt, i, log)
+}
+
+/// The row a statement's positional words spell, before its flags.
+fn clause_row_shape(
+    stmt: &Stmt,
+    kind: ClauseRowKind,
+    positional: &[&str],
+    log: &mut Log,
+) -> Option<ClauseRow> {
+    let keyworded = |keyword: &str, slots: &str, log: &mut Log, repeated: bool| {
+        let (keyword, required) = clause_keyword(keyword);
+        let slots = clause_slots(slots, stmt.line, log);
+        let row = if repeated {
+            ClauseRow::repeated(keyword, slots, ClauseTiming::Selected)
+        } else {
+            ClauseRow::once(Some(keyword), slots, ClauseTiming::Selected)
+        };
+        if required {
+            row
+        } else {
+            row.optional_keyword()
+        }
+    };
+    Some(match (kind, positional) {
+        (ClauseRowKind::Group, [layout]) => {
+            let Ok(layout) = layout.parse::<u8>() else {
+                log.say(
+                    stmt.line,
+                    format!(
+                        "`group` cites a `repeat` layout by index, not `{layout}`; the row is \
+                         dropped"
+                    ),
+                );
+                return None;
+            };
+            ClauseRow::group(layout, ClauseTiming::Selected)
+        }
+        (ClauseRowKind::Head, [slots]) => {
+            ClauseRow::head(clause_slots(slots, stmt.line, log), ClauseTiming::Selected)
+        }
+        (ClauseRowKind::Repeated, [keyword, slots]) => keyworded(keyword, slots, log, true),
+        (ClauseRowKind::Once | ClauseRowKind::Tail, [slots]) => ClauseRow::once(
+            None,
+            clause_slots(slots, stmt.line, log),
+            ClauseTiming::Selected,
+        ),
+        (ClauseRowKind::Once | ClauseRowKind::Tail, [keyword, slots]) => {
+            keyworded(keyword, slots, log, false)
+        }
+        _ => {
+            log.say(
+                stmt.line,
+                format!(
+                    "`{}` row has the wrong number of words; the row is dropped",
+                    stmt.word_text(0)
+                ),
+            );
+            return None;
+        }
+    })
+}
+
+/// A row's flags, from word `i` on; `None` (with a notice) when a flag's value
+/// cannot be read — a row is dropped rather than read as some other row.
+fn clause_row_flags(
+    mut row: ClauseRow,
+    stmt: &Stmt,
+    mut i: usize,
+    log: &mut Log,
+) -> Option<ClauseRow> {
+    let words = &stmt.words;
+    let what = stmt.word_text(0);
+    while i < words.len() {
+        match words[i].text.as_str() {
+            "-timing" => {
+                let name = next_text(words, &mut i);
+                let Some(timing) = ClauseTiming::from_spelling(&name) else {
+                    log.say(
+                        stmt.line,
+                        format!(
+                            "unknown clause timing `{name}` (selected, always, per-iteration, \
+                             init, next, protected); the `{what}` row is dropped"
+                        ),
+                    );
+                    return None;
+                };
+                row.timing = timing;
+            }
+            "-pattern" => {
+                let name = next_text(words, &mut i);
+                let Some(handler) = tcl_registry::clause_grammar::handler_from_spelling(&name)
+                else {
+                    log.say(
+                        stmt.line,
+                        format!(
+                            "unknown handler pattern `{name}` (completion-code, \
+                             error-code-prefix); the `{what}` row is dropped"
+                        ),
+                    );
+                    return None;
+                };
+                row = with_slots(row, stmt.line, log, "-pattern", |slot| {
+                    (slot.role == ArgRole::Pattern).then(|| slot.selecting(handler))
+                })?;
+            }
+            "-conditional" => {
+                row = with_slots(row, stmt.line, log, "-conditional", |slot| {
+                    (slot.role == ArgRole::LoopVarList).then(|| slot.conditional())
+                })?;
+            }
+            "-optional-keyword" => row = row.optional_keyword(),
+            "-available" => {
+                log.v20(stmt.line, "-available");
+                let text = next_text(words, &mut i);
+                let availability = available::from_flag(&text, stmt.line, log);
+                apply_availability(&mut row.surface, availability, "clause row", stmt.line, log);
+            }
+            other => log.unknown_flag(what, stmt.line, other),
+        }
+        i += 1;
+    }
+    Some(row)
+}
+
+/// A clause keyword word: `?else?` is an optional keyword.
+fn clause_keyword(word: &str) -> (&'static str, bool) {
+    match word
+        .strip_prefix('?')
+        .and_then(|inner| inner.strip_suffix('?'))
+        .filter(|inner| !inner.is_empty())
+    {
+        Some(inner) => (leak_str(inner), false),
+        None => (leak_str(word), true),
+    }
+}
+
+/// A row with the slots `change` rewrites, or `None` (with a notice) when the
+/// flag names a slot the row does not have.
+fn with_slots(
+    mut row: ClauseRow,
+    line: u32,
+    log: &mut Log,
+    flag: &str,
+    change: impl Fn(ClauseSlot) -> Option<ClauseSlot>,
+) -> Option<ClauseRow> {
+    let mut changed = false;
+    let slots: Vec<ClauseSlot> = row
+        .slots()
+        .iter()
+        .map(|slot| {
+            change(*slot).map_or(*slot, |new| {
+                changed = true;
+                new
+            })
+        })
+        .collect();
+    if !changed {
+        log.say(
+            line,
+            format!("`{flag}` names a slot the row does not have; the row is dropped"),
+        );
+        return None;
+    }
+    row.shape = match row.shape {
+        ClauseRowShape::Repeated { .. } => ClauseRowShape::Repeated {
+            slots: leak_slice(slots),
+        },
+        ClauseRowShape::Once { .. } => ClauseRowShape::Once {
+            slots: leak_slice(slots),
+        },
+        group @ ClauseRowShape::Group { .. } => group,
+    };
+    Some(row)
+}
+
+/// A braced slot list: role names, `?word?` noise words, `{ROLE optional}`.
+fn clause_slots(text: &str, line: u32, log: &mut Log) -> &'static [ClauseSlot] {
+    let slots: Vec<ClauseSlot> = list_words(text)
+        .iter()
+        .map(|word| {
+            if let Some(noise) = word
+                .strip_prefix('?')
+                .and_then(|inner| inner.strip_suffix('?'))
+                .filter(|inner| !inner.is_empty())
+            {
+                return ClauseSlot::noise(leak_str(noise));
+            }
+            let parts = list_words(word);
+            let (name, flags) = parts
+                .split_first()
+                .map_or(("", &[][..]), |(name, flags)| (name.as_str(), flags));
+            let role = by_name(ArgRole::ALL, name).unwrap_or_else(|| {
+                log.say(
+                    line,
+                    format!("unknown clause slot role `{name}`; read as `Value`"),
+                );
+                ArgRole::Value
+            });
+            let mut slot = ClauseSlot::of(role);
+            for flag in flags {
+                match flag.as_str() {
+                    "optional" => slot = slot.optional(),
+                    other => log.say(line, format!("unknown clause slot flag `{other}` ignored")),
+                }
+            }
+            slot
+        })
+        .collect();
+    leak_slice(slots)
 }
 
 /// `definition_body { … }` — the inline definer grammar.
@@ -4031,6 +4881,7 @@ fn definition_body_block(stmts: &[Stmt], log: &mut Log) -> DefinitionBodyGrammar
         property_accessor_methods: &[],
     };
     let mut members: Vec<MemberSpec> = Vec::new();
+    let mut member_options: Vec<MemberOptionRow> = Vec::new();
     let mut object_methods: Vec<BuiltinObjectMethod> = Vec::new();
     let mut body_commands: Vec<MemberBodyCommand> = Vec::new();
     let mut manufacturers: Vec<ManufacturerMethod> = Vec::new();
@@ -4044,6 +4895,8 @@ fn definition_body_block(stmts: &[Stmt], log: &mut Log) -> DefinitionBodyGrammar
                     DefinerFamily::Snit,
                     DefinerFamily::Itcl,
                     DefinerFamily::JimClass,
+                    DefinerFamily::SpecTcl,
+                    DefinerFamily::SslicTcl,
                 ];
                 if let Some(family) =
                     enum_by_name(FAMILIES, &value, "definer family", stmt.line, log)
@@ -4051,11 +4904,8 @@ fn definition_body_block(stmts: &[Stmt], log: &mut Log) -> DefinitionBodyGrammar
                     grammar.family = family;
                 }
             }
-            "member" => members.push(member_row(stmt, log)),
-            "member_option" => log.say(
-                stmt.line,
-                "`member_option` is not yet loadable; row dropped",
-            ),
+            "member" => members.extend(member_row(stmt, log)),
+            "member_option" => member_options.extend(member_option_row(stmt, log)),
             "implicit_vars" => grammar.implicit_vars = leak_strs(&list_words(&value)),
             "member_body_namespace_path" => {
                 grammar.member_body_namespace_path = leak_strs(&list_words(&value));
@@ -4086,11 +4936,125 @@ fn definition_body_block(stmts: &[Stmt], log: &mut Log) -> DefinitionBodyGrammar
             _ => log.unknown_property(stmt),
         }
     }
+    attach_member_options(&mut members, member_options, log);
     grammar.members = leak_slice(members);
     grammar.builtin_object_methods = leak_slice(object_methods);
     grammar.member_body_commands = leak_slice(body_commands);
     grammar.manufacturers = leak_slice(manufacturers);
     grammar
+}
+
+/// One `member_option KEYWORD POSITION VALUE -role ROLE ?-visibility V?
+/// ?-dialects D? ?-available V?` row: one accepted spelling of a member's
+/// optional word, keyed by the member and the fixed position it sits at.
+struct MemberOptionRow {
+    keyword: String,
+    position: u8,
+    value: MemberOptionValue,
+    line: u32,
+}
+
+fn member_option_row(stmt: &Stmt, log: &mut Log) -> Option<MemberOptionRow> {
+    let Ok(position) = stmt.word_text(2).parse::<u8>() else {
+        log.say(
+            stmt.line,
+            format!(
+                "`member_option {}` needs a fixed position; row dropped",
+                stmt.word_text(1)
+            ),
+        );
+        return None;
+    };
+    let mut value = MemberOptionValue {
+        value: leak_str(stmt.word_text(3)),
+        role: ArgRole::Option,
+        surface: None,
+        declared_visibility: None,
+    };
+    let words = &stmt.words;
+    let mut i = 4;
+    while i < words.len() {
+        match words[i].text.as_str() {
+            "-role" => {
+                let name = next_text(words, &mut i);
+                if let Some(role) = enum_by_name(ArgRole::ALL, &name, "role", stmt.line, log) {
+                    value.role = role;
+                }
+            }
+            "-visibility" => {
+                let name = next_text(words, &mut i);
+                value.declared_visibility = enum_by_name(
+                    DeclaredMemberVisibility::ALL,
+                    &name,
+                    "declared visibility",
+                    stmt.line,
+                    log,
+                );
+            }
+            "-dialects" => {
+                let text = next_text(words, &mut i);
+                value.surface = parse_dialects(&text, stmt.line, log);
+            }
+            "-available" => {
+                log.v20(stmt.line, "-available");
+                let text = next_text(words, &mut i);
+                let availability = available::from_flag(&text, stmt.line, log);
+                apply_availability(
+                    &mut value.surface,
+                    availability,
+                    "member option",
+                    stmt.line,
+                    log,
+                );
+            }
+            other => log.unknown_flag("member_option", stmt.line, other),
+        }
+        i += 1;
+    }
+    Some(MemberOptionRow {
+        keyword: stmt.word_text(1).to_owned(),
+        position,
+        value,
+        line: stmt.line,
+    })
+}
+
+/// Hang each `member_option` row off the member it names, in row order: one
+/// member has one optional word, so every row for it shares one position.
+fn attach_member_options(members: &mut [MemberSpec], rows: Vec<MemberOptionRow>, log: &mut Log) {
+    let mut grouped: Vec<(usize, u8, Vec<MemberOptionValue>)> = Vec::new();
+    for row in rows {
+        let Some(index) = members
+            .iter()
+            .position(|member| member.keyword == row.keyword)
+        else {
+            log.say(
+                row.line,
+                format!(
+                    "`member_option` names no member `{}`; row dropped",
+                    row.keyword
+                ),
+            );
+            continue;
+        };
+        match grouped.iter_mut().find(|(member, _, _)| *member == index) {
+            Some((_, position, values)) if *position == row.position => values.push(row.value),
+            Some(_) => log.say(
+                row.line,
+                format!(
+                    "member `{}` already has its optional word at another position; row dropped",
+                    row.keyword
+                ),
+            ),
+            None => grouped.push((index, row.position, vec![row.value])),
+        }
+    }
+    for (index, position, values) in grouped {
+        members[index].optional_argument = Some(OptionalMemberArgument {
+            position,
+            values: leak_slice(values),
+        });
+    }
 }
 
 /// Placeholder for a declared `bare_word_construction` hint until the hint's
@@ -4119,7 +5083,199 @@ fn member_arg_roles(text: &str, line: u32, log: &mut Log) -> Vec<(u8, ArgRole)> 
     roles
 }
 
-fn member_row(stmt: &Stmt, log: &mut Log) -> MemberSpec {
+/// A member row's `-effect` value before the row's `-roles` are all read. A
+/// `callable`, `forward` or `init-script` slot the value leaves unwritten is
+/// positioned by the first `-roles` index carrying the role it names —
+/// `Name`, `ParamList`, `Body`, and `CommandName` / `CommandPrefix` for a
+/// forward's target — so the page's `-effect {callable -receiver instance
+/// -role method}` reads a method's three slots off its roles.
+#[derive(Clone, Copy)]
+enum EffectDraft {
+    Callable {
+        receiver: MemberReceiver,
+        role: CallableRole,
+        name: Option<u8>,
+        params: Option<u8>,
+        body: Option<u8>,
+    },
+    Forward {
+        name: Option<u8>,
+        prefix: Option<u8>,
+    },
+    InitScript {
+        body: Option<u8>,
+        timing: InitTiming,
+    },
+    Ready(MemberEffect),
+}
+
+impl EffectDraft {
+    /// The effect, its unwritten slots positioned by `arg_roles`; `None` when
+    /// a `forward` or `init-script` slot is neither written nor derivable.
+    fn resolve(self, arg_roles: &[(u8, ArgRole)]) -> Option<MemberEffect> {
+        let first = |role: ArgRole| {
+            arg_roles
+                .iter()
+                .find(|(_, declared)| *declared == role)
+                .map(|(index, _)| *index)
+        };
+        match self {
+            Self::Callable {
+                receiver,
+                role,
+                name,
+                params,
+                body,
+            } => Some(MemberEffect::Callable {
+                receiver,
+                role,
+                name_slot: name.or_else(|| first(ArgRole::Name)),
+                params_slot: params.or_else(|| first(ArgRole::ParamList)),
+                body_slot: body.or_else(|| first(ArgRole::Body)),
+            }),
+            Self::Forward { name, prefix } => Some(MemberEffect::Forward {
+                name_slot: name.or_else(|| first(ArgRole::Name))?,
+                prefix_slot: prefix
+                    .or_else(|| first(ArgRole::CommandName))
+                    .or_else(|| first(ArgRole::CommandPrefix))?,
+            }),
+            Self::InitScript { body, timing } => Some(MemberEffect::InitScript {
+                body_slot: body.or_else(|| first(ArgRole::Body))?,
+                timing,
+            }),
+            Self::Ready(effect) => Some(effect),
+        }
+    }
+}
+
+/// The `-FLAG VALUE` pairs of an `-effect` / `-shift` value, or `None` when a
+/// flag is not in `known` or has no value.
+fn effect_flags<'t>(rest: &'t [String], known: &[&str]) -> Option<Vec<(&'t str, &'t str)>> {
+    rest.chunks(2)
+        .map(|pair| match pair {
+            [flag, value] if known.contains(&flag.as_str()) => {
+                Some((flag.as_str(), value.as_str()))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// `-effect VALUE` on a `member` row: `{callable -receiver R -role K ?-name N?
+/// ?-params N? ?-body N?}`, `{forward ?-name N? ?-prefix N?}`,
+/// `{state-declaration SCOPE}`, `{relation SLOT}`, `visibility`,
+/// `retraction`, `{init-script ?-body N? -timing T}` or `configuration` —
+/// the registry's own spellings. `None` (with a notice) for anything else.
+fn member_effect(text: &str, line: u32, log: &mut Log) -> Option<EffectDraft> {
+    let words = list_words(text);
+    let draft = words.split_first().and_then(|(kind, rest)| {
+        let slot = |value: &str| value.parse::<u8>().ok();
+        match (kind.as_str(), rest) {
+            ("callable", _) => {
+                let flags =
+                    effect_flags(rest, &["-receiver", "-role", "-name", "-params", "-body"])?;
+                let mut draft = (None, None, None, None, None);
+                for (flag, value) in flags {
+                    match flag {
+                        "-receiver" => draft.0 = Some(MemberReceiver::from_spelling(value)?),
+                        "-role" => draft.1 = Some(CallableRole::from_spelling(value)?),
+                        "-name" => draft.2 = Some(slot(value)?),
+                        "-params" => draft.3 = Some(slot(value)?),
+                        _ => draft.4 = Some(slot(value)?),
+                    }
+                }
+                Some(EffectDraft::Callable {
+                    receiver: draft.0?,
+                    role: draft.1?,
+                    name: draft.2,
+                    params: draft.3,
+                    body: draft.4,
+                })
+            }
+            ("forward", _) => {
+                let (mut name, mut prefix) = (None, None);
+                for (flag, value) in effect_flags(rest, &["-name", "-prefix"])? {
+                    if flag == "-name" {
+                        name = Some(slot(value)?);
+                    } else {
+                        prefix = Some(slot(value)?);
+                    }
+                }
+                Some(EffectDraft::Forward { name, prefix })
+            }
+            ("init-script", _) => {
+                let (mut body, mut timing) = (None, None);
+                for (flag, value) in effect_flags(rest, &["-body", "-timing"])? {
+                    if flag == "-body" {
+                        body = Some(slot(value)?);
+                    } else {
+                        timing = Some(InitTiming::from_spelling(value)?);
+                    }
+                }
+                Some(EffectDraft::InitScript {
+                    body,
+                    timing: timing?,
+                })
+            }
+            ("state-declaration", [scope]) => StateScope::from_spelling(scope)
+                .map(|scope| EffectDraft::Ready(MemberEffect::StateDeclaration { scope })),
+            ("relation", [slot]) => RelationSlot::from_spelling(slot)
+                .map(|slot| EffectDraft::Ready(MemberEffect::Relation { slot })),
+            ("visibility", []) => Some(EffectDraft::Ready(MemberEffect::Visibility)),
+            ("retraction", []) => Some(EffectDraft::Ready(MemberEffect::Retraction)),
+            ("configuration", []) => Some(EffectDraft::Ready(MemberEffect::Configuration)),
+            _ => None,
+        }
+    });
+    if draft.is_none() {
+        log.say(
+            line,
+            format!("unreadable member effect `{text}`; row dropped"),
+        );
+    }
+    draft
+}
+
+/// `-shift {?-receiver R? ?-visibility V?}` on a wrapper `member` row: the
+/// side and visibility the wrapped member takes.
+fn wrapper_shift(text: &str, line: u32, log: &mut Log) -> Option<WrapperShift> {
+    let words = list_words(text);
+    let shift = effect_flags(&words, &["-receiver", "-visibility"]).and_then(|flags| {
+        let mut shift = WrapperShift::NONE;
+        for (flag, value) in flags {
+            if flag == "-receiver" {
+                shift.receiver = Some(MemberReceiver::from_spelling(value)?);
+            } else {
+                shift.visibility = Some(DeclaredMemberVisibility::from_spelling(value)?);
+            }
+        }
+        Some(shift)
+    });
+    if shift.is_none() {
+        log.say(line, format!("unreadable wrapper shift `{text}` dropped"));
+    }
+    shift
+}
+
+/// The closed vocabularies of a `member` row's enum-valued flags.
+const MEMBER_REF_KINDS: &[MemberRefKind] = &[MemberRefKind::Class, MemberRefKind::Method];
+const MEMBER_KINDS: &[MemberKind] = &[MemberKind::Flat, MemberKind::Wrapper, MemberKind::FlagKeyed];
+const MEMBER_RETRACTIONS: &[MemberRetraction] = &[
+    MemberRetraction::EveryArgument,
+    MemberRetraction::FirstArgument,
+];
+const SLOT_OPS: &[SlotOp] = &[
+    SlotOp::Set,
+    SlotOp::Append,
+    SlotOp::AppendIfNew,
+    SlotOp::Prepend,
+    SlotOp::Remove,
+    SlotOp::Clear,
+];
+const MEMBER_VISIBILITIES: &[MemberVisibility] =
+    &[MemberVisibility::Exported, MemberVisibility::Unexported];
+
+fn member_row(stmt: &Stmt, log: &mut Log) -> Option<MemberSpec> {
     let mut member = MemberSpec {
         keyword: leak_str(stmt.word_text(1)),
         arg_roles: &[],
@@ -4132,31 +5288,33 @@ fn member_row(stmt: &Stmt, log: &mut Log) -> MemberSpec {
         retraction: None,
         slot: None,
         visibility_effect: None,
+        effect: MemberEffect::Configuration,
+        wrapper_shift: None,
     };
     let mut slot_op: Option<SlotOp> = None;
     let mut dedup = false;
+    let mut effect = EffectFlag::Missing;
     let words = &stmt.words;
     let mut i = 2;
     while i < words.len() {
         match words[i].text.as_str() {
+            "-effect" => {
+                let text = next_text(words, &mut i);
+                effect = member_effect(&text, stmt.line, log)
+                    .map_or(EffectFlag::Unreadable, EffectFlag::Read);
+            }
+            "-shift" => {
+                let text = next_text(words, &mut i);
+                member.wrapper_shift = wrapper_shift(&text, stmt.line, log);
+            }
             "-roles" => {
                 let text = next_text(words, &mut i);
                 member.arg_roles = leak_slice(member_arg_roles(&text, stmt.line, log));
             }
             "-all-vars" => member.all_args_var = true,
-            "-all-refs" => {
-                const REFS: &[MemberRefKind] = &[MemberRefKind::Class, MemberRefKind::Method];
+            flag @ ("-all-refs" | "-kind" | "-retracts" | "-visibility") => {
                 let name = next_text(words, &mut i);
-                member.all_args_ref =
-                    enum_by_name(REFS, &name, "member reference kind", stmt.line, log);
-            }
-            "-kind" => {
-                const KINDS: &[MemberKind] =
-                    &[MemberKind::Flat, MemberKind::Wrapper, MemberKind::FlagKeyed];
-                let name = next_text(words, &mut i);
-                if let Some(kind) = enum_by_name(KINDS, &name, "member kind", stmt.line, log) {
-                    member.kind = kind;
-                }
+                member_named_flag(&mut member, flag, &name, stmt.line, log);
             }
             "-block-body" => member.wrapper_block_body = true,
             "-dialects" => {
@@ -4175,35 +5333,11 @@ fn member_row(stmt: &Stmt, log: &mut Log) -> MemberSpec {
                     log,
                 );
             }
-            "-retracts" => {
-                const RETRACTIONS: &[MemberRetraction] = &[
-                    MemberRetraction::EveryArgument,
-                    MemberRetraction::FirstArgument,
-                ];
-                let name = next_text(words, &mut i);
-                member.retraction =
-                    enum_by_name(RETRACTIONS, &name, "member retraction", stmt.line, log);
-            }
             "-slot" => {
-                const OPS: &[SlotOp] = &[
-                    SlotOp::Set,
-                    SlotOp::Append,
-                    SlotOp::AppendIfNew,
-                    SlotOp::Prepend,
-                    SlotOp::Remove,
-                    SlotOp::Clear,
-                ];
                 let name = next_text(words, &mut i);
-                slot_op = enum_by_name(OPS, &name, "slot operation", stmt.line, log);
+                slot_op = enum_by_name(SLOT_OPS, &name, "slot operation", stmt.line, log);
             }
             "-dedup" => dedup = true,
-            "-visibility" => {
-                const VISIBILITIES: &[MemberVisibility] =
-                    &[MemberVisibility::Exported, MemberVisibility::Unexported];
-                let name = next_text(words, &mut i);
-                member.visibility_effect =
-                    enum_by_name(VISIBILITIES, &name, "member visibility", stmt.line, log);
-            }
             other => log.unknown_flag("member", stmt.line, other),
         }
         i += 1;
@@ -4211,7 +5345,84 @@ fn member_row(stmt: &Stmt, log: &mut Log) -> MemberSpec {
     if let Some(default_op) = slot_op {
         member.slot = Some(SlotSpec { default_op, dedup });
     }
-    member
+    finish_member_row(member, &effect, stmt.line, log)
+}
+
+/// A member row's flag whose value is one name from a closed list.
+fn member_named_flag(member: &mut MemberSpec, flag: &str, name: &str, line: u32, log: &mut Log) {
+    match flag {
+        "-all-refs" => {
+            member.all_args_ref =
+                enum_by_name(MEMBER_REF_KINDS, name, "member reference kind", line, log);
+        }
+        "-kind" => {
+            if let Some(kind) = enum_by_name(MEMBER_KINDS, name, "member kind", line, log) {
+                member.kind = kind;
+            }
+        }
+        "-retracts" => {
+            member.retraction =
+                enum_by_name(MEMBER_RETRACTIONS, name, "member retraction", line, log);
+        }
+        _ => {
+            member.visibility_effect =
+                enum_by_name(MEMBER_VISIBILITIES, name, "member visibility", line, log);
+        }
+    }
+}
+
+/// A member row's `-effect` as the row's flags left it.
+enum EffectFlag {
+    /// Not written.
+    Missing,
+    /// Written but unreadable, and already reported.
+    Unreadable,
+    /// Written and read, its slots not yet positioned.
+    Read(EffectDraft),
+}
+
+/// The checks a `member` row needs once every flag is read: a `-shift` only
+/// on a wrapper, and an `-effect` — required, since every member states what
+/// it declares — whose unwritten slots its `-roles` position.
+fn finish_member_row(
+    mut member: MemberSpec,
+    effect: &EffectFlag,
+    line: u32,
+    log: &mut Log,
+) -> Option<MemberSpec> {
+    if member.wrapper_shift.is_some() && member.kind != MemberKind::Wrapper {
+        log.say(
+            line,
+            format!(
+                "`-shift` on member `{}`, which is not a wrapper, ignored",
+                member.keyword
+            ),
+        );
+        member.wrapper_shift = None;
+    }
+    let draft = match effect {
+        EffectFlag::Read(draft) => *draft,
+        EffectFlag::Missing => {
+            log.say(
+                line,
+                format!("member `{}` has no `-effect`; row dropped", member.keyword),
+            );
+            return None;
+        }
+        EffectFlag::Unreadable => return None,
+    };
+    let Some(resolved) = draft.resolve(member.arg_roles) else {
+        log.say(
+            line,
+            format!(
+                "member `{}`'s `-effect` names a slot its `-roles` do not position; row dropped",
+                member.keyword
+            ),
+        );
+        return None;
+    };
+    member.effect = resolved;
+    Some(member)
 }
 
 fn builtin_object_method_row(stmt: &Stmt, log: &mut Log) -> BuiltinObjectMethod {
@@ -4297,16 +5508,26 @@ fn manufacturer_row(stmt: &Stmt, log: &mut Log) -> ManufacturerMethod {
     method
 }
 
-/// The shipped definer grammars a pack may name.
+/// The shipped definer grammars a pack may name — `definition_body NAME` —
+/// with the name each is written under. The studio seeds a grammar whose data
+/// is one of these as its name, so the list is the one both sides read.
+pub const SHIPPED_DEFINITION_BODIES: &[(&str, &DefinitionBodyGrammar)] = &[
+    ("tcloo", &tcl_registry::definer::TCLOO_GRAMMAR),
+    (
+        "tcloo-configurable",
+        &tcl_registry::definer::TCLOO_CONFIGURABLE_GRAMMAR,
+    ),
+    ("snit", &tcl_registry::definer::SNIT_GRAMMAR),
+    ("snit-widget", &tcl_registry::definer::SNIT_WIDGET_GRAMMAR),
+    ("itcl", &tcl_registry::definer::ITCL_GRAMMAR),
+];
+
+/// The shipped definer grammar `name` names.
 fn shipped_definition_body(name: &str) -> Option<&'static DefinitionBodyGrammar> {
-    match name {
-        "tcloo" => Some(&tcl_registry::definer::TCLOO_GRAMMAR),
-        "tcloo-configurable" => Some(&tcl_registry::definer::TCLOO_CONFIGURABLE_GRAMMAR),
-        "snit" => Some(&tcl_registry::definer::SNIT_GRAMMAR),
-        "snit-widget" => Some(&tcl_registry::definer::SNIT_WIDGET_GRAMMAR),
-        "itcl" => Some(&tcl_registry::definer::ITCL_GRAMMAR),
-        _ => None,
-    }
+    SHIPPED_DEFINITION_BODIES
+        .iter()
+        .find(|(shipped, _)| *shipped == name)
+        .map(|(_, grammar)| *grammar)
 }
 
 /// The shipped case-list descriptors a pack may name.
@@ -4677,6 +5898,9 @@ fn scoped_command_row(
 struct CommandAcc {
     args: ArgRows,
     arity_windows: Vec<ArityWindow>,
+    codegen_hook_windows: Vec<StampWindow<CodegenHookId>>,
+    inline_codegen_hook_windows: Vec<StampWindow<InlineCodegenHookId>>,
+    semantic_operation_windows: Vec<StampWindow<SemanticOperationId>>,
     options: Vec<OptionSpec>,
     forms: Vec<FormSpec>,
     refinements: Vec<CommandForm>,
@@ -4685,13 +5909,17 @@ struct CommandAcc {
     manufacturers: Vec<ManufacturerMethod>,
     repeats: Vec<tcl_registry::repeated::RepeatedArgLayout>,
     option_relations: Vec<tcl_registry::spec::OptionRelation>,
+    option_effect_families: Vec<OptionEffectFamily>,
     versioned_arg_values: Vec<tcl_registry::spec::VersionedArgValue>,
     setter_constraints: Vec<tcl_registry::taint::SetterConstraint>,
     oo_context_facts: Vec<(&'static str, tcl_registry::spec::OoContextFact)>,
     callback_taint_inputs: Vec<(u8, &'static [CallbackTaintInput])>,
     event_requirement_forms: Vec<EventRequirementForm>,
     hooks: Vec<HookDecl>,
-    clause_grammar: Option<ClauseGrammar>,
+    clause_grammar: Option<&'static ClauseGrammarSpec>,
+    /// The line of the `clause_grammar` row `clause_grammar` came from.
+    clause_grammar_line: u32,
+    declarations: semantics::Declarations,
 }
 
 /// Build one command: defaults, the body (delivered by `fill` from the
@@ -4735,42 +5963,34 @@ fn command_from_parts(
         }
 
         let mut acc = CommandAcc::default();
+        let outer_command = std::mem::replace(&mut log.command, name.to_owned());
         fill(&mut spec, &mut acc, log);
+        log.command = outer_command;
+        acc.declarations.report_orphan_option_flags(log);
 
-        // A `clause_grammar` derives BOTH hook behaviours; the pack still
-        // declares STRUCTURALLY_CHECKED_ARITY and the loader warns if it does
-        // not.
-        if let Some(grammar) = &acc.clause_grammar {
-            spec.arg_role_resolver = Some(abstain_arg_roles);
-            spec.clause_shape_check = Some(accept_clause_shape);
-            for field in ["arg_role_resolver", "clause_shape_check"] {
-                acc.hooks.push(HookDecl {
-                    owner: HookOwner::Command,
-                    field,
-                    family: if field == "arg_role_resolver" {
-                        HookFamily::ArgRoleResolver
-                    } else {
-                        HookFamily::ClauseShapeCheck
-                    },
-                    source: HookSource::Derived {
-                        keyword: "clause_grammar".to_owned(),
-                    },
-                });
-            }
-            if !spec.traits.contains(Traits::STRUCTURALLY_CHECKED_ARITY) {
-                log.say(
-                    line,
-                    "a `clause_grammar` command should also declare the \
-                     STRUCTURALLY_CHECKED_ARITY trait",
-                );
-            }
-            if grammar.head.is_empty() {
-                log.say(line, "a `clause_grammar` needs a `head` clause");
-            }
+        // A `clause_grammar` derives BOTH hook behaviours: the registry walks
+        // the descriptor the spec carries, so no placeholder is installed and
+        // the derivation is recorded for what it is.
+        if let Some(grammar) = acc.clause_grammar {
+            spec.clause_grammar = Some(grammar);
+            record_clause_grammar_derivations(
+                &mut acc.hooks,
+                &HookOwner::Command,
+                acc.clause_grammar_line,
+            );
+            check_clause_grammar(grammar, line, log);
         }
+        derive_transitions_from_frame_effect(
+            &mut spec,
+            &mut acc.subcommands,
+            &acc.hooks,
+            line,
+            log,
+        );
 
         validate_arg_role_capabilities(
             spec.arg_role_resolver.is_some(),
+            spec.clause_grammar.is_some(),
             spec.arg_role_resolver_roles,
             "command",
             line,
@@ -4795,7 +6015,34 @@ fn command_from_parts(
         spec.command_prefixes = leak_slice(args.prefixes);
         spec.callback_taint_inputs = leak_slice(callback_taint_inputs);
         spec.arity_windows = checked_arity_windows(acc.arity_windows, "command", line, log);
-        spec.options = leak_slice(acc.options);
+        spec.codegen_hook_windows = checked_stamp_windows(
+            acc.codegen_hook_windows,
+            "command",
+            "codegen_hook",
+            line,
+            log,
+        );
+        spec.inline_codegen_hook_windows = checked_stamp_windows(
+            acc.inline_codegen_hook_windows,
+            "command",
+            "inline_codegen_hook",
+            line,
+            log,
+        );
+        spec.semantic_operation_windows = checked_stamp_windows(
+            acc.semantic_operation_windows,
+            "command",
+            "semantic_operation",
+            line,
+            log,
+        );
+        spec.options = checked_option_effect_families(
+            acc.options,
+            &acc.option_effect_families,
+            "command",
+            line,
+            log,
+        );
         spec.command_forms = leak_slice(acc.refinements);
         spec.forms = leak_slice(acc.forms);
         spec.side_effects = leak_slice(acc.side_effects);
@@ -4803,6 +6050,7 @@ fn command_from_parts(
         spec.manufacturer_methods = leak_slice(acc.manufacturers);
         spec.repeated_args = leak_slice(acc.repeats);
         spec.option_relations = leak_slice(acc.option_relations);
+        spec.option_effect_families = leak_slice(acc.option_effect_families);
         spec.versioned_arg_values = leak_slice(acc.versioned_arg_values);
         spec.setter_constraints = leak_slice(acc.setter_constraints);
         spec.oo_context_facts = leak_slice(acc.oo_context_facts);
@@ -4842,6 +6090,11 @@ fn command_from_parts(
             degraded: log.assistance_unknown,
             line,
             file: std::path::PathBuf::new(),
+            // Set for every command once the whole evaluation is known
+            // (`evaluate_pack_in`), which is the only place the bytes are.
+            content_hash: 0,
+            dependency_tier: None,
+            reference_text: None,
         })
     })
 }
@@ -5031,6 +6284,49 @@ fn hook_source(stmt: &Stmt) -> Option<HookSource> {
     }
 }
 
+/// A `const_fold -native ID` or `const_fold_versioned -native ID` resolved
+/// against the shipped folders' table (`tcl_registry::pack_hooks`'s
+/// `CONST_FOLD_NATIVE` / `CONST_FOLD_VERSIONED_NATIVE`), keyed by
+/// `SCOPE::FIELD` (`string::range::const_fold`): the named folder, or `None`
+/// with a load notice for an id that is not this scope's full id or that
+/// names nothing this build ships, and the abstaining placeholder stays. The
+/// other hook families' tables hold nothing a build ships yet, so their
+/// `-native` statements install nothing and are not looked up.
+fn native_fold<T: Copy>(
+    scope: &str,
+    field: &str,
+    id: &str,
+    table: &[(&'static str, T)],
+    line: u32,
+    log: &mut Log,
+) -> Option<T> {
+    let full = format!("{scope}::{field}");
+    if id != full {
+        log.say(
+            line,
+            format!(
+                "`{field} -native {id}` is not this scope's id; spell it `{full}` — the \
+                 statement installs nothing"
+            ),
+        );
+        return None;
+    }
+    let found = table
+        .iter()
+        .find(|(key, _)| *key == full)
+        .map(|(_, value)| *value);
+    if found.is_none() {
+        log.say(
+            line,
+            format!(
+                "`{field} -native {id}` names nothing this build ships; the statement installs \
+                 nothing"
+            ),
+        );
+    }
+    found
+}
+
 #[allow(clippy::too_many_lines)]
 fn apply_command_stmt(
     spec: &mut CommandSpec,
@@ -5139,6 +6435,20 @@ fn apply_command_stmt(
         "deprecated_replacement_drop_in" => {
             spec.deprecated_replacement_drop_in = parse_flag(stmt.tail());
         }
+        "alias_of" => spec.alias_of = Some(leak_str(&value)),
+        // How the command's behaviour reaches the runtime. A declaration that
+        // does not read is dropped, which claims nothing: the default is
+        // `none`, "nothing executes it".
+        "runtime_backing" => {
+            let words: Vec<String> = stmt.tail().iter().map(|word| word.text.clone()).collect();
+            match BackingSyntax::parse(&words) {
+                Ok(syntax) => spec.runtime_backing = syntax.leak(),
+                Err(why) => log.say(
+                    stmt.line,
+                    format!("unreadable `runtime_backing` dropped: {why}"),
+                ),
+            }
+        }
         "xc_translatable" => {
             spec.xc_translatable = parse_tristate(&value);
             if spec.xc_translatable.is_none() {
@@ -5168,7 +6478,7 @@ fn apply_command_stmt(
         "allow_unknown_subcommands" => {
             spec.allow_unknown_subcommands = parse_flag(stmt.tail());
         }
-        // §6.2's honesty escape hatch (review B6): a provider whose member
+        // §6.2's honesty escape hatch: a provider whose member
         // set is runtime-extensible declares so instead of pretending
         // closure. Two ratified spellings, one fact — on a command the
         // fact is the existing open-subcommand-table flag; the
@@ -5270,9 +6580,21 @@ fn apply_command_stmt(
         "form" => acc.forms.push(form_row(stmt, log)),
         "refine" => {
             log.v20(stmt.line, "refine");
-            if let Some(form) = load_refinement(stmt, tables, log) {
+            if let Some(form) = load_refinement(stmt, tables, spec.name, log) {
                 acc.refinements.push(form);
             }
+        }
+
+        // Value transfers (vocabulary 2.2).
+        "semantics" | "evaluate" | "facts" => {
+            let scope = semantics::Scope {
+                path: spec.name,
+                binds_bodies: true,
+            };
+            acc.declarations.read(stmt, &scope, log);
+            let (declaration, body) = acc.declarations.declaration(&scope);
+            spec.semantics = declaration;
+            semantics::rebind(&mut acc.hooks, &HookOwner::Command, body);
         }
 
         // Effects.
@@ -5293,7 +6615,20 @@ fn apply_command_stmt(
         "frame_effect" => spec.frame_effect = frame_effect_row(stmt, log),
         "world_effects" => spec.world_effects = world_effects_value(stmt, tables, log),
         "state_transitions" => {
-            spec.state_transitions = state_transitions_value(stmt, tables, log);
+            let scope = log.command.clone();
+            spec.state_transitions =
+                state_transitions_value(stmt, tables, &scope, log).map(|(descriptor, source)| {
+                    if let Some((source, line)) = source {
+                        acc.hooks.push(HookDecl {
+                            owner: HookOwner::Command,
+                            field: HookFamily::StateTransitionResolver.field(),
+                            family: HookFamily::StateTransitionResolver,
+                            source,
+                            line,
+                        });
+                    }
+                    descriptor
+                });
         }
         // The ratified words (design §6.2, §6.3's blind spot).
         "result_stability" => {
@@ -5390,7 +6725,19 @@ fn apply_command_stmt(
 
         // Options.
         "option" => {
-            let (option, hook) = option_row(stmt, tables, log);
+            let (row, evaluation) = semantics::option_flags(stmt, log);
+            let (option, hook) = option_row(&row, tables, log);
+            if let Some(evaluation) = evaluation {
+                acc.declarations
+                    .decline_option(&option, evaluation, stmt.line, log);
+                let scope = semantics::Scope {
+                    path: spec.name,
+                    binds_bodies: true,
+                };
+                let (declaration, body) = acc.declarations.declaration(&scope);
+                spec.semantics = declaration;
+                semantics::rebind(&mut acc.hooks, &HookOwner::Command, body);
+            }
             if let Some((source, option_name)) = hook {
                 acc.hooks.push(HookDecl {
                     owner: HookOwner::Option {
@@ -5400,9 +6747,16 @@ fn apply_command_stmt(
                     field: "options.arity_hook",
                     family: HookFamily::OptionArity,
                     source,
+                    line: stmt.line,
                 });
             }
             acc.options.push(option);
+        }
+        // The families an option row's own `-effect`/`-family` cite by name.
+        "option_effect_family" => {
+            if let Some(family) = option_effect_family_row(stmt, log) {
+                acc.option_effect_families.push(family);
+            }
         }
         // The four E-R14 option-relation statements, one shared row parser.
         // `option_conflict` is the 1.x spelling and keeps its exact shape; the
@@ -5440,9 +6794,8 @@ fn apply_command_stmt(
         "definition_body" => spec.definition_body = definition_body_value(stmt, tables, log),
         "manufacturer" => acc.manufacturers.push(manufacturer_row(stmt, log)),
         "clause_grammar" => {
-            if let Some(word) = stmt.arg(1) {
-                acc.clause_grammar = Some(clause_grammar_block(&block(word), log));
-            }
+            acc.clause_grammar = clause_grammar_value(stmt, log);
+            acc.clause_grammar_line = stmt.line;
         }
         "binds_handle" => {
             spec.binds_handle = parse_handle_binding(&value, stmt.line, log).map(leak_one);
@@ -5476,25 +6829,41 @@ fn apply_command_stmt(
                 );
             }
         }
+        // A codegen-axis stamp is read as written; whether it survives is
+        // the stamp rejection rule's call, made on the merged command at its
+        // provenance (`crate::stamps`), which reports a refusal on this row.
         "codegen_hook" => {
-            spec.codegen_hook = native_id(stmt, CODEGEN_HOOKS, "codegen hook", log);
-            if spec.codegen_hook.is_some() {
-                log.say(
-                    stmt.line,
-                    "names a codegen hook: this changes how the compiler translates \
-                     the command, not just what the editor knows about it",
-                );
-            }
+            let gate = stamp_gate(stmt, 3, "codegen hook", log);
+            let id = native_id(stmt, CODEGEN_HOOKS, "codegen hook", log);
+            place_stamp(
+                id,
+                gate,
+                &mut spec.codegen_hook,
+                &mut acc.codegen_hook_windows,
+            );
         }
         "inline_codegen_hook" => {
-            spec.inline_codegen_hook =
-                native_id(stmt, INLINE_CODEGEN_HOOKS, "inline codegen hook", log);
+            let gate = stamp_gate(stmt, 3, "inline codegen hook", log);
+            let id = native_id(stmt, INLINE_CODEGEN_HOOKS, "inline codegen hook", log);
+            place_stamp(
+                id,
+                gate,
+                &mut spec.inline_codegen_hook,
+                &mut acc.inline_codegen_hook_windows,
+            );
         }
         "analyser_hook" => {
             spec.analyser_hook = native_id(stmt, ANALYSER_HOOKS, "analyser hook", log);
         }
         "semantic_operation" => {
-            spec.semantic_operation = parse_semantic_operation(&value, stmt.line, log);
+            let gate = stamp_gate(stmt, 2, "semantic operation", log);
+            let operation = parse_semantic_operation(&value, stmt.line, log);
+            place_stamp(
+                operation,
+                gate,
+                &mut spec.semantic_operation,
+                &mut acc.semantic_operation_windows,
+            );
         }
 
         // Tcl-body hooks.
@@ -5532,11 +6901,33 @@ fn apply_command_stmt(
                     ("script_timing_resolver", HookFamily::ScriptTimingResolver)
                 }
                 "const_fold" => {
-                    spec.const_fold = Some(abstain_const_fold);
+                    spec.const_fold = Some(match &source {
+                        HookSource::Native { id } => native_fold(
+                            &log.command.clone(),
+                            "const_fold",
+                            id,
+                            tcl_registry::pack_hooks::CONST_FOLD_NATIVE,
+                            stmt.line,
+                            log,
+                        )
+                        .unwrap_or(abstain_const_fold),
+                        _ => abstain_const_fold,
+                    });
                     ("const_fold", HookFamily::ConstFold)
                 }
                 "const_fold_versioned" => {
-                    spec.const_fold_versioned = Some(abstain_const_fold_versioned);
+                    spec.const_fold_versioned = Some(match &source {
+                        HookSource::Native { id } => native_fold(
+                            &log.command.clone(),
+                            "const_fold_versioned",
+                            id,
+                            tcl_registry::pack_hooks::CONST_FOLD_VERSIONED_NATIVE,
+                            stmt.line,
+                            log,
+                        )
+                        .unwrap_or(abstain_const_fold_versioned),
+                        _ => abstain_const_fold_versioned,
+                    });
                     ("const_fold_versioned", HookFamily::ConstFoldVersioned)
                 }
                 "taint_sink_gate" => {
@@ -5571,6 +6962,7 @@ fn apply_command_stmt(
                 field,
                 family,
                 source,
+                line: stmt.line,
             });
         }
 
@@ -5617,14 +7009,20 @@ fn arg_role_capabilities(text: &str, line: u32, log: &mut Log) -> &'static [ArgR
     if valid { leak_slice(roles) } else { &[] }
 }
 
+/// A resolver must state its closed capability set; a capability set must
+/// describe a role source. A clause grammar is one — its declared set is the
+/// closed set its walk emits — but needs none, since the registry reads the
+/// grammar's own slots when a call cannot be walked.
 fn validate_arg_role_capabilities(
     has_resolver: bool,
+    has_grammar: bool,
     roles: &[ArgRole],
     owner: &str,
     line: u32,
     log: &mut Log,
 ) {
     match (has_resolver, roles.is_empty()) {
+        (false, false) if has_grammar => {}
         (true, true) => log.say_classified(
             line,
             VocabularyClass::Assistance,
@@ -6052,24 +7450,53 @@ fn world_effects_value(
 }
 
 /// `state_transitions NAME | { … }`.
+/// `state_transitions NAME|{ … }` — a [`StateTransitionDescriptor`], and,
+/// when its `resolver` row names one, where the resolver comes from: a body
+/// the hook host binds, a shipped native by `SCOPE::state_transitions.resolver`
+/// id, or `from-frame-effect`, which the owning command derives once its
+/// `frame_effect` is read ([`derive_transitions_from_frame_effect`]).
+///
+/// The rows are the descriptor's own fields: `composition Extend|Replace`,
+/// `argument_shape Independent|Positional`, `resolver none |
+/// from-frame-effect | -native ID | ?-inputs {…}? {words ctx} {BODY}`,
+/// `widen -operands L -domains {D …}` and `covers SOURCE -domains {D …}`
+/// (both repeatable), and `commit OnOkOnly|MayCommitBeforeAbruptCompletion`.
+/// A resolver body emits `alias LOCAL TARGET ?-level LEVEL?` and
+/// `namespace-variable NAME` and nothing else, so a pack states variable-cell
+/// alias facts only (`docs/design/compiler/registry-consumer-contracts.md`
+/// § *The two hook bodies that remain*). A row this build cannot read is
+/// dropped with a notice. The hook source comes back with its `resolver`
+/// row's line.
 fn state_transitions_value(
     stmt: &Stmt,
     tables: &PackTables,
+    scope: &str,
     log: &mut Log,
-) -> Option<tcl_registry::state_transition::StateTransitionDescriptor> {
+) -> Option<(StateTransitionDescriptor, Option<(HookSource, u32)>)> {
+    const COMPOSITIONS: &[StateTransitionComposition] = &[
+        StateTransitionComposition::Replace,
+        StateTransitionComposition::Extend,
+    ];
+    const ARGUMENT_SHAPES: &[StateTransitionArgumentShape] = &[
+        StateTransitionArgumentShape::Independent,
+        StateTransitionArgumentShape::Positional,
+    ];
+    const COMMITS: &[StateTransitionCommit] = &[
+        StateTransitionCommit::OnOkOnly,
+        StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+    ];
     let stmts = resolve_block(stmt, "state_transitions", tables, log)?;
-    let mut descriptor = tcl_registry::state_transition::StateTransitionDescriptor::EMPTY;
+    let mut descriptor = StateTransitionDescriptor::EMPTY;
+    let mut resolver = None;
+    let mut widening = Vec::new();
+    let mut coverage = Vec::new();
     for stmt in &stmts {
+        let word = stmt.word_text(1);
         match stmt.word_text(0) {
             "composition" => {
-                const COMPOSITIONS:
-                    &[tcl_registry::state_transition::StateTransitionComposition] = &[
-                    tcl_registry::state_transition::StateTransitionComposition::Replace,
-                    tcl_registry::state_transition::StateTransitionComposition::Extend,
-                ];
                 if let Some(composition) = enum_by_name(
                     COMPOSITIONS,
-                    stmt.word_text(1),
+                    word,
                     "state-transition composition",
                     stmt.line,
                     log,
@@ -6077,16 +7504,304 @@ fn state_transitions_value(
                     descriptor.composition = composition;
                 }
             }
-            // `argument_shape`, `resolver`, `widen`, `covers`, and `commit`
-            // name typed transition facts; the resolver in particular is
-            // reference-only by design.
+            "argument_shape" => {
+                if let Some(shape) = enum_by_name(
+                    ARGUMENT_SHAPES,
+                    word,
+                    "state-transition argument shape",
+                    stmt.line,
+                    log,
+                ) {
+                    descriptor.argument_shape = shape;
+                }
+            }
+            "commit" => {
+                if let Some(commit) =
+                    enum_by_name(COMMITS, word, "state-transition commit", stmt.line, log)
+                {
+                    descriptor.commit = commit;
+                }
+            }
+            "resolver" => {
+                let source;
+                (descriptor.resolver, source) = transition_resolver_row(stmt, scope, log);
+                resolver = source.map(|source| (source, stmt.line));
+            }
+            "widen" => widening.extend(widening_row(stmt, log)),
+            "covers" => coverage.extend(coverage_row(stmt, log)),
             other => log.say(
                 stmt.line,
-                format!("`state_transitions` row `{other}` is not yet loadable; dropped"),
+                format!("unknown `state_transitions` row `{other}` dropped"),
             ),
         }
     }
+    descriptor.dynamic_widening = leak_slice(widening);
+    descriptor.effect_coverage = leak_slice(coverage);
+    Some((descriptor, resolver))
+}
+
+/// A `resolver` row: the resolver the descriptor carries now, and the hook
+/// source to record — `none` records nothing, a body carries the abstaining
+/// placeholder until the host binds it, `-native ID` the shipped resolver the
+/// id names, and `from-frame-effect` nothing until the command is sealed.
+fn transition_resolver_row(
+    stmt: &Stmt,
+    scope: &str,
+    log: &mut Log,
+) -> (Option<StateTransitionResolver>, Option<HookSource>) {
+    let Some(source) = hook_source(stmt) else {
+        log.say(stmt.line, "unreadable `state_transitions` resolver dropped");
+        return (None, None);
+    };
+    match &source {
+        HookSource::Derived { keyword } if keyword == "none" => (None, None),
+        HookSource::Derived { keyword } if keyword == FROM_FRAME_EFFECT => (None, Some(source)),
+        HookSource::Derived { keyword } => {
+            log.say(
+                stmt.line,
+                format!("unknown `state_transitions` resolver derivation `{keyword}` dropped"),
+            );
+            (None, None)
+        }
+        HookSource::Native { id } => (
+            native_fold(
+                scope,
+                HookFamily::StateTransitionResolver.field(),
+                id,
+                tcl_registry::pack_hooks::STATE_TRANSITION_RESOLVER_NATIVE,
+                stmt.line,
+                log,
+            ),
+            Some(source),
+        ),
+        HookSource::Body { .. } => (Some(abstain_state_transitions), Some(source)),
+    }
+}
+
+/// The derivation keyword a `state_transitions` resolver may name.
+const FROM_FRAME_EFFECT: &str = "from-frame-effect";
+
+/// `widen -operands L -domains {D …}` — the argument positions whose computed
+/// words widen the named domains. `L` is `EveryArgument`, `{Indices N …}` or
+/// `{Strided FIRST STRIDE}`.
+fn widening_row(stmt: &Stmt, log: &mut Log) -> Option<StateTransitionWideningRule> {
+    let mut operands = None;
+    let mut domains = None;
+    let words = &stmt.words;
+    let mut i = 1;
+    while i < words.len() {
+        match words[i].text.as_str() {
+            "-operands" => operands = operand_layout(&next_text(words, &mut i), stmt.line, log),
+            "-domains" => {
+                domains = named_list(
+                    &next_text(words, &mut i),
+                    StateTransitionDomain::ALL,
+                    "state-transition domain",
+                    stmt.line,
+                    log,
+                );
+            }
+            other => log.unknown_flag("widen", stmt.line, other),
+        }
+        i += 1;
+    }
+    let (Some(operands), Some(domains)) = (operands, domains) else {
+        log.say(
+            stmt.line,
+            "a `widen` row needs `-operands` and `-domains`; row dropped",
+        );
+        return None;
+    };
+    Some(StateTransitionWideningRule { operands, domains })
+}
+
+fn operand_layout(text: &str, line: u32, log: &mut Log) -> Option<StateTransitionOperandLayout> {
+    let words = list_words(text);
+    let numbers: Option<Vec<u8>> = words.iter().skip(1).map(|word| word.parse().ok()).collect();
+    let layout = match (words.first().map(String::as_str), numbers.as_deref()) {
+        (Some("EveryArgument"), Some([])) => Some(StateTransitionOperandLayout::EveryArgument),
+        (Some("Indices"), Some(indices)) if !indices.is_empty() => Some(
+            StateTransitionOperandLayout::Indices(leak_slice(indices.to_vec())),
+        ),
+        (Some("Strided"), Some(&[first, stride])) => {
+            Some(StateTransitionOperandLayout::Strided { first, stride })
+        }
+        _ => None,
+    };
+    if layout.is_none() {
+        log.say(line, format!("unreadable operand layout `{text}` dropped"));
+    }
+    layout
+}
+
+/// `covers SOURCE -domains {D …}` — the world-effect writes the transitions
+/// are authoritative for. `SOURCE` is `LegacyCommandTable`, `LegacyFrame`,
+/// `DeclaredWorldEffect` or `{LegacySideEffect TARGET}`; a domain is a
+/// `WorldStateDomain` name or `{LegacyExternal TARGET}`.
+fn coverage_row(stmt: &Stmt, log: &mut Log) -> Option<TransitionEffectCoverage> {
+    let source = write_source(stmt.word_text(1));
+    let mut domains = None;
+    let words = &stmt.words;
+    let mut i = 2;
+    while i < words.len() {
+        match words[i].text.as_str() {
+            "-domains" => {
+                let text = next_text(words, &mut i);
+                domains = list_words(&text)
+                    .iter()
+                    .map(|element| world_state_domain(element))
+                    .collect::<Option<Vec<_>>>()
+                    .map(leak_slice);
+                if domains.is_none() {
+                    log.say(
+                        stmt.line,
+                        format!("unreadable world-state domain in `{text}`"),
+                    );
+                }
+            }
+            other => log.unknown_flag("covers", stmt.line, other),
+        }
+        i += 1;
+    }
+    let (Some(source), Some(domains)) = (source, domains) else {
+        log.say(
+            stmt.line,
+            "a `covers` row needs a write source and `-domains`; row dropped",
+        );
+        return None;
+    };
+    Some(TransitionEffectCoverage { source, domains })
+}
+
+fn write_source(text: &str) -> Option<WorldEffectWriteSource> {
+    let words = list_words(text);
+    match words
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        ["LegacyCommandTable"] => Some(WorldEffectWriteSource::LegacyCommandTable),
+        ["LegacyFrame"] => Some(WorldEffectWriteSource::LegacyFrame),
+        ["DeclaredWorldEffect"] => Some(WorldEffectWriteSource::DeclaredWorldEffect),
+        ["LegacySideEffect", target] => {
+            by_name(SideEffectTarget::ALL, target).map(WorldEffectWriteSource::LegacySideEffect)
+        }
+        _ => None,
+    }
+}
+
+fn world_state_domain(text: &str) -> Option<WorldStateDomain> {
+    const DOMAINS: &[WorldStateDomain] = &[
+        WorldStateDomain::InterpreterTopology,
+        WorldStateDomain::CommandBindings,
+        WorldStateDomain::NamespaceLookup,
+        WorldStateDomain::NamespaceUnknown,
+        WorldStateDomain::ExecutionTraces,
+        WorldStateDomain::VariableTraces,
+        WorldStateDomain::CommandTraces,
+        WorldStateDomain::OoDispatch,
+        WorldStateDomain::InterpreterPolicy,
+        WorldStateDomain::PackageState,
+        WorldStateDomain::HostCapabilities,
+        WorldStateDomain::VariableStore,
+    ];
+    match text.split_whitespace().collect::<Vec<_>>().as_slice() {
+        [name] => by_name(DOMAINS, name),
+        ["LegacyExternal", target] => {
+            by_name(SideEffectTarget::ALL, target).map(WorldStateDomain::LegacyExternal)
+        }
+        _ => None,
+    }
+}
+
+/// A braced list of catalogue names, every one read or the list dropped with
+/// a notice — a partial list would state a narrower fact than the author
+/// wrote.
+fn named_list<T: Copy + fmt::Debug>(
+    text: &str,
+    all: &[T],
+    what: &str,
+    line: u32,
+    log: &mut Log,
+) -> Option<&'static [T]> {
+    let names = list_words(text);
+    let read: Option<Vec<T>> = names.iter().map(|name| by_name(all, name)).collect();
+    match read {
+        Some(read) if !read.is_empty() => Some(leak_slice(read)),
+        _ => {
+            log.say(line, format!("unreadable {what} list `{text}` dropped"));
+            None
+        }
+    }
+}
+
+/// A form's `state_transitions` block. A form binds no hook body and has no
+/// frame effect of its own, so its resolver may be `none` or `-native ID`;
+/// a body or a derivation is reported and the descriptor keeps no resolver.
+fn form_state_transitions(
+    stmt: &Stmt,
+    tables: &PackTables,
+    path: &str,
+    log: &mut Log,
+) -> Option<StateTransitionDescriptor> {
+    let (mut descriptor, source) = state_transitions_value(stmt, tables, path, log)?;
+    if matches!(
+        source,
+        Some((HookSource::Body { .. } | HookSource::Derived { .. }, _))
+    ) {
+        log.say(
+            stmt.line,
+            "a form's `state_transitions` resolver is not bound: only `none` and `-native ID` \
+             read at form scope; the descriptor keeps no resolver",
+        );
+        descriptor.resolver = None;
+    }
     Some(descriptor)
+}
+
+/// Install the resolver each `resolver from-frame-effect` of this command —
+/// its own, or a subcommand's — derives from the command's `frame_effect`:
+/// the alias pairs an `AliasPairs` layout states, located by its level-word
+/// policy ([`tcl_registry::state_transition::alias_pairs_resolver`], which
+/// carries the README's two abstentions). Run at the seal, because the
+/// `frame_effect` may follow the block that names it. A command with no
+/// `frame_effect`, or another layout, has nothing to derive; the descriptor
+/// keeps no resolver.
+fn derive_transitions_from_frame_effect(
+    spec: &mut CommandSpec,
+    subcommands: &mut [SubCommand],
+    hooks: &[HookDecl],
+    line: u32,
+    log: &mut Log,
+) {
+    let derived = spec
+        .frame_effect
+        .filter(|frame| frame.layout == tcl_registry::frame_effect::FrameArgLayout::AliasPairs)
+        .map(|frame| tcl_registry::state_transition::alias_pairs_resolver(frame.level_word));
+    for hook in hooks.iter().filter(|hook| {
+        hook.family == HookFamily::StateTransitionResolver
+            && matches!(&hook.source, HookSource::Derived { keyword } if keyword == FROM_FRAME_EFFECT)
+    }) {
+        if derived.is_none() {
+            log.say(
+                line,
+                "`resolver from-frame-effect` needs the command's `frame_effect -layout \
+                 AliasPairs`; the descriptor keeps no resolver",
+            );
+        }
+        let descriptor = match &hook.owner {
+            HookOwner::Command => spec.state_transitions.as_mut(),
+            HookOwner::Subcommand(name) => subcommands
+                .iter_mut()
+                .find(|sub| sub.name == name)
+                .and_then(|sub| sub.state_transitions.as_mut()),
+            HookOwner::Option { .. } => None,
+        };
+        if let Some(descriptor) = descriptor {
+            descriptor.resolver = derived;
+        }
+    }
 }
 
 // `refine` — invocation refinement (2.0, design Q12/D2)
@@ -6101,6 +7816,7 @@ struct RefineAcc {
     /// `side_effects none` — declaring the parent's effects away is not the
     /// same as saying nothing, so the empty slice needs a spelling of its own.
     silenced_side_effects: bool,
+    declarations: semantics::Declarations,
 }
 
 /// Read a `refine NAME { … }` block into the invocation form it describes.
@@ -6110,11 +7826,17 @@ struct RefineAcc {
 /// row and an empty one different declarations — no `traits` row inherits the
 /// parent's traits, while `traits {}` replaces them with none, which is how a
 /// read form drops a mutation trait its conservative parent has to carry.
-fn load_refinement(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<CommandForm> {
+fn load_refinement(
+    stmt: &Stmt,
+    tables: &PackTables,
+    parent: &str,
+    log: &mut Log,
+) -> Option<CommandForm> {
     let name = stmt.word_text(1).to_owned();
     let body = stmt.arg(2)?;
     let line = stmt.line;
     let outer = log.context.clone();
+    let path = format!("{parent}::{name}");
     log.scoped(format!("{outer} / refine {name}"), |log| {
         let mut form = CommandForm {
             name: leak_str(&name),
@@ -6122,8 +7844,9 @@ fn load_refinement(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<Co
         };
         let mut acc = RefineAcc::default();
         for stmt in block(body) {
-            apply_refine_stmt(&mut form, &mut acc, &stmt, tables, log);
+            apply_refine_stmt(&mut form, &mut acc, &stmt, tables, &path, log);
         }
+        acc.declarations.report_orphan_option_flags(log);
         let args = acc.args.seal();
         if !args.types.is_empty()
             || !args.values.is_empty()
@@ -6161,11 +7884,24 @@ fn apply_refine_stmt(
     acc: &mut RefineAcc,
     stmt: &Stmt,
     tables: &PackTables,
+    path: &str,
     log: &mut Log,
 ) {
     let key = stmt.word_text(0).to_owned();
     let value = stmt.word_text(1).to_owned();
+    // A form's hook bodies are not bound (they bind at command and
+    // subcommand scope), so its `evaluate -implementation` is reported and
+    // dropped, and no hook is recorded here.
+    let scope = semantics::Scope {
+        path,
+        binds_bodies: false,
+    };
     match key.as_str() {
+        // Value transfers (vocabulary 2.2).
+        "semantics" | "evaluate" | "facts" => {
+            acc.declarations.read(stmt, &scope, log);
+            form.semantics = acc.declarations.declaration(&scope).0;
+        }
         "arity" => match parse_arity(stmt, log) {
             (arity, None) => form.arity = arity,
             (arity, Some(_)) => {
@@ -6180,7 +7916,13 @@ fn apply_refine_stmt(
         "selector" => form.literal_argument_prefix = selector_row(stmt, log),
         "arg" => acc.args.apply(stmt, tables, log),
         "option" => {
-            let (option, hook) = option_row(stmt, tables, log);
+            let (row, evaluation) = semantics::option_flags(stmt, log);
+            let (option, hook) = option_row(&row, tables, log);
+            if let Some(evaluation) = evaluation {
+                acc.declarations
+                    .decline_option(&option, evaluation, stmt.line, log);
+                form.semantics = acc.declarations.declaration(&scope).0;
+            }
             if hook.is_some() {
                 log.say(
                     stmt.line,
@@ -6226,9 +7968,7 @@ fn apply_refine_stmt(
                 );
             }
         }
-        "semantic_operation" => {
-            form.semantic_operation = parse_semantic_operation(&value, stmt.line, log);
-        }
+        "semantic_operation" => form_semantic_operation(form, stmt, &value, log),
         "result_stability" => {
             if let Some(stability) = result_stability_row(stmt, log) {
                 form.result_stability = Some(stability);
@@ -6239,15 +7979,27 @@ fn apply_refine_stmt(
         }
         "world_effects" => form.world_effects = world_effects_value(stmt, tables, log),
         "state_transitions" => {
-            form.state_transitions = state_transitions_value(stmt, tables, log);
+            form.state_transitions = form_state_transitions(stmt, tables, path, log);
         }
         "lowering_hook" => {
             form.lowering_hook = native_id(stmt, LOWERING_HOOKS, "lowering hook", log);
         }
-        "codegen_hook" => {
-            form.codegen_hook = native_id(stmt, CODEGEN_HOOKS, "codegen hook", log);
-        }
+        "codegen_hook" => form_codegen_hook(form, stmt, log),
         _ => log.unknown_property(stmt),
+    }
+}
+
+/// A form's `semantic_operation` row, which is the plain stamp or nothing.
+fn form_semantic_operation(form: &mut CommandForm, stmt: &Stmt, value: &str, log: &mut Log) {
+    if form_stamp_is_plain(stmt, 2, "semantic operation", log) {
+        form.semantic_operation = parse_semantic_operation(value, stmt.line, log);
+    }
+}
+
+/// A form's `codegen_hook` row, which is the plain stamp or nothing.
+fn form_codegen_hook(form: &mut CommandForm, stmt: &Stmt, log: &mut Log) {
+    if form_stamp_is_plain(stmt, 3, "codegen hook", log) {
+        form.codegen_hook = native_id(stmt, CODEGEN_HOOKS, "codegen hook", log);
     }
 }
 
@@ -6282,14 +8034,19 @@ fn selector_row(stmt: &Stmt, log: &mut Log) -> Option<LiteralArgumentPrefix> {
 struct SubAcc {
     args: ArgRows,
     arity_windows: Vec<ArityWindow>,
+    codegen_hook_windows: Vec<StampWindow<CodegenHookId>>,
+    inline_codegen_hook_windows: Vec<StampWindow<InlineCodegenHookId>>,
+    semantic_operation_windows: Vec<StampWindow<SemanticOperationId>>,
     options: Vec<OptionSpec>,
     refinements: Vec<CommandForm>,
     side_effects: Vec<SideEffect>,
     sub_subcommands: Vec<SubSubCommand>,
     repeats: Vec<tcl_registry::repeated::RepeatedArgLayout>,
     option_relations: Vec<tcl_registry::spec::OptionRelation>,
+    option_effect_families: Vec<OptionEffectFamily>,
     versioned_arg_values: Vec<tcl_registry::spec::VersionedArgValue>,
     callback_taint_inputs: Vec<(u8, &'static [CallbackTaintInput])>,
+    declarations: semantics::Declarations,
 }
 
 /// Read a `subcommand NAME { … }` body, or the `method NAME { … }` row of an
@@ -6329,8 +8086,13 @@ fn subcommand_from_parts(
         };
         let mut acc = SubAcc::default();
         fill(&mut sub, &mut acc, log);
+        acc.declarations.report_orphan_option_flags(log);
+        if let Some(grammar) = sub.clause_grammar {
+            check_clause_grammar(grammar, line, log);
+        }
         validate_arg_role_capabilities(
             sub.arg_role_resolver.is_some(),
+            sub.clause_grammar.is_some(),
             sub.arg_role_resolver_roles,
             kind,
             line,
@@ -6354,12 +8116,35 @@ fn subcommand_from_parts(
         sub.command_prefixes = leak_slice(args.prefixes);
         sub.callback_taint_inputs = leak_slice(callback_taint_inputs);
         sub.arity_windows = checked_arity_windows(acc.arity_windows, kind, line, log);
-        sub.options = leak_slice(acc.options);
+        sub.codegen_hook_windows =
+            checked_stamp_windows(acc.codegen_hook_windows, kind, "codegen_hook", line, log);
+        sub.inline_codegen_hook_windows = checked_stamp_windows(
+            acc.inline_codegen_hook_windows,
+            kind,
+            "inline_codegen_hook",
+            line,
+            log,
+        );
+        sub.semantic_operation_windows = checked_stamp_windows(
+            acc.semantic_operation_windows,
+            kind,
+            "semantic_operation",
+            line,
+            log,
+        );
+        sub.options = checked_option_effect_families(
+            acc.options,
+            &acc.option_effect_families,
+            kind,
+            line,
+            log,
+        );
         sub.subcommand_forms = leak_slice(acc.refinements);
         sub.side_effects = leak_slice(acc.side_effects);
         sub.sub_subcommands = leak_slice(acc.sub_subcommands);
         sub.repeated_args = leak_slice(acc.repeats);
         sub.option_relations = leak_slice(acc.option_relations);
+        sub.option_effect_families = leak_slice(acc.option_effect_families);
         sub.versioned_arg_values = leak_slice(acc.versioned_arg_values);
         sub.lifecycle = checked_lifecycle(sub.lifecycle, &format!("{kind} `{name}`"), line, log);
         Some(sub)
@@ -6384,6 +8169,18 @@ fn apply_subcommand_stmt(
             (arity, None) => sub.arity = arity,
             (arity, Some(lifecycle)) => acc.arity_windows.push(ArityWindow { lifecycle, arity }),
         },
+        // `dict for`'s shape: a subcommand's own clause grammar, walked over
+        // the words after the subcommand word.
+        "clause_grammar" => {
+            sub.clause_grammar = clause_grammar_value(stmt, log);
+            if sub.clause_grammar.is_some() {
+                record_clause_grammar_derivations(
+                    hooks,
+                    &HookOwner::Subcommand(owner.to_owned()),
+                    stmt.line,
+                );
+            }
+        }
         "detail" => sub.detail = leak_str(&value),
         "synopsis" => sub.synopsis = leak_str(&value),
         "hover" => {
@@ -6506,7 +8303,13 @@ fn apply_subcommand_stmt(
             sub.pattern_type = enum_by_name(PATTERNS, &value, "pattern type", stmt.line, log);
         }
         "option" => {
-            let (option, hook) = option_row(stmt, tables, log);
+            let (row, evaluation) = semantics::option_flags(stmt, log);
+            let (option, hook) = option_row(&row, tables, log);
+            if let Some(evaluation) = evaluation {
+                acc.declarations
+                    .decline_option(&option, evaluation, stmt.line, log);
+                declare_subcommand_semantics(sub, acc, hooks, owner, log);
+            }
             if let Some((source, option_name)) = hook {
                 hooks.push(HookDecl {
                     owner: HookOwner::Option {
@@ -6516,15 +8319,32 @@ fn apply_subcommand_stmt(
                     field: "options.arity_hook",
                     family: HookFamily::OptionArity,
                     source,
+                    line: stmt.line,
                 });
             }
             acc.options.push(option);
         }
+        "option_effect_family" => {
+            if let Some(family) = option_effect_family_row(stmt, log) {
+                acc.option_effect_families.push(family);
+            }
+        }
         "refine" => {
             log.v20(stmt.line, "refine");
-            if let Some(form) = load_refinement(stmt, tables, log) {
+            let parent = format!("{}::{owner}", log.command);
+            if let Some(form) = load_refinement(stmt, tables, &parent, log) {
                 acc.refinements.push(form);
             }
+        }
+        // Value transfers (vocabulary 2.2).
+        "semantics" | "evaluate" | "facts" => {
+            let path = format!("{}::{owner}", log.command);
+            let scope = semantics::Scope {
+                path: &path,
+                binds_bodies: true,
+            };
+            acc.declarations.read(stmt, &scope, log);
+            declare_subcommand_semantics(sub, acc, hooks, owner, log);
         }
         "option_conflict" => acc.option_relations.push(option_relation_row(
             stmt,
@@ -6573,23 +8393,60 @@ fn apply_subcommand_stmt(
         "lowering_hook" => {
             sub.lowering_hook = native_id(stmt, LOWERING_HOOKS, "lowering hook", log);
         }
-        "codegen_hook" => sub.codegen_hook = native_id(stmt, CODEGEN_HOOKS, "codegen hook", log),
+        "codegen_hook" => {
+            let gate = stamp_gate(stmt, 3, "codegen hook", log);
+            let id = native_id(stmt, CODEGEN_HOOKS, "codegen hook", log);
+            place_stamp(
+                id,
+                gate,
+                &mut sub.codegen_hook,
+                &mut acc.codegen_hook_windows,
+            );
+        }
         "inline_codegen_hook" => {
-            sub.inline_codegen_hook =
-                native_id(stmt, INLINE_CODEGEN_HOOKS, "inline codegen hook", log);
+            let gate = stamp_gate(stmt, 3, "inline codegen hook", log);
+            let id = native_id(stmt, INLINE_CODEGEN_HOOKS, "inline codegen hook", log);
+            place_stamp(
+                id,
+                gate,
+                &mut sub.inline_codegen_hook,
+                &mut acc.inline_codegen_hook_windows,
+            );
         }
         "analyser_hook" => {
             sub.analyser_hook = native_id(stmt, ANALYSER_HOOKS, "analyser hook", log);
         }
         "semantic_operation" => {
-            sub.semantic_operation = parse_semantic_operation(&value, stmt.line, log);
+            let gate = stamp_gate(stmt, 2, "semantic operation", log);
+            let operation = parse_semantic_operation(&value, stmt.line, log);
+            place_stamp(
+                operation,
+                gate,
+                &mut sub.semantic_operation,
+                &mut acc.semantic_operation_windows,
+            );
         }
         "callback_taint_inputs" => {
             log.v12(stmt.line, "callback_taint_inputs");
             acc.callback_taint_inputs = parse_callback_taint_input_table(&value, stmt.line, log);
         }
         "world_effects" => sub.world_effects = world_effects_value(stmt, tables, log),
-        "state_transitions" => sub.state_transitions = state_transitions_value(stmt, tables, log),
+        "state_transitions" => {
+            let scope = format!("{}::{owner}", log.command);
+            sub.state_transitions =
+                state_transitions_value(stmt, tables, &scope, log).map(|(descriptor, source)| {
+                    if let Some((source, line)) = source {
+                        hooks.push(HookDecl {
+                            owner: HookOwner::Subcommand(owner.to_owned()),
+                            field: HookFamily::StateTransitionResolver.field(),
+                            family: HookFamily::StateTransitionResolver,
+                            source,
+                            line,
+                        });
+                    }
+                    descriptor
+                });
+        }
         "arg_role_resolver"
         | "command_prefix_resolver"
         | "script_timing_resolver"
@@ -6621,11 +8478,35 @@ fn apply_subcommand_stmt(
                     ("script_timing_resolver", HookFamily::ScriptTimingResolver)
                 }
                 "const_fold" => {
-                    sub.const_fold = Some(abstain_const_fold);
+                    let scope = format!("{}::{owner}", log.command);
+                    sub.const_fold = Some(match &source {
+                        HookSource::Native { id } => native_fold(
+                            &scope,
+                            "const_fold",
+                            id,
+                            tcl_registry::pack_hooks::CONST_FOLD_NATIVE,
+                            stmt.line,
+                            log,
+                        )
+                        .unwrap_or(abstain_const_fold),
+                        _ => abstain_const_fold,
+                    });
                     ("const_fold", HookFamily::ConstFold)
                 }
                 "const_fold_versioned" => {
-                    sub.const_fold_versioned = Some(abstain_const_fold_versioned);
+                    let scope = format!("{}::{owner}", log.command);
+                    sub.const_fold_versioned = Some(match &source {
+                        HookSource::Native { id } => native_fold(
+                            &scope,
+                            "const_fold_versioned",
+                            id,
+                            tcl_registry::pack_hooks::CONST_FOLD_VERSIONED_NATIVE,
+                            stmt.line,
+                            log,
+                        )
+                        .unwrap_or(abstain_const_fold_versioned),
+                        _ => abstain_const_fold_versioned,
+                    });
                     ("const_fold_versioned", HookFamily::ConstFoldVersioned)
                 }
                 "constraints" => {
@@ -6645,10 +8526,31 @@ fn apply_subcommand_stmt(
                 field,
                 family,
                 source,
+                line: stmt.line,
             });
         }
         _ => log.unknown_property(stmt),
     }
+}
+
+/// Seal a subcommand's `semantics` / `evaluate` statements into its
+/// declaration and its `evaluate` hook, after each statement that changes
+/// them, so the last statement read is what the subcommand declares.
+fn declare_subcommand_semantics(
+    sub: &mut SubCommand,
+    acc: &SubAcc,
+    hooks: &mut Vec<HookDecl>,
+    owner: &str,
+    log: &Log,
+) {
+    let path = format!("{}::{owner}", log.command);
+    let scope = semantics::Scope {
+        path: &path,
+        binds_bodies: true,
+    };
+    let (declaration, body) = acc.declarations.declaration(&scope);
+    sub.semantics = declaration;
+    semantics::rebind(hooks, &HookOwner::Subcommand(owner.to_owned()), body);
 }
 
 /// `sub_subcommand NAME ?flags? ?{ option … }?`.
@@ -6853,16 +8755,16 @@ mod tests {
     /// Every row is given a value that differs from the field's
     /// zero/empty default, so a field the block cannot reach fails here.
     /// `keyword_patterns` carries two fields (its `-final-only` flag sets
-    /// `keyword_patterns_require_final`), which is why twenty-one rows
-    /// author twenty-two fields.
+    /// `keyword_patterns_require_final`), which is why eighteen rows author
+    /// nineteen fields. The five command-level switch rows the block once
+    /// read (`exact_option` … `end_options_option`) are option rows'
+    /// effects now, and the block drops each with a notice.
     #[test]
     fn case_list_rows_author_every_descriptor_field_issue_2140() {
         let pack = evaluate_pack(
             "speclib probe 1.1 { command demo { case_list { \
              subject_args 2; \
              two_arg_optionless_surface tcl8.5+; \
-             regex_option -regexp; exact_option -exact; glob_option -glob; \
-             nocase_option -nocase; end_options_option --; \
              fallthrough_body -; \
              value_options_require_regex {-indexvar -matchvar}; \
              special_match_options {-sorted}; \
@@ -6873,7 +8775,8 @@ mod tests {
              allow_omitted_final_body 1; \
              keyword_patterns {default} -final-only; \
              warn_unbraced_bodies 1; \
-             optional_subject_separator -- } } }",
+             optional_subject_separator --; \
+             default_mode glob; pattern_words lists } } }",
         );
         assert!(pack.notices.is_empty(), "{:?}", pack.notices);
         let case = pack.command("demo").unwrap().spec.case_list.unwrap();
@@ -6886,11 +8789,6 @@ mod tests {
             case.two_arg_optionless_surface,
             Some(SpecSurface::TCL85_PLUS)
         );
-        assert_eq!(case.regex_option, Some("-regexp"));
-        assert_eq!(case.exact_option, Some("-exact"));
-        assert_eq!(case.glob_option, Some("-glob"));
-        assert_eq!(case.nocase_option, Some("-nocase"));
-        assert_eq!(case.end_options_option, Some("--"));
         assert_eq!(case.fallthrough_body, Some("-"));
         assert_eq!(case.value_options_require_regex, ["-indexvar", "-matchvar"]);
         assert_eq!(case.special_match_options, ["-sorted"]);
@@ -6909,6 +8807,8 @@ mod tests {
         assert!(case.keyword_patterns_require_final);
         assert!(case.warn_unbraced_bodies);
         assert_eq!(case.optional_subject_separator, Some("--"));
+        assert_eq!(case.default_mode, tcl_registry::spec::CaseMatchMode::Glob);
+        assert_eq!(case.pattern_words, tcl_registry::spec::PatternWords::Lists);
 
         // …and the list above is the whole struct. Counted from the
         // definition rather than from `Debug`, whose field *values*
@@ -6925,26 +8825,72 @@ mod tests {
             .filter(|line| line.starts_with("    pub ") && line.contains(':'))
             .count();
         assert_eq!(
-            fields, 22,
-            "`CaseListSpec` has {fields} fields; the assertions above cover 22 — a new field needs a `case_list` row and an assertion here"
+            fields, 19,
+            "`CaseListSpec` has {fields} fields; the assertions above cover 19 — a new field needs a `case_list` row and an assertion here"
         );
     }
 
-    /// #2140: `state_transitions` and `world_effects` load their
-    /// `composition` row and drop every other row with a notice.
+    /// The command-level switch rows `case_list` once read are the option
+    /// rows' effects now: a pack still writing one is told so, and the row
+    /// changes nothing.
+    #[test]
+    fn a_retired_case_list_switch_row_is_dropped_with_a_notice() {
+        let pack = evaluate_pack(
+            "speclib probe 1.1 { command demo { case_list { \
+             subject_args 1; regex_option -regexp } } }",
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|notice| notice.message.contains("`regex_option` is retired")),
+            "{:?}",
+            pack.notices
+        );
+        let case = pack.command("demo").unwrap().spec.case_list.unwrap();
+        assert_eq!(case.subject_args, 1);
+    }
+
+    /// `default_mode` names one of the three comparisons a case list's
+    /// clauses make, and `pattern_words` one of the two readings of a
+    /// pattern word; any other word — the specialised `other` comparison
+    /// among them, which only an option row selects — is told so and the
+    /// block keeps the exact comparison and the single pattern.
+    #[test]
+    fn an_unknown_case_list_reading_keeps_the_default() {
+        let pack = evaluate_pack(
+            "speclib probe 1.1 { command demo { case_list { \
+             subject_args 1; default_mode other; pattern_words many } } }",
+        );
+        for row in ["`default_mode` takes", "`pattern_words` takes"] {
+            assert!(
+                pack.notices
+                    .iter()
+                    .any(|notice| notice.message.contains(row)),
+                "{row}: {:?}",
+                pack.notices
+            );
+        }
+        let case = pack.command("demo").unwrap().spec.case_list.unwrap();
+        assert_eq!(case.default_mode, tcl_registry::spec::CaseMatchMode::Exact);
+        assert_eq!(case.pattern_words, tcl_registry::spec::PatternWords::Single);
+    }
+
+    /// #2140: `world_effects` loads its `composition` row and drops every
+    /// other row with a notice, while `state_transitions` reads every row —
+    /// dropping, with a notice, only a value its vocabulary cannot read.
     ///
-    /// `spec-dsl-examples/README.md` claimed the opposite — "the
-    /// surrounding plain data *is* authorable; only the resolver is
-    /// `-native`, `none`, or a derivation keyword" — while
-    /// `registry/spec-packs.md` stated the true, stricter version. This
-    /// pins which one the tree agrees with, so growing either loader fails
-    /// here until the README is corrected with it.
+    /// `spec-dsl-examples/README.md` once claimed the surrounding plain data
+    /// of both was authorable while `registry/spec-packs.md` stated the
+    /// stricter truth. This pins which one the tree agrees with, so growing
+    /// either loader fails here until the README is corrected with it: the
+    /// `state_transitions` rows carry the resolver family, and both
+    /// documents say so.
     ///
     /// `composition` is asserted as `Replace` because `Extend` is what
     /// both `EMPTY` descriptors already hold: asserting the default would
     /// pass whether or not the row was read at all.
     #[test]
-    fn state_transition_and_world_effect_blocks_load_only_composition_issue_2140() {
+    fn state_transition_blocks_read_every_row_world_effects_only_composition_issue_2140() {
         fn dropped_rows(pack: &Pack) -> Vec<&str> {
             pack.notices
                 .iter()
@@ -6967,13 +8913,23 @@ mod tests {
         assert_eq!(
             descriptor.composition,
             tcl_registry::state_transition::StateTransitionComposition::Replace,
-            "`composition` is the one row that lands"
         );
-        let dropped = dropped_rows(&transitions);
-        for row in ["argument_shape", "resolver", "widen", "covers", "commit"] {
+        assert!(descriptor.resolver.is_none(), "`resolver none`");
+        assert!(dropped_rows(&transitions).is_empty(), "every row is read");
+        let notices: Vec<&str> = transitions
+            .notices
+            .iter()
+            .map(|notice| notice.message.as_str())
+            .collect();
+        for unreadable in [
+            "unknown state-transition argument shape `whatever` dropped",
+            "unreadable operand layout `1` dropped",
+            "a `covers` row needs a write source and `-domains`; row dropped",
+            "unknown state-transition commit `yes` dropped",
+        ] {
             assert!(
-                dropped.iter().any(|message| message.contains(row)),
-                "`{row}` should be dropped with a notice; got {dropped:?}"
+                notices.contains(&unreadable),
+                "`{unreadable}` expected; got {notices:#?}"
             );
         }
 
@@ -7036,12 +8992,99 @@ mod tests {
         assert!(!case.warn_unbraced_bodies);
     }
 
+    /// `const_fold -native ID` and `const_fold_versioned -native ID` install
+    /// the shipped folder the id names, at command and subcommand scope, where
+    /// they used to install the abstaining placeholder whatever the id said:
+    /// `string range`'s folder answers `bcd` for `abcdef 1 3` and `string
+    /// is`'s versioned one answers `1` for `integer 42`. An id that is not
+    /// the scope's full `SCOPE::FIELD` spelling, or one that names nothing
+    /// this build ships, is a load notice and the placeholder stays, so the
+    /// call folds nothing.
+    #[test]
+    fn a_native_fold_id_installs_the_shipped_folder() {
+        let pack = evaluate_pack(
+            "speclib probe 2.2 {\n\
+             command string {\n\
+                 subcommand range {\n\
+                     arity 3\n\
+                     const_fold -native string::range::const_fold\n\
+                 }\n\
+                 subcommand is {\n\
+                     arity 2..\n\
+                     const_fold_versioned -native string::is::const_fold_versioned\n\
+                 }\n\
+             }\n\
+             command probe::short {\n\
+                 arity 3\n\
+                 const_fold -native string::range\n\
+             }\n\
+             command probe::unknown {\n\
+                 arity 1\n\
+                 const_fold -native probe::unknown::const_fold\n\
+             }\n\
+             }",
+        );
+        let string = pack.command("string").expect("declared");
+        let sub = |name: &str| {
+            string
+                .spec
+                .subcommands
+                .iter()
+                .find(|sub| sub.name == name)
+                .expect("declared")
+        };
+        let range = sub("range").const_fold.expect("a folder");
+        assert_eq!(range(&["abcdef", "1", "3"]).as_deref(), Some("bcd"));
+        let is = sub("is").const_fold_versioned.expect("a folder");
+        assert_eq!(
+            is(&["integer", "42"], Some(tcl_dialect::TclVersion::V9_0)).as_deref(),
+            Some("1")
+        );
+        for name in ["probe::short", "probe::unknown"] {
+            let fold = pack
+                .command(name)
+                .expect("declared")
+                .spec
+                .const_fold
+                .expect("the placeholder");
+            assert_eq!(fold(&["abcdef", "1", "3"]), None, "{name}");
+        }
+        let notices: Vec<&str> = pack
+            .notices
+            .iter()
+            .map(|notice| notice.message.as_str())
+            .collect();
+        assert!(
+            notices.iter().any(|notice| notice.contains(
+                "`const_fold -native string::range` is not this scope's id; spell it \
+                 `probe::short::const_fold`"
+            )),
+            "{notices:#?}"
+        );
+        assert!(
+            notices.iter().any(|notice| notice.contains(
+                "`const_fold -native probe::unknown::const_fold` names nothing this build ships"
+            )),
+            "{notices:#?}"
+        );
+        assert_eq!(notices.len(), 2, "{notices:#?}");
+    }
+
     /// The loader resolves a `-native ID` by matching the catalogue's own
     /// spelling, so its value tables have to name every variant the catalogue
     /// does. A registry that grows a hook and a studio catalogue that lists it
     /// would otherwise leave the loader silently dropping the new id.
+    fn assert_table_covers(what: &str, mine: &[String], catalogue: &[catalogue::Variant]) {
+        let mut expected: Vec<&str> = catalogue.iter().map(|variant| variant.key).collect();
+        let mut mine: Vec<&str> = mine.iter().map(String::as_str).collect();
+        expected.sort_unstable();
+        mine.sort_unstable();
+        assert_eq!(mine, expected, "the {what}-hook table is out of step");
+    }
+
+    /// The five closed compiler-hook catalogues, by Rust variant name.
     #[test]
-    fn native_hook_tables_cover_their_catalogues() {
+    fn compiler_hook_catalogues_cover_their_tables() {
         fn names<T: Copy + fmt::Debug>(all: &[T]) -> Vec<String> {
             all.iter().map(catalogue::variant_name).collect()
         }
@@ -7060,15 +9103,106 @@ mod tests {
                 catalogue::RETURN_TYPE_HOOKS,
             ),
         ] {
-            let mut expected: Vec<&str> = catalogue.iter().map(|variant| variant.key).collect();
-            let mut mine: Vec<&str> = mine.iter().map(String::as_str).collect();
-            expected.sort_unstable();
-            mine.sort_unstable();
-            assert_eq!(mine, expected, "the {what}-hook table is out of step");
+            assert_table_covers(what, &mine, catalogue);
+        }
+    }
+
+    /// Every `HookFamily` variant and the `semantics` / `evaluate` / `facts`
+    /// fields each own a `SCOPE::FIELD`-keyed native table in
+    /// `tcl_registry::pack_hooks`
+    /// (`docs/design/compiler/value-evaluation.md` § *`-native ID`, and the
+    /// per-family catalogues*); this is the same obligation as
+    /// [`compiler_hook_catalogues_cover_their_tables`], read from the table's
+    /// own id rather than a Rust variant name.
+    #[test]
+    fn native_hook_tables_cover_their_catalogues() {
+        fn ids<T>(table: &[(&str, T)]) -> Vec<String> {
+            table.iter().map(|(id, _)| (*id).to_owned()).collect()
+        }
+        for (what, mine, catalogue) in [
+            (
+                "arg-role-resolver native",
+                ids(tcl_registry::pack_hooks::ARG_ROLE_RESOLVER_NATIVE),
+                catalogue::ARG_ROLE_RESOLVER_NATIVE,
+            ),
+            (
+                "command-prefix-resolver native",
+                ids(tcl_registry::pack_hooks::COMMAND_PREFIX_RESOLVER_NATIVE),
+                catalogue::COMMAND_PREFIX_RESOLVER_NATIVE,
+            ),
+            (
+                "script-timing-resolver native",
+                ids(tcl_registry::pack_hooks::SCRIPT_TIMING_RESOLVER_NATIVE),
+                catalogue::SCRIPT_TIMING_RESOLVER_NATIVE,
+            ),
+            (
+                "const-fold native",
+                ids(tcl_registry::pack_hooks::CONST_FOLD_NATIVE),
+                catalogue::CONST_FOLD_NATIVE,
+            ),
+            (
+                "const-fold-versioned native",
+                ids(tcl_registry::pack_hooks::CONST_FOLD_VERSIONED_NATIVE),
+                catalogue::CONST_FOLD_VERSIONED_NATIVE,
+            ),
+            (
+                "taint-sink-gate native",
+                ids(tcl_registry::pack_hooks::TAINT_SINK_GATE_NATIVE),
+                catalogue::TAINT_SINK_GATE_NATIVE,
+            ),
+            (
+                "context-gate native",
+                ids(tcl_registry::pack_hooks::CONTEXT_GATE_NATIVE),
+                catalogue::CONTEXT_GATE_NATIVE,
+            ),
+            (
+                "literal-argument-validator native",
+                ids(tcl_registry::pack_hooks::LITERAL_ARGUMENT_VALIDATOR_NATIVE),
+                catalogue::LITERAL_ARGUMENT_VALIDATOR_NATIVE,
+            ),
+            (
+                "clause-shape-check native",
+                ids(tcl_registry::pack_hooks::CLAUSE_SHAPE_CHECK_NATIVE),
+                catalogue::CLAUSE_SHAPE_CHECK_NATIVE,
+            ),
+            (
+                "option-arity native",
+                ids(tcl_registry::pack_hooks::OPTION_ARITY_NATIVE),
+                catalogue::OPTION_ARITY_NATIVE,
+            ),
+            (
+                "constraints native",
+                ids(tcl_registry::pack_hooks::CONSTRAINTS_NATIVE),
+                catalogue::CONSTRAINTS_NATIVE,
+            ),
+            (
+                "state-transition-resolver native",
+                ids(tcl_registry::pack_hooks::STATE_TRANSITION_RESOLVER_NATIVE),
+                catalogue::STATE_TRANSITION_RESOLVER_NATIVE,
+            ),
+            (
+                "semantics native",
+                ids(tcl_registry::pack_hooks::SEMANTICS_NATIVE),
+                catalogue::SEMANTICS_NATIVE,
+            ),
+            (
+                "evaluate native",
+                ids(tcl_registry::pack_hooks::EVALUATE_NATIVE),
+                catalogue::EVALUATE_NATIVE,
+            ),
+            (
+                "facts native",
+                ids(tcl_registry::pack_hooks::FACTS_NATIVE),
+                catalogue::FACTS_NATIVE,
+            ),
+        ] {
+            assert_table_covers(what, &mine, catalogue);
         }
     }
 
     /// Same obligation for the vocabularies a row flag resolves.
+    /// [`value_transfer_tables_cover_their_catalogues`] does the same for
+    /// the `value_transfer` vocabulary.
     #[test]
     fn value_tables_cover_their_catalogues() {
         fn names<T: Copy + fmt::Debug>(all: &[T]) -> Vec<String> {
@@ -7103,6 +9237,89 @@ mod tests {
                 "storage type",
                 names(STORAGE_TYPES),
                 catalogue::STORAGE_TYPES,
+            ),
+        ] {
+            let mut expected: Vec<&str> = catalogue.iter().map(|variant| variant.key).collect();
+            let mut mine: Vec<&str> = mine.iter().map(String::as_str).collect();
+            expected.sort_unstable();
+            mine.sort_unstable();
+            assert_eq!(mine, expected, "the {what} table is out of step");
+        }
+    }
+
+    /// [`value_tables_cover_their_catalogues`], split for clippy's
+    /// function-length lint: the `value_transfer` vocabulary's own closed
+    /// word lists. Most are matched by their DSL spelling (`as_str()`:
+    /// `write_or_preserve`, `tcl.expr`, `bounded_tcl`, …), not the Rust
+    /// variant name `names` reads — only `evaluate -direct ID`
+    /// (`NativeEvalId`) keeps the older, Rust-spelled convention, since it
+    /// predates `-native`.
+    #[test]
+    fn value_transfer_tables_cover_their_catalogues() {
+        fn names<T: Copy + fmt::Debug>(all: &[T]) -> Vec<String> {
+            all.iter().map(catalogue::variant_name).collect()
+        }
+        for (what, mine, catalogue) in [
+            (
+                "native evaluator id",
+                names(tcl_registry::value_transfer::NativeEvalId::ALL),
+                catalogue::NATIVE_EVAL_IDS,
+            ),
+            (
+                "language profile",
+                tcl_registry::value_transfer::LanguageProfileId::ALL
+                    .iter()
+                    .map(|profile| profile.as_str().to_owned())
+                    .collect(),
+                catalogue::LANGUAGE_PROFILES,
+            ),
+            (
+                "host kind",
+                tcl_registry::value_transfer::HostKind::ALL
+                    .iter()
+                    .map(|host| host.as_str().to_owned())
+                    .collect(),
+                catalogue::HOST_KINDS,
+            ),
+            (
+                "exactness",
+                tcl_registry::value_transfer::Exactness::ALL
+                    .iter()
+                    .map(|exactness| exactness.as_str().to_owned())
+                    .collect(),
+                catalogue::EXACTNESS,
+            ),
+            (
+                "context dependency",
+                tcl_registry::value_transfer::ContextDependency::WORDS
+                    .iter()
+                    .map(|dependency| dependency.as_str().to_owned())
+                    .collect(),
+                catalogue::CONTEXT_DEPENDENCIES,
+            ),
+            (
+                "outcome kind",
+                tcl_registry::value_transfer::OutcomeKind::ALL
+                    .iter()
+                    .map(|outcome| outcome.as_str().to_owned())
+                    .collect(),
+                catalogue::OUTCOME_KINDS,
+            ),
+            (
+                "declared effect",
+                tcl_registry::value_transfer::DeclaredEffect::ALL
+                    .iter()
+                    .map(|effect| effect.as_str().to_owned())
+                    .collect(),
+                catalogue::DECLARED_EFFECTS,
+            ),
+            (
+                "evaluate reason",
+                tcl_registry::value_transfer::OptionEvaluation::REASONS
+                    .iter()
+                    .map(|(word, _)| (*word).to_owned())
+                    .collect(),
+                catalogue::EVALUATE_REASONS,
             ),
         ] {
             let mut expected: Vec<&str> = catalogue.iter().map(|variant| variant.key).collect();
@@ -7547,7 +9764,7 @@ mod tests {
         );
     }
 
-    /// `1`, `1.0`, `1.1`, `1.2`, `2.0` and `2.1` are all known; an
+    /// `1`, `1.0`, `1.1`, `1.2`, `2.0`, `2.1` and `2.2` are all known; an
     /// unknown *minor* loads with a notice rather than being refused.
     #[test]
     fn the_speclib_version_word_names_a_vocabulary_this_loader_knows() {
@@ -7570,7 +9787,7 @@ mod tests {
                 .map(|notice| notice.message.as_str())
                 .collect::<Vec<_>>(),
             vec![
-                "pack declares SpecTcl vocabulary 2.9; this loader knows 2.1 — \
+                "pack declares SpecTcl vocabulary 2.9; this loader knows 2.2 — \
                  newer words may be dropped"
             ]
         );
@@ -7587,7 +9804,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![
                 "`0.15` is not a SpecTcl vocabulary version (this loader knows \
-                 2.1); if it is the library's own version, it belongs in \
+                 2.2); if it is the library's own version, it belongs in \
                  `introduced_version`, not the `speclib` slot"
             ]
         );
@@ -8045,6 +10262,205 @@ mod tests {
         assert!(said("arity window"), "{:?}", pack.notices);
     }
 
+    /// A stamp and its three releases, as the tests read a window.
+    type StampRow<T> = (
+        T,
+        Option<&'static str>,
+        Option<&'static str>,
+        Option<&'static str>,
+    );
+
+    fn stamp_rows<T: Copy>(windows: &[StampWindow<T>]) -> Vec<StampRow<T>> {
+        windows
+            .iter()
+            .map(|window| {
+                (
+                    window.value,
+                    window.lifecycle.introduced,
+                    window.lifecycle.deprecated,
+                    window.lifecycle.retired,
+                )
+            })
+            .collect()
+    }
+
+    /// A stamp statement that ends in lifecycle flags is one window of the
+    /// stamp, and the plain statement beside it stays the stamp for every
+    /// release no window covers (`SpecTcl` 2.2). The same at command and
+    /// subcommand scope.
+    #[test]
+    fn stamp_windows_load_beside_the_plain_stamp() {
+        let pack = evaluate_pack(
+            "speclib probe 2.2 {\n command demo {\n \
+             codegen_hook -native Lassign\n \
+             codegen_hook -native Llength -introduced 9.0\n \
+             inline_codegen_hook -native Expr -retired 9.0\n \
+             semantic_operation {Intrinsic StringLength} -introduced 9.0 -deprecated 9.1\n \
+             subcommand get {\n \
+             codegen_hook -native Dict -introduced 9.0\n \
+             inline_codegen_hook -native Expr -introduced 8.6 -retired 9.0\n \
+             semantic_operation {Intrinsic Concat} -introduced 9.0\n \
+             }\n }\n}",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let spec = pack.command("demo").expect("demo loads").spec;
+        assert_eq!(spec.codegen_hook, Some(CodegenHookId::Lassign));
+        assert_eq!(
+            stamp_rows(spec.codegen_hook_windows),
+            [(CodegenHookId::Llength, Some("9.0"), None, None)]
+        );
+        assert_eq!(spec.inline_codegen_hook, None);
+        assert_eq!(
+            stamp_rows(spec.inline_codegen_hook_windows),
+            [(InlineCodegenHookId::Expr, None, None, Some("9.0"))]
+        );
+        assert_eq!(spec.semantic_operation, None);
+        assert_eq!(
+            stamp_rows(spec.semantic_operation_windows),
+            [(
+                SemanticOperationId::Intrinsic(IntrinsicId::StringLength),
+                Some("9.0"),
+                Some("9.1"),
+                None
+            )]
+        );
+        let sub = &spec.subcommands[0];
+        assert_eq!(sub.codegen_hook, None);
+        assert_eq!(
+            stamp_rows(sub.codegen_hook_windows),
+            [(CodegenHookId::Dict, Some("9.0"), None, None)]
+        );
+        assert_eq!(
+            stamp_rows(sub.inline_codegen_hook_windows),
+            [(InlineCodegenHookId::Expr, Some("8.6"), None, Some("9.0"))]
+        );
+        assert_eq!(
+            stamp_rows(sub.semantic_operation_windows),
+            [(
+                SemanticOperationId::Intrinsic(IntrinsicId::Concat),
+                Some("9.0"),
+                None,
+                None
+            )]
+        );
+    }
+
+    /// Two windows covering one release make the stamp depend on declaration
+    /// order. The pack keeps the first and is told.
+    #[test]
+    fn overlapping_stamp_windows_draw_a_notice_and_the_later_one_is_dropped() {
+        let pack = evaluate_pack(
+            "speclib probe 2.2 {\n command demo {\n \
+             codegen_hook -native Lassign -introduced 8.6\n \
+             codegen_hook -native Llength -introduced 9.0\n \
+             }\n}",
+        );
+        let spec = pack.command("demo").expect("demo loads").spec;
+        assert_eq!(
+            stamp_rows(spec.codegen_hook_windows),
+            [(CodegenHookId::Lassign, Some("8.6"), None, None)],
+            "the first"
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|n| n.message.contains("codegen_hook window")
+                    && n.message.contains("overlaps")
+                    && n.message.contains("dropped")),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    /// A rejected lifecycle comes back UNSPECIFIED, which as a window would
+    /// cover every release. An arity window degrades to the plain arity, which
+    /// only gates less; a stamp widened to every release would specialise where
+    /// its author never meant it to, so the row is dropped.
+    #[test]
+    fn a_stamp_window_with_an_impossible_lifecycle_is_dropped_and_not_widened() {
+        let pack = evaluate_pack(
+            "speclib probe 2.2 {\n command demo {\n \
+             codegen_hook -native Lassign -introduced 9.0 -retired 8.6\n \
+             }\n}",
+        );
+        let spec = pack.command("demo").expect("demo loads").spec;
+        assert_eq!(spec.codegen_hook, None, "not the plain stamp");
+        assert!(spec.codegen_hook_windows.is_empty());
+        let said = |needle: &str| pack.notices.iter().any(|n| n.message.contains(needle));
+        assert!(said("codegen hook window"), "{:?}", pack.notices);
+        assert!(said("dropped"), "{:?}", pack.notices);
+    }
+
+    /// A form is already a shape the call's arguments pick out and has no window
+    /// list, so a gated stamp on one is dropped with a notice — never read as an
+    /// ungated stamp that applies at every release.
+    #[test]
+    fn a_stamp_on_a_form_takes_no_window() {
+        let pack = evaluate_pack(
+            "speclib probe 2.2 {\n command demo {\n arity 0..\n \
+             refine pair {\n arity 2\n codegen_hook -native Lassign -introduced 9.0\n }\n \
+             refine whole {\n arity 1\n codegen_hook -native Llength\n }\n }\n}",
+        );
+        let spec = pack.command("demo").expect("demo loads").spec;
+        let hook = |name: &str| {
+            spec.command_forms
+                .iter()
+                .find(|form| form.name == name)
+                .expect("the form loads")
+                .codegen_hook
+        };
+        assert_eq!(hook("pair"), None, "the gated stamp is not applied");
+        assert_eq!(
+            hook("whole"),
+            Some(CodegenHookId::Llength),
+            "an ungated one is"
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|n| n.message.contains("takes no lifecycle window")),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    /// Anything after a stamp's id that is not a lifecycle flag is a notice, not
+    /// silence: a mistyped flag would otherwise leave a window ungated.
+    #[test]
+    fn an_unknown_flag_on_a_stamp_statement_is_noticed() {
+        let pack = evaluate_pack(
+            "speclib probe 2.2 {\n command demo {\n \
+             codegen_hook -native Lassign -introdced 9.0\n \
+             }\n}",
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|n| n.message.contains("unknown flag") && n.message.contains("codegen_hook")),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    /// The window flags are 2.2 vocabulary, noticed per site under an older
+    /// declaration as every newer word is.
+    #[test]
+    fn stamp_window_flags_under_an_older_declaration_draw_a_per_site_notice() {
+        let pack = evaluate_pack(
+            "speclib probe 2.0 {\n command demo {\n \
+             codegen_hook -native Lassign -introduced 9.0\n \
+             }\n}",
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|n| n.message.contains("is SpecTcl 2.2 vocabulary")
+                    && n.message.contains("declare `speclib probe 2.2`")),
+            "{:?}",
+            pack.notices
+        );
+    }
+
     /// An impossibly-ordered window lifecycle comes back UNSPECIFIED, which
     /// as a window would cover every release and shadow the well-formed ones.
     /// The row keeps its shape and loses only the gate — the same degradation
@@ -8069,6 +10485,81 @@ mod tests {
                 .any(|n| n.message.contains("arity window")),
             "{:?}",
             pack.notices
+        );
+    }
+
+    /// `special_var NAME -kind K -access A -origin O ?-dialects {…}?
+    /// ?-startup B?` builds a special-variable row as the shipped table
+    /// states one: the startup binding gates `initially_bound` (or, for a read
+    /// trace, `lazily_readable`) on the row's own dialects, and a row missing
+    /// one of its three descriptors is dropped rather than guessed.
+    #[test]
+    fn special_var_rows_build_registry_rows_and_an_incomplete_one_is_dropped() {
+        use tcl_registry::{SpecialVarKind, StartupBinding, VarAccess, VarOrigin};
+        let pack = evaluate_pack(
+            "speclib probe 2.1 {\n \
+             special_var sim_home -kind Scalar -access ReadOnly -origin Dialect -startup Interpreter\n \
+             special_var sim_opts -kind Array -access ReadWrite -origin Environment -dialects {tcl8.6}\n \
+             special_var sim_lazy -kind Scalar -access ReadOnly -origin Interpreter -startup ReadTrace\n \
+             command demo { arity 1 }\n}",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let [home, opts, lazy] = pack.special_vars.as_slice() else {
+            panic!("three rows: {:?}", pack.special_vars);
+        };
+        assert_eq!(home.spec.name, "sim_home");
+        assert_eq!(home.spec.kind, SpecialVarKind::Scalar);
+        assert_eq!(home.spec.access, VarAccess::ReadOnly);
+        assert_eq!(home.spec.origin, VarOrigin::Dialect);
+        assert_eq!(home.spec.startup_binding, StartupBinding::Interpreter);
+        let tcl86 = Some(tcl_dialect::model::SurfaceQuery::core(
+            tcl_dialect::model::Family::Tcl,
+            "8.6",
+        ));
+        let tcl90 = Some(tcl_dialect::model::SurfaceQuery::core(
+            tcl_dialect::model::Family::Tcl,
+            "9.0",
+        ));
+        assert!(home.spec.readable_at_startup_in(tcl86));
+        assert!(home.spec.readable_at_startup_in(tcl90));
+        // No `-startup`: recognised, never readable before user code; and its
+        // `-dialects` gate its existence.
+        assert_eq!(opts.spec.kind, SpecialVarKind::Array);
+        assert!(!opts.spec.readable_at_startup_in(tcl86));
+        assert!(opts.spec.available_in(tcl86));
+        assert!(!opts.spec.available_in(tcl90));
+        // A read trace is readable at startup, but not bound.
+        assert!(lazy.spec.readable_at_startup_in(tcl90));
+        assert!(lazy.spec.initially_bound.is_empty());
+
+        let incomplete = evaluate_pack(
+            "speclib probe 2.1 {\n \
+             special_var sim_home -kind Scalar -origin Dialect\n \
+             special_var sim_bad -kind Matrix -access ReadOnly -origin Dialect\n \
+             special_var sim_nowhere -kind Scalar -access ReadOnly -origin Dialect -dialects {nosuch}\n \
+             command demo { arity 1 }\n}",
+        );
+        assert!(
+            incomplete.special_vars.is_empty(),
+            "a row missing a descriptor, or naming dialects this build cannot read, is \
+             dropped rather than widened: {:?}",
+            incomplete.special_vars
+        );
+        assert!(
+            incomplete
+                .notices
+                .iter()
+                .any(|n| n.message.contains("needs `-kind`, `-access` and `-origin`")),
+            "{:?}",
+            incomplete.notices
+        );
+        assert!(
+            incomplete
+                .notices
+                .iter()
+                .any(|n| n.message.contains("-kind Matrix")),
+            "{:?}",
+            incomplete.notices
         );
     }
 
@@ -8129,6 +10620,35 @@ mod tests {
             "{:?}",
             older.notices
         );
+    }
+
+    /// The version of an `ambient_package` row is a floor, so a word that is not a
+    /// package version is no floor: the row is dropped with a notice, and the rows
+    /// beside it stand.
+    #[test]
+    fn an_ambient_package_row_whose_version_is_not_a_version_is_dropped() {
+        let pack = evaluate_pack(
+            "speclib probe 1.2 {\n \
+             ambient_package Tk junk\n \
+             ambient_package Itcl 4.0.x\n \
+             ambient_package Tcllib 1.21\n \
+             ambient_package Thread 2.8a1\n \
+             command demo { arity 1 }\n}",
+        );
+        let named: Vec<(&str, &str)> = pack
+            .ambient_packages
+            .iter()
+            .map(|row| (row.name, row.version))
+            .collect();
+        assert_eq!(named, vec![("Tcllib", "1.21"), ("Thread", "2.8a1")]);
+        for word in ["junk", "4.0.x"] {
+            let said = format!("names `{word}`, which is not a package version");
+            assert!(
+                pack.notices.iter().any(|n| n.message.contains(&said)),
+                "{word}: {:?}",
+                pack.notices
+            );
+        }
     }
 
     /// `ambient_package NAME VERSION -dialects {…}`'s scoping flag is
@@ -8719,10 +11239,21 @@ mod tests {
         assert_eq!(environment.world_policy, WorldPolicy::AmbientPlusRequire);
         assert_eq!(environment.file_extensions[0].extension.as_ref(), "xdc");
 
-        let definition = environment.to_definition(PackEnvironmentTier::Workspace);
+        let definition = environment.to_definition(PackEnvironmentTier::Workspace(
+            tcl_dialect::model::WorkspaceTrust::Trusted,
+        ));
         assert_eq!(definition.id.as_str(), "vivado-tcl");
         assert_eq!(definition.display_name.as_ref(), "Xilinx Vivado");
         assert_eq!(definition.provenance, Provenance::WorkspaceTrusted);
+        // The editor's trust state is what decides the workspace's class.
+        assert_eq!(
+            environment
+                .to_definition(PackEnvironmentTier::Workspace(
+                    tcl_dialect::model::WorkspaceTrust::Untrusted,
+                ))
+                .provenance,
+            Provenance::WorkspaceUntrusted
+        );
         assert_eq!(
             definition.core.expect("a core selector").default_release,
             Release::TCL_8_6
@@ -8787,16 +11318,22 @@ mod tests {
         assert!(pack.notices.is_empty(), "{:?}", pack.notices);
         assert_eq!(pack.environments.len(), 3);
 
-        let language = pack.environments[0].to_definition(PackEnvironmentTier::Workspace);
+        let language = pack.environments[0].to_definition(PackEnvironmentTier::Workspace(
+            tcl_dialect::model::WorkspaceTrust::Trusted,
+        ));
         assert_eq!(language.kind, EnvironmentKind::Language);
         assert_eq!(language.short_name.as_ref(), "Probe");
         assert_eq!(language.description(), "Probe Language");
 
-        let shell = pack.environments[1].to_definition(PackEnvironmentTier::Workspace);
+        let shell = pack.environments[1].to_definition(PackEnvironmentTier::Workspace(
+            tcl_dialect::model::WorkspaceTrust::Trusted,
+        ));
         assert_eq!(shell.kind, EnvironmentKind::Packages, "packages by default");
         assert_eq!(shell.short_name.as_ref(), "Probe Shell", "the display name");
 
-        let bare = pack.environments[2].to_definition(PackEnvironmentTier::Workspace);
+        let bare = pack.environments[2].to_definition(PackEnvironmentTier::Workspace(
+            tcl_dialect::model::WorkspaceTrust::Trusted,
+        ));
         assert_eq!(bare.kind, EnvironmentKind::Packages);
         assert_eq!(bare.short_name.as_ref(), "probe-bare", "the id");
     }
@@ -9107,7 +11644,7 @@ mod tests {
     }
 
     /// An unknown editor identity keeps the row and drops only the routing
-    /// (review B7: an environment selects from the contributed set).
+    /// An environment selects from the contributed set.
     #[test]
     fn an_unknown_editor_identity_drops_only_the_routing() {
         let pack = evaluate_pack(
@@ -9141,7 +11678,9 @@ mod tests {
             .map(|identity| identity.as_str())
             .collect();
         assert_eq!(carried, ["tcl-libero"]);
-        let definition = environment.to_definition(PackEnvironmentTier::Workspace);
+        let definition = environment.to_definition(PackEnvironmentTier::Workspace(
+            tcl_dialect::model::WorkspaceTrust::Trusted,
+        ));
         assert_eq!(
             definition.selecting_identities,
             environment.selecting_identities

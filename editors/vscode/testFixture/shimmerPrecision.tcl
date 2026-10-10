@@ -56,3 +56,6 @@ proc shimmer_suppress_directive_mismatches {} {
     # noqa: W100
     lindex $e 0
 }
+
+# A known trace callback keeps command-binding evidence available to the fixture.
+proc cb {args} {}

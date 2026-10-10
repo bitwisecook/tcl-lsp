@@ -26,7 +26,7 @@
 
 use std::rc::Rc;
 
-use tcl_engine_api::{EngineError, HostCommand, Value};
+use tcl_engine_api::{EngineError, HostCommand, HostOutcome, Value};
 
 /// Every command a hook body may call, besides its family's emitter verbs and
 /// the host builtins below.
@@ -54,7 +54,7 @@ pub const SANDBOX_COMMANDS: &[&str] = &[
 struct FoldList;
 
 impl HostCommand for FoldList {
-    fn invoke(&self, arguments: &[Value]) -> Result<Value, EngineError> {
+    fn invoke(&self, arguments: &[Value]) -> Result<HostOutcome, EngineError> {
         let words: Vec<String> = arguments
             .iter()
             .map(|argument| argument.as_str().unwrap_or_default().to_owned())
@@ -67,7 +67,7 @@ impl HostCommand for FoldList {
                     code: None,
                 })
             },
-            |list| Ok(Value::string(list)),
+            |list| Ok(Value::string(list).into()),
         )
     }
 }
@@ -118,7 +118,7 @@ mod tests {
             .invoke(&[Value::string("a b"), Value::string("c")])
             .expect("folds");
         assert_eq!(
-            folded.as_str(),
+            folded.value.as_str(),
             tcl_registry::const_fold::fold_list(&["a b", "c"]).as_deref(),
         );
     }

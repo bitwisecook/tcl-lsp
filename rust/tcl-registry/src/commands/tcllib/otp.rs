@@ -72,6 +72,9 @@ fn otp(
         }),
         tcllib_package: Some("otp"),
         required_package: Some("otp"),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

@@ -86,6 +86,7 @@ const SUBCOMMANDS: &[SubCommand] = &[SubCommand {
         ..SideEffect::DEFAULT
     }],
     surface: Some(SpecSurface::TCL86_PLUS),
+    semantics: SemanticsDeclaration::Declared(&crate::value_transfer::scope_alias::MY_VARIABLE),
     ..SubCommand::DEFAULT
 }];
 
@@ -133,6 +134,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "my",
+        runtime_backing: RuntimeBacking::shipped("my"),
         traits: Traits::LANGUAGE_KEYWORD
             | Traits::TCLOO_SELF_DISPATCH
             | Traits::TCLOO_METHOD_CONTEXT,

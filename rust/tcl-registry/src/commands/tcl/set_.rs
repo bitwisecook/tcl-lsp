@@ -90,6 +90,7 @@ fn set_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set",
+        runtime_backing: RuntimeBacking::shipped("set"),
         // A core variable primitive with no filesystem/process/network access,
         // present unmodified in every dialect that hosts a real Tcl core
         // (irules, iapps, tmsh, the EDA shells, expect, tk, itcl) — its
@@ -128,7 +129,7 @@ pub fn spec() -> CommandSpec {
         native_lowering: Some(NativeLowering::Structured(LoweringHookId::Set)),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
-        analyser_hook: Some(crate::hooks::AnalyserHookId::Set),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::cell_write::CELL_WRITE),
         ..CommandSpec::DEFAULT
     }
 }

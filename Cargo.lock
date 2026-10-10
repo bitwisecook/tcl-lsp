@@ -1454,6 +1454,7 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
+ "tcl-lsp-core",
  "tcl-registry",
  "tcl-syntax",
 ]
@@ -4227,6 +4228,8 @@ dependencies = [
  "tcl-sandbox",
  "tcl-spec-studio",
  "tcl-spectcl",
+ "tcl-syntax",
+ "tcl-test-support",
  "tcl-version",
  "zip",
 ]
@@ -4256,6 +4259,9 @@ dependencies = [
 name = "tcl-cmd-core"
 version = "0.1.0"
 dependencies = [
+ "md-5",
+ "sha1",
+ "sha2 0.11.0",
  "tcl-dialect",
  "tcl-platform",
  "tcl-runtime-api",
@@ -4280,7 +4286,9 @@ dependencies = [
  "tcl-lexer",
  "tcl-registry",
  "tcl-runtime-api",
+ "tcl-spectcl",
  "tcl-syntax",
+ "tcl-test-support",
  "temp-env",
  "thiserror 2.0.21",
  "unicode-general-category",
@@ -4296,8 +4304,10 @@ version = "0.1.0"
 dependencies = [
  "cc",
  "tcl-cmd-core",
+ "tcl-dialect",
  "tcl-engine-api",
  "tcl-engine-tclvm",
+ "tcl-registry",
  "tcl-spec-hooks",
  "tcl-syntax",
 ]
@@ -4345,7 +4355,19 @@ dependencies = [
  "tcl-compiler",
  "tcl-engine-api",
  "tcl-registry",
+ "tcl-syntax",
  "tcl-vm",
+]
+
+[[package]]
+name = "tcl-engine-wasm"
+version = "0.1.0"
+dependencies = [
+ "tcl-engine-api",
+ "tcl-registry",
+ "tcl-runtime-api",
+ "tcl-syntax",
+ "wasmtime",
 ]
 
 [[package]]
@@ -4403,12 +4425,14 @@ version = "0.1.0"
 dependencies = [
  "tcl-bigip",
  "tcl-bytecode",
+ "tcl-cmd-core",
  "tcl-compiler",
  "tcl-dialect",
  "tcl-irules",
  "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",
+ "tcl-test-support",
  "tcl-vm",
 ]
 
@@ -4467,6 +4491,7 @@ dependencies = [
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
+ "tcl-spectcl",
 ]
 
 [[package]]
@@ -4533,20 +4558,29 @@ dependencies = [
  "base64 0.23.1",
  "chrono",
  "flate2",
- "regex",
  "serde",
  "serde_json",
  "sha2 0.11.0",
  "tar",
  "tcl-dialect",
- "tcl-lexer",
+ "tcl-pkg-model",
  "tcl-registry",
  "tcl-sandbox",
- "tcl-syntax",
  "tcl-userdirs",
  "toml",
  "ureq",
  "zip",
+]
+
+[[package]]
+name = "tcl-pkg-model"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "serde_json",
+ "tcl-dialect",
+ "tcl-lexer",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -4574,7 +4608,27 @@ dependencies = [
  "tcl-dialect",
  "tcl-lexer",
  "tcl-regex",
+ "tcl-runtime-api",
  "tcl-spectcl",
+ "tcl-syntax",
+ "tcl-test-support",
+]
+
+[[package]]
+name = "tcl-runtime"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "tcl-cmd-core",
+ "tcl-core-types",
+ "tcl-dialect",
+ "tcl-engine-api",
+ "tcl-host-native",
+ "tcl-lexer",
+ "tcl-platform",
+ "tcl-regex",
+ "tcl-registry",
+ "tcl-runtime-api",
  "tcl-syntax",
 ]
 
@@ -4603,6 +4657,7 @@ dependencies = [
  "tcl-engine-api",
  "tcl-engine-tclvm",
  "tcl-registry",
+ "tcl-runtime",
  "tcl-vm",
 ]
 
@@ -4633,11 +4688,14 @@ dependencies = [
  "tcl-engine-tclvm",
  "tcl-lexer",
  "tcl-lsp-core",
+ "tcl-pkg-model",
  "tcl-registry",
+ "tcl-runtime-api",
  "tcl-spec-hooks",
  "tcl-syntax",
  "tcl-test-support",
  "tcl-userdirs",
+ "tcl-vm",
  "xxhash-rust",
 ]
 
@@ -4720,7 +4778,9 @@ version = "0.1.0"
 dependencies = [
  "tcl-bytecode",
  "tcl-compiler",
+ "tcl-cshim",
  "tcl-dialect",
+ "tcl-engine-tclvm",
  "tcl-lexer",
  "tcl-registry",
  "tcl-vm",
@@ -5904,9 +5964,12 @@ dependencies = [
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
+ "tcl-runtime",
+ "tcl-runtime-api",
  "tcl-spectcl",
  "tcl-syntax",
  "tcl-test-support",
+ "tcl-vm",
 ]
 
 [[package]]

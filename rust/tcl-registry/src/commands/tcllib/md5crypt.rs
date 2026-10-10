@@ -43,6 +43,9 @@ fn crypt(
         }),
         tcllib_package: Some("md5crypt"),
         required_package: Some("md5crypt"),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

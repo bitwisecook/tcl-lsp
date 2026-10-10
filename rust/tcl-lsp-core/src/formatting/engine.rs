@@ -521,9 +521,16 @@ fn compute_blank_lines(
     }
     let current = &commands[index];
     let prev = &commands[index - 1];
+    // registry-axis-ok: irreducible — `blank_lines_between_procs` is a style
+    // policy about literally `proc` (its own doc comment: "Blank lines
+    // between proc definitions"), not about every `DefinesProcedure`-trait
+    // command (TclOO class/object definers, iRules' own `proc`, …);
+    // widening it to the trait would change formatter output for those
+    // other definers, which nothing asked for; until never
     if prev.name == "proc" && current.name == "proc" {
         return config.blank_lines_between_procs;
     }
+    // registry-axis-ok: irreducible — same reason; until never
     if prev.name == "proc" || current.name == "proc" {
         return config.blank_lines_between_blocks;
     }

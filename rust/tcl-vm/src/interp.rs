@@ -30,6 +30,7 @@ use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::io::{self, Write};
 use std::rc::{Rc, Weak};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tcl_dialect::{PackagePrefer, model::SurfaceQuery};
 
@@ -42,10 +43,11 @@ use tcl_runtime_api::guard::{
     GuardDomain, GuardDomains, GuardError, GuardIdentity, GuardManager, GuardToken,
 };
 use tcl_runtime_api::{
-    ArrayElementRead, ArrayInvalidation, ArrayReadFailure, ArrayReadMiss, ArrayTarget, Code,
-    CommandId, Commands, CompileService, Completion, FatalTail, FrameId, FrameLinkOrigin, Frames,
-    Introspect, Namespaces, NsId, ProcInfo, ProcParam, ProcedureCompileTarget, ProcedureDispatch,
-    Procs, ROOT_NS, ScriptCompileTarget, Traces, VarId, VarStore, VarUnsetError,
+    ArrayElementRead, ArrayInvalidation, ArrayReadFailure, ArrayReadMiss, ArrayTarget,
+    ArtefactIdentityManifest, Code, CommandId, Commands, CompileService, Completion, FatalTail,
+    FrameId, FrameLinkOrigin, Frames, Introspect, Namespaces, NsId, ProcInfo, ProcParam,
+    ProcedureCompileTarget, ProcedureDispatch, Procs, ROOT_NS, RegisteredBacking, Rung,
+    RuntimeContext, ScriptCompileTarget, Traces, VarId, VarStore, VarUnsetError,
 };
 use tcl_syntax::expr::{eval, parse_expr};
 
@@ -854,6 +856,31 @@ struct PackageState {
     /// selected loader's required name/version as a circular-dependency guard;
     /// the stack matters because loaders may require other packages.
     package_loading: Vec<(String, String)>,
+    /// Libraries loaded into this interpreter, `(file name, prefix)` in the
+    /// order they were loaded (`info loaded`). The file name is empty for one
+    /// linked into the program.
+    loaded_libraries: Vec<(String, String)>,
+}
+
+/// A compiled function and the manifest of the module it came from.
+pub(crate) type CompiledFunction = (Rc<FunctionAsm>, Option<Arc<ArtefactIdentityManifest>>);
+
+/// The guard machinery's record of command tokens, by token generation.
+#[derive(Default)]
+struct GuardedCommands {
+    /// The stable semantic identities attested for each command token, by the
+    /// token's generation. A generation follows its command through rename and
+    /// hide, and a replacement or deletion leaves the old entry unreachable, so
+    /// an attestation lasts exactly as long as the command it describes.
+    /// Ordinary command registration cannot authorise a fast path.
+    attested: std::cell::RefCell<HashMap<u64, BTreeSet<GuardIdentity>>>,
+    /// The command tokens an embedder registered through
+    /// [`Vm::register_guarded_builtin`]. Such a handler is the embedder's
+    /// implementation of a command and never this VM's own, so a unit
+    /// specialised for the shipped builtin of its name is not admitted over it,
+    /// as it is not over a native command or a procedure. It follows its token
+    /// through rename and hide, as an attestation does.
+    host: HashSet<u64>,
 }
 
 pub struct InterpState {
@@ -863,16 +890,8 @@ pub struct InterpState {
     /// and variable-resolution semantics; the VM never infers them from a
     /// dialect name.
     runtime_version: tcl_dialect::TclVersion,
-    /// The dialect profile this VM validates its builtin command surface
-    /// against: [`Self::builtin_command_visible_for_surface`]
-    /// consults this profile's availability point, so a command the emulated
-    /// release does not have (`lassign` at 8.4, `lpop` before 9.0) resolves
-    /// like C Tcl — to `invalid command name`. Defaults to the permissive
-    /// fallback profile, which hides nothing; `set_runtime_version` pins the
-    /// matching plain-Tcl profile and `set_dialect_profile` pins a vendor one.
-    dialect_profile: &'static tcl_dialect::DialectProfile,
     /// The profile used solely for builtin command-surface availability.
-    /// Normally identical to [`Self::dialect_profile`], but an embedding host
+    /// Normally identical to the pinned dialect profile, but an embedding host
     /// may expose a broader Tcl host surface while retaining a vendor grammar
     /// and bytecode identity (for example, the iRules simulation harness).
     command_surface_profile: &'static tcl_dialect::DialectProfile,
@@ -1113,9 +1132,9 @@ pub struct InterpState {
     cmd_epoch: std::cell::Cell<u64>,
     /// Runtime-issued speculative guard tokens and mutation-domain snapshots.
     guards: std::cell::RefCell<GuardManager>,
-    /// Stable semantic identities explicitly attached to guardable builtins.
-    /// Ordinary command registration cannot authorise a fast path.
-    guarded_commands: std::cell::RefCell<HashMap<String, BTreeSet<GuardIdentity>>>,
+    /// What is known of command tokens by generation: their guard
+    /// attestations and which of them an embedder registered.
+    guarded_commands: GuardedCommands,
     /// Resolved variable cells whose traces are currently firing. Tcl's guard
     /// lives on each `Var`, so distinct elements of one array remain distinct.
     active_traces: Vec<VarId>,
@@ -1131,6 +1150,21 @@ pub struct InterpState {
     // (stateless) compile service, so these are `Rc` rather than owned.
     out: Rc<RefCell<Box<dyn Write>>>,
     compiler: Option<Rc<dyn CompileService<Module = ModuleAsm>>>,
+    /// The spec-pack facts this VM runs under ([`Vm::set_pack_facts`]): a
+    /// unit whose site claims a stamp not among them is not admitted.
+    /// Empty — the default — admits exactly the units that claim nothing.
+    pack_facts: Vec<tcl_runtime_api::PackFactStamp>,
+    /// The world this interpreter is pinned to ([`Vm::pin_context`]), the
+    /// registry generation it holds, and the identity those state together
+    /// with the pack facts above — what a compiled unit's manifest is
+    /// compared with. Its profile is the dialect profile this VM validates its
+    /// builtin command surface against: [`Self::builtin_command_visible_for_surface`]
+    /// consults its availability point, so a command the emulated release does
+    /// not have (`lassign` at 8.4, `lpop` before 9.0) resolves like C Tcl — to
+    /// `invalid command name`. Defaults to the permissive fallback profile,
+    /// which hides nothing; `set_runtime_version` pins the matching plain-Tcl
+    /// profile and `set_dialect_profile` pins a vendor one.
+    pin: tcl_registry::model::PinnedContext,
     /// Optional debug hook fired once per source command (the execution-control
     /// seam a step debugger drives). `None` in normal runs — the only
     /// per-instruction cost is an `Option` check.
@@ -1401,6 +1435,11 @@ pub(crate) struct LimitSet {
     /// express: a single opcode may allocate without dispatching a command or
     /// spending measurable time.
     value_bytes: Option<u64>,
+    /// Whether a store must stay in the running procedure's own frame. Not
+    /// an `interp limit` type either: an embedder's sandbox bound, so a
+    /// hosted body can leave no state behind that a later call reads
+    /// ([`Vm::confine_store`]).
+    confined_stores: bool,
 }
 
 impl Default for LimitSet {
@@ -1413,6 +1452,7 @@ impl Default for LimitSet {
             time_granularity: 10,
             time_value: None,
             value_bytes: None,
+            confined_stores: false,
         }
     }
 }
@@ -1663,7 +1703,58 @@ impl Vm {
     /// availability point becomes the builtin command-surface filter
     /// ([`Self::builtin_command_visible_for_surface`]).
     pub fn set_dialect_profile(&mut self, profile: &'static tcl_dialect::DialectProfile) {
-        let profile_changed = !std::ptr::eq(self.dialect_profile, profile);
+        self.install_pin(tcl_registry::model::PinnedContext::for_profile(profile));
+    }
+
+    /// Pin the world this VM runs in: the environment, the release point within
+    /// it, the build, the package floors and the registry overlay generation,
+    /// resolved through the same ingress the compiler uses. The profile the
+    /// environment resolves to is what [`Self::set_dialect_profile`] would pin,
+    /// and the generation at the context's overlay is held for as long as the
+    /// pin stands.
+    ///
+    /// A compiled unit states the context it was compiled for, and is admitted
+    /// only at the rungs whose fields agree with this one.
+    ///
+    /// # Errors
+    ///
+    /// [`PinError`](tcl_registry::model::PinError) when the ingress does not
+    /// agree with the context — no such environment, a release or build that
+    /// is not the environment's point, or an overlay nothing has installed,
+    /// which is an error and never the un-overlaid generation under another
+    /// name. The pin is unchanged.
+    pub fn pin_context(
+        &mut self,
+        context: &RuntimeContext,
+    ) -> Result<(), tcl_registry::model::PinError> {
+        self.install_pin(crate::environment::pin_context(context)?);
+        Ok(())
+    }
+
+    /// The world this VM is pinned to.
+    #[must_use]
+    pub fn runtime_context(&self) -> &RuntimeContext {
+        &self.pin.context
+    }
+
+    /// The identity this VM holds — its pinned context and the pack facts it
+    /// was given — in the shape a compiled artefact states its own, which a
+    /// unit's manifest is compared with.
+    #[must_use]
+    pub fn held_identity(&self) -> &ArtefactIdentityManifest {
+        self.pin.identity()
+    }
+
+    fn install_pin(&mut self, mut pin: tcl_registry::model::PinnedContext) {
+        let profile = pin.profile;
+        let profile_changed = !std::ptr::eq(self.pin.profile, profile);
+        pin.restate(&self.pack_facts);
+        if pin.context != self.pin.context {
+            // A unit admitted under the old context is checked again at its
+            // next entry.
+            self.bump_trace_deopt_epoch();
+        }
+        self.pin = pin;
         // The 8.4 `namespace path` tier gate (M10.1) and the availability
         // gate change resolution outcomes, so the command-resolution memo
         // (M16.4) must not survive a version flip.
@@ -1679,7 +1770,6 @@ impl Vm {
             self.eval_cache_plain.clear();
             self.module_procs.clear();
         }
-        self.dialect_profile = profile;
         self.command_surface_profile = profile;
         self.command_surface_point = Some(crate::environment::surface_point(profile));
         self.profile_registry =
@@ -1735,8 +1825,8 @@ impl Vm {
         // a named surface must still be new enough *and* expose each compiled
         // command from the execution dialect.
         if !profile.is_fallback()
-            && (profile.vm_runtime_version < self.dialect_profile.vm_runtime_version
-                || !Self::command_surface_covers_compiled_commands(self.dialect_profile, profile))
+            && (profile.vm_runtime_version < self.pin.profile.vm_runtime_version
+                || !Self::command_surface_covers_compiled_commands(self.pin.profile, profile))
         {
             return false;
         }
@@ -1805,7 +1895,7 @@ impl Vm {
     /// (see [`Self::set_dialect_profile`]).
     #[must_use]
     pub fn dialect_profile(&self) -> &'static tcl_dialect::DialectProfile {
-        self.dialect_profile
+        self.pin.profile
     }
 
     /// The release's `${…}` close rule — `Tcl_ParseVarName`'s brace-form
@@ -1816,7 +1906,7 @@ impl Vm {
     /// compiled word path cannot answer `${a{b}c}` differently.
     #[must_use]
     pub(crate) fn braced_var_style(&self) -> tcl_dialect::BracedVarStyle {
-        self.dialect_profile.grammar.braced_var
+        self.pin.profile.grammar.braced_var
     }
 
     /// The whole lexer grammar this VM emulates, as one `LexerConfig`.
@@ -1830,7 +1920,7 @@ impl Vm {
     /// VM kept C's `}{`.
     #[must_use]
     pub(crate) fn lexer_config(&self) -> tcl_lexer::LexerConfig {
-        tcl_lexer::LexerConfig::from_grammar(self.dialect_profile.grammar)
+        tcl_lexer::LexerConfig::from_grammar(self.pin.profile.grammar)
     }
 
     /// Generation of the dialect profile used to compile dynamic bytecode.
@@ -1880,7 +1970,7 @@ impl Vm {
     /// emulating 9.0 reads it as `A42`.
     #[must_use]
     pub fn escape_syntax(&self) -> tcl_dialect::EscapeSyntax {
-        self.dialect_profile.grammar.escapes
+        self.pin.profile.grammar.escapes
     }
 
     /// A VM writing to an already-shared output sink.
@@ -2030,7 +2120,6 @@ impl InterpState {
         let (guards, unpinned, command_surface_point) = Self::fresh_semantic_environment();
         Self {
             runtime_version: tcl_dialect::TclVersion::V9_0,
-            dialect_profile: unpinned,
             command_surface_profile: unpinned,
             command_surface_point: Some(command_surface_point),
             profile_registry: None,
@@ -2082,11 +2171,13 @@ impl InterpState {
             cmd_resolve_cache: std::cell::RefCell::new((0, HashMap::new())),
             cmd_epoch: std::cell::Cell::new(0),
             guards: std::cell::RefCell::new(guards),
-            guarded_commands: std::cell::RefCell::new(HashMap::new()),
+            guarded_commands: GuardedCommands::default(),
             active_traces: Vec::new(),
             ns_script_frames: Vec::new(),
             out,
             compiler: None,
+            pack_facts: Vec::new(),
+            pin: tcl_registry::model::PinnedContext::for_profile(unpinned),
             debug_hook: None,
             line_watch: None,
             last_debug_key: None,
@@ -2430,6 +2521,9 @@ impl Vm {
     }
 
     fn rebootstrap_host_globals(&mut self) {
+        // The embedder's own bookkeeping, not a store a body made: a host
+        // swapped in after the stores were confined still gets its globals.
+        let confined = std::mem::replace(&mut self.limits.confined_stores, false);
         let snapshot = tcl_platform::bootstrap::snapshot(
             &*self.host_rc(),
             "bytecode",
@@ -2452,6 +2546,7 @@ impl Vm {
         for (name, value) in snapshot.environment() {
             let _ = self.write_array_raw("::env", name, Value::string(value.as_str()));
         }
+        self.limits.confined_stores = confined;
     }
 
     /// Install the on-demand autoloader: `unknown` / `auto_load` /
@@ -2654,9 +2749,13 @@ impl Vm {
         if self.is_safe {
             self.scrub_host_globals_for_safe();
         }
+        if self.limits.confined_stores {
+            self.scrub_host_globals_for_confinement();
+        }
     }
 
-    pub(crate) fn register(&mut self, name: &str, f: BuiltinFn) {
+    /// Register a builtin, returning the storage key it is bound at.
+    pub(crate) fn register(&mut self, name: &str, f: BuiltinFn) -> String {
         // Builtin registrations pass plain literals, bare (`set`) or rooted
         // (`::tcl::array::exists`) — never colon-tree keys — so a single root
         // strip converts to the canonical unrooted key form exactly.
@@ -2672,7 +2771,7 @@ impl Vm {
             // from the command's rendered spelling.
             self.declare_namespace_key(&holder);
         }
-        self.register_command(canonical, Command::Builtin(f));
+        self.register_command(canonical, Command::Builtin(f))
     }
 
     /// Register a builtin together with a stable semantic identity that
@@ -2681,70 +2780,190 @@ impl Vm {
     /// Ordinary builtins deliberately have no such identity. Adding one is an
     /// explicit runtime implementation decision, not an inference from the
     /// command's spelling or handler address.
+    ///
+    /// The handler is the embedder's, whatever its name: compiled code
+    /// specialised for the shipped builtin at the same registry name is not
+    /// admitted over it ([`Self::command_binding_matches`]), so the handler
+    /// answers.
     pub fn register_guarded_builtin(&mut self, name: &str, f: BuiltinFn, identity: GuardIdentity) {
         let canonical = name.strip_prefix("::").unwrap_or(name);
-        self.register(canonical, f);
-        self.guarded_commands
-            .borrow_mut()
-            .entry(canonical.to_owned())
-            .or_default()
-            .insert(identity);
+        self.register_attested(canonical, canonical, f, BTreeSet::from([identity]));
+        if let Some(generation) = self.visible_command_generation(canonical).copied() {
+            self.guarded_commands.host.insert(generation);
+        }
     }
 
-    /// Register a builtin and derive every semantic identity from its registry
-    /// specification, including subcommand and form intrinsics.
-    pub fn register_spec_builtin(&mut self, spec: &tcl_registry::CommandSpec, f: BuiltinFn) {
-        self.register(spec.name, f);
-        // `register` canonicalises rooted names before installing them. Keep
-        // the registry's spelling as the stable identity so a qualified
-        // builtin such as `::tcl::dict::info` is still filtered by its own
-        // release surface, including after rename/import/hide/expose.
-        self.builtin_identities.insert(
-            spec.name.trim_start_matches("::").to_owned(),
-            spec.name.to_owned(),
-        );
-        let identities: BTreeSet<_> = spec
-            .intrinsic_ids()
-            .into_iter()
-            .flat_map(|id| {
-                id.guard_semantics_variants().iter().map(move |semantics| {
-                    GuardIdentity::registry_intrinsic_with_semantics(id.stable_id(), *semantics)
+    /// Register a builtin under its registry's own spelling — rooted, as
+    /// `::tcl::dict::get` — and keep that spelling as its registry identity, so
+    /// the release surface gates it by the name the registry knows it under
+    /// wherever a rename, import, hide or expose later takes it. The registry
+    /// has no spec for the unrooted spelling these commands are stored under,
+    /// which is why the spelling has to be kept.
+    pub(crate) fn register_spelled(&mut self, name: &str, f: BuiltinFn) {
+        let key = self.register(name, f);
+        self.builtin_identities.insert(key, name.to_owned());
+    }
+
+    /// Register a builtin and attest `identities` for the token it is bound
+    /// under. The token it displaces takes its attestation with it.
+    fn register_attested(
+        &mut self,
+        name: &str,
+        displaced_key: &str,
+        f: BuiltinFn,
+        identities: BTreeSet<GuardIdentity>,
+    ) {
+        let displaced = self.visible_command_generation(displaced_key).copied();
+        let key = self.register(name, f);
+        if let Some(generation) = self.visible_command_generation(&key).copied() {
+            self.attest(generation, displaced, identities);
+        } else if let Some(displaced) = displaced {
+            self.guarded_commands
+                .attested
+                .borrow_mut()
+                .remove(&displaced);
+        }
+    }
+
+    /// The one writer of the attestation table: attest `identities` for the
+    /// command token `generation` and drop the entry of the token it displaced.
+    /// What is already attested for `generation` stays.
+    fn attest(&self, generation: u64, displaced: Option<u64>, identities: BTreeSet<GuardIdentity>) {
+        let mut attested = self.guarded_commands.attested.borrow_mut();
+        if let Some(displaced) = displaced {
+            attested.remove(&displaced);
+        }
+        if !identities.is_empty() {
+            attested.entry(generation).or_default().extend(identities);
+        }
+    }
+
+    /// Attach the registry's intrinsic identities to the builtins this VM
+    /// registered, from the generation it is pinned to.
+    ///
+    /// The sweep reads that generation's shipped store and nothing an overlay
+    /// installed: a pack's command is not a runtime implementation, and only
+    /// the runtime may attest. A name is attested only while the command bound
+    /// at it is still the builtin registered there, so a name a script has
+    /// since redefined, or renamed another builtin over, gains no attestation
+    /// for that command, and a builtin moved to another name keeps the one it
+    /// already has (the table is keyed by the command token's generation, which
+    /// a rename carries). It runs once, at the end of registration: the table
+    /// survives the profile pin, and a later sweep would attest whatever an
+    /// embedder registered at a registry name as the registry's command.
+    pub(crate) fn attach_identities(&mut self) {
+        let registry = crate::environment::store_for_profile(self.pin.profile);
+        self.attach_identities_from(registry);
+    }
+
+    /// The sweep over one generation's store. Only [`Self::attach_identities`]
+    /// chooses the store in production: the generation the VM is pinned to.
+    fn attach_identities_from(&mut self, registry: &tcl_registry::CommandRegistry) {
+        for name in registry.command_names() {
+            let Some(spec) = registry.get_exact(name) else {
+                continue;
+            };
+            let identities: BTreeSet<GuardIdentity> = spec
+                .intrinsic_ids()
+                .into_iter()
+                .flat_map(|id| {
+                    id.guard_semantics_variants().iter().map(move |semantics| {
+                        GuardIdentity::registry_intrinsic_with_semantics(id.stable_id(), *semantics)
+                    })
                 })
+                .collect();
+            if identities.is_empty() {
+                continue;
+            }
+            let key = spec.name.strip_prefix("::").unwrap_or(spec.name);
+            if !matches!(self.commands.get(key), Some(Command::Builtin(_)))
+                || self
+                    .builtin_identity_for_key(key)
+                    .is_none_or(|identity| identity.trim_start_matches("::") != key)
+            {
+                continue;
+            }
+            let Some(generation) = self.visible_command_generation(key).copied() else {
+                continue;
+            };
+            self.attest(generation, None, identities);
+        }
+    }
+
+    /// What this VM's command table backs, by command name: the runtime's own
+    /// answer to "what did you register", which a spec's `runtime_backing`
+    /// declaration is held to.
+    ///
+    /// Every visible command is classified by what it is: a native handler
+    /// (the engine's own or an embedder's) or an engine-installed `TclOO`
+    /// root. A command a script defines is no backing. This VM embeds no Tcl
+    /// library, so nothing is reported as defined by one. Names are without a
+    /// leading `::`, and a name this VM does not mention is absent.
+    #[must_use]
+    pub fn backing_report(&self) -> Vec<(String, RegisteredBacking)> {
+        let mut report: Vec<(String, RegisteredBacking)> = self
+            .commands
+            .iter()
+            .filter_map(|(key, command)| {
+                let backing = match command {
+                    Command::Builtin(_) | Command::Native(_) => RegisteredBacking::Builtin,
+                    Command::Object(_) if self.registry_object_roots.contains_key(key) => {
+                        RegisteredBacking::Object
+                    }
+                    _ => return None,
+                };
+                Some((key.clone(), backing))
             })
             .collect();
-        if !identities.is_empty() {
-            self.guarded_commands
-                .borrow_mut()
-                .insert(spec.name.trim_start_matches("::").to_owned(), identities);
-        }
+        report.sort();
+        report
+    }
+
+    /// The identities attested for the command `name` resolves to from the
+    /// current namespace. The name is resolved afresh, so a command that was
+    /// replaced, renamed away, hidden, or is no longer admitted by the command
+    /// surface answers `None`, and one restored by `rename` or `expose` answers
+    /// what it did before.
+    fn attested_identities(&self, name: &str) -> Option<BTreeSet<GuardIdentity>> {
+        let key = self.resolve_command_fqn(self.current_ns(), name)?;
+        let generation = *self.visible_command_generation(&key)?;
+        self.guarded_commands
+            .attested
+            .borrow()
+            .get(&generation)
+            .cloned()
     }
 
     /// Verify the live command identity and snapshot the requested mutation
     /// domains. Any active trace in a requested trace domain conservatively
     /// refuses issuance; an epoch snapshot is not an absence proof.
+    ///
+    /// A request for a registry intrinsic must cover the domains its family
+    /// requires ([`tcl_registry::IntrinsicId::family`]) whatever the caller
+    /// asked for: a Family-B member reaches the variable store, so its guard is
+    /// refused while a variable trace exists and stales when one is added.
     pub fn prepare_command_guard(
         &self,
         name: &str,
         expected: GuardIdentity,
         domains: GuardDomains,
     ) -> Result<GuardToken, GuardError> {
+        if !domains.covers(tcl_registry::IntrinsicId::required_guard_domains(expected)) {
+            return Err(GuardError::DomainsInsufficient);
+        }
         if (domains.contains(GuardDomain::CommandTrace)
             && !(self.cmd_traces.is_empty() && self.exec_traces.is_empty()))
             || (domains.contains(GuardDomain::VariableTrace) && !self.var_traces.is_empty())
         {
             return Err(GuardError::PrerequisiteUnsatisfied);
         }
-        let observed = self
-            .resolve_command_fqn(self.current_ns(), name)
-            .and_then(|key| {
-                let identities = self.guarded_commands.borrow();
-                let identities = identities.get(&key)?;
-                Some(if identities.contains(&expected) {
-                    expected
-                } else {
-                    *identities.first()?
-                })
-            });
+        let observed = self.attested_identities(name).and_then(|identities| {
+            Some(if identities.contains(&expected) {
+                expected
+            } else {
+                *identities.first()?
+            })
+        });
         self.guards
             .borrow_mut()
             .prepare(expected, observed, domains)
@@ -2753,11 +2972,7 @@ impl Vm {
     /// Re-check a command guard against current live identity and epochs.
     #[must_use]
     pub fn check_command_guard(&self, token: GuardToken, name: &str) -> bool {
-        let Some(key) = self.resolve_command_fqn(self.current_ns(), name) else {
-            return false;
-        };
-        let identities = self.guarded_commands.borrow();
-        let Some(identities) = identities.get(&key) else {
+        let Some(identities) = self.attested_identities(name) else {
             return false;
         };
         identities
@@ -3865,7 +4080,6 @@ impl Vm {
         child.compiler.clone_from(&self.compiler);
         child.host = Rc::clone(&self.host);
         child.runtime_version = self.runtime_version;
-        child.dialect_profile = self.dialect_profile;
         child.command_surface_profile = self.command_surface_profile;
         // The pin's three derived facts travel together: the surface
         // profile, the mask its environment gates under, and the
@@ -3873,6 +4087,11 @@ impl Vm {
         // gate the parent's registry under the unpinned permissive mask.
         child.command_surface_point = self.command_surface_point;
         child.profile_registry = self.profile_registry;
+        // The pin's context and the registry generation it holds come with
+        // the profile: a child that kept the unpinned context would state an
+        // identity no module compiled for its profile agrees with.
+        child.pin = self.pin.clone();
+        child.pin.restate(&child.pack_facts);
         Box::new(child)
     }
 
@@ -4117,6 +4336,105 @@ impl Vm {
     /// Arm (or disarm) the value-size limit.
     pub(crate) fn set_value_size_limit_value(&mut self, limit: Option<u64>) {
         self.limits.value_bytes = limit;
+    }
+
+    /// Whether stores are confined to the running procedure's own frame.
+    pub(crate) fn stores_confined_value(&self) -> bool {
+        self.limits.confined_stores
+    }
+
+    /// Confine (or release) stores to the running procedure's own frame.
+    pub(crate) fn set_stores_confined_value(&mut self, confined: bool) {
+        self.limits.confined_stores = confined;
+        if confined {
+            self.scrub_host_globals_for_confinement();
+        }
+    }
+
+    /// Remove every global the host's bootstrap wrote — `::env`,
+    /// `::tcl_platform` and the library paths — so a body whose stores are
+    /// confined reads no host environment either, and its answer depends on
+    /// its arguments and the pinned release alone. Reading one raises, as
+    /// reading any unset variable does.
+    fn scrub_host_globals_for_confinement(&mut self) {
+        for name in tcl_platform::bootstrap::HOST_ARRAYS
+            .iter()
+            .chain(tcl_platform::bootstrap::HOST_PATH_GLOBALS)
+        {
+            self.unset_global_raw(name);
+        }
+    }
+
+    /// Whether a store to `name`, resolved from level `start`, would land
+    /// outside the running procedure's own frame while stores are confined:
+    /// a `::`-qualified or namespace-resolved name, a global at level 0, a
+    /// local linked to another frame's variable, or any level but the
+    /// running one. Reads are never checked.
+    pub(crate) fn store_confined(&self, name: &str, start: usize) -> bool {
+        if !self.limits.confined_stores {
+            return false;
+        }
+        let base = elem_ref(name).map_or(name, |(base, _)| base);
+        let own_frame = start != 0 && start == self.current_level();
+        let inside = own_frame
+            && self.var_binding_from(base, start).is_some_and(|binding| {
+                binding.owner == VarTableOwner::Frame(start)
+                    && self
+                        .var_table(binding.owner)
+                        .and_then(|table| table.get(&binding.name))
+                        .is_none_or(|id| {
+                            !matches!(
+                                self.var_arena.get(*id).map(crate::vars::VarCell::state),
+                                Some(VarState::Link(_))
+                            )
+                        })
+            });
+        !inside
+    }
+
+    /// Refuse a store to `name`, resolved from level `start`, that
+    /// [`Self::store_confined`] says lands outside the activation — an
+    /// array's creation included. The refusal is an ordinary Tcl error
+    /// raised before anything is written.
+    pub(crate) fn confine_store(&self, name: &str, start: usize) -> Result<(), Completion<Value>> {
+        if !self.store_confined(name, start) {
+            return Ok(());
+        }
+        Err(crate::command::err_with_code(
+            format!("can't set \"{name}\": stores are confined to the activation"),
+            "TCL WRITE VARNAME",
+        ))
+    }
+
+    /// Refuse an unset of `name` — a whole variable, or an element spelt
+    /// `a(k)` — resolved from level `start`, that would remove a variable
+    /// outside the activation while stores are confined. The refusal is an
+    /// ordinary Tcl error raised before anything is removed.
+    pub(crate) fn confine_unset(&self, name: &str, start: usize) -> Result<(), Completion<Value>> {
+        if !self.store_confined(name, start) {
+            return Ok(());
+        }
+        Err(crate::command::err_with_code(
+            format!("can't unset \"{name}\": stores are confined to the activation"),
+            "TCL UNSET VARNAME",
+        ))
+    }
+
+    /// Refuse `rand()` and `srand()` while stores are confined. The
+    /// generator's seed is interpreter state every invocation shares:
+    /// `srand` writes it and `rand` reads and advances what an earlier
+    /// invocation left, so either would make one evaluation's answer
+    /// depend on another's. Under 8.4 the functions are `expr` builtins no
+    /// command restriction removes, so the refusal is here, where the draw
+    /// is made. The refusal is an ordinary Tcl error.
+    pub(crate) fn confine_generator(&self, function: &str) -> Result<(), Completion<Value>> {
+        if !self.limits.confined_stores {
+            return Ok(());
+        }
+        Err(err(format!(
+            "can't call \"{function}\": stores are confined to the activation and the \
+             generator's seed is not"
+        )))
     }
 
     /// The `commands` limit value, if one is armed.
@@ -4379,6 +4697,7 @@ impl Vm {
             .unwrap_or_default();
         self.in_interp(id, |vm| {
             vm.bump_cmd_epoch();
+            vm.invalidate_lookup_guards();
             for name in names {
                 if !vm.commands.contains_key(&name) {
                     vm.expose_own_command(&name, &name)
@@ -4405,6 +4724,13 @@ impl Vm {
                 .cloned()
                 .unwrap_or_else(|| self.command_origin_key(key))
         })
+    }
+
+    /// Whether the builtin bound at `key` is an embedder's handler
+    /// ([`Self::register_guarded_builtin`]) and not one this VM registered.
+    fn is_host_builtin(&self, key: &str) -> bool {
+        self.visible_command_generation(key)
+            .is_some_and(|generation| self.guarded_commands.host.contains(generation))
     }
 
     /// Whether every executable namespace recorded by a bare function agrees
@@ -4454,9 +4780,10 @@ impl Vm {
             }
             match self.commands.get(&key) {
                 Some(Command::Builtin(_)) => {
-                    return self
-                        .builtin_identity_for_key(&key)
-                        .is_some_and(|found| found == binding.identity);
+                    return !self.is_host_builtin(&key)
+                        && self
+                            .builtin_identity_for_key(&key)
+                            .is_some_and(|found| found == binding.identity);
                 }
                 Some(Command::Object(_)) => {
                     return self
@@ -4476,7 +4803,11 @@ impl Vm {
         }
     }
 
-    pub(crate) fn function_command_bindings_match(&self, asm: &FunctionAsm) -> bool {
+    pub(crate) fn function_command_bindings_match(
+        &self,
+        asm: &FunctionAsm,
+        manifest: Option<&ArtefactIdentityManifest>,
+    ) -> bool {
         let commands = asm
             .command_bindings
             .iter()
@@ -4486,6 +4817,73 @@ impl Vm {
                 .procedure_bindings
                 .iter()
                 .all(|binding| self.procedure_binding_matches(binding))
+            && self.site_claims_hold(asm)
+            && self.manifest_admits(asm, manifest)
+    }
+
+    /// The manifest check, per rung: the fields in which the module's
+    /// manifest disagrees with this VM's identity refuse the rungs that rest
+    /// on them, and `asm` is admitted unless it has a site at one of those. A
+    /// function with only generic-dispatch sites is admitted under a changed
+    /// pack set; one with a pack-fact site is not. Assembly with no manifest is
+    /// admitted by its bindings and claims alone.
+    fn manifest_admits(
+        &self,
+        asm: &FunctionAsm,
+        manifest: Option<&ArtefactIdentityManifest>,
+    ) -> bool {
+        manifest.is_none_or(|manifest| {
+            !manifest
+                .refused_rungs(self.pin.identity())
+                .intersects(asm.rungs())
+        })
+    }
+
+    /// The claims check: every spec-pack claim `asm`'s sites make stamps
+    /// facts this VM holds — the same pack, content hash, vocabulary
+    /// version, overlay generation and evaluator revision — and says what its
+    /// kind of claim must. A unit that claims nothing, as every unit compiled
+    /// without a pack does, holds trivially.
+    fn site_claims_hold(&self, asm: &FunctionAsm) -> bool {
+        asm.site_claims.iter().all(|claim| {
+            self.pack_facts.contains(claim.facts()) && Self::claim_is_coherent(claim, asm)
+        })
+    }
+
+    /// What a claim states beyond the pack facts it stamps. A reference-body
+    /// claim must name a procedure binding the function carries — the binding is
+    /// what holds the live command to the body, so a claim of a body nothing
+    /// checks is the artefact contradicting itself — and its backing must be a
+    /// Tcl body. An exact match of a procedure's text is a true statement about
+    /// the procedure and says nothing about whether the command *is* that
+    /// procedure: a command the host registered natively, or one nothing
+    /// executes, is not made one by a procedure of the same text.
+    fn claim_is_coherent(claim: &tcl_runtime_api::SiteClaim, asm: &FunctionAsm) -> bool {
+        match claim {
+            tcl_runtime_api::SiteClaim::ReferenceBody {
+                procedure, backing, ..
+            } => {
+                *backing == tcl_runtime_api::BackingKind::TclBody
+                    && asm.procedure_bindings.contains(procedure)
+            }
+            tcl_runtime_api::SiteClaim::PackFacts(_)
+            | tcl_runtime_api::SiteClaim::BuiltinAlias { .. } => true,
+        }
+    }
+
+    /// Run under the facts of the spec-pack set code is compiled against —
+    /// one [`tcl_runtime_api::PackFactStamp`] per pack file the set installs
+    /// (`tcl_spectcl::PackSet::fact_stamps`). A compiled unit is admitted
+    /// only when every site claim it carries stamps one of them; anything
+    /// else is plain dispatch when the unit has source and a compile service
+    /// is installed, and an admission error otherwise. Replacing the facts
+    /// advances the compilation-deopt epoch, so a unit admitted under the
+    /// old facts is checked again at its next entry.
+    pub fn set_pack_facts(&mut self, stamps: Vec<tcl_runtime_api::PackFactStamp>) {
+        let state = &mut *self.state;
+        state.pack_facts = stamps;
+        state.pin.restate(&state.pack_facts);
+        self.bump_trace_deopt_epoch();
     }
 
     /// Whether a compiler-inlined user-procedure body still belongs to the
@@ -4761,6 +5159,7 @@ impl Vm {
     /// `interp invokehidden` and restorable with `interp expose`.
     fn make_safe(&mut self) {
         self.bump_cmd_epoch();
+        self.invalidate_lookup_guards();
         // The hide list is the registry's `Traits::SAFE_INTERP_HIDDEN` query,
         // not a name list this engine keeps: C's own set is
         // the `CmdInfo` rows lacking `CMD_IS_SAFE` plus the whole-command rows
@@ -4947,6 +5346,7 @@ impl Vm {
                     }
                     vm.children.remove(&name);
                     vm.bump_cmd_epoch();
+                    vm.invalidate_lookup_guards();
                 });
             }
         }
@@ -5423,6 +5823,7 @@ impl Vm {
     /// names, no leading `::`).
     pub(crate) fn ns_path_set(&mut self, path: Vec<NsId>) {
         self.bump_cmd_epoch();
+        self.invalidate_lookup_guards();
         self.invalidate_compiled_command_semantics();
         let cur = self.current_ns_id();
         match self.ns_deferral.owners.get(&cur).copied() {
@@ -5745,7 +6146,17 @@ impl InterpState {
         // poison-on-exhaustion counters.
         self.cmd_resolve_cache.borrow_mut().1.clear();
         self.cmd_epoch.set(self.cmd_epoch.get().saturating_add(1));
-        self.guarded_commands.borrow_mut().clear();
+    }
+
+    /// Invalidate the guard domains that depend on the command lookup
+    /// environment: namespace paths and interpreter topology.
+    ///
+    /// A command-table mutation does not come here. What a guard needs of its
+    /// command is decided when it is checked, by resolving the guarded name to
+    /// a token generation and finding an attestation there
+    /// ([`Vm::attested_identities`]), so replacing, deleting, renaming, hiding,
+    /// or aliasing one command invalidates that command's guards and no other's.
+    pub(crate) fn invalidate_lookup_guards(&self) {
         let mut guards = self.guards.borrow_mut();
         guards.invalidate(GuardDomain::CommandEnvironment);
         guards.invalidate(GuardDomain::Namespace);
@@ -7898,6 +8309,21 @@ impl Vm {
         }
     }
 
+    /// Record that the library `prefix` is loaded into this interpreter, from
+    /// `file_name`. A prefix is listed once, under the file it was first loaded
+    /// from.
+    pub(crate) fn note_library_loaded(&mut self, file_name: &str, prefix: &str) {
+        let libraries = &mut self.package_state.loaded_libraries;
+        if !libraries.iter().any(|(_, loaded)| loaded == prefix) {
+            libraries.push((file_name.to_owned(), prefix.to_owned()));
+        }
+    }
+
+    /// The libraries loaded into this interpreter, `(file name, prefix)`.
+    pub(crate) fn loaded_libraries(&self) -> &[(String, String)] {
+        &self.package_state.loaded_libraries
+    }
+
     pub(crate) fn forget_package_completely(&mut self, name: &str) {
         self.package_state.packages.remove(name);
         self.package_state.package_ifneeded.remove(name);
@@ -9178,14 +9604,16 @@ impl Vm {
                         parameters: &parameter_names,
                         namespace,
                     },
-                    self.dialect_profile,
+                    self.pin.profile,
                     requested_dispatch,
                 )
                 .map_err(|error| TclError::new(error.0))?
         };
         self.validate_module_profile(&module)?;
         Self::validate_module_namespace(&module, namespace)?;
-        if !force_plain && !self.function_command_bindings_match(&module.top_level) {
+        if !force_plain
+            && !self.function_command_bindings_match(&module.top_level, module.manifest.as_deref())
+        {
             requested_dispatch = ProcedureDispatch::Plain;
             let compiler = self.compiler.as_ref().expect("compiler checked above");
             module = compiler
@@ -9195,7 +9623,7 @@ impl Vm {
                         parameters: &parameter_names,
                         namespace,
                     },
-                    self.dialect_profile,
+                    self.pin.profile,
                     ProcedureDispatch::Plain,
                 )
                 .map_err(|error| TclError::new(error.0))?;
@@ -9221,6 +9649,7 @@ impl Vm {
         self.merge_procs(&module);
         Ok(self
             .compiled_unit(Rc::new(module.top_level), module.source_namespace)
+            .with_manifest(module.manifest)
             .with_fatal_tail(fatal_tail))
     }
 
@@ -9243,7 +9672,7 @@ impl Vm {
                     source: src,
                     namespace,
                 },
-                self.dialect_profile,
+                self.pin.profile,
             )
             .map_err(|error| TclError::new(error.0))?;
         self.validate_module_profile(&module)?;
@@ -9273,7 +9702,7 @@ impl Vm {
         &mut self,
         src: &str,
         namespace: &str,
-    ) -> Result<Option<Rc<FunctionAsm>>, TclError> {
+    ) -> Result<Option<CompiledFunction>, TclError> {
         let Some(compiler) = self.compiler.clone() else {
             return Err(TclError::new(
                 "procedure recompilation requires a CompileService",
@@ -9285,15 +9714,15 @@ impl Vm {
                     source: src,
                     namespace,
                 },
-                self.dialect_profile,
+                self.pin.profile,
             )
             .map_err(|error| TclError::new(error.0))?;
         self.validate_module_profile(&module)?;
         Self::validate_module_namespace(&module, namespace)?;
         let asm = Rc::new(module.top_level.clone());
-        if self.function_command_bindings_match(&asm) {
+        if self.function_command_bindings_match(&asm, module.manifest.as_deref()) {
             self.merge_procs(&module);
-            Ok(Some(asm))
+            Ok(Some((asm, module.manifest)))
         } else {
             Ok(None)
         }
@@ -9328,13 +9757,32 @@ impl Vm {
     /// intrinsic unavailable in a named release, so it is only executable by
     /// a fallback-profile VM.
     pub(crate) fn validate_module_profile(&self, module: &ModuleAsm) -> Result<(), TclError> {
-        if std::ptr::eq(module.profile, self.dialect_profile) {
-            Ok(())
-        } else {
-            Err(TclError::new(format!(
+        if !std::ptr::eq(module.profile, self.pin.profile) {
+            return Err(TclError::new(format!(
                 "bytecode compiled for dialect profile {} cannot run under {}",
-                module.profile.name, self.dialect_profile.name
-            )))
+                module.profile.name, self.pin.profile.name
+            )));
+        }
+        // What the whole unit rests on — the ABI and the world it was lexed
+        // and specialised for — is checked here, once, and refuses it outright.
+        // The fields that only some rungs rest on are checked per function, in
+        // `function_command_bindings_match`.
+        let Some(manifest) = &module.manifest else {
+            return Ok(());
+        };
+        let held = self.pin.identity();
+        match manifest
+            .disagreements(held)
+            .into_iter()
+            .find(|field| field.rests_on().contains(Rung::Generic))
+        {
+            None => Ok(()),
+            Some(field) => Err(TclError::new(format!(
+                "bytecode manifest disagrees with the runtime on {}: compiled for {}, runtime holds {}",
+                field.name(),
+                manifest.describe(field),
+                held.describe(field)
+            ))),
         }
     }
 
@@ -9359,6 +9807,7 @@ impl Vm {
 
     /// Merge proc bodies produced by the VM's current compile service.
     pub(crate) fn merge_procs(&mut self, module: &ModuleAsm) {
+        let manifest = module.manifest.clone();
         for (qname, asm) in &module.procedures {
             let Some(provenance) = module.procedure_provenance.get(qname) else {
                 continue;
@@ -9367,7 +9816,9 @@ impl Vm {
                 continue;
             };
             let namespace = key_holder_and_tail_unrooted(&key.name).0;
-            let unit = self.compiled_unit(Rc::new(asm.clone()), namespace);
+            let unit = self
+                .compiled_unit(Rc::new(asm.clone()), namespace)
+                .with_manifest(manifest.clone());
             // This compiler invocation is the newest authoritative artifact
             // for the exact source identity. A CompileService is allowed to
             // change its lowering semantics between invocations, so retaining
@@ -9380,6 +9831,7 @@ impl Vm {
     /// Admit proc bodies from an embedder-owned module without attributing
     /// them to the current compile service.
     pub(crate) fn merge_foreign_procs(&mut self, module: &ModuleAsm) {
+        let manifest = module.manifest.clone();
         for (qname, asm) in &module.procedures {
             let Some(provenance) = module.procedure_provenance.get(qname) else {
                 continue;
@@ -9388,7 +9840,9 @@ impl Vm {
                 continue;
             };
             let namespace = key_holder_and_tail_unrooted(&key.name).0;
-            let unit = self.admitted_foreign_unit(Rc::new(asm.clone()), namespace);
+            let unit = self
+                .admitted_foreign_unit(Rc::new(asm.clone()), namespace)
+                .with_manifest(manifest.clone());
             // `run_module` promises the supplied module's semantics. Two
             // foreign modules may carry the same proc source while having
             // been produced by different compilers, so the module currently
@@ -9418,7 +9872,8 @@ impl Vm {
         let want_epoch = self.trace_deopt_epoch();
         let want_profile = self.profile_generation;
         let want_compiler = self.compiler_generation;
-        let bindings_match = self.function_command_bindings_match(&proc.body.asm);
+        let bindings_match =
+            self.function_command_bindings_match(&proc.body.asm, proc.body.manifest.as_deref());
         let foreign_without_compiler = self.compiler.is_none()
             && proc
                 .body
@@ -10639,6 +11094,7 @@ impl Vm {
     /// traces at :2040-2046, `cleanup:` at :2070; same shape in 8.6.16). A
     /// cell the write created therefore survives too.
     pub fn set_var(&mut self, name: &str, value: Value) -> Result<(), Completion<Value>> {
+        self.confine_store(name, self.current_level())?;
         self.validate_var_parent(name)?;
         if self
             .resolve_var_from(name, self.current_level())
@@ -10899,6 +11355,9 @@ impl Vm {
         name: &str,
         complain: bool,
     ) -> Result<(), Completion<Value>> {
+        // Confined stores refuse a removal outside the activation, whether
+        // or not the variable is there to remove.
+        self.confine_unset(name, self.current_level())?;
         if let Some((array, key)) = elem_ref(name) {
             let miss_reason = complain.then(|| self.array_element_unset_miss_reason(array));
             let existed = self.array_unset_elem_spelled(array, key);
@@ -11305,6 +11764,7 @@ impl Vm {
         key: &str,
         value: Value,
     ) -> Result<(), Completion<Value>> {
+        self.confine_store(name, start)?;
         self.validate_var_parent(name)?;
         let Some((_, base_id)) = self.ensure_base_var_from(name, start) else {
             return Err(err(format!(
@@ -11831,14 +12291,24 @@ impl Vm {
         self.error_info.take()
     }
 
-    /// Publish `errorInfo` / `errorCode` into the global frame.
+    /// Publish `errorInfo` / `errorCode` into the global frame. Not while
+    /// stores are confined to the activation: the two are globals, so a
+    /// caught error would leave behind state the next invocation reads. The
+    /// error's own options still carry both.
     pub(crate) fn publish_error(&mut self, info: &str, code: &Value) {
+        if self.limits.confined_stores {
+            return;
+        }
         self.publish_error_info(info);
         self.write_scalar_from(0, "::errorCode", code.clone());
     }
 
-    /// Publish the `errorInfo` global alone, leaving `errorCode` as it is.
+    /// Publish the `errorInfo` global alone, leaving `errorCode` as it is;
+    /// nothing while stores are confined, as [`Self::publish_error`].
     pub(crate) fn publish_error_info(&mut self, info: &str) {
+        if self.limits.confined_stores {
+            return;
+        }
         self.write_scalar_from(0, "::errorInfo", Value::string(info));
     }
 
@@ -12054,7 +12524,7 @@ impl Vm {
         if let Some(m) = self.eval_cache.get(&key) {
             let m = Rc::clone(m);
             Self::validate_module_namespace(&m, namespace)?;
-            if !self.function_command_bindings_match(&m.top_level) {
+            if !self.function_command_bindings_match(&m.top_level, m.manifest.as_deref()) {
                 return self.compile_plain_cached_module(target);
             }
             return Ok(m);
@@ -12069,12 +12539,12 @@ impl Vm {
                 source: src,
                 namespace,
             },
-            self.dialect_profile,
+            self.pin.profile,
         );
         let m = Rc::new(compiled.map_err(|e| TclError::new(e.0))?);
         self.validate_module_profile(&m)?;
         Self::validate_module_namespace(&m, namespace)?;
-        if !self.function_command_bindings_match(&m.top_level) {
+        if !self.function_command_bindings_match(&m.top_level, m.manifest.as_deref()) {
             return self.compile_plain_cached_module(target);
         }
         self.eval_cache.insert(key, Rc::clone(&m));
@@ -12143,7 +12613,7 @@ impl Vm {
         let Some(compiler) = self.compiler.as_ref() else {
             return (src, None, usize::from(!src.is_empty()));
         };
-        let plan = compiler.script_command_plan_for_profile(src, self.dialect_profile);
+        let plan = compiler.script_command_plan_for_profile(src, self.pin.profile);
         if plan.complete_prefix_len > src.len() || !src.is_char_boundary(plan.complete_prefix_len) {
             return (src, None, usize::from(!src.is_empty()));
         }
@@ -12176,10 +12646,12 @@ impl Vm {
         self.validate_module_profile(&module)?;
         Self::validate_module_namespace(&module, namespace)?;
         self.merge_procs(&module);
-        Ok(self.compiled_unit(
-            Rc::new(module.top_level.clone()),
-            module.source_namespace.clone(),
-        ))
+        Ok(self
+            .compiled_unit(
+                Rc::new(module.top_level.clone()),
+                module.source_namespace.clone(),
+            )
+            .with_manifest(module.manifest.clone()))
     }
 
     /// Prepare a catchable/handleable script without rejecting a valid command
@@ -12195,7 +12667,7 @@ impl Vm {
                 "eval / command substitution requires a CompileService",
             ));
         };
-        let plan = compiler.script_command_plan_for_profile(src, self.dialect_profile);
+        let plan = compiler.script_command_plan_for_profile(src, self.pin.profile);
         if plan.complete_prefix_len > src.len() || !src.is_char_boundary(plan.complete_prefix_len) {
             return Err(TclError::new(
                 "CompileService returned an invalid script command boundary",
@@ -12256,6 +12728,10 @@ impl VarStore for Vm {
             return Err(VarUnsetError::IsConstant);
         }
         Ok(self.unset(frame, name))
+    }
+
+    fn unset_confined(&self, frame: FrameId, name: &str) -> bool {
+        self.store_confined(name, frame.0)
     }
 
     fn exists(&self, frame: FrameId, name: &str) -> bool {
@@ -12757,6 +13233,32 @@ mod family_b_tests {
         );
     }
 
+    /// A child is another interpreter of the same build, so it states the
+    /// world its parent is pinned to, the overlay included.
+    #[test]
+    fn a_child_states_the_context_its_parent_is_pinned_to() {
+        const OVERLAY: u64 = 0x0C0_1706;
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        tcl_registry::registry_for_profile_with_overlay(profile, OVERLAY, |_| {});
+        let mut context = tcl_registry::model::runtime_context_for_profile(profile);
+        context.overlay_generation = OVERLAY;
+        context.packages = vec![("vendor".to_owned(), "2.1".to_owned())];
+        let mut vm = Vm::new();
+        vm.pin_context(&context).expect("installed, so it pins");
+
+        let name = vm.create_child(Some("child".to_owned()), false);
+        let id = vm.child_id(&name).expect("the child is in the arena");
+        let (stated, held) = vm.in_interp(id, |child| {
+            (
+                child.runtime_context().clone(),
+                child.held_identity().clone(),
+            )
+        });
+        assert_eq!(stated, context);
+        assert_eq!(&held, vm.held_identity());
+    }
+
     #[test]
     fn invokehidden_rechecks_a_hidden_builtin_against_the_child_profile() {
         let mut vm = Vm::new();
@@ -13143,9 +13645,97 @@ mod family_b_tests {
         assert!(!vm.check_command_guard(token, "guarded"));
     }
 
+    /// A request for a Family-B intrinsic covers the variable-trace domain or
+    /// is refused, whatever the caller asked for, and a Value member needs no
+    /// such domain. Covered, the guard is refused while a variable trace
+    /// exists and goes stale when one is added.
     #[test]
-    fn any_command_mutation_invalidates_guard_and_live_identity_attestation() {
+    fn a_family_b_guard_request_must_cover_the_variable_trace_domain() {
+        use tcl_registry::IntrinsicId;
         let mut vm = Vm::new();
+        let version = vm.runtime_version();
+        let identity = |member: IntrinsicId| {
+            GuardIdentity::registry_intrinsic_with_semantics(
+                member.stable_id(),
+                member.guard_semantics_key(version),
+            )
+        };
+        let (stores, value) = (
+            identity(IntrinsicId::DictSet),
+            identity(IntrinsicId::ListLength),
+        );
+        vm.register_guarded_builtin("stores", guarded_builtin, stores);
+        vm.register_guarded_builtin("pure", guarded_builtin, value);
+        let command = GuardDomains::one(GuardDomain::CommandEnvironment);
+        let traced = command.with(GuardDomain::VariableTrace);
+
+        assert_eq!(
+            vm.prepare_command_guard("stores", stores, command),
+            Err(GuardError::DomainsInsufficient)
+        );
+        let token = vm
+            .prepare_command_guard("pure", value, command)
+            .expect("a Value member requires no variable-trace domain");
+        assert!(vm.release_command_guard(token));
+
+        let token = vm
+            .prepare_command_guard("stores", stores, traced)
+            .expect("a request covering the family's domain");
+        assert!(vm.check_command_guard(token, "stores"));
+        vm.add_var_trace(
+            "watched",
+            vec!["write".to_owned()],
+            "callback".to_owned(),
+            false,
+        );
+        assert!(!vm.check_command_guard(token, "stores"));
+        assert_eq!(
+            vm.prepare_command_guard("stores", stores, traced),
+            Err(GuardError::PrerequisiteUnsatisfied)
+        );
+        assert!(vm.prepare_command_guard("pure", value, command).is_ok());
+    }
+
+    /// The registry's members that only observe a variable and still run its
+    /// traces do so here: `info exists` a read trace, the array queries an
+    /// array trace, as `tclsh` does.
+    #[test]
+    fn every_trace_firing_intrinsic_fires_a_trace_here() {
+        use tcl_registry::IntrinsicId;
+        for member in IntrinsicId::ALL
+            .iter()
+            .copied()
+            .filter(|member| member.family().fires_traces())
+        {
+            let (setup, op, command) = match member {
+                IntrinsicId::InfoExists => ("set v 1", "read", "info exists v"),
+                IntrinsicId::ArrayExists => ("array set v {k 1}", "array", "array exists v"),
+                IntrinsicId::ArrayNames => ("array set v {k 1}", "array", "array names v"),
+                IntrinsicId::ArraySize => ("array set v {k 1}", "array", "array size v"),
+                other => panic!("{other:?} fires traces and needs a probe here"),
+            };
+            let mut vm = Vm::new();
+            vm.set_compiler(Box::new(BytecodeCompileService::default()));
+            eval_value(
+                &mut vm,
+                &format!(
+                    "proc note {{n1 n2 op}} {{lappend ::fired $op}}; set ::fired {{}}; \
+                     {setup}; trace add variable v {op} note"
+                ),
+            );
+            eval_value(&mut vm, command);
+            assert_eq!(eval_value(&mut vm, "set ::fired"), op, "{member:?}");
+        }
+    }
+
+    /// A guard is bound to its command's token. A definition, rename or alias
+    /// of another command leaves it and its attestation alone; replacing,
+    /// renaming away or hiding the command drops it, and restoring the same
+    /// token brings it back; a profile pin keeps the attestation.
+    #[test]
+    fn an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it() {
+        let mut vm = Vm::new();
+        vm.set_compiler(Box::new(BytecodeCompileService::default()));
         vm.register_guarded_builtin("guarded", guarded_builtin, GUARDED_IDENTITY);
         let domains = GuardDomains::one(GuardDomain::CommandEnvironment);
         let token = vm
@@ -13153,12 +13743,106 @@ mod family_b_tests {
             .unwrap();
 
         vm.register("unrelated", guarded_builtin);
+        eval_value(&mut vm, "proc foo {} {return 1}");
+        eval_value(&mut vm, "rename foo bar");
+        eval_value(&mut vm, "interp alias {} baz {} bar");
+        eval_value(&mut vm, "rename baz {}");
+        assert!(vm.check_command_guard(token, "guarded"));
+        assert!(
+            vm.prepare_command_guard("guarded", GUARDED_IDENTITY, domains)
+                .is_ok()
+        );
 
+        // A change to the lookup environment itself stales the token over it,
+        // and the attestation stays.
+        eval_value(&mut vm, "namespace path ::");
+        assert!(!vm.check_command_guard(token, "guarded"));
+        let token = vm
+            .prepare_command_guard("guarded", GUARDED_IDENTITY, domains)
+            .expect("still attested");
+
+        // The profile pin keeps the attestation and a token that does not
+        // depend on interpreter policy.
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        assert!(vm.check_command_guard(token, "guarded"));
+        assert!(
+            vm.prepare_command_guard("guarded", GUARDED_IDENTITY, domains)
+                .is_ok()
+        );
+
+        // Renaming the command away drops the guard at its name, and the
+        // attestation goes with the command; restoring the name restores it.
+        eval_value(&mut vm, "rename guarded moved");
         assert!(!vm.check_command_guard(token, "guarded"));
         assert_eq!(
             vm.prepare_command_guard("guarded", GUARDED_IDENTITY, domains),
             Err(GuardError::IdentityUnavailable)
         );
+        assert!(
+            vm.prepare_command_guard("moved", GUARDED_IDENTITY, domains)
+                .is_ok()
+        );
+        eval_value(&mut vm, "rename moved guarded");
+        assert!(vm.check_command_guard(token, "guarded"));
+
+        // Hiding it drops the guard, exposing it restores it.
+        eval_value(&mut vm, "interp hide {} guarded");
+        assert!(!vm.check_command_guard(token, "guarded"));
+        eval_value(&mut vm, "interp expose {} guarded");
+        assert!(vm.check_command_guard(token, "guarded"));
+
+        // A different command at the name is never attested.
+        eval_value(&mut vm, "proc guarded {} {return 1}");
+        assert!(!vm.check_command_guard(token, "guarded"));
+        assert_eq!(
+            vm.prepare_command_guard("guarded", GUARDED_IDENTITY, domains),
+            Err(GuardError::IdentityUnavailable)
+        );
+    }
+
+    thread_local! {
+        static PROBED_TOKEN: std::cell::Cell<Option<GuardToken>> =
+            const { std::cell::Cell::new(None) };
+    }
+
+    /// Check the probed token against the command `guarded` from wherever this
+    /// runs.
+    fn probe_guarded(vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
+        let token = PROBED_TOKEN.get().expect("a token to probe");
+        ok(Value::string(if vm.check_command_guard(token, "guarded") {
+            "1"
+        } else {
+            "0"
+        }))
+    }
+
+    /// The attestation belongs to the token the name reaches, so a definition
+    /// in a namespace that shadows the command drops the guard for calls made
+    /// from that namespace and only from it.
+    #[test]
+    fn a_shadowing_definition_drops_the_guard_only_for_calls_from_its_namespace() {
+        let mut vm = Vm::new();
+        vm.set_compiler(Box::new(BytecodeCompileService::default()));
+        vm.register_guarded_builtin("guarded", guarded_builtin, GUARDED_IDENTITY);
+        vm.register("probe", probe_guarded);
+        let domains = GuardDomains::one(GuardDomain::CommandEnvironment);
+        let token = vm
+            .prepare_command_guard("guarded", GUARDED_IDENTITY, domains)
+            .unwrap();
+        PROBED_TOKEN.set(Some(token));
+
+        assert_eq!(eval_value(&mut vm, "probe"), "1");
+        assert_eq!(
+            eval_value(
+                &mut vm,
+                "namespace eval ns {proc guarded {} {return shadow}; probe}"
+            ),
+            "0"
+        );
+        assert_eq!(eval_value(&mut vm, "probe"), "1");
+        assert!(vm.check_command_guard(token, "guarded"));
     }
 
     #[test]
@@ -13301,6 +13985,230 @@ mod family_b_tests {
         vm.register_command("moved", command);
         assert!(!vm.check_command_guard(token, "string"));
         assert!(!vm.check_command_guard(token, "moved"));
+        assert_eq!(
+            vm.prepare_command_guard(
+                "string",
+                identity,
+                GuardDomains::one(GuardDomain::CommandEnvironment)
+            ),
+            Err(GuardError::IdentityUnavailable)
+        );
+    }
+
+    /// The pin keeps the spec-registered `string`'s attestation for the
+    /// release it pins: a fresh guard is issued after it, where a pinned VM
+    /// used to hold none.
+    #[test]
+    fn a_profile_pin_keeps_the_spec_registered_string_attested() {
+        let mut vm = Vm::new();
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let identity = GuardIdentity::registry_intrinsic_with_semantics(
+            tcl_registry::IntrinsicId::StringLength.stable_id(),
+            tcl_registry::IntrinsicId::StringLength.guard_semantics_key(vm.runtime_version()),
+        );
+        let domains = GuardDomains::one(GuardDomain::CommandEnvironment);
+        let token = vm
+            .prepare_command_guard("string", identity, domains)
+            .expect("string stays attested after the pin");
+        assert!(vm.check_command_guard(token, "string"));
+    }
+
+    /// The sweep reads the generation the VM is pinned to and nothing an
+    /// overlay installed: a pack's command is not a runtime implementation, and
+    /// only the runtime may attest.
+    #[test]
+    fn identities_come_from_the_pinned_generation_never_an_overlay() {
+        use tcl_registry::{CommandSpec, IntrinsicId, SemanticOperationId};
+        let mut vm = Vm::new();
+        // A generation an overlay installed under this VM's own profile,
+        // holding a spec that declares an intrinsic, and a builtin of that name
+        // in the VM.
+        let overlaid = tcl_registry::registry_for_profile_with_overlay(
+            vm.dialect_profile(),
+            0xC0DE,
+            |registry| {
+                registry.insert(CommandSpec {
+                    name: "overlay_length",
+                    semantic_operation: Some(SemanticOperationId::Intrinsic(
+                        IntrinsicId::StringLength,
+                    )),
+                    ..CommandSpec::DEFAULT
+                });
+            },
+        );
+        vm.register("overlay_length", guarded_builtin);
+
+        vm.attach_identities();
+        assert!(
+            vm.attested_identities("overlay_length").is_none(),
+            "the sweep of the pinned generation attests nothing an overlay declares"
+        );
+        assert!(
+            vm.attested_identities("string").is_some(),
+            "and still attests the shipped command"
+        );
+
+        // Control: the fixture is sound, a sweep over the overlay's own store
+        // would attest the builtin.
+        vm.attach_identities_from(&overlaid);
+        assert!(vm.attested_identities("overlay_length").is_some());
+    }
+
+    /// A name is attested only while the command bound at it is the builtin the
+    /// VM registered there: a procedure defined over it, or another builtin
+    /// renamed into it, gains nothing, and the original, put back, has what it
+    /// had.
+    #[test]
+    fn the_sweep_attests_only_the_builtin_it_registered() {
+        use tcl_registry::IntrinsicId;
+        let mut vm = Vm::new();
+        vm.set_compiler(Box::new(BytecodeCompileService::default()));
+        let length = GuardIdentity::registry_intrinsic_with_semantics(
+            IntrinsicId::StringLength.stable_id(),
+            IntrinsicId::StringLength.guard_semantics_key(vm.runtime_version()),
+        );
+        let attested = |vm: &Vm| {
+            vm.attested_identities("string")
+                .is_some_and(|identities| identities.contains(&length))
+        };
+        assert!(attested(&vm));
+
+        eval_value(&mut vm, "rename string original");
+        assert!(!attested(&vm), "moved away, the name reaches nothing");
+        eval_value(&mut vm, "proc string args {return x}");
+        vm.attach_identities();
+        assert!(
+            !attested(&vm),
+            "a procedure at the name gains no attestation"
+        );
+
+        eval_value(&mut vm, "rename string {}; rename puts string");
+        vm.attach_identities();
+        assert!(
+            !attested(&vm),
+            "another builtin renamed into the name is attested as itself and not as `string`"
+        );
+
+        eval_value(&mut vm, "rename string puts; rename original string");
+        assert!(
+            attested(&vm),
+            "the original, restored, is attested as it was"
+        );
+    }
+
+    /// Every builtin this VM registers at the name of a spec that declares an
+    /// intrinsic is attested for every identity the spec's intrinsics have.
+    #[test]
+    fn every_registered_builtin_with_an_intrinsic_is_attested_for_all_of_them() {
+        let vm = Vm::new();
+        let registry = crate::environment::store_for_profile(vm.dialect_profile());
+        let report = tcl_runtime_api::BackingReport::from_entries(vm.backing_report());
+        let mut attested_names = 0;
+        for name in registry.command_names() {
+            let spec = registry.get_exact(name).expect("a named spec");
+            let expected: BTreeSet<GuardIdentity> = spec
+                .intrinsic_ids()
+                .into_iter()
+                .flat_map(|id| {
+                    id.guard_semantics_variants().iter().map(move |semantics| {
+                        GuardIdentity::registry_intrinsic_with_semantics(id.stable_id(), *semantics)
+                    })
+                })
+                .collect();
+            if expected.is_empty() || report.of(name) != RegisteredBacking::Builtin {
+                continue;
+            }
+            let actual = vm
+                .attested_identities(name)
+                .unwrap_or_else(|| panic!("{name} is registered and has intrinsics"));
+            assert!(expected.is_subset(&actual), "{name}");
+            attested_names += 1;
+        }
+        assert!(attested_names >= 10, "{attested_names}");
+        assert!(
+            vm.attested_identities("set").is_none(),
+            "no intrinsic, nothing"
+        );
+    }
+
+    /// Every builtin registered under a spelling the registry names it by has
+    /// that spelling in the registry, which is what the release surface gates
+    /// it with.
+    #[test]
+    fn a_spelled_builtin_names_a_spec_the_registry_has() {
+        let vm = Vm::new();
+        let registry = crate::environment::store_for_profile(vm.dialect_profile());
+        let spelled: Vec<&String> = vm
+            .builtin_identities
+            .values()
+            .filter(|identity| identity.starts_with("::"))
+            .collect();
+        assert!(spelled.len() >= 15, "{}", spelled.len());
+        for identity in spelled {
+            assert!(
+                registry
+                    .get_exact(identity)
+                    .is_some_and(|spec| spec.name == identity.as_str()),
+                "{identity}"
+            );
+        }
+    }
+
+    /// The backing report says what the command table holds: handlers and the
+    /// engine's `TclOO` roots, absences, and nothing a script defines.
+    #[test]
+    fn the_backing_report_says_what_the_command_table_holds() {
+        let mut vm = Vm::new();
+        vm.set_compiler(Box::new(BytecodeCompileService::default()));
+        let before = tcl_runtime_api::BackingReport::from_entries(vm.backing_report());
+        assert_eq!(before.of("set"), RegisteredBacking::Builtin);
+        assert_eq!(before.of("::tcl::dict::get"), RegisteredBacking::Builtin);
+        assert_eq!(before.of("oo::class"), RegisteredBacking::Object);
+        assert_eq!(before.of("oo::object"), RegisteredBacking::Object);
+        assert_eq!(before.of("tclLog"), RegisteredBacking::Absent);
+
+        eval_value(&mut vm, "proc mine {} {}");
+        eval_value(&mut vm, "oo::class create Mine");
+        eval_value(&mut vm, "interp alias {} aliased {} set");
+        let after = tcl_runtime_api::BackingReport::from_entries(vm.backing_report());
+        for name in ["mine", "Mine", "aliased"] {
+            assert_eq!(after.of(name), RegisteredBacking::Absent, "{name}");
+        }
+        assert_eq!(after, before, "a script adds nothing to the report");
+    }
+
+    /// The pin keeps every attestation and the pinned surface decides which of
+    /// them a guard reaches: a command the release lacks has none, and answers
+    /// again under a release that has it.
+    #[test]
+    fn a_pin_to_a_release_without_the_command_leaves_it_unattested() {
+        let mut vm = Vm::new();
+        // `lassign` is a command Tcl 8.4 does not have.
+        vm.register_guarded_builtin("lassign", guarded_builtin, GUARDED_IDENTITY);
+        let domains = GuardDomains::one(GuardDomain::CommandEnvironment);
+        let token = vm
+            .prepare_command_guard("lassign", GUARDED_IDENTITY, domains)
+            .expect("attested in the default release");
+        assert!(vm.check_command_guard(token, "lassign"));
+
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
+        );
+        assert!(!vm.check_command_guard(token, "lassign"));
+        assert_eq!(
+            vm.prepare_command_guard("lassign", GUARDED_IDENTITY, domains),
+            Err(GuardError::IdentityUnavailable)
+        );
+
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+        );
+        assert!(
+            vm.prepare_command_guard("lassign", GUARDED_IDENTITY, domains)
+                .is_ok()
+        );
     }
 
     #[test]

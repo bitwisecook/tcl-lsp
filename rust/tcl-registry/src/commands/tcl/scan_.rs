@@ -70,7 +70,7 @@ fn scan_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 ///   space-join that renders identically to tclsh's returned list.
 /// * a literal mismatch, a failed / partial / empty conversion set, or a
 ///   non-ASCII string / format all bail.
-fn fold_scan(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_scan(args: &[&str]) -> Option<String> {
     let [string, fmt] = args else {
         return None; // `scan str fmt var ...` writes vars — never fold
     };
@@ -218,6 +218,7 @@ fn scan_int(s: &[u8], mut si: usize, conv: u8) -> Option<(String, usize)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "scan",
+        runtime_backing: RuntimeBacking::shipped("scan"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         // The match / conversion path is the only one that writes: a failed
         // `regexp`, and a `scan` or `binary scan` whose input runs out, leave
@@ -244,6 +245,7 @@ pub fn spec() -> CommandSpec {
         // must not be typed `Int`.
         var_write_typing: VarWriteTyping::Destructured,
         const_fold: Some(fold_scan),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::destructure::SCAN),
         hover: Some(HoverSnippet {
             summary: "Parse string using conversion specifiers in the style of sscanf",
             synopsis: &["scan string format ?varName varName ...?"],

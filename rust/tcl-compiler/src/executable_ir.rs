@@ -31,6 +31,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use tcl_core_types::Code as CompletionCode;
 use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::model::semantic::SemanticContext;
+use tcl_registry::value_transfer::completion::HandlerChain;
 use tcl_registry::{CommandRegistry, SemanticOperationId};
 
 use crate::expr_ast::ExprNode;
@@ -3445,24 +3446,17 @@ fn structured_region_projection(
 /// The completion code a `try` handler clause selects, when its selector is
 /// statically a completion code.
 ///
-/// `trap` always selects `TCL_ERROR` and narrows it further by `-errorcode`
-/// prefix; `on` names a code directly. The selector spelling is decoded by the
-/// registry's completion-code table, never by a local keyword match.
+/// A handler selecting by `-errorcode` prefix (`trap`) always selects
+/// `TCL_ERROR` and narrows it further by the prefix; one selecting by
+/// completion code (`on`) names a code directly. The registry's handler chain
+/// decodes the selector ([`HandlerChain::selected`]), never a local keyword
+/// match.
 fn try_handler_code(handler: &crate::ir::TryHandler) -> Option<CompletionCode> {
-    try_handler_code_in(handler, tcl_syntax::number::Numbers::of_profile(None))
-}
-
-/// [`try_handler_code`] with the numeral grammar of a specific dialect: a
-/// numeric selector's spelling is release-dependent (`on 010` is code 8 in
-/// Tcl 8.x, 10 in 9.0).
-pub(crate) fn try_handler_code_in(
-    handler: &crate::ir::TryHandler,
-    numbers: tcl_syntax::number::Numbers,
-) -> Option<CompletionCode> {
-    if handler.trap_pattern.is_some() || handler.kind == "trap" {
-        return Some(CompletionCode::Error);
-    }
-    tcl_registry::completion::completion_code_selector(&handler.match_arg, numbers)
+    HandlerChain::selected(
+        handler.kind,
+        &handler.match_arg,
+        tcl_syntax::number::Numbers::of_profile(None),
+    )
 }
 
 /// Project the exact cell and completion footprint of an already-lowered

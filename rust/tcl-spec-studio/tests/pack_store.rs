@@ -223,13 +223,21 @@ fn a_form_edit_on_a_real_pack_splices_and_preserves_its_neighbours() {
         }
         carried += bodies.len();
     }
-    // Every one of the ported packs takes the splice path today. The
-    // re-render floor exists for documents the splice cannot verify, not as
-    // the ordinary outcome — so hold the line at "all of them".
+    // Every ported pack but one takes the splice path. `oo-class.tclspec` is
+    // the one exception, and correctly so: carry-forward now reaches each
+    // subcommand's own `world_effects` / `state_transitions` (both
+    // `DraftOpaque`, so a fresh render says nothing about them), and the
+    // reclaimed text names a pack-level `descriptor world_effects
+    // class-factory-effects` the isolated-block verification in
+    // `PackStore::accepts` cannot see outside the whole document — "a
+    // pack-level construct the splice disturbed" the module's own docs
+    // already name as a re-render-floor case. The re-render floor exists for
+    // exactly this, and still leaves every field this loop already checked
+    // either carried forward or named in `dropped`.
     assert_eq!(
         spliced,
-        examples().len(),
-        "the splice path should carry every example; it carried {spliced}"
+        examples().len() - 1,
+        "the splice path should carry every example but oo-class.tclspec; it carried {spliced}"
     );
     // And the ports really do exercise the hard case: several of them declare
     // Tcl hook bodies that no draft can re-render.

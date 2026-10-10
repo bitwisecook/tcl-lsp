@@ -32,10 +32,16 @@ holds — including a `[command]` — is evaluated. With `set x {[exec rm -rf /]
 - The message names only the substitutions this call still performs: with
   `-nocommands` it reads "any $var in the string" and suggests only
   `-novariables`.
-- Where the switches cannot be narrowed — a Tcl 9.1 call already using
-  `-commands` / `-variables`, whose switches may not be combined with
-  `-nocommands` / `-novariables` — the message drops the switch advice and
-  suggests only `[format]` / `[string map]`.
+- A switch narrows the message whether it is written literally or reaches
+  the call through a variable the analyser can prove: `set opt
+  -novariables; subst $opt $x` reports the same "any [cmd] in the string"
+  message a literal `subst -novariables $x` does, because the analyser
+  reads the switch's *proven* value, not only its written spelling.
+- Where the switches cannot be narrowed — an unproven switch (a proc
+  parameter, say), or a Tcl 9.1 call already using `-commands` /
+  `-variables`, whose switches may not be combined with `-nocommands` /
+  `-novariables` — the message drops the switch advice and suggests only
+  `[format]` / `[string map]`.
 
 ## Example that triggers it
 
@@ -64,6 +70,9 @@ string is not a variable at all:
 subst {hello $name}          ;# a template written here, nothing spliced in
 subst $opt {hello $name}     ;# $opt is a switch — the last argument is the string
 subst -backslashes $template ;# Tcl 9.1: no [cmd] and no $var runs
+
+set opt -novariables
+subst $opt {hello [cmd]}     ;# $opt proven -novariables: command substitution still warns
 ```
 
 ## How to suppress

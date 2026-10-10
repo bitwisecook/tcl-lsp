@@ -125,6 +125,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         },
         // `binary encode`/`binary decode` added in Tcl 8.6 (TIP 317).
         surface: Some(SpecSurface::TCL86_PLUS),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -185,6 +188,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         },
         // `binary encode`/`binary decode` added in Tcl 8.6 (TIP 317).
         surface: Some(SpecSurface::TCL86_PLUS),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -207,6 +213,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // works on a truncated copy without erroring) is not modelled and a
         // damaged operand conservatively stays damaged.
         return_type: Some(TclType::ByteArray),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::BINARY_FORMAT),
         // The format string is read via its string rep only — cached
         // alongside the intrep, so a list-typed format spec keeps its list
         // intrep (tclsh-verified). No shimmer.
@@ -271,11 +278,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_role_resolver: Some(binary_scan_arg_roles),
         arg_role_resolver_roles: &[ArgRole::ScanFormat, ArgRole::VarWrite],
         format_string_type: Some(FormatType::Binary),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::destructure::BINARY_SCAN),
         ..SubCommand::DEFAULT
     },
 ];
 
-/// D4-F2: `binary scan string formatString ?varName ...?` accepts
+/// `binary scan string formatString ?varName ...?` accepts
 /// variable-name args from index 2 onward (the resolver receives the args
 /// *after* the `scan` subcommand word: `string`, `format`, then the vars).
 /// Resolve `VarWrite` dynamically so calls with arbitrarily many vars don't
@@ -293,6 +301,7 @@ fn binary_scan_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "binary",
+        runtime_backing: RuntimeBacking::shipped("binary"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE | Traits::FRAME_HASH_BUILTIN,
         arity: Arity::at_least(1),
@@ -313,6 +322,9 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

@@ -23,11 +23,21 @@ never entered. The body is effectively dead code and is almost always
 the result of a typo, a left-over debugging tweak, or a forgotten
 comparison.
 
+The condition need not be a literal. When the analyser proves it is false the
+first time the loop is reached — a variable that holds `0`, the first test of a
+`for` counter, whether its start script writes a literal or a variable the
+analyser knows (`set start 20; for {set i $start} {$i < 10} …`) — the loop is
+just as dead.
+
 ## Example that triggers it
 
 ```tcl
 while {0} { puts "never runs" }
 for {set i 0} {false} {incr i} { puts hi }
+
+set n 0
+while {$n} { puts "never runs" }
+for {set i 0} {$i < 0} {incr i} { puts hi }
 ```
 
 The analyser reports **`W240`** on the condition.

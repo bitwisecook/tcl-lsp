@@ -440,10 +440,8 @@ stored, is a design conversation: it requires updating this contract and
 
 ## Test anchors
 
-The invariant is machine-verifiable, though nothing runs this
-automatically in CI today — it's a manual spot-check a reviewer can run
-by hand.  (Python is retired on this branch — see AGENTS.md — so this is
-plain `awk`/`grep`, not a committed script.)  Every job that references a
+The invariant can be checked manually with the shell command below; CI
+does not run this check. Every job that references a
 marketplace `secrets.*` must declare a protected `environment:` inside
 that same job block:
 

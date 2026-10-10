@@ -10,8 +10,6 @@
 //! `::info exists name` therefore follow the same resolved invocation as
 //! every other compiler consumer.
 
-use crate::expr_ast::{ExprNode, UnaryOp};
-
 /// The fact an existence query asks about a variable name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ExistenceKind {
@@ -19,43 +17,6 @@ pub(crate) enum ExistenceKind {
     AnyVariable,
     /// The name is bound specifically to an array.
     Array,
-}
-
-/// A registry-resolved command-substitution existence query.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ExistenceQuery {
-    /// The queried name, exactly as written.
-    pub(crate) var: String,
-    /// Whether the containing condition negates the query.
-    pub(crate) negated: bool,
-    /// The query's registry-owned semantic distinction.
-    pub(crate) kind: ExistenceKind,
-}
-
-/// Recognise one expression condition as a registry-owned existence query.
-#[must_use]
-pub(crate) fn in_expr(
-    node: &ExprNode,
-    registry: &tcl_registry::CommandRegistry,
-    config: tcl_lexer::LexerConfig,
-) -> Option<ExistenceQuery> {
-    match node {
-        ExprNode::Unary {
-            op: UnaryOp::Not,
-            operand,
-        } => in_expr(operand, registry, config).map(|query| ExistenceQuery {
-            negated: !query.negated,
-            ..query
-        }),
-        ExprNode::Command { text, .. } => {
-            in_text(text, registry, config).map(|(var, kind)| ExistenceQuery {
-                var,
-                negated: false,
-                kind,
-            })
-        }
-        _ => None,
-    }
 }
 
 /// Recognise one bracketed command substitution as an existence query.
@@ -82,21 +43,53 @@ pub(crate) fn in_text(
         .resolve_invocation(head, args, registry.own_surface_query())?
         .semantics
         .operation;
-    let kind = match operation {
+    Some(((*variable).to_owned(), kind_of(operation)?))
+}
+
+/// The existence query a resolved operation is: `info exists` asks for any
+/// binding, `array exists` for an array; any other operation is none.
+#[must_use]
+pub(crate) const fn kind_of(operation: tcl_registry::SemanticOperationId) -> Option<ExistenceKind> {
+    match operation {
         tcl_registry::SemanticOperationId::Intrinsic(tcl_registry::IntrinsicId::InfoExists) => {
-            ExistenceKind::AnyVariable
+            Some(ExistenceKind::AnyVariable)
         }
         tcl_registry::SemanticOperationId::Intrinsic(tcl_registry::IntrinsicId::ArrayExists) => {
-            ExistenceKind::Array
+            Some(ExistenceKind::Array)
         }
-        _ => return None,
-    };
-    Some(((*variable).to_owned(), kind))
+        _ => None,
+    }
+}
+
+/// The array a computed element name `base(key)` asks about, when its base
+/// is a bareword: a substitution in the key leaves the array fixed, so the
+/// query reads the array as a literal element name does. A base holding a
+/// substitution, a namespace separator or any other character decides
+/// nothing (`::env($k)` may be populated outside the function's view), nor
+/// does the zero-length array name `(k)` that `TclObjLookupVarEx` admits.
+#[must_use]
+pub(crate) fn computed_element_base(text: &str) -> Option<&str> {
+    let (base, rest) = text.split_once('(')?;
+    if base.is_empty() || !rest.ends_with(')') {
+        return None;
+    }
+    base.bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+        .then_some(base)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{ExistenceKind, in_text};
+    use super::{ExistenceKind, computed_element_base, in_text};
+
+    #[test]
+    fn a_computed_key_leaves_a_bareword_array_fixed() {
+        assert_eq!(computed_element_base("Params($k)"), Some("Params"));
+        assert_eq!(computed_element_base("a_1([key $k])"), Some("a_1"));
+        for text in ["::env($k)", "${a}($k)", "($k)", "a($k", "$a", "a b($k)"] {
+            assert_eq!(computed_element_base(text), None, "{text}");
+        }
+    }
 
     #[test]
     fn rooted_core_existence_queries_resolve_by_operation() {

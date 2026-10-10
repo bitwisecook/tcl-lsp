@@ -93,10 +93,13 @@ pub fn write_binary_output(target: &OutputTarget, payload: &[u8]) -> Result<(), 
 
 /// Write Tcl source, optionally colourised, with faithful tab handling
 ///
-/// When writing to stdout with `tab_width > 0`, tabs are expanded to spaces
-/// using tab-stop semantics — and, in the fixed order, this happens
-/// *before* ANSI highlighting (so escape codes don't shift the tab stops). The
-/// `highlight` verb uses the opposite order; see its handler.
+/// Tab expansion is part of rendering for a terminal, exactly like ANSI
+/// highlighting, so both are gated on `use_colour` — with `tab_width > 0`,
+/// tabs expand to spaces using tab-stop semantics *before* highlighting (so
+/// escape codes don't shift the tab stops). Without `use_colour` — a
+/// redirected or `--no-colour` run — `text` is written byte for byte: a tab
+/// in a value stays a tab (issue #2232). The `highlight` verb uses the
+/// opposite order; see its handler.
 pub fn write_highlighted_output(
     target: &OutputTarget,
     text: &str,
@@ -105,10 +108,10 @@ pub fn write_highlighted_output(
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Result<(), CliError> {
     let mut rendered = text.to_owned();
-    if target.is_stdout() && tab_width > 0 {
-        rendered = expand_tabs(&rendered, tab_width);
-    }
     if use_colour {
+        if tab_width > 0 {
+            rendered = expand_tabs(&rendered, tab_width);
+        }
         rendered = crate::highlight::highlight_ansi(&rendered, dialect);
     }
     write_text_output(target, &rendered)

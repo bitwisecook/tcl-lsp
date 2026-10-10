@@ -396,10 +396,10 @@ fn rewrite_recurses_into_switch_arm_and_default() {
 }
 
 #[test]
-fn rewrite_recurses_into_upframe_body() {
-    // `uplevel 1 { noop }` — the UpFrame body recurses. (The wrapper proc is a
-    // plain empty-body noop, which is frame-independent, so inlining it inside
-    // an uplevel body is sound.)
+fn rewrite_leaves_an_upframe_body_as_written() {
+    // `uplevel 1 { noop }` — the body runs in another frame and the bytecode
+    // backend emits it from its text, so a splice made in the lowered copy would
+    // be discarded and would record a requirement of code that never runs.
     let out = inlined("proc noop {} {}\nuplevel 1 { noop }\n");
     let uf = out
         .top_level
@@ -410,7 +410,7 @@ fn rewrite_recurses_into_upframe_body() {
     let Statement::UpFrame { body, .. } = uf else {
         unreachable!()
     };
-    assert_eq!(calls_to(&body.statements, "noop"), 0);
+    assert_eq!(calls_to(&body.statements, "noop"), 1);
 }
 
 #[test]
@@ -826,11 +826,35 @@ fn call_by_name_resolves_bare_call_to_namespaced_proc() {
 }
 
 #[test]
+fn call_by_name_omitted_parameter_collects_its_default() {
+    // A call that omits a by-name parameter binds its default, which names the
+    // caller variable the callee reaches through `upvar` as a word would; a
+    // default that is no literal name (`a(1)`) is not collected.
+    // tclsh (8.4 to 9.1): `proc bumpd {{name n}} { upvar 1 $name v; incr v };
+    // proc caller {} { set n 1; bumpd; return $n }; puts [caller]` → 2 — the
+    // store to `n` is read through the alias, so it is live.
+    let reads = call_by_name_reads(
+        "proc bumpd {{name n}} { upvar 1 $name v\nincr v }\n\
+         proc cell {{name a(1)}} { upvar 1 $name v\nincr v }\n\
+         proc caller {} { set n 1\nbumpd\ncell\nreturn $n }\n",
+        "::caller",
+    );
+    assert!(
+        reads.contains("n"),
+        "the default an omitted upvar param binds is collected, got {reads:?}"
+    );
+    assert!(
+        !reads.contains("a(1)") && !reads.contains("a"),
+        "a default that is no literal name is not collected, got {reads:?}"
+    );
+}
+
+#[test]
 fn call_by_name_extra_args_beyond_params_are_ignored() {
-    // `add_call_by_name` stops at the param count (`params.get(i)` → break): a
-    // trailing extra arg past the declared params can't land on any param, so it
-    // is never collected even if it looks like a name.  Here `setvar` takes
-    // `{n v}`; the third arg `extra` has no param slot.
+    // `add_call_by_name` walks the declared params: a trailing extra arg past
+    // them can't land on any param, so it is never collected even if it looks
+    // like a name.  Here `setvar` takes `{n v}`; the third arg `extra` has no
+    // param slot.
     let reads = call_by_name_reads(
         "proc setvar {n v} { upvar 1 $n x\nset x $v }\nproc caller {} { set y 0\nsetvar y 1 extra }\n",
         "::caller",
@@ -1020,8 +1044,8 @@ fn constant_return_float_literal() {
 
 #[test]
 fn constant_return_bool_literal() {
-    // `return true` classifies as a Bool constant (literal_to_constant_return
-    // maps the lower-cased text).
+    // `return true` classifies as a Bool constant: `true` and `false`, as
+    // written, are the spellings a boolean's text gives back.
     // tclsh (8.6, 9.0): `proc f {} { return true }; f` → "true".
     let ia = interproc("proc ::f {} { return true }\n");
     let s = ia.procedures.get("::f").unwrap();
@@ -1057,6 +1081,43 @@ fn constant_return_quoted_and_braced_multiword() {
             Some(ConstantReturn::Str("a b c".into())),
             "value for {src}"
         );
+    }
+}
+
+#[test]
+fn the_shapes_read_a_literal_return_exactly() {
+    // Where no seedless run is made, a return's literal word is its value
+    // through the exact ingress, nothing trimmed and a braced word never a
+    // read, and an `expr` literal operand is its own value only as a
+    // canonical decimal integer, the rest the expression route's (#2388).
+    // tclsh 8.4 to 9.1: `return " 5"` gives ` 5`, `return 007` gives `007`,
+    // `return {$a}` the text `$a`; `[expr {0x10}]` gives 16 and `[expr
+    // {true}]` gives `true`.
+    let cases = [
+        (
+            "proc ::f {a} { return \" 5\" }\n",
+            Some(ConstantReturn::Str(" 5".into())),
+        ),
+        (
+            "proc ::f {a} { return 007 }\n",
+            Some(ConstantReturn::Str("007".into())),
+        ),
+        (
+            "proc ::f {a} { return {$a} }\n",
+            Some(ConstantReturn::Str("$a".into())),
+        ),
+        (
+            "proc ::f {} { return [expr {5}] }\n",
+            Some(ConstantReturn::Int(5)),
+        ),
+        ("proc ::f {} { return [expr {0x10}] }\n", None),
+        ("proc ::f {} { return [expr {true}] }\n", None),
+    ];
+    for (source, constant) in cases {
+        let ia = interproc(source);
+        let s = ia.procedures.get("::f").unwrap();
+        assert_eq!(s.constant_return, constant, "{source}");
+        assert_eq!(s.return_passthrough_param, None, "{source}");
     }
 }
 
@@ -1186,15 +1247,23 @@ fn constant_return_kind_text_wire_forms() {
         ConstantReturn::Float(1.5).as_kind_text(),
         ("float", "1.5".to_string())
     );
-    // Bool renders as "1" / "0" in the wire form (distinct from the
-    // human-facing "true"/"false" rendering noted in the type's doc).
+    // The text is the value as the procedure returns it, which a fold
+    // spells: a double as Tcl prints it, a boolean as written.
+    assert_eq!(
+        ConstantReturn::Float(1.0).as_kind_text(),
+        ("float", "1.0".to_string())
+    );
+    assert_eq!(
+        ConstantReturn::Float(1e301).as_kind_text(),
+        ("float", "1e+301".to_string())
+    );
     assert_eq!(
         ConstantReturn::Bool(true).as_kind_text(),
-        ("bool", "1".to_string())
+        ("bool", "true".to_string())
     );
     assert_eq!(
         ConstantReturn::Bool(false).as_kind_text(),
-        ("bool", "0".to_string())
+        ("bool", "false".to_string())
     );
     assert_eq!(
         ConstantReturn::Str("hi".into()).as_kind_text(),

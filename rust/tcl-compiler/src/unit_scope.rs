@@ -511,14 +511,15 @@ fn note_surface_var_writes(
             out.note_write_word(word);
         }
     }
-    let Some(spec) = surface.commands().get(bare) else {
-        return;
-    };
     // `global` / `variable` / `upvar` bind *every* name in a vararg list to
-    // an outer-scope variable another body may write — the registry marks
-    // exactly these with `CREATES_SCOPE_ALIAS`, because the per-argument
-    // list is not expressible as fixed role indices.
-    if spec.traits.contains(Traits::CREATES_SCOPE_ALIAS) {
+    // an outer-scope variable another body may write — the surface marks
+    // exactly these with `CREATES_SCOPE_ALIAS` (a document's stub states it
+    // with `-scope_alias`), because the per-argument list is not expressible
+    // as fixed role indices.
+    if surface
+        .traits(bare)
+        .is_some_and(|traits| traits.contains(Traits::CREATES_SCOPE_ALIAS))
+    {
         for word in args {
             out.note_write_word(word);
         }
@@ -1541,14 +1542,23 @@ fn scan_cfg_callers<'a>(
         let config = tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar);
         for block in func.blocks.values() {
             for stmt in &block.statements {
-                // Synthetic analysis markers share the Call/Barrier shapes
-                // but are never runtime invocations. They cannot supply
-                // caller evidence for a user procedure with the same text.
-                if !stmt.is_executable_invocation() {
-                    continue;
+                // A statement the CFG builder synthesised stands for an
+                // effect, never for a command that runs.
+                if let Statement::Call {
+                    command,
+                    args,
+                    tokens,
+                    ..
                 }
-                if let Statement::Call { command, args, .. }
-                | Statement::Barrier { command, args, .. } = stmt
+                | Statement::Barrier {
+                    command,
+                    args,
+                    tokens,
+                    ..
+                } = stmt
+                    && tokens
+                        .as_ref()
+                        .is_none_or(|tokens| tokens.synthetic.is_none())
                 {
                     record_call_site_evidence(out, ctx, &caller, command, args, 0);
                 }
@@ -2106,7 +2116,9 @@ mod tests {
         let fu = cu.function("::f").expect("proc lowered");
         let tokens = fu.cfg.blocks.values().find_map(|block| {
             block.statements.iter().find_map(|stmt| match stmt {
-                Statement::Call { tokens, .. } => tokens.as_ref(),
+                Statement::Call {
+                    command, tokens, ..
+                } if command == "myexpr" => tokens.as_ref(),
                 _ => None,
             })
         });
@@ -2640,14 +2652,14 @@ mod tests {
     }
 
     #[test]
-    fn registry_barrier_marker_is_not_a_zero_argument_caller() {
+    fn the_unseen_call_marker_is_not_a_zero_argument_caller() {
         let ev = evidence(
-            "proc {<registry-barrier>} {mode} { return $mode }\n\
-             {<registry-barrier>} fixed\n\
+            "proc {<unseen-call>} {mode} { return $mode }\n\
+             {<unseen-call>} fixed\n\
              set ignored [missing_command]\n",
         );
         assert_eq!(
-            uniform(&ev, "::<registry-barrier>", 0),
+            uniform(&ev, "::<unseen-call>", 0),
             Some("fixed".into()),
             "the synthetic marker is analysis-only; the real invocation remains evidence",
         );

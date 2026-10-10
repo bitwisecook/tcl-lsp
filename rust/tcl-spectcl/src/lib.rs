@@ -65,6 +65,7 @@
 //! (`docs/design/registry/spec-packs.md`, "Performance: the format does not decide
 //! it").
 
+pub mod backing;
 pub mod bundled;
 pub mod cache;
 pub mod catalogue;
@@ -73,26 +74,32 @@ pub mod dialect_conversion;
 pub mod discovery;
 pub mod environment;
 pub mod export;
+mod extension_artefacts;
 pub mod golden;
 pub mod hooks;
 pub mod install;
 pub mod loader;
 pub mod pack;
+pub mod package_sources;
+pub mod package_specs;
 pub mod registration;
+pub mod stamps;
 pub mod surface_roster_conversion;
 pub mod upgrade;
 
+pub use backing::BackingSyntax;
 pub use cache::{evaluate_pack_cached, evaluate_pack_including, snapshot_memoised};
 pub use discovery::{DiscoveryOptions, PackFile, Tier, discover};
 pub use export::{ExportLoss, Registration, export_pack, export_pack_reporting};
 pub use install::registry_with_packs;
 pub use loader::{
-    AmbientPackage, ClauseGrammar, CoProvides, EvalOptions, EvalSnapshotKey, HookDecl, HookFamily,
-    HookOwner, HookSource, IncludeContext, KNOWN_VOCABULARY_VERSIONS, LOADER_EVAL_VERSION,
-    LoadError, NEWEST_VOCABULARY_VERSION, Notice, Pack, PackCommand, PackCore, PackDialect,
-    PackDialectAxis, PackEnvironment, PackEnvironmentTier, PackProvides, VocabularyClass,
+    AmbientPackage, CoProvides, EvalOptions, EvalSnapshotKey, HookDecl, HookFamily, HookOwner,
+    HookSource, IncludeContext, KNOWN_VOCABULARY_VERSIONS, LOADER_EVAL_VERSION, LoadError,
+    NEWEST_VOCABULARY_VERSION, Notice, Pack, PackCommand, PackCore, PackDialect, PackDialectAxis,
+    PackEnvironment, PackEnvironmentTier, PackProvides, SHIPPED_DEFINITION_BODIES, VocabularyClass,
     eval_snapshot_key, evaluate_pack, evaluate_pack_in, evaluate_pack_with, provenance_violation,
-    roles_from_manufacturers, speclib_version_span,
+    roles_from_manufacturers, semantic_operation_spelling, semantic_operations,
+    speclib_version_span,
 };
 pub use pack::{MergedPack, PackNotice, PackSet};
 pub use registration::{

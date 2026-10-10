@@ -187,7 +187,7 @@ impl ProcTaintSummary {
     /// *whole-module* seeded map the worklist passes to `infer_proc_summary` — a
     /// resolved callee must map to a (clean) summary, not be absent, or
     /// `propagate_taints` falls through to its conservative bare-argument join and
-    /// over-taints (SRV-INCREMENTAL 2b).
+    /// over-taints.
     #[must_use]
     pub fn untainted(qname: &str, params: &[String]) -> Self {
         let clean = TaintLattice::clean();
@@ -424,7 +424,7 @@ fn return_ctx<'a>(
 /// ([`converge_summaries_with`]). Receives `(qname, params, fu, known,
 /// summaries)` and returns the procedure's inferred [`ProcTaintSummary`] under
 /// the *current* summaries. The default is [`infer_proc_summary`]; the LSP db
-/// injects a salsa-memoised variant (SRV-INCREMENTAL 2b) that returns an
+/// injects a salsa-memoised variant that returns an
 /// unchanged proc's summary from cache (keyed on its offset-0 body + its
 /// direct callees' summaries) instead of re-running the propagation here.
 pub type InferProcSummaryFn<'a> = dyn FnMut(
@@ -850,7 +850,7 @@ fn update_entry(
 ///
 /// Split out of [`solve_interprocedural_taints`] so the cheap entry-taint worklist
 /// stays separate, and so this — the expensive, per-procedure-memoisable phase —
-/// can be served by a salsa-memoised variant (SRV-INCREMENTAL 2b): the per-proc
+/// can be served by a salsa-memoised variant: the per-proc
 /// `infer` step is injectable via [`InferProcSummaryFn`], so the LSP db can plug
 /// in a `proc_summary_cascade` query keyed on each proc's offset-0 body + its
 /// callees' summaries. The worklist itself (monotone convergence, the call-graph
@@ -1106,7 +1106,7 @@ fn solve_interprocedural_taints_with_seed_option(
 /// injectable via [`InferProcSummaryFn`]. Only the *summary fixpoint* phase
 /// (`converge_summaries_with`) is redirected through `infer_fn`; the cheap
 /// entry-taint worklist that follows is unchanged. The LSP db uses this to feed
-/// a salsa-memoised `infer` (SRV-INCREMENTAL 2b) so an unchanged procedure's
+/// a salsa-memoised `infer` so an unchanged procedure's
 /// summary is a cache hit instead of a re-propagation — the ~120 ms pass-1
 /// floor the bare worklist still pays every edit.
 #[must_use]

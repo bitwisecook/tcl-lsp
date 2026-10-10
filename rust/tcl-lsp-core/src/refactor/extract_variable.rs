@@ -276,7 +276,7 @@ mod tests {
         );
     }
 
-    /// Adversarial-review finding: `expr_op_spellings()` includes the
+    /// `expr_op_spellings()` includes the
     /// iRules word operators (`and`/`or`/`contains`/…), and an ordinary
     /// quoted string containing one of those words as English prose must
     /// NOT be mistaken for a real operator token — `set myvar "salt and

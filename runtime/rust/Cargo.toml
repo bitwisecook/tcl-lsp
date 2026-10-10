@@ -27,7 +27,7 @@
 #      so it does not inherit `[workspace.lints]`.
 #   2. It eventually builds for wasm32 as a cdylib exporting `memory` + the
 #      `Tcl_*` / `tcl_*` symbols. Keeping it out of `cargo test --workspace`
-#      (which CI runs) means the Rust LSP/compiler workstream cannot regress
+#      (which CI runs) means the Rust LSP/compiler checks cannot regress
 #      because of runtime-port churn. This mirrors the `editors/zed` exclusion.
 #
 # `make runtime-rust-test` runs the native `cargo test` here, including the
@@ -65,6 +65,11 @@ publish = false
 # `package require`) with no host filesystem. Off by default: only the
 # standalone WASM build needs the ~250 KB of embedded Tcl.
 wasm_stdlib = []
+# The runtime as an engine of the extension interface (`tcl-engine-api`):
+# `engine::RuntimeEngine` implements `Engine`, so the hook host and anything
+# else written on the interface can run on this interpreter. Off by default:
+# the compiled-code link never needs it.
+engine = ["dep:tcl-engine-api"]
 
 [dependencies]
 tcl-lexer = { path = "../../rust/tcl-lexer" }
@@ -92,6 +97,9 @@ tcl-cmd-core = { path = "../../rust/tcl-cmd-core" }
 # The Family-B interp-state contract (the role traits this runtime satisfies
 # over its `*mut TclObj` value model, alongside the bytecode VM's `Rc<Obj>`).
 tcl-runtime-api = { path = "../../rust/tcl-runtime-api" }
+# The extension interface `engine::RuntimeEngine` implements (the `engine`
+# feature). Dependency-free, so it adds nothing else to this crate's closure.
+tcl-engine-api = { path = "../../rust/tcl-engine-api", optional = true }
 # The capability seam: the `Host` trait surface (filesystem/clock/env/stdio/…)
 # this runtime reaches platform facilities through. Wasm32-clean (traits only,
 # no syscalls), so it is an unconditional dependency on every target.

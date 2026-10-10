@@ -81,6 +81,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "time",
+        runtime_backing: RuntimeBacking::shipped("time"),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED
             // script is evaluated by a runtime call back into the

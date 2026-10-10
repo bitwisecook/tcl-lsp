@@ -169,6 +169,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::copy",
+        runtime_backing: RuntimeBacking::shipped("oo::copy"),
         surface: Some(SpecSurface::TCL86_PLUS),
         // Three positional arguments total (sourceObject required,
         // targetObject and targetNamespace each optional), matching the
@@ -243,7 +244,7 @@ mod tests {
                 && namespace.literal() == Some("::private::target")
         )));
 
-        let effects = invocation.effect_footprint();
+        let effects = invocation.effects();
         assert!(!effects.accesses().iter().any(|access| {
             access.domain == WorldStateDomain::InterpreterPolicy
                 && matches!(

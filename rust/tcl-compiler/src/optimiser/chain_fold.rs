@@ -37,6 +37,13 @@
 //! write and a paired deletion over each earlier one, all sharing one
 //! group so they apply atomically.
 //!
+//! A chain may also anchor at an `append` / `lappend` whose own target the
+//! existence rung proves `Unbound` immediately before it: the release
+//! rule creates the cell in every release for both
+//! commands, so the absent start folds through the value at the last write
+//! exactly as an explicit `set var ""` would —
+//! `lappend l a; lappend l b` folds to `set l {a b}`.
+//!
 //! ## Soundness gates
 //!
 //! - The writes must be **strictly consecutive** — no statement runs
@@ -45,7 +52,12 @@
 //!   subsumed: a read between writes would be a non-write statement and
 //!   ends the run).
 //! - Every value word must be a static literal (`Esc`/`Str` single-token
-//!   word); a `$var` / `[cmd]` operand ends the run.
+//!   word), or a `$var` word the function's lattice proves constant at that
+//!   statement — the chain then folds through the lattice value (`set s
+//!   hello; set p again; append s $p` folds to `helloagain`); a `[cmd]`
+//!   operand or an unproven `$var` ends the run.
+//! - Which call extends the string and which the list is the registry's
+//!   declaration — the resolved cell update — not a command's spelling.
 //! - The variable must not **escape** (be aliased via
 //!   `global`/`upvar`/`variable` or be under a `trace`) and must not be a
 //!   cross-event iRules state variable — folding would drop a trace
@@ -54,15 +66,17 @@
 //! These gates make the fold conservative (it can miss a chain a
 //! flow-sensitive pass would fold) but never unsound.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
 
 use tcl_lexer::TokenType;
-use tcl_registry::CommandRegistry;
+use tcl_registry::native_lowering::CellUpdate;
+use tcl_registry::{CommandRegistry, SemanticOperationId, hooks::LoweringHookId};
 
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{Script, Statement};
 use crate::naming::normalise_var_name;
+use crate::ssa::SsaStatement;
 use crate::var_observability::analyse_var_observability;
 
 use super::helpers::literals::render_static_string_word;
@@ -91,9 +105,20 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     let registry: &CommandRegistry = ctx
         .registry
         .unwrap_or_else(|| tcl_registry::default_registry());
+    // The pass mutates `ctx` as it folds, so the trust fact it reads is the
+    // module's, taken once.
+    let mutations = ctx.command_mutations.clone();
+    let trust = ChainHeadTrust::of(&mutations, registry);
     if !cu.top_level.dynamic_barrier_blocks_value_motion() {
         let top_protected = protected_vars(&cu.top_level, &cross, registry);
-        fold_script(ctx, &cu.ir_module.top_level, &top_protected, 0);
+        let lattice = FunctionLattice::of(&cu.top_level);
+        let chains = Chains {
+            registry,
+            trust,
+            lattice: &lattice,
+            protected: &top_protected,
+        };
+        fold_script(ctx, &cu.ir_module.top_level, chains, 0);
     }
     for (qname, proc) in &cu.ir_module.procedures {
         let fu = cu.procedures.get(qname);
@@ -104,7 +129,114 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             continue;
         }
         let protected = fu.map_or_else(|| cross.clone(), |fu| protected_vars(fu, &cross, registry));
-        fold_script(ctx, &proc.body, &protected, 0);
+        let lattice = fu.map(FunctionLattice::of).unwrap_or_default();
+        let chains = Chains {
+            registry,
+            trust,
+            lattice: &lattice,
+            protected: &protected,
+        };
+        fold_script(ctx, &proc.body, chains, 0);
+    }
+}
+
+/// What one function's chains fold under: the registry that says which
+/// call is a cell update, the module's trust in each head, the function's
+/// lattice for a `$var` value word, and the variables no chain may touch.
+#[derive(Clone, Copy)]
+struct Chains<'a> {
+    registry: &'a CommandRegistry,
+    trust: ChainHeadTrust<'a>,
+    lattice: &'a FunctionLattice<'a>,
+    protected: &'a HashSet<String>,
+}
+
+/// A function's SSA statements by span, with where each sits, over its
+/// shared lattice, so a `$var` value word resolves to the constant the
+/// lattice proves at that statement.
+#[derive(Default)]
+struct FunctionLattice<'a> {
+    unit: Option<&'a FunctionUnit>,
+    statements: HashMap<(u32, u32), LocatedStatement<'a>>,
+}
+
+/// One SSA statement and its place in the function: its block and its
+/// index there.
+#[derive(Clone, Copy)]
+struct LocatedStatement<'a> {
+    block: crate::cfg::BlockId,
+    index: usize,
+    statement: &'a SsaStatement,
+}
+
+impl<'a> FunctionLattice<'a> {
+    fn of(unit: &'a FunctionUnit) -> Self {
+        // A synthetic call the CFG builder emitted beside a host statement
+        // shares the host's span; the host is the statement the chain reads.
+        let statements = unit
+            .ssa
+            .blocks
+            .iter()
+            .flat_map(|(&block, ssa_block)| {
+                ssa_block
+                    .statements
+                    .iter()
+                    .enumerate()
+                    .map(move |(index, statement)| LocatedStatement {
+                        block,
+                        index,
+                        statement,
+                    })
+            })
+            .filter(|located| {
+                !matches!(
+                    &located.statement.statement,
+                    Statement::Call { tokens: Some(tokens), .. } if tokens.synthetic.is_some()
+                )
+            })
+            .map(|located| {
+                let span = located.statement.statement.span();
+                ((span.start(), span.end()), located)
+            })
+            .collect();
+        Self {
+            unit: Some(unit),
+            statements,
+        }
+    }
+
+    /// The constant `name` holds at the statement spanning `span`, when
+    /// the lattice proves one.
+    fn constant_at(&self, span: tcl_lexer::Span, name: &str) -> Option<String> {
+        let unit = self.unit?;
+        let stmt = self.statements.get(&(span.start(), span.end()))?.statement;
+        // A byte array a route constructed is never written into the folded
+        // string ([`crate::sccp::SccpResult::materialises`]).
+        let symbol = unit.ssa.var_symbol(name)?;
+        let version = *stmt.uses.get(&symbol)?;
+        if !unit.sccp.materialises((symbol, version)) {
+            return None;
+        }
+        crate::value_transfer::lattice_const_text(name, &stmt.uses, &unit.sccp.values, &unit.ssa)
+    }
+
+    /// The existence fact `name`'s place holds where the statement
+    /// spanning `span` reads it — the state its own read-modify-write
+    /// observes (`incr` / `append` / `lappend` all read their target's
+    /// existence before they write it), after every clobber since the
+    /// version's definition (a non-lowered `switch` arm's clobber reaches
+    /// the statement, not the version) — or
+    /// `None` when the run computed none.
+    fn existence_at_statement(
+        &self,
+        span: tcl_lexer::Span,
+        name: &str,
+    ) -> Option<tcl_registry::value_transfer::Existence> {
+        let unit = self.unit?;
+        let located = self.statements.get(&(span.start(), span.end()))?;
+        let symbol = unit.ssa.var_symbol(name)?;
+        unit.sccp
+            .existence_before(located.block, located.index, symbol)
     }
 }
 
@@ -125,19 +257,14 @@ fn protected_vars(
 /// chain never crosses a control-flow boundary, so each body is folded
 /// independently). `depth` is the nesting level of `script` — see
 /// [`super::MAX_OPTIMISER_WALK_DEPTH`].
-fn fold_script(
-    ctx: &mut PassContext<'_>,
-    script: &Script,
-    protected: &HashSet<String>,
-    depth: u32,
-) {
+fn fold_script(ctx: &mut PassContext<'_>, script: &Script, chains: Chains<'_>, depth: u32) {
     if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
         return;
     }
     let stmts = &script.statements;
     let mut i = 0;
     while i < stmts.len() {
-        if let Some(consumed) = try_fold_chain_at(ctx, stmts, i, protected) {
+        if let Some(consumed) = try_fold_chain_at(ctx, stmts, i, chains) {
             i += consumed;
         } else {
             i += 1;
@@ -149,34 +276,34 @@ fn fold_script(
                 clauses, else_body, ..
             } => {
                 for c in clauses {
-                    fold_script(ctx, &c.body, protected, depth + 1);
+                    fold_script(ctx, &c.body, chains, depth + 1);
                 }
                 if let Some(b) = else_body {
-                    fold_script(ctx, b, protected, depth + 1);
+                    fold_script(ctx, b, chains, depth + 1);
                 }
             }
             Statement::For {
                 init, next, body, ..
             } => {
-                fold_script(ctx, init, protected, depth + 1);
-                fold_script(ctx, next, protected, depth + 1);
-                fold_script(ctx, body, protected, depth + 1);
+                fold_script(ctx, init, chains, depth + 1);
+                fold_script(ctx, next, chains, depth + 1);
+                fold_script(ctx, body, chains, depth + 1);
             }
             Statement::While { body, .. }
             | Statement::Catch { body, .. }
-            | Statement::Foreach { body, .. } => fold_script(ctx, body, protected, depth + 1),
+            | Statement::Foreach { body, .. } => fold_script(ctx, body, chains, depth + 1),
             Statement::Try {
                 body,
                 handlers,
                 finally_body,
                 ..
             } => {
-                fold_script(ctx, body, protected, depth + 1);
+                fold_script(ctx, body, chains, depth + 1);
                 for h in handlers {
-                    fold_script(ctx, &h.body, protected, depth + 1);
+                    fold_script(ctx, &h.body, chains, depth + 1);
                 }
                 if let Some(fb) = finally_body {
-                    fold_script(ctx, fb, protected, depth + 1);
+                    fold_script(ctx, fb, chains, depth + 1);
                 }
             }
             Statement::Switch {
@@ -184,11 +311,11 @@ fn fold_script(
             } => {
                 for a in arms {
                     if let Some(b) = &a.body {
-                        fold_script(ctx, b, protected, depth + 1);
+                        fold_script(ctx, b, chains, depth + 1);
                     }
                 }
                 if let Some(b) = default_body {
-                    fold_script(ctx, b, protected, depth + 1);
+                    fold_script(ctx, b, chains, depth + 1);
                 }
             }
             _ => {}
@@ -221,61 +348,76 @@ fn write_var(w: &Write) -> &str {
     }
 }
 
-/// Which of the chain's three head words the module still leaves denoting
-/// their builtin ([`crate::command_binding::ModuleCommandMutations::trusts`]).
+/// Whether a chain statement's head still denotes its registry builtin,
+/// asked of the module's own observed bindings
+/// ([`crate::command_binding::ModuleCommandMutations::observed_binding_is_the_builtin`]).
 ///
-/// Each arm of [`classify_write`] *is* that command's write semantics, so it
-/// may only run while the name still denotes it. With
-/// `proc append {varName args} {return ZZZ}` in scope, `append s foo` calls
-/// that proc and never touches `s` — tclsh 8.6.18 / 9.0.4 return the empty
-/// string for `set s ""; append s foo; append s bar; return $s`, where the
-/// ungated fold answered `foobar`. Same defect family as #2164.
+/// Each write [`classify_write`] recognises *is* its command's write
+/// semantics, so it may only fold while the head still denotes that command.
+/// With `proc append {varName args} {return ZZZ}` in scope, `append s foo`
+/// calls that proc and never touches `s` — tclsh 8.6.18 / 9.0.4 return the
+/// empty string for `set s ""; append s foo; append s bar; return $s`, where
+/// the ungated fold answered `foobar`. Same defect family as #2164.
+///
+/// A call is asked about its own resolved head; a typed assignment keeps no
+/// head, so it is asked about every registry spelling of the assignment
+/// operation its lowering stands for. No command is named here.
+///
+/// Keyed on the **named-subject** half of the trust fact, not the whole of
+/// [`crate::command_binding::ModuleCommandMutations::trusts`]. The hazard
+/// this gate exists for is a shadowing `proc append` (or a rename or alias
+/// onto the name), which is exactly what `observed_binding_is_the_builtin`
+/// answers. `trusts` additionally folds in the `dynamic` unbounded top,
+/// which a single unresolved command head anywhere in the module raises —
+/// and that declined a legitimate `append` chain in
+/// `samples/optimiser/input.tcl`, which shadows nothing. This pass had **no**
+/// trust gate at all before, so under `dynamic` it folded unconditionally;
+/// the named half is still strictly tighter than that. And the shared value
+/// lattice — which feeds O100's rewrites — already uses the named half, so
+/// gating this one harder would leave the two disagreeing about the same
+/// question, which is the defect #2164 was about. The residual that leaves
+/// under a computed rename is #2168, and it applies to both alike.
 #[derive(Clone, Copy)]
-struct ChainHeadTrust {
-    set: bool,
-    append: bool,
-    lappend: bool,
+struct ChainHeadTrust<'a> {
+    mutations: &'a crate::command_binding::ModuleCommandMutations,
+    /// Whether every command whose lowering yields a typed assignment still
+    /// denotes its builtin.
+    typed_assignment: bool,
 }
 
-impl ChainHeadTrust {
-    /// Keyed on the **named-subject** half of the trust fact, not the whole
-    /// of [`ModuleCommandMutations::trusts`].
-    ///
-    /// The hazard this gate exists for is a shadowing `proc append` (or a
-    /// rename or alias onto the name), which is exactly what
-    /// `observed_binding_is_the_builtin` answers. `trusts` additionally folds
-    /// in the `dynamic` unbounded top, which a single unresolved command head
-    /// anywhere in the module raises — and that declined a legitimate
-    /// `append` chain in `samples/optimiser/input.tcl`, which shadows
-    /// nothing.
-    ///
-    /// Two reasons that is the wrong stance here. This pass had **no** trust
-    /// gate at all before, so under `dynamic` it folded unconditionally; the
-    /// named half is still strictly tighter than that. And the shared value
-    /// lattice — which feeds O100's rewrites — already uses the named half,
-    /// so gating this one harder leaves the two disagreeing about the same
-    /// question, which is the defect #2164 was about.
-    ///
-    /// The residual that leaves under a computed rename is #2168, and it
-    /// applies to both alike.
-    fn of(mutations: &crate::command_binding::ModuleCommandMutations) -> Self {
+impl<'a> ChainHeadTrust<'a> {
+    fn of(
+        mutations: &'a crate::command_binding::ModuleCommandMutations,
+        registry: &CommandRegistry,
+    ) -> Self {
+        let typed_assignment = registry
+            .command_names_for_semantic_operation(SemanticOperationId::StructuredLowering(
+                LoweringHookId::Set,
+            ))
+            .all(|name| mutations.observed_binding_is_the_builtin(name));
         Self {
-            set: mutations.observed_binding_is_the_builtin("set"),
-            append: mutations.observed_binding_is_the_builtin("append"),
-            lappend: mutations.observed_binding_is_the_builtin("lappend"),
+            mutations,
+            typed_assignment,
         }
+    }
+
+    /// Whether the call head `head` still denotes its builtin.
+    fn call(self, head: &str) -> bool {
+        self.mutations.observed_binding_is_the_builtin(head)
     }
 }
 
 /// Classify `stmt` as a static write, or `None` for anything else
 /// (dynamic operand, other command, control flow, or a head the module no
 /// longer leaves denoting its builtin).
-fn classify_write(stmt: &Statement, trust: ChainHeadTrust) -> Option<Write> {
+fn classify_write(stmt: &Statement, chains: Chains<'_>) -> Option<Write> {
     match stmt {
-        Statement::AssignConst { name, value, .. } if trust.set => Some(Write::Set {
-            var: normalise_var_name(name).to_owned(),
-            value: value.clone(),
-        }),
+        Statement::AssignConst { name, value, .. } if chains.trust.typed_assignment => {
+            Some(Write::Set {
+                var: normalise_var_name(name).to_owned(),
+                value: value.clone(),
+            })
+        }
         // `set s ""` / `set s foo` lower to `AssignValue`; only a static
         // single-token literal value (no command/var substitution) anchors
         // a foldable chain.
@@ -285,7 +427,7 @@ fn classify_write(stmt: &Statement, trust: ChainHeadTrust) -> Option<Write> {
             value_needs_backsubst,
             tokens,
             ..
-        } if trust.set => {
+        } if chains.trust.typed_assignment => {
             if *value_needs_backsubst {
                 return None;
             }
@@ -300,17 +442,28 @@ fn classify_write(stmt: &Statement, trust: ChainHeadTrust) -> Option<Write> {
                 value: value.clone(),
             })
         }
-        // No membership guard here: the fold's per-command semantics below
-        // (`set` resets the chain, `append` extends the string, `lappend`
-        // extends the list) ARE the dispatch — any other command falls out
-        // of the final match.
+        // Which call extends the string and which the list is the
+        // registry's declaration: the resolved cell update, on the chain's
+        // shape (the variable first). A `set` anchors a chain only as the
+        // typed assignments above.
         Statement::Call {
+            span,
             command,
+            canonical_command,
             args,
             tokens,
             ..
         } => {
             let tokens = tokens.as_ref()?;
+            let head = canonical_command.as_deref().unwrap_or(command);
+            if !chains.trust.call(head) {
+                return None;
+            }
+            let (operation, target) =
+                crate::value_transfer::resolved_cell_update(chains.registry, head, args)?;
+            if target.0 != 0 {
+                return None;
+            }
             // Value words are argv index `vararg + 1 ..` (argv[0] is the
             // command, argv[1] is the variable).
             let var_word = args.first()?.clone();
@@ -321,30 +474,75 @@ fn classify_write(stmt: &Statement, trust: ChainHeadTrust) -> Option<Write> {
                 let argv_idx = j + 2; // skip command + variable
                 let kind = tokens.argv_kinds.get(argv_idx)?;
                 let single = tokens.single_token_word.get(argv_idx).copied()?;
-                if !single || !matches!(kind, TokenType::Esc | TokenType::Str) {
-                    return None;
+                if single && matches!(kind, TokenType::Esc | TokenType::Str) {
+                    // A piece is its value, not its spelling: a bare or
+                    // quoted piece that needs backslash substitution ends
+                    // the run, as a `set` anchor that needs it does, and a
+                    // braced piece's backslash-newlines collapse.
+                    if *kind == TokenType::Esc && val.contains('\\') {
+                        return None;
+                    }
+                    values.push(
+                        tcl_syntax::word_rules::WordValueRules::of_profile(
+                            chains.registry.profile(),
+                        )
+                        .collapse_braced_word(val)
+                        .into_owned(),
+                    );
+                } else {
+                    // A `$var` piece folds through the lattice value the
+                    // function proves at this statement; any other word, or
+                    // an unproven one, ends the run.
+                    let name = crate::static_loops::simple_var_ref(val)?;
+                    values.push(chains.lattice.constant_at(*span, &name)?);
                 }
-                values.push(val.clone());
             }
-            match command.as_str() {
-                "set" if trust.set && values.len() == 1 => Some(Write::Set {
-                    var,
-                    value: values.into_iter().next().unwrap(),
-                }),
-                "append" if trust.append && !values.is_empty() => Some(Write::Append {
+            if values.is_empty() {
+                return None;
+            }
+            match operation {
+                CellUpdate::Append => Some(Write::Append {
                     var,
                     word: var_word,
                     pieces: values,
                 }),
-                "lappend" if trust.lappend && !values.is_empty() => Some(Write::Lappend {
+                CellUpdate::ListAppend => Some(Write::Lappend {
                     var,
                     word: var_word,
                     elements: values,
                 }),
-                _ => None,
+                CellUpdate::Increment => None,
             }
         }
         _ => None,
+    }
+}
+
+/// The state a write chain starts from at `stmt`: the variable, its string
+/// value, and its list elements once a `lappend` has read it as a list. A
+/// chain anchors at a literal `set`, or at the absent cell's own first
+/// write: the release rule creates the cell in every release for `append`
+/// and `lappend` (§ *Existence*'s release table), so a place the existence
+/// rung proves `Unbound` immediately before this statement starts the chain
+/// exactly as an implicit `set var ""` would (the O104 / O130 row's "an
+/// absent-start chain folds through the value at the last write").
+fn chain_anchor(
+    stmt: &Statement,
+    chains: Chains<'_>,
+) -> Option<(String, String, Option<Vec<String>>)> {
+    let write = classify_write(stmt, chains)?;
+    let absent = !matches!(write, Write::Set { .. })
+        && chains
+            .lattice
+            .existence_at_statement(stmt.span(), write_var(&write))
+            == Some(tcl_registry::value_transfer::Existence::Unbound);
+    match write {
+        Write::Set { var, value } => Some((var, value, None)),
+        Write::Append { var, pieces, .. } if absent => Some((var, pieces.concat(), None)),
+        Write::Lappend { var, elements, .. } if absent => {
+            Some((var, String::new(), Some(elements)))
+        }
+        Write::Append { .. } | Write::Lappend { .. } => None,
     }
 }
 
@@ -355,21 +553,15 @@ fn try_fold_chain_at(
     ctx: &mut PassContext<'_>,
     stmts: &[Statement],
     start: usize,
-    protected: &HashSet<String>,
+    chains: Chains<'_>,
 ) -> Option<usize> {
-    let trust = ChainHeadTrust::of(&ctx.command_mutations);
-    let Write::Set { var, value } = classify_write(&stmts[start], trust)? else {
-        return None;
-    };
-
-    let mut chain_value = value;
-    let mut elements: Option<Vec<String>> = None;
+    let (var, mut chain_value, mut elements) = chain_anchor(&stmts[start], chains)?;
     let mut writes = vec![start];
     let mut last_word: Option<String> = None;
 
     let mut j = start + 1;
     while j < stmts.len() {
-        match classify_write(&stmts[j], trust) {
+        match classify_write(&stmts[j], chains) {
             Some(Write::Append {
                 var: v,
                 word,
@@ -420,8 +612,8 @@ fn try_fold_chain_at(
     // `populate_variable_trace_facts`), so a `::`-qualified chain target is
     // checked under that canonical spelling too.
     if writes.len() < 2
-        || protected.contains(&var)
-        || protected.contains(var.trim_start_matches("::"))
+        || chains.protected.contains(&var)
+        || chains.protected.contains(var.trim_start_matches("::"))
     {
         return None;
     }
@@ -434,7 +626,7 @@ fn try_fold_chain_at(
             DiagCode::O130,
             "Fold write-only list build chain",
             "Remove dead intermediate list write",
-            render_list_word(els),
+            render_list_word(els, ctx.dialect)?,
         )
     } else {
         (
@@ -472,11 +664,17 @@ fn try_fold_chain_at(
 }
 
 /// Render `elements` as the single `set` value-word that recreates the
-/// list — join into a canonical Tcl list, then quote that as one element.
-/// The joined string never begins with a bare `#` (the join already quotes
-/// a leading `#`), so `list_element`'s first-element rule is equivalent here.
-fn render_list_word(elements: &[String]) -> String {
-    tcl_syntax::list::list_element(&tcl_syntax::list::join_list(elements))
+/// list the target builds — join into its canonical list, then quote that
+/// as one word — or `None` where the rendering is release-dependent (a
+/// first element that starts with `#`, under a profile naming no release).
+/// Under 8.4 `lappend l # b` builds `# b`, so the word is `{# b}`; from 8.5
+/// it builds `{#} b`.
+fn render_list_word(
+    elements: &[String],
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> Option<String> {
+    let list = tcl_registry::value_transfer::TargetSemantics::of(dialect).render_list(elements)?;
+    Some(tcl_syntax::list::list_element(&list))
 }
 
 #[cfg(test)]
@@ -619,6 +817,75 @@ mod tests {
             apply("set l {}\nlappend l {a b}\nlappend l c"),
             "set l {{a b} c}"
         );
+    }
+
+    /// A `$var` piece the lattice proves constant folds through the value
+    /// at that statement: the non-consecutive O104 chain, and its
+    /// exact-value twin (#2052).
+    #[test]
+    fn var_piece_proven_by_the_lattice_folds_the_chain() {
+        let out = apply("set s hello\nset p again\nappend s $p\nputs $s\n");
+        assert_eq!(out, "set p again\nset s helloagain\nputs $s\n");
+        let out = apply("set s hello\nset p { again}\nappend s $p\nputs $s\n");
+        assert!(
+            out.contains("hello again") && !out.contains("append"),
+            "the leading space is kept: {out:?}"
+        );
+        let out = apply("set l {}\nset e {b c}\nlappend l a $e\nputs $l\n");
+        assert_eq!(out, "set e {b c}\nset l {a {b c}}\nputs $l\n");
+    }
+
+    /// An unproven `$var` piece still ends the run.
+    #[test]
+    fn unproven_var_piece_ends_the_run() {
+        let src = "set s hello\nappend s $p\nappend s x\nputs $s\n";
+        let opts = run_pass(src);
+        assert!(
+            !opts.iter().any(|o| o.code == DiagCode::O104),
+            "an unproven `$p` cannot be folded: {opts:?}"
+        );
+    }
+
+    /// The write chain is classified by the resolved cell update, so the
+    /// qualified spelling of the same command extends it too.
+    /// [`run_pass`] under the module's own command-trust fact, as the
+    /// optimiser entry points install it.
+    fn run_pass_under_the_module_trust(source: &str) -> Vec<Optimisation> {
+        let cu = CompilationUnit::build_for(source, &registry(), false);
+        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        ctx.command_mutations.clone_from(&cu.command_mutations);
+        run(&mut ctx, &cu);
+        ctx.optimisations
+    }
+
+    /// A typed assignment keeps no head of its own, so the chain asks every
+    /// registry spelling of the assignment operation: with `proc set` in
+    /// scope, `set s foo` never assigns (tclsh 8.4.20 – 9.1b0: the chain's
+    /// `puts $s` prints `bar`, where the fold would store `foobar`). A
+    /// shadowed call head declines the same way, and the controls fold.
+    #[test]
+    fn a_shadowed_head_anchors_or_extends_no_chain() {
+        let chain = "set s foo\nappend s bar\nputs $s\n";
+        let folds = |src: &str| {
+            run_pass_under_the_module_trust(src)
+                .iter()
+                .any(|o| o.code == DiagCode::O104 || o.code == DiagCode::O130)
+        };
+        assert!(folds(chain), "the unshadowed chain folds");
+        assert!(
+            !folds(&format!("proc set {{args}} {{return ZZZ}}\n{chain}")),
+            "a shadowed `set` anchors no chain"
+        );
+        assert!(
+            !folds(&format!("proc append {{args}} {{return ZZZ}}\n{chain}")),
+            "a shadowed `append` extends no chain"
+        );
+    }
+
+    #[test]
+    fn qualified_spelling_of_the_cell_update_extends_the_chain() {
+        let out = apply("set s foo\n::append s bar\nputs $s\n");
+        assert_eq!(out, "set s foobar\nputs $s\n");
     }
 
     #[test]

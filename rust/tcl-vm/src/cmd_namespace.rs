@@ -109,13 +109,12 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"namespace subcommand ?arg ...?\"");
     };
     let sub_word = sub.to_str();
-    // The emulated release's name is a dialect *name*, so it resolves
-    // through the one ingress seam (`crate::environment`) and every
-    // availability question below is answered under that environment's
-    // document authoring mask — one resolution, not a `by_name` here and a
-    // mask read at each use.
+    // The profile the VM exposes commands under decides, through the one
+    // ingress seam (`crate::environment`), and every availability question
+    // below is answered under that environment's document authoring mask —
+    // one resolution, not a `by_name` here and a mask read at each use.
     let profile =
-        crate::environment::profile_for_dialect(vm.runtime_version().dialect_profile_name());
+        crate::environment::gate_profile(vm.command_surface_profile(), vm.runtime_version());
     let dialect = Some(crate::environment::surface_point(profile));
     let registry = tcl_registry::default_registry();
     let spec = registry

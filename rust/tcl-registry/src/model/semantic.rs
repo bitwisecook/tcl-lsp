@@ -16,17 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The **executable-IR vocabulary**: one generation-bound handle naming the
-//! context every semantic invocation resolves under (centralisation ledger
-//! row C1, redesign §11.2 D1).
-//!
-//! Before this module the semantic-analysis and executable-IR path spoke
-//! `SpecSurface`: `SemanticAnalysisBundle` carried a `dialect: Option<SurfaceQuery<'_>>`
-//! field, `build_linear_executable_ir` took a mask, and a bundle whose mask
-//! did not name exactly one profile recorded a `DialectUnavailable` decline.
-//! That was the last dialect vocabulary in the tree beside
-//! [`ResolvedContext`], and D1 rules it "one change or none — a partial
-//! re-key leaves two dialect vocabularies".
+//! The executable-IR context: one generation-bound handle naming the
+//! environment every semantic invocation resolves under. A handle names
+//! exactly one environment; an absent handle records unavailable context.
 //!
 //! # Why a handle rather than a [`ResolvedContext`] value
 //!
@@ -36,8 +28,7 @@
 //! vectors and is neither `Eq` nor `Copy`: cloning one per function unit on
 //! every keystroke, and structurally comparing one per memo probe, would put
 //! allocation and a deep compare on the per-edit path for a value that is
-//! **the same object** for every unit of a document. Standing principle P-B
-//! forbids exactly that.
+//! the same object for every unit of a document.
 //!
 //! [`SemanticContext`] is therefore the generation-bound handle
 //! [`crate::model::ingress::static_context_for`] already publishes: a
@@ -47,11 +38,10 @@
 //! equality *is* environment identity), and it carries both halves a
 //! resolution needs — the [`ResolvedContext`] availability view and the
 //! generation's command store — without a second lookup. Resolving one costs
-//! a name ingress; the compiler resolves it **once per module build** and
-//! threads the handle, where the retired `DialectSet` projection ran per
-//! function unit.
+//! a name ingress; the compiler resolves it once per module build and
+//! threads the handle through its function units.
 //!
-//! # The selection rule is C7/I4's, not a second one
+//! # Binding-aware selection
 //!
 //! [`resolve_structured_invocation_in_context`] is the structured-words face
 //! of the selection primitive
@@ -77,11 +67,8 @@ use crate::resolved_invocation::{InvocationResolutionUnresolved, StructuredInvoc
 /// generation-bound handle on the environment's un-overlaid registry
 /// generation.
 ///
-/// Replaces the `SpecSurface` the semantic-analysis path carried. Where the
-/// mask could be empty, a combinator, or a bit whose name no profile owned,
-/// this either names exactly one resolved environment or is absent
-/// (`Option<SemanticContext>`), so the "no one explicit dialect profile"
-/// decline the mask model needed becomes the ordinary absent-context case.
+/// This names exactly one resolved environment. `Option<SemanticContext>`
+/// represents a caller with no environment context.
 #[derive(Clone, Copy)]
 pub struct SemanticContext {
     /// The interned un-overlaid generation for one environment id. There is
@@ -103,8 +90,7 @@ impl SemanticContext {
     }
 
     /// [`Self::for_environment`] keyed by an already-resolved profile — the
-    /// surviving interned-profile interop (retired with the profile itself
-    /// under ledger F1 / redesign §11.2 D5). A profile's canonical name **is**
+    /// interned-profile interop. A profile's canonical name is
     /// a canonical environment id, so this is an id-keyed lookup and never a
     /// re-parse of a user string.
     #[must_use]
@@ -127,9 +113,9 @@ impl SemanticContext {
     /// The generation's own command store.
     ///
     /// Executable-IR callers pass the store they already hold (a unit
-    /// registry, the analyser's generation), so the re-key changes *which
-    /// context* filters a selection, never *which specs exist*; this door is
-    /// for callers that have a context and no store of their own.
+    /// registry, the analyser's generation). The context filters selection
+    /// without replacing that store; this door is for callers that have a
+    /// context and no store of their own.
     #[must_use]
     pub fn commands(self) -> &'static CommandRegistry {
         self.generation.commands()
@@ -143,9 +129,8 @@ impl SemanticContext {
     /// the projected profile read, so a dialect with no catalogue row (`tk`,
     /// whose core is 8.6) answers with its core rather than `None`, and a
     /// non-Tcl family (`jim`) answers `None` because it has no rung on the
-    /// Tcl ladder. This closed redesign §11.2 D5's remaining boundary: the
-    /// runtime base no longer has to be looked up on a catalogue row, and
-    /// `the_point_names_the_catalogue_runtime_base` pins that the two agree
+    /// Tcl ladder. `the_point_names_the_catalogue_runtime_base` pins that
+    /// the environment's point and catalogue runtime base agree
     /// for every row that has one.
     #[must_use]
     pub fn runtime_version(self) -> Option<TclVersion> {

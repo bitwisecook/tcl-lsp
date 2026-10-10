@@ -1,0 +1,673 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Unit tests for INI config-file parsing, layer merging, the default-off
+//! seed and the severity parse.
+
+use super::*;
+use serde_json::json;
+use std::path::PathBuf;
+
+#[test]
+fn default_off_codes_match_the_catalogue() {
+    // The seed is what the code table declares opt-in, and nothing else: a
+    // row flipped to `default_on: false` (or W242 flipped back) fails here
+    // until this list follows.
+    for &code in DiagCode::ALL {
+        let opt_in = !code.is_optimisation() && !code.default_on();
+        assert_eq!(
+            DEFAULT_OFF_CODES.contains(&code),
+            opt_in,
+            "{code}: default_on={} but DEFAULT_OFF_CODES says {}",
+            code.default_on(),
+            DEFAULT_OFF_CODES.contains(&code),
+        );
+    }
+}
+
+#[test]
+fn parse_severity_value_is_case_insensitive_and_rejects_the_rest() {
+    assert_eq!(parse_severity_value("Error"), Some(Severity::Error));
+    assert_eq!(parse_severity_value("WARNING"), Some(Severity::Warning));
+    assert_eq!(parse_severity_value("information"), Some(Severity::Info));
+    assert_eq!(parse_severity_value("info"), Some(Severity::Info));
+    assert_eq!(parse_severity_value("hint"), Some(Severity::Hint));
+    for rejected in ["default", "", "loud", "suggestion"] {
+        assert_eq!(parse_severity_value(rejected), None, "{rejected:?}");
+    }
+}
+
+#[test]
+fn global_section_top_level_keys() {
+    let ini = "[global]\n\
+               dialect = tcl9.0\n\
+               extraCommands = mylib::send, mylib::recv\n\
+               libraryPaths =\n\
+               \x20   /opt/tcl/lib\n\
+               \x20   /home/me/stubs\n";
+    let s = settings_from_ini(ini, Layer::Global);
+    assert_eq!(s["dialect"], json!("tcl9.0"));
+    assert_eq!(s["extraCommands"], json!(["mylib::send", "mylib::recv"]));
+    assert_eq!(s["libraryPaths"], json!(["/opt/tcl/lib", "/home/me/stubs"]));
+}
+
+#[test]
+fn project_entry_points_list() {
+    // Newline-continuation list of entry files under [project].
+    let ini = "[project]\n\
+               entryPoints =\n\
+               \x20   main.tcl\n\
+               \x20   src/app.tcl\n";
+    let s = settings_from_ini(ini, Layer::Project);
+    assert_eq!(s["entryPoints"], json!(["main.tcl", "src/app.tcl"]));
+    // A comma-separated one-liner is equivalent.
+    let comma = settings_from_ini(
+        "[project]\nentryPoints = main.tcl, src/app.tcl\n",
+        Layer::Project,
+    );
+    assert_eq!(comma["entryPoints"], json!(["main.tcl", "src/app.tcl"]));
+    // Absent key ⇒ no entryPoints emitted (auto-detection stays on).
+    let none = settings_from_ini("[project]\ndialect = tcl9.0\n", Layer::Project);
+    assert!(none.get("entryPoints").is_none());
+}
+
+/// Issue #1813: `[packages.provides]` declares what loading a package also
+/// loads, key by key, with a comma list for several.
+#[test]
+fn packages_provides_section() {
+    let ini = "[project]\n\
+               [packages]\n\
+               preferLatest = true\n\
+               [packages.provides]\n\
+               myExtension = Tk\n\
+               bigWrapper = Tk, Img\n";
+    let s = settings_from_ini(ini, Layer::Project);
+    assert_eq!(s["packages"]["preferLatest"], json!(true));
+    assert_eq!(s["packages"]["provides"]["myExtension"], json!(["Tk"]));
+    assert_eq!(
+        s["packages"]["provides"]["bigWrapper"],
+        json!(["Tk", "Img"])
+    );
+    // Absent section ⇒ nothing emitted, and `preferLatest` still stands alone.
+    let only_prefer = settings_from_ini("[packages]\npreferLatest = true\n", Layer::Project);
+    assert!(only_prefer["packages"].get("provides").is_none());
+    let neither = settings_from_ini("[project]\ndialect = tcl9.0\n", Layer::Project);
+    assert!(neither.get("packages").is_none());
+}
+
+#[test]
+fn project_layer_reads_project_section_only() {
+    let ini = "[global]\ndialect = tcl8.6\n[project]\ndialect = tcl9.0\n";
+    // As a project file, the [project] dialect is honoured and [global] ignored.
+    assert_eq!(
+        settings_from_ini(ini, Layer::Project)["dialect"],
+        json!("tcl9.0")
+    );
+    // As a global file, the [global] dialect is honoured and [project] ignored.
+    assert_eq!(
+        settings_from_ini(ini, Layer::Global)["dialect"],
+        json!("tcl8.6")
+    );
+}
+
+#[test]
+fn diagnostics_disabled_and_patterns() {
+    let ini = "[diagnostics]\n\
+               disabled = W111, T100\n\
+               generic_variable_patterns =\n\
+               \x20   ^dbg$\n\
+               \x20   ^log_(level|server)$\n";
+    let s = settings_from_ini(ini, Layer::Global);
+    assert_eq!(s["diagnostics"]["W111"], json!(false));
+    assert_eq!(s["diagnostics"]["T100"], json!(false));
+    assert_eq!(
+        s["diagnostics"]["genericVariablePatterns"],
+        json!(["^dbg$", "^log_(level|server)$"])
+    );
+}
+
+/// A per-code key turns one code on or off, read case-insensitively and
+/// after the `disabled` list, so it wins over `disabled` in the same file —
+/// and a project file's `true` turns back on what the global file disabled,
+/// which `disabled =` alone could never say.
+#[test]
+fn a_per_code_key_turns_a_code_on_or_off() {
+    let ini = "[diagnostics]\ndisabled = W111\nW242 = true\nw111 = true\n";
+    let s = settings_from_ini(ini, Layer::Project);
+    assert_eq!(s["diagnostics"], json!({ "W111": true, "W242": true }));
+
+    let global = settings_from_ini("[diagnostics]\ndisabled = W112\n", Layer::Global);
+    let project = settings_from_ini("[diagnostics]\nW112 = true\n", Layer::Project);
+    let policy = crate::diagnostic_policy::PolicyBuilder::new()
+        .layer(crate::diagnostic_policy::PolicyLayer::Global, &global)
+        .layer(crate::diagnostic_policy::PolicyLayer::Project, &project)
+        .build();
+    assert_eq!(policy.code_reason(DiagCode::W112), None);
+}
+
+#[test]
+fn an_optimiser_per_code_key_keeps_the_switch_keys() {
+    let ini = "[optimiser]\nenabled = false\nO106 = true\n";
+    let s = settings_from_ini(ini, Layer::Global);
+    assert_eq!(s["optimiser"], json!({ "enabled": false, "O106": true }));
+}
+
+#[test]
+fn an_unparseable_per_code_value_is_ignored() {
+    let s = settings_from_ini("[diagnostics]\nW242 = maybe\n", Layer::Global);
+    assert!(s.get("diagnostics").is_none(), "{s}");
+    let s = settings_from_ini("[diagnostics]\nW999 = true\n", Layer::Global);
+    assert!(s.get("diagnostics").is_none(), "{s}");
+    let s = settings_from_ini(
+        "[diagnostics]\ndisabled = W111\nW111 = maybe\n",
+        Layer::Global,
+    );
+    assert_eq!(
+        s["diagnostics"],
+        json!({ "W111": false }),
+        "an unusable value leaves `disabled` standing"
+    );
+}
+
+/// A scratch directory for one config-file test, removed on drop.
+struct ScratchDir(PathBuf);
+
+impl ScratchDir {
+    fn new(tag: &str) -> Self {
+        static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!(
+            "tcl-lsp-config-ini-{tag}-{}-{n}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).expect("scratch dir");
+        Self(dir)
+    }
+}
+
+impl Drop for ScratchDir {
+    fn drop(&mut self) {
+        std::fs::remove_dir_all(&self.0).ok();
+    }
+}
+
+/// Only a missing file is an absent layer; a file that exists but cannot be
+/// read is an error the caller reports, never a silent "no layer".
+#[test]
+fn only_a_missing_file_is_an_absent_layer() {
+    let dir = ScratchDir::new("absent");
+    let missing = dir.0.join("config.ini");
+    assert!(matches!(read_layer_file(&missing, Layer::Global), Ok(None)));
+
+    std::fs::write(&missing, "[diagnostics]\ndisabled = W210\n").expect("write");
+    let read = read_layer_file(&missing, Layer::Global).expect("readable");
+    assert_eq!(read, Some(json!({ "diagnostics": { "W210": false } })));
+
+    let shaped_like_a_directory = dir.0.join("dir.ini");
+    std::fs::create_dir_all(&shaped_like_a_directory).expect("dir");
+    let err = read_layer_file(&shaped_like_a_directory, Layer::Global)
+        .expect_err("a directory is not an absent file");
+    assert_ne!(err.kind(), std::io::ErrorKind::NotFound);
+    assert_eq!(read_layer(&shaped_like_a_directory, Layer::Global), None);
+}
+
+/// A `.tcl-lsp.ini` that exists but cannot be read ends the project walk:
+/// the nearest project file governs, so a grandparent's never decides in
+/// its place.
+#[test]
+fn an_unreadable_project_file_ends_the_walk() {
+    let dir = ScratchDir::new("walk");
+    std::fs::write(
+        dir.0.join(crate::tcl_install::PROJECT_CONFIG_FILENAME),
+        "[diagnostics]\ndisabled = W112\n",
+    )
+    .expect("outer project file");
+    let inner = dir.0.join("inner");
+    std::fs::create_dir_all(inner.join(crate::tcl_install::PROJECT_CONFIG_FILENAME))
+        .expect("a directory named like the project file");
+    let file = inner.join("a.tcl");
+    std::fs::write(&file, "puts ok\n").expect("document");
+    let root = project_root_for(&file).expect("a project root");
+    assert_eq!(root, inner.canonicalize().expect("canonical"));
+    assert_eq!(project_layer_for(&file), None);
+
+    let outer_file = dir.0.join("b.tcl");
+    std::fs::write(&outer_file, "puts ok\n").expect("document");
+    assert_eq!(
+        project_layer_for(&outer_file).map(|(_, layer)| layer),
+        Some(json!({ "diagnostics": { "W112": false } })),
+        "a readable project file still reads"
+    );
+}
+
+#[test]
+fn diagnostics_exclude_glob_list() {
+    // `exclude` is a one-pattern-per-line list (#1556); it is never
+    // comma-split, so a brace alternation keeps its comma.
+    let ini = "[diagnostics]\n\
+               exclude =\n\
+               \x20   docs/**\n\
+               \x20   generated/[a-c]*.tcl\n\
+               \x20   {vendor,third_party}/**\n\
+               \x20   *.ruff\n";
+    let s = settings_from_ini(ini, Layer::Project);
+    assert_eq!(
+        s["diagnostics"]["exclude"],
+        json!([
+            "docs/**",
+            "generated/[a-c]*.tcl",
+            "{vendor,third_party}/**",
+            "*.ruff"
+        ])
+    );
+    // A one-line value is a single pattern, commas included.
+    let one = settings_from_ini("[diagnostics]\nexclude = {a,b}/*.tcl\n", Layer::Project);
+    assert_eq!(one["diagnostics"]["exclude"], json!(["{a,b}/*.tcl"]));
+    // Absent key ⇒ no `exclude` entry at all.
+    let none = settings_from_ini("[diagnostics]\ndisabled = W111\n", Layer::Project);
+    assert!(none["diagnostics"].get("exclude").is_none());
+}
+
+#[test]
+fn multiline_disabled_codes_list() {
+    // A `configparser`-style continuation list joins into the same code set a
+    // comma list would.
+    let ini = "[diagnostics]\n\
+               disabled =\n\
+               \x20   W111\n\
+               \x20   T100\n\
+               \x20   W120\n";
+    let s = settings_from_ini(ini, Layer::Global);
+    assert_eq!(s["diagnostics"]["W111"], json!(false));
+    assert_eq!(s["diagnostics"]["T100"], json!(false));
+    assert_eq!(s["diagnostics"]["W120"], json!(false));
+}
+
+#[test]
+fn diagnostic_severity_section() {
+    // `[diagnosticSeverity]` entries pass through verbatim as the nested
+    // `diagnosticSeverity` object the policy builder reads; validation (and
+    // skip-unknown, through `parse_severity_value`) happens there, not here.
+    let ini = "[diagnosticSeverity]\n\
+               W211 = warning\n\
+               W220 = Error\n\
+               W210 = nonsense\n";
+    let s = settings_from_ini(ini, Layer::Global);
+    assert_eq!(s["diagnosticSeverity"]["W211"], json!("warning"));
+    assert_eq!(s["diagnosticSeverity"]["W220"], json!("Error"));
+    assert_eq!(s["diagnosticSeverity"]["W210"], json!("nonsense"));
+    // Absent section -> no key at all (leave the current overrides untouched).
+    let none = settings_from_ini("[diagnostics]\ndisabled = W111\n", Layer::Global);
+    assert!(none.get("diagnosticSeverity").is_none());
+}
+
+#[test]
+fn extra_commands_multiline() {
+    // Continuation form of `extraCommands`, equivalent to the comma form.
+    // `::`-qualified
+    // names now join correctly even in the continuation form (the parser treats
+    // any indented line as a continuation, configparser-style).
+    let ini = "[global]\n\
+               extraCommands =\n\
+               \x20   mylib::send\n\
+               \x20   mylib::recv\n";
+    let s = settings_from_ini(ini, Layer::Global);
+    assert_eq!(s["extraCommands"], json!(["mylib::send", "mylib::recv"]));
+    // The comma form also handles namespace-qualified names.
+    let comma = settings_from_ini("[global]\nextraCommands = a::b, c::d\n", Layer::Global);
+    assert_eq!(comma["extraCommands"], json!(["a::b", "c::d"]));
+}
+
+#[test]
+fn indented_comment_inside_multiline_value_is_not_absorbed() {
+    // An indented `#`/`;` line inside a continuation value is a full-line
+    // comment (configparser semantics), NOT part of the value — otherwise a
+    // commented-out `# recv` entry would become a live extra command
+    // (issue 176).
+    let ini = "[global]\n\
+               extraCommands =\n\
+               \x20   mylib::send\n\
+               \x20   # mylib::recv\n\
+               \x20   ; mylib::log\n\
+               \x20   mylib::flush\n";
+    let s = settings_from_ini(ini, Layer::Global);
+    assert_eq!(
+        s["extraCommands"],
+        json!(["mylib::send", "mylib::flush"]),
+        "commented continuation lines must be dropped"
+    );
+}
+
+#[test]
+fn continuation_lines_with_colons_join_correctly() {
+    // A regex pattern with a `:` and a `::`-qualified name in continuation lists
+    // must join as continuations, not be mis-read as new `key: value` lines.
+    let ini = "[diagnostics]\n\
+               generic_variable_patterns =\n\
+               \x20   ^a:b$\n\
+               \x20   ^c$\n";
+    let s = settings_from_ini(ini, Layer::Global);
+    assert_eq!(
+        s["diagnostics"]["genericVariablePatterns"],
+        json!(["^a:b$", "^c$"])
+    );
+}
+
+#[test]
+fn invalid_values_are_ignored_not_crashing() {
+    // Non-bool / non-integer values are dropped, leaving the defaults intact.
+    let ini = "[shimmer]\nenabled = banana\n\
+               [optimiser]\nenabled = maybe\n\
+               [formatting]\nmax_line_length = abc\n\
+               [style]\nline_length = wide\n";
+    let s = settings_from_ini(ini, Layer::Global);
+    assert!(
+        s.get("shimmer").is_none(),
+        "invalid shimmer bool dropped: {s}"
+    );
+    assert!(
+        s.get("optimiser").is_none(),
+        "invalid optimiser bool dropped: {s}",
+    );
+    assert!(
+        s.get("formatting").is_none(),
+        "non-integer formatting line length dropped: {s}",
+    );
+    assert!(
+        s.get("style").is_none(),
+        "non-integer style line length dropped: {s}",
+    );
+}
+
+#[test]
+fn empty_dialect_is_ignored() {
+    // An empty `dialect =` keeps the default.
+    let s = settings_from_ini("[global]\ndialect =\n", Layer::Global);
+    assert!(s.get("dialect").is_none(), "empty dialect ignored: {s}");
+}
+
+#[test]
+fn top_level_keys_coexist_with_nested_sections() {
+    // A `[global]` top-level key and a `[diagnostics]` section in one file are
+    // both honoured.
+    let ini = "[global]\ndialect = tcl9.0\n[diagnostics]\ndisabled = W111\n";
+    let s = settings_from_ini(ini, Layer::Global);
+    assert_eq!(s["dialect"], json!("tcl9.0"));
+    assert_eq!(s["diagnostics"]["W111"], json!(false));
+}
+
+#[test]
+fn optimiser_section() {
+    let ini = "[optimiser]\nenabled = true\nprofile = readability\ndisabled = O109, O126\n";
+    let s = settings_from_ini(ini, Layer::Global);
+    assert_eq!(s["optimiser"]["enabled"], json!(true));
+    assert_eq!(s["optimiser"]["profile"], json!("readability"));
+    assert_eq!(s["optimiser"]["O109"], json!(false));
+    assert_eq!(s["optimiser"]["O126"], json!(false));
+}
+
+#[test]
+fn features_shimmer_xc_and_line_length() {
+    let ini = "[features]\nhover = true\ninlayHints = false\n\
+               [shimmer]\nenabled = true\n\
+               [xcDiagnostics]\nenabled = false\n\
+               [formatting]\nmax_line_length = 90\n\
+               [style]\nline_length = 100\n";
+    let s = settings_from_ini(ini, Layer::Global);
+    assert_eq!(s["features"]["hover"], json!(true));
+    assert_eq!(s["features"]["inlayHints"], json!(false));
+    assert_eq!(s["shimmer"]["enabled"], json!(true));
+    assert_eq!(s["xcDiagnostics"]["enabled"], json!(false));
+    // `[formatting] max_line_length` → formatter width; `[style] line_length`
+    // → the W111 threshold. These are distinct settings.
+    assert_eq!(s["formatting"]["lineLength"], json!(90));
+    assert_eq!(s["style"]["lineLength"], json!(100));
+}
+
+#[test]
+fn workspace_scan_max_files_section() {
+    // `[workspaceScan] max_files` is the on-disk scan's file budget
+    // (issue #2021) — the INI snake_case spelling and the editor's camelCase
+    // key both parse, and both land on the editor's JSON shape.
+    let snake = settings_from_ini("[workspaceScan]\nmax_files = 6000\n", Layer::Global);
+    assert_eq!(snake["workspaceScan"]["maxFiles"], json!(6000));
+    let camel = settings_from_ini("[workspaceScan]\nmaxFiles = 6000\n", Layer::Project);
+    assert_eq!(camel["workspaceScan"]["maxFiles"], json!(6000));
+    // A non-integer leaves the built-in default in place rather than emitting
+    // a key the apply path would have to defend against.
+    let bad = settings_from_ini("[workspaceScan]\nmax_files = lots\n", Layer::Global);
+    assert!(
+        bad.get("workspaceScan").is_none(),
+        "non-integer scan budget dropped: {bad}"
+    );
+    assert!(
+        settings_from_ini("", Layer::Global)
+            .get("workspaceScan")
+            .is_none()
+    );
+}
+
+#[test]
+fn workspace_scan_project_ini_beats_the_editor_layer() {
+    // The documented precedence for every key: the committed project
+    // `.tcl-lsp.ini` wins over what the editor sends, which wins over the
+    // user's global `config.ini`.
+    let global = settings_from_ini("[workspaceScan]\nmax_files = 100\n", Layer::Global);
+    let editor = json!({ "workspaceScan": { "maxFiles": 500 } });
+    let project = settings_from_ini("[workspaceScan]\nmax_files = 9000\n", Layer::Project);
+    let merged = merge_settings(&merge_settings(&global, &editor), &project);
+    assert_eq!(
+        merged["workspaceScan"]["maxFiles"],
+        json!(9000),
+        "project .tcl-lsp.ini wins over the editor value: {merged}"
+    );
+    // With no project file the editor layer wins over the global config.ini.
+    let no_project = merge_settings(&merge_settings(&global, &editor), &json!({}));
+    assert_eq!(no_project["workspaceScan"]["maxFiles"], json!(500));
+    // With neither, the global config.ini is what applies.
+    let global_only = merge_settings(&merge_settings(&global, &json!({})), &json!({}));
+    assert_eq!(global_only["workspaceScan"]["maxFiles"], json!(100));
+}
+
+#[test]
+fn notifications_environment_kind_section() {
+    // The INI spelling is snake_case; the editor's camelCase key is accepted
+    // so exported settings paste back unchanged.
+    let snake = settings_from_ini("[notifications]\nenvironment_kind = false\n", Layer::Global);
+    assert_eq!(snake["notifications"]["environmentKind"], json!(false));
+    let camel = settings_from_ini("[notifications]\nenvironmentKind = off\n", Layer::Project);
+    assert_eq!(camel["notifications"]["environmentKind"], json!(false));
+    let on = settings_from_ini("[notifications]\nenvironment_kind = yes\n", Layer::Global);
+    assert_eq!(on["notifications"]["environmentKind"], json!(true));
+
+    // An unparsable value or an absent section says nothing, so the built-in
+    // default stands.
+    let bad = settings_from_ini("[notifications]\nenvironment_kind = maybe\n", Layer::Global);
+    assert!(bad.get("notifications").is_none());
+    assert!(
+        settings_from_ini("[features]\nhover = false\n", Layer::Global)
+            .get("notifications")
+            .is_none()
+    );
+}
+
+#[test]
+fn notifications_editor_layer_beats_the_global_file() {
+    // The XDG file is the lowest layer: an editor that sends the key wins, and
+    // an editor that sends nothing leaves the file's value in force.
+    let global = settings_from_ini("[notifications]\nenvironment_kind = false\n", Layer::Global);
+    let editor = json!({ "notifications": { "environmentKind": true } });
+    assert_eq!(
+        merge_settings(&global, &editor)["notifications"]["environmentKind"],
+        json!(true)
+    );
+    assert_eq!(
+        merge_settings(&global, &json!({}))["notifications"]["environmentKind"],
+        json!(false)
+    );
+}
+
+#[test]
+fn signature_help_disabled_commands_section() {
+    let snake = settings_from_ini(
+        "[signatureHelp]\ndisabled_commands = set, incr\n",
+        Layer::Global,
+    );
+    assert_eq!(
+        snake["signatureHelp"]["disabledCommands"],
+        json!(["set", "incr"])
+    );
+
+    let camel = settings_from_ini(
+        "[signatureHelp]\ndisabledCommands = set format\n",
+        Layer::Project,
+    );
+    assert_eq!(
+        camel["signatureHelp"]["disabledCommands"],
+        json!(["set", "format"])
+    );
+}
+
+#[test]
+fn formatting_section_maps_all_keys() {
+    // Every `[formatting]` key maps to its camelCase editor key with the right
+    // value type.
+    let ini = "[formatting]\n\
+               max_line_length = 100\n\
+               goal_line_length = 90\n\
+               indent_size = 2\n\
+               indent_style = tabs\n\
+               brace_style = k_and_r\n\
+               line_ending = crlf\n\
+               trim_trailing_whitespace = false\n\
+               expand_single_line_bodies = true\n";
+    let s = settings_from_ini(ini, Layer::Global);
+    let f = &s["formatting"];
+    assert_eq!(f["maxLineLength"], json!(100));
+    // The legacy `lineLength` alias is also emitted for the server's resolved
+    // willSaveWaitUntil width.
+    assert_eq!(f["lineLength"], json!(100));
+    assert_eq!(f["goalLineLength"], json!(90));
+    assert_eq!(f["indentSize"], json!(2));
+    assert_eq!(f["indentStyle"], json!("tabs"));
+    assert_eq!(f["braceStyle"], json!("k_and_r"));
+    assert_eq!(f["lineEnding"], json!("crlf"));
+    assert_eq!(f["trimTrailingWhitespace"], json!(false));
+    assert_eq!(f["expandSingleLineBodies"], json!(true));
+}
+
+#[test]
+fn comments_and_blank_lines_ignored() {
+    let ini = "# a comment\n[global]\n; another\ndialect = tcl9.0\n\n";
+    assert_eq!(
+        settings_from_ini(ini, Layer::Global)["dialect"],
+        json!("tcl9.0")
+    );
+}
+
+#[test]
+fn merge_is_deep_with_high_layer_winning() {
+    let low = json!({
+        "optimiser": {"profile": "readability", "enabled": true},
+        "dialect": "tcl8.6",
+        "features": {"hover": true},
+    });
+    let high = json!({
+        "optimiser": {"enabled": false, "O109": false},
+        "dialect": "tcl9.0",
+    });
+    let merged = merge_settings(&low, &high);
+    // Section merged key-by-key: profile inherited, enabled overridden, code added.
+    assert_eq!(merged["optimiser"]["profile"], json!("readability"));
+    assert_eq!(merged["optimiser"]["enabled"], json!(false));
+    assert_eq!(merged["optimiser"]["O109"], json!(false));
+    // Scalar overridden.
+    assert_eq!(merged["dialect"], json!("tcl9.0"));
+    // Untouched section preserved.
+    assert_eq!(merged["features"]["hover"], json!(true));
+}
+
+#[test]
+fn merge_precedence_global_then_editor_then_project() {
+    // global config.ini < editor < project .tcl-lsp.ini.
+    let global = json!({"dialect": "tcl8.5", "optimiser": {"enabled": true}});
+    let editor = json!({"dialect": "tcl8.6"});
+    let project = json!({"dialect": "tcl9.0", "optimiser": {"profile": "full"}});
+    let merged = merge_settings(&merge_settings(&global, &editor), &project);
+    assert_eq!(merged["dialect"], json!("tcl9.0"), "project wins");
+    assert_eq!(
+        merged["optimiser"]["enabled"],
+        json!(true),
+        "global preserved"
+    );
+    assert_eq!(
+        merged["optimiser"]["profile"],
+        json!("full"),
+        "project adds"
+    );
+}
+
+#[test]
+fn empty_or_absent_keys_emit_nothing() {
+    assert_eq!(settings_from_ini("", Layer::Global), json!({}));
+    assert_eq!(settings_from_ini("[global]\n", Layer::Global), json!({}));
+}
+
+#[test]
+fn iruleslx_sections_map_plugins_and_extra_rule_directories() {
+    let ini = concat!(
+        "[iruleslx.plugins]\n",
+        "prod_plugin = workspaces/ws_alpha\n",
+        "other = /abs/ws_beta\n",
+        "\n",
+        "[iruleslx.rules]\n",
+        "prod_plugin =\n",
+        "    irules/http\n",
+        "    irules/tcp\n",
+        "other = a, b\n",
+    );
+    let got = settings_from_ini(ini, Layer::Project);
+    assert_eq!(
+        got["iruleslx"]["plugins"],
+        json!({"prod_plugin": "workspaces/ws_alpha", "other": "/abs/ws_beta"})
+    );
+    // One directory per continuation line, and a comma list for a one-liner —
+    // the same rule `libraryPaths` / `entryPoints` take.
+    assert_eq!(
+        got["iruleslx"]["rules"],
+        json!({"prod_plugin": ["irules/http", "irules/tcp"], "other": ["a", "b"]})
+    );
+}
+
+#[test]
+fn iruleslx_sections_are_absent_when_unconfigured_or_empty() {
+    // No section at all.
+    assert_eq!(settings_from_ini("[project]\n", Layer::Project), json!({}));
+    // A section whose every entry is empty emits nothing rather than an empty
+    // object, so an unconfigured layer cannot mask a configured one below it.
+    assert_eq!(
+        settings_from_ini("[iruleslx.plugins]\np =\n", Layer::Project),
+        json!({})
+    );
+    // `rules` alone is kept in the JSON — dropping a half-declaration is
+    // `parse_ilx_plugins`' job, where the plugin list it needs is in scope.
+    assert_eq!(
+        settings_from_ini("[iruleslx.rules]\np = x\n", Layer::Project)["iruleslx"]["rules"],
+        json!({"p": ["x"]})
+    );
+}

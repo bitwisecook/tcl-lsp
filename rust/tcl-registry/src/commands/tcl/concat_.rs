@@ -28,6 +28,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "concat",
+        runtime_backing: RuntimeBacking::shipped("concat"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         byte_array_effect: ByteArrayEffect::Coerces,
         const_fold: Some(crate::const_fold::fold_concat),
@@ -48,6 +49,9 @@ pub fn spec() -> CommandSpec {
             return_value: "The concatenated string, or the empty string when no arguments are given.",
         }),
         forms: FORMS,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

@@ -195,6 +195,7 @@ const FORMS: &[FormSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "vwait",
+        runtime_backing: RuntimeBacking::shipped("vwait"),
         // Present everywhere except iRules: `ALL_TCL` carries no iRules row,
         // so this spec never intersects the bare `IRULES` mask and is banned
         // there by plain intersection, with no disable list — see the module
@@ -257,6 +258,7 @@ pub fn spec() -> CommandSpec {
         // (see `traits` above) is the safety net that keeps an untracked
         // second or third varName from ever being silently mis-renamed.
         arg_roles: &[(0, ArgRole::VarWrite)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::VWAIT),
         // The value observed after the wait is whatever the event handler
         // stored — unknowable statically — so the written variable is typed
         // overdefined, never from vwait's own (empty-string) return type.

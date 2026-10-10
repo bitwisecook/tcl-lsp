@@ -56,11 +56,13 @@
 //! returns a [`SymbolMap`].  It relies on the analyser tracking
 //! `$var` references inside `[…]` command substitutions and braced
 //! `expr` bodies so a rename never rewrites a declaration without
-//! its body references.  Renaming is fenced by registry-declared
-//! observability facts:
+//! its body references.  Renaming is fenced by the observability facts
+//! of the document's command surface — the catalogue's, and the ones a
+//! `# tcl-lsp: stub` declaration's flags state:
 //!
 //! * Scopes containing a dynamic-barrier command (`upvar`, `eval`,
-//!   `trace`, … — [`Traits::CREATES_DYNAMIC_BARRIER`]) or a
+//!   `trace`, a `-barrier` stub, … —
+//!   [`Traits::CREATES_DYNAMIC_BARRIER`]) or a
 //!   variable-name introspection ([`Traits::INTROSPECTS_BY_NAME`],
 //!   e.g. `info locals` / `info vars` / `info exists`) are left
 //!   untouched.
@@ -282,6 +284,12 @@ impl SymbolMap {
                 continue;
             };
             let (short, original) = (short.trim().to_owned(), original.trim().to_owned());
+            // registry-axis-ok: irreducible — `section` is this parser's own
+            // section tag, set a few lines up from *this format's own*
+            // `# Procs` / `# Variables in …` headers (the `Self::format`
+            // writer's own vocabulary for its symbol-map file), not a
+            // dispatch on `info procs` / `info variables`; the spelling
+            // coincides with `info`'s subcommand names only; until never
             match section {
                 "procs" => {
                     sm.procs.insert(original, short);
@@ -733,7 +741,7 @@ fn minify_body(source: &str, env: MinifyEnv<'_>, depth: u32) -> String {
     for cmd_args in &commands {
         let mut arg_strs = render_command(&sm, cmd_args, env, depth);
         if arg_strs.len() >= 2 {
-            arg_strs[1] = abbreviated_subcommand(&arg_strs[0], &arg_strs[1], dialect);
+            arg_strs[1] = abbreviated_subcommand(&arg_strs[0], &arg_strs[1], dialect, env.registry);
         }
         rendered.push(arg_strs);
     }
@@ -928,8 +936,12 @@ fn static_subcommand_word<'s>(
 
 /// Compute every rename barrier the script's invocations impose.
 ///
-/// All observability knowledge is registry data — traits on command
-/// and subcommand specs — never a spelled command name:
+/// All observability knowledge is command-surface data — traits on command
+/// and subcommand specs, and the traits a document's `# tcl-lsp: stub`
+/// flags state for the commands it declares (`-barrier` is
+/// `CREATES_DYNAMIC_BARRIER`, `-scope_alias` is `CREATES_SCOPE_ALIAS`) —
+/// never a spelled command name. A declared name answers from its
+/// declaration (nearest wins; a declaration has no subcommands):
 ///
 /// * [`Traits::CREATES_DYNAMIC_BARRIER`] (command level) bars the
 ///   containing scope, as before.
@@ -959,6 +971,12 @@ fn find_rename_barriers(
     let mut out = RenameBarriers::default();
     let scope_at =
         |offset: u32| scope_label_at_offset(&analysis.global_scope, offset, "::", include_global);
+    // A carrier, not a consumer: this holds the set `build_declared_surface`
+    // returns only to hand it to `DocumentCommandSurface` below, and never
+    // spells `DeclaredSurface` itself (`rust/xtask/src/retired_api_gate.rs`
+    // relies on that to keep this file off the type's owner list).
+    let declared = tcl_compiler::analyser::types::build_declared_surface(&analysis.stub_commands);
+    let surface = tcl_registry::model::DocumentCommandSurface::new(registry, Some(&declared));
     for inv in &analysis.command_invocations {
         if inv.indirect {
             // A computed command head can spell any proc name at runtime.
@@ -973,25 +991,31 @@ fn find_rename_barriers(
         // positioned read.
         let written = inv.name.trim_start_matches(':');
         let head = identities.head_words(written, inv.range.start()).resolved;
-        let Some(spec) = registry.get(head) else {
+        let Some(traits) = surface.traits(head) else {
             continue;
         };
-        if spec.traits.contains(Traits::CREATES_DYNAMIC_BARRIER)
+        if traits.contains(Traits::CREATES_DYNAMIC_BARRIER)
             && let Some(label) = scope_at(inv.range.start())
         {
             out.scopes.insert(label);
         }
-        if spec.traits.contains(Traits::CREATES_SCOPE_ALIAS) {
+        if traits.contains(Traits::CREATES_SCOPE_ALIAS) {
             out.global_variables = true;
         }
-        if spec.traits.contains(Traits::ALIASES_CALLER_FRAME)
-            || spec.traits.contains(Traits::EVALUATES_IN_SHIFTED_FRAME)
+        if traits.contains(Traits::ALIASES_CALLER_FRAME)
+            || traits.contains(Traits::EVALUATES_IN_SHIFTED_FRAME)
         {
             out.all_variable_scopes = true;
         }
-        if spec.traits.contains(Traits::REFLECTS_COMMAND_NAMES) {
+        if traits.contains(Traits::REFLECTS_COMMAND_NAMES) {
             out.procs = true;
         }
+        if surface.declares(head) {
+            continue;
+        }
+        let Some(spec) = registry.get(head) else {
+            continue;
+        };
 
         // Subcommand-level observability.
         let var_subs = Traits::INTROSPECTS_BY_NAME | Traits::TARGETS_VARIABLE_BY_NAME;
@@ -1512,8 +1536,8 @@ fn rmw_target_var_names(
 /// keywords (`else` / `elseif` / `on` / `trap` / `finally`) plus the
 /// non-highlighted clause noise word (`then`).
 fn is_clause_keyword(word: &str) -> bool {
-    tcl_registry::traits::CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC.contains(&word)
-        || tcl_registry::traits::CLAUSE_NOISE_KEYWORDS.contains(&word)
+    tcl_registry::traits::clause_keywords_without_command_spec().contains(&word)
+        || tcl_registry::traits::clause_noise_keywords().contains(&word)
 }
 
 /// Every compacted short name across the symbol map, so aggressive
@@ -1864,6 +1888,12 @@ fn abbreviate_command(
         return;
     }
     for word in &args[start.min(args.len())..] {
+        // registry-axis-ok: irreducible — same reason as
+        // `formatting/keywords.rs`'s `scan_options`: generic across every
+        // command's option table, and only 2 of the 23 commands that
+        // declare a "--" row have `OptionEffectKind::EndsOptions` populated
+        // on it today, so a per-command lookup here would stop recognising
+        // "--" as ending option scanning for the rest; until never
         if word.text == "--" {
             break;
         }
@@ -2688,80 +2718,32 @@ fn abbreviated_subcommand(
     command_name: &str,
     subcommand_name: &str,
     dialect: &'static tcl_dialect::DialectProfile,
+    registry: &CommandRegistry,
 ) -> String {
     if !tcl_dialect::DialectProfile::name_has_fixed_ensembles(Some(dialect.name)) {
         return subcommand_name.to_owned();
     }
-    subcommand_abbreviation(command_name, subcommand_name)
+    subcommand_abbreviation(command_name, subcommand_name, registry)
         .unwrap_or(subcommand_name)
         .to_owned()
 }
 
-/// Shortest unambiguous abbreviation for `sub` of ensemble
-/// `command`, or `None`. (only the
-/// entries strictly shorter than the full subcommand are kept).
-fn subcommand_abbreviation(command: &str, sub: &str) -> Option<&'static str> {
-    let table: &[(&str, &str)] = match command {
-        "string" => &[
-            ("bytelength", "b"),
-            ("cat", "ca"),
-            ("compare", "co"),
-            ("equal", "e"),
-            ("first", "f"),
-            ("index", "in"),
-            ("last", "la"),
-            ("length", "le"),
-            ("match", "mat"),
-            ("range", "ra"),
-            ("repeat", "repe"),
-            ("replace", "repl"),
-            ("reverse", "rev"),
-            ("tolower", "tol"),
-            ("totitle", "tot"),
-            ("toupper", "tou"),
-            ("trimleft", "triml"),
-            ("trimright", "trimr"),
-            ("wordend", "worde"),
-            ("wordstart", "words"),
-        ],
-        "info" => &[
-            ("args", "a"),
-            ("body", "b"),
-            ("cmdcount", "cm"),
-            ("commands", "comm"),
-            ("complete", "comp"),
-            ("default", "d"),
-            ("exists", "e"),
-            ("frame", "fr"),
-            ("functions", "fu"),
-            ("globals", "g"),
-            ("hostname", "h"),
-            ("level", "le"),
-            ("library", "li"),
-            ("loaded", "loa"),
-            ("locals", "loc"),
-            ("nameofexecutable", "n"),
-            ("patchlevel", "pa"),
-            ("procs", "pr"),
-            ("script", "sc"),
-            ("sharedlibextension", "sh"),
-            ("tclversion", "t"),
-        ],
-        "clock" => &[
-            ("add", "a"),
-            ("clicks", "c"),
-            ("format", "f"),
-            ("microseconds", "mic"),
-            ("milliseconds", "mil"),
-            ("scan", "sc"),
-            ("seconds", "se"),
-        ],
-        _ => return None,
-    };
-    table
-        .iter()
-        .find(|(full, _)| *full == sub)
-        .map(|(_, abbr)| *abbr)
+/// Shortest unambiguous abbreviation for `sub` of ensemble `command`, read
+/// off the registry's own subcommand table (the same one
+/// [`keyword_tables`]/[`abbreviate_keywords`] use for the aggressive tier),
+/// rather than a hand-kept copy of a handful of ensembles' subcommands —
+/// every ensemble the registry knows gets the same treatment here.
+/// `KeywordTable::minimal_unique_prefix` already requires `sub` to be an
+/// exact canonical spelling, so (as before) a subcommand not written out in
+/// full is left alone.
+fn subcommand_abbreviation(
+    command: &str,
+    sub: &str,
+    registry: &CommandRegistry,
+) -> Option<&'static str> {
+    let table = registry.get(command)?.subcommand_table(None, None, None);
+    let short = table.minimal_unique_prefix(sub)?;
+    (short.len() < sub.len()).then_some(short)
 }
 
 /// Group a token stream into commands (lists of arguments),
@@ -3201,7 +3183,11 @@ fn minify_case_list(
             };
             parts.push(case_element_text(inner, flag).to_owned());
             i += 1;
-            if canonical_flag == "--" {
+            // Read off `cl`'s own descriptor, like `CaseListSpec::inline_clauses`
+            // does for the compiler — a future case-list command's own
+            // end-of-clause-options flag (if it even has one) is whatever its
+            // pack declares, not necessarily "--".
+            if cl.clause_end_options_flag == Some(canonical_flag) {
                 options_ended = true;
             } else if shape.flag_takes_value(canonical_flag) && i < elements.len() {
                 parts.push(case_element_text(inner, &elements[i]).to_owned());
@@ -4326,9 +4312,14 @@ mod tests {
             min_dialect("string length $x\n", tcl_dialect::DialectProfile::irules()),
             "string le $x"
         );
+        // `info e` would also prefix `info errorstack` (Tcl 8.6+) — reading
+        // the abbreviation from `info`'s own registry table (rather than a
+        // hand-kept copy that only knew of `exists`) surfaces that and picks
+        // the shortest spelling actually safe against the whole table:
+        // `ex`, not the old table's `e`.
         assert_eq!(
             min_dialect("info exists $x\n", tcl_dialect::DialectProfile::irules()),
-            "info e $x"
+            "info ex $x"
         );
     }
 

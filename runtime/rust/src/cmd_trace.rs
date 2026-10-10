@@ -340,12 +340,11 @@ pub fn install(interp: &mut Interp) {
 /// legacy forms are gated to `the retired availability mask::TCL8X`, so 9.0+ sees only
 /// `add`/`info`/`remove` (C drops them behind `TCL_REMOVE_OBSOLETE_TRACES`).
 fn visible_options(interp: &Interp) -> Vec<&'static str> {
-    // The emulated release's name is a dialect *name*: one resolution
-    // through the ingress seam yields both the generation whose store the
-    // spec is read from and the document authoring mask the option table
-    // is gated on.
+    // The pinned profile resolves through the ingress seam once, and yields
+    // both the generation whose store the spec is read from and the document
+    // authoring mask the option table is gated on.
     let profile =
-        crate::environment::profile_for_dialect(interp.runtime_version().dialect_profile_name());
+        crate::environment::gate_profile(interp.dialect_profile(), interp.runtime_version());
     let dialect = Some(crate::environment::surface_point(profile));
     let Some(spec) = crate::environment::store_for_profile(profile).get("trace") else {
         return Vec::new();
@@ -370,6 +369,7 @@ fn trace_var_error(interp: &mut Interp, name: &[u8], error: VarError) -> Code {
         VarError::NoSuchNamespace => b"parent namespace doesn't exist".as_slice(),
         VarError::IsConstant => b"variable is a constant".as_slice(),
         VarError::TraceError => b"trace callback failed".as_slice(),
+        VarError::Confined => b"stores are confined to the activation".as_slice(),
     };
     let mut message = b"can't trace \"".to_vec();
     message.extend_from_slice(name);
@@ -2083,5 +2083,52 @@ mod tests {
                 b"bad option \"zzz\": must be add, info, or remove"
             );
         });
+    }
+
+    /// The `trace` option table is the pinned profile's, not the plain release
+    /// its runtime version names: an iRules interpreter emulates 8.4 but the
+    /// TMM's Tcl has only the three legacy forms, so `trace add` — which
+    /// `tcl8.4` has — is a bad option there and `trace variable` is not. The
+    /// permissive fallback states no table of its own, so an interpreter pinned
+    /// to nothing keeps answering for the release it emulates, Tcl 9, which has
+    /// lost the legacy forms.
+    #[test]
+    fn the_trace_gate_reads_the_pinned_profile_not_the_release_name() {
+        let probe = |profile: Option<&'static tcl_dialect::DialectProfile>, form: &str| {
+            let mut answer = Vec::new();
+            leak_free(|i| {
+                if let Some(profile) = profile {
+                    i.set_dialect_profile(profile);
+                }
+                ok(
+                    i,
+                    format!("set r \"[catch {{trace {form}}} m]:$m\"").as_bytes(),
+                );
+                answer = i.result_bytes();
+            });
+            String::from_utf8(answer).expect("utf-8")
+        };
+        let resolve =
+            |name: &str| tcl_registry::model::resolve_environment(name).analyser_profile();
+        let add = "add variable x write cb";
+        let legacy = "variable x w cb";
+
+        assert_eq!(
+            probe(Some(tcl_dialect::DialectProfile::irules()), add),
+            "1:bad option \"add\": must be variable, vdelete, or vinfo"
+        );
+        assert_eq!(
+            probe(Some(tcl_dialect::DialectProfile::irules()), legacy),
+            "0:"
+        );
+        assert_eq!(probe(Some(resolve("tcl8.4")), add), "0:");
+        assert_eq!(probe(Some(resolve("tcl8.4")), legacy), "0:");
+        for profile in [Some(resolve("tcl9.0")), None] {
+            assert_eq!(probe(profile, add), "0:");
+            assert_eq!(
+                probe(profile, legacy),
+                "1:bad option \"variable\": must be add, info, or remove"
+            );
+        }
     }
 }

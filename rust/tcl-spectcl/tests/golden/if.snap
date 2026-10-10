@@ -10,6 +10,6 @@ environments []
 dialects []
 registrations 1
 notices 1
-notice command if 40 presentation names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
+notice command if 47 presentation names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
 commands 1
-command if line 10 overrides false degraded false spec 91e8e80220f30a30 hooks 47ad4b1a6bacb531 grammar 586dd5a294898ebe
+command if line 11 overrides false degraded false spec ab49d086e17afdc1 hooks 3f3805ec9138a3a6 grammar 9d490c2d3513e7bf

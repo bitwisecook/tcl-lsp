@@ -108,7 +108,7 @@ is the signature to grep for.
 
 - [KCS index](README.md)
 - [Glossary](../GLOSSARY.md)
-- [kcs-issue-vscode-test-runner-reports-false-hang.md](kcs-issue-vscode-test-runner-reports-false-hang.md)
+- [kcs-issue-vscode-test-watchdog-stops-the-suite.md](kcs-issue-vscode-test-watchdog-stops-the-suite.md)
   — the suite's no-progress watchdog and its three verdicts.
 - [kcs-issue-vscode-test-timed-out-on-didopen.md](kcs-issue-vscode-test-timed-out-on-didopen.md)
   — a different, per-test wait timeout with its own three-way verdict.

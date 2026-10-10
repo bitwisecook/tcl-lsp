@@ -22,8 +22,8 @@
 //!
 //! ## Why this exists
 //!
-//! Until the `one-loader` lane there were two implementations of "load a
-//! pack", and the gate that a loader change could not silently alter a pack's
+//! Before the loader was unified there were two implementations of "load
+//! a pack", and the gate that a loader change could not silently alter a pack's
 //! meaning was *the other loader*: `tests/eval_loader.rs` loaded all 24
 //! shipped packs through both and demanded byte-identical snapshots. Deleting
 //! the CST loader removes that oracle, so the proof has to be kept some other
@@ -49,9 +49,12 @@
 //! one line: its name, the loader-level facts, and **digests** of two
 //! exhaustive renderings — the whole [`CommandSpec`] debug form (the same
 //! rendering `upgrade.rs`'s U9 round-trip and the fast-path gate compare) and
-//! the pack's declared hooks. Digests rather than the text itself because the
-//! text is 8.6 MB for the shipped corpus, in single lines of several
-//! kilobytes: unreviewable, and a diff of it says nothing a human can read.
+//! the pack's declared hooks, their declaring lines zeroed (`positionless`):
+//! which hooks a command declares, not where, since a position is the `line`
+//! column's business and a 2.0 rewrite moves every row. Digests rather than
+//! the text itself because the text is 8.6 MB for the shipped corpus, in
+//! single lines of several kilobytes: unreviewable, and a diff of it says
+//! nothing a human can read.
 //! A digest costs the *reader* nothing — the comparison recomputes the full
 //! rendering in-process, so a failure prints the offending command's complete
 //! before/after, which is more than a checked-in blob would have shown.
@@ -66,12 +69,12 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::discovery::{Origin, Tier};
-use crate::loader::Pack;
+use crate::loader::{HookDecl, Pack};
 
 /// The language-neutral owner for the repository-relative directories that
 /// hold every shipped `.tclspec`. CI's changed-path classifier reads this
 /// same manifest, so adding a pack directory cannot silently omit the real
-/// `SpecTcl` execution lane.
+/// `SpecTcl` execution path.
 pub const PACK_DIRS_MANIFEST: &str = include_str!("../data/shipped-pack-dirs.txt");
 
 /// Every shipped-pack directory in manifest order.
@@ -246,6 +249,11 @@ pub fn render(pack: &Pack) -> String {
     let _ = writeln!(out, "provides {:?}", pack.provides);
     let _ = writeln!(out, "co_provides {:?}", pack.co_provides);
     let _ = writeln!(out, "ambient_packages {:?}", pack.ambient_packages);
+    // Printed only when declared, so a pack with no `special_var` row
+    // renders as it did before the statement existed.
+    if !pack.special_vars.is_empty() {
+        let _ = writeln!(out, "special_vars {:?}", pack.special_vars);
+    }
     let _ = writeln!(
         out,
         "environments {}",
@@ -278,11 +286,25 @@ pub fn render(pack: &Pack) -> String {
             command.overrides_shipped,
             command.degraded,
             digest(&spec_rendering(pack, command.spec.name).unwrap_or_default()),
-            digest(&format!("{:?}", command.hooks)),
+            digest(&format!("{:?}", positionless(&command.hooks))),
             digest(&format!("{:?}", command.clause_grammar)),
         );
     }
     out
+}
+
+/// `hooks` with every declaring line zeroed — what the `hooks` digest reads,
+/// so it records which hooks a command declares and not where. A position is
+/// the command's `line` column's business, and a vocabulary rewrite that
+/// moves every row must still load identically.
+fn positionless(hooks: &[HookDecl]) -> Vec<HookDecl> {
+    hooks
+        .iter()
+        .map(|hook| HookDecl {
+            line: 0,
+            ..hook.clone()
+        })
+        .collect()
 }
 
 /// The exhaustive rendering one command's `spec` digest is taken over — the

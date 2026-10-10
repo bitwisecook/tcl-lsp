@@ -59,8 +59,11 @@ pub struct ScanOutcome {
     /// Per non-suppressed conversion, in order: the value, or `None` if the
     /// conversion failed (inline callers pad a failure with an empty string).
     pub values: Vec<Option<Scanned>>,
-    /// Successful, non-suppressed, non-`%n` conversions — the variable-mode
-    /// return count.
+    /// Successful conversions, a suppressed one and every `%n` included —
+    /// C's `nconversions` (`tclScan.c`), which decides the underflow: only
+    /// an input that ran out before any of them returns `-1`. The
+    /// variable-mode count is the conversions assigned, the leading
+    /// non-`None` [`Self::values`].
     pub nconv: usize,
     /// Whether the input reached EOF before any conversion matched (variable
     /// mode then returns `-1`).
@@ -171,7 +174,7 @@ pub fn scan_match(input: &[char], fmt: &[char]) -> ScanOutcome {
     let mut ii = 0; // input cursor (chars)
     let mut fi = 0; // format cursor (chars)
     let mut values: Vec<Option<Scanned>> = Vec::new();
-    let mut nconv = 0; // successful, non-suppressed, non-`%n` conversions
+    let mut nconv = 0; // C's `nconversions`: every success, `%n` included
     let mut eof_before_conv = false;
 
     while fi < fmt.len() {
@@ -214,12 +217,15 @@ pub fn scan_match(input: &[char], fmt: &[char]) -> ScanOutcome {
             }
             break;
         }
-        // `%n` reports the characters consumed so far; it doesn't consume input
-        // or count as a conversion.
+        // `%n` reports the characters consumed so far. It consumes no input,
+        // and counts as a conversion whether or not it is suppressed, as C's
+        // `nconversions++` does: `scan {} %n%d n a` is 1 and `scan {} %*n%d
+        // a` is 0, never the underflow's -1 (tclsh 8.4 to 9.1).
         if conv.verb == 'n' {
             if !conv.suppress {
                 values.push(Some(Scanned::Int(i64::try_from(ii).unwrap_or(i64::MAX))));
             }
+            nconv += 1;
             continue;
         }
 
@@ -234,10 +240,11 @@ pub fn scan_match(input: &[char], fmt: &[char]) -> ScanOutcome {
         }
 
         if let Some(v) = scan_one(input, &mut ii, &conv) {
+            // A suppressed success counts too: `scan 5 %*d%d a` is 0, not -1.
             if !conv.suppress {
                 values.push(Some(v));
-                nconv += 1;
             }
+            nconv += 1;
         } else {
             // Conversion failed: stop. A numeric conversion that consumed only a
             // leading sign / `0x` before EOF is an underflow (-1), unlike a stop
@@ -502,10 +509,11 @@ mod tests {
 
     #[test]
     fn float_suppress_and_width() {
-        // Suppressed conversion is not collected; width caps the field.
+        // Suppressed conversion is not collected, but counts as C's
+        // `nconversions` does; width caps the field.
         let o = scan_match(&chars("3.5 99"), &chars("%f %*d"));
         assert_eq!(o.values, vec![Some(Scanned::Double(3.5))]);
-        assert_eq!(o.nconv, 1);
+        assert_eq!(o.nconv, 2);
         assert_eq!(
             scan_match(&chars("12345"), &chars("%2d")).values,
             vec![Some(Scanned::Int(12))]
@@ -526,8 +534,25 @@ mod tests {
             o.values,
             vec![Some(Scanned::Str("abc".into())), Some(Scanned::Int(3))]
         );
-        // `%n` is not a conversion for the count.
-        assert_eq!(o.nconv, 1);
+        // `%n` counts as a conversion, as C's `nconversions` does.
+        assert_eq!(o.nconv, 2);
+    }
+
+    #[test]
+    fn percent_n_and_a_suppressed_success_prevent_the_underflow() {
+        // tclsh 8.4 to 9.1: `scan {} %n%d n a` is 1 with `n` 0; `scan {}
+        // %*n%d a` and `scan 5 %*d%d a` are 0; `scan {} %*d%d a` is -1.
+        let o = scan_match(&chars(""), &chars("%n%d"));
+        assert_eq!(o.values, vec![Some(Scanned::Int(0)), None]);
+        assert!(o.nconv > 0 || !o.eof_before_conv);
+        let o = scan_match(&chars(""), &chars("%*n%d"));
+        assert_eq!(o.values, vec![None]);
+        assert!(o.nconv > 0 || !o.eof_before_conv);
+        let o = scan_match(&chars("5"), &chars("%*d%d"));
+        assert_eq!(o.values, vec![None]);
+        assert!(o.nconv > 0 || !o.eof_before_conv);
+        let o = scan_match(&chars(""), &chars("%*d%d"));
+        assert!(o.nconv == 0 && o.eof_before_conv);
     }
 
     #[test]

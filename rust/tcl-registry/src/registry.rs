@@ -50,12 +50,14 @@ use crate::resolved_invocation::{
 };
 use crate::side_effects::SideSwitchTarget;
 use crate::spec::{BytePayloadSpec, CommandSpec, SubCommand};
+use crate::stamp_window::StampSelection;
 use crate::state_transition::{StateTransition, StateTransitions, TransitionSubject};
 use crate::traits::Traits;
 use crate::types::VarWriteTyping;
+use crate::value_transfer::completion::ReturnDecoding;
 use crate::{InvocationArguments, InvocationWords};
-use tcl_dialect::DialectProfile;
 use tcl_dialect::model::Family;
+use tcl_dialect::model::PackageFloor;
 use tcl_dialect::model::SurfaceQuery;
 use tcl_dialect::model::surface_admits;
 use tcl_dialect::model::surface_breadth;
@@ -129,28 +131,13 @@ pub enum ControlArmSemantics {
     Uncertain,
 }
 
-/// Registry-parsed completion selector for an `on` clause in `try`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryCompletionSelector {
-    /// Normal completion (`ok` / code 0).
-    Ok,
-    /// Error completion (`error` / code 1).
-    Error,
-    /// Procedure return completion (`return` / code 2).
-    Return,
-    /// Loop break completion (`break` / code 3).
-    Break,
-    /// Loop continue completion (`continue` / code 4).
-    Continue,
-    /// A valid numeric completion code outside the named core codes.
-    Numeric(i32),
-}
-
 /// Registry-parsed kind of one `try` clause.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TryClauseKind {
-    /// `on code variableList script`.
-    On(TryCompletionSelector),
+    /// `on code variableList script`, with the completion code the clause's
+    /// selector names — one of the five standard spellings or an integer
+    /// code, decoded by [`crate::completion::completion_code_selector`].
+    On(crate::completion::CompletionCode),
     /// `trap pattern variableList script`.
     Trap,
     /// `finally script`.
@@ -222,21 +209,6 @@ pub enum InvocationCompletionKnowledge {
     Dynamic,
 }
 
-/// Parse the literal option subset of `return` that fixes the completion code
-/// visible to an enclosing `try`.  With the default `-level 1`, `return`
-/// itself propagates `TCL_RETURN` even when its eventual procedure result is
-/// configured as `-code error`; `-level 0` exposes that configured code to the
-/// immediately enclosing script instead.
-/// The literal-return parser distinguishes an invocation whose outcome is
-/// genuinely runtime-dependent from one Tcl will reject before it can return.
-/// The latter is still a precise `TCL_ERROR`, so an enclosing `try on error`
-/// must receive it.
-enum ExactReturnCompletion {
-    Completion(crate::completion::CompletionCode),
-    StaticError,
-    Dynamic,
-}
-
 /// Parse `exit ?returnCode?` after its descriptor has established the exact
 /// one-word-or-omitted shape.  Tcl 8.x passes its argument through
 /// `Tcl_GetIntFromObj`, which accepts `-UINT_MAX..=UINT_MAX` before the C cast;
@@ -288,196 +260,98 @@ fn exact_process_exit_completion(
     }
 }
 
-fn exact_return_completion(
-    args: crate::invocation_words::InvocationArguments<'_>,
-    numbers: tcl_syntax::number::Numbers,
-) -> ExactReturnCompletion {
-    use crate::completion::CompletionCode;
-
-    let mut i = 0usize;
-    let mut code = CompletionCode::Ok;
-    let mut level = 1_i64;
-    while let Some(word) = args.literal_at(i) {
-        match word {
-            "-code" => {
-                let Some(value) = args.literal_at(i + 1) else {
-                    if args.get(i + 1).is_some() {
-                        return ExactReturnCompletion::Dynamic;
-                    }
-                    // `return` accepts one trailing result word.  Tcl only
-                    // treats `-code` as an option when another argv word can
-                    // supply its value, so a lone `return -code` returns the
-                    // literal result `-code` with the default TCL_RETURN.
-                    break;
-                };
-                code = match value {
-                    "ok" | "0" => CompletionCode::Ok,
-                    "error" | "1" => CompletionCode::Error,
-                    "return" | "2" => CompletionCode::Return,
-                    "break" | "3" => CompletionCode::Break,
-                    "continue" | "4" => CompletionCode::Continue,
-                    value => match crate::completion::canonical_completion_code(value, numbers) {
-                        Some(value) => CompletionCode::from_int(value),
-                        None if !args.is_source_aware()
-                            && tcl_syntax::naming::is_dynamic_word(value) =>
-                        {
-                            return ExactReturnCompletion::Dynamic;
-                        }
-                        None => return ExactReturnCompletion::StaticError,
-                    },
-                };
-                i += 2;
-            }
-            "-level" => {
-                let Some(value) = args.literal_at(i + 1) else {
-                    if args.get(i + 1).is_some() {
-                        return ExactReturnCompletion::Dynamic;
-                    }
-                    break;
-                };
-                level = match numbers.parse_wide(value) {
-                    Some(value) if value >= 0 => value,
-                    None if !args.is_source_aware()
-                        && tcl_syntax::naming::is_dynamic_word(value) =>
-                    {
-                        return ExactReturnCompletion::Dynamic;
-                    }
-                    _ => return ExactReturnCompletion::StaticError,
-                };
-                i += 2;
-            }
-            // These options do not alter the code, but `-options` may carry
-            // a code/level override so remains deliberately opaque.
-            "-options" => {
-                if args.get(i + 1).is_none() {
-                    break;
-                }
-                return ExactReturnCompletion::Dynamic;
-            }
-            // Return options are an extensible key/value dictionary.  An
-            // unrecognised literal option cannot alter `-code`/`-level`, so
-            // retain the concrete completion rather than dropping a valid
-            // custom pair such as `-foo bar`.
-            _ if word.starts_with('-') => {
-                if args.get(i + 1).is_none() {
-                    break;
-                }
-                i += 2;
-            }
-            _ => break,
-        }
-    }
-    // A non-literal word followed by another word may evaluate to an
-    // extensible return option (for example `$option` -> `-code`). It is not
-    // sound to classify the same source shape as the literal two-result-word
-    // arity error.
-    if args.get(i).is_some() && args.literal_at(i).is_none() && args.get(i + 1).is_some() {
-        return ExactReturnCompletion::Dynamic;
-    }
-    // `return` accepts one result word after its options; additional words are
-    // an arity error, so no exact runtime completion is promised.
-    if args
-        .exact_argv_len()
-        .is_some_and(|len| len.saturating_sub(i) > 1)
-    {
-        return ExactReturnCompletion::StaticError;
-    }
-    ExactReturnCompletion::Completion(if level == 0 {
-        code
-    } else {
-        CompletionCode::Return
-    })
-}
-
-fn parse_try_completion_selector(
-    selector: &str,
-    numbers: tcl_syntax::number::Numbers,
-) -> Option<TryCompletionSelector> {
-    match selector {
-        "ok" => Some(TryCompletionSelector::Ok),
-        "error" => Some(TryCompletionSelector::Error),
-        "return" => Some(TryCompletionSelector::Return),
-        "break" => Some(TryCompletionSelector::Break),
-        "continue" => Some(TryCompletionSelector::Continue),
-        _ => crate::completion::canonical_completion_code(selector, numbers).map(|code| {
-            match crate::completion::CompletionCode::from_int(code) {
-                crate::completion::CompletionCode::Ok => TryCompletionSelector::Ok,
-                crate::completion::CompletionCode::Error => TryCompletionSelector::Error,
-                crate::completion::CompletionCode::Return => TryCompletionSelector::Return,
-                crate::completion::CompletionCode::Break => TryCompletionSelector::Break,
-                crate::completion::CompletionCode::Continue => TryCompletionSelector::Continue,
-                crate::completion::CompletionCode::Other(code) => {
-                    TryCompletionSelector::Numeric(code)
-                }
-            }
-        }),
-    }
-}
-
 fn parse_try_control_invocation(
+    plan: &crate::ClausePlan,
     args: &[&str],
     numbers: tcl_syntax::number::Numbers,
 ) -> Option<TryControlInvocation> {
-    args.first()?;
-    let mut clauses = Vec::new();
-    let mut trailing_fallthrough = false;
-    let mut i = 1usize;
-    while i < args.len() {
-        match args.get(i).copied() {
-            Some("finally") if i + 2 == args.len() && !trailing_fallthrough => {
-                clauses.push(TryControlClause {
-                    kind: TryClauseKind::Finally,
-                    selector_index: None,
-                    variable_list_index: None,
-                    body_index: i + 1,
-                    fallthrough: false,
-                });
-                i += 2;
-            }
-            Some("on" | "trap") if i + 3 < args.len() => {
-                let clause = args[i];
-                let selector = args[i + 1];
-                let kind = if clause == "on" {
-                    TryClauseKind::On(parse_try_completion_selector(selector, numbers)?)
-                } else {
-                    if tcl_syntax::naming::is_dynamic_word(selector)
-                        || tcl_syntax::list::split_list(selector).is_err()
-                    {
-                        return None;
+    // The clause grammar's walk decides the chain — which words introduce a
+    // handler, which is `finally`, where the chain stops making sense — and
+    // this reads each clause by its timing and its handler vocabulary, never
+    // by a keyword.
+    if plan.defect.is_some() {
+        return None;
+    }
+    let (head, rest) = plan.clauses.split_first()?;
+    let body_index = head.operand(ArgRole::Body)?;
+    let mut clauses = Vec::with_capacity(rest.len());
+    for (offset, clause) in rest.iter().enumerate() {
+        let body_index = clause.operand(ArgRole::Body)?;
+        match clause.timing {
+            crate::clause_grammar::ClauseTiming::Always => clauses.push(TryControlClause {
+                kind: TryClauseKind::Finally,
+                selector_index: None,
+                variable_list_index: None,
+                body_index,
+                fallthrough: false,
+            }),
+            crate::clause_grammar::ClauseTiming::Selected => {
+                let (selector_index, handler) = clause.handler()?;
+                let selector = *args.get(selector_index)?;
+                let kind = match handler {
+                    crate::value_transfer::HandlerMatch::CompletionCode => TryClauseKind::On(
+                        crate::completion::completion_code_selector(selector, numbers)?,
+                    ),
+                    crate::value_transfer::HandlerMatch::ErrorCodePrefix => {
+                        if tcl_syntax::naming::is_dynamic_word(selector)
+                            || tcl_syntax::list::split_list(selector).is_err()
+                        {
+                            return None;
+                        }
+                        TryClauseKind::Trap
                     }
-                    TryClauseKind::Trap
                 };
-                if tcl_syntax::naming::is_dynamic_word(args[i + 2]) {
+                let variable_list_index = clause.operand(ArgRole::LoopVarList)?;
+                let variable_list = *args.get(variable_list_index)?;
+                if tcl_syntax::naming::is_dynamic_word(variable_list) {
                     return None;
                 }
-                let variables = tcl_syntax::list::split_list(args[i + 2]).ok()?;
-                if variables.len() > 2 {
+                if tcl_syntax::list::split_list(variable_list).ok()?.len() > 2 {
                     return None;
                 }
-                trailing_fallthrough = crate::commands::tcl::try_body_is_fallthrough(args[i + 3]);
+                // A marker with no later handler to run is Tcl's "last
+                // non-finally clause must not have a body of `-`".
+                let fallthrough = plan.falls_through(offset + 1);
+                if fallthrough && clause.falls_through_to.is_none() {
+                    return None;
+                }
                 clauses.push(TryControlClause {
                     kind,
-                    selector_index: Some(i + 1),
-                    variable_list_index: Some(i + 2),
-                    body_index: i + 3,
-                    fallthrough: trailing_fallthrough,
+                    selector_index: Some(selector_index),
+                    variable_list_index: Some(variable_list_index),
+                    body_index,
+                    fallthrough,
                 });
-                i += 4;
             }
             _ => return None,
         }
     }
-    (!trailing_fallthrough).then_some(TryControlInvocation {
-        body_index: 0,
+    Some(TryControlInvocation {
+        body_index,
         clauses,
     })
 }
 
+/// Whether a typed control invocation's clause chain is well formed: the
+/// clause grammar's walk, else the `clause_shape_check` escape hatch. `None`
+/// means the command states no chain grammar at all.
+fn control_chain_is_well_formed(
+    spec: &CommandSpec,
+    args: &[&str],
+    dialect: Option<SurfaceQuery<'_>>,
+) -> Option<bool> {
+    if let Some(plan) = spec.clause_plan(args, dialect) {
+        return Some(plan.defect.is_none());
+    }
+    spec.clause_shape_check.map(|check| check(args).is_none())
+}
+
 fn try_control_arms(
+    plan: &crate::ClausePlan,
     args: &[&str],
     numbers: tcl_syntax::number::Numbers,
 ) -> Option<Vec<(usize, ControlArmSemantics)>> {
-    let invocation = parse_try_control_invocation(args, numbers)?;
+    let invocation = parse_try_control_invocation(plan, args, numbers)?;
     let mut arms = vec![(invocation.body_index, ControlArmSemantics::Always)];
     arms.extend(invocation.clauses.into_iter().filter_map(|clause| {
         (!clause.fallthrough).then_some((
@@ -611,6 +485,22 @@ pub struct CommandRegistry {
     /// to packs — a package's own version floor must not depend
     /// on whether this crate happens to know the package's name.
     ambient_packages: Vec<(&'static str, &'static str)>,
+    /// The packages this registry's own point carries and the floor the
+    /// registry guarantees of each — what [`Self::own_surface_query`] lends
+    /// as the query's packages.
+    ///
+    /// Derived from [`Self::profile`] (which packages) and
+    /// [`Self::package_floor`] (which release), so every seam that moves
+    /// either refreshes it. Empty for a profile-less registry and for a
+    /// profile whose point carries no package.
+    own_packages: Vec<PackageFloor<'static>>,
+    /// Special variables a `SpecTcl` pack declared with `special_var`, in
+    /// installation order — the pack-authored rows [`Self::special_vars`]
+    /// reads beside the shipped table.
+    ///
+    /// Empty for every compiled-in registry; a pack fills it through
+    /// [`Self::insert_special_var`].
+    special_vars: Vec<&'static crate::special_vars::SpecialVarSpec>,
     /// The member grammar of a **document** in this registry's dialect, when
     /// its command surface declares one.
     ///
@@ -635,6 +525,29 @@ pub struct CommandRegistry {
     /// registry is frozen, command-binding and CFG consumers share the same
     /// `Arc` instead of independently walking the full command universe.
     effective_semantics: OnceLock<Arc<EffectiveRegistrySemantics>>,
+    /// The workspace pack overlay this registry was built with
+    /// ([`crate::registry_for_profile_with_overlay`]), when it was one.
+    overlay: Option<u64>,
+    /// The spec pack each installed pack command came from, keyed by the
+    /// installed spec's address ([`Self::pack_origin`]). Every spec the
+    /// registry indexes is `&'static` and never freed, so an address names
+    /// one spec for the life of the process.
+    pack_origins: FxHashMap<usize, crate::pack_origin::PackOrigin>,
+    /// The text of the definition a `TclBody`-backed pack command's
+    /// `PackageSource` pointer resolved to at load, keyed by the installed
+    /// spec's address as [`Self::pack_origins`] is ([`Self::reference_body`]).
+    reference_texts: FxHashMap<usize, Arc<str>>,
+    /// This registry's generation: a number no other registry, and no
+    /// earlier state of this one, has had. Every mutation draws a new one,
+    /// so a memo keyed by it names exactly the command surface it resolved
+    /// against.
+    generation: u64,
+}
+
+/// A registry generation no registry has had.
+fn next_registry_generation() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 /// Descriptor facts from the effective command spec selected by a registry.
@@ -878,8 +791,8 @@ fn rooted_fallback_allowed(rooted: &str, spec: &CommandSpec) -> bool {
     })
 }
 
-/// Append the indices covered by `layouts` whose declared role is one of
-/// `wanted`, each with its role.
+/// Append `(index, role)` for every index `layouts` covers whose declared
+/// role `wanted` admits.
 ///
 /// `tail_len` is the number of argument words the layouts index over (the
 /// whole post-head list, or the words after a subcommand word), and `offset`
@@ -891,9 +804,9 @@ fn push_repeated_roles(
     layouts: &[crate::repeated::RepeatedArgLayout],
     tail_len: usize,
     offset: usize,
-    wanted: &[ArgRole],
+    wanted: &impl Fn(ArgRole) -> bool,
 ) {
-    for layout in layouts.iter().filter(|l| wanted.contains(&l.role)) {
+    for layout in layouts.iter().filter(|l| wanted(l.role)) {
         out.extend(
             layout
                 .indices(tail_len)
@@ -903,8 +816,8 @@ fn push_repeated_roles(
     }
 }
 
-/// Append the `args` indices consumed by value-taking options whose value role
-/// (primary or secondary) is one of `wanted`, each with that role.
+/// Append `(index, role)` for the `args` indices consumed by value-taking
+/// options whose value role (primary or secondary) `wanted` admits.
 ///
 /// Walks `args` from `scan_start` (1 to skip a subcommand word, else 0),
 /// resolving option names, aliases, and unique abbreviations through the
@@ -914,14 +827,13 @@ fn push_repeated_roles(
 /// arity and the `--` terminator). The emitted indices are absolute into `args`,
 /// exactly like the positional roles, so consumers map them via `argv[idx + 1]`
 /// unchanged. A two-way binding (`role: VarWrite, also_role: VarRead`) emits its
-/// index for a query of either role — the multi-role convention, split across
-/// queries.
+/// index under both roles — the multi-role convention.
 fn push_option_value_roles(
     out: &mut Vec<(usize, ArgRole)>,
     options: &[crate::hover::OptionSpec],
     args: &[&str],
     scan_start: usize,
-    wanted: &[ArgRole],
+    wanted: &impl Fn(ArgRole) -> bool,
 ) {
     let mut i = scan_start;
     while i < args.len() {
@@ -933,9 +845,9 @@ fn push_option_value_roles(
             for role in [opt.value_role(), opt.value_also_role()]
                 .into_iter()
                 .flatten()
-                .filter(|role| wanted.contains(role))
+                .filter(|&role| wanted(role))
             {
-                out.extend(vals.iter().map(|&index| (index, role)));
+                out.extend(vals.iter().map(|&value| (value, role)));
             }
             i += 1 + vals.len();
         } else {
@@ -1055,6 +967,290 @@ fn push_command_prefix_options(
             i += 1;
         }
     }
+}
+
+/// The command-prefix positions of one call to `spec` (post-head
+/// coordinates, the selecting word first) and the arity each receives
+/// appended: `sub`'s own table when the call selected one — a subcommand, or
+/// an instance method — else the command's (a resolver, else the static
+/// table), plus every command-prefix option value. The one rule behind
+/// [`CommandRegistry::command_prefixes`] and
+/// [`crate::ResolvedInvocation::arg_roles`]; the caller selects `sub`.
+pub(crate) fn command_prefixes_in(
+    spec: &CommandSpec,
+    sub: Option<&SubCommand>,
+    args: CommandPrefixArguments<'_>,
+) -> Vec<(usize, AppendedArity)> {
+    if let Some(sub) = sub {
+        return sub_command_prefixes(sub, args.slice_from(1))
+            .into_iter()
+            .map(|(index, arity)| (index + 1, arity))
+            .collect();
+    }
+    let n = args.len();
+    let mut out: Vec<(usize, AppendedArity)> = Vec::new();
+    if let Some(resolver) = spec.command_prefix_resolver {
+        out.extend(resolver(args).into_iter().map(|(i, a)| (i as usize, a)));
+    } else {
+        out.extend(spec.command_prefixes.iter().map(|(i, a)| (*i as usize, *a)));
+    }
+    push_command_prefix_options(&mut out, spec.options, args.spellings(), 0);
+    out.retain(|&(idx, _)| idx < n);
+    out
+}
+
+/// The command-prefix positions of a subcommand's (or an instance method's)
+/// own words — `args` are the words after its selecting word, and so are the
+/// indices returned.
+fn sub_command_prefixes(
+    sub: &SubCommand,
+    args: CommandPrefixArguments<'_>,
+) -> Vec<(usize, AppendedArity)> {
+    let n = args.len();
+    let mut out: Vec<(usize, AppendedArity)> = Vec::new();
+    if let Some(resolver) = sub.command_prefix_resolver {
+        out.extend(resolver(args).into_iter().map(|(i, a)| (i as usize, a)));
+    } else {
+        out.extend(sub.command_prefixes.iter().map(|(i, a)| (*i as usize, *a)));
+    }
+    push_command_prefix_options(&mut out, sub.options, args.spellings(), 0);
+    out.retain(|&(idx, _)| idx < n);
+    out
+}
+
+/// Put a role table in its one order — by position, and the roles one
+/// position carries in [`ArgRole::ALL`] order — with each pair once.
+pub(crate) fn sort_role_table(roles: &mut Vec<(usize, ArgRole)>) {
+    roles.sort_by_key(|&(index, role)| {
+        (
+            index,
+            ArgRole::ALL
+                .iter()
+                .position(|&known| known == role)
+                .unwrap_or(usize::MAX),
+        )
+    });
+    roles.dedup();
+}
+
+/// The `(position, role)` pairs one call to `spec` carries, for every role
+/// `wanted` admits — post-head coordinates, the selecting word first, in
+/// [`sort_role_table`]'s order: the one rule behind
+/// [`CommandRegistry::arg_indices_for_role`] (one role) and
+/// [`crate::ResolvedInvocation::arg_roles`] (every role).
+///
+/// `sub` is the subcommand (or instance method) the caller selected for
+/// `args[0]`; `dialect` gates the clause grammars. The sources are the clause
+/// grammar's walk, the resolver or the static table, repeated tails, and
+/// option values. The two answers that need a lookup of their own are the
+/// caller's, asked only when a wanted role needs them: whether a case-list
+/// command's call reads as one (its body roles stand only then), and an
+/// option-selected command's pattern positions. `ArgRole::CommandPrefix` is
+/// [`command_prefixes_in`]'s, never answered here.
+pub(crate) fn arg_roles_in(
+    spec: &CommandSpec,
+    sub: Option<&SubCommand>,
+    args: &[&str],
+    wanted: impl Fn(ArgRole) -> bool,
+    dialect: Option<SurfaceQuery<'_>>,
+    case_body_roles_allowed: impl FnOnce() -> bool,
+    option_selected_patterns: impl FnOnce() -> Vec<usize>,
+) -> Vec<(usize, ArgRole)> {
+    let wanted = |role: ArgRole| role != ArgRole::CommandPrefix && wanted(role);
+    let n = args.len();
+    let mut out: Vec<(usize, ArgRole)> = Vec::new();
+    if let Some(sub) = sub {
+        let own = args.get(1..).unwrap_or_default();
+        // Positional roles, offset by +1 for the subcommand word.
+        if let Some(resolver) = sub.arg_role_resolver {
+            out.extend(
+                resolver(own)
+                    .into_iter()
+                    .filter(|&(_, role)| wanted(role))
+                    .map(|(i, role)| (i as usize + 1, role)),
+            );
+        } else {
+            out.extend(
+                sub.arg_roles
+                    .iter()
+                    .filter(|&&(_, role)| wanted(role))
+                    .map(|&(i, role)| (usize::from(i) + 1, role)),
+            );
+        }
+        // The clause structure the subcommand's grammar states.
+        if let Some(plan) = sub.clause_plan(own, dialect) {
+            out.extend(
+                plan.roles
+                    .iter()
+                    .filter(|&&(_, role)| wanted(role))
+                    .map(|&(i, role)| (i + 1, role)),
+            );
+        }
+        // Repeated tails, over the words after the subcommand word.
+        push_repeated_roles(&mut out, sub.repeated_args, n.saturating_sub(1), 1, &wanted);
+        // Value-taking options on the subcommand (scan past the sub word).
+        push_option_value_roles(&mut out, sub.options, args, 1, &wanted);
+    } else {
+        // A case-list command's body roles stand only when the call reads as
+        // a case list — asked once, and only when a body role appears.
+        let body_gate = std::cell::OnceCell::new();
+        let mut gate = Some(case_body_roles_allowed);
+        let mut admits = |role: ArgRole| {
+            wanted(role)
+                && (role != ArgRole::Body
+                    || spec.case_list.is_none()
+                    || *body_gate.get_or_init(|| gate.take().is_some_and(|gate| gate())))
+        };
+        // Option-selected pattern layouts are owned by the pattern answer —
+        // the option effects' projection, or a resolver escape hatch.
+        // Reusing that answer keeps role consumers aligned with hover and
+        // semantic-token consumers, including profile-gated option
+        // abbreviations and reserved positional suffixes.
+        let option_selected =
+            spec.pattern_arg_resolver.is_some() || spec.option_selects_pattern_language();
+        if option_selected && wanted(ArgRole::Pattern) {
+            out.extend(
+                option_selected_patterns()
+                    .into_iter()
+                    .map(|i| (i, ArgRole::Pattern)),
+            );
+        }
+        let positional = |role: ArgRole| !(option_selected && role == ArgRole::Pattern);
+        // Top-level positional roles.
+        if let Some(resolver) = spec.arg_role_resolver {
+            out.extend(
+                resolver(args)
+                    .into_iter()
+                    .filter(|&(_, role)| positional(role) && admits(role))
+                    .map(|(i, role)| (i as usize, role)),
+            );
+        } else {
+            out.extend(
+                spec.arg_roles
+                    .iter()
+                    .filter(|&&(_, role)| positional(role) && admits(role))
+                    .map(|&(i, role)| (usize::from(i), role)),
+            );
+        }
+        // The clause structure the command's grammar states — first in the
+        // resolution order, and additive: the walk names where keywords,
+        // conditions and scripts sit, and the tables above name the rest.
+        if let Some(plan) = spec.clause_plan(args, dialect) {
+            out.extend(plan.roles.iter().copied().filter(|&(_, role)| admits(role)));
+        }
+        // Repeated tails (`global a b c`, `upvar ?level? o l o l`).
+        push_repeated_roles(&mut out, spec.repeated_args, n, 0, &wanted);
+        // Value-taking options carry roles at their (dynamic) value positions.
+        push_option_value_roles(&mut out, spec.options, args, 0, &wanted);
+    }
+    out.retain(|&(idx, _)| idx < n);
+    sort_role_table(&mut out);
+    out
+}
+
+/// The pattern-bearing arguments of one call to `spec` — the one rule behind
+/// [`CommandRegistry::pattern_args_for_dialect`] and
+/// [`crate::ResolvedInvocation::pattern_args`]. `options` supplies the
+/// option table available at `dialect`, read only by an option-selected
+/// layout; `sub` is the caller's selection for `args[0]`, whose pattern
+/// language overrides the command's; a static layout's positions are the
+/// caller's `ArgRole::Pattern` answer.
+pub(crate) fn pattern_args_in(
+    spec: &CommandSpec,
+    sub: Option<&SubCommand>,
+    args: &[&str],
+    options: impl FnOnce() -> Vec<&'static crate::hover::OptionSpec>,
+    dialect: Option<SurfaceQuery<'_>>,
+    static_pattern_indices: impl FnOnce() -> Vec<usize>,
+) -> Vec<crate::patterns::PatternArg> {
+    if spec.pattern_arg_resolver.is_some() || spec.option_selects_pattern_language() {
+        let options = options();
+        if let Some(resolve) = spec.pattern_arg_resolver {
+            return resolve(
+                args,
+                crate::patterns::PatternArgResolverContext {
+                    options: &options,
+                    reserved_trailing_words: spec.reserved_trailing_words,
+                },
+            );
+        }
+        let effects =
+            spec.option_effects_over(&options, InvocationArguments::literals(args), dialect);
+        return crate::patterns::option_selected_pattern_args(
+            &effects,
+            spec.reserved_trailing_words,
+            args.len(),
+        );
+    }
+    let Some(kind) = sub.and_then(|sub| sub.pattern_type).or(spec.pattern_type) else {
+        return Vec::new();
+    };
+    static_pattern_indices()
+        .into_iter()
+        .filter_map(|index| u8::try_from(index).ok())
+        .map(|index| crate::patterns::PatternArg { index, kind })
+        .collect()
+}
+
+/// Whether source words prove the option layout a resolver-derived role of
+/// `spec` (or its selected `sub`) depends on — the one rule behind the
+/// registry's source-aware role, pattern and format queries and the
+/// resolution's derived queries. The option tables are the caller's,
+/// filtered to its release.
+pub(crate) fn layout_is_proven_in(
+    spec: &CommandSpec,
+    sub: Option<&SubCommand>,
+    args: InvocationArguments<'_>,
+    spec_options: impl FnOnce() -> Vec<&'static crate::hover::OptionSpec>,
+    sub_options: impl FnOnce(&SubCommand) -> Vec<&'static crate::hover::OptionSpec>,
+) -> bool {
+    if !args.has_exact_argv_len() {
+        return false;
+    }
+    // Static role positions and generic option-value roles remain stable
+    // once expansion is excluded. Only a resolver can reinterpret a
+    // source word as a positional operand, so a `clock format $time
+    // -format %Y` time value does not suppress the independently-owned
+    // `-format` value role.
+    let resolver_depends_on_options = sub.map_or(
+        spec.arg_role_resolver.is_some()
+            || spec.pattern_arg_resolver.is_some()
+            || spec.option_selects_pattern_language(),
+        |sub| sub.arg_role_resolver.is_some(),
+    );
+    if !resolver_depends_on_options {
+        return true;
+    }
+    let (options, option_args, prefix_matching, reserved_trailing_words) = match sub {
+        Some(sub) => (sub_options(sub), args.slice_from(1), sub.prefix_matching, 0),
+        None => (
+            spec_options(),
+            args,
+            spec.prefix_matching,
+            spec.reserved_trailing_words,
+        ),
+    };
+    options.is_empty()
+        || source_option_layout_is_proven(
+            &options,
+            option_args,
+            prefix_matching,
+            reserved_trailing_words,
+        )
+}
+
+/// The options of `sub` (of `spec`) available at `dialect`, in declaration
+/// order — the profile-less option table the layout proof reads for a
+/// selected subcommand.
+pub(crate) fn sub_options_at(
+    spec: &CommandSpec,
+    sub: &SubCommand,
+    dialect: Option<SurfaceQuery<'_>>,
+) -> Vec<&'static crate::hover::OptionSpec> {
+    sub.options
+        .iter()
+        .filter(|option| option.supports_dialect(dialect, sub.surface.or(spec.surface)))
+        .collect()
 }
 
 /// Whether source words prove a command's leading option layout.
@@ -1296,8 +1492,14 @@ impl CommandRegistry {
             loaded_layers: Vec::new(),
             profile: None,
             ambient_packages: Vec::new(),
+            own_packages: Vec::new(),
+            special_vars: Vec::new(),
             document_grammar: None,
             effective_semantics: OnceLock::new(),
+            overlay: None,
+            pack_origins: FxHashMap::default(),
+            reference_texts: FxHashMap::default(),
+            generation: next_registry_generation(),
         };
         for spec in tcl_specs() {
             registry.insert_shipped_static(spec);
@@ -1340,7 +1542,7 @@ impl CommandRegistry {
             SurfaceLayer::Core(Family::F5Irules, _) => irules_specs(),
             SurfaceLayer::Package("iapps") => iapps_specs(),
             // The tmsh shell's own pack: the `tmsh::` surface shared with
-            // iApps, without the iApp-only commands (D8).
+            // iApps, without the iApp-only commands.
             SurfaceLayer::Package("tmsh") => tmsh_specs(),
             SurfaceLayer::Package("Tk") => tk_specs(),
             SurfaceLayer::Package("expect") => expect_specs(),
@@ -1463,7 +1665,23 @@ impl CommandRegistry {
     /// profile rather than re-deriving from loaded packs.
     pub(crate) fn set_profile(&mut self, profile: &'static tcl_dialect::DialectProfile) {
         self.profile = Some(profile);
+        self.refresh_own_packages();
         self.invalidate_effective_semantics();
+    }
+
+    /// Re-derive [`Self::own_packages`] from the profile and the floors this
+    /// registry now guarantees.
+    fn refresh_own_packages(&mut self) {
+        let carried = self
+            .profile
+            .map_or(&[][..], |profile| profile.surface_packages);
+        self.own_packages = carried
+            .iter()
+            .map(|package| PackageFloor {
+                name: package.name,
+                version: self.package_floor(package.name),
+            })
+            .collect();
     }
 
     /// Derive an exact registry view for `profile`, preserving this registry's
@@ -1494,7 +1712,8 @@ impl CommandRegistry {
         }
         projected.set_profile(profile);
 
-        let query = profile.surface_query();
+        let own_packages = projected.own_packages.clone();
+        let query = profile.surface_query().with_packages(&own_packages);
         projected.by_name = projected
             .by_name
             .iter()
@@ -1514,6 +1733,11 @@ impl CommandRegistry {
             }
         }
         projected.overlay_specs.clone_from(&self.overlay_specs);
+        // The same authored world, projected: its overlay generation and the
+        // pack each authored spec came from travel with the specs themselves.
+        projected.overlay = self.overlay;
+        projected.pack_origins.clone_from(&self.pack_origins);
+        projected.reference_texts.clone_from(&self.reference_texts);
         projected.invalidate_effective_semantics();
         projected
     }
@@ -1534,8 +1758,9 @@ impl CommandRegistry {
     /// registry resolves to no spec, so the call reaches the runtime's
     /// availability gate as a generic dispatch instead of being inlined.
     #[must_use]
-    pub fn own_surface_query(&self) -> Option<SurfaceQuery<'static>> {
-        self.profile.map(DialectProfile::surface_query)
+    pub fn own_surface_query(&self) -> Option<SurfaceQuery<'_>> {
+        self.profile
+            .map(|profile| profile.surface_query().with_packages(&self.own_packages))
     }
 
     /// Whether a loaded core layer is a Tcl 9.x release — the derivation a
@@ -1591,8 +1816,15 @@ impl CommandRegistry {
             loaded_layers: overlaid.loaded_layers.clone(),
             profile: overlaid.profile,
             ambient_packages: overlaid.ambient_packages.clone(),
+            own_packages: overlaid.own_packages.clone(),
+            special_vars: overlaid.special_vars.clone(),
             document_grammar: overlaid.document_grammar,
             effective_semantics: OnceLock::new(),
+            overlay: overlaid.overlay,
+            pack_origins: overlaid.pack_origins.clone(),
+            reference_texts: overlaid.reference_texts.clone(),
+            // A surface neither source has had.
+            generation: next_registry_generation(),
         }
     }
 
@@ -1611,6 +1843,69 @@ impl CommandRegistry {
         self.invalidate_effective_semantics();
     }
 
+    /// Record that the installed `spec` came from a spec pack — the facts a
+    /// site specialised on it stamps ([`Self::pack_origin`]). The installer
+    /// calls this for each pack command it inserts.
+    pub fn insert_pack_origin(
+        &mut self,
+        spec: &'static CommandSpec,
+        origin: crate::pack_origin::PackOrigin,
+    ) {
+        self.pack_origins
+            .insert(std::ptr::from_ref(spec).addr(), origin);
+    }
+
+    /// The spec pack `spec` was installed from, or `None` for a shipped spec
+    /// and for one an embedder inserted itself.
+    #[must_use]
+    pub fn pack_origin(&self, spec: &CommandSpec) -> Option<&crate::pack_origin::PackOrigin> {
+        self.pack_origins.get(&std::ptr::from_ref(spec).addr())
+    }
+
+    /// Record the definition text a pack command's `PackageSource` backing
+    /// resolved to — what the loader read from the package at load, so that
+    /// nothing downstream reads a file ([`Self::reference_body`]).
+    pub fn insert_reference_text(&mut self, spec: &'static CommandSpec, text: Arc<str>) {
+        self.reference_texts
+            .insert(std::ptr::from_ref(spec).addr(), text);
+    }
+
+    /// The Tcl definition `spec`'s backing says defines the command: the text
+    /// a `PackText` backing carries, or the file a `PackageSource` backing
+    /// resolved to at load. `None` for every other backing, and for a
+    /// `PackageSource` the loader had no package to read.
+    #[must_use]
+    pub fn reference_body(&self, spec: &CommandSpec) -> Option<&str> {
+        use crate::runtime_backing::{BodySource, RuntimeBacking};
+        match spec.runtime_backing {
+            RuntimeBacking::TclBody {
+                source: BodySource::PackText { text },
+                ..
+            } => Some(text),
+            RuntimeBacking::TclBody {
+                source: BodySource::PackageSource { .. },
+                ..
+            } => self
+                .reference_texts
+                .get(&std::ptr::from_ref(spec).addr())
+                .map(AsRef::as_ref),
+            _ => None,
+        }
+    }
+
+    /// Every spec a pack installed whose backing is a Tcl body this registry
+    /// holds the text of, with the text — the commands a compile may inline
+    /// the definition of. A spec a later insertion shadowed is not among them.
+    pub fn reference_bodies(&self) -> impl Iterator<Item = (&'static CommandSpec, &str)> {
+        self.overlay_specs.iter().filter_map(|&spec| {
+            let text = self.reference_body(spec)?;
+            self.pack_origin(spec)?;
+            self.get_exact(spec.name)
+                .is_some_and(|live| std::ptr::eq(live, spec))
+                .then_some((spec, text))
+        })
+    }
+
     /// Index one row from the compiled-in command universe without recording
     /// it as an authored overlay.
     fn insert_shipped_static(&mut self, spec: &'static CommandSpec) {
@@ -1622,6 +1917,8 @@ impl CommandRegistry {
     /// `version` — the `ambient_package` statement of a `SpecTcl` pack.
     pub fn insert_ambient_package(&mut self, package: &'static str, version: &'static str) {
         self.ambient_packages.push((package, version));
+        self.refresh_own_packages();
+        self.generation = next_registry_generation();
     }
 
     /// Whether `package` is **ambient** — provided by the runtime, with no
@@ -1671,6 +1968,97 @@ impl CommandRegistry {
     #[must_use]
     pub fn ambient_package_rows(&self) -> &[(&'static str, &'static str)] {
         &self.ambient_packages
+    }
+
+    /// Record a special variable a `SpecTcl` pack declares — the pack's
+    /// `special_var` statement.
+    pub fn insert_special_var(&mut self, spec: &'static crate::special_vars::SpecialVarSpec) {
+        self.special_vars.push(spec);
+        self.generation = next_registry_generation();
+    }
+
+    /// Every special variable this registry knows: the rows loaded packs
+    /// declared, the latest first, then the shipped table
+    /// ([`crate::special_vars::SPECIAL_VARS`]) less any name a pack row
+    /// already answers for — the one door a consumer reads, so a variable a
+    /// pack declares answers exactly as a shipped one does. A pack row
+    /// shadows a shipped row of the same name, as an authored command spec
+    /// shadows a shipped one.
+    pub fn special_vars(
+        &self,
+    ) -> impl Iterator<Item = &'static crate::special_vars::SpecialVarSpec> + '_ {
+        let declared = || self.special_vars.iter().rev().copied();
+        declared().chain(
+            crate::special_vars::SPECIAL_VARS
+                .iter()
+                .filter(move |shipped| !declared().any(|pack| pack.name == shipped.name)),
+        )
+    }
+
+    /// The special variable named `name`, ignoring dialect — the registry
+    /// face of [`crate::special_vars::special_var`], pack rows included.
+    #[must_use]
+    pub fn special_var(&self, name: &str) -> Option<&'static crate::special_vars::SpecialVarSpec> {
+        self.special_vars().find(|spec| spec.name == name)
+    }
+
+    /// The special variable named `name` when `dialect` provides it — the
+    /// registry face of [`crate::special_vars::special_var_in_dialect`].
+    #[must_use]
+    pub fn special_var_in_dialect(
+        &self,
+        name: &str,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<&'static crate::special_vars::SpecialVarSpec> {
+        self.special_var(name)
+            .filter(|spec| spec.available_in(dialect))
+    }
+
+    /// The special variables `dialect` provides, pack rows first — the
+    /// registry face of [`crate::special_vars::special_vars_for_dialect`].
+    pub fn special_vars_for_dialect<'a>(
+        &'a self,
+        dialect: Option<SurfaceQuery<'a>>,
+    ) -> impl Iterator<Item = &'static crate::special_vars::SpecialVarSpec> + 'a {
+        self.special_vars()
+            .filter(move |spec| spec.available_in(dialect))
+    }
+
+    /// Whether a bare global `name` is readable before user code in
+    /// `dialect` — the registry face of
+    /// [`crate::special_vars::is_readable_at_startup`], so a pack-declared
+    /// startup binding answers too.
+    #[must_use]
+    pub fn is_readable_at_startup(&self, name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
+        self.special_var(name)
+            .is_some_and(|spec| spec.readable_at_startup_in(dialect))
+    }
+
+    /// Whether `name` is eagerly bound before user code in `dialect` — the
+    /// registry face of [`crate::special_vars::is_initially_bound`], so a
+    /// pack-declared startup binding answers too.
+    #[must_use]
+    pub fn is_initially_bound(&self, name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
+        self.special_var(name)
+            .is_some_and(|spec| surface_admits(spec.initially_bound, dialect.as_ref()))
+    }
+
+    /// Whether a read of `name` in `dialect` runs a declared read trace that
+    /// materialises its value again after `unset` — the registry face of
+    /// [`crate::special_vars::is_lazily_readable`], pack rows included.
+    #[must_use]
+    pub fn is_lazily_readable(&self, name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
+        self.special_var(name)
+            .is_some_and(|spec| surface_admits(spec.lazily_readable, dialect.as_ref()))
+    }
+
+    /// Whether the runtime observes a write to `name` in `dialect` — the
+    /// registry face of [`crate::special_vars::is_externally_read`], pack
+    /// rows included.
+    #[must_use]
+    pub fn is_externally_read(&self, name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
+        self.special_var_in_dialect(name, dialect)
+            .is_some_and(|spec| spec.externally_read)
     }
 
     /// Whether `name` exists as a command in *any* dialect, independent of
@@ -1864,8 +2252,8 @@ impl CommandRegistry {
     /// added later cannot quietly answer for a command the profile's
     /// dialect does not have.
     fn spec_for_this_registry(&self, head: &str) -> Option<&CommandSpec> {
-        match self.profile {
-            Some(profile) => self.get_for_surface(head, Some(profile.surface_query())),
+        match self.own_surface_query() {
+            Some(query) => self.get_for_surface(head, Some(query)),
             None => self.get(head),
         }
     }
@@ -2298,7 +2686,7 @@ impl CommandRegistry {
         let Some(profile) = self.profile else {
             return true;
         };
-        if dialect.is_none_or(|query| query != profile.surface_query()) {
+        if dialect.is_none_or(|query| !query.same_point(&profile.surface_query())) {
             // The query is about some other surface's availability; this
             // profile's operator-exclusion does not apply to it.
             return true;
@@ -2369,16 +2757,42 @@ impl CommandRegistry {
         }))
     }
 
-    /// Discard derived command facts after a mutation to the command surface.
+    /// Discard derived command facts after a mutation to the command
+    /// surface, and draw the registry's next generation.
     fn invalidate_effective_semantics(&mut self) {
         self.effective_semantics = OnceLock::new();
+        self.generation = next_registry_generation();
     }
 
-    /// Return command names whose command-level descriptor selects `operation`.
+    /// Record the workspace pack overlay this registry carries; `0` is none.
+    pub(crate) fn set_overlay(&mut self, overlay: u64) {
+        self.overlay = (overlay != 0).then_some(overlay);
+        self.generation = next_registry_generation();
+    }
+
+    /// This registry's generation: the command surface an analysis resolved
+    /// against, as the value-transfer context keys it. Every mutation draws
+    /// a new one, and no two registries share one.
+    #[must_use]
+    pub const fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    /// The workspace pack overlay this registry was built with, as its
+    /// content key (`PackSet::key`), or `None` for a registry with none.
+    #[must_use]
+    pub const fn overlay_generation(&self) -> Option<u64> {
+        self.overlay
+    }
+
+    /// Return command names whose command-level descriptor selects `operation`
+    /// at some release.
     ///
     /// This uses the same target-neutral descriptor precedence as structured
-    /// invocation resolution. It is intended for whole-module trust proofs that
-    /// need to quantify over every registry spelling of one semantic operation.
+    /// invocation resolution, over the stamps a command carries plain and in
+    /// every window. It is intended for whole-module trust proofs that need to
+    /// quantify over every registry spelling of one semantic operation, at
+    /// whichever release the module is compiled for.
     pub fn command_names_for_semantic_operation(
         &self,
         operation: crate::SemanticOperationId,
@@ -2387,12 +2801,15 @@ impl CommandRegistry {
             specs
                 .iter()
                 .any(|spec| {
-                    crate::resolved_invocation::descriptor_operation(
-                        spec.semantic_operation,
-                        spec.lowering_hook,
-                        spec.codegen_hook,
-                        spec.inline_codegen_hook,
-                    ) == Some(operation)
+                    spec.descriptor_combinations()
+                        .any(|(semantic, codegen, inline_codegen)| {
+                            crate::resolved_invocation::descriptor_operation(
+                                semantic,
+                                spec.lowering_hook,
+                                codegen,
+                                inline_codegen,
+                            ) == Some(operation)
+                        })
                 })
                 .then_some(*name)
         })
@@ -2420,7 +2837,18 @@ impl CommandRegistry {
     /// the static, resolved-profile answer. `None` remains permissive for an
     /// unpinned package or a hand-assembled registry with no ambient claim.
     fn package_floor_for_spec(&self, spec: &CommandSpec) -> Option<&'static str> {
-        let package = spec.owning_package()?;
+        self.package_floor(spec.owning_package()?)
+    }
+
+    /// The version floor this registry itself guarantees for `package`: the
+    /// profile's pinned runtime library version and the highest a loaded
+    /// pack declared with `ambient_package`, the stronger of the two when
+    /// both are stated.
+    ///
+    /// The one place the two claims are combined: a spec's owning package
+    /// ([`Self::package_floor_for_spec`]) and a package the registry's own
+    /// point carries ([`Self::own_surface_query`]) ask it alike.
+    fn package_floor(&self, package: &str) -> Option<&'static str> {
         let profile_floor = self
             .profile
             .and_then(|profile| profile.library_floor_default(package));
@@ -2468,11 +2896,7 @@ impl CommandRegistry {
     /// no widget or method spellings.
     #[must_use]
     pub fn instance_methods(&self, class_name: &str) -> Vec<&'static SubCommand> {
-        self.instance_methods_at(
-            class_name,
-            None,
-            self.profile.map(tcl_dialect::DialectProfile::surface_query),
-        )
+        self.instance_methods_at(class_name, None, self.own_surface_query())
     }
 
     /// [`Self::instance_methods`] with a document-resolved floor for the
@@ -2545,12 +2969,7 @@ impl CommandRegistry {
         class_name: &str,
         method: &str,
     ) -> Option<&crate::spec::SubCommand> {
-        self.instance_method_at(
-            class_name,
-            method,
-            None,
-            self.profile.map(tcl_dialect::DialectProfile::surface_query),
-        )
+        self.instance_method_at(class_name, method, None, self.own_surface_query())
     }
 
     /// [`Self::instance_method`] with a document-resolved owning-package
@@ -2601,7 +3020,7 @@ impl CommandRegistry {
         class_name: &str,
         receiver: &'w str,
         args: &'w [&'w str],
-        dialect: Option<SurfaceQuery<'_>>,
+        dialect: Option<SurfaceQuery<'w>>,
     ) -> Option<ResolvedInvocation<'r, 'w>> {
         self.resolve_structured_instance_invocation(
             class_name,
@@ -2621,7 +3040,7 @@ impl CommandRegistry {
         &'r self,
         class_name: &str,
         words: InvocationWords<'w>,
-        dialect: Option<SurfaceQuery<'_>>,
+        dialect: Option<SurfaceQuery<'w>>,
     ) -> Option<ResolvedInvocation<'r, 'w>> {
         let arguments = words.arguments();
         let method_spelling = arguments.literal_at(0)?;
@@ -2643,7 +3062,7 @@ impl CommandRegistry {
             SubcommandResolution::UniquePrefix(resolved_method)
         };
         Some(ResolvedInvocation::new_instance(
-            words, class_spec, method, form, subcommand,
+            words, class_spec, method, form, subcommand, dialect,
         ))
     }
 
@@ -2697,23 +3116,8 @@ impl CommandRegistry {
         method: &str,
         method_args: CommandPrefixArguments<'_>,
     ) -> Vec<(usize, AppendedArity)> {
-        let Some(m) = self.instance_method(class_name, method) else {
-            return Vec::new();
-        };
-        let n = method_args.len();
-        let mut out: Vec<(usize, AppendedArity)> = Vec::new();
-        if let Some(resolver) = m.command_prefix_resolver {
-            out.extend(
-                resolver(method_args)
-                    .into_iter()
-                    .map(|(i, a)| (i as usize, a)),
-            );
-        } else {
-            out.extend(m.command_prefixes.iter().map(|(i, a)| (*i as usize, *a)));
-        }
-        push_command_prefix_options(&mut out, m.options, method_args.spellings(), 0);
-        out.retain(|&(idx, _)| idx < n);
-        out
+        self.instance_method(class_name, method)
+            .map_or_else(Vec::new, |m| sub_command_prefixes(m, method_args))
     }
 
     /// Whether `pkg` is a package the registry knows about — i.e. at
@@ -3249,6 +3653,11 @@ impl CommandRegistry {
     /// [`Self::get`] lookup) when the question is "what shape is this
     /// command" rather than "is it available here". An unknown command
     /// carries no traits.
+    ///
+    /// A pack's `stores` row states a write class as well
+    /// ([`crate::value_transfer::DeclaredStores::write_class`]): a target
+    /// declared `write_or_preserve` or `may_write` is a conditional write
+    /// whether or not the pack spells the trait.
     #[must_use]
     pub fn invocation_traits(
         &self,
@@ -3259,7 +3668,27 @@ impl CommandRegistry {
         let Some(resolved) = self.resolve_call(name, args, dialect) else {
             return Traits::empty();
         };
-        resolved.spec.traits | resolved.sub.map_or_else(Traits::empty, |sub| sub.traits)
+        resolved.spec.traits
+            | resolved.sub.map_or_else(Traits::empty, |sub| sub.traits)
+            | crate::value_transfer::resolve_semantics(resolved.spec, resolved.sub, resolved.form)
+                .write_class()
+    }
+
+    /// The frame the invocation's scope-alias declaration links the locals
+    /// its `VarWrite` operands name into — the global namespace for
+    /// `global`, the current namespace for `variable` — where the resolved
+    /// command declares one
+    /// ([`crate::value_transfer::CommandSemantics::alias_frame`]).
+    #[must_use]
+    pub fn alias_frame(
+        &self,
+        name: &str,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<crate::value_transfer::AliasFrame> {
+        let resolved = self.resolve_call(name, args, dialect)?;
+        crate::value_transfer::resolve_semantics(resolved.spec, resolved.sub, resolved.form)
+            .alias_frame()
     }
 
     /// When the script at 0-based argument `index` runs relative to this
@@ -3330,6 +3759,43 @@ impl CommandRegistry {
         } else {
             crate::hover::ScriptTiming::SameInvocation
         })
+    }
+
+    /// The 0-based argument positions of this invocation that hold a script,
+    /// command prefix or lambda the command stores as a **callback**: to run
+    /// after it returns, at the global level or in the frame of whatever
+    /// fires it, where a plain variable name can be one the registering code
+    /// holds.
+    ///
+    /// The positions [`Self::script_timing`] calls
+    /// [`Deferred`](crate::hover::ScriptTiming::Deferred), less those of a
+    /// command that stores a definition
+    /// ([`Traits::BODY_RUNS_IN_OWN_FRAME`]): a `proc` body is dormant too, but
+    /// runs in a frame of its own. A command that runs the script now
+    /// ([`SameInvocation`](crate::hover::ScriptTiming::SameInvocation)) or
+    /// only names a registration (`trace remove`,
+    /// [`ReferenceOnly`](crate::hover::ScriptTiming::ReferenceOnly)) has none.
+    /// Indices count as [`Self::script_timing`] counts them, the resolved
+    /// subcommand word included.
+    #[must_use]
+    pub fn callback_script_indices(
+        &self,
+        name: &str,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Vec<usize> {
+        if self
+            .invocation_traits(name, args, dialect)
+            .contains(Traits::BODY_RUNS_IN_OWN_FRAME)
+        {
+            return Vec::new();
+        }
+        (0..args.len())
+            .filter(|&index| {
+                self.script_timing(name, args, index, dialect)
+                    == Some(crate::hover::ScriptTiming::Deferred)
+            })
+            .collect()
     }
 
     /// User-controlled values that this concrete deferred callback host
@@ -3511,7 +3977,7 @@ impl CommandRegistry {
         let resolved = self.resolve_call(name, args, None)?;
         match resolved.lowering_hook? {
             LoweringHookId::If => {
-                if (resolved.spec.clause_shape_check?)(args).is_some() {
+                if !control_chain_is_well_formed(resolved.spec, args, None)? {
                     return None;
                 }
                 self.arg_indices_for_role(name, args, ArgRole::Body)
@@ -3552,6 +4018,7 @@ impl CommandRegistry {
             }
             LoweringHookId::For | LoweringHookId::While => Some(ControlArmSemantics::Uncertain),
             LoweringHookId::Try => try_control_arms(
+                &resolved.clause_plan(args, None)?,
                 args,
                 tcl_syntax::number::Numbers::of_profile(self.profile()),
             )?
@@ -3574,11 +4041,14 @@ impl CommandRegistry {
         let resolved = self.resolve_call(name, args, dialect)?;
         let hook = resolved.lowering_hook?;
         match hook {
-            LoweringHookId::If => Some((resolved.spec.clause_shape_check?)(args).is_none()),
+            LoweringHookId::If => control_chain_is_well_formed(resolved.spec, args, dialect),
             LoweringHookId::Switch => Some(self.case_invocation(name, args, dialect).is_some()),
-            LoweringHookId::Try => {
-                Some(try_control_arms(args, self.control_numbers(dialect)).is_some())
-            }
+            LoweringHookId::Try => Some(
+                resolved
+                    .clause_plan(args, dialect)
+                    .and_then(|plan| try_control_arms(&plan, args, self.control_numbers(dialect)))
+                    .is_some(),
+            ),
             LoweringHookId::NamespaceEval
             | LoweringHookId::Catch
             | LoweringHookId::For
@@ -3601,8 +4071,14 @@ impl CommandRegistry {
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<TryControlInvocation> {
         let resolved = self.resolve_call(name, args, dialect)?;
-        (resolved.lowering_hook == Some(crate::hooks::LoweringHookId::Try))
-            .then(|| parse_try_control_invocation(args, self.control_numbers(dialect)))?
+        if resolved.lowering_hook != Some(crate::hooks::LoweringHookId::Try) {
+            return None;
+        }
+        parse_try_control_invocation(
+            &resolved.clause_plan(args, dialect)?,
+            args,
+            self.control_numbers(dialect),
+        )
     }
 
     /// Numeral grammar for a control invocation query.
@@ -3648,9 +4124,7 @@ impl CommandRegistry {
                 )
             },
         );
-        let effective_dialect = self
-            .profile()
-            .map_or(dialect, |profile| Some(profile.surface_query()));
+        let effective_dialect = self.own_surface_query().or(dialect);
         Some((*case, case.invocation(args, &options, effective_dialect)?))
     }
 
@@ -3675,65 +4149,24 @@ impl CommandRegistry {
             return InvocationCompletion::Unknown;
         }
         if resolved.lowering_hook == Some(LoweringHookId::Return) {
-            let mut i = 0usize;
-            let mut code = Some(true);
-            let mut level = Some(1_i64);
-            while let Some(word) = args.get(i).copied() {
-                match word {
-                    "--" => {
-                        i += 1;
-                        break;
+            // A normal completion at level 0 runs on, one a level up is the
+            // procedure's result, and any other code, a deeper level or
+            // options the release rejects ends the path.
+            return match self.return_completion(InvocationArguments::literals(args)) {
+                ReturnDecoding::Completes(returned)
+                    if returned.code == crate::completion::CompletionCode::Ok =>
+                {
+                    match returned.level {
+                        0 => InvocationCompletion::FallsThrough,
+                        1 => InvocationCompletion::ReturnsResult(returned.result),
+                        _ => InvocationCompletion::Terminates,
                     }
-                    "-code" => {
-                        let Some(value) = args.get(i + 1).copied() else {
-                            break;
-                        };
-                        code = match value {
-                            "ok" | "0" => Some(true),
-                            "error" | "return" | "break" | "continue" | "1" | "2" | "3" | "4" => {
-                                Some(false)
-                            }
-                            value if value.parse::<i64>().is_ok() => Some(false),
-                            _ => None,
-                        };
-                        i += 2;
-                    }
-                    "-level" => {
-                        let Some(value) = args.get(i + 1).copied() else {
-                            break;
-                        };
-                        level = value.parse::<i64>().ok().filter(|value| *value >= 0);
-                        i += 2;
-                    }
-                    "-options" | "-errorcode" | "-errorinfo" | "-errorstack" => {
-                        if args.get(i + 1).is_none() {
-                            break;
-                        }
-                        return InvocationCompletion::Unknown;
-                    }
-                    _ if word.starts_with('-') => {
-                        if args.get(i + 1).is_none() {
-                            break;
-                        }
-                        return InvocationCompletion::Unknown;
-                    }
-                    _ => break,
                 }
-            }
-            if args.len().saturating_sub(i) > 1 {
-                return InvocationCompletion::Unknown;
-            }
-            if code == Some(false) {
-                return InvocationCompletion::Terminates;
-            }
-            if code.is_none() || level.is_none() {
-                return InvocationCompletion::Unknown;
-            }
-            if level == Some(0) {
-                return InvocationCompletion::FallsThrough;
-            }
-            let result = (i < args.len()).then_some(i);
-            return InvocationCompletion::ReturnsResult(result);
+                ReturnDecoding::Completes(_) | ReturnDecoding::Rejects => {
+                    InvocationCompletion::Terminates
+                }
+                ReturnDecoding::Unknown(_) => InvocationCompletion::Unknown,
+            };
         }
 
         let traits =
@@ -3748,6 +4181,16 @@ impl CommandRegistry {
         } else {
             InvocationCompletion::FallsThrough
         }
+    }
+
+    /// What a `return` with `args` completes with, decoded as this
+    /// registry's release reads its options
+    /// ([`crate::value_transfer::completion::decode_return_words`]): the one
+    /// reading of `return`'s options the lowering, the CFG, the solver's
+    /// route and the completion queries here share.
+    #[must_use]
+    pub fn return_completion(&self, args: InvocationArguments<'_>) -> ReturnDecoding {
+        crate::value_transfer::completion::decode_return_words(self.profile(), args)
     }
 
     /// Return an exact Tcl completion code (or process exit) for a concrete,
@@ -3803,18 +4246,14 @@ impl CommandRegistry {
             ));
         }
         if resolved.lowering_hook == Some(LoweringHookId::Return) {
-            let profile = self.profile()?;
-            return match exact_return_completion(
-                args,
-                tcl_syntax::number::Numbers::of_profile(Some(profile)),
-            ) {
-                ExactReturnCompletion::Completion(code) => {
-                    Some(ExactInvocationCompletion::Tcl(code))
+            return match self.return_completion(args) {
+                ReturnDecoding::Completes(returned) => {
+                    Some(ExactInvocationCompletion::Tcl(returned.own_code()))
                 }
-                ExactReturnCompletion::StaticError => Some(ExactInvocationCompletion::Tcl(
+                ReturnDecoding::Rejects => Some(ExactInvocationCompletion::Tcl(
                     crate::completion::CompletionCode::Error,
                 )),
-                ExactReturnCompletion::Dynamic => None,
+                ReturnDecoding::Unknown(_) => None,
             };
         }
         let descriptor = resolved
@@ -4280,25 +4719,23 @@ impl CommandRegistry {
     /// [`Traits::PERFORMS_SUBSTITUTION`] says *that* a command substitutes;
     /// this answers *which kinds* for the call in hand, so a consumer asking
     /// "does this argument read a variable?" never has to match option
-    /// spellings itself. A command carrying the trait without a
-    /// [`CommandSpec::substitution_resolver`] performs every kind on every
-    /// call, and an unreadable call answers every kind too — assuming a
-    /// substitution does not happen is the answer that loses a real read.
+    /// spellings itself. The answer is the projection of the call's option
+    /// effects onto the substitution axis
+    /// ([`CommandSpec::substitutions_performed`]), under this registry's
+    /// profile: a command whose options move no substitution axis performs
+    /// every kind on every call, and an unreadable call — a computed switch,
+    /// a spelling the release lacks, the two families mixed — answers every
+    /// kind too, because assuming a substitution does not happen is the
+    /// answer that loses a real read.
     #[must_use]
     pub fn substitutions_performed(
         &self,
         name: &str,
         args: &[&str],
     ) -> Option<crate::substitution::SubstitutionKinds> {
-        let spec = self.get(name)?;
-        if !spec.traits.contains(Traits::PERFORMS_SUBSTITUTION) {
-            return None;
-        }
-        Some(
-            spec.substitution_resolver
-                .map_or(crate::substitution::SubstitutionKinds::ALL, |resolve| {
-                    resolve(args)
-                }),
+        self.get(name)?.substitutions_performed(
+            InvocationArguments::literals(args),
+            self.own_surface_query(),
         )
     }
 
@@ -4415,14 +4852,17 @@ impl CommandRegistry {
     /// For subcommand-based commands (e.g. `dict create`), pass the
     /// subcommand as the first element of `args`.
     ///
-    /// Three role sources feed this, in the order the registry contract
-    /// documents: a dynamic `arg_role_resolver`, the static `arg_roles`
-    /// table, and — for the unbounded regular tails a fixed table cannot
-    /// express — the [`RepeatedArgLayout`]s of
-    /// [`CommandSpec::repeated_args`].  The repeated layouts
-    /// are *additive*: a spec may pin its leading words with `arg_roles`
-    /// (`namespace upvar`'s leading namespace word) and still declare the
-    /// repeating pair tail.
+    /// Four role sources feed this, in the order the registry contract
+    /// documents: the [`CommandSpec::clause_grammar`] walk's flat roles (the
+    /// clause structure — keywords, conditions, scripts), a dynamic
+    /// `arg_role_resolver` or else the static `arg_roles` table, and — for
+    /// the unbounded regular tails a fixed table cannot express — the
+    /// [`RepeatedArgLayout`]s of [`CommandSpec::repeated_args`].  The
+    /// grammar and the repeated layouts are *additive*: a spec may pin its
+    /// leading words with `arg_roles` (`namespace upvar`'s leading namespace
+    /// word) and still declare the repeating pair tail, and `catch` states
+    /// its clause structure in a grammar while its `arg_roles` keep the
+    /// result words' `VarWrite`.
     ///
     /// [`RepeatedArgLayout`]: crate::repeated::RepeatedArgLayout
     #[must_use]
@@ -4443,10 +4883,11 @@ impl CommandRegistry {
             .collect()
     }
 
-    /// The `(index, role)` pairs a call gives any of `wanted`, ascending by
-    /// index, from the sources [`Self::arg_indices_for_role`] documents. One
-    /// resolver run answers every wanted role, so a consumer that needs several
-    /// (a definer's name, parameter list and body) asks once.
+    /// The `(index, role)` pairs a call gives any of `wanted`, from the
+    /// sources [`Self::arg_indices_for_role`] documents, through the one rule
+    /// [`arg_roles_in`] states. One walk answers every wanted role, so a
+    /// consumer that needs several (a definer's name, parameter list and
+    /// body) asks once.
     ///
     /// [`ArgRole::CommandPrefix`] is not answered here; see
     /// [`Self::command_prefixes`].
@@ -4459,87 +4900,56 @@ impl CommandRegistry {
         let Some(spec) = self.get(name) else {
             return Vec::new();
         };
-        let n = args.len();
-        let wants = |role: ArgRole| wanted.contains(&role);
-        let mut out: Vec<(usize, ArgRole)> = Vec::new();
-        let case_body_roles_allowed = !wants(ArgRole::Body)
-            || spec.case_list.is_none()
-            || self
-                .case_invocation(name, args, self.own_surface_query())
-                .is_some();
-        let finish = |mut out: Vec<(usize, ArgRole)>| {
-            out.retain(|&(idx, _)| idx < n);
-            out.sort_by_key(|&(idx, _)| idx);
-            out.dedup();
-            out
-        };
-
-        // Check subcommand (exact or unique-prefix abbreviation).
-        if !spec.subcommands.is_empty()
-            && !args.is_empty()
-            && let Some(sub) = spec.resolve_subcommand(args[0])
-        {
-            // Positional roles, offset by +1 for the subcommand word.
-            if let Some(resolver) = sub.arg_role_resolver {
-                out.extend(
-                    resolver(&args[1..])
-                        .into_iter()
-                        .filter(|(_, r)| wants(*r))
-                        .map(|(i, r)| (i as usize + 1, r)),
-                );
-            } else {
-                out.extend(
-                    sub.arg_roles
-                        .iter()
-                        .filter(|(_, r)| wants(*r))
-                        .map(|(i, r)| (*i as usize + 1, *r)),
-                );
-            }
-            // Repeated tails, over the words after the subcommand word.
-            push_repeated_roles(&mut out, sub.repeated_args, n.saturating_sub(1), 1, wanted);
-            // Value-taking options on the subcommand (scan past the sub word).
-            push_option_value_roles(&mut out, sub.options, args, 1, wanted);
-            return finish(out);
-        }
-
-        // Option-selected pattern layouts are owned by the paired pattern
-        // resolver.  Reusing that answer keeps role consumers aligned with
-        // hover and semantic-token consumers, including profile-gated option
-        // abbreviations and reserved positional suffixes.
-        let pattern_resolved = spec.pattern_arg_resolver.is_some();
-        if wants(ArgRole::Pattern) && pattern_resolved {
-            out.extend(
+        // The subcommand word resolves exactly or as a unique prefix.
+        arg_roles_in(
+            spec,
+            Self::source_selected_subcommand(spec, InvocationArguments::literals(args)),
+            args,
+            |role| wanted.contains(&role),
+            self.own_surface_query(),
+            || {
+                self.case_invocation(name, args, self.own_surface_query())
+                    .is_some()
+            },
+            || {
                 self.pattern_args(name, args)
                     .into_iter()
-                    .map(|pattern| (usize::from(pattern.index), ArgRole::Pattern)),
-            );
+                    .map(|pattern| usize::from(pattern.index))
+                    .collect()
+            },
+        )
+    }
+
+    /// The clause plan of a call to `name` with `args` — the command's (or,
+    /// when `args[0]` names one, the subcommand's) clause grammar walked under
+    /// this registry's own profile, in the same post-head coordinates as
+    /// [`Self::arg_indices_for_role`]. `None` when neither declares a grammar
+    /// or it is unavailable at the profile.
+    #[must_use]
+    pub fn clause_plan(&self, name: &str, args: &[&str]) -> Option<crate::ClausePlan> {
+        let spec = self.get(name)?;
+        let dialect = self.own_surface_query();
+        if !spec.subcommands.is_empty()
+            && let Some(sub) = args.first().and_then(|word| spec.resolve_subcommand(word))
+        {
+            return sub
+                .clause_plan(&args[1..], dialect)
+                .map(|plan| plan.offset_by(1));
         }
-        // Top-level positional roles.
-        let admitted = |role: ArgRole| {
-            wants(role)
-                && (role != ArgRole::Body || case_body_roles_allowed)
-                && !(role == ArgRole::Pattern && pattern_resolved)
-        };
-        if let Some(resolver) = spec.arg_role_resolver {
-            out.extend(
-                resolver(args)
-                    .into_iter()
-                    .filter(|(_, r)| admitted(*r))
-                    .map(|(i, r)| (i as usize, r)),
-            );
-        } else {
-            out.extend(
-                spec.arg_roles
-                    .iter()
-                    .filter(|(_, r)| admitted(*r))
-                    .map(|(i, r)| (*i as usize, *r)),
-            );
-        }
-        // Repeated tails (`global a b c`, `upvar ?level? o l o l`).
-        push_repeated_roles(&mut out, spec.repeated_args, n, 0, wanted);
-        // Value-taking options carry roles at their (dynamic) value positions.
-        push_option_value_roles(&mut out, spec.options, args, 0, wanted);
-        finish(out)
+        spec.clause_plan(args, dialect)
+    }
+
+    /// The structural defect a consumer reports for a call to `name` in place
+    /// of the generic arity check — [`CommandSpec::clause_shape_defect`] under
+    /// this registry's own profile (`if`'s E004).
+    #[must_use]
+    pub fn clause_shape_defect(
+        &self,
+        name: &str,
+        args: &[&str],
+    ) -> Option<crate::ClauseShapeError> {
+        self.get(name)?
+            .clause_shape_defect(args, self.own_surface_query())
     }
 
     /// Resolve the argument indices whose **brace-quoted** word this command
@@ -4605,6 +5015,14 @@ impl CommandRegistry {
     /// the runtime knows, so it widens [`VariableReadProjection::
     /// opaque_variable_frame`] rather than exposing its source spelling as a
     /// variable name.
+    ///
+    /// A destroyer's targets are read too (`unset x`, the
+    /// [`Traits::DESTROYS_VARIABLE`] trait): an unbind reads its place's
+    /// existence before it removes it — an absent place raises unless
+    /// `-nocomplain` says otherwise — so the store feeding the place is
+    /// observed. [`Self::variable_write_projection`] leaves a destroy out, a
+    /// destroy being no value definition, so without this a nested `[unset
+    /// x]` observed nothing and the store before it was deleted as dead.
     #[must_use]
     pub fn variable_read_projection(&self, words: InvocationWords<'_>) -> VariableReadProjection {
         let Some(name) = words.head_literal() else {
@@ -4613,18 +5031,26 @@ impl CommandRegistry {
                 opaque_variable_frame: true,
             };
         };
-        if self
+        let Some(invocation) = self
             .resolve_structured_invocation(words, self.own_surface_query())
             .resolved()
-            .is_none()
-        {
+        else {
             return VariableReadProjection::default();
-        }
+        };
+        let role = if invocation
+            .semantics
+            .traits
+            .contains(Traits::DESTROYS_VARIABLE)
+        {
+            ArgRole::VarWrite
+        } else {
+            ArgRole::VarRead
+        };
         let args = words.arguments();
-        let Some(indices) = self.arg_indices_for_role_words(name, args, ArgRole::VarRead) else {
+        let Some(indices) = self.arg_indices_for_role_words(name, args, role) else {
             return VariableReadProjection {
                 literal_names: Vec::new(),
-                opaque_variable_frame: self.may_have_arg_role(name, ArgRole::VarRead),
+                opaque_variable_frame: self.may_have_arg_role(name, role),
             };
         };
         let mut projection = VariableReadProjection::default();
@@ -4805,6 +5231,9 @@ impl CommandRegistry {
         };
         spec.arg_role_resolver_roles.contains(&role)
             || spec.arg_roles.iter().any(|(_, found)| *found == role)
+            || spec
+                .clause_grammar
+                .is_some_and(|grammar| grammar.may_assign(role))
             || spec.repeated_args.iter().any(|layout| layout.role == role)
             || options_have(spec.options)
             || spec.command_forms.iter().any(|form| {
@@ -4813,6 +5242,9 @@ impl CommandRegistry {
             || spec.subcommands.iter().any(|sub| {
                 sub.arg_role_resolver_roles.contains(&role)
                     || sub.arg_roles.iter().any(|(_, found)| *found == role)
+                    || sub
+                        .clause_grammar
+                        .is_some_and(|grammar| grammar.may_assign(role))
                     || sub.repeated_args.iter().any(|layout| layout.role == role)
                     || options_have(sub.options)
             })
@@ -4830,61 +5262,31 @@ impl CommandRegistry {
         args: InvocationArguments<'_>,
         effective_dialect: Option<SurfaceQuery<'_>>,
     ) -> bool {
-        if !args.has_exact_argv_len() {
-            return false;
-        }
-        // Static role positions and generic option-value roles remain stable
-        // once expansion is excluded. Only a resolver can reinterpret a
-        // source word as a positional operand, so a `clock format $time
-        // -format %Y` time value does not suppress the independently-owned
-        // `-format` value role.
-        let resolver_depends_on_options = sub.map_or(
-            spec.arg_role_resolver.is_some() || spec.pattern_arg_resolver.is_some(),
-            |sub| sub.arg_role_resolver.is_some(),
-        );
-        if !resolver_depends_on_options {
-            return true;
-        }
-        let (options, option_args, prefix_matching, reserved_trailing_words) = if let Some(sub) =
-            sub
-        {
-            let options = self.profile().map_or_else(
-                || {
-                    sub.options
-                        .iter()
-                        .filter(|option| {
-                            option.supports_dialect(effective_dialect, sub.surface.or(spec.surface))
-                        })
-                        .collect()
-                },
-                |profile| {
-                    crate::profile_queries::ProfileQueries::available_sub_option_specs(
-                        profile, spec, sub,
-                    )
-                },
-            );
-            (options, args.slice_from(1), sub.prefix_matching, 0)
-        } else {
-            let options = self.profile().map_or_else(
-                || spec.option_specs(effective_dialect),
-                |profile| {
-                    crate::profile_queries::ProfileQueries::available_option_specs(profile, spec)
-                },
-            );
-            (
-                options,
-                args,
-                spec.prefix_matching,
-                spec.reserved_trailing_words,
-            )
-        };
-        options.is_empty()
-            || source_option_layout_is_proven(
-                &options,
-                option_args,
-                prefix_matching,
-                reserved_trailing_words,
-            )
+        layout_is_proven_in(
+            spec,
+            sub,
+            args,
+            || {
+                self.profile().map_or_else(
+                    || spec.option_specs(effective_dialect),
+                    |profile| {
+                        crate::profile_queries::ProfileQueries::available_option_specs(
+                            profile, spec,
+                        )
+                    },
+                )
+            },
+            |sub| {
+                self.profile().map_or_else(
+                    || sub_options_at(spec, sub, effective_dialect),
+                    |profile| {
+                        crate::profile_queries::ProfileQueries::available_sub_option_specs(
+                            profile, spec, sub,
+                        )
+                    },
+                )
+            },
+        )
     }
 
     /// Resolve a subcommand only when its source word has a known literal
@@ -4984,9 +5386,7 @@ impl CommandRegistry {
         args: InvocationArguments<'_>,
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Vec<FormatStringArg> {
-        let effective_dialect = self
-            .profile()
-            .map_or(dialect, |profile| Some(profile.surface_query()));
+        let effective_dialect = self.own_surface_query().or(dialect);
         let spec = if effective_dialect.is_none() {
             self.get(name)
         } else {
@@ -5028,9 +5428,10 @@ impl CommandRegistry {
     ///
     /// This pairs each declared position with its embedded language. A static
     /// command derives the positions from [`ArgRole::Pattern`]; an
-    /// option-selected command supplies the paired facts through its registry
-    /// resolver. Consumers therefore never need command-name or `-regexp`
-    /// branches of their own.
+    /// option-selected command (`lsearch -regexp`) answers the projection of
+    /// its option effects onto the pattern-language axis, and a layout no
+    /// axis can express keeps the registry resolver escape hatch. Consumers
+    /// therefore never need command-name or `-regexp` branches of their own.
     #[must_use]
     pub fn pattern_args(&self, name: &str, args: &[&str]) -> Vec<crate::patterns::PatternArg> {
         self.pattern_args_for_dialect(name, args, self.own_surface_query())
@@ -5049,9 +5450,7 @@ impl CommandRegistry {
         args: &[&str],
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Vec<crate::patterns::PatternArg> {
-        let effective_dialect = self
-            .profile()
-            .map_or(dialect, |profile| Some(profile.surface_query()));
+        let effective_dialect = self.own_surface_query().or(dialect);
         let spec = if effective_dialect.is_none() {
             self.get(name)
         } else {
@@ -5060,32 +5459,23 @@ impl CommandRegistry {
         let Some(spec) = spec else {
             return Vec::new();
         };
-        if let Some(resolve) = spec.pattern_arg_resolver {
-            let options = self.profile().map_or_else(
-                || spec.option_specs(effective_dialect),
-                |profile| {
-                    crate::profile_queries::ProfileQueries::available_option_specs(profile, spec)
-                },
-            );
-            return resolve(
-                args,
-                crate::patterns::PatternArgResolverContext {
-                    options: &options,
-                    reserved_trailing_words: spec.reserved_trailing_words,
-                },
-            );
-        }
-        let sub = (!spec.subcommands.is_empty())
-            .then(|| args.first().and_then(|word| spec.resolve_subcommand(word)))
-            .flatten();
-        let Some(kind) = sub.and_then(|sub| sub.pattern_type).or(spec.pattern_type) else {
-            return Vec::new();
-        };
-        self.arg_indices_for_role(name, args, ArgRole::Pattern)
-            .into_iter()
-            .filter_map(|index| u8::try_from(index).ok())
-            .map(|index| crate::patterns::PatternArg { index, kind })
-            .collect()
+        pattern_args_in(
+            spec,
+            Self::source_selected_subcommand(spec, InvocationArguments::literals(args)),
+            args,
+            || {
+                self.profile().map_or_else(
+                    || spec.option_specs(effective_dialect),
+                    |profile| {
+                        crate::profile_queries::ProfileQueries::available_option_specs(
+                            profile, spec,
+                        )
+                    },
+                )
+            },
+            effective_dialect,
+            || self.arg_indices_for_role(name, args, ArgRole::Pattern),
+        )
     }
 
     /// Source-aware counterpart to [`Self::pattern_args`].
@@ -5112,9 +5502,7 @@ impl CommandRegistry {
         args: InvocationArguments<'_>,
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Vec<crate::patterns::PatternArg> {
-        let effective_dialect = self
-            .profile()
-            .map_or(dialect, |profile| Some(profile.surface_query()));
+        let effective_dialect = self.own_surface_query().or(dialect);
         let spec = if effective_dialect.is_none() {
             self.get(name)
         } else {
@@ -5223,7 +5611,12 @@ impl CommandRegistry {
             Some(sub) => (sub.arg_roles, sub.arg_role_resolver, 1usize),
             None => (spec.arg_roles, spec.arg_role_resolver, 0usize),
         };
-        let declared: Vec<(usize, ArgRole)> = match dynamic_roles {
+        let own_args = args.get(sub_offset..).unwrap_or(&[]);
+        let plan = match sub {
+            Some(sub) => sub.clause_plan(own_args, self.own_surface_query()),
+            None => spec.clause_plan(own_args, self.own_surface_query()),
+        };
+        let mut declared: Vec<(usize, ArgRole)> = match dynamic_roles {
             Some(resolve) => resolve(args.get(sub_offset..).unwrap_or(&[]))
                 .into_iter()
                 .map(|(idx, role)| (idx as usize + sub_offset, role))
@@ -5233,6 +5626,11 @@ impl CommandRegistry {
                 .map(|(idx, role)| (*idx as usize + sub_offset, *role))
                 .collect(),
         };
+        declared.extend(
+            plan.into_iter()
+                .flat_map(|plan| plan.roles)
+                .map(|(idx, role)| (idx + sub_offset, role)),
+        );
         let ceiling = usize::from(spec.arity.max);
         (args.len()..ceiling)
             .map_while(|position| {
@@ -5325,40 +5723,11 @@ impl CommandRegistry {
         let Some(spec) = self.get(name) else {
             return Vec::new();
         };
-        let n = args.len();
-        let mut out: Vec<(usize, AppendedArity)> = Vec::new();
-
-        if !spec.subcommands.is_empty()
-            && !args.is_empty()
-            && let Some(subcommand) = args.literal_at(0)
-            && let Some(sub) = spec.resolve_subcommand(subcommand)
-        {
-            if let Some(resolver) = sub.command_prefix_resolver {
-                out.extend(
-                    resolver(args.slice_from(1))
-                        .into_iter()
-                        .map(|(i, a)| (i as usize + 1, a)),
-                );
-            } else {
-                out.extend(
-                    sub.command_prefixes
-                        .iter()
-                        .map(|(i, a)| (*i as usize + 1, *a)),
-                );
-            }
-            push_command_prefix_options(&mut out, sub.options, args.spellings(), 1);
-            out.retain(|&(idx, _)| idx < n);
-            return out;
-        }
-
-        if let Some(resolver) = spec.command_prefix_resolver {
-            out.extend(resolver(args).into_iter().map(|(i, a)| (i as usize, a)));
-        } else {
-            out.extend(spec.command_prefixes.iter().map(|(i, a)| (*i as usize, *a)));
-        }
-        push_command_prefix_options(&mut out, spec.options, args.spellings(), 0);
-        out.retain(|&(idx, _)| idx < n);
-        out
+        command_prefixes_in(
+            spec,
+            Self::source_selected_subcommand(spec, args.words()),
+            args,
+        )
     }
 
     /// Resolve a concrete invocation to its target-neutral registry semantics.
@@ -5376,7 +5745,7 @@ impl CommandRegistry {
         &'r self,
         name: &'w str,
         args: &'w [&'w str],
-        dialect: Option<SurfaceQuery<'_>>,
+        dialect: Option<SurfaceQuery<'w>>,
     ) -> Option<ResolvedInvocation<'r, 'w>> {
         self.resolve_structured_invocation(InvocationWords::literals(name, args), dialect)
             .resolved()
@@ -5398,7 +5767,7 @@ impl CommandRegistry {
     pub fn resolve_structured_invocation<'r, 'w>(
         &'r self,
         words: InvocationWords<'w>,
-        dialect: Option<SurfaceQuery<'_>>,
+        dialect: Option<SurfaceQuery<'w>>,
     ) -> StructuredInvocationResolution<'r, 'w> {
         let Some(name) = words.head_literal() else {
             return StructuredInvocationResolution::from_unresolved(
@@ -5427,9 +5796,28 @@ impl CommandRegistry {
             (None, false, false) => None,
         };
         StructuredInvocationResolution {
-            invocation: Some(ResolvedInvocation::new(words, spec, sub, form, subcommand)),
+            invocation: Some(ResolvedInvocation::new(
+                words, spec, sub, form, subcommand, dialect,
+            )),
             unresolved: None,
         }
+    }
+
+    /// The one resolution the derived-query layer projects from
+    /// (`docs/design/compiler/registry-consumer-contracts.md` § *The
+    /// derived-query layer*): `words` resolved under the surface query
+    /// `ctx` fixes — its target profile's — so every query the resolution
+    /// then answers (`clause_plan`, `option_effects`, `arg_roles`,
+    /// `pattern_args`, `case_invocation`, `frame_effect`, `return_type`,
+    /// `effects`, …) is asked under that one release. A context that names
+    /// no profile resolves surface-blind.
+    #[must_use]
+    pub fn invocation<'r, 'w>(
+        &'r self,
+        words: InvocationWords<'w>,
+        ctx: &crate::value_transfer::AnalysisContext,
+    ) -> StructuredInvocationResolution<'r, 'w> {
+        self.resolve_structured_invocation(words, ctx.surface_query())
     }
 
     /// Resolve a concrete call to its registry-described form.
@@ -5454,13 +5842,19 @@ impl CommandRegistry {
         let sub = selection.sub;
         let form = selection.form;
 
+        // A stamp is read at the point the call is resolved at: a level whose
+        // windows that point does not settle declines, and the call is
+        // dispatched plain rather than by the level above's stamp.
+        let point = dialect.as_ref();
+        let command_codegen = spec.codegen_hook_selection(point);
+        let command_inline = spec.inline_codegen_hook_selection(point);
         let mut resolved = ResolvedCall {
             spec,
             sub,
             form,
             lowering_hook: spec.lowering_hook,
-            codegen_hook: spec.codegen_hook,
-            inline_codegen_hook: spec.inline_codegen_hook,
+            codegen_hook: command_codegen.stamp(),
+            inline_codegen_hook: command_inline.stamp(),
             analyser_hook: spec.analyser_hook,
         };
 
@@ -5469,14 +5863,17 @@ impl CommandRegistry {
                 .and_then(|f| f.lowering_hook)
                 .or(sub.lowering_hook)
                 .or(spec.lowering_hook);
-            resolved.codegen_hook = form
-                .and_then(|f| f.codegen_hook)
-                .or(sub.codegen_hook)
-                .or(spec.codegen_hook);
+            resolved.codegen_hook = StampSelection::stated(form.and_then(|f| f.codegen_hook))
+                .or(sub.codegen_hook_selection(point))
+                .or(command_codegen)
+                .stamp();
             // Forms carry no inline hook — the inline emitters guard
             // their own applicability (arity / shape) at the dispatch
             // site, so subcommand-level wins over command-level.
-            resolved.inline_codegen_hook = sub.inline_codegen_hook.or(spec.inline_codegen_hook);
+            resolved.inline_codegen_hook = sub
+                .inline_codegen_hook_selection(point)
+                .or(command_inline)
+                .stamp();
             // Forms carry no analyser hook either — the analyser
             // handlers keep their own shape guards, so the
             // subcommand-level stamp wins over the command-level one.
@@ -5486,7 +5883,9 @@ impl CommandRegistry {
 
         if let Some(f) = form {
             resolved.lowering_hook = f.lowering_hook.or(spec.lowering_hook);
-            resolved.codegen_hook = f.codegen_hook.or(spec.codegen_hook);
+            resolved.codegen_hook = StampSelection::stated(f.codegen_hook)
+                .or(command_codegen)
+                .stamp();
             resolved.form = Some(f);
         }
         Some(resolved)
@@ -5595,9 +5994,7 @@ impl CommandRegistry {
         // `CommandSpec.options` level (a single set per spec), so we
         // consult that directly when no subcommand match was found.
         if spec.options.iter().any(|o| o.name == "--") {
-            let effective_dialect = self
-                .profile()
-                .map_or(dialect, |profile| Some(profile.surface_query()));
+            let effective_dialect = self.own_surface_query().or(dialect);
             let reserved_trailing_words =
                 spec.case_list.map_or(spec.reserved_trailing_words, |case| {
                     case.option_scan_reserved_trailing_words(
@@ -5655,7 +6052,7 @@ impl CommandRegistry {
     /// [`TransitionSubject::Unknown`]: crate::TransitionSubject::Unknown
     #[must_use]
     pub fn command_binding_transitions(&self, words: InvocationWords<'_>) -> StateTransitions {
-        let query = self.profile.map(DialectProfile::surface_query);
+        let query = self.own_surface_query();
         self.resolve_structured_invocation(words, query)
             .resolved()
             .map_or_else(StateTransitions::default, |invocation| {
@@ -5946,6 +6343,27 @@ impl ResolvedCall<'_> {
         self.sub
             .map_or(self.spec.var_elements_effect, |s| s.var_elements_effect)
     }
+
+    /// The clause plan of this call: the matched subcommand's grammar walked
+    /// over the words after the subcommand word, else the command's over
+    /// `args`, in the post-head coordinates of `args` — the plan
+    /// [`CommandRegistry::clause_plan`] answers for the same descriptors.
+    /// `args` are source spellings (a braced `{-}` is the fall-through
+    /// marker). `None` when neither declares a grammar or it is unavailable
+    /// at `dialect`.
+    #[must_use]
+    pub fn clause_plan(
+        &self,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<crate::ClausePlan> {
+        match self.sub {
+            Some(sub) => sub
+                .clause_plan(args.get(1..).unwrap_or_default(), dialect)
+                .map(|plan| plan.offset_by(1)),
+            None => self.spec.clause_plan(args, dialect),
+        }
+    }
 }
 
 /// Select the [`CommandForm`] whose arity, dialect, and optional literal
@@ -6110,6 +6528,8 @@ impl std::fmt::Debug for CommandRegistry {
             .field("loaded_layers", &self.loaded_layers)
             .field("profile", &self.profile.map(|p| p.name))
             .field("ambient_packages", &self.ambient_packages)
+            .field("own_packages", &self.own_packages)
+            .field("special_vars", &self.special_vars)
             .field(
                 "document_grammar",
                 &self.document_grammar.map(|g| g.members.len()),
@@ -6118,6 +6538,10 @@ impl std::fmt::Debug for CommandRegistry {
                 "effective_semantics_cached",
                 &self.effective_semantics.get().is_some(),
             )
+            .field("overlay", &self.overlay)
+            .field("pack_origins", &self.pack_origins.len())
+            .field("reference_texts", &self.reference_texts.len())
+            .field("generation", &self.generation)
             .finish()
     }
 }
@@ -6133,6 +6557,112 @@ mod tests {
     use tcl_dialect::model::SpecProvider;
     use tcl_dialect::model::{Family, SpecSurface, SurfaceLayer, SurfaceQuery};
     use tcl_dialect::surface;
+
+    fn body_backed(name: &'static str, backing: crate::RuntimeBacking) -> crate::CommandSpec {
+        crate::CommandSpec {
+            name,
+            runtime_backing: backing,
+            ..crate::CommandSpec::DEFAULT
+        }
+    }
+
+    fn text_backing(text: &'static str) -> crate::RuntimeBacking {
+        crate::RuntimeBacking::pack_text(text)
+    }
+
+    fn origin() -> crate::pack_origin::PackOrigin {
+        crate::pack_origin::PackOrigin {
+            pack: "vendor".to_owned(),
+            content_hash: 7,
+            vocabulary_version: "2".to_owned(),
+        }
+    }
+
+    /// The reference bodies a registry offers are the specs a pack installed,
+    /// whose backing is a Tcl body this registry holds the text of, and which
+    /// are still the answer for their name: the text a `PackText` carries or a
+    /// `PackageSource` resolved to at load, never an embedder's own spec, a
+    /// backing of another kind, a `PackageSource` nobody read, or a spec a later
+    /// insertion shadowed.
+    #[test]
+    fn a_registry_offers_the_live_pack_installed_bodies_it_holds_text_for() {
+        let installed = |registry: &mut CommandRegistry, spec: crate::CommandSpec| {
+            let spec: &'static crate::CommandSpec = Box::leak(Box::new(spec));
+            registry.insert_static(spec);
+            registry.insert_pack_origin(spec, origin());
+            spec
+        };
+        let mut registry = CommandRegistry::build_default();
+        let in_text = installed(
+            &mut registry,
+            body_backed("vendor::text", text_backing("proc vendor::text {} {}")),
+        );
+        let from_file = installed(
+            &mut registry,
+            body_backed(
+                "vendor::file",
+                crate::RuntimeBacking::package_source("lib.tcl"),
+            ),
+        );
+        registry.insert_reference_text(from_file, Arc::from("proc vendor::file {} {}"));
+        // Not offered: nobody read the file; the host owns the command; the
+        // embedder inserted it; and a later spec shadowed it.
+        installed(
+            &mut registry,
+            body_backed(
+                "vendor::unread",
+                crate::RuntimeBacking::package_source("absent.tcl"),
+            ),
+        );
+        installed(
+            &mut registry,
+            body_backed("vendor::native", crate::RuntimeBacking::HostNative),
+        );
+        registry.insert(body_backed(
+            "embedder::text",
+            text_backing("proc embedder::text {} {}"),
+        ));
+        installed(
+            &mut registry,
+            body_backed(
+                "vendor::shadowed",
+                text_backing("proc vendor::shadowed {} {}"),
+            ),
+        );
+        registry.insert(body_backed(
+            "vendor::shadowed",
+            crate::RuntimeBacking::HostNative,
+        ));
+
+        let offered: Vec<(&str, &str)> = registry
+            .reference_bodies()
+            .map(|(spec, text)| (spec.name, text))
+            .collect();
+        assert_eq!(
+            offered,
+            vec![
+                ("vendor::text", "proc vendor::text {} {}"),
+                ("vendor::file", "proc vendor::file {} {}"),
+            ]
+        );
+        assert_eq!(
+            registry.reference_body(in_text),
+            Some("proc vendor::text {} {}")
+        );
+        assert_eq!(
+            registry.reference_body(from_file),
+            Some("proc vendor::file {} {}")
+        );
+        // A projection for a profile carries the text with the spec.
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        assert_eq!(
+            registry
+                .project_for_profile(profile)
+                .reference_bodies()
+                .count(),
+            2
+        );
+    }
 
     /// Tcl 9.0.4: inside a method the bare words resolve to the receiving
     /// object's `my` command or the `::oo::Helpers` namespace path, while every
@@ -6195,12 +6725,7 @@ mod tests {
             assert!(registry.get(&rooted).is_none(), "rooted {head}");
             assert!(
                 registry
-                    .get_for_surface(
-                        &rooted,
-                        registry
-                            .profile()
-                            .map(tcl_dialect::DialectProfile::surface_query),
-                    )
+                    .get_for_surface(&rooted, registry.own_surface_query())
                     .is_none(),
                 "profiled rooted {head}"
             );
@@ -6324,13 +6849,72 @@ mod tests {
         check_command("set", &["name", "value"]);
         check_command("regexp", &["pattern", "text", "whole", "capture"]);
         check_command("regsub", &["pattern", "text", "replacement", "out"]);
-        check_command("if", &["expr", "then", "body", "else", "fallback"]);
-        check_command("try", &["body", "on", "0", "result", "handler"]);
+        // A clause grammar took the retired `if` / `try` resolvers' place; its
+        // walk's flat roles stay inside the same closed capability set.
+        let check_grammar = |name: &str, args: &[&str]| {
+            let spec = command(name);
+            let plan = spec.clause_plan(args, None).expect("a clause grammar");
+            for (_, role) in plan.roles {
+                assert!(
+                    spec.arg_role_resolver_roles.contains(&role)
+                        || spec.arg_roles.iter().any(|(_, found)| *found == role),
+                    "{name}'s grammar emitted {role:?} for {args:?}, outside its declared roles"
+                );
+            }
+        };
+        check_grammar("if", &["expr", "then", "body", "else", "fallback"]);
+        check_grammar("try", &["body", "on", "0", "result", "handler"]);
         check_subcommand("binary", "scan", &["bytes", "a*", "out"]);
         check_subcommand("dict", "update", &["d", "key", "local", "body"]);
         check_subcommand("namespace", "which", &["-variable", "name"]);
         check_subcommand("namespace", "which", &["-command", "name"]);
         check_subcommand("trace", "add", &["variable", "name", "write", "callback"]);
+    }
+
+    /// A clause grammar's flat roles are part of `may_have_arg_role`'s answer,
+    /// so every role a grammar can assign is one its spec already declares —
+    /// in the resolver's closed set (the set a grammar that replaced a
+    /// resolver keeps) or in the static table. Otherwise an expansion-blocked
+    /// call would abstain differently from a literal one.
+    #[test]
+    fn clause_grammar_roles_are_declared_capabilities() {
+        let registry = registry_with_every_resolver_surface();
+        let mut grammars = 0;
+        let declared = |roles: &[ArgRole], table: &[(u8, ArgRole)], role: ArgRole| {
+            roles.contains(&role) || table.iter().any(|(_, found)| *found == role)
+        };
+        for specs in registry.by_name.values() {
+            for spec in specs {
+                let owners = std::iter::once((
+                    spec.name.to_owned(),
+                    spec.clause_grammar,
+                    spec.arg_role_resolver_roles,
+                    spec.arg_roles,
+                ))
+                .chain(spec.subcommands.iter().map(|sub| {
+                    (
+                        format!("{} {}", spec.name, sub.name),
+                        sub.clause_grammar,
+                        sub.arg_role_resolver_roles,
+                        sub.arg_roles,
+                    )
+                }));
+                for (owner, grammar, roles, table) in owners {
+                    let Some(grammar) = grammar else { continue };
+                    grammars += 1;
+                    for &role in ArgRole::ALL {
+                        assert!(
+                            !grammar.may_assign(role) || declared(roles, table, role),
+                            "{owner}'s clause grammar can assign {role:?}, which it does not declare"
+                        );
+                    }
+                }
+            }
+        }
+        assert!(
+            grammars >= 11,
+            "the clause-grammar catalogue unexpectedly shrank"
+        );
     }
 
     /// The representative rows in the sibling test are hand-picked, so a
@@ -6855,7 +7439,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let package = synthetic_spec("d6_package", Some(SpecSurface::EXPECT), Traits::empty());
         let core = synthetic_spec("d6_core", Some(SpecSurface::ALL_TCL), Traits::empty());
-        let packages = ["expect"];
+        let packages = [PackageFloor::named("expect")];
         let with_package = SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&packages);
 
         // Package rows are visible through the package set and are narrower
@@ -6912,6 +7496,402 @@ mod tests {
                 .best_visible(&specs, plain.own_surface_query())
                 .map(|spec| spec.name),
             Some("d6_profile_operator")
+        );
+    }
+
+    /// A registry whose pack declared a floor for a package its point carries
+    /// asks under a query that is not `==` its profile's — and is still that
+    /// profile's own point, so the profile's operator exclusion applies to it.
+    #[test]
+    fn a_floor_on_the_own_query_leaves_it_the_profiles_own_point() {
+        let iapps = tcl_dialect::DialectProfile::find("f5-iapps").expect("catalogue profile");
+        assert!(!iapps.operators_as_commands);
+        let mut registry = CommandRegistry::build_default().project_for_profile(iapps);
+        registry.insert_ambient_package("iapps", "1.0");
+        let own = registry.own_surface_query();
+        let query = own.expect("a profiled registry has a point");
+        assert_eq!(
+            query.package("iapps"),
+            Some(&PackageFloor::at("iapps", "1.0"))
+        );
+        assert_ne!(query, iapps.surface_query());
+        assert!(query.same_point(&iapps.surface_query()));
+
+        let operator = synthetic_spec("floor_probe_operator", None, Traits::OPERATOR_COMMAND);
+        let ordinary = synthetic_spec("floor_probe_ordinary", None, Traits::empty());
+        assert!(!registry.spec_visible(operator, own));
+        assert!(registry.spec_visible(ordinary, own));
+        assert!(
+            registry.spec_visible(operator, Some(SurfaceQuery::core(Family::Tcl, "8.6"))),
+            "asked at another point, the exclusion is not this profile's to apply"
+        );
+    }
+
+    /// Whether a name is a command in this registry's own dialect is asked at
+    /// the point the registry's floors make, however late a floor arrives.
+    #[test]
+    fn a_command_is_known_here_only_where_the_floored_point_admits_it() {
+        const FROM_8_6: &[tcl_dialect::model::SpecWindow] = &[("8.6", None)];
+        let gated = synthetic_spec(
+            "floor_probe_from_86",
+            Some(surface![SpecSurface::package_in("Tk", FROM_8_6)]),
+            Traits::empty(),
+        );
+        for (floor, known) in [(None, true), (Some("8.5"), false), (Some("8.6"), true)] {
+            let mut authored = CommandRegistry::build_default();
+            authored.insert_static(gated);
+            let mut registry = authored.project_for_profile(tcl_dialect::DialectProfile::tk());
+            assert!(
+                registry.has_command_in_this_dialect("floor_probe_from_86"),
+                "indexed, and admitted while no floor is stated"
+            );
+            if let Some(floor) = floor {
+                registry.insert_ambient_package("Tk", floor);
+            }
+            assert_eq!(
+                registry.has_command_in_this_dialect("floor_probe_from_86"),
+                known,
+                "under a floor of {floor:?}"
+            );
+        }
+    }
+
+    // Versioned codegen-axis stamps: selected at the point a call is resolved
+    // at, and declined — never guessed — where that point does not settle them.
+
+    const HOOK_FROM_9: &[crate::stamp_window::StampWindow<crate::hooks::CodegenHookId>] =
+        &[crate::stamp_window::StampWindow {
+            lifecycle: crate::lifecycle::Lifecycle::introduced_in("9.0"),
+            value: crate::hooks::CodegenHookId::Lassign,
+        }];
+    const INLINE_BEFORE_9: &[crate::stamp_window::StampWindow<
+        crate::hooks::InlineCodegenHookId,
+    >] = &[crate::stamp_window::StampWindow {
+        lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED.retired_from("9.0"),
+        value: crate::hooks::InlineCodegenHookId::Expr,
+    }];
+
+    fn points() -> [(&'static str, Option<SurfaceQuery<'static>>); 5] {
+        [
+            ("8.6", Some(SurfaceQuery::core(Family::Tcl, "8.6"))),
+            ("9.0", Some(SurfaceQuery::core(Family::Tcl, "9.0"))),
+            ("9.1", Some(SurfaceQuery::core(Family::Tcl, "9.1"))),
+            (
+                "the whole ladder",
+                Some(SurfaceQuery::any_release(Family::Tcl)),
+            ),
+            ("no point", None),
+        ]
+    }
+
+    #[test]
+    fn a_stamp_window_is_selected_at_the_primary_release_and_declines_where_it_is_not_settled() {
+        use crate::hooks::{CodegenHookId, InlineCodegenHookId};
+
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "stamp::probe",
+            codegen_hook_windows: HOOK_FROM_9,
+            inline_codegen_hook_windows: INLINE_BEFORE_9,
+            ..CommandSpec::DEFAULT
+        });
+        for (point, query, codegen, inline) in [
+            ("8.6", points()[0].1, None, Some(InlineCodegenHookId::Expr)),
+            ("9.0", points()[1].1, Some(CodegenHookId::Lassign), None),
+            ("9.1", points()[2].1, Some(CodegenHookId::Lassign), None),
+            ("the whole ladder", points()[3].1, None, None),
+            ("no point", points()[4].1, None, None),
+        ] {
+            let call = registry
+                .resolve_call("stamp::probe", &["$l", "a"], query)
+                .expect("the probe resolves");
+            assert_eq!(call.codegen_hook, codegen, "codegen hook at {point}");
+            assert_eq!(call.inline_codegen_hook, inline, "inline hook at {point}");
+        }
+    }
+
+    #[test]
+    fn the_plain_stamp_stands_where_no_window_covers_and_a_window_wins_where_one_does() {
+        use crate::hooks::CodegenHookId;
+
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "stamp::beside",
+            codegen_hook: Some(CodegenHookId::Llength),
+            codegen_hook_windows: HOOK_FROM_9,
+            ..CommandSpec::DEFAULT
+        });
+        for (point, query, codegen) in [
+            ("8.6", points()[0].1, Some(CodegenHookId::Llength)),
+            ("9.0", points()[1].1, Some(CodegenHookId::Lassign)),
+            ("the whole ladder", points()[3].1, None),
+        ] {
+            let call = registry
+                .resolve_call("stamp::beside", &["$l"], query)
+                .expect("the probe resolves");
+            assert_eq!(call.codegen_hook, codegen, "{point}");
+        }
+    }
+
+    /// A subcommand whose windows state nothing at the release is the command's
+    /// own call; one whose windows the point does not settle is dispatched
+    /// plain, and the command's hook is not the answer in its place.
+    #[test]
+    fn a_subcommand_inherits_where_its_windows_are_silent_and_does_not_where_they_decline() {
+        use crate::hooks::CodegenHookId;
+
+        let sub = SubCommand {
+            name: "get",
+            codegen_hook_windows: HOOK_FROM_9,
+            ..SubCommand::DEFAULT
+        };
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "stamp::ensemble",
+            codegen_hook: Some(CodegenHookId::Dict),
+            subcommands: Box::leak(Box::new([sub])),
+            ..CommandSpec::DEFAULT
+        });
+        for (point, query, codegen) in [
+            ("8.6", points()[0].1, Some(CodegenHookId::Dict)),
+            ("9.0", points()[1].1, Some(CodegenHookId::Lassign)),
+            ("the whole ladder", points()[3].1, None),
+            ("no point", points()[4].1, None),
+        ] {
+            let call = registry
+                .resolve_call("stamp::ensemble", &["get", "$d", "k"], query)
+                .expect("the ensemble resolves");
+            assert_eq!(call.codegen_hook, codegen, "{point}");
+            // The command's own call is not the subcommand's to decline.
+            let own = registry
+                .resolve_call("stamp::ensemble", &["$d"], query)
+                .expect("the command resolves");
+            assert_eq!(own.codegen_hook, Some(CodegenHookId::Dict), "{point}");
+        }
+    }
+
+    #[test]
+    fn a_semantic_operation_window_decides_the_operation_a_resolved_invocation_has() {
+        use crate::intrinsic::IntrinsicId;
+        use crate::semantic_operation::SemanticOperationId;
+        use crate::stamp_window::StampWindow;
+
+        const LENGTH_FROM_9: &[StampWindow<SemanticOperationId>] = &[StampWindow {
+            lifecycle: crate::lifecycle::Lifecycle::introduced_in("9.0"),
+            value: SemanticOperationId::Intrinsic(IntrinsicId::StringLength),
+        }];
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "stamp::length",
+            semantic_operation_windows: LENGTH_FROM_9,
+            ..CommandSpec::DEFAULT
+        });
+        for (point, query, operation) in [
+            ("8.6", points()[0].1, SemanticOperationId::Invoke),
+            (
+                "9.0",
+                points()[1].1,
+                SemanticOperationId::Intrinsic(IntrinsicId::StringLength),
+            ),
+            (
+                "the whole ladder",
+                points()[3].1,
+                SemanticOperationId::Invoke,
+            ),
+            ("no point", points()[4].1, SemanticOperationId::Invoke),
+        ] {
+            let invocation = registry
+                .resolve_invocation("stamp::length", &["abc"], query)
+                .expect("the probe resolves");
+            assert_eq!(invocation.semantics.operation, operation, "{point}");
+        }
+    }
+
+    /// A subcommand whose operation windows state nothing at the release is the
+    /// command's own operation; one whose windows the point does not settle is
+    /// a plain invoke, and the command's operation is not the answer instead.
+    #[test]
+    fn a_subcommand_operation_inherits_where_silent_and_is_plain_where_it_declines() {
+        use crate::intrinsic::IntrinsicId;
+        use crate::semantic_operation::SemanticOperationId;
+        use crate::stamp_window::StampWindow;
+
+        const LENGTH_FROM_9: &[StampWindow<SemanticOperationId>] = &[StampWindow {
+            lifecycle: crate::lifecycle::Lifecycle::introduced_in("9.0"),
+            value: SemanticOperationId::Intrinsic(IntrinsicId::StringLength),
+        }];
+        let concat = SemanticOperationId::Intrinsic(IntrinsicId::Concat);
+        let size = SubCommand {
+            name: "size",
+            semantic_operation_windows: LENGTH_FROM_9,
+            ..SubCommand::DEFAULT
+        };
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "stamp::inherits",
+            semantic_operation: Some(concat),
+            subcommands: Box::leak(Box::new([size])),
+            ..CommandSpec::DEFAULT
+        });
+        for (point, query, operation) in [
+            ("8.6", points()[0].1, concat),
+            (
+                "9.0",
+                points()[1].1,
+                SemanticOperationId::Intrinsic(IntrinsicId::StringLength),
+            ),
+            (
+                "the whole ladder",
+                points()[3].1,
+                SemanticOperationId::Invoke,
+            ),
+            ("no point", points()[4].1, SemanticOperationId::Invoke),
+        ] {
+            let invocation = registry
+                .resolve_invocation("stamp::inherits", &["size", "abc"], query)
+                .expect("the ensemble resolves");
+            assert_eq!(invocation.semantics.operation, operation, "{point}");
+        }
+    }
+
+    /// The operation a codegen or inline hook names is read through the same
+    /// selection: a window gives it where it covers the release, and a level
+    /// that declines gives plain dispatch, not its command's operation.
+    #[test]
+    fn the_operation_a_windowed_hook_names_is_selected_and_declined_like_the_hook() {
+        use crate::hooks::{CodegenHookId, InlineCodegenHookId};
+        use crate::intrinsic::IntrinsicId;
+        use crate::lifecycle::Lifecycle;
+        use crate::semantic_operation::SemanticOperationId;
+        use crate::stamp_window::StampWindow;
+
+        const LLENGTH_FROM_9: &[StampWindow<CodegenHookId>] = &[StampWindow {
+            lifecycle: Lifecycle::introduced_in("9.0"),
+            value: CodegenHookId::Llength,
+        }];
+        const LINDEX_FROM_9: &[StampWindow<InlineCodegenHookId>] = &[StampWindow {
+            lifecycle: Lifecycle::introduced_in("9.0"),
+            value: InlineCodegenHookId::Lindex,
+        }];
+        let concat = SemanticOperationId::Intrinsic(IntrinsicId::Concat);
+        let by_codegen = SubCommand {
+            name: "count",
+            codegen_hook_windows: LLENGTH_FROM_9,
+            ..SubCommand::DEFAULT
+        };
+        let by_inline = SubCommand {
+            name: "at",
+            inline_codegen_hook_windows: LINDEX_FROM_9,
+            ..SubCommand::DEFAULT
+        };
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "stamp::hooked",
+            semantic_operation: Some(concat),
+            subcommands: Box::leak(Box::new([by_codegen, by_inline])),
+            ..CommandSpec::DEFAULT
+        });
+        let operation = |sub: &str, query| {
+            registry
+                .resolve_invocation("stamp::hooked", &[sub, "abc"], query)
+                .expect("the ensemble resolves")
+                .semantics
+                .operation
+        };
+        for (sub, at_9) in [
+            (
+                "count",
+                SemanticOperationId::Intrinsic(IntrinsicId::ListLength),
+            ),
+            ("at", SemanticOperationId::Intrinsic(IntrinsicId::ListIndex)),
+        ] {
+            assert_eq!(
+                operation(sub, points()[0].1),
+                concat,
+                "{sub} at 8.6 inherits"
+            );
+            assert_eq!(operation(sub, points()[1].1), at_9, "{sub} at 9.0");
+            for (point, query) in [
+                ("the whole ladder", points()[3].1),
+                ("no point", points()[4].1),
+            ] {
+                assert_eq!(
+                    operation(sub, query),
+                    SemanticOperationId::Invoke,
+                    "{sub} at {point} declines"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_native_lowering_window_is_read_at_the_point_and_declines_across_its_edge() {
+        use crate::completion::CompletionCode;
+        use crate::lifecycle::Lifecycle;
+        use crate::native_lowering::NativeLowering;
+        use crate::stamp_window::StampWindow;
+
+        const BREAK_FROM_9: &[StampWindow<NativeLowering>] = &[StampWindow {
+            lifecycle: Lifecycle::introduced_in("9.0"),
+            value: NativeLowering::Completion(CompletionCode::Break),
+        }];
+        let spec = CommandSpec {
+            name: "stamp::native",
+            native_lowering_windows: BREAK_FROM_9,
+            ..CommandSpec::DEFAULT
+        };
+        let shapes = points().map(|(_, query)| spec.native_lowering_at(query.as_ref()));
+        assert_eq!(
+            shapes,
+            [
+                NativeLowering::Generic,
+                NativeLowering::Completion(CompletionCode::Break),
+                NativeLowering::Completion(CompletionCode::Break),
+                NativeLowering::Generic,
+                NativeLowering::Generic,
+            ]
+        );
+        assert_eq!(
+            spec.native_lowering(),
+            NativeLowering::Generic,
+            "the plain accessor reads the plain field alone"
+        );
+    }
+
+    /// Every operation a windowed stamp could give a command counts when the
+    /// question is surface-blind: which names could be this operation.
+    #[test]
+    fn a_windowed_operation_is_counted_by_the_questions_that_ask_no_release() {
+        use crate::intrinsic::IntrinsicId;
+        use crate::semantic_operation::SemanticOperationId;
+        use crate::stamp_window::StampWindow;
+
+        const LENGTH_FROM_9: &[StampWindow<SemanticOperationId>] = &[StampWindow {
+            lifecycle: crate::lifecycle::Lifecycle::introduced_in("9.0"),
+            value: SemanticOperationId::Intrinsic(IntrinsicId::StringLength),
+        }];
+        let spec = CommandSpec {
+            name: "stamp::length",
+            semantic_operation_windows: LENGTH_FROM_9,
+            ..CommandSpec::DEFAULT
+        };
+        assert!(spec.intrinsic_ids().contains(&IntrinsicId::StringLength));
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(spec);
+        assert!(
+            registry
+                .command_names_for_semantic_operation(SemanticOperationId::Intrinsic(
+                    IntrinsicId::StringLength
+                ))
+                .any(|name| name == "stamp::length")
+        );
+        assert!(
+            !CommandSpec {
+                name: "stamp::plain",
+                ..CommandSpec::DEFAULT
+            }
+            .intrinsic_ids()
+            .contains(&IntrinsicId::StringLength)
         );
     }
 
@@ -7759,6 +8739,7 @@ mod tests {
             aliases: &[],
             lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED,
             min_abbrev: None,
+            effect: None,
         }];
         fn roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
             let first =
@@ -8234,7 +9215,7 @@ mod tests {
 
     fn indices(options: &[crate::hover::OptionSpec], args: &[&str], role: ArgRole) -> Vec<usize> {
         let mut out = Vec::new();
-        push_option_value_roles(&mut out, options, args, 0, &[role]);
+        push_option_value_roles(&mut out, options, args, 0, &|wanted| wanted == role);
         out.into_iter().map(|(index, _)| index).collect()
     }
 
@@ -8378,6 +9359,53 @@ mod tests {
             .is_empty(),
             "the option word itself is not callback text"
         );
+    }
+
+    /// The registry states which stored scripts are callbacks — the words a
+    /// consumer must treat as run later, outside the registering frame — and
+    /// which are a definition's body or run now.
+    #[test]
+    fn callback_scripts_are_the_deferred_words_of_a_command_that_stores_no_definition() {
+        let reg = CommandRegistry::build_default();
+        let callbacks: &[(&str, &[&str], &[usize])] = &[
+            ("after", &["100", "{set done 1}"], &[1]),
+            ("after", &["idle", "{set done 1}"], &[1]),
+            (
+                "trace",
+                &["add", "variable", "x", "write", "{set go 0 ;#}"],
+                &[4],
+            ),
+            ("bind", &[".", "<Key>", "{set go 0}"], &[2]),
+            ("fileevent", &["stdin", "readable", "{set go 0}"], &[2]),
+            ("chan", &["event", "stdin", "readable", "{set go 0}"], &[3]),
+            ("interp", &["bgerror", "{}", "{set go 0 ;#}"], &[2]),
+            ("button", &[".b", "-command", "{set go 0}"], &[2]),
+        ];
+        for (name, args, expected) in callbacks {
+            assert_eq!(
+                reg.callback_script_indices(name, args, None),
+                *expected,
+                "{name} {args:?}"
+            );
+        }
+        // A definition's body is dormant and runs in a frame of its own, and
+        // the scripts these run now or only name are no callback.
+        let none: &[(&str, &[&str])] = &[
+            ("proc", &["p", "{}", "{set x 1}"]),
+            ("snit::method", &["T", "m", "{}", "{set x 1}"]),
+            ("lambda", &["{}", "{set x 1}"]),
+            ("catch", &["{set x 1}"]),
+            ("if", &["1", "{set x 1}"]),
+            ("uplevel", &["#0", "{set x 1}"]),
+            ("trace", &["remove", "variable", "x", "write", "cb"]),
+            ("set", &["x", "1"]),
+        ];
+        for (name, args) in none {
+            assert!(
+                reg.callback_script_indices(name, args, None).is_empty(),
+                "{name} {args:?}"
+            );
+        }
     }
 
     #[test]
@@ -10880,6 +11908,46 @@ mod tests {
         assert_eq!(projection, VariableWriteProjection::default());
     }
 
+    /// An unbind reads its place's existence: the
+    /// read projection names a destroyer's targets, past `-nocomplain` and
+    /// `--`, where the write projection names none, and a substituted target
+    /// widens the frame.
+    #[test]
+    fn variable_read_projection_names_a_destroyers_targets() {
+        use crate::InvocationWord::{Dynamic, Literal};
+        let reg = CommandRegistry::build_default();
+        for (arguments, expected) in [
+            (vec![Literal("x")], vec!["x"]),
+            (
+                vec![
+                    Literal("-nocomplain"),
+                    Literal("--"),
+                    Literal("a"),
+                    Literal("b"),
+                ],
+                vec!["a", "b"],
+            ),
+        ] {
+            let words = InvocationWords::structured(Literal("unset"), &arguments);
+            assert_eq!(reg.variable_read_projection(words).literal_names, expected);
+            assert_eq!(
+                reg.variable_write_projection(words),
+                VariableWriteProjection::default()
+            );
+        }
+        let computed = [Dynamic];
+        let projection =
+            reg.variable_read_projection(InvocationWords::structured(Literal("unset"), &computed));
+        assert!(projection.literal_names.is_empty());
+        assert!(projection.opaque_variable_frame);
+        let query = [Literal("exists"), Literal("x")];
+        assert_eq!(
+            reg.variable_read_projection(InvocationWords::structured(Literal("info"), &query))
+                .literal_names,
+            vec!["x"]
+        );
+    }
+
     #[test]
     fn literal_adapter_matches_the_structured_literal_view() {
         let reg = CommandRegistry::build_default();
@@ -11823,7 +12891,7 @@ mod tests {
             Some(TryControlInvocation {
                 body_index: 0,
                 clauses: vec![TryControlClause {
-                    kind: TryClauseKind::On(TryCompletionSelector::Error),
+                    kind: TryClauseKind::On(crate::completion::CompletionCode::Error),
                     selector_index: Some(2),
                     variable_list_index: Some(3),
                     body_index: 4,
@@ -11914,7 +12982,7 @@ mod tests {
         for spelling in ["+1", "01", "0x1", " 1 "] {
             assert_eq!(
                 selector(tcl9, spelling),
-                Some(TryCompletionSelector::Error),
+                Some(crate::completion::CompletionCode::Error),
                 "Tcl 9 completion selector {spelling:?}"
             );
         }
@@ -11930,18 +12998,18 @@ mod tests {
         let tcl8 = crate::model::ingress::static_context_for("tcl8.6").commands();
         assert_eq!(
             selector(tcl8, "010"),
-            Some(TryCompletionSelector::Numeric(8))
+            Some(crate::completion::CompletionCode::Other(8))
         );
         assert_eq!(
             selector(tcl9, "010"),
-            Some(TryCompletionSelector::Numeric(10))
+            Some(crate::completion::CompletionCode::Other(10))
         );
 
         // Completion codes use Tcl's C-compatible signed-int domain: the
         // final unsigned range wraps, while values outside it are invalid.
         assert_eq!(
             selector(tcl9, "4294967295"),
-            Some(TryCompletionSelector::Numeric(-1))
+            Some(crate::completion::CompletionCode::Other(-1))
         );
         for out_of_range in ["-2147483649", "4294967296", "9223372036854775808"] {
             assert_eq!(
@@ -11979,7 +13047,7 @@ mod tests {
         assert!(matches!(
             invocation.clauses.as_slice(),
             [TryControlClause {
-                kind: TryClauseKind::On(TryCompletionSelector::Numeric(10)),
+                kind: TryClauseKind::On(crate::completion::CompletionCode::Other(10)),
                 ..
             }]
         ));
@@ -11987,7 +13055,7 @@ mod tests {
 
     #[test]
     fn invocation_completion_is_registry_owned() {
-        let reg = CommandRegistry::build_default();
+        let reg = crate::model::ingress::static_context_for("tcl8.6").commands();
         assert_eq!(
             reg.invocation_completion("return", &["-code", "error", "$w"], None,),
             InvocationCompletion::Terminates
@@ -12002,28 +13070,42 @@ mod tests {
             "a trailing option-shaped word is return's result, not a missing option value"
         );
         assert_eq!(
+            reg.invocation_completion("return", &["--", "x"], None),
+            InvocationCompletion::ReturnsResult(None),
+            "`--` is no end of options: `return -- x` is the pair `-- x` and the empty result"
+        );
+        assert_eq!(
             reg.invocation_completion("return", &["-level", "0", "$w"], None,),
             InvocationCompletion::FallsThrough
         );
         for args in [
             &["-level", "0", "-code", "error", "$w"][..],
             &["-code", "error", "-level", "0", "$w"][..],
+            &["-level", "2", "$w"][..],
+            &["-level", "-1", "$w"][..],
         ] {
             assert_eq!(
                 reg.invocation_completion("return", args, None),
-                InvocationCompletion::Terminates
+                InvocationCompletion::Terminates,
+                "{args:?}"
             );
         }
-        for args in [
-            &["-level", "$dynamic", "$w"][..],
-            &["-level", "-1", "$w"][..],
-            &["$w", "extra"][..],
-        ] {
+        for args in [&["-level", "$dynamic", "$w"][..], &["$w", "extra"][..]] {
             assert_eq!(
                 reg.invocation_completion("return", args, None),
                 InvocationCompletion::Unknown
             );
         }
+        // A registry that names no release answers only what every release
+        // reads alike: 8.4 rejects `-level`, which 8.5 reads.
+        assert_eq!(
+            CommandRegistry::build_default().invocation_completion(
+                "return",
+                &["-level", "0", "$w"],
+                None
+            ),
+            InvocationCompletion::Unknown
+        );
         assert_eq!(
             reg.invocation_completion("not-a-command", &[], None),
             InvocationCompletion::Unknown
@@ -12229,14 +13311,12 @@ mod tests {
                 );
             }
             // Once a following word exists, the same spellings are options;
-            // malformed option values and an extra result remain TCL_ERROR.
+            // malformed option values remain TCL_ERROR.
             for args in [
                 &["-code", "bogus", "payload"][..],
                 &["-level", "-1", "payload"][..],
                 &["-code", "-level"][..],
                 &["-level", "-code"][..],
-                &["payload", "extra"][..],
-                &["-level", "0", "-code", "-2147483649", "payload"][..],
             ] {
                 assert_eq!(
                     reg.exact_invocation_completion("return", args, None),
@@ -12244,6 +13324,25 @@ mod tests {
                     "{dialect}: {args:?}"
                 );
             }
+            // Two words are an option and its value, whatever the first
+            // spells, which the options dictionary keeps: `proc p {} {return
+            // payload extra}` returns the empty string (tclsh 8.6, 9.0).
+            assert_eq!(
+                reg.exact_invocation_completion("return", &["payload", "extra"], None),
+                Some(ExactInvocationCompletion::Tcl(CompletionCode::Return)),
+                "{dialect}"
+            );
+            // Past `INT_MIN` the conversion's range is the release's own:
+            // 8.6 wraps `-2147483649` to 2147483647 and 9.0 rejects it.
+            assert_eq!(
+                reg.exact_invocation_completion(
+                    "return",
+                    &["-level", "0", "-code", "-2147483649", "payload"],
+                    None,
+                ),
+                None,
+                "{dialect}"
+            );
         }
     }
 
@@ -12615,7 +13714,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["\"password:\" {send pw} -re {ye+s} {send yes} timeout {puts slow}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    ),
                 )
                 .is_some(),
             "clause-leading flags must not break valid Expect pattern/body pairs"
@@ -12625,7 +13727,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["{-re} {send literal}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    ),
                 )
                 .is_some(),
             "a braced flag-shaped pattern is literal text, not a clause flag"
@@ -12635,7 +13740,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-re {ye+s}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    )
                 )
                 .is_some(),
             "Expect permits a final pattern without an action"
@@ -12648,7 +13756,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &args,
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")]),
+                    ),
                 )
                 .expect("outer Expect value option followed by a final pattern");
             assert_eq!(invocation.clause_list_index, None, "{args:?}");
@@ -12668,7 +13779,10 @@ mod tests {
                         &[&format!(
                             "{pattern} {{send literal}} default {{send other}}"
                         )],
-                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                        Some(
+                            SurfaceQuery::core(Family::Tcl, "8.6")
+                                .with_packages(&[PackageFloor::named("expect")])
+                        ),
                     )
                     .is_some(),
                 "{pattern:?} is a literal Tcl list pattern, not script syntax"
@@ -12679,7 +13793,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-timeout"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    )
                 )
                 .is_none(),
             "a value-taking clause flag without a value/pattern/body is invalid"
@@ -12702,7 +13819,10 @@ mod tests {
             .case_invocation(
                 "expect",
                 &args,
-                Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                Some(
+                    SurfaceQuery::core(Family::Tcl, "8.6")
+                        .with_packages(&[PackageFloor::named("expect")]),
+                ),
             )
             .expect("inline Expect flags and value flags must parse");
         let clauses = crate::CaseListSpec::EXPECT
@@ -12719,7 +13839,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-not", "ready", "{send ok}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    )
                 )
                 .is_some(),
             "unique Expect flag abbreviations must retain the action body"
@@ -12752,7 +13875,10 @@ mod tests {
                     .case_invocation(
                         "expect",
                         &args,
-                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                        Some(
+                            SurfaceQuery::core(Family::Tcl, "8.6")
+                                .with_packages(&[PackageFloor::named("expect")])
+                        )
                     )
                     .is_some(),
                 "canonical {flag} must parse"
@@ -12763,7 +13889,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-timeout", "5", "pattern", "{action}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    )
                 )
                 .is_some()
         );
@@ -12773,7 +13902,10 @@ mod tests {
                     .case_invocation(
                         "expect",
                         &[flag, "pattern", "{action}"],
-                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                        Some(
+                            SurfaceQuery::core(Family::Tcl, "8.6")
+                                .with_packages(&[PackageFloor::named("expect")])
+                        )
                     )
                     .is_some(),
                 "unique abbreviation {flag} must parse"
@@ -12785,7 +13917,10 @@ mod tests {
                     .case_invocation(
                         "expect",
                         &[flag, "pattern", "{action}"],
-                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                        Some(
+                            SurfaceQuery::core(Family::Tcl, "8.6")
+                                .with_packages(&[PackageFloor::named("expect")])
+                        )
                     )
                     .is_some(),
                 "unique canonical-prefix {flag} must remain an inline clause flag"
@@ -12797,7 +13932,10 @@ mod tests {
                     .case_invocation(
                         "expect",
                         &[flag, "pattern", "{action}"],
-                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                        Some(
+                            SurfaceQuery::core(Family::Tcl, "8.6")
+                                .with_packages(&[PackageFloor::named("expect")])
+                        )
                     )
                     .is_none(),
                 "ambiguous or unknown {flag} must invalidate the invocation"
@@ -12808,7 +13946,10 @@ mod tests {
             .case_invocation(
                 "expect",
                 &args,
-                Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                Some(
+                    SurfaceQuery::core(Family::Tcl, "8.6")
+                        .with_packages(&[PackageFloor::named("expect")]),
+                ),
             )
             .expect("-- makes -re a pattern");
         let clauses = crate::CaseListSpec::EXPECT
@@ -12820,7 +13961,10 @@ mod tests {
             .case_invocation(
                 "expect",
                 &["-re", "pattern"],
-                Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                Some(
+                    SurfaceQuery::core(Family::Tcl, "8.6")
+                        .with_packages(&[PackageFloor::named("expect")]),
+                ),
             )
             .expect("omitted final action is valid");
         assert_eq!(
@@ -12835,7 +13979,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-nobrace", "{pattern}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    )
                 )
                 .is_some(),
             "-nobrace makes one braced word an action-less pattern"
@@ -12844,7 +13991,10 @@ mod tests {
             .case_invocation(
                 "expect",
                 &["-brace", "{default {return FOLDED}}"],
-                Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                Some(
+                    SurfaceQuery::core(Family::Tcl, "8.6")
+                        .with_packages(&[PackageFloor::named("expect")]),
+                ),
             )
             .expect("exact -brace selects a clause list");
         assert_eq!(brace.clause_list_index, Some(1));
@@ -12853,7 +14003,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-b", "{default {return FOLDED}}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    ),
                 )
                 .is_none(),
             "-brace is exact-only, so -b is not a clause flag abbreviation"
@@ -12863,7 +14016,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-brac", "{default {return FOLDED}}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    ),
                 )
                 .is_none(),
             "-brace must not accept a near-complete prefix either"
@@ -12878,7 +14034,10 @@ mod tests {
                     .case_invocation(
                         "expect",
                         args,
-                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                        Some(
+                            SurfaceQuery::core(Family::Tcl, "8.6")
+                                .with_packages(&[PackageFloor::named("expect")])
+                        )
                     )
                     .is_none(),
                 "force-list selector must be first and have one remainder: {args:?}"
@@ -12898,11 +14057,6 @@ mod tests {
         let case = CaseListSpec {
             subject_args: 0,
             two_arg_optionless_surface: None,
-            regex_option: None,
-            exact_option: None,
-            glob_option: None,
-            nocase_option: None,
-            end_options_option: Some("--"),
             fallthrough_body: None,
             value_options_require_regex: &[],
             special_match_options: &[],
@@ -12918,6 +14072,8 @@ mod tests {
             keyword_patterns_require_final: false,
             optional_subject_separator: None,
             warn_unbraced_bodies: false,
+            default_mode: crate::spec::CaseMatchMode::Exact,
+            pattern_words: crate::spec::PatternWords::Single,
         };
         let options = [
             OptionSpec {
@@ -12980,7 +14136,10 @@ mod tests {
                     .case_invocation(
                         "expect",
                         args,
-                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                        Some(
+                            SurfaceQuery::core(Family::Tcl, "8.6")
+                                .with_packages(&[PackageFloor::named("expect")])
+                        )
                     )
                     .is_none(),
                 "truncated Expect invocation must abstain: {args:?}",

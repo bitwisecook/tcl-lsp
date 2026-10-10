@@ -28,7 +28,7 @@ fail-closed classifier covers `tcl-lsp-server`'s locked local Cargo dependency
 closure with all features, the archive configuration, the workflow and
 classifier inputs, embedded SpecTcl packs, and cross-package E2E fixtures. It reads the
 classifier and manifests from the PR base commit. An incomplete changed-file
-list, malformed closure, or absent base-copy runs the whole archive lane. The
+list, malformed closure, or absent base-copy runs the whole archive suite. The
 required aggregate job always reports a status; when the closure is unaffected,
 only its archive, partition, and proof-transfer steps are skipped.
 Validate that no-op path in Actions with a change outside both committed
@@ -289,7 +289,7 @@ Trusted pull requests may place only shard 1 of `rust-tests-shard` on the
 self-hosted `tank` runner. The `channel` job queries every nonterminal workflow
 state and routes to hosted capacity when another active shard-1 job already
 targets `tank`; shards 2–5 are always hosted. The API snapshot is advisory:
-simultaneous channel jobs can both observe an idle lane, so the non-cancelling
+simultaneous channel jobs can both observe an idle runner, so the non-cancelling
 `rust-tests-tank` concurrency group remains the final one-physical-host safety
 guard. API errors, malformed data, and incomplete pagination fail safely to
 hosted capacity. Fork, Dependabot, and runner-policy pull requests

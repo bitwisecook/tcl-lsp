@@ -178,19 +178,25 @@ impl Block {
 
 /// Metadata about a loop in the CFG.
 ///
-/// Maps from the loop's exit block name to its entry block name and
-/// the original `Statement::For` node. Used by loop analyses and the
-/// bottom-tested loop rewriter in codegen.
+/// Maps from the loop's exit block to the block it starts in and the
+/// original loop statement. Used by loop analyses: the solver enumerates a
+/// bounded loop from it and publishes the state the loop leaves on the edges
+/// into its exit block.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LoopNode {
-    /// Id of the loop header/entry block.
+    /// Id of the block the loop statement starts in: the block before its
+    /// header, which holds a `for`'s start script.
     pub entry_block: BlockId,
-    /// Source span of the original `for` statement.
+    /// Id of the block whose exit state the loop's passes start from: where
+    /// a `for`'s start script ends, the entry block for any other loop.
+    pub start: BlockId,
+    /// Source span of the original loop statement.
     pub span: Span,
-    /// The original `for` statement ([`Statement::For`]), retained so SCCP can
-    /// statically summarise a bounded loop and fold a branch that reads a
-    /// loop-carried variable *after* the loop (the static-loop → SCCP fold).
-    pub for_stmt: Statement,
+    /// The original loop statement ([`Statement::For`], [`Statement::While`]
+    /// or [`Statement::Foreach`]), retained so the solver can run the loop
+    /// over the state it starts from and fold a branch that reads a
+    /// loop-carried variable *after* the loop.
+    pub statement: Statement,
 }
 
 /// Source site and Tcl error context for a command body flattened into a CFG.
@@ -206,6 +212,35 @@ pub struct InlineBodyErrorSite {
     pub context: tcl_registry::InlineBodyErrorContext,
 }
 
+/// The exception edge from the block before a flattened `catch` or `try`
+/// body to its handler: the body's way out at its first command, before any
+/// store of that command ([`Function::region_entries`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RegionEntry {
+    /// The block before the body.
+    pub source: BlockId,
+    /// The handler the edge reaches.
+    pub handler: BlockId,
+    /// The block that holds the body's first command.
+    pub first: BlockId,
+}
+
+/// The `catch` a flattened body stands for, kept beside the marker that
+/// defines its result and options variables where the region ends
+/// ([`Function::catch_ends`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct CatchEnd {
+    /// The block before the body: what its exit holds is the state the script
+    /// runs over.
+    pub entry: BlockId,
+    /// The block that ends the region, whose first statement is the marker.
+    pub end: BlockId,
+    /// The `catch` as a call, with the words it was written with and the
+    /// variables it defines: the form the same statement takes when it is not
+    /// flattened.
+    pub call: Statement,
+}
+
 /// A complete control-flow graph for a single procedure or top-level script.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Function {
@@ -217,6 +252,10 @@ pub struct Function {
     pub blocks: HashMap<BlockId, Block>,
     /// Loop metadata: exit block → loop info.
     pub loop_nodes: HashMap<BlockId, LoopNode>,
+    /// The body of each opaque `catch`, by its call's span: the script the
+    /// solver runs over exact state where it can, so each name the body
+    /// writes takes what the body leaves it holding.
+    pub opaque_catch_bodies: HashMap<Span, crate::ir::Script>,
     /// `try` body→handler exception edges for control flow the single-
     /// successor terminator can't express.  Consumed by SSA (as extra phi
     /// predecessors so a handler sees the body's versions) and SCCP (as
@@ -224,6 +263,19 @@ pub struct Function {
     /// → O107).  `(from_block, handler_block)` pairs; empty in codegen
     /// builds so the default bytecode is unchanged.
     pub exception_edges: Vec<(BlockId, BlockId)>,
+    /// The exception edges that run from the block before a flattened `catch`
+    /// or `try` body, each with the block that holds the body's first
+    /// command. The body may fail at that command before it has stored
+    /// anything, so what holds before the body reaches the handler; where the
+    /// command is known to raise only after a store, the solver leaves the
+    /// edge out. These edges are also in [`Self::exception_edges`].
+    pub region_entries: Vec<RegionEntry>,
+    /// The flattened `catch` regions of the function. The statement that ends
+    /// each defines the result and options variables and carries no words of
+    /// its own, which the code generator skips, so the words wait here for the
+    /// solver, which evaluates the `catch` over the state before its body.
+    /// Empty in codegen builds.
+    pub catch_ends: Vec<CatchEnd>,
     /// Registry-described error contexts for inlined command bodies flattened
     /// into this function's statement stream. Codegen turns each into a
     /// [`tcl_bytecode::ErrorRegion`] without re-parsing command text. Empty
@@ -255,6 +307,13 @@ pub struct Function {
     /// everything downstream of it) run per function with only the CFG in
     /// hand.  Cleared for any CFG built without an upvar context.
     pub caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier,
+    /// The commands the document declares as plain calls, with the frame
+    /// effect each declaration states ([`crate::ir::DeclaredFrameEffects`]),
+    /// as the module's command table holds them: the per-function
+    /// computed-name walk ([`crate::dynamic_names`]) reads a call's frame
+    /// effect here where the catalogue holds no command of that name. Empty
+    /// for a CFG built without a module's command table.
+    pub declared_frame_effects: std::sync::Arc<crate::ir::DeclaredFrameEffects>,
     /// Caller-frame names some callee of this function may **touch through
     /// an `upvar` alias or an `uplevel` write** (`get` running `upvar 1
     /// callervar m` makes `callervar` here observable in both directions).
@@ -263,8 +322,10 @@ pub struct Function {
     /// passes (O109 / O126) must not delete a store to any name in it —
     /// recording a read on the call statement instead would fabricate
     /// read-before-set uses (a false W210) for the pure out-param shape.
-    /// Populated by the CFG builder's `record_alias_observed`; empty for a
-    /// CFG built without an upvar context.
+    /// Populated by the CFG builder's `record_alias_observed`, and for the
+    /// names the last command of a flattened `catch` script stores, whose
+    /// value is the result the `catch` stores; otherwise empty for a CFG built
+    /// without an upvar context.
     pub alias_observed_vars: std::collections::BTreeSet<String>,
     /// Block-name interner: names indexed by [`BlockId`]`.0`, in creation order.
     block_names: Vec<String>,
@@ -281,13 +342,17 @@ impl Function {
             entry: BlockId(0),
             blocks: HashMap::new(),
             loop_nodes: HashMap::new(),
+            opaque_catch_bodies: HashMap::new(),
             exception_edges: Vec::new(),
+            region_entries: Vec::new(),
+            catch_ends: Vec::new(),
             inline_body_error_sites: Vec::new(),
             command_binding_sites: Vec::new(),
             procedure_binding_requirements: Vec::new(),
             command_boundary_sites: HashMap::new(),
             command_boundary_continuations: HashMap::new(),
             caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier::default(),
+            declared_frame_effects: std::sync::Arc::default(),
             alias_observed_vars: std::collections::BTreeSet::new(),
             block_names: Vec::new(),
             name_to_id: FxHashMap::default(),
@@ -647,19 +712,6 @@ mod tests {
         }
     }
 
-    fn registry_barrier_marker() -> Statement {
-        Statement::Barrier {
-            span: Span::new(0, 0),
-            reason: "scalar facts".into(),
-            command: "<registry-barrier>".into(),
-            canonical_command: None,
-            args: Vec::new(),
-            tokens: Some(crate::ir::CommandTokens::marker(
-                crate::ir::SyntheticMarker::RegistryBarrier,
-            )),
-        }
-    }
-
     #[test]
     fn aot_clean_when_no_barrier() {
         // A barrier-free function (here: just an empty entry block) is AOT-clean.
@@ -680,14 +732,14 @@ mod tests {
     }
 
     #[test]
-    fn registry_barrier_marker_does_not_block_aot() {
+    fn the_unseen_call_marker_does_not_block_aot() {
         let mut f = Function::new("::p", "entry");
         let entry = f.entry;
         f.blocks
             .get_mut(&entry)
             .unwrap()
             .statements
-            .push(registry_barrier_marker());
+            .push(Statement::unseen_call_marker(Span::new(0, 0)));
         assert!(f.is_aot_clean());
     }
 
@@ -909,8 +961,9 @@ mod tests {
             for_end,
             LoopNode {
                 entry_block: for_header,
+                start: for_header,
                 span: Span::new(0, 30),
-                for_stmt: Statement::For {
+                statement: Statement::For {
                     span: Span::new(0, 30),
                     init: crate::ir::Script::new(),
                     init_span: Span::new(0, 0),

@@ -32,7 +32,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use tcl_engine_api::{EngineError, HostCommand, Value};
+use tcl_engine_api::{EngineError, HostCommand, HostOutcome, Value};
 use tcl_registry::arg_role::{AppendedArity, ArgRole};
 use tcl_registry::clause_shape::ClauseShapeError;
 use tcl_registry::hover::ScriptTiming;
@@ -40,7 +40,7 @@ use tcl_registry::literal_validation::{
     LiteralArgumentIssue, LiteralArgumentIssueReason, LiteralArgumentValidation,
     LiteralValidationDecline,
 };
-use tcl_registry::pack_hooks::{HookAnswer, HookFamily};
+use tcl_registry::pack_hooks::{EvaluationAnswer, HookAnswer, HookFamily, PackTransition};
 use tcl_registry::spec::{ConstraintReport, ConstraintSlot};
 
 use crate::intern::{intern, intern_words};
@@ -85,6 +85,23 @@ pub enum Emission {
     /// "I cannot judge this call" the types-hook contract requires, and the
     /// one emission that cancels every report the body already made.
     ConstraintAbstain,
+    /// The `evaluate` family's `write TARGET VALUE`: one declared target
+    /// holds `value` afterwards.
+    Write {
+        /// The declared target, as the body names it.
+        target: usize,
+        /// The written value.
+        value: String,
+    },
+    /// The `evaluate` family's `preserve TARGET`: the declared target keeps
+    /// its prior value and existence.
+    Preserve {
+        /// The declared target, as the body names it.
+        target: usize,
+    },
+    /// The `state_transitions` resolver family's `alias LOCAL TARGET ?-level
+    /// LEVEL?` and `namespace-variable NAME`.
+    Transition(PackTransition),
 }
 
 /// Where every verb of one invocation writes.
@@ -132,6 +149,9 @@ pub struct Reading {
 /// One invocation as the reading verbs see it.
 #[derive(Debug, Default, Clone)]
 struct ReadingView {
+    /// The `evaluate` family's declared store targets: the only indices a
+    /// `write` or `preserve` may name.
+    targets: Vec<usize>,
     /// Canonical option name → its first literal value word, in call order.
     options: Vec<(String, Option<String>)>,
     /// Positional words after the option run, `None` where not statically
@@ -147,6 +167,7 @@ impl Reading {
     /// Replace the view with this call's, before the body runs.
     pub fn set(&self, options: &[(&'static str, Option<&str>)], positionals: &[Option<&str>]) {
         *self.view.borrow_mut() = ReadingView {
+            targets: Vec::new(),
             options: options
                 .iter()
                 .map(|(name, value)| ((*name).to_owned(), value.map(str::to_owned)))
@@ -161,6 +182,22 @@ impl Reading {
     /// Drop the view, so a verb called outside an invocation sees nothing.
     pub fn clear(&self) {
         *self.view.borrow_mut() = ReadingView::default();
+    }
+
+    /// Set the declared store targets of the call about to run.
+    pub fn set_targets(&self, targets: &[usize]) {
+        targets.clone_into(&mut self.view.borrow_mut().targets);
+    }
+
+    /// The declared target `value` names. Naming anything else raises: a
+    /// `write` to a non-target is an error, and an error is a decline.
+    fn target(&self, verb: &str, value: &Value) -> Result<usize, EngineError> {
+        let index = index_of(verb, value)?;
+        if self.view.borrow().targets.contains(&index) {
+            Ok(index)
+        } else {
+            Err(misuse(verb, &format!("{index} is not a declared target")))
+        }
     }
 
     fn option_present(&self, arguments: &[Value]) -> Result<Value, EngineError> {
@@ -299,7 +336,15 @@ fn timing_by_name(name: &str) -> Result<ScriptTiming, EngineError> {
 }
 
 impl HostCommand for Verb {
-    fn invoke(&self, arguments: &[Value]) -> Result<Value, EngineError> {
+    fn invoke(&self, arguments: &[Value]) -> Result<HostOutcome, EngineError> {
+        self.answer(arguments).map(HostOutcome::ok)
+    }
+}
+
+impl Verb {
+    /// What the verb answers: the value a reader verb reads, or the empty one an
+    /// emitter verb leaves after it has pushed its emission.
+    fn answer(&self, arguments: &[Value]) -> Result<Value, EngineError> {
         // Reader verbs answer from the invocation view and emit nothing —
         // they are how a `constraints` body reads the call it is judging.
         match self.name {
@@ -385,10 +430,39 @@ impl HostCommand for Verb {
                 Emission::ExtraWords(index_of(self.name, first)?)
             }
             "consume" => consume_emission(arguments)?,
+            "write" | "preserve" => self.store_emission(arguments)?,
+            "alias" => alias_emission(arguments)?,
+            "namespace-variable" => {
+                let [name] = arguments else {
+                    return Err(misuse(self.name, "expected NAME"));
+                };
+                Emission::Transition(PackTransition::NamespaceVariable {
+                    name: index_of(self.name, name)?,
+                })
+            }
             other => return Err(misuse(other, "not an emitter verb of this family")),
         };
         self.sink.push(emission);
         Ok(Value::Empty)
+    }
+}
+
+impl Verb {
+    /// `write TARGET VALUE` / `preserve TARGET`: one of an `evaluate`
+    /// body's ordered stores, its target checked against the declared ones
+    /// — a non-target raises, which is a decline.
+    fn store_emission(&self, arguments: &[Value]) -> Result<Emission, EngineError> {
+        match (self.name, arguments) {
+            ("write", [target, value]) => Ok(Emission::Write {
+                target: self.reading.target(self.name, target)?,
+                value: text(value),
+            }),
+            ("write", _) => Err(misuse(self.name, "expected TARGET VALUE")),
+            (_, [target]) => Ok(Emission::Preserve {
+                target: self.reading.target(self.name, target)?,
+            }),
+            _ => Err(misuse(self.name, "expected TARGET")),
+        }
     }
 }
 
@@ -495,6 +569,22 @@ fn constraint_slot(spelling: &str) -> Result<ConstraintSlot, EngineError> {
     ))
 }
 
+/// `alias LOCAL TARGET ?-level LEVEL?` — word indices, each: the local
+/// variable, the variable it reaches, and the level word selecting that
+/// variable's frame.
+fn alias_emission(arguments: &[Value]) -> Result<Emission, EngineError> {
+    let (local, target, level) = match arguments {
+        [local, target] => (local, target, None),
+        [local, target, flag, level] if text(flag) == "-level" => (local, target, Some(level)),
+        _ => return Err(misuse("alias", "expected LOCAL TARGET ?-level LEVEL?")),
+    };
+    Ok(Emission::Transition(PackTransition::Alias {
+        local: index_of("alias", local)?,
+        target: index_of("alias", target)?,
+        level: level.map(|level| index_of("alias", level)).transpose()?,
+    }))
+}
+
 /// `consume N ?-invalid MESSAGE?`
 fn consume_emission(arguments: &[Value]) -> Result<Emission, EngineError> {
     let [count, rest @ ..] = arguments else {
@@ -544,12 +634,13 @@ pub fn verbs_for(
 }
 
 /// Fold what a body emitted into the family's answer, applying that family's
-/// silence to an empty sink.
+/// silence to an empty sink. `targets` are the `evaluate` family's declared
+/// store targets, empty for every other family.
 #[must_use]
 // The exhaustive family match is the drift guard: every new hook family must
 // choose both its accepted emissions and its abstaining answer here.
 #[allow(clippy::too_many_lines)]
-pub fn answer_of(family: HookFamily, emissions: Vec<Emission>) -> HookAnswer {
+pub fn answer_of(family: HookFamily, emissions: Vec<Emission>, targets: &[usize]) -> HookAnswer {
     match family {
         HookFamily::ArgRoleResolver => {
             let roles: Vec<(u8, ArgRole)> = emissions
@@ -678,5 +769,47 @@ pub fn answer_of(family: HookFamily, emissions: Vec<Emission>) -> HookAnswer {
                 HookAnswer::Constraints(reports)
             }
         }
+        HookFamily::Evaluate => evaluation_answer(emissions, targets),
+        HookFamily::StateTransitionResolver => {
+            let stated: Vec<PackTransition> = emissions
+                .into_iter()
+                .filter_map(|emission| match emission {
+                    Emission::Transition(fact) => Some(fact),
+                    _ => None,
+                })
+                .collect();
+            if stated.is_empty() {
+                HookAnswer::Abstain
+            } else {
+                HookAnswer::Transitions(stated)
+            }
+        }
     }
+}
+
+/// The `evaluate` family's three rules: silence is a decline; a `write` to a
+/// non-target already raised in its verb; and a declared target the body
+/// said nothing about declines the whole answer, because silence is not a
+/// `preserve`.
+fn evaluation_answer(emissions: Vec<Emission>, targets: &[usize]) -> HookAnswer {
+    let mut result = None;
+    let mut stores = Vec::new();
+    for emission in emissions {
+        match emission {
+            Emission::Fold(value) => {
+                result.get_or_insert(value);
+            }
+            Emission::Write { target, value } => stores.push((target, Some(value))),
+            Emission::Preserve { target } => stores.push((target, None)),
+            _ => {}
+        }
+    }
+    let silent = result.is_none() && stores.is_empty();
+    let unstated = targets
+        .iter()
+        .any(|target| !stores.iter().any(|(stated, _)| stated == target));
+    if silent || unstated {
+        return HookAnswer::Abstain;
+    }
+    HookAnswer::Evaluation(EvaluationAnswer { result, stores })
 }

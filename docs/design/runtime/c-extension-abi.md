@@ -5,11 +5,15 @@ The ABI by which an **unmodified** C Tcl extension — one that `#include`s
 compiled to WebAssembly and linked against the runtime and the compiled user
 code, with no per-extension shim.
 
-> **Implementation state.** This is a *design contract*, and the surface it
-> describes is not shipped: the repository contains no authored `tcl.h` /
-> `tclOO.h` / `tclTomMath.h`, and `runtime/rust/src/capi.rs` exports only a
-> small subset of the C-API. Derive the shape from this document — nothing in
-> the tree implements it. The per-function ownership and
+> **What the tree exports.** This page states the whole ABI, and the tree
+> implements a subset of it. The authored `tcl.h` is
+> `runtime/rust/include/tcl.h`: it declares the subset each of its two hosts
+> implements (§ 7), and there is no authored `tclOO.h` or `tclTomMath.h`.
+> `runtime/rust/src/capi.rs` exports the runtime's half of that subset —
+> command registration, object construction and copying, the scalar reads
+> and the option-table lookup, lists, `TclFreeObj`, the interpreter's
+> result and error state, the package call and two UTF-8 helpers, 35
+> functions in all — and nothing else of the C API. The per-function ownership and
 > error-path categories live in
 > [`c-api-ownership-contract.md`](c-api-ownership-contract.md).
 
@@ -103,8 +107,9 @@ Tcl 9.0:
 - `tclTomMath.h` — the `mp_*` bignum API.
 
 These are the *only* shim. They are written once, by the runtime author, not
-per extension. None of the three exists yet: `runtime/rust/include/` holds one
-header, `tcl_regex_capi.h`, the C surface of the pure-Rust ARE engine's shim
+per extension. Only `tcl.h` exists (`runtime/rust/include/tcl.h`, § 7);
+`tclOO.h` and `tclTomMath.h` do not. `runtime/rust/include/` also holds
+`tcl_regex_capi.h`, the C surface of the pure-Rust ARE engine's shim
 ([`rust-regex-port.md`](rust-regex-port.md)), which is not part of this ABI.
 
 ### 4.2 `Tcl_Obj` layout
@@ -125,10 +130,16 @@ pub struct TclObj {
 }
 ```
 
-On `wasm32` that is `{ i32, ptr, i32, ptr, 8 bytes }`, 8-aligned. `internalRep`
-is C's 8-byte `Tcl_ObjInternalRep` union; the Rust side keeps it as a raw `u64`
-and reinterprets it for the `wide` / `double` variants, since core-API
-extensions never touch the others. `TclObjType` is the same shape as C's
+On `wasm32` that is `{ i32, ptr, i32, ptr, 8 bytes }`, 24 bytes, 8-aligned, and
+`obj.rs` asserts those offsets when it compiles. `internalRep` is C's 8-byte
+`Tcl_ObjInternalRep` union; the Rust side keeps it as a raw `u64` and
+reinterprets it for the `wide` / `double` variants, since core-API extensions
+never touch the others. `tcl.h` declares the same struct (its fields are the
+hosts' `ptrdiff_t`-sized `TclHost_Size` whatever `Tcl_Size` is) and defines
+`Tcl_IncrRefCount`, `Tcl_DecrRefCount` and `Tcl_IsShared` as Tcl's own macros
+over `refCount`, so a decrement that frees reaches the runtime through the
+exported `TclFreeObj` and an extension's decrement of a fresh object (count 0)
+frees it, as in Tcl. `TclObjType` is the same shape as C's
 registered type descriptor, with the four `free`/`dup`/`updateString`/
 `setFromAny` procs typed to match `tcl.h`, so an extension's own `Tcl_ObjType`
 slots in unchanged.
@@ -152,11 +163,11 @@ for a worked example and user-facing limits.
 
 ### 4.3 Calls: direct imports
 
-Each Tcl C API function is a runtime export with the C ABI (`#[no_mangle]
-extern "C"` in Rust). The extension imports it from the runtime's module
-namespace. No stubs table is consulted. `Tcl_InitStubs` is a nominal success
-check (returns the runtime's Tcl-API version string), since there is no table
-to negotiate.
+Each Tcl C API function — the header's macros apart — is a runtime export with
+the C ABI (`#[no_mangle] extern "C"` in Rust). The extension imports it from the runtime's module
+namespace. No stubs table is consulted. `Tcl_InitStubs` is a macro in the
+header that yields the Tcl-API version string the host presents, since there is
+no table to negotiate.
 
 ### 4.4 Allocation
 
@@ -225,7 +236,7 @@ module**. A loader in the runtime/host loads it at runtime:
 
 The runtime then dispatches as in §4.6. It needs a `wasmtime`-class host loader
 plus a runtime cdylib exporting memory and a growable, exported
-`__indirect_function_table`.
+`__indirect_function_table`; `rust/tcl-engine-wasm` is that loader (§12.1).
 
 **Linker flags that matter.** The main module must export its table
 (`--export-table`) and make it growable (`--growable-table`); the side module is
@@ -244,8 +255,9 @@ are language-agnostic; they are independent of the runtime's implementation lang
 
 - **Compile with clang + a WASI sysroot (wasi-sdk)** — the project standard
   (what `runtime/rust/build.rs` uses for the libtommath tower). The authored
-  `tcl.h` `#include`s `<stdio.h>`/`<string.h>` like the real header, and
-  libc-using extensions compile against the wasi-sdk sysroot. `malloc`/`free`
+  `tcl.h` includes only `<stdarg.h>`, `<stddef.h>` and `<stdlib.h>`; an
+  extension includes the rest of libc it uses, and compiles against the
+  wasi-sdk sysroot. `malloc`/`free`
   used internally by an extension resolve to wasi-libc; for memory that crosses
   the boundary, the extension must use `Tcl_Alloc` (which is the runtime's
   allocator) — this is already the Tcl convention.
@@ -269,6 +281,63 @@ direct-ABI model there is no live stub table, so:
   per-extension.
 
 ## 7. Header scope
+
+**One header, two hosts.** The authored `tcl.h`
+(`runtime/rust/include/tcl.h`) is *the* C hosting contract, and it has two
+hosts: the WASM leg this document specifies, and the native leg
+`rust/tcl-cshim` provides — `Interp<E: Engine>`, the engine interface's second
+consumer, trusted host code loaded only through `Interp::load_static` or a
+host's `load` ([c-extension-shim.md](c-extension-shim.md)). One extension
+source compiles for both. Each host implements the subset it can, and the
+header declares for each host the functions it implements and nothing else:
+`TCL_HOST_WASM` the runtime's, `TCL_HOST_NATIVE` the shim's, so a call the
+compiling host does not implement is a compile error and never a call that
+fails at run time. The host is the compilation target (wasm32 is the WASM leg,
+anything else the native one) unless the build names one with
+`-DTCL_HOST_NATIVE` or `-DTCL_HOST_WASM`; naming both declares both, which
+checks a source against the header and names no host, since none implements the
+union. `rust/tcl-cshim/tests/pkga_e2e.rs`'s expectations, captured against
+Tcl 9.0.4's own `tcl.h`, are the shared conformance vectors.
+
+Both legs declare what the test extension `tests/c/pkga.c` calls: command
+registration (`Tcl_CreateObjCommand`, `Tcl_DeleteCommand`), object construction
+and copying, the scalar reads (`Tcl_GetIntFromObj` and its siblings) and the
+option-table lookup (`Tcl_GetIndexFromObjStruct`, and `Tcl_GetIndexFromObj` as
+its macro), the three list calls, the interpreter's result and error state
+(`Tcl_SetObjResult`, `Tcl_GetObjResult`, `Tcl_ResetResult`, `Tcl_WrongNumArgs`,
+`Tcl_SetObjErrorCode`, and `Tcl_SetResult`, `Tcl_AppendResult` and
+`Tcl_SetErrorCode` as inline functions over two fixed-arity exports,
+`TclHost_SetResultString` and `TclHost_AppendResultString`), the package call,
+the two UTF-8 helpers and `TclFreeObj`, with the `Tcl_Obj` layout of § 4.2 and
+the reference-count macros over it. The WASM leg adds `Tcl_NewObj`; the native
+leg adds the calls that read, write and unset a variable of the caller's frame
+and evaluate a script there (`Tcl_GetVar2Ex`, `Tcl_ObjSetVar2`, `Tcl_UnsetVar2`,
+`Tcl_EvalObjEx`). A source built with `-DTCL_MAJOR_VERSION=8` sees `Tcl_Size` as
+`int`, as an 8.x source does, with inline wrappers for the functions that write a
+size through a pointer.
+
+`make check-c-extension-wasm` (`scripts/check_c_extension_wasm.py`, part of
+`xtask-check`) holds the header to its two hosts. Offline, it reads each leg's
+declarations out of the header and checks them against what the host exports, in
+both directions: the `#[no_mangle]` functions of `runtime/rust/src/capi.rs`
+against the WASM leg, and the `export_name` functions of
+`rust/tcl-cshim/src/ffi.rs` against the native leg; a header macro such as
+`Tcl_DecrRefCount` stands for an export without being declared. With wasi-sdk's
+`clang` it compiles for `wasm32-wasip1`: `tests/c/layout.c`, whose static
+assertions are the 24-byte `Tcl_Obj` layout; the shim's test extensions
+`tests/c/pkga.c`, against the WASM leg alone and against both legs at once, each
+also as an 8.x source, and `tests/c/doors.c`, against both legs at once; and the
+leg a compile with no host named gets, on a wasm32 target and on one that is not.
+Three of those compiles are negatives and must be refused: `doors.c` against the
+WASM leg alone, which calls the frame functions only the shim implements, and
+each default leg's call to a function only the other declares. Without wasi-sdk
+the compiles are skipped, unless `TCL_REQUIRE_WASM_LINK` is set, as it is in the
+CI job that installs the toolchain. The runtime's own test,
+`runtime/rust/tests/pkga_extension.rs`, compiles `pkga.c` for the host against
+the WASM leg, loads it through the runtime's exports and holds it to the
+conformance vectors; two of them differ, because the runtime keeps a NUL inside
+a value as one byte where C Tcl keeps it as `C0 80`, so C code that reads such a
+value as a C string stops at it.
 
 Source of truth for "what the API surface must cover": the 25-extension survey.
 **~85–90% of real extensions are public-`tcl.h`-only.**
@@ -374,24 +443,96 @@ under-specify:
 `embtest.c` is deliberately excluded: it *embeds* Tcl (`main()` +
 `Tcl_FindExecutable`), which is the opposite of extending it.
 
-## 12. The unproven seam
+## 12. The seam, against the real runtime
 
-One seam in §4.6 has never been exercised against the real product: a Tcl
-script compiled by `tcl_compiler::codegen::wasm` calling an
-**extension-registered** command and dispatching into that extension. Every
-demonstration so far used a hand-written driver as the stand-in for compiled
-user code.
+The seam in §4.6 — a Tcl script compiled by `tcl_compiler::codegen::wasm`
+calling an **extension-registered** command and dispatching into that
+extension — runs against the real runtime in
+`a_compiled_script_calls_an_extension_registered_command`
+(`rust/tcl-compiler/tests/wasm_real_link.rs`):
+an extension module shares the runtime's memory and function table, installs its
+`Tcl_ObjCmdProc` in the table and registers it from `Foo_Init` through the
+runtime's `Tcl_CreateObjCommand` export, and a compiled `foo` then reaches it
+with the `clientData` it was registered with and the completion code it answers.
+The same compiled module, run before `Foo_Init`, fails with `invalid command name
+"foo"`, so what finds `foo` afterwards is the registration and not anything the
+compiled code carries.
 
-Half of what it needs is now in place. Compiled code reaching an arbitrary
-runtime command through the live command table is shipped: `tcl_invoke_argv`
-(`codegen_abi.rs`) takes a prebuilt argv from generated code and routes it
-through the same `Interp::dispatch` interpreted Tcl uses, so namespaces,
-`unknown`, aliases, ensembles, and TclOO all resolve identically. A compiled
-script therefore already reaches any command the table holds, without the
-lookup needing an addition.
+Compiled code reaches an arbitrary runtime command through the live command
+table: `tcl_invoke_argv` (`codegen_abi.rs`) takes a prebuilt argv from generated
+code and routes it through the same `Interp::dispatch` interpreted Tcl uses, so
+namespaces, `unknown`, aliases, ensembles, and TclOO all resolve identically, and
+a compiled script reaches any command the table holds without the lookup needing
+an addition. The registration side is `Tcl_CreateObjCommand`
+(`runtime/rust/src/capi.rs`), which binds the name — in the current namespace, or
+the one a qualified name names — to a `Command::ObjCmd` (`interp.rs`). That holds
+the procedure (an index into the shared function table under `wasm32`, an ordinary
+function pointer natively), its `clientData` and its delete procedure behind an
+`Rc`; dispatch calls the procedure with the call's words as `objv` and takes the
+completion code it answers, the result being what it left through
+`Tcl_SetObjResult`. The delete procedure runs when the command's last handle
+drops: at the deletion, a replacement or a `rename` to the empty name for an idle
+command, and when the call returns for one that deletes itself, so its
+`clientData` stays live for as long as its own procedure runs (C Tcl runs it at
+the deletion itself). `Tcl_DeleteCommand` is `rename name {}`.
+`runtime/rust/tests/extension_commands.rs` holds this natively with extensions
+written against the C ABI in Rust.
 
-What is missing is the registration side: there is no `Tcl_CreateObjCommand`
-export and no `Command` variant holding a shared-table function index, so
-nothing can put an extension's `Tcl_ObjCmdProc` into that table for
-`tcl_invoke_argv` to find. Proving the seam means adding both, then having
-`Foo_Init` register `foo` and a compiled script call it.
+### 12.1 Model B, hosted
+
+`rust/tcl-engine-wasm` is the §5.2 loader, and the runtime compiled to
+`wasm32-wasip1` is an engine of the extension interface under it (`WasmEngine`).
+An extension built for the runtime as a side module — `clang
+--target=wasm32-wasip1 -fPIC -DTCL_HOST_WASM` against `runtime/rust/include/tcl.h`,
+then `wasm-ld --experimental-pic -shared --no-entry --import-memory
+--import-table`, with wasi-libc's `libc.a` for what it uses of the C library — is
+loaded as `load` would load it. The host reads `dylink.0`'s `MEM_INFO` by hand,
+reserves the module's data in the runtime's heap (`tcl_codegen_call_frame_alloc`),
+grows the runtime's exported table for its functions, gives it a 64 KiB stack of
+its own, resolves each import of the C API (`env.Tcl_*`, and the `env.TclHost_*`
+and `env.TclFreeObj` the header's macros and inline functions call) to the
+runtime's export, applies the relocations and the constructors, and calls
+`PREFIX_Init` with the interpreter. An import of any other runtime export is
+refused, so an extension reaches the interpreter only through the C API, which
+has no eval or variable door. A module that names libraries to load first
+(`NEEDED`), imports a `GOT.*` entry, calls a function the runtime does not
+export, or defines no `PREFIX_Init` is refused, the refusal naming it.
+
+The host drives the interpreter through the runtime's `tcl_engine_*` exports
+(`runtime/rust/src/engine_abi.rs`), which do across the module boundary what the
+native engine does in process: the command and value-size limits, the
+confinement, the whitelist, the pinned release, a unit's procedure, a package
+provided, and a host command's `return` and error. What the interpreter's counts
+cannot see is the host's to bound. Fuel stands in for the command count in a C
+command's own loop and in a loop that dispatches nothing; the epoch keeps the
+wall clock, since every WASI clock reads zero; and the memory's growth is capped
+by the value-size budget. An evaluation gets `FUEL_PER_COMMAND` (2,000,000
+instructions) for each command its budget allows and one more, beside
+`FIRST_USE_FUEL` (2,000,000,000) for what a fresh instance builds the first
+time it is used, granted once per instance — on the debugging build the tests
+run, a command costs about 170,000 instructions and the first ensemble command
+an instance dispatches about 700 million, building the release's command
+tables; the epoch advances every 5 ms; memory may grow four bytes for each
+byte of the value-size budget, and at least 32 MiB, before the growth traps;
+and the limits are lifted when an evaluation ends, so what is set up between
+evaluations runs under none. In the interpreter itself the command count is
+charged at the dispatch boundary every command crosses, the wall clock is read
+there every 64 dispatches and at the loop commands' poll every 4096
+iterations, and the value size is charged in `string repeat`; a limit once
+outrun stays outrun until the next evaluation begins, so a body that catches
+the error cannot run on. Every WASI function either module imports is a stub
+that answers the same on every run: the clock reads zero, randomness is zeros,
+there is no environment, no argument and no preopened directory, output is
+swallowed, and `proc_exit` ends the evaluation. So nothing of the machine reaches
+an answer. A trap leaves an instance unusable, and the engine rebuilds it from
+what was set up on it.
+
+`rust/tcl-engine-wasm/tests/under_wasm.rs` builds `pkga.c` this way, holds it
+under fuel to the vectors `tclsh9.0` answered (`rust/tcl-cshim/tests/vectors/pkga.rs`),
+and runs the cases the native runtime engine is held to
+(`runtime/rust/tests/common/engine_cases.rs`) on the WASM engine. The registry's
+extension seam (`tcl_registry::extension_host`) is what an analysis binds — a
+pack's `evaluate -implementation ID -host wasm_extension { extension FILE
+PREFIX … }` — and a thread with no
+host installed declines every evaluation as `Transient`, so the language
+server, which never links wasmtime, declines.

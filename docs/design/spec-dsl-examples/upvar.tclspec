@@ -14,6 +14,7 @@
 speclib tcl 1.1 {
 
 command upvar {
+    runtime_backing shipped-builtin upvar
     # A pure variable-scoping primitive — no filesystem, process, or network
     # access — so every dialect that hosts a real Tcl core carries it, iRules
     # included, and no dialect pack redefines it.
@@ -43,7 +44,6 @@ command upvar {
 
     lowering_hook -native Upvar
     codegen_hook  -native Upvar
-    analyser_hook -native Upvar
     xc_translatable no
 
     side_effect Variable -writes

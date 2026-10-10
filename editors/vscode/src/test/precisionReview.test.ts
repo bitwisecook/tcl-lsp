@@ -28,7 +28,7 @@ function withCode(diags: vscode.Diagnostic[], code: string): vscode.Diagnostic[]
   return diags.filter((d) => codeOf(d) === code);
 }
 
-// Diagnostics precision review — tight ranges, rename resolution, and
+// Diagnostic ranges and resolution — tight ranges, rename resolution, and
 // did-you-mean suggestions, asserted through the real editor client so a
 // projection bug (byte→UTF-16, span rebasing) cannot hide behind the
 // server-side e2e suite.
@@ -38,14 +38,14 @@ function withCode(diags: vscode.Diagnostic[], code: string): vscode.Diagnostic[]
 //   4  rename user_args ua2
 //   5  ua2 1 2                  ← known (rename target), no W123
 //   6  user_args 9              ← W128 (vacated name)
-//   7  set x [lindex $missing 0] ← W210 tight on $missing (cols 14..22)
-//   8  puts $x
+//   7  proc read_missing {…}    ← W210 tight on $missing (cols 36..44)
+//   8  read_missing
 //   9  proc greet {name} { … }
 //  10  greet a b                ← E003 tight on surplus `b` (cols 8..9)
 //  11..13  oo::class Animal { method speak }
 //  14  set pet [Animal new]
 //  15  $pet spek                ← W308 tight on `spek` (cols 5..9)
-suite("Diagnostics precision review", () => {
+suite("Diagnostic ranges and resolution", () => {
   const docUri = getDocUri("precisionReview.tcl");
 
   test("rename target is known; vacated name draws both W128 and W123", async () => {
@@ -80,8 +80,8 @@ suite("Diagnostics precision review", () => {
     assert.strictEqual(w210.length, 1, "one read-before-set in the fixture");
     const r = w210[0].range;
     assert.strictEqual(r.start.line, 7);
-    assert.strictEqual(r.start.character, 14, "range starts at $missing");
-    assert.strictEqual(r.end.character, 22, "range ends after $missing");
+    assert.strictEqual(r.start.character, 36, "range starts at $missing");
+    assert.strictEqual(r.end.character, 44, "range ends after $missing");
   });
 
   test("E003 range covers only the surplus argument", async () => {

@@ -102,6 +102,9 @@ struct ModuleEmit<'a> {
     /// Scanned once per module, not once per function.
     command_bindings: &'a crate::command_binding::ModuleCommandMutations,
     plain_command_dispatch: bool,
+    /// The pack commands' definitions the module's calls were inlined from:
+    /// each procedure binding of a function that names one is claimed.
+    references: &'a [crate::ir::ReferenceImport],
 }
 
 /// Like [`codegen_function_with_procs`] but threading the module source text so
@@ -134,7 +137,24 @@ fn codegen_function_src(
     );
     let mut asm = generate::generate(&mut ctx, cfg, proc_defs);
     asm.body_base_line = base_line;
+    claim_reference_bodies(&mut asm, module.references);
     asm
+}
+
+/// Record, beside each procedure binding of `asm` that names a definition
+/// copied from a pack, the claim on the pack's facts and on the backing that
+/// makes the definition the command ([`crate::inlining::inline_reference_bodies`]).
+fn claim_reference_bodies(asm: &mut FunctionAsm, references: &[crate::ir::ReferenceImport]) {
+    if references.is_empty() {
+        return;
+    }
+    asm.site_claims.extend(
+        asm.procedure_bindings
+            .iter()
+            .filter_map(|binding| crate::inlining::reference::claim_for(references, binding)),
+    );
+    asm.site_claims.sort();
+    asm.site_claims.dedup();
 }
 
 /// Resolve the compile's dialect name to the profile [`ModuleEmit`] carries.
@@ -314,8 +334,11 @@ fn codegen_module_with_top_context(
     registry: &CommandRegistry,
     command_mutations: &crate::command_binding::ModuleCommandMutations,
 ) -> ModuleAsm {
-    let src = &ir_module.source;
-    let source: std::rc::Rc<str> = src.as_str().into();
+    // The text every span indexes — the module's own and any definition the
+    // inliner appended — is what codegen slices; only the module's own is the
+    // artefact's source.
+    let source: std::rc::Rc<str> = ir_module.source.as_str().into();
+    let src = ir_module.own_source();
     let line_index = tcl_lexer::LineIndex::new(&source);
     // The compile's target release: a named dialect's own numeric grammar, else
     // the permissive 9.x default.
@@ -341,6 +364,7 @@ fn codegen_module_with_top_context(
         expr_grammar,
         command_bindings: command_mutations,
         plain_command_dispatch: ir_module.plain_command_dispatch,
+        references: &ir_module.reference_bodies.imports,
     };
     let top = codegen_function_src(
         &cfg_module.top_level,
@@ -371,9 +395,9 @@ fn codegen_module_with_top_context(
         )
     };
     let procedures = codegen_procedures(cfg_module, ir_module, &module);
-    ModuleAsm {
+    let mut asm = ModuleAsm {
         profile: emit_profile(dialect).unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
-        source: src.clone(),
+        source: src.to_owned(),
         // Lowering owns the rooted constructed form; the runtime ABI uses the
         // corresponding unrooted constructed key. Remove exactly the root
         // marker rather than reparsing a key whose first segment may be `:`.
@@ -387,7 +411,21 @@ fn codegen_module_with_top_context(
         top_level_body: top_body,
         procedures: procedures.functions,
         procedure_provenance: procedures.provenance,
-    }
+        manifest: None,
+    };
+    asm.manifest = Some(std::sync::Arc::new(module_manifest(&asm)));
+    asm
+}
+
+/// What `module` says about the world it was compiled for: the context of the
+/// profile it carries, the pack facts its sites claim, and this build's
+/// intrinsic table. The runtime's pin states the same thing in the same
+/// shape (`tcl_runtime_api::RuntimeContext::identity`), so the two compare.
+fn module_manifest(module: &ModuleAsm) -> tcl_runtime_api::ArtefactIdentityManifest {
+    tcl_registry::model::runtime_context_for_profile(module.profile).identity(
+        &module.claimed_packs(),
+        tcl_registry::intrinsic_table_hash(),
+    )
 }
 
 #[cfg(test)]

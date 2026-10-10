@@ -49,6 +49,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fpclassify",
+        runtime_backing: RuntimeBacking::shipped("fpclassify"),
         // Added in Tcl 9.0 (`package require tcl 9.0` in its own SYNOPSIS)
         // and unchanged in 9.1 — see the module comment.
         surface: Some(SpecSurface::TCL90_PLUS),
@@ -83,6 +84,9 @@ pub fn spec() -> CommandSpec {
             return_value: "One of `zero`, `subnormal`, `normal`, `infinite`, or `nan`. Raises an error when value is not convertible to a floating-point number.",
         }),
         forms: FORMS,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
     }
 }

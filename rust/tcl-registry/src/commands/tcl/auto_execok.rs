@@ -31,6 +31,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "auto_execok",
+        runtime_backing: RuntimeBacking::package_source("init.tcl"),
         // `surface: Some(SpecSurface::ALL_TCL)` is deliberate, not an
         // oversight: F5 iRules bans this proc (it is one of the K36322151
         // filesystem/process bans), and that ban is carried by this very

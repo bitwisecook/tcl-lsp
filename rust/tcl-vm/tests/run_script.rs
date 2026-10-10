@@ -1231,6 +1231,7 @@ fn run_asm(literals: &[&str], instrs: Vec<tcl_bytecode::Instruction>) -> String 
         plain_command_dispatch: false,
         command_bindings: Vec::new(),
         procedure_bindings: Vec::new(),
+        site_claims: Vec::new(),
     };
     let module = ModuleAsm {
         profile: tcl_dialect::DialectProfile::plain_tcl(),
@@ -1241,6 +1242,7 @@ fn run_asm(literals: &[&str], instrs: Vec<tcl_bytecode::Instruction>) -> String 
         top_level_body: FunctionAsm::default(),
         procedures: std::collections::HashMap::new(),
         procedure_provenance: std::collections::HashMap::new(),
+        manifest: None,
     };
     let mut vm = Vm::new();
     vm.run_module(&module).result.to_str().to_string()

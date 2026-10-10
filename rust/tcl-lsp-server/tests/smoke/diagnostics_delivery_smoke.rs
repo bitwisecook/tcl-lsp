@@ -602,17 +602,17 @@ fn version_tagged_publishes(frames: &[String], uri: &str) -> Vec<(i64, String)> 
 /// So the two properties are driven separately, each against a signal
 /// rather than a clock:
 ///
-/// * **Phase A — ordering.** Each edit is followed by draining frames until a
+/// * **Ordered delivery.** Each edit is followed by draining frames until a
 ///   publish for that version (or later) actually arrives. The barrier is the
 ///   publish itself, so the next edit cannot reach the worker inside the same
 ///   debounce window and the burst *cannot* coalesce: the number of ordered,
-///   version-tagged publishes is a structural property of the phase, not a race
+///   version-tagged publishes is a structural property of the check, not a race
 ///   the machine can lose. Frames are kept as they are read, so the ordering
 ///   check still sees true arrival order.
-/// * **Phase B — two publishes provably in flight at once, and no loss under
-///   backpressure.** Phase A's barrier deliberately forbids concurrency, so the
-///   ordering assertion would otherwise only ever see a serialised stream.
-///   Phase B fires two sub-bursts with the client reading
+/// * **Concurrent delivery with two publishes in flight and no loss under
+///   backpressure.** The ordering barrier forbids concurrency, so that
+///   assertion only sees a serialised stream.
+///   The concurrent-delivery check fires two sub-bursts with the client reading
 ///   nothing of the publish stream, and gets its concurrency guarantee from a
 ///   *pre-publish* marker rather than from out-racing the debounce with a sleep
 ///   (a single burst legitimately coalesces to one version, which makes
@@ -655,7 +655,7 @@ fn version_tagged_publishes(frames: &[String], uri: &str) -> Vec<(i64, String)> 
 ///
 /// The ordering assertion is therefore kept as what it actually is — a cheap
 /// invariant over the real delivered stream, exercised over concurrently
-/// produced publishes in Phase B — and not advertised as the guard for the
+/// produced publishes in the concurrent-delivery check — and not advertised as the guard for the
 /// fire-and-forget regression. The guard for *that* is the invariant comment in
 /// `main.rs` and review of the delivery path.
 #[tokio::test]
@@ -695,7 +695,7 @@ async fn rapid_edits_deliver_diagnostics_in_version_order_without_loss() {
 
     let mut frames: Vec<String> = Vec::new();
 
-    // Phase A — ordering. Full-replace edits alternating clean / E003 so
+    // Ordered delivery. Full-replace edits alternating clean / E003 so
     // consecutive versions differ (no salsa early-cutoff skip), each followed by
     // a drain up to that version's publish. Barriering on the publish (not on a
     // sleep) is what makes the separate-publish-per-version property structural
@@ -722,7 +722,7 @@ async fn rapid_edits_deliver_diagnostics_in_version_order_without_loss() {
         );
     }
 
-    // Phase B — two publishes provably in flight at once, then no loss under
+    // Concurrent delivery with two publishes in flight, then no loss under
     // backpressure.
     //
     // Sub-burst 1 is fired and then barriered on the server's *pre-publish*
@@ -787,11 +787,11 @@ async fn rapid_edits_deliver_diagnostics_in_version_order_without_loss() {
     server.abort();
 }
 
-/// The two delivery invariants, checked over the frames both phases collected.
+/// The two delivery invariants, checked over the frames both checks collected.
 ///
-/// `arrived` is whether the Phase B drain reached `final_version`'s publish;
-/// `first_burst_version` separates Phase A's serialised stream from Phase B's
-/// concurrently produced one.
+/// `arrived` records whether the concurrent-delivery drain reached the publish
+/// for `final_version`. `first_burst_version` separates the serialised stream
+/// from the concurrently produced stream.
 fn assert_delivery_invariants(
     frames: &[String],
     first_burst_version: i64,
@@ -802,9 +802,9 @@ fn assert_delivery_invariants(
     let versions: Vec<i64> = publishes.iter().map(|(v, _)| *v).collect();
 
     // Tripwire: a single publish makes the ordering `windows(2)` loop vacuous
-    // (zero pairs). Phase A guarantees one publish per version, so this can only
-    // trip if the publish-barrier contract itself broke — a real failure, not a
-    // load artefact.
+    // (zero pairs). The ordering check guarantees one publish per version,
+    // so this can only trip if the publish-barrier contract itself broke —
+    // a real failure, not a load artefact.
     assert!(
         publishes.len() >= 2,
         "expected ≥2 version-tagged publishes to exercise delivery ordering, \
@@ -812,7 +812,8 @@ fn assert_delivery_invariants(
     );
     // 1) Ordering: never a lower version after a higher one — over the whole
     //    delivered stream, and (called out separately because it is the half
-    //    that observes *concurrently produced* publishes) over Phase B's.
+    //    that observes concurrently produced publishes) over the concurrent
+    //    stream.
     for pair in publishes.windows(2) {
         assert!(
             pair[0].0 <= pair[1].0,

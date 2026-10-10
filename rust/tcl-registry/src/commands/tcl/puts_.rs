@@ -89,6 +89,7 @@ fn puts_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "puts",
+        runtime_backing: RuntimeBacking::shipped("puts"),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::FRAMELESS_RUNTIME | Traits::BYTE_COMPILED | Traits::TAINT_SINK,
         // Positional count only (1 = string, 2 = channelId string) — the
@@ -121,6 +122,7 @@ pub fn spec() -> CommandSpec {
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
+                effect: None,
             }]
         },
         hover: Some(HoverSnippet {

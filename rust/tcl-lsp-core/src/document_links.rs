@@ -188,6 +188,7 @@ pub fn document_links_in_context(
         &tcl_compiler::auto_path_eval::constant_path_assignments(source, dialect),
         script_path,
         ctx.imported_constants.unwrap_or(&no_imports),
+        Some(dialect),
     );
     links.extend(pack_include_links(
         source,
@@ -268,6 +269,7 @@ pub fn document_links_in_context(
             seg.single_token_word.get(idx).copied(),
             script_path,
             &constants,
+            dialect,
         ) else {
             continue;
         };
@@ -346,6 +348,7 @@ fn pack_include_links(
     for pack in segment_commands_with_offset_and_config(source, 0, config) {
         // `speclib NAME VERSION { … }` — the pack body is the fourth word, and
         // the document grammar admits no other statement at the root.
+        // value-transfer-ok: irreducible — the pack grammar's own statements
         if pack.texts.first().is_none_or(|head| head != "speclib") {
             continue;
         }
@@ -360,6 +363,7 @@ fn pack_include_links(
             continue;
         };
         for row in segment_commands_with_offset_and_config(body_text, body_start, config) {
+            // value-transfer-ok: irreducible — the pack grammar's own statements
             if row.texts.first().is_none_or(|head| head != "include") || row.texts.len() != 2 {
                 continue;
             }
@@ -472,6 +476,7 @@ fn resolve_source_argument(
     single_token_word: Option<bool>,
     script_path: Option<&str>,
     constants: &std::collections::HashMap<String, String>,
+    dialect: &'static tcl_dialect::DialectProfile,
 ) -> Option<String> {
     if !carries_substitution(path) {
         // Genuinely literal — but still only when the word is one token, so
@@ -488,6 +493,7 @@ fn resolve_source_argument(
         path,
         script_path,
         constants,
+        Some(dialect),
     )
 }
 

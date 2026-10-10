@@ -27,6 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "join",
+        runtime_backing: RuntimeBacking::shipped("join"),
         // `Some(SpecSurface::ALL_TCL_AND_IRULES)` is deliberate, not an
         // oversight: `join` is a pure list-manipulation command — none of the
         // filesystem/process/interp surface (`open`, `exec`, `file`, `glob`,
@@ -63,6 +64,9 @@ pub fn spec() -> CommandSpec {
             return_value: "A string formed by joining the elements of list together, with joinString (a single space by default) between each adjacent pair.",
         }),
         forms: FORMS,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
     }
 }

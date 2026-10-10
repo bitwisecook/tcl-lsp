@@ -27,6 +27,7 @@ const OPTIONS: &[OptionSpec] = &[OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
@@ -50,6 +51,9 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         options: OPTIONS,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

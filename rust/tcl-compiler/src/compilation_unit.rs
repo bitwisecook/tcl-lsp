@@ -33,6 +33,7 @@ use std::sync::Arc;
 
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::semantic::SemanticContext;
+use tcl_registry::value_transfer::{AnalysisTier, DeclineReason, DomainFact, FactView};
 
 use crate::cfg::{CfgModule, Function as CfgFunction};
 use crate::cfg_builder::{
@@ -130,6 +131,14 @@ pub struct LatticeRequest<'a> {
     /// every cached lattice, not just the procedure whose body carries the
     /// `trace` call.
     pub traced_variables: &'a [String],
+    /// The analysis context's memo identity for the module — the
+    /// command-binding evidence, the registry and overlay generations, the
+    /// tier, and the evaluator revision — so the value-transfer driver's
+    /// answers are keyed by every fact that can change them
+    /// (`docs/design/compiler/value-transfers.md` § *One invocation, one
+    /// context*). Folded into the memo key like `traced_variables`: a
+    /// `rename` anywhere in the module re-keys every procedure's lattice.
+    pub analysis_context: &'a crate::value_transfer::AnalysisContextKey,
     /// [`crate::ir::Module::has_dynamic_variable_trace`] — `true` when a
     /// variable-trace install/remove call targets a non-literal name
     /// anywhere in the module, which SCCP must treat as "every variable is
@@ -149,7 +158,7 @@ pub struct LatticeRequest<'a> {
 /// caller owns the backing store and its eviction policy.
 pub type ProcLatticeCache<'a> = dyn FnMut(&LatticeRequest<'_>) -> FunctionUnit + 'a;
 
-/// Memoised per-procedure **body-lowering** callback (SRV-INCREMENTAL Task 3):
+/// Memoised per-procedure **body-lowering** callback:
 /// `(qualified name, body source) -> lowered body`.  Named so the build entry
 /// points that thread it stay readable (and clippy's `type_complexity` has
 /// nothing to complain about).
@@ -196,6 +205,67 @@ pub struct UnitBuildOptions<'a> {
     /// one door onto a document's command surface. `None` is a document that
     /// declares nothing.
     pub declared_commands: Option<&'a tcl_registry::model::DeclaredSurface>,
+}
+
+/// The qualified-name prefix of an iRules `when` handler's procedure.
+const WHEN_HANDLER_PREFIX: &str = "::when::";
+
+/// Where a consumer reads a place's existence fact
+/// ([`FunctionUnit::existence`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExistencePoint {
+    /// Just before the statement at this index of the block runs.
+    Before(crate::cfg::BlockId, usize),
+    /// At the block's exit, where its terminator reads.
+    Exit(crate::cfg::BlockId),
+    /// Where this version of the place is established.
+    Version(crate::ssa::Version),
+}
+
+/// The names an iRules `when` handler of the module may find bound on
+/// entry: every name any handler binds, with the array each element sits
+/// in, and whether a handler writes a computed name
+/// ([`crate::value_transfer::ConnectionScoped`]). A handler's variables
+/// live as long as its connection, so another event — or an earlier firing
+/// of the same one — may have bound them; empty for a module with no
+/// handler.
+fn connection_scoped_names(
+    cfg_module: &CfgModule,
+    registry: &CommandRegistry,
+    options: UnitBuildOptions<'_>,
+) -> crate::value_transfer::ConnectionScoped {
+    let config = options.config;
+    let mut names: BTreeSet<String> = BTreeSet::new();
+    let mut any = false;
+    for (qname, cfg) in &cfg_module.procedures {
+        if !qname.starts_with(WHEN_HANDLER_PREFIX) {
+            continue;
+        }
+        any |= crate::dynamic_names::dynamic_name_barrier(cfg, registry, config).writes;
+        for block in cfg.blocks.values() {
+            for statement in &block.statements {
+                names.extend(crate::ssa::defs_of_with_registry(statement, Some(registry)));
+                for script in crate::ir_helpers::nested_bodies(statement) {
+                    crate::ir::for_each_statement(script, &mut |inner| {
+                        names.extend(crate::ssa::defs_of_with_registry(inner, Some(registry)));
+                    });
+                }
+            }
+        }
+    }
+    let arrays: Vec<String> = names
+        .iter()
+        .filter_map(|name| {
+            name.split_once('(')
+                .filter(|_| name.ends_with(')'))
+                .map(|(base, _)| base.to_owned())
+        })
+        .collect();
+    names.extend(arrays);
+    crate::value_transfer::ConnectionScoped {
+        names: names.into_iter().collect(),
+        any,
+    }
 }
 
 /// Callback type for [`CompilationUnit::with_interprocedural_memoized`].
@@ -317,9 +387,9 @@ pub struct FunctionUnit {
     /// run time (`set $var v` / `[set $name]` / `unset $n`).
     ///
     /// Three flags, no name set — a dynamic access clobbers the whole name
-    /// space, so the consumers ([`crate::sccp::existence_constant_branches`]'s
-    /// existence fold, the W210 / W211 / W220 emitters, and the optimiser's
-    /// O101 / O109 / O126) read it in `O(1)` and abstain.  See
+    /// space, so the consumers (the existence rung's clobbers, the W210 /
+    /// W211 / W220 emitters, and the optimiser's O101 / O109 / O126) read it
+    /// in `O(1)` and abstain.  See
     /// [`crate::dynamic_names`].
     pub dynamic_names: crate::dynamic_names::DynamicNameBarrier,
     /// Single source of truth for the deep-analysis complexity guard: when
@@ -329,6 +399,13 @@ pub struct FunctionUnit {
     /// so byte-large-but-block-light generated bodies are guarded
     /// consistently).
     pub complexity_guarded: bool,
+    /// The precision tier the unit's lattices were computed at: the deep
+    /// tier for every full build, the request's own tier for a request
+    /// below it — the existence rung is a deep-tier fact, so such a request
+    /// computes none — and [`AnalysisTier::ComplexityGuarded`] for a unit
+    /// over the complexity ceiling, whose lattices are trivial.
+    /// [`Self::existence`] answers `Unavailable` with it below the deep tier.
+    pub tier: AnalysisTier,
     /// Byte offset to add to this unit's (otherwise relative) spans to recover
     /// **absolute** source positions (Approach B — offset-aware consumers).
     ///
@@ -371,6 +448,32 @@ pub struct ModuleTraceFacts<'a> {
     pub traced_variables: &'a BTreeSet<String>,
     /// [`crate::ir::Module::has_dynamic_variable_trace`].
     pub has_dynamic_variable_trace: bool,
+    /// [`crate::ir::Module::deferred_writes`]: the names the module's
+    /// callback scripts write. The value lattices read it beside the traced
+    /// names; the taint lattice does not, since a callback's write is no
+    /// trace's read of tainted data.
+    pub deferred_writes: &'a crate::ir::DeferredWrites,
+}
+
+/// The whole-module facts a per-procedure build runs under: the variable
+/// traces and the analysis context every value-transfer answer is keyed
+/// on. One value per module, shared by every memoised request; the context
+/// joins [`ModuleTraceFacts`] once every constructor of that struct carries
+/// it.
+#[derive(Debug, Clone, Copy)]
+pub struct ModuleAnalysisFacts<'a> {
+    /// The module's variable-trace facts.
+    pub trace: ModuleTraceFacts<'a>,
+    /// The module's analysis context.
+    pub analysis_context: &'a crate::value_transfer::AnalysisContextKey,
+    /// The command trust the context's
+    /// [`crate::command_binding::CommandTrustSnapshot`] stands for, built
+    /// once per module rather than per procedure: the memo's interned
+    /// context holds it rebuilt from the snapshot, and a whole-module build
+    /// passes the scan the snapshot was taken from, which the snapshot
+    /// round-trips to. Every route the shared lattice runs folds under it
+    /// with the [`crate::sccp::FoldTrust::ObservedBindings`] stance.
+    pub command_trust: &'a crate::command_binding::ModuleCommandMutations,
 }
 
 /// The two document-level facts a unit build always reads together: the
@@ -386,6 +489,12 @@ pub struct UnitDialect<'a> {
     /// The document's body-lexing config.
     pub config: tcl_lexer::LexerConfig,
 }
+
+/// A procedure's interprocedural parameter seeds, keyed by parameter and
+/// version.
+type ParamSeeds<'a> = Option<
+    &'a std::collections::HashMap<(String, crate::ssa::Version), crate::analyses::LatticeValue>,
+>;
 
 /// The analysis inputs threaded into a [`FunctionUnit`] build beyond the
 /// unit's own `name` / `cfg`, grouped into one parameter so the deep-build
@@ -412,12 +521,16 @@ struct FunctionBuildInputs<'a> {
     extra_global_escaping: &'a HashSet<String>,
     /// Whole-module variable-trace facts.
     trace_facts: ModuleTraceFacts<'a>,
+    /// The analysis context's memo identity — the module's command-binding
+    /// evidence and the registry, tier, and evaluator generations — when the
+    /// caller carries one; the value-transfer driver runs detached otherwise.
+    analysis_context: Option<&'a crate::value_transfer::AnalysisContextKey>,
     /// Whole-module command-mutation trust
     /// ([`crate::command_binding::ModuleCommandMutations`]) — which command
-    /// names still denote the builtin they spell. SCCP folds a builtin
-    /// command substitution only for a name this trusts, so a module with a
-    /// shadowing `proc llength …` gets no `[llength …]` fold anywhere in the
-    /// lattice rather than one that contradicts the optimiser's own
+    /// names still denote the builtin they spell. The value-transfer driver
+    /// answers for a resolved head only when this trusts it, so a module
+    /// with a shadowing `proc llength …` gets no `[llength …]` fold anywhere
+    /// in the lattice rather than one that contradicts the optimiser's own
     /// proc-call fold (#2164).
     command_trust: &'a crate::command_binding::ModuleCommandMutations,
     /// Names auto-bound to out-of-frame *object* storage on entry — a
@@ -429,9 +542,44 @@ struct FunctionBuildInputs<'a> {
     /// interpreter's initial global frame.  The `[info exists]` fold must
     /// abstain on the registry's special variables there.
     initial_global: bool,
+    /// The module's procedures, where the build holds them: what a
+    /// parameter default or a callee's transfer summary is read from.
+    procedures: Option<&'a crate::interprocedural::ModuleProcedures<'a>>,
 }
 
-impl ModuleTraceFacts<'_> {
+impl<'a> FunctionBuildInputs<'a> {
+    /// The frame facts the existence rung enters the function `name` with.
+    /// It reads the computed names per statement, so it takes the module's
+    /// own trace fact rather than the widened one the values run under; an
+    /// iRules `when` handler adds the names its connection may hold.
+    fn existence_entry(&self, name: &str) -> crate::sccp::ExistenceEntry<'a> {
+        crate::sccp::ExistenceEntry {
+            params: self.params,
+            object_state: self.object_state,
+            initial_global: self.initial_global,
+            connection_scoped: self
+                .analysis_context
+                .map(|key| &key.connection_scoped)
+                .filter(|_| name.starts_with(WHEN_HANDLER_PREFIX)),
+            dynamic_trace: self.trace_facts.has_dynamic_variable_trace
+                || self.trace_facts.deferred_writes.any,
+            config: self.config,
+            caller_places: None,
+        }
+    }
+}
+
+impl<'a> ModuleTraceFacts<'a> {
+    /// The trace facts lowering recorded on `module`.
+    #[must_use]
+    pub fn of(module: &'a IrModule) -> Self {
+        Self {
+            traced_variables: &module.traced_variables,
+            has_dynamic_variable_trace: module.has_dynamic_variable_trace,
+            deferred_writes: &module.deferred_writes,
+        }
+    }
+
     /// No `Module` in hand (a standalone per-function build) — behaviourally
     /// identical to "nothing is traced".
     #[must_use]
@@ -443,6 +591,7 @@ impl ModuleTraceFacts<'_> {
         Self {
             traced_variables: EMPTY.get_or_init(BTreeSet::new),
             has_dynamic_variable_trace: false,
+            deferred_writes: &crate::ir::NO_DEFERRED_WRITES,
         }
     }
 }
@@ -528,7 +677,7 @@ impl FunctionUnit {
         let no_extra_escaping = HashSet::new();
         let UnitDialect { registry, config } = dialect;
         Self::build_full(
-            name,
+            name.into(),
             cfg,
             FunctionBuildInputs {
                 config,
@@ -538,17 +687,97 @@ impl FunctionUnit {
                 known_classes,
                 extra_global_escaping: &no_extra_escaping,
                 trace_facts,
+                analysis_context: None,
                 // The "no mutations observed" baseline
                 // ([`crate::command_binding::ModuleCommandMutations`]'s
                 // `Default`): this entry point takes a single CFG with no
-                // module to scan, so it has no rebinding to report. The
-                // compilation-unit build does have one and passes it, and
-                // [`build_procedure_units`] refuses a memoised unit built
-                // through here whenever the module's trust is not pristine —
-                // the memo key cannot carry the fact.
+                // module to scan, so it has no rebinding to report. A build
+                // under a module's scan goes through
+                // [`Self::build_with_param_constants_and_classes_under`],
+                // whose context key carries that module's trust.
                 command_trust: &crate::command_binding::ModuleCommandMutations::default(),
                 object_state: None,
                 initial_global: false,
+                procedures: None,
+            },
+        )
+    }
+
+    /// [`Self::build_with_param_constants_and_classes`] under the module's
+    /// analysis context: the per-procedure path of a unit build and of the
+    /// memoised lattice, whose key carries the same context. The command
+    /// trust the driver folds under is the context's own
+    /// [`crate::command_binding::CommandTrustSnapshot`], so a memoised unit
+    /// and a fresh one answer alike by construction, and a module whose
+    /// bindings differ is a different key rather than a stale hit (#2164).
+    #[must_use]
+    pub fn build_with_param_constants_and_classes_under(
+        name: impl Into<String>,
+        cfg: CfgFunction,
+        params: &[String],
+        dialect: UnitDialect<'_>,
+        param_constants: Option<
+            &std::collections::HashMap<
+                (String, crate::ssa::Version),
+                crate::analyses::LatticeValue,
+            >,
+        >,
+        known_classes: &HashSet<String>,
+        facts: ModuleAnalysisFacts<'_>,
+    ) -> Self {
+        let no_extra_escaping = HashSet::new();
+        let UnitDialect { registry, config } = dialect;
+        Self::build_full(
+            name.into(),
+            cfg,
+            FunctionBuildInputs {
+                config,
+                params,
+                registry,
+                param_constants,
+                known_classes,
+                extra_global_escaping: &no_extra_escaping,
+                trace_facts: facts.trace,
+                analysis_context: Some(facts.analysis_context),
+                command_trust: facts.command_trust,
+                object_state: None,
+                initial_global: false,
+                procedures: None,
+            },
+        )
+    }
+
+    /// [`Self::build_with_param_constants_and_classes_under`] with the
+    /// module's procedures in hand, which a parameter default `info default`
+    /// names is read from.
+    #[must_use]
+    fn build_procedure_in_module(
+        name: &str,
+        cfg: CfgFunction,
+        (params, param_constants): (&[String], ParamSeeds<'_>),
+        dialect: UnitDialect<'_>,
+        known_classes: &HashSet<String>,
+        facts: ModuleAnalysisFacts<'_>,
+        procedures: Option<&crate::interprocedural::ModuleProcedures<'_>>,
+    ) -> Self {
+        let no_extra_escaping = HashSet::new();
+        let UnitDialect { registry, config } = dialect;
+        Self::build_full(
+            name.to_owned(),
+            cfg,
+            FunctionBuildInputs {
+                config,
+                params,
+                registry,
+                param_constants,
+                known_classes,
+                extra_global_escaping: &no_extra_escaping,
+                trace_facts: facts.trace,
+                analysis_context: Some(facts.analysis_context),
+                command_trust: facts.command_trust,
+                object_state: None,
+                initial_global: false,
+                procedures,
             },
         )
     }
@@ -559,17 +788,17 @@ impl FunctionUnit {
     /// frame, so another procedure's `global NAME` can reassign them; see
     /// [`crate::sccp::sccp_with_extra_escaping`]).
     #[must_use]
-    pub fn build_top_level(
+    pub(crate) fn build_top_level(
         cfg: CfgFunction,
         registry: &CommandRegistry,
-        known_classes: &HashSet<String>,
-        extra_global_escaping: &HashSet<String>,
+        (known_classes, extra_global_escaping): (&HashSet<String>, &HashSet<String>),
         trace_facts: ModuleTraceFacts<'_>,
         config: tcl_lexer::LexerConfig,
         command_trust: &crate::command_binding::ModuleCommandMutations,
+        procedures: Option<&crate::interprocedural::ModuleProcedures<'_>>,
     ) -> Self {
         Self::build_full(
-            "::top",
+            "::top".to_owned(),
             cfg,
             FunctionBuildInputs {
                 config,
@@ -579,9 +808,11 @@ impl FunctionUnit {
                 known_classes,
                 extra_global_escaping,
                 trace_facts,
+                analysis_context: None,
                 command_trust,
                 object_state: None,
                 initial_global: true,
+                procedures,
             },
         )
     }
@@ -611,7 +842,7 @@ impl FunctionUnit {
         let no_extra_escaping = HashSet::new();
         let UnitDialect { registry, config } = dialect;
         let mut unit = Self::build_full(
-            name,
+            name.into(),
             cfg,
             FunctionBuildInputs {
                 config,
@@ -621,9 +852,11 @@ impl FunctionUnit {
                 known_classes,
                 extra_global_escaping: &no_extra_escaping,
                 trace_facts,
+                analysis_context: None,
                 command_trust,
                 object_state: Some(&facts.instance_vars),
                 initial_global: false,
+                procedures: None,
             },
         );
         unit.method_facts = Some(facts);
@@ -642,11 +875,14 @@ impl FunctionUnit {
     /// per-procedure build passes an empty set via
     /// [`Self::build_with_param_constants_and_classes`].
     #[must_use]
-    fn build_full(
-        name: impl Into<String>,
-        cfg: CfgFunction,
-        inputs: FunctionBuildInputs<'_>,
-    ) -> Self {
+    fn build_full(name: String, cfg: CfgFunction, inputs: FunctionBuildInputs<'_>) -> Self {
+        let existence = inputs.existence_entry(&name);
+        // The request's tier: a context key names it, a detached build is
+        // deep. Below the deep tier the existence rung is not run, so its
+        // every read answers `Unavailable` rather than a fact.
+        let tier = inputs
+            .analysis_context
+            .map_or(AnalysisTier::Deep, |key| key.tier);
         let FunctionBuildInputs {
             config,
             params,
@@ -655,9 +891,10 @@ impl FunctionUnit {
             known_classes,
             extra_global_escaping,
             trace_facts,
+            analysis_context,
             command_trust,
-            object_state,
-            initial_global,
+            procedures,
+            ..
         } = inputs;
         // Complexity guard (block-count half): a pathologically large body
         // would cost seconds of SSA + dataflow for near-zero findings, so skip
@@ -698,25 +935,28 @@ impl FunctionUnit {
         // profile, which is not the document's grammar for a pack-layered
         // registry or `tk`.
         let dynamic_names = crate::dynamic_names::dynamic_name_barrier(&cfg, registry, config);
-        let mut sccp = crate::sccp::sccp_with_builtin_folds(
-            &cfg,
-            &ssa,
+        let sccp = crate::sccp::sccp_in_module(&crate::sccp::SolveInputs {
+            cfg: &cfg,
+            ssa: &ssa,
             param_constants,
-            crate::tcl_expr_eval::FoldPolicy::from_registry(registry),
-            extra_global_escaping,
-            crate::sccp::TraceInputs {
+            policy: crate::tcl_expr_eval::FoldPolicy::from_registry(registry),
+            extra_escaping: extra_global_escaping,
+            trace: crate::sccp::TraceInputs {
                 registry,
                 traced_variables: trace_facts.traced_variables,
                 has_dynamic_variable_trace: trace_facts.has_dynamic_variable_trace
                     || dynamic_names.writes
                     || dynamic_names.destroys,
+                deferred_writes: trace_facts.deferred_writes,
+                analysis_context,
+                existence: (tier == AnalysisTier::Deep).then_some(existence),
             },
-            // The trust fact, and only the trust fact: the per-command fold
-            // arms are gated on it, while the registry `const_fold` engine
-            // stays off here so this lattice's fold surface is unchanged.
-            // The optimiser's own re-run turns the engine on
-            // (`crate::optimiser::propagation`).
-            Some(crate::sccp::BuiltinFoldInputs {
+            // The trust fact, and only the trust fact: every declared route
+            // the value-transfer driver runs is gated on it, while the
+            // registry `const_fold` engine stays off here so this lattice's
+            // fold surface is the routes'. The optimiser's own re-run turns
+            // the engine on (`crate::optimiser::propagation`).
+            folds: Some(crate::sccp::BuiltinFoldInputs {
                 registry,
                 mutations: command_trust,
                 dialect: None,
@@ -725,27 +965,8 @@ impl FunctionUnit {
                 trust: crate::sccp::FoldTrust::ObservedBindings,
                 proven_pure_parameters: false,
             }),
-        );
-        // Surface `[info exists X]` / `[array exists X]`
-        // folds (parameter → exists, never-defined non-param → absent)
-        // as constant branches so the optimiser's O101 fold / DCE sees
-        // them. The analyser's I230 uses the same fold via
-        // `existence_constant_branches`; the SCCP pass proper has no
-        // parameter/existence facts to fold them itself.  A method body's
-        // instance variables are handed over too, so the fold abstains on
-        // object state instead of calling it absent.
-        sccp.constant_branches
-            .extend(crate::sccp::existence_constant_branches(
-                &cfg,
-                crate::sccp::ExistenceFrame {
-                    params,
-                    object_state,
-                    initial_global,
-                },
-                registry,
-                dynamic_names,
-                config,
-            ));
+            module: crate::sccp::ModuleRun::reading(procedures),
+        });
         let types = propagate_types(
             &cfg,
             &ssa,
@@ -776,7 +997,7 @@ impl FunctionUnit {
             &instance_classes,
         );
         Self {
-            name: name.into(),
+            name,
             cfg,
             ssa,
             def_use: Arc::new(def_use),
@@ -788,6 +1009,7 @@ impl FunctionUnit {
             memory_ssa: None,
             dynamic_names,
             complexity_guarded: false,
+            tier,
             base_offset: 0,
             method_facts: None,
             semantic_facts: SemanticAnalysisBundle::unavailable(None),
@@ -816,10 +1038,38 @@ impl FunctionUnit {
             // pass skips it, so the barrier stays clear (never consulted).
             dynamic_names: crate::dynamic_names::DynamicNameBarrier::default(),
             complexity_guarded: true,
+            tier: AnalysisTier::ComplexityGuarded,
             base_offset: 0,
             method_facts: None,
             semantic_facts: SemanticAnalysisBundle::unavailable(None),
         }
+    }
+
+    /// The existence fact `symbol`'s place holds at `point`, as the
+    /// registry's input view (`docs/design/compiler/value-transfers.md`
+    /// § *Existence*, availability across tiers): `Domain(Existence(_))`
+    /// where the run computed one, `Pending` where it never reached the
+    /// point, and `Top(Unavailable(tier))` for a unit computed below the
+    /// deep tier or over the complexity ceiling ([`Self::tier`]) — neither
+    /// bound nor unbound, so no consumer reads it as either and every one
+    /// stays silent on it.
+    #[must_use]
+    pub fn existence(&self, symbol: crate::ssa::Symbol, point: ExistencePoint) -> FactView {
+        if self.tier != AnalysisTier::Deep {
+            return FactView::Top(DeclineReason::Unavailable(self.tier));
+        }
+        let fact = match point {
+            ExistencePoint::Before(block, index) => {
+                self.sccp.existence_before(block, index, symbol)
+            }
+            ExistencePoint::Exit(block) => self.sccp.existence_at_exit(block, symbol),
+            ExistencePoint::Version(version) => {
+                self.sccp.existence.get(&(symbol, version)).copied()
+            }
+        };
+        fact.map_or(FactView::Pending, |fact| {
+            FactView::Domain(DomainFact::Existence(fact))
+        })
     }
 
     /// Whether this function's [`Self::dynamic_names`] barrier forbids any
@@ -867,6 +1117,51 @@ impl FunctionUnit {
         }
         // Clamped to `>= 0`; saturate a degenerate out-of-range offset.
         u32::try_from((i64::from(pos) + self.base_offset).max(0)).unwrap_or(u32::MAX)
+    }
+
+    /// The statement and word of this unit whose source range is `span`
+    /// (absolute, as [`Self::abs_span`] gives it), when a call in a block
+    /// the solver reached wrote it: the address
+    /// [`crate::value_transfer::proven_word_value`] reads. A word is matched
+    /// by its whole range or by its representative token's, `0` being the
+    /// command's own.
+    #[must_use]
+    pub fn word_at(
+        &self,
+        span: tcl_lexer::Span,
+    ) -> Option<(crate::value_transfer::StatementId, usize)> {
+        let mut blocks: Vec<crate::cfg::BlockId> =
+            self.sccp.executable_blocks.iter().copied().collect();
+        blocks.sort_unstable();
+        blocks.into_iter().find_map(|block| {
+            let statements = &self.cfg.blocks.get(&block)?.statements;
+            statements
+                .iter()
+                .enumerate()
+                .find_map(|(index, statement)| {
+                    let crate::ir::Statement::Call {
+                        tokens: Some(tokens),
+                        ..
+                    } = statement
+                    else {
+                        return None;
+                    };
+                    if tokens.synthetic.is_some() {
+                        return None;
+                    }
+                    let word = (0..tokens.argv.len().max(tokens.word_exprs.len())).find(|&at| {
+                        tokens
+                            .word_exprs
+                            .get(at)
+                            .is_some_and(|word| self.abs_span(word.source().span) == span)
+                            || tokens
+                                .argv
+                                .get(at)
+                                .is_some_and(|&token| self.abs_span(token) == span)
+                    })?;
+                    Some((crate::value_transfer::StatementId { block, index }, word))
+                })
+        })
     }
 
     /// Populate memory-SSA on demand in `context`. Returns `self` for
@@ -1024,6 +1319,9 @@ pub struct CompilationUnit {
     /// asks the same surface the lowering did. Empty for a document that
     /// declares nothing.
     pub declared_commands: tcl_registry::model::DeclaredSurface,
+    /// Each procedure's transfer summary: what a call to it does to its
+    /// caller's places.
+    pub transfers: crate::interprocedural::TransferSummaries,
 }
 
 /// The unit-scope facts a build resolved, kept on the finished
@@ -1265,14 +1563,60 @@ struct ProcedureBuildContext<'a> {
     known_classes: &'a [String],
     traced_variable_names: &'a [String],
     trace_facts: ModuleTraceFacts<'a>,
-    /// Whole-module command-mutation trust — see
-    /// [`FunctionBuildInputs::command_trust`]. Also decides whether the
-    /// per-procedure lattice memo may be used at all: its key cannot carry
-    /// this fact.
+    /// The module's analysis context key, shared by every procedure. Its
+    /// [`crate::command_binding::CommandTrustSnapshot`] is the module's
+    /// command trust, which every procedure's lattice — memoised or not —
+    /// folds under (see
+    /// [`FunctionUnit::build_with_param_constants_and_classes_under`]).
+    analysis_context: &'a crate::value_transfer::AnalysisContextKey,
+    /// The module's command-mutation scan the context's snapshot was taken
+    /// from: the trust a fresh procedure build folds under.
     command_trust: &'a crate::command_binding::ModuleCommandMutations,
     /// Procedures whose CFG has module-derived instance-option writes. Their
     /// annotated CFG cannot be reconstructed from the body-only lattice memo.
     tainted_global_writes: &'a HashMap<String, HashSet<String>>,
+    /// The module's procedures, which a lattice reading another procedure —
+    /// a parameter default, a callee's transfer summary — reads. The memo
+    /// keys on one procedure's body, so a lattice that read them is built
+    /// here instead ([`crate::sccp::SccpResult::reads_module`]).
+    procedures: Option<&'a crate::interprocedural::ModuleProcedures<'a>>,
+}
+
+impl<'a> ProcedureBuildContext<'a> {
+    /// The whole-module facts every procedure of the module builds under.
+    fn module_facts(&self) -> ModuleAnalysisFacts<'a> {
+        ModuleAnalysisFacts {
+            trace: self.trace_facts,
+            analysis_context: self.analysis_context,
+            command_trust: self.command_trust,
+        }
+    }
+}
+
+/// The module's procedures with their transfer summaries
+/// ([`crate::interprocedural::ModuleProcedures`]), over the unit's lowering,
+/// its prepared frame and global-write facts, and its command trust.
+fn module_procedures<'a>(
+    (ir_module, cfg_module, prepared): (&'a IrModule, &'a CfgModule, &'a PreparedCfgContext),
+    (mutations, projection): (
+        &'a crate::command_binding::ModuleCommandMutations,
+        &'a crate::command_binding::ProcBindingTrustProjection,
+    ),
+    analysis_context: &'a crate::value_transfer::AnalysisContextKey,
+    (registry, config): (&'a CommandRegistry, tcl_lexer::LexerConfig),
+) -> crate::interprocedural::ModuleProcedures<'a> {
+    crate::interprocedural::ModuleProcedures::new(crate::interprocedural::ModuleInputs {
+        ir: ir_module,
+        cfg: cfg_module,
+        frames: &prepared.context.0,
+        outer_writes: &prepared.context.2,
+        registry,
+        mutations,
+        projection,
+        trace: ModuleTraceFacts::of(ir_module),
+        config,
+        analysis_context,
+    })
 }
 
 /// Build one [`FunctionUnit`] per procedure: seed its SCCP with the
@@ -1340,15 +1684,14 @@ fn build_procedure_units(
             .tainted_global_writes
             .get(qname)
             .is_some_and(|writes| !writes.is_empty());
-        // The memo key (`LatticeRequest`) carries the procedure body and the
-        // closed binding lattice, but not the whole-module command-mutation
-        // scan — which is the only place a namespace-local `proc llength …`
-        // shadow is visible. A memoised unit is therefore built as if every
-        // builtin still meant what it spells, so it may only be used by a
-        // module whose trust says exactly that (#2164).
-        let memo_usable = ctx.command_trust.agrees_with_untouched_bindings();
+        // The memo key (`LatticeRequest`) carries the module's analysis
+        // context, whose command-trust snapshot is the whole-module
+        // command-mutation scan — the only place a namespace-local
+        // `proc llength …` shadow is visible — and the memoised build folds
+        // under that snapshot. A module whose trust differs is a different
+        // key, so the memo stays on for it (#2164).
         let memoised = match (
-            cache.as_mut().filter(|_| memo_usable),
+            cache.as_mut(),
             proc,
             ctx.cfg_context,
             encoded_pc,
@@ -1379,6 +1722,7 @@ fn build_procedure_units(
                     param_constants: &encoded_pc,
                     known_classes: ctx.known_classes,
                     traced_variables: ctx.traced_variable_names,
+                    analysis_context: ctx.analysis_context,
                     has_dynamic_variable_trace: ctx.ir_module.has_dynamic_variable_trace,
                 });
                 // Rebase the offset-0 memo result to the procedure's real
@@ -1391,12 +1735,26 @@ fn build_procedure_units(
                 // without changing the closed module state in the memo key.
                 // Reuse only a unit built under the exact current CFG; the
                 // ordinary fresh path carries any missing timeline effects.
-                (fu.cfg == *cfg).then_some(fu)
+                // A lattice that read another procedure of the module rests
+                // on more than its key, so the fresh path rebuilds it with
+                // the module's procedures in hand.
+                (fu.cfg == *cfg && !fu.sccp.reads_module).then_some(fu)
             }
             _ => None,
         };
         let mut fu = memoised.unwrap_or_else(|| {
-            build_procedure_unit_fresh(ctx, qname, cfg, params, param_constants.as_ref(), config)
+            FunctionUnit::build_procedure_in_module(
+                qname,
+                cfg.clone(),
+                (params, param_constants.as_ref()),
+                UnitDialect {
+                    registry: ctx.registry,
+                    config,
+                },
+                ctx.known_class_set,
+                ctx.module_facts(),
+                ctx.procedures,
+            )
         });
         // A memoised unit carries an offset-0 executable sidecar. Rebuild the
         // source-bearing portion after the normal CFG/SSA rebase so retained
@@ -1418,39 +1776,6 @@ fn build_procedure_units(
         procedures,
         param_constants_by_proc,
     }
-}
-
-/// Build one procedure's [`FunctionUnit`] without the memo — the path taken
-/// when no cache is installed, when the request cannot be interned, or when
-/// the module's command trust forbids a memoised unit (see
-/// [`build_procedure_units`]).
-fn build_procedure_unit_fresh(
-    ctx: &ProcedureBuildContext<'_>,
-    qname: &str,
-    cfg: &CfgFunction,
-    params: &[String],
-    param_constants: Option<
-        &std::collections::HashMap<(String, crate::ssa::Version), crate::analyses::LatticeValue>,
-    >,
-    config: tcl_lexer::LexerConfig,
-) -> FunctionUnit {
-    let no_extra_escaping = HashSet::new();
-    FunctionUnit::build_full(
-        qname,
-        cfg.clone(),
-        FunctionBuildInputs {
-            config,
-            params,
-            registry: ctx.registry,
-            param_constants,
-            known_classes: ctx.known_class_set,
-            extra_global_escaping: &no_extra_escaping,
-            trace_facts: ctx.trace_facts,
-            command_trust: ctx.command_trust,
-            object_state: None,
-            initial_global: false,
-        },
-    )
 }
 
 /// [`build_procedure_units`]'s two outputs: the units themselves, and the
@@ -1634,7 +1959,7 @@ impl CompilationUnit {
     }
 
     /// Like [`Self::build_for_memoized`] but also threads a memoised per-procedure
-    /// **body-lowering** callback (SRV-INCREMENTAL Task 3) into the lowering phase,
+    /// **body-lowering** callback into the lowering phase,
     /// so an unchanged top-level proc's body IR is reused across edits.  The caller
     /// installs it only for context-free files (see [`crate::lowering::Lowerer`]'s
     /// `body_cache`); byte-identity is guarded by the corpus differential gates.
@@ -1653,16 +1978,21 @@ impl CompilationUnit {
         cache: Option<&mut ProcLatticeCache<'_>>,
         body_cache: Option<&BodyLoweringCache<'_>>,
     ) -> Self {
-        let UnitBuildOptions {
-            registry,
-            dialect,
-            external_call_sites,
-            ..
-        } = options;
+        let (registry, dialect) = (options.registry, options.dialect);
         let (ir_module, cfg_module, tainted_global_writes, prepared_cfg_context) =
             lower_and_build_cfg(source, options, body_cache);
         let (command_mutations, proc_binding_trust) =
             prepared_command_trust(&ir_module, registry, &prepared_cfg_context);
+        // The module's analysis context: one value every per-procedure
+        // lattice in this build — memoised or not — is keyed and run under.
+        // The names an iRules handler may find bound on entry ride on it,
+        // so a handler's memoised lattice re-keys when another handler binds
+        // a new name, and every lattice when a callback script of the module
+        // writes one.
+        let analysis_context =
+            crate::value_transfer::AnalysisContextKey::for_module(&command_mutations, registry)
+                .with_connection_scoped(connection_scoped_names(&cfg_module, registry, options))
+                .with_deferred_writes(ir_module.deferred_writes.clone());
         // Module-wide upvar/param context — the CFG-determining context a
         // procedure body is rebuilt under.  Computed once and shared by every
         // memoised request, the methods/body-units below, and the call-site
@@ -1672,10 +2002,10 @@ impl CompilationUnit {
         // to build (methods, body units, `uplevel #0` bodies).
         let cfg_context = (cache.is_some()
             || crate::unit_scope::needs_extra_call_site_scan_contexts(&ir_module))
-        .then_some(prepared_cfg_context);
+        .then_some(&prepared_cfg_context);
         let (call_site_constants, linkage, extra_callers) =
-            resolve_unit_scope(&ir_module, &cfg_module, cfg_context.as_ref(), options);
-        let has_cross_file_evidence = external_call_sites.is_some();
+            resolve_unit_scope(&ir_module, &cfg_module, cfg_context, options);
+        let has_cross_file_evidence = options.external_call_sites.is_some();
         let ModuleWideFacts {
             known_class_set,
             known_classes,
@@ -1685,19 +2015,24 @@ impl CompilationUnit {
         // Whole-module variable-trace fact — computed once by lowering
         // and stored on `ir_module`, so every per-function build below is a
         // cheap reference pass-through, not a recomputation.
-        let trace_facts = ModuleTraceFacts {
-            traced_variables: &ir_module.traced_variables,
-            has_dynamic_variable_trace: ir_module.has_dynamic_variable_trace,
-        };
+        let trace_facts = ModuleTraceFacts::of(&ir_module);
         let semantic_context = semantic_context(dialect);
+        // The module's procedures, each with its transfer summary: what a
+        // lattice reading another procedure reads.
+        let module_procedures = module_procedures(
+            (&ir_module, &cfg_module, &prepared_cfg_context),
+            (&command_mutations, &proc_binding_trust),
+            &analysis_context,
+            (registry, options.config),
+        );
         let top_level = FunctionUnit::build_top_level(
             cfg_module.top_level.clone(),
             registry,
-            &known_class_set,
-            &top_level_extra_escaping,
+            (&known_class_set, &top_level_extra_escaping),
             trace_facts,
             options.config,
             &command_mutations,
+            Some(&module_procedures),
         )
         .with_top_level_semantic_analysis(registry, semantic_context, &ir_module.top_level);
         let caller_view = crate::unit_scope::UnitCallerView {
@@ -1709,7 +2044,7 @@ impl CompilationUnit {
             &ProcedureBuildContext {
                 ir_module: &ir_module,
                 cfg_module: &cfg_module,
-                cfg_context: cfg_context.as_ref().map(|prepared| &prepared.context),
+                cfg_context: cfg_context.map(|prepared| &prepared.context),
                 registry,
                 dialect,
                 call_sites: &call_site_constants,
@@ -1718,13 +2053,16 @@ impl CompilationUnit {
                 known_classes: &known_classes,
                 traced_variable_names: &traced_variable_names,
                 trace_facts,
+                analysis_context: &analysis_context,
                 command_trust: &command_mutations,
                 tainted_global_writes: &tainted_global_writes,
+                procedures: Some(&module_procedures),
             },
             cache,
             options.config,
         );
-        let mut procedures = built.procedures;
+        let procedures = built.procedures;
+        let transfers = module_procedures.into_summaries();
         let body_unit_context = BodyUnitContext {
             registry,
             known_class_set: &known_class_set,
@@ -1736,7 +2074,6 @@ impl CompilationUnit {
         let methods = Self::build_method_units(&ir_module, &extra_callers, body_unit_context);
         let body_units = Self::build_body_units(&ir_module, &extra_callers, body_unit_context);
         let connection_scope = Self::build_connection_scope(&procedures);
-        Self::drop_cross_event_existence_folds(&mut procedures, connection_scope.as_ref());
         Self {
             source: source.to_owned(),
             ir_module,
@@ -1756,6 +2093,7 @@ impl CompilationUnit {
                 proc_binding_trust,
             },
             declared_commands: options.declared_commands.cloned().unwrap_or_default(),
+            transfers,
         }
     }
 
@@ -1914,7 +2252,7 @@ impl CompilationUnit {
                     FunctionUnit::trivial_guarded(qname, cfg)
                 } else {
                     FunctionUnit::build_full(
-                        qname,
+                        qname.clone(),
                         cfg,
                         FunctionBuildInputs {
                             config,
@@ -1924,9 +2262,11 @@ impl CompilationUnit {
                             known_classes: known_class_set,
                             extra_global_escaping: &no_extra_escaping,
                             trace_facts,
+                            analysis_context: None,
                             command_trust,
                             object_state: None,
                             initial_global: false,
+                            procedures: None,
                         },
                     )
                 }
@@ -1939,42 +2279,6 @@ impl CompilationUnit {
                 (qname.clone(), fu)
             })
             .collect()
-    }
-
-    /// Cross-event existence post-pass: `existence_constant_branches` runs per
-    /// function and folds `[info exists VAR]` → false for any VAR not defined
-    /// *in that event*. That is unsound for an iRules cross-event variable
-    /// (set in another `when` handler), so drop those folds from `::when::*`
-    /// procs once the connection scope is known — otherwise O101 rewrites
-    /// `if {[info exists ans_cleared]}` to `if {0}` even though a sibling event
-    /// set it (a miscompile).
-    fn drop_cross_event_existence_folds(
-        procedures: &mut HashMap<String, FunctionUnit>,
-        connection_scope: Option<&crate::connection_scope::ConnectionScope>,
-    ) {
-        let Some(cs) = connection_scope else {
-            return;
-        };
-        let cross: HashSet<&str> = cs
-            .cross_event_defs
-            .iter()
-            .chain(cs.cross_event_imports.iter())
-            .map(String::as_str)
-            .collect();
-        if cross.is_empty() {
-            return;
-        }
-        for (qn, fu) in procedures.iter_mut() {
-            if !qn.starts_with("::when::") {
-                continue;
-            }
-            fu.sccp.constant_branches.retain(|cb| {
-                let mut vars = HashSet::new();
-                crate::connection_scope::scan_info_exists(&cb.condition, &mut vars);
-                // Keep the fold only if it does not query a cross-event var.
-                !vars.iter().any(|v| cross.contains(v.as_str()))
-            });
-        }
     }
 
     /// Populate [`InterproceduralAnalysis`] via
@@ -2002,14 +2306,12 @@ impl CompilationUnit {
             tcl_lexer::LexerConfig::for_profile(dialect),
             registry,
         );
-        let interproc = crate::interprocedural::build_interprocedural_analysis_with_cfg(
-            &self.ir_module,
+        let interproc = crate::interprocedural::build_interprocedural_analysis_for_unit(
+            &self,
             registry,
             dialect,
             crate::interprocedural::ObjectTypeMap(&object_types),
             &identities,
-            Some(&self.declared_commands),
-            &self.cfg_module,
         );
 
         // Re-run taint with the new summary + dialect. We borrow
@@ -2079,14 +2381,12 @@ impl CompilationUnit {
             tcl_lexer::LexerConfig::for_profile(dialect),
             registry,
         );
-        let interproc = crate::interprocedural::build_interprocedural_analysis_with_cfg(
-            &self.ir_module,
+        let interproc = crate::interprocedural::build_interprocedural_analysis_for_unit(
+            &self,
             registry,
             dialect,
             crate::interprocedural::ObjectTypeMap(&object_types),
             &identities,
-            Some(&self.declared_commands),
-            &self.cfg_module,
         );
 
         // Top level is built fresh (no offset-0 lattice key), so its taint
@@ -2642,6 +2942,84 @@ mod tests {
                 *s == sym && matches!(lv, crate::analyses::LatticeValue::Const(_))
             });
         assert!(has_const, "expected `safe_const` to still fold to a Const");
+    }
+
+    /// Existence is a deep-tier fact: a procedure lattice requested
+    /// at the fast tier runs no rung, so every read of it answers
+    /// `Unavailable(Fast)` — neither bound nor unbound — and W210 and W213
+    /// stay silent where the deep build reports both; a unit over the
+    /// complexity ceiling answers `Unavailable(ComplexityGuarded)`.
+    #[test]
+    fn existence_is_unavailable_at_the_fast_tier() {
+        use tcl_core_types::DiagCode;
+        let reg = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let src = "proc p {} {set x 1; unset x; unset x; puts $x}\n";
+        let lifecycle = |cu: CompilationUnit| -> Vec<DiagCode> {
+            let mut analyser = crate::analyser::Analyser::new();
+            analyser.set_cu_override(Arc::new(cu));
+            analyser
+                .analyse(src, "tcl8.6")
+                .diagnostics
+                .into_iter()
+                .map(|d| d.code)
+                .filter(|code| matches!(code, DiagCode::W210 | DiagCode::W213))
+                .collect()
+        };
+        let deep = CompilationUnit::build_for_dialect(src, reg, false, "tcl8.6");
+        let deep_p = deep.function("::p").expect("::p built");
+        assert_eq!(deep_p.tier, AnalysisTier::Deep);
+        let x = deep_p.ssa.var_symbol("x").expect("x interned");
+        let entry = deep_p.cfg.entry;
+        let cfg = deep_p.cfg.clone();
+        assert!(matches!(
+            deep_p.existence(x, ExistencePoint::Exit(entry)),
+            FactView::Domain(DomainFact::Existence(_))
+        ));
+
+        let key = crate::value_transfer::AnalysisContextKey::detached().at_tier(AnalysisTier::Fast);
+        let fast_p = FunctionUnit::build_with_param_constants_and_classes_under(
+            "::p",
+            cfg.clone(),
+            &[],
+            UnitDialect {
+                registry: reg,
+                config: tcl_lexer::LexerConfig::default(),
+            },
+            None,
+            &HashSet::new(),
+            ModuleAnalysisFacts {
+                trace: ModuleTraceFacts::none(),
+                analysis_context: &key,
+                command_trust: &crate::command_binding::ModuleCommandMutations::default(),
+            },
+        );
+        assert_eq!(fast_p.tier, AnalysisTier::Fast);
+        assert!(fast_p.sccp.existence.is_empty());
+        for point in [
+            ExistencePoint::Exit(entry),
+            ExistencePoint::Before(entry, 0),
+            ExistencePoint::Version(1),
+        ] {
+            assert_eq!(
+                fast_p.existence(x, point),
+                FactView::Top(DeclineReason::Unavailable(AnalysisTier::Fast))
+            );
+        }
+        let mut fast = deep.clone();
+        fast.procedures.insert("::p".to_owned(), fast_p);
+
+        let found = lifecycle(deep);
+        assert!(
+            found.contains(&DiagCode::W213) && found.contains(&DiagCode::W210),
+            "{found:?}"
+        );
+        assert_eq!(lifecycle(fast), Vec::<DiagCode>::new());
+
+        let guarded = FunctionUnit::trivial_guarded("::p", cfg);
+        assert_eq!(
+            guarded.existence(x, ExistencePoint::Exit(entry)),
+            FactView::Top(DeclineReason::Unavailable(AnalysisTier::ComplexityGuarded))
+        );
     }
 
     #[test]
@@ -3384,7 +3762,7 @@ mod tests {
             );
         }
 
-        /// MISCOMPILE regression (adversarial review): `apply {params body
+        /// Namespace-resolution regression: `apply {params body
         /// ns}`'s third element names the namespace the body runs in, so a
         /// bare command word inside it resolves against *that* namespace.
         /// `lower_apply` computed the right `body_ns` and lowered the body

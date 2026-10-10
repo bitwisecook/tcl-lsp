@@ -63,6 +63,7 @@
 pub mod bignum;
 // The `expr` evaluator (value-ops impl of the shared `tcl_syntax::expr` walk);
 // needs the bignum tower, so it tracks the same `have_tommath` cfg.
+pub mod budget;
 pub mod builtins;
 pub mod bytearray;
 #[cfg(all(target_arch = "wasm32", target_os = "unknown", have_tommath))]
@@ -114,9 +115,12 @@ pub mod counters;
 pub mod dict;
 // The Tcl 9 stdlib embedded in the binary, seeded into the WASM VFS so the
 // filesystem-backed startup path (`init.tcl`, `package require`) works with no
-// host filesystem. Gated so non-WASM consumers don't carry the embedded bytes.
-#[cfg(feature = "wasm_stdlib")]
+// host filesystem. The bytes are gated inside the module so non-WASM consumers
+// don't carry them.
 pub mod embedded_stdlib;
+#[cfg(feature = "engine")]
+pub mod engine;
+pub mod engine_abi;
 pub mod ensemble;
 mod environment;
 #[cfg(have_tommath)]
@@ -135,6 +139,7 @@ pub mod list;
 pub mod namespace;
 pub mod obj;
 pub mod parse;
+pub mod sandbox;
 pub mod state_traits;
 // The C-ABI shim that re-exports the pure-Rust ARE engine (`tcl-regex`) under
 // the Tcl regex engine's C symbols, so C Tcl code/extensions link against it.

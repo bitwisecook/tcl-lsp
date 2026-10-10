@@ -33,7 +33,8 @@ use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::expr_ast::{ExprNode, render_expr};
 use tcl_compiler::interprocedural::{namespace_parts_from_proc, resolve_internal_call};
 use tcl_compiler::ir::{
-    CommandTokens, Procedure, Script, Statement, SwitchArm, TryHandler, when_event_name,
+    CommandTokens, HandlerMatch, Procedure, Script, Statement, SwitchArm, TryHandler,
+    when_event_name,
 };
 use tcl_compiler::realm::{CommandBindingRealm, RealmBinding, document_realm_bindings};
 use tcl_compiler::registry_invocation::effective_command_arguments;
@@ -421,7 +422,7 @@ fn walk_try(
             .iter()
             .map(|h| {
                 json!({
-                    "kind_handler": h.kind,
+                    "kind_handler": handler_kind_spelling(h.kind),
                     "match": h.match_arg,
                     "completion_code": handler_completion_code(h, context.registry),
                     "trap_pattern": h.trap_pattern,
@@ -441,11 +442,22 @@ fn walk_try(
     Value::Object(result)
 }
 
-/// Canonicalise an `on` selector in the shared projection.  Tcl accepts its
-/// integer grammar here (including `02`, `+2`, and `0x2`); renderers must not
-/// reimplement it. Unknown symbolic selectors cannot be completion codes.
+/// The diagram protocol's `kind_handler` value — the wire vocabulary the
+/// editors render, one spelling per [`HandlerMatch`], independent of the
+/// keyword a command's clause grammar introduces the handler with.
+fn handler_kind_spelling(kind: HandlerMatch) -> &'static str {
+    match kind {
+        HandlerMatch::CompletionCode => "on",
+        HandlerMatch::ErrorCodePrefix => "trap",
+    }
+}
+
+/// Canonicalise a completion-code selector in the shared projection.  Tcl
+/// accepts its integer grammar here (including `02`, `+2`, and `0x2`);
+/// renderers must not reimplement it. Unknown symbolic selectors cannot be
+/// completion codes.
 fn handler_completion_code(handler: &TryHandler, registry: &CommandRegistry) -> Option<i32> {
-    if handler.kind != "on" {
+    if handler.kind != HandlerMatch::CompletionCode {
         return None;
     }
     match handler.match_arg.as_str() {

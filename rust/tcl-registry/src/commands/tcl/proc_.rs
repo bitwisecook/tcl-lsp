@@ -57,6 +57,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "proc",
+        runtime_backing: RuntimeBacking::shipped("proc"),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::INSTALLS_NAMED_DEFINITION
@@ -69,7 +70,9 @@ pub fn spec() -> CommandSpec {
             // spells out, in the form a consumer can read: `DEFERS_BODY`
             // is what tells a static walk that an unreadable `body` word
             // costs it nothing about *this* call's completion.
-            | Traits::DEFERS_BODY,
+            | Traits::DEFERS_BODY
+            // The body is a definition: it runs in a frame of its own.
+            | Traits::BODY_RUNS_IN_OWN_FRAME,
         // Deliberately no `TAINT_SINK` / `DYNAMIC_EVAL_BODY`: `body` is
         // *stored*, not executed, by this call. Unlike `eval` / `uplevel`
         // / `apply`, which run their tainted argument immediately as part

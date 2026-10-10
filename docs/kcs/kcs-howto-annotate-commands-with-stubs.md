@@ -140,10 +140,105 @@ An argument wrapped in `?...?` is optional. A role that is not in this table
 throws the whole declaration away, so check your spelling if a stub seems to
 have no effect.
 
-The flags `-barrier`, `-loop`, `-pure`, `-mutator`, `-unsafe`, and
-`-scope_alias` are accepted and recorded against the command, but no
-analysis currently changes its answer because of one. Argument roles are
-what do the work today.
+### Flags
+
+A flag after the argument list states how the command behaves, and tcl-lsp
+treats the stubbed command the way it treats a built-in command that behaves
+the same way:
+
+- `-loop` — it runs its body repeatedly. With an `expr` condition and a
+  `body` argument it is checked like `while`: a condition that is always
+  false draws `W240`, and one that is always true with no way out of the body
+  (`break`, `return`, `error`, …) draws `W241`.
+- `-pure` — it has no side effects. A proc that only calls it is pure, so
+  `set a [thatproc …]` into a variable nothing reads is offered for removal
+  (`O126`).
+- `-mutator` — it reads its variable, then rewrites it, like `lappend`. The
+  value stored before the call is still used, so the earlier `set` is not
+  reported as a dead store (`O109`).
+- `-unsafe` — it is unsafe in a safe interpreter, like `exec`. Calling it
+  inside `interp eval` of a safe interpreter draws `W129`.
+- `-scope_alias` — it links the variable names it takes to variables
+  elsewhere, like `upvar`. Any of them may be changed from another scope, so
+  tcl-lsp stops assuming what a later `$name` holds.
+- `-barrier` — it can reach the calling scope's variables by name, like
+  `vwait`. The minifier leaves the names of that scope's variables alone.
+- `-extension` — a native (C) extension registers it, so nothing is known of
+  it. tcl-lsp assumes the worst on every axis it can: the command may run any
+  argument as a script, read or change anything, set traces, and is hidden in a
+  safe interpreter (`W129`), never pure and a barrier to the minifier. The other
+  flags then narrow that: `-pure` or `-mutator` say what the command does, and
+  with them it is no longer assumed to run code; it stays hidden in a safe
+  interpreter whatever you write.
+
+A stub without flags says nothing about behaviour, so tcl-lsp assumes the
+worst: the command may read or change anything.
+
+Two things a flag does not do yet: `-pure` does not make
+`set a [mypure $x]` removable when you write the call directly (only through
+a proc, as above), and no flag changes how the SSA passes treat the call.
+
+### What the command does to the caller's variables (`-frame`)
+
+`-frame` says whether the command can touch the variables of the procedure
+that calls it:
+
+- `-frame own` — its code runs in a frame of its own, as a procedure's does.
+- `-frame none` — it runs no code that reaches a frame at all.
+- `-frame caller` — it sets variables of the procedure that calls it, under
+  names you do not write in the call, as `argparse` does.
+
+`-frame own` and `-frame none` promise that the command sets and reads none of
+the caller's variables, and no global or namespace variable either. A command
+that touches a global by name (`global x`, `upvar #0`, `$::x`) or reads its
+caller's variables needs no `-frame` at all, or `-frame caller` if all it does
+is set them.
+
+Without `-frame`, tcl-lsp cannot know, so it assumes the command may reach
+into the caller as `upvar 1` or `uplevel 1` would. That costs precision in
+every procedure that calls it: a local set before the call is treated as
+unknown after it, so a condition on it is never reported as always true or
+false (`I230`), and a store before it is never reported as unused (`W211`).
+
+```tcl
+# tcl-lsp: stubs-begin
+# tcl-lsp: stub db_query {sql} -frame own
+# tcl-lsp: stubs-end
+
+proc q {} {
+    set g 5
+    db_query {select 1}
+    if {$g == 5} {puts five} else {puts other}   ;# I230: always true
+}
+```
+
+Without `-frame own`, or with `-frame caller`, `q` draws no `I230`: the call
+may have changed `g`.
+
+`-frame own` and `-frame none` take effect only on a plain stub: every
+argument a `value`, `name`, `pattern` or `channel`, and no flag but `-pure`
+or `-unsafe`. A stub with a script, expression, callback or variable argument,
+or another flag, is still treated as possibly reaching the caller, whatever
+its `-frame`. A `body` argument is treated as a script that runs where the
+command is called, as a built-in command's body is, so the call still affects
+what tcl-lsp knows of every variable.
+
+A `W123` hint on an unknown command says the same thing wherever the call
+makes tcl-lsp forget the variables it holds, and names the stub that would
+keep them.
+
+### Stubbing a command tcl-lsp already knows
+
+A stub can declare a command tcl-lsp ships, and then the stub wins for that
+file: its argument roles and flags are the command's, and a role the built-in
+command has that the stub does not declare is gone. `stub after {ms script}`
+makes `after`'s script a plain value, so the procs it calls are no longer
+edges of the caller. A stub has no subcommands, so it replaces what
+tcl-lsp knows about each subcommand as well: after `stub dict {args}`,
+tcl-lsp no longer knows that `dict set d k v` reads `d` before it writes
+it. The built-in command's security facts stay: a stub for `exec` cannot
+make it safe. An inline stub for a built-in draws `W116`, because it is
+usually a mistake.
 
 ### What a stub does not do
 
@@ -154,8 +249,11 @@ what do the work today.
   analyser stops calling it unknown; it does not make tcl-lsp count the
   arguments you pass. Where a stub shadows a built-in command, it
   *suppresses* the built-in arity and subcommand checks instead.
-- **It does not carry types, options, or side effects.** Those need a real
-  registry entry — see
+- **`tcl opt` does not read it yet** (#2366). The optimiser treats a stubbed
+  command as one it cannot see, whatever the stub states; `tcl diag` and the
+  editor read it.
+- **It does not carry types or options, and its only side effects are the
+  ones its flags state.** The rest needs a real registry entry — see
   [how to add a library to the command registry](kcs-howto-add-command-registry-package.md).
 
 ### Expression-function and operator stubs
@@ -184,6 +282,11 @@ an operator when you leave it out.
 - Run `tcl diag <file>` and check that a variable the stub declares `var` no
   longer draws `W210 Variable '…' is read before it is set` where the
   command writes it.
+- For a flag, check the finding the table above names: a `-loop` stub called
+  as `name 1 {…}` with nothing leaving the loop draws `W241`, and an
+  `-unsafe` stub called inside a safe interpreter draws `W129`.
+- For `-frame own`, check that a condition on a variable set before the call
+  is reported as always true or false (`I230`) where it was not before.
 - Open the file in your editor and confirm the stubbed command no longer
   raises the "unresolved command" hint.
 - For a sidecar, confirm the filename matches the dialect the file is

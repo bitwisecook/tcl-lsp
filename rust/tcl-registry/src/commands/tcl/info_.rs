@@ -378,6 +378,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // `procname` names a proc introspected (not called), so it is a
         // command reference navigation follows.
         arg_roles: &[(0, ArgRole::CommandName)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -391,6 +392,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         arg_roles: &[(0, ArgRole::CommandName)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -404,6 +406,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // `info class` is itself an ensemble: the word after `class` selects a
         // CLASS INTROSPECTION operation.
         sub_subcommands: INFO_CLASS_SUBS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -413,6 +416,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info cmdcount",
         pure: true,
         return_type: Some(TclType::Int),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -428,6 +432,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // `commandName` is an introspected command (a command reference),
         // matching `info args`/`info body`'s treatment of `procname`.
         arg_roles: &[(0, ArgRole::CommandName)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -446,6 +451,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // recorder abstains on any word with glob metacharacters, so a
         // real pattern contributes no reference.
         arg_roles: &[(0, ArgRole::CommandNameProbe)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -455,6 +461,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info complete command",
         pure: true,
         return_type: Some(TclType::Boolean),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -467,6 +476,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::Boolean),
         surface: Some(SpecSurface::TCL90_PLUS),
         arg_roles: &[(0, ArgRole::VarRead)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -477,6 +487,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::List),
         surface: Some(SpecSurface::TCL90_PLUS),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -488,6 +499,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         surface: Some(SpecSurface::TCL86_PLUS),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -505,6 +517,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // `procname` is an introspected proc (a command reference); `varname`
         // is written.
         arg_roles: &[(0, ArgRole::CommandName), (2, ArgRole::VarWrite)],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::scope_alias::INFO_DEFAULT,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -516,6 +531,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::List),
         surface: Some(SpecSurface::TCL86_PLUS),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -529,6 +545,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::Boolean),
         arg_roles: &[(0, ArgRole::VarRead)],
         inline_codegen_hook: Some(InlineCodegenHookId::InfoExists),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -543,6 +560,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::Dict),
         // Introduced in Tcl 8.5 (TIP 280) — not available in 8.4.
         surface: Some(SpecSurface::TCL85_PLUS),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -552,6 +570,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info functions ?pattern?",
         pure: true,
         return_type: Some(TclType::List),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -564,6 +583,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info globals ?pattern?",
         pure: true,
         return_type: Some(TclType::List),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -573,6 +593,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info hostname",
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -585,6 +608,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info level ?level?",
         pure: true,
         return_type: Some(TclType::Int),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -595,6 +619,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         returns_path: true,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -604,6 +631,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info loaded ?interp? ?prefix?",
         pure: true,
         return_type: Some(TclType::List),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -614,6 +642,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info locals ?pattern?",
         pure: true,
         return_type: Some(TclType::List),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -624,6 +653,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         returns_path: true,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -637,6 +669,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // `info object` is itself an ensemble: the word after `object` selects
         // an OBJECT INTROSPECTION operation.
         sub_subcommands: INFO_OBJECT_SUBS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -646,6 +679,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info patchlevel",
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -661,6 +697,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // (`info procs helper`) is a navigable reference to an existing
         // proc, a glob pattern contributes none.
         arg_roles: &[(0, ArgRole::CommandNameProbe)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -689,6 +726,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             writes: true,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -698,6 +736,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info sharedlibextension",
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -707,6 +748,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info tclversion",
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -717,6 +761,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info vars ?pattern?",
         pure: true,
         return_type: Some(TclType::List),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
 ];
@@ -725,6 +770,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "info",
+        runtime_backing: RuntimeBacking::shipped("info"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::BYTE_COMPILED,
         arity: Arity::at_least(1),

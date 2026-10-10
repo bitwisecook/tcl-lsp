@@ -131,6 +131,7 @@ const OPTION_RELATIONS: &[OptionRelation] = &[OptionRelation {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "source",
+        runtime_backing: RuntimeBacking::shipped("source"),
         // Core Tcl 8.4-9.1 (present in every fetched manpage, only its
         // SYNOPSIS/option set shifts — see the module doc comment and FORMS
         // above). Unavailable under `f5-irules` because its surface is
@@ -219,6 +220,7 @@ pub fn spec() -> CommandSpec {
                     // spelling; even the otherwise unique `-enc` is an
                     // invalid option (tclsh 8.5/8.6/9.0).
                     min_abbrev: Some(9),
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-nopkg",
@@ -230,6 +232,7 @@ pub fn spec() -> CommandSpec {
                     // Likewise, Tcl 9 rejects `-nop` and accepts only the
                     // complete `-nopkg` spelling.
                     min_abbrev: Some(6),
+                    effect: None,
                 },
             ]
         },

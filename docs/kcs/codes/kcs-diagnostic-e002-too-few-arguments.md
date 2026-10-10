@@ -63,6 +63,18 @@ greet
 
 The analyser reports **`E002`** on the call, since `greet` requires one argument.
 
+## Joined-script context
+
+`eval`, `uplevel`, `namespace eval`, and `interp eval` join their script
+arguments before evaluation. The analyser checks that joined script:
+`eval set total 0` is valid and sets `total`, while `eval set` reports
+`E002` because the resulting script is the bare `set` command.
+
+If a script word contains a substitution, its complete text is not known
+statically, so this check abstains. See
+[W101 — string-concatenated eval](kcs-diagnostic-w101-eval-string-concatenation.md)
+for the separate injection warning.
+
 ## Command-prefix callback context
 
 `E002` also fires on a **callback proc that requires more arguments than its

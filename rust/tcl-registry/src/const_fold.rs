@@ -158,22 +158,30 @@ pub(crate) fn list_join<S: AsRef<str>>(elems: &[S]) -> String {
 /// `0b101`).
 ///
 /// An index word is read by `Tcl_GetIntForIndex`, so it inherits every version
-/// difference in the numeral grammar — `lindex $l 010` is index 8 up to 8.6 and
-/// 10 from 9.0. These folds are registered as plain
+/// difference in the numeral grammar and the integer range — `lindex $l 010` is
+/// index 8 up to 8.6 and 10 from 9.0, `lindex $l 4294967295` the last element
+/// up to 8.6 and past it from 9.0. These folds are registered as plain
 /// [`ConstFoldFn`](crate::hooks::ConstFoldFn)s, which carry no release, so this
-/// resolves under **every** grammar and folds only when they agree.
+/// resolves under **every** grammar and folds only when they agree on an index;
+/// a reading the host's `long` decides never folds, nor one 8.6 reads
+/// apart as a literal and as a value.
 ///
 /// Declining is free: an unfolded `lindex` is evaluated at run time by an
 /// interpreter that does know its release. Folding under one release's grammar
 /// would instead bake a wrong constant into a program built for another — the
 /// one outcome a const-folder must never produce. (When these folds migrate to
 /// [`VersionedConstFoldFn`](crate::hooks::VersionedConstFoldFn), the release can
-/// be named and `index::resolve_opt_with` used directly.)
+/// be named and `index::read_under` used directly.)
 pub(crate) fn parse_index(s: &str, length: usize) -> Option<i64> {
-    tcl_syntax::number::NumberSyntax::unanimous(|numbers| {
-        tcl_cmd_core::index::resolve_opt_with(s, length, numbers)
-    })
-    .flatten()
+    if tcl_cmd_core::index::compiles_apart(s, length, tcl_dialect::TclVersion::V8_6) {
+        return None;
+    }
+    match tcl_syntax::number::NumberSyntax::unanimous(|numbers| {
+        tcl_cmd_core::index::read_with(s, length, numbers)
+    })? {
+        tcl_cmd_core::index::IndexReading::At(index) => Some(index),
+        _ => None,
+    }
 }
 
 /// Resolve `(first, last)` parsed indices into a clamped `[lo, hi]`
@@ -707,19 +715,20 @@ mod tests {
 
     #[test]
     fn index_folds_match_tclsh_oracle() {
-        // The optimiser folds the arithmetic and radix index forms through
-        // `parse_index`'s shared runtime grammar. Expected
-        // results captured from real tclsh over `{a b c d e}` (end = 4).
-        assert_eq!(fold_lindex(&["a b c d e", "1+1"]).as_deref(), Some("c"));
-        assert_eq!(fold_lindex(&["a b c d e", "3-1"]).as_deref(), Some("c"));
+        // The optimiser folds the radix index forms through `parse_index`,
+        // which answers only where every release reads the index alike.
+        // Expected results captured from real tclsh over `{a b c d e}` (end
+        // = 4).
         assert_eq!(fold_lindex(&["a b c d e", "0x2"]).as_deref(), Some("c"));
         assert_eq!(fold_lindex(&["a b c d e", "end-1"]).as_deref(), Some("d"));
-        // `end--1` = end + 1 → out of range → empty.
+        // `end--1` = end + 1 → out of range → empty, in every release.
         assert_eq!(fold_lindex(&["a b c d e", "end--1"]).as_deref(), Some(""));
-        assert_eq!(
-            fold_lrange(&["a b c d e", "1+1", "end"]).as_deref(),
-            Some("c d e")
-        );
+        // The sums are 8.5's: tclsh 8.4.20 raises `bad index "1+1": must be
+        // integer or end?-integer?` where 8.5 to 9.1 answer `c`, so a fold
+        // that names no release declines them.
+        assert_eq!(fold_lindex(&["a b c d e", "1+1"]), None);
+        assert_eq!(fold_lindex(&["a b c d e", "3-1"]), None);
+        assert_eq!(fold_lrange(&["a b c d e", "1+1", "end"]), None);
         // Still declines genuinely bad specs.
         assert_eq!(fold_lindex(&["a b c d e", "1.0"]), None);
         assert_eq!(fold_lindex(&["a b c d e", "foo"]), None);
@@ -778,6 +787,24 @@ mod tests {
         assert_eq!(parse_index("end-2", 12), Some(9));
         // Still nothing at all for a genuinely bad spec.
         assert_eq!(parse_index("nope", 12), None);
+        // Past 32 bits 8.4 to 8.6 wrap or raise where 9.0 reads the wide, and
+        // a 64-bit `long` decides the rest.
+        for spec in [
+            "2147483648",
+            "4294967295",
+            "4294967296",
+            "-4294967295",
+            "end-4294967295",
+            "1+2147483647",
+            "18446744073709551615",
+            "9223372036854775808",
+        ] {
+            assert_eq!(parse_index(spec, 12), None, "{spec}");
+        }
+        assert_eq!(parse_index("2147483647", 12), Some(2_147_483_647));
+        // Every grammar reads this one before the first element, but 8.6
+        // encodes the literal after the end.
+        assert_eq!(parse_index("end-2147483649", 12), None);
     }
 
     /// The user-visible consequence: `lindex` folds a unanimous index and leaves
@@ -791,5 +818,11 @@ mod tests {
         assert_eq!(fold_lindex(&["a b c d e f g h i j k l", "010"]), None);
         assert_eq!(fold_lrange(&["a b c d", "1", "2"]).as_deref(), Some("b c"));
         assert_eq!(fold_lrange(&["a b c d", "1", "010"]), None);
+        assert_eq!(
+            fold_lindex(&["a b c d e f g h i j k l", "4294967295"]),
+            None
+        );
+        assert_eq!(fold_lrange(&["a b c d", "0", "4294967296"]), None);
+        assert_eq!(fold_lrange(&["a b c d", "0", "end-2147483649"]), None);
     }
 }

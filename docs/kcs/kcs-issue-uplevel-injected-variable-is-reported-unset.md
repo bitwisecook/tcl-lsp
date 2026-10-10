@@ -92,4 +92,4 @@ command, and open an issue with the snippet.
 - [Glossary](../GLOSSARY.md)
 - [W210 — variable read before set](codes/kcs-diagnostic-w210-variable-read-before-set.md)
 - [W212 — substitution where a variable name is expected](codes/kcs-diagnostic-w212-variable-substitution-where-name-expected.md)
-- [Why does a multi-word `eval` report a wrong-argument-count error?](kcs-issue-false-diagnostics-inside-a-multi-word-eval.md)
+- [E002 — too few arguments in the joined script](codes/kcs-diagnostic-e002-too-few-arguments.md#joined-script-context)

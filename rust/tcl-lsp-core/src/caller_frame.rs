@@ -84,7 +84,8 @@
 //! as the binding span — the point where the variable comes to exist in
 //! this frame.  A fully-qualified target (`upvar ::tk::FocusGrab($i) data`)
 //! is not a caller-frame variable at all: it names one fixed global cell,
-//! which the analyser's `handle_upvar_command` defines and links directly.
+//! which the analyser's alias consumer (`apply_state_transitions`) defines
+//! and links directly.
 //!
 //! # Methods reached by `my` dispatch
 //!

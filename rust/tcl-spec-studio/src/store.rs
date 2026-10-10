@@ -70,11 +70,14 @@
 //!   Field-granular surgery — editing the one `arity` row and leaving its
 //!   neighbouring comment alone — is the next slice, and needs the loader to
 //!   publish per-statement spans it currently keeps `pub(crate)`.
-//! - Carry-forward is *top level* only. A hook body hanging off a
-//!   **subcommand** is not carried, because the renderer does emit a
-//!   `subcommand` statement and the two would have to be merged word by word.
-//!   That case is detected and reported through [`Write::dropped`], so a
-//!   surface can tell the author what an edit will cost before it costs it.
+//! - Carry-forward reaches one scope down: a hook body hanging off a
+//!   **subcommand** is matched to the freshly rendered `subcommand NAME { … }`
+//!   of the same name and merged word by word, exactly as a command-level
+//!   hook is. A subcommand the edit renamed or removed has nowhere to carry
+//!   its body forward into, and a **sub-subcommand**'s own hook is one scope
+//!   further than this reaches; both cases are detected and reported through
+//!   [`Write::dropped`], so a surface can tell the author what an edit will
+//!   cost before it costs it.
 //!
 //! ## A programmed pack is never rewritten — it is patched (E-R12)
 //!
@@ -498,11 +501,11 @@ impl PackStore {
     /// What an untrusted tier would refuse this document for, as
     /// `(line, why)` — E-R2 asked of the snapshot rather than of the load.
     ///
-    /// A **hypothetical**, deliberately: `Tier::Workspace` is
-    /// `Provenance::WorkspaceTrusted` today (§6.4 keys the untrusted class on
-    /// the editor's Workspace Trust state, which nothing on the discovery
-    /// path is told — redesign §11.1 O9), so a workspace pack that overrides
-    /// a shipped command still loads. This answers the question the author
+    /// A **hypothetical**, deliberately: a workspace pack the editor trusts
+    /// is `Provenance::WorkspaceTrusted` (§6.4 keys the untrusted class on
+    /// the editor's Workspace Trust state, which reaches discovery on
+    /// `DiscoveryOptions::workspace_trust`), so one that overrides a shipped
+    /// command loads for its author. This answers the question the author
     /// wants answered anyway: *would* an untrusted workspace refuse this?
     ///
     /// `None` for every pack that touches nothing reserved, which is nearly
@@ -694,6 +697,27 @@ impl PackStore {
         self.patch
             .as_ref()
             .and_then(|patch| tcl_spectcl::provenance_violation(&patch.pack, Tier::StudioOverride))
+    }
+
+    /// The codegen-axis stamps a workspace load of this document would drop,
+    /// as `(line, why)` on each declaring command's row: the stamp rejection
+    /// rule (`tcl_spectcl::stamps`) refuses every one outside a bundled pack.
+    /// The installed world ([`Self::pack_set`]) already drops them; the
+    /// document keeps the rows as written, so this is where an author learns
+    /// they will not change emitted code.
+    #[must_use]
+    pub fn stamp_refusals(&self) -> Vec<(u32, String)> {
+        stamp_refusals_at(&self.pack, Tier::Workspace)
+    }
+
+    /// [`Self::stamp_refusals`] for the standing patch, at the override tier
+    /// it layers from.
+    #[must_use]
+    pub fn patch_stamp_refusals(&self) -> Vec<(u32, String)> {
+        self.patch
+            .as_ref()
+            .map(|patch| stamp_refusals_at(&patch.pack, Tier::StudioOverride))
+            .unwrap_or_default()
     }
 
     /// Install `patch` as this document's standing patch pack, replacing any
@@ -939,16 +963,31 @@ impl PackStore {
             self.pack.name.clone()
         };
         let mut packs = vec![merged(&name, &self.pack, Tier::Workspace)];
+        let mut load_errors: Vec<_> = self
+            .pack
+            .load_error
+            .iter()
+            .flat_map(|error| {
+                packs[0]
+                    .files
+                    .iter()
+                    .map(|path| (path.clone(), error.clone()))
+            })
+            .collect();
         if let Some(patch) = &self.patch {
-            packs.push(merged(
-                &self.patch_name(),
-                &patch.pack,
-                Tier::StudioOverride,
-            ));
+            let loaded = merged(&self.patch_name(), &patch.pack, Tier::StudioOverride);
+            load_errors.extend(patch.pack.load_error.iter().flat_map(|error| {
+                loaded
+                    .files
+                    .iter()
+                    .map(|path| (path.clone(), error.clone()))
+            }));
+            packs.push(loaded);
         }
         PackSet {
             packs,
             notices: Vec::new(),
+            load_errors,
             key: self.overlay_key(),
         }
     }
@@ -1209,9 +1248,14 @@ impl PackStore {
     /// - does not mention that property word at all, or
     /// - mentions it only as a `-native` placeholder the original did not use.
     ///
-    /// Anything nested deeper than that — a hook hanging off a subcommand — is
-    /// beyond this pass, and is reported through [`Write::dropped`] instead of
-    /// being lost in silence.
+    /// A hook hanging off a **subcommand** is carried forward too, one level
+    /// down: each of the old declaration's `subcommand NAME { … }` blocks is
+    /// matched to the freshly rendered one of the same name, and the same
+    /// reclaim runs inside it, before the command-level pass above runs over
+    /// the (now subcommand-patched) result. A subcommand renamed or removed
+    /// by the edit has nowhere to carry its body forward *into*, so it is
+    /// left alone here — `declared_properties` still reports the loss.
+    /// Deeper than that — a sub-subcommand's own hook — is beyond this pass.
     fn carry_forward(&self, name: &str, block: &str) -> String {
         let Some(old_body) = self
             .source_index()
@@ -1220,62 +1264,50 @@ impl PackStore {
         else {
             return block.to_owned();
         };
-        let old = &self.source[old_body];
-        let old_statements = segments(old);
+        let old_body_text = self.source[old_body.clone()].to_owned();
+        let old_statements = segments(&old_body_text);
         // The rendered block is a pack *body*: the command statement plus any
         // value tables it needed, with no `speclib` wrapper.
-        let Some((_, new_body)) = find_command(block, Some(0..block.len()), name) else {
+        if find_command(block, Some(0..block.len()), name).is_none() {
             return block.to_owned();
-        };
-        let written = segments(&block[new_body.clone()]);
-
-        let mut reclaim: BTreeSet<&str> = BTreeSet::new();
-        for statement in &old_statements {
-            let Some(word) = statement.words.first() else {
-                continue;
-            };
-            let rendered = written.iter().find(|s| s.words.first() == Some(word));
-            let lost = match rendered {
-                None => true,
-                Some(rendered) => {
-                    is_native_placeholder(rendered) && !is_native_placeholder(statement)
-                }
-            };
-            if lost {
-                reclaim.insert(word.as_str());
-            }
-        }
-        if reclaim.is_empty() {
-            return block.to_owned();
-        }
-
-        // Drop the placeholders, back to front so the earlier spans stay valid.
-        let mut body_text = block[new_body.clone()].to_owned();
-        for statement in written.iter().rev() {
-            if statement
-                .words
-                .first()
-                .is_some_and(|word| reclaim.contains(word.as_str()))
-            {
-                body_text.replace_range(trimmed_span(&body_text, statement.span.clone()), "");
-            }
-        }
-        // Then append the author's own, verbatim.
-        for statement in &old_statements {
-            if statement
-                .words
-                .first()
-                .is_some_and(|word| reclaim.contains(word.as_str()))
-            {
-                body_text.push_str("\n    ");
-                body_text.push_str(old[statement.span.clone()].trim_end());
-                body_text.push('\n');
-            }
         }
 
         let mut out = block.to_owned();
-        out.replace_range(new_body, &body_text);
-        out
+        for statement in &old_statements {
+            if statement.words.first().map(String::as_str) != Some("subcommand") {
+                continue;
+            }
+            let (Some(sub_name), Some(span)) = (statement.words.get(1), statement.spans.last())
+            else {
+                continue;
+            };
+            // `span.inner` is relative to `old_body_text`, the slice `segments`
+            // read it from.
+            let sub_body_text = old_body_text[span.inner.clone()].to_owned();
+            let sub_statements = segments(&sub_body_text);
+            let Some((_, new_command_body)) = find_command(&out, Some(0..out.len()), name) else {
+                continue;
+            };
+            let Some((_, new_sub_body)) = find_subcommand(&out, new_command_body, sub_name) else {
+                continue;
+            };
+            if let Some(patched) =
+                reclaim(&sub_body_text, &sub_statements, &out, new_sub_body.clone())
+            {
+                out.replace_range(new_sub_body, &patched);
+            }
+        }
+
+        let Some((_, new_body)) = find_command(&out, Some(0..out.len()), name) else {
+            return out;
+        };
+        match reclaim(&old_body_text, &old_statements, &out, new_body.clone()) {
+            Some(patched) => {
+                out.replace_range(new_body, &patched);
+                out
+            }
+            None => out,
+        }
     }
 
     /// Every property the declaration of `name` states, one level into its
@@ -1454,19 +1486,68 @@ impl PackStore {
 /// `tcl_spectcl::pack::load` — same commands, same declarations, at the tier
 /// the pack really layers from.
 fn merged(name: &str, pack: &Pack, tier: Tier) -> MergedPack {
+    // The studio evaluates its buffer trusted — the author's own file, as its
+    // `EvalOptions` say — whichever tier it layers from.
+    let trust = tcl_dialect::model::WorkspaceTrust::Trusted;
+    // The stamp rejection rule, as a load at `tier` applies it: the installed
+    // world drops every codegen-axis stamp that load would, while the
+    // document, and every draft seeded from it, keeps the rows as written
+    // ([`PackStore::stamp_refusals`] reports them).
+    let provenance = tcl_spectcl::PackEnvironmentTier::of(tier, trust).provenance();
+    let mut commands = pack.commands.clone();
+    for command in &mut commands {
+        tcl_spectcl::stamps::admit_codegen_stamps(
+            command,
+            provenance,
+            tcl_spectcl::stamps::shipped(),
+        );
+    }
     MergedPack {
         name: name.to_owned(),
         dsl_version: pack.dsl_version.clone(),
         tier,
+        trust,
         files: vec![std::path::PathBuf::from(format!("{name}.tclspec"))],
         display_name: pack.display_name.clone(),
         file_extensions: pack.file_extensions.clone(),
         ambient_packages: pack.ambient_packages.clone(),
+        special_vars: pack.special_vars.clone(),
         environments: pack.environments.clone(),
         dialects: pack.dialects.clone(),
         surface_rosters: pack.surface_rosters.clone(),
-        commands: pack.commands.clone(),
+        commands,
     }
+}
+
+/// What a load of `pack` at `tier` refuses under the stamp rejection rule
+/// (`tcl_spectcl::stamps`), as `(line, why)` on each declaring command's row
+/// — the same warning the load publishes on the pack file.
+fn stamp_refusals_at(pack: &Pack, tier: Tier) -> Vec<(u32, String)> {
+    let provenance =
+        tcl_spectcl::PackEnvironmentTier::of(tier, tcl_dialect::model::WorkspaceTrust::Trusted)
+            .provenance();
+    pack.commands
+        .iter()
+        .flat_map(|command| {
+            tcl_spectcl::stamps::stamp_refusals(
+                command.spec,
+                provenance,
+                None,
+                tcl_spectcl::stamps::shipped(),
+            )
+            .into_iter()
+            .map(move |refusal| (command.line, refusal.message()))
+        })
+        .collect()
+}
+
+/// `(line, why)` rows as a surface reads them.
+fn line_reasons_json(rows: &[(u32, String)]) -> Value {
+    Value::Array(
+        rows.iter()
+            .map(|(line, why)| json!({ "line": line, "reason": why }))
+            .collect(),
+    )
 }
 
 // The resolution facade
@@ -1723,6 +1804,9 @@ impl<'a> Resolution<'a> {
                 .store
                 .untrusted_tier_refusal()
                 .map(|(line, why)| json!({ "line": line, "reason": why })),
+            // The codegen-axis stamps a workspace load drops (the stamp
+            // rejection rule): reported here, never removed from the text.
+            "stamp_refusals": line_reasons_json(&self.store.stamp_refusals()),
             // E-R12: whether this document is a program the studio must not
             // rewrite, and what patch pack currently stands over it.
             "programmed": self.store.programmed().map(|why| json!({
@@ -1737,6 +1821,7 @@ impl<'a> Resolution<'a> {
                     .store
                     .patch_untrusted_tier_refusal()
                     .map(|(line, why)| json!({ "line": line, "reason": why })),
+                "stamp_refusals": line_reasons_json(&self.store.patch_stamp_refusals()),
             })),
             "standing_overrides": standing_overrides_json(&self.store.standing_overrides()),
             "commands": self.pack_index(),
@@ -1793,11 +1878,9 @@ impl<'a> Resolution<'a> {
                     "fields_set": fields_set(d, &defaults),
                     "unrenderable": d.get(draft::UNRENDERABLE_KEY).cloned().unwrap_or(Value::Null),
                     "subcommands": subcommands,
-                    "clause_grammar": self
-                        .store
-                        .pack
-                        .command(name)
-                        .is_some_and(|c| c.clause_grammar.is_some()),
+                    // The declared grammar itself — the draft's value, plain
+                    // data — or `null` when the command declares none.
+                    "clause_grammar": d.get("clause_grammar").cloned().unwrap_or(Value::Null),
                     "hooks": hooks,
                 })
             })
@@ -1924,6 +2007,8 @@ fn family_key(family: loader::HookFamily) -> &'static str {
         F::ClauseShapeCheck => "clause_shape_check",
         F::Constraints => "constraints",
         F::OptionArity => "-arity-hook",
+        F::Evaluate => "evaluate",
+        F::StateTransitionResolver => "state_transitions.resolver",
     }
 }
 
@@ -2013,6 +2098,93 @@ fn find_command(
         ));
     }
     None
+}
+
+/// The `subcommand NAME { … }` statement inside `region` — `command`'s body,
+/// in the source it was found in — as `(whole statement, body contents)`,
+/// mirroring [`find_command`] one scope down.
+fn find_subcommand(
+    source: &str,
+    region: std::ops::Range<usize>,
+    name: &str,
+) -> Option<(std::ops::Range<usize>, std::ops::Range<usize>)> {
+    let base = region.start;
+    for statement in segments(&source[region.clone()]) {
+        if statement.words.first().map(String::as_str) != Some("subcommand") {
+            continue;
+        }
+        if statement.words.get(1).map(String::as_str) != Some(name) {
+            continue;
+        }
+        let word = statement.spans.last()?;
+        if statement.words.len() < 3
+            || source.as_bytes().get(base + word.outer.start) != Some(&b'{')
+        {
+            return None;
+        }
+        return Some((
+            base + statement.span.start..base + statement.span.end,
+            base + word.inner.start..base + word.inner.end,
+        ));
+    }
+    None
+}
+
+/// [`PackStore::carry_forward`]'s reclaim, at one scope: which of
+/// `old_statements`' first words vanished, or degraded to a `-native`
+/// placeholder, between them and `block[block_region]` — and, when any did,
+/// that text with the placeholders replaced by the author's own bytes for
+/// those words, read out of `old_source` (the same slice `old_statements`'
+/// spans are relative to). `None` when nothing needs reclaiming.
+fn reclaim(
+    old_source: &str,
+    old_statements: &[Segmented],
+    block: &str,
+    block_region: std::ops::Range<usize>,
+) -> Option<String> {
+    let written = segments(&block[block_region.clone()]);
+    let mut reclaimed: BTreeSet<&str> = BTreeSet::new();
+    for statement in old_statements {
+        let Some(word) = statement.words.first() else {
+            continue;
+        };
+        let rendered = written.iter().find(|s| s.words.first() == Some(word));
+        let lost = match rendered {
+            None => true,
+            Some(rendered) => is_native_placeholder(rendered) && !is_native_placeholder(statement),
+        };
+        if lost {
+            reclaimed.insert(word.as_str());
+        }
+    }
+    if reclaimed.is_empty() {
+        return None;
+    }
+
+    // Drop the placeholders, back to front so the earlier spans stay valid.
+    let mut body_text = block[block_region].to_owned();
+    for statement in written.iter().rev() {
+        if statement
+            .words
+            .first()
+            .is_some_and(|word| reclaimed.contains(word.as_str()))
+        {
+            body_text.replace_range(trimmed_span(&body_text, statement.span.clone()), "");
+        }
+    }
+    // Then append the author's own, verbatim.
+    for statement in old_statements {
+        if statement
+            .words
+            .first()
+            .is_some_and(|word| reclaimed.contains(word.as_str()))
+        {
+            body_text.push_str("\n    ");
+            body_text.push_str(old_source[statement.span.clone()].trim_end());
+            body_text.push('\n');
+        }
+    }
+    Some(body_text)
 }
 
 /// The literal command declaration ranges and top-level statements derived
@@ -2435,9 +2607,57 @@ command add_parameter {\narity 1..\n}\n}\n";
         );
     }
 
-    /// What carry-forward cannot reach is *named*, not silently dropped.
+    /// A `state_transitions` resolver body is the author's Tcl like any other
+    /// hook body: a form edit carries the whole block forward verbatim, and
+    /// the reloaded command carries the descriptor again.
     #[test]
-    fn a_loss_carry_forward_cannot_reach_is_reported() {
+    fn a_state_transitions_resolver_body_survives_a_form_edit() {
+        let source = "speclib demo 2.1 {\n\
+                      command link {\n\
+                      \x20   arity 2..\n\
+                      \x20   state_transitions {\n\
+                      \x20       argument_shape Positional\n\
+                      \x20       resolver {words ctx} {\n\
+                      \x20           alias 1 0\n\
+                      \x20       }\n\
+                      \x20       commit MayCommitBeforeAbruptCompletion\n\
+                      \x20   }\n\
+                      }\n}\n";
+        let mut store = PackStore::from_source(source);
+        let mut edited = store.draft("link").expect("link").clone();
+        edited.insert("return_type".to_owned(), json!("String"));
+
+        let write = store.set_command("link", &edited, false);
+        assert_eq!(write.dropped, Vec::<String>::new(), "{}", store.source());
+        assert!(
+            store.source().contains("alias 1 0"),
+            "the resolver body survives verbatim:\n{}",
+            store.source()
+        );
+        assert!(
+            store
+                .source()
+                .contains("commit MayCommitBeforeAbruptCompletion"),
+            "{}",
+            store.source()
+        );
+        assert!(store.source().contains("return_type"), "{}", store.source());
+        assert!(
+            store
+                .draft("link")
+                .and_then(|d| d.get(draft::UNRENDERABLE_KEY))
+                .and_then(Value::as_array)
+                .is_some_and(|lost| lost.iter().any(|k| k == "state_transitions")),
+            "the reloaded command carries the descriptor again"
+        );
+    }
+
+    /// A hook hanging off a **subcommand** survives a form edit to the
+    /// command around it: carry-forward reaches one level down now, so the
+    /// author's own `const_fold` bytes are spliced back in rather than
+    /// degrading to a `-native` placeholder and being reported as dropped.
+    #[test]
+    fn a_subcommands_hook_body_survives_a_form_edit() {
         let source = "speclib demo 1.0 {\n\
                       command greet {\n\
                       \x20   subcommand hi {\n\
@@ -2454,9 +2674,30 @@ command add_parameter {\narity 1..\n}\n}\n";
         let write = store.set_command("greet", &edited, false);
         assert_eq!(
             write.dropped,
-            vec!["subcommand hi / const_fold".to_owned()],
-            "a nested hook body the splice cannot carry must be reported:\n{}",
+            Vec::<String>::new(),
+            "the subcommand's body is carried forward, not dropped:\n{}",
             store.source()
+        );
+        assert!(
+            store.source().contains("result hello"),
+            "the author's own const_fold body survives verbatim:\n{}",
+            store.source()
+        );
+        assert!(
+            !store.source().contains("-native"),
+            "no placeholder was left behind:\n{}",
+            store.source()
+        );
+        // And it is still a *live* hook after the round trip, not just text.
+        let sub_lost = store
+            .draft("greet")
+            .and_then(|d| d["subcommands"][0].get(draft::UNRENDERABLE_KEY).cloned());
+        assert!(
+            sub_lost
+                .as_ref()
+                .and_then(Value::as_array)
+                .is_some_and(|lost| lost.iter().any(|k| k == "const_fold")),
+            "the reloaded subcommand should carry the folder again: {sub_lost:?}"
         );
     }
 
@@ -3040,5 +3281,77 @@ command add_parameter {\narity 1..\n}\n}\n";
         // which is what makes the report meaningful rather than theoretical.
         let override_tier = PackStore::from_source_at_tier(store.source(), Tier::StudioOverride);
         assert!(override_tier.commands().is_empty());
+    }
+
+    /// A codegen-axis stamp is authorable — the document and its draft keep
+    /// the row — but the installed world drops it, as a workspace load does,
+    /// and the report says so on the command's row. Only the stamp goes.
+    #[test]
+    fn a_stamp_is_kept_in_the_document_and_dropped_from_the_installed_world() {
+        let store = PackStore::from_source(
+            "speclib vendor 2.0 {\n    command vendor::unpack {\n        arity 2..\n        \
+             alias_of lassign\n        codegen_hook -native Lassign\n    }\n}\n",
+        );
+        let draft = store.draft("vendor::unpack").expect("a draft");
+        assert!(
+            draft
+                .get("codegen_hook")
+                .is_some_and(|value| !value.is_null()),
+            "the draft keeps the row as written: {draft:?}"
+        );
+        assert_eq!(
+            store.stamp_refusals(),
+            vec![(
+                2,
+                "`codegen_hook Lassign` refused for `vendor::unpack`: a trusted workspace pack \
+                 may not name a codegen catalogue member; only a bundled pack may carry \
+                 `alias_of lassign`'s own stamp"
+                    .to_owned()
+            )]
+        );
+        assert!(store.patch_stamp_refusals().is_empty());
+
+        let registry =
+            tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &store.pack_set());
+        let installed = registry.get("vendor::unpack").expect("installed");
+        assert_eq!(installed.codegen_hook, None, "the installed world drops it");
+        assert_eq!(installed.arity.min, 2, "and keeps every other fact");
+        assert_eq!(installed.alias_of, Some("lassign"));
+    }
+
+    /// A stamp in a window is a stamp: the draft keeps the row, the report
+    /// names it, and the installed world drops it from the windows.
+    #[test]
+    fn a_windowed_stamp_is_kept_in_the_document_and_dropped_from_the_installed_world() {
+        let store = PackStore::from_source(
+            "speclib vendor 2.2 {\n    command vendor::unpack {\n        arity 2..\n        \
+             alias_of lassign\n        codegen_hook -native Lassign -introduced 9.0\n    }\n}\n",
+        );
+        let draft = store.draft("vendor::unpack").expect("a draft");
+        assert_eq!(
+            draft["codegen_hook_windows"][0]["value"],
+            serde_json::json!("Lassign"),
+            "the draft keeps the window as written: {draft:?}"
+        );
+        assert_eq!(
+            store.stamp_refusals(),
+            vec![(
+                2,
+                "`codegen_hook Lassign` refused for `vendor::unpack`: a trusted workspace pack \
+                 may not name a codegen catalogue member; only a bundled pack may carry \
+                 `alias_of lassign`'s own stamp"
+                    .to_owned()
+            )]
+        );
+
+        let registry =
+            tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &store.pack_set());
+        let installed = registry.get("vendor::unpack").expect("installed");
+        assert!(
+            installed.codegen_hook_windows.is_empty(),
+            "no window survives"
+        );
+        assert_eq!(installed.arity.min, 2, "and every other fact does");
+        assert_eq!(installed.alias_of, Some("lassign"));
     }
 }

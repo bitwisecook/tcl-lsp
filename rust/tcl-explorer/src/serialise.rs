@@ -257,6 +257,15 @@ fn serialise_children(stmt: &Statement, li: &LineIndex, source: &str) -> Option<
     }
 }
 
+/// The `aot` view's payload: the codegen plan the `wasm` view's module header
+/// carries, so the plan is serialised once and the two views cannot disagree.
+fn wasm_codegen_plan(wasm: &Value) -> Value {
+    wasm.get(0)
+        .and_then(|header| header.get("codegenPlan"))
+        .cloned()
+        .unwrap_or(Value::Null)
+}
+
 /// Serialise the `semanticOptimisations` view: one row per pass, in
 /// [`SemanticOptimisationPassId::all`] order, with the state the shown
 /// `wasm` module was built with.
@@ -322,6 +331,7 @@ fn serialise_wasm_with_options(
         header.insert("text".to_owned(), Value::String(wat));
         let (region_status, regions, region_decline) =
             serialise_wasm_region_plan(wasm.plan.region_plan());
+        let native_declines = serialise_native_declines(wasm.plan.native_declines());
         let plan = match &wasm.plan {
             WasmCodegenPlan::NativeI64Add { native, .. } => json!({
                 "kind": wasm.plan.as_str(),
@@ -340,6 +350,7 @@ fn serialise_wasm_with_options(
                 "regionPlanStatus": region_status,
                 "regionPlanDecline": region_decline,
                 "regions": regions,
+                "nativeDeclines": native_declines,
             }),
             WasmCodegenPlan::GenericInvoke { .. } => json!({
                 "kind": wasm.plan.as_str(),
@@ -348,6 +359,7 @@ fn serialise_wasm_with_options(
                 "regionPlanStatus": region_status,
                 "regionPlanDecline": region_decline,
                 "regions": regions,
+                "nativeDeclines": native_declines,
             }),
             WasmCodegenPlan::General {
                 semantic_decline, ..
@@ -377,6 +389,7 @@ fn serialise_wasm_with_options(
                     "regionPlanStatus": region_status,
                     "regionPlanDecline": region_decline,
                     "regions": regions,
+                    "nativeDeclines": native_declines,
                 })
             }
         };
@@ -454,6 +467,62 @@ fn serialise_native_tier(report: &tcl_compiler::native_lowering::NativeTierRepor
     json!({
         "enabled": report.enabled,
         "functions": Value::Object(functions),
+    })
+}
+
+/// Every premise the sealed native i64 addition rejected, in evaluation
+/// order. Empty when the addition was selected.
+fn serialise_native_declines(declines: &[tcl_compiler::common_aot_plan::NativeDecline]) -> Value {
+    Value::Array(
+        declines
+            .iter()
+            .map(|decline| {
+                json!({
+                    "premise": decline.premise.as_str(),
+                    "reason": decline.reason.as_str(),
+                    "detail": native_decline_detail(decline),
+                    "sites": decline.sites.iter().map(direct_site_identity).collect::<Vec<_>>(),
+                })
+            })
+            .collect(),
+    )
+}
+
+/// The typed extras a decline carries beyond its premise and reason.
+fn native_decline_detail(decline: &tcl_compiler::common_aot_plan::NativeDecline) -> Value {
+    use tcl_compiler::common_aot_plan::{
+        DirectProcBodyDecline, DirectProcDecline, NativeDeclineReason, NativePremise,
+    };
+    match (&decline.premise, &decline.reason) {
+        (NativePremise::Pass(pass), _) => json!({ "pass": pass.as_str() }),
+        (_, NativeDeclineReason::ExcludedSurfaces(surfaces)) => json!({
+            "surfaces": surfaces
+                .iter()
+                .copied()
+                .map(tcl_compiler::common_aot_plan::CommonAotCoverageDecline::as_str)
+                .collect::<Vec<_>>(),
+        }),
+        (
+            _,
+            NativeDeclineReason::DirectCall(DirectProcDecline::ArityMismatch { expected, actual }),
+        ) => json!({ "expected": expected, "actual": actual }),
+        (
+            _,
+            NativeDeclineReason::DirectBody(
+                DirectProcBodyDecline::InternalDispatchUntrusted { operation }
+                | DirectProcBodyDecline::InternalExecutionTrace { operation },
+            ),
+        ) => json!({ "operation": serialise_semantic_operation(Some(*operation)) }),
+        _ => json!({}),
+    }
+}
+
+fn direct_site_identity(site: &tcl_compiler::common_aot_plan::DirectCallSiteId) -> Value {
+    json!({
+        "function": site.function,
+        "block": site.block.0,
+        "statementIndex": site.statement_index,
+        "nestedArgument": site.nested_argument,
     })
 }
 
@@ -1613,9 +1682,176 @@ pub fn serialise_dominators(result: &ExplorerResult) -> Value {
     )
 }
 
+/// One statement's route record of the SCCP view: the route the resolved
+/// invocation declared, how it answered, and what it stores on each
+/// completion path.
+fn route_json(
+    explanation: &tcl_compiler::value_transfer::RouteExplanation,
+    li: &LineIndex,
+    source: &str,
+) -> Value {
+    json!({
+        "command": explanation.command,
+        "route": explanation.route,
+        "answer": explanation.answer,
+        "paths": explanation
+            .paths
+            .iter()
+            .map(|path| json!({
+                "completion": path.completion.label(),
+                "stores": path.stores,
+            }))
+            .collect::<Vec<_>>(),
+        "range": range_dict(explanation.span, li, source),
+    })
+}
+
+/// One selection record of the SCCP view: the statement's range,
+/// each kept arm's pattern range, and per member the arm selected and the
+/// arm whose body runs — the final `default` pair by that name, since the
+/// statement keeps it as its default body — with the count of its writes.
+fn selection_json(
+    record: &tcl_compiler::sccp::SelectionRecord,
+    li: &LineIndex,
+    source: &str,
+) -> Value {
+    let label = |arm: &Option<usize>| match arm {
+        Some(arm) if record.is_default(*arm) => "default".to_owned(),
+        Some(arm) => format!("arm {arm}"),
+        None => "none".to_owned(),
+    };
+    json!({
+        "range": range_dict(record.span, li, source),
+        "armPatterns": record
+            .arm_pattern_spans
+            .iter()
+            .map(|span| range_dict(*span, li, source))
+            .collect::<Vec<_>>(),
+        "selected": record.fact.selected.iter().map(label).collect::<Vec<_>>(),
+        "bodies": record.fact.bodies.iter().map(label).collect::<Vec<_>>(),
+        "writes": record.fact.writes.iter().map(Vec::len).collect::<Vec<_>>(),
+    })
+}
+
+/// One loop the solver ran to its exit: where it leaves to, its passes, how
+/// it left, and the value it published for each place it wrote.
+fn enumerated_loop_json(
+    record: &tcl_compiler::sccp::EnumeratedLoop,
+    ssa: &tcl_compiler::ssa::SsaFunction,
+    (li, source): (&LineIndex, &str),
+) -> Value {
+    use tcl_registry::value_transfer::ExitRule;
+    let exit = match record.exit {
+        ExitRule::Exhaustion => "exhaustion",
+        ExitRule::FalseCondition => "false condition",
+        ExitRule::Break => "break",
+        ExitRule::NonNormalCompletion => "non-normal completion",
+        ExitRule::EnumerationCap => "enumeration cap",
+    };
+    json!({
+        "exitBlock": ssa.block_name(record.exit_block),
+        "iterations": record.iterations,
+        "exit": exit,
+        "range": range_dict(record.span, li, source),
+        "published": record
+            .published
+            .iter()
+            .map(|(name, value)| json!({ "variable": name, "lattice": format_lattice(value) }))
+            .collect::<Vec<_>>(),
+    })
+}
+
+/// One edge refinement of the SCCP view: the edge, the place and version it
+/// narrows, the domain, and the fact as the view spells it — a value as a
+/// constant is (`'a'`), a finite set as its members, an existence, a type
+/// or a range by name.
+fn refinement_json(
+    refinement: &tcl_compiler::sccp::EdgeRefinement,
+    sccp: &tcl_compiler::sccp::SccpResult,
+    ssa: &tcl_compiler::ssa::SsaFunction,
+) -> Value {
+    use tcl_registry::value_transfer::{BindingKind, DomainFact, Existence, FactDomain, FactView};
+    let text = |bytes: &[u8]| crate::formatters::py_repr_str(&String::from_utf8_lossy(bytes));
+    let fact = match &refinement.fact {
+        FactView::Exact(value, _) => text(&value.bytes),
+        FactView::Finite(values, _) => format!(
+            "one of {}",
+            values
+                .iter()
+                .map(|value| text(&value.bytes))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        FactView::Domain(DomainFact::Existence(existence)) => match existence {
+            Existence::Bound(BindingKind::Either) => "bound".to_owned(),
+            Existence::Bound(BindingKind::Scalar) => "bound scalar".to_owned(),
+            Existence::Bound(BindingKind::Array) => "bound array".to_owned(),
+            Existence::Unbound => "unbound".to_owned(),
+            Existence::MayBound => "may be bound".to_owned(),
+            Existence::Pending => "pending".to_owned(),
+        },
+        FactView::Domain(DomainFact::Type {
+            intrep: Some(intrep),
+            ..
+        }) => format!("type {}", type_name(*intrep)),
+        FactView::Domain(DomainFact::Range { lo, hi }) => {
+            let bound = |bound: &Option<i64>, infinite: &str| {
+                bound.map_or_else(|| infinite.to_owned(), |bound| bound.to_string())
+            };
+            format!("range [{}, {}]", bound(lo, "-inf"), bound(hi, "+inf"))
+        }
+        other => format!("{other:?}"),
+    };
+    let domain = match refinement.domain {
+        FactDomain::ExactValue => "value",
+        FactDomain::Type => "type",
+        FactDomain::Existence => "existence",
+        FactDomain::Range => "range",
+        FactDomain::Segments => "segments",
+        _ => "other",
+    };
+    json!({
+        "from": ssa.block_name(refinement.edge.0),
+        "to": ssa.block_name(refinement.edge.1),
+        "variable": sccp.place_name(ssa, refinement.key.0).unwrap_or("?"),
+        "version": refinement.key.1,
+        "domain": domain,
+        "fact": fact,
+    })
+}
+
+/// The SCCP view's values of one function, by variable and version: each
+/// version's lattice value, with the folded type the producing evaluation
+/// states when it states one — the type with how the route built the value
+/// (`bytearray (constructed)`).
+fn lattice_values_json(unit: &tcl_compiler::compilation_unit::FunctionUnit) -> Vec<Value> {
+    let ssa = &unit.ssa;
+    let mut values: Vec<_> = unit.sccp.values.iter().collect();
+    values.sort_by(|(a, _), (b, _)| ssa.var_name(a.0).cmp(ssa.var_name(b.0)).then(a.1.cmp(&b.1)));
+    let folded = &unit.sccp.folded_types;
+    values
+        .into_iter()
+        .map(|(&(symbol, version), lattice)| {
+            let mut value = json!({
+                "variable": ssa.var_name(symbol),
+                "version": version,
+                "lattice": format_lattice(lattice),
+            });
+            if let Some(folded) = folded.get(&(symbol, version)) {
+                value["type"] = json!(folded.label());
+            }
+            value
+        })
+        .collect()
+}
+
 /// Serialise the complete SCCP lattice and executable CFG facts. The SSA CFG
 /// tab intentionally keeps a compact annotation; this view is the durable
-/// proof surface for constants, reachability, and executable edges.
+/// proof surface for constants, reachability, executable edges, each
+/// executable branch edge's refinements, each loop the solver ran to its
+/// exit, each opaque case list's selection and — per statement — the
+/// value-transfer route the resolved invocation declared and how it
+/// answered.
 #[must_use]
 pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     Value::Array(
@@ -1624,20 +1860,7 @@ pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> 
             .iter()
             .map(|snap| {
                 let ssa = &snap.unit.ssa;
-                let mut values: Vec<_> = snap.unit.sccp.values.iter().collect();
-                values.sort_by(|(a, _), (b, _)| {
-                    ssa.var_name(a.0).cmp(ssa.var_name(b.0)).then(a.1.cmp(&b.1))
-                });
-                let values: Vec<Value> = values
-                    .into_iter()
-                    .map(|(&(symbol, version), lattice)| {
-                        json!({
-                            "variable": ssa.var_name(symbol),
-                            "version": version,
-                            "lattice": format_lattice(lattice),
-                        })
-                    })
-                    .collect();
+                let values = lattice_values_json(snap.unit);
                 let mut executable_blocks: Vec<String> = snap
                     .unit
                     .sccp
@@ -1661,6 +1884,7 @@ pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> 
                     .iter()
                     .map(|branch| json!({
                         "block": branch.block,
+                        "kind": branch.kind.label(),
                         "condition": preview(&branch.condition, 80),
                         "value": branch.value,
                         "takenTarget": branch.taken_target,
@@ -1668,6 +1892,40 @@ pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> 
                         "range": branch.span.map(|span| range_dict(span, li, source)),
                     }))
                     .collect();
+                let routes: Vec<Value> = snap
+                    .unit
+                    .sccp
+                    .explanations
+                    .iter()
+                    .map(|explanation| route_json(explanation, li, source))
+                    .collect();
+                let selections: Vec<Value> = snap
+                    .unit
+                    .sccp
+                    .selections
+                    .iter()
+                    .map(|record| selection_json(record, li, source))
+                    .collect();
+                // A refinement on an edge the solver never takes holds
+                // nowhere, so the view names only the executable edges'.
+                let refinements: Vec<Value> = snap
+                    .unit
+                    .sccp
+                    .refinements
+                    .iter()
+                    .filter(|refinement| {
+                        snap.unit.sccp.executable_edges.contains(&refinement.edge)
+                    })
+                    .map(|refinement| refinement_json(refinement, &snap.unit.sccp, ssa))
+                    .collect();
+                let loops: Vec<Value> = snap
+                    .unit
+                    .sccp
+                    .loop_enumerations
+                    .iter()
+                    .map(|record| enumerated_loop_json(record, ssa, (li, source)))
+                    .collect();
+                let tally = &snap.unit.sccp.route_tally;
                 json!({
                     "name": snap.name,
                     "kind": snap.kind.as_str(),
@@ -1675,6 +1933,15 @@ pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> 
                     "executableBlocks": executable_blocks,
                     "executableEdges": executable_edges,
                     "constantBranches": branches,
+                    "refinements": refinements,
+                    "enumeratedLoops": loops,
+                    "selections": selections,
+                    "routes": routes,
+                    "routeTally": {
+                        "direct": tally.direct,
+                        "expression": tally.expression,
+                        "implementation": tally.implementation,
+                    },
                 })
             })
             .collect(),
@@ -1950,6 +2217,7 @@ pub fn serialise_semantic(result: &ExplorerResult, li: &LineIndex, source: &str)
                     "status": semantic_status(availability),
                     "decline": semantic_decline_value(availability),
                     "complexityGuarded": snap.unit.complexity_guarded,
+                    "tier": snap.unit.tier.as_str(),
                     "dynamicNames": {
                         "writes": snap.unit.dynamic_names.writes,
                         "destroys": snap.unit.dynamic_names.destroys,
@@ -1984,6 +2252,7 @@ fn post_ssa_analysis(
         .map(|b| {
             json!({
                 "block": b.block,
+                "kind": b.kind.label(),
                 "condition": preview(&b.condition, 60),
                 "value": b.value,
                 "takenTarget": b.taken_target,
@@ -2363,7 +2632,7 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
             let findings: Vec<Value> = find_interval_bounds_with(
                 &snap.unit.cfg,
                 &snap.unit.ssa,
-                &snap.unit.sccp.values,
+                (&snap.unit.sccp, &snap.unit.types),
                 &snap.unit.sccp.executable_blocks,
                 snap.unit
                     .semantic_facts
@@ -2389,9 +2658,9 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
             let divzero: Vec<Value> = find_divide_by_zero_with(
                 &snap.unit.cfg,
                 &snap.unit.ssa,
-                &snap.unit.sccp.values,
+                (&snap.unit.sccp, &snap.unit.types),
                 &snap.unit.sccp.executable_blocks,
-             numbers, grammar,
+             numbers,
             )
             .iter()
             .map(|d| json!({ "code": "W233", "op": d.op }))
@@ -2492,6 +2761,9 @@ pub fn serialise_interproc(
             "hasBarrier": s.has_barrier,
             "hasUnknownCalls": s.has_unknown_calls,
             "writesGlobal": s.writes_global,
+            // What a call does to its caller's places, or nothing where a
+            // call to the procedure is a barrier.
+            "transfer": interproc.transfers.describe(qname, &s.params),
             // The caller-uniform-literal SCCP seed this procedure was
             // analysed under — the fact that explains a folded condition on
             // a parameter (and, by its absence, an indirect call site the
@@ -2971,12 +3243,20 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
         for branch in &snap.unit.sccp.constant_branches {
             if let Some(span) = branch.span {
                 let dir = if branch.value { "true" } else { "false" };
-                anns.push(Ann {
-                    span,
-                    label: format!(
+                let label = if branch.kind == tcl_compiler::sccp::BranchFactKind::Selected {
+                    format!(
+                        "{}: arm '{}' is never selected",
+                        snap.name, branch.condition
+                    )
+                } else {
+                    format!(
                         "{}: branch is always {dir}; takes {}",
                         snap.name, branch.taken_target
-                    ),
+                    )
+                };
+                anns.push(Ann {
+                    span,
+                    label,
                     kind: "constantBranch",
                     severity: "info",
                     priority: 0,
@@ -3300,10 +3580,9 @@ pub fn serialise_result_with_optimisations(
     // and surface its WAT plus the rich per-instruction
     // explorer shape (resolved `call`/branch targets, per-instruction ranges)
     // alongside per-function headers, which the text/`wasm` view renders.
-    out.insert(
-        "wasm".to_owned(),
-        serialise_wasm_with_options(result, options),
-    );
+    let wasm = serialise_wasm_with_options(result, options);
+    out.insert("aot".to_owned(), wasm_codegen_plan(&wasm));
+    out.insert("wasm".to_owned(), wasm);
     out.insert(
         "wasmOptimised".to_owned(),
         opt.as_ref().map_or(Value::Null, |(r, _)| {
@@ -3350,8 +3629,9 @@ mod tests {
             assert!(entry["shortName"].as_str().is_some_and(|s| !s.is_empty()));
         }
         // The original 27 views, plus World SSA, six durable compiler
-        // artefact views, and the optimisation-pass toggle surface.
-        assert_eq!(meta["views"].as_array().unwrap().len(), 35);
+        // artefact views, the optimisation-pass toggle surface and the AOT
+        // plan.
+        assert_eq!(meta["views"].as_array().unwrap().len(), 36);
         assert_eq!(meta["severities"], json!(["error", "warning", "info"]));
         let traits = meta["traits"]
             .as_array()
@@ -3460,6 +3740,65 @@ mod tests {
         );
         assert_eq!(plan["nativeI64Add"]["frameElided"], true);
         assert_eq!(plan["nativeI64Add"]["closedProgramStatements"], 4);
+        assert_eq!(plan["nativeDeclines"], json!([]), "nothing rejected it");
+    }
+
+    /// The `aot` payload is the `wasm` header's plan, and the plan names each
+    /// premise the sealed native addition rejected: typed, in evaluation
+    /// order, with the call each concerns.
+    #[test]
+    fn aot_view_carries_the_plan_and_every_rejected_native_premise() {
+        let result = run_pipeline(
+            "proc add {b c} {return [expr {$b + $c}]}\nset d 2\nset e 4\nputs [add $d $e]\n",
+            "tcl9.0",
+        );
+        let mut config = SemanticOptimisationConfig::new();
+        for pass in [
+            SemanticOptimisationPassId::DirectProc,
+            SemanticOptimisationPassId::MaterialisableSlot,
+            SemanticOptimisationPassId::FrameElision,
+            SemanticOptimisationPassId::SemanticOperationSpecialisation,
+        ] {
+            config.enable(pass);
+        }
+        let data = serialise_result_with_optimisations(&result, config);
+        assert_eq!(data["aot"], data["wasm"][0]["codegenPlan"]);
+
+        let declines = data["aot"]["nativeDeclines"]
+            .as_array()
+            .expect("the native record");
+        let named: Vec<(&str, &str)> = declines
+            .iter()
+            .map(|decline| {
+                (
+                    decline["premise"].as_str().expect("a premise"),
+                    decline["reason"].as_str().expect("a reason"),
+                )
+            })
+            .collect();
+        assert_eq!(
+            named,
+            [
+                ("sealed-program", "hosted-environment"),
+                ("pass", "pass-disabled"),
+                ("closed-program", "hosted-environment"),
+                ("direct-body", "native-integer-pass-disabled"),
+                ("frame", "frame-not-elidable"),
+                ("actuals", "hosted-top-level-observable"),
+                ("native-integer", "pass-disabled"),
+            ]
+        );
+        assert_eq!(declines[0]["sites"], json!([]));
+        assert_eq!(declines[1]["detail"], json!({ "pass": "native-integer" }));
+        assert_eq!(
+            declines[3]["sites"],
+            json!([{
+                "function": "::top",
+                "block": 0,
+                "statementIndex": 3,
+                "nestedArgument": 0,
+            }])
+        );
     }
 
     /// The toggle surface a front end renders from: every pass, in a stable
@@ -4091,6 +4430,230 @@ mod tests {
         assert!(top["findings"].is_array());
         // The Rust interval analysis emits no divide-by-zero findings.
         assert_eq!(top["divzero"], json!([]));
+    }
+
+    /// The SCCP view carries each statement's value-transfer route and its
+    /// answer at the fixed point, beside the lattice.
+    #[test]
+    fn sccp_reports_each_statements_route_and_answer() {
+        let result = run_pipeline(
+            "proc p {} {\n    set n 1\n    incr n\n    set s [string range abc 0 1]\n    return $n\n}\n",
+            "tcl8.6",
+        );
+        let sccp = serialise_result(&result)["sccp"].clone();
+        let proc_view = sccp
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["name"] == "::p")
+            .expect("the procedure's view");
+        let routes = proc_view["routes"].as_array().expect("routes");
+        let incr = routes
+            .iter()
+            .find(|r| r["command"] == "incr")
+            .expect("the incr route");
+        assert_eq!(incr["route"], "direct cell-increment (registry)");
+        assert_eq!(incr["answer"], "evaluated");
+        assert_eq!(incr["range"]["startLine"], 2);
+        let range = routes
+            .iter()
+            .find(|r| r["command"] == "string")
+            .expect("the string range route");
+        assert_eq!(range["route"], "direct string-range (registry)");
+        assert_eq!(range["answer"], "evaluated");
+    }
+
+    /// The SCCP view lists what each statement stores on its completion paths:
+    /// a `lassign` over an array stops after its first store, and over a
+    /// place of a kind the analysis does not know it may fail at any of them,
+    /// which its transfer says by path. A statement that stores on its normal
+    /// path alone lists that one.
+    #[test]
+    fn sccp_reports_each_statements_completion_paths() {
+        let result = run_pipeline(
+            "proc p {} {\n    array set c {k keep}\n    set a old\n    \
+             lassign {new second} a c\n}\n\
+             proc q {c} {\n    set a old\n    if {$c} {set b 1}\n    lassign {x y} a b\n}\n",
+            "tcl8.6",
+        );
+        let sccp = serialise_result(&result)["sccp"].clone();
+        let paths = |name: &str, line: u64| -> Vec<(String, Vec<String>)> {
+            let proc_view = sccp
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|f| f["name"] == name)
+                .expect("the procedure's view");
+            let route = proc_view["routes"]
+                .as_array()
+                .expect("routes")
+                .iter()
+                .find(|r| r["command"] == "lassign" && r["range"]["startLine"] == line)
+                .expect("the lassign route");
+            route["paths"]
+                .as_array()
+                .expect("paths")
+                .iter()
+                .map(|path| {
+                    (
+                        path["completion"].as_str().unwrap().to_owned(),
+                        path["stores"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .map(|store| store.as_str().unwrap().to_owned())
+                            .collect(),
+                    )
+                })
+                .collect()
+        };
+        assert_eq!(
+            paths("::p", 3),
+            [(
+                "error after 1 store".to_owned(),
+                vec!["write a = new".to_owned()]
+            )],
+            "the store before the array ran, the one at it did not"
+        );
+        assert_eq!(
+            paths("::q", 8),
+            [
+                (
+                    "normal".to_owned(),
+                    vec!["write a = x".to_owned(), "write b = y".to_owned()]
+                ),
+                (
+                    "error".to_owned(),
+                    vec![
+                        "bind a as scalar".to_owned(),
+                        "may-bind b as scalar".to_owned()
+                    ]
+                ),
+            ]
+        );
+    }
+
+    /// The SCCP view's route tally counts every family's entries once,
+    /// nested ones included: two fused `expr` statements are two
+    /// expression entries, and the nested `string length` one of them
+    /// evaluates is a direct entry.
+    #[test]
+    fn sccp_reports_the_route_tally() {
+        let result = run_pipeline(
+            "proc p {} {set r [expr {\"x\"}]; \
+             set n [expr {[string length abcdef] * 2}]}\n",
+            "tcl8.6",
+        );
+        let sccp = serialise_result(&result)["sccp"].clone();
+        let proc_view = sccp
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["name"] == "::p")
+            .expect("the procedure's view");
+        let tally = &proc_view["routeTally"];
+        assert_eq!(tally["direct"], 1);
+        assert_eq!(tally["expression"], 2);
+        assert_eq!(tally["implementation"], 0);
+    }
+
+    /// The SCCP view carries each opaque case-list statement's selection:
+    /// program (4)'s `-glob` form selects its final `default`,
+    /// which the view names as such, against the one pattern span the
+    /// statement keeps — `baz`'s.
+    #[test]
+    fn sccp_reports_the_selection() {
+        let source = "proc p {} {\n    set acc \"\"; append acc foo; append acc bar\n    \
+                      switch -glob -- $acc {\n        baz     { puts never }\n        \
+                      default { puts always }\n    }\n}\n";
+        let result = run_pipeline(source, "tcl8.6");
+        let sccp = serialise_result(&result)["sccp"].clone();
+        let proc_view = sccp
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["name"] == "::p")
+            .expect("the procedure's view");
+        let selections = proc_view["selections"].as_array().expect("selections");
+        assert_eq!(selections.len(), 1, "{proc_view:#}");
+        let selection = &selections[0];
+        assert_eq!(selection["selected"], json!(["default"]));
+        assert_eq!(selection["bodies"], json!(["default"]));
+        assert_eq!(selection["writes"], json!([0]));
+        assert_eq!(selection["range"]["startLine"], 2);
+        let patterns = selection["armPatterns"].as_array().expect("arm patterns");
+        assert_eq!(patterns.len(), 1);
+        assert_eq!(patterns[0]["startLine"], 3);
+        assert_eq!(patterns[0]["startCol"], 8);
+    }
+
+    /// The SCCP view states each branch fact's kind, and an arm of an opaque
+    /// `switch` no member runs the body of is a `selected` fact: no target,
+    /// `false`, its pattern as the condition and its own range.
+    #[test]
+    fn sccp_reports_the_unreached_arms() {
+        let source = "proc p {} {\n    set acc \"\"; append acc foo; append acc bar\n    \
+                      switch -glob -- $acc {\n        baz     { puts never }\n        \
+                      default { puts always }\n    }\n}\n";
+        let result = run_pipeline(source, "tcl8.6");
+        let sccp = serialise_result(&result)["sccp"].clone();
+        let proc_view = sccp
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["name"] == "::p")
+            .expect("the procedure's view");
+        let branches = proc_view["constantBranches"].as_array().expect("branches");
+        assert_eq!(branches.len(), 1, "{proc_view:#}");
+        let arm = &branches[0];
+        assert_eq!(arm["kind"], "selected");
+        assert_eq!(arm["condition"], "baz");
+        assert_eq!(arm["value"], false);
+        assert_eq!(arm["takenTarget"], "");
+        assert_eq!(arm["range"]["startLine"], 3);
+        assert_eq!(arm["range"]["startCol"], 8);
+    }
+
+    /// Each value the SCCP view lists carries the folded type the
+    /// evaluation that produced it states: a computed `string length` is an
+    /// int the route constructed, `list` a list, a copy shares its source's,
+    /// and a φ keeps what both arms state alike. A literal states nothing,
+    /// and neither does a φ over a literal arm.
+    #[test]
+    fn sccp_reports_folded_types() {
+        let result = run_pipeline(
+            "proc p {c} {set s abcdef; set n [string length $s]; set l [list a b]; \
+             set m $n; if {$c} {set k [string length $s]} else {set k [llength $l]}; \
+             if {$c} {set j 5} else {set j [llength $l]}; return $m$k$j}\n",
+            "tcl8.6",
+        );
+        let sccp = serialise_result(&result)["sccp"].clone();
+        let proc_view = sccp
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["name"] == "::p")
+            .expect("the procedure's view");
+        let type_of = |variable: &str, version: u64| {
+            proc_view["values"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|value| value["variable"] == variable && value["version"] == version)
+                .unwrap_or_else(|| panic!("{variable}#{version}: {proc_view:#}"))
+                .get("type")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        };
+        assert_eq!(type_of("s", 1), None, "a literal states no type");
+        assert_eq!(type_of("n", 1).as_deref(), Some("int (constructed)"));
+        assert_eq!(type_of("l", 1).as_deref(), Some("list (constructed)"));
+        assert_eq!(type_of("m", 1).as_deref(), Some("int (constructed)"));
+        // The φ versions are numbered first: `k#1` joins `k#2` and `k#3`.
+        assert_eq!(type_of("k", 1).as_deref(), Some("int (constructed)"));
+        assert_eq!(type_of("j", 2), None, "a literal arm");
+        assert_eq!(type_of("j", 3).as_deref(), Some("int (constructed)"));
+        assert_eq!(type_of("j", 1), None, "one arm is a literal");
     }
 
     #[test]

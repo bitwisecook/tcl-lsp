@@ -1190,6 +1190,27 @@ mod tests {
     }
 
     #[test]
+    fn xc_codes_are_user_configurable_and_untagged() {
+        // The XC family is gated by the `xcDiagnostics` switch and then
+        // toggled per code like any other diagnostic, so it is neither
+        // internal nor reserved, and a translatability note is never faded
+        // or struck through.
+        let xc = DiagCode::ALL
+            .iter()
+            .copied()
+            .filter(|c| c.diag_section() == Some(DiagSection::Xc));
+        assert_eq!(xc.clone().count(), 13);
+        for code in xc {
+            assert!(code.as_str().starts_with("XC"), "{code}");
+            assert!(!code.is_internal(), "{code} must be user-configurable");
+            assert!(!code.is_reserved(), "{code} has a producer in f5-xc");
+            assert!(code.default_on(), "{code} is on within its family switch");
+            assert_eq!(code.lsp_tag(), None, "{code} carries no tag");
+            assert_eq!(code.family(), DiagFamily::Warning);
+        }
+    }
+
+    #[test]
     fn opt_category_as_str_and_profiles() {
         use OptCategory::*;
         for (cat, key) in [
@@ -1267,13 +1288,13 @@ mod tests {
     /// Tiny `no_std` set for the uniqueness test (avoids pulling in std).
     mod heapless_set {
         pub struct Set {
-            items: [&'static str; 256],
+            items: [&'static str; 512],
             len: usize,
         }
         impl Set {
             pub const fn new() -> Self {
                 Self {
-                    items: [""; 256],
+                    items: [""; 512],
                     len: 0,
                 }
             }

@@ -26,10 +26,20 @@ use std::borrow::Cow;
 
 use tcl_lexer::{Span, Token, TokenType};
 
+use tcl_registry::arg_role::ArgRole;
+use tcl_registry::spec::CaseListSpec;
+use tcl_registry::{
+    ClauseAbstention, ClausePlan, ClauseRowId, ClauseShapeError, ClauseTiming, InvocationWord,
+    InvocationWords,
+};
+
 use crate::expr_parser::parse_expr_for_profile;
-use crate::ir::{ForeachIterator, IfClause, Script, Statement, SwitchArm, SwitchMode, TryHandler};
+use crate::ir::{
+    ForeachIterator, HandlerMatch, IfClause, Script, Statement, SwitchArm, SwitchMode, TryHandler,
+};
 use crate::lowering_hooks::word_content_base;
 use crate::naming::normalise_var_name;
+use crate::registry_invocation::{EffectiveInvocationWord, effective_command_arguments};
 use crate::segmenter::SegmentedCommand;
 
 use super::{Lowerer, parse_var_list_names};
@@ -77,10 +87,17 @@ struct SwitchElement {
 /// body (tclsh 9.0.4: `switch # { # {puts matched} default {puts default} }`
 /// prints `matched`).
 ///
+/// A bare or quoted element's backslashes collapse under the document's escape
+/// grammar (`escapes`): before Tcl 8.6 a `\x` takes every hex digit that
+/// follows and keeps the last two.
+///
 /// Returns `None` when the text is not a well-formed list — the caller
 /// bails the whole `switch` to the runtime command, which reports the
 /// error exactly as C Tcl does.
-fn switch_body_elements(body_text: &str) -> Option<Vec<SwitchElement>> {
+fn switch_body_elements(
+    body_text: &str,
+    escapes: tcl_lexer::EscapeSyntax,
+) -> Option<Vec<SwitchElement>> {
     let bytes = body_text.as_bytes();
     let mut elements = Vec::new();
     let mut scan = 0usize;
@@ -91,7 +108,7 @@ fn switch_body_elements(body_text: &str) -> Option<Vec<SwitchElement>> {
                 let value = if el.literal {
                     raw.clone()
                 } else {
-                    tcl_lexer::backslash_subst(&raw).into_owned()
+                    tcl_lexer::backslash_subst_in(&raw, escapes).into_owned()
                 };
                 let quoted = !el.braced
                     && el.value.start > 0
@@ -138,7 +155,7 @@ fn word_is_braced(arg_tokens: &[tcl_lexer::Token], arg_single: &[bool], index: u
 }
 
 /// [`word_is_braced`] for every argument, for the generic-invoke fallback.
-fn braced_word_flags(
+pub(crate) fn braced_word_flags(
     arg_tokens: &[tcl_lexer::Token],
     arg_single: &[bool],
     len: usize,
@@ -148,26 +165,106 @@ fn braced_word_flags(
         .collect()
 }
 
+/// Per argument, whether the word was double-quoted: its representative
+/// token opens at the `"` (a quoted-opening `Esc` token counts the quote as
+/// a delimiter byte) or runs inside the quotes.
+pub(crate) fn quoted_word_flags(arg_tokens: &[tcl_lexer::Token], len: usize) -> Vec<bool> {
+    (0..len)
+        .map(|i| {
+            arg_tokens.get(i).is_some_and(|token| {
+                token.in_quote || (token.kind == TokenType::Esc && token.content_offset > 0)
+            })
+        })
+        .collect()
+}
+
+/// The IR's mode for a case list's own comparison, or `None` for a
+/// specialised one the statement cannot carry.
+const fn switch_mode_of(mode: tcl_registry::spec::CaseMatchMode) -> Option<SwitchMode> {
+    match mode {
+        tcl_registry::spec::CaseMatchMode::Exact => Some(SwitchMode::Exact),
+        tcl_registry::spec::CaseMatchMode::Glob => Some(SwitchMode::Glob),
+        tcl_registry::spec::CaseMatchMode::Regexp => Some(SwitchMode::Regexp),
+        tcl_registry::spec::CaseMatchMode::Other => None,
+    }
+}
+
+/// Where a case list's options end and how its clauses compare, as
+/// `(subject_index, mode, nocase)`; `Err` is the reason the whole command
+/// defers to the runtime. A command with option rows scans them
+/// ([`parse_switch_options`]); one with none (`case`) scans no word as an
+/// option — its subject is the first word — and every clause compares as
+/// its descriptor states, `Tcl_CaseObjCmd`'s glob for `case`.
+fn case_list_head(
+    case: &CaseListSpec,
+    reads_options: bool,
+    args: &[String],
+) -> Result<(usize, SwitchMode, bool), &'static str> {
+    if !reads_options {
+        let mode =
+            switch_mode_of(case.default_mode).ok_or("case list with a specialised comparison")?;
+        return Ok((0, mode, false));
+    }
+    let (i, mode, nocase, unknown, _) = parse_switch_options(args);
+    // An unrecognised / arg-taking option (`-foo`, `-matchvar`, …): bail to
+    // the runtime `switch`, which validates options and does the var writes.
+    if unknown {
+        return Err("switch with non-inlined option");
+    }
+    Ok((i, mode, nocase))
+}
+
+/// Why the IR's arm cannot hold a clause of a case list, when one cannot:
+/// under a descriptor whose pattern words may be lists (`case`), a pattern
+/// the command splits as one ([`CaseListSpec::pattern_is_list`]) or whose
+/// value the source does not state, which may be one; and, under one whose
+/// keyword pattern counts wherever it stands, a keyword before the last
+/// clause — the IR keeps the fallback as its default body, which runs only
+/// after every arm.
+fn case_list_unrepresentable(case: &CaseListSpec, pairs: &[SwitchPair]) -> Option<&'static str> {
+    let is_list = |pair: &SwitchPair| {
+        case.pattern_is_list(&pair.pattern)
+            || (case.pattern_words == tcl_registry::spec::PatternWords::Lists
+                && !pair.pattern_braced
+                && (pair.pattern.contains('$') || pair.pattern.contains('[')))
+    };
+    if pairs.iter().any(is_list) {
+        return Some("case pattern list");
+    }
+    let early_keyword = pairs.split_last().is_some_and(|(_, rest)| {
+        rest.iter()
+            .any(|pair| case.keyword_patterns.contains(&pair.pattern.as_str()))
+    });
+    if !case.keyword_patterns_require_final && early_keyword {
+        return Some("case keyword pattern before the last clause");
+    }
+    None
+}
+
 /// Parse switch options, returning `(first_non_option_index, mode, nocase,
-/// unknown)`. `unknown` is set when a leading `-word` is not one of the options
-/// the compiler inlines (`-exact`/`-glob`/`-regexp`/`-nocase`/`--`) — an
-/// arg-taking `-indexvar`/`-matchvar`, or an invalid option such as `-foo`. The
-/// caller bails the whole switch to the runtime command, which validates the
-/// option set (tclsh rejects `-foo`) and handles the side-channel writes.
+/// unknown, ended)`. `unknown` is set when a leading `-word` is not one of the
+/// options the compiler inlines (`-exact`/`-glob`/`-regexp`/`-nocase`/`--`) —
+/// an arg-taking `-indexvar`/`-matchvar`, or an invalid option such as `-foo`.
+/// The caller bails the whole switch to the runtime command, which validates
+/// the option set (tclsh rejects `-foo`) and handles the side-channel writes.
+/// `ended` is set when `--` closed the options, so the next word is the
+/// subject whatever it spells.
 ///
-/// `pub(crate)` so the opaque-switch emitter can ask the same question this
-/// answers for lowering — which argument the subject is — rather than keeping
-/// a second copy of the option rule. There is one owner of "where do the
-/// options end", and this is it.
-pub(crate) fn parse_switch_options(args: &[String]) -> (usize, SwitchMode, bool, bool) {
+/// `pub(crate)` so the dispatch chain's lowering can ask the same question
+/// this answers for this lowering — which argument the subject is, and whether
+/// `--` stands before it — rather than keeping a second copy of the option
+/// rule. There is one owner of "where do the options end", and this is it.
+pub(crate) fn parse_switch_options(args: &[String]) -> (usize, SwitchMode, bool, bool, bool) {
     let mut i = 0;
     let mut mode = SwitchMode::Exact;
     let mut nocase = false;
     let mut unknown = false;
+    let mut ended = false;
     while i < args.len() && args[i].starts_with('-') {
         match args[i].as_str() {
             "--" => {
                 i += 1;
+                ended = true;
                 break;
             }
             "-exact" => mode = SwitchMode::Exact,
@@ -181,7 +278,51 @@ pub(crate) fn parse_switch_options(args: &[String]) -> (usize, SwitchMode, bool,
         }
         i += 1;
     }
-    (i, mode, nocase, unknown)
+    (i, mode, nocase, unknown, ended)
+}
+
+/// The pattern/body pairs of `switch`'s multi-word form, from word `start`
+/// on; `Err` is the reason the whole `switch` defers to the runtime command.
+fn inline_switch_pairs(
+    seg: &SegmentedCommand,
+    case: &CaseListSpec,
+    start: usize,
+) -> Result<Vec<SwitchPair>, &'static str> {
+    let args = seg.args();
+    let arg_tokens = seg.arg_tokens();
+    let arg_single = seg.arg_single_token();
+    if !(args.len() - start).is_multiple_of(2) {
+        return Err("switch odd pattern count");
+    }
+    let mut pairs = Vec::with_capacity((args.len() - start) / 2);
+    for i in (start..args.len()).step_by(2) {
+        let body_tok_idx = i + 1;
+        // Like if/while/for/catch/try, an arm body that carries substitution
+        // (`$handler`, `[cmd]`, a quoted/concatenated word) is evaluated as a
+        // script from its *runtime value*, not its unsubstituted spelling.
+        // Lowering the literal spelling as a nested script would fabricate a
+        // phantom command (e.g. a Call to `${handler}`) that downstream
+        // dead-code/taint/def-use/call-graph passes reason about. Defer the
+        // whole switch to the runtime command instead. The case list's
+        // fall-through body is a literal, not a body, so it is exempt.
+        // (`seg.argv` includes the command word, so the body word
+        // `args[i + 1]` is index `i + 2`.)
+        if case.fallthrough_body != Some(args[body_tok_idx].as_str())
+            && !super::seg_word_is_static_literal(seg, i + 2)
+        {
+            return Err("switch with non-literal arm body");
+        }
+        pairs.push(SwitchPair {
+            pattern: args[i].clone(),
+            // Per word here: `{${x}}` is literal, a bare `$pat` substitutes.
+            pattern_braced: word_is_braced(arg_tokens, arg_single, i),
+            pattern_span: arg_tokens.get(i).map_or(seg.span, |t| t.span),
+            body_text: args[body_tok_idx].clone(),
+            body_span: arg_tokens.get(body_tok_idx).map(|t| t.span),
+            body_arg_idx: Some(body_tok_idx),
+        });
+    }
+    Ok(pairs)
 }
 
 /// Whether a loop body (or `for` next-clause) redefines `break`/`continue` via
@@ -217,23 +358,78 @@ fn condition_source_text<'t>(tok: Option<&Token>, single: bool, text: &'t str) -
     Cow::Borrowed(text)
 }
 
+/// The barrier reason for an `if` whose clause plan has `defect`: the
+/// runtime `if`'s own error, in the words the lowering has always used.
+fn if_defect_reason(plan: &ClausePlan, defect: ClauseShapeError) -> &'static str {
+    let explicit_else = plan
+        .clauses
+        .last()
+        .is_some_and(|clause| clause.row == ClauseRowId::Tail && clause.keyword_index.is_some());
+    match defect {
+        ClauseShapeError::MissingExpr { after: None } => "malformed if",
+        ClauseShapeError::MissingExpr { after: Some(_) } => "if missing elseif expression",
+        ClauseShapeError::MissingBody { .. } if explicit_else => "malformed if else clause",
+        ClauseShapeError::MissingBody { .. } => "malformed if clause",
+        ClauseShapeError::ExtraWords { .. } if explicit_else => "if extra words after else",
+        ClauseShapeError::ExtraWords { .. } => "if with extra words",
+    }
+}
+
 impl Lowerer<'_> {
     // if
 
-    /// Lower `if cond body ?elseif cond body ...? ?else body?`.
+    /// The clause walk of `seg` under this lowerer's registry and release:
+    /// the command's clause grammar over the words' *values* — a substituted
+    /// word is computed, a backslash-escaped one decoded — so every keyword,
+    /// noise word and fall-through marker is compared as Tcl compares it
+    /// (`\-` is `try`'s marker, `{\-}` is not). `None` when the head resolves
+    /// no grammar at this release; `Err` where a computed word stands where
+    /// the walk compares one.
+    fn clause_walk_of(
+        &self,
+        seg: &SegmentedCommand,
+    ) -> Option<Result<ClausePlan, ClauseAbstention>> {
+        let tokens = self.cmd_tokens(seg);
+        let values = effective_command_arguments(
+            &tokens,
+            self.config.escapes,
+            WordValueRules::from_config(&self.config),
+        );
+        let words: Vec<InvocationWord<'_>> = values
+            .iter()
+            .map(EffectiveInvocationWord::as_registry_word)
+            .collect();
+        self.registry
+            .resolve_structured_invocation(
+                InvocationWords::structured(InvocationWord::Literal(seg.name()), &words),
+                self.registry.own_surface_query(),
+            )
+            .resolved()?
+            .clause_walk()
+    }
+
+    /// Lower `if cond ?then? body ?elseif cond ?then? body ...? ?else? ?body?`
+    /// from the command's clause plan: each clause with a condition becomes
+    /// an [`IfClause`], the default clause the `else` body. Keywords and the
+    /// `then` noise word are the plan's; nothing here compares a spelling.
     pub(super) fn lower_if(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
+        let Some(walk) = self.clause_walk_of(seg) else {
+            return self.barrier(seg, "malformed if");
+        };
+        // A computed word where a keyword could stand (`if $c {a} $w {b}`)
+        // leaves the chain to the runtime `if`; the inert reading still says
+        // how far the literal clauses go before it defers.
+        let (plan, computed) = match walk {
+            Ok(plan) => (plan, false),
+            Err(abstention) => (abstention.inert, true),
+        };
         let args = seg.args();
         let arg_tokens = seg.arg_tokens();
         let arg_single = seg.arg_single_token();
 
-        if args.is_empty() {
-            return self.barrier(seg, "malformed if");
-        }
-
         let mut clauses = Vec::new();
         let mut else_body = None;
         let mut else_span = None;
-        let mut i = 0;
         // Reachability tracking. Once a clause's condition
         // folds to a static `true`, every later clause + the
         // ``else`` branch is dead. A clause whose own condition
@@ -242,55 +438,18 @@ impl Lowerer<'_> {
         // ``dead_code_depth`` counter.
         let mut later_clauses_dead = false;
 
-        while i < args.len() {
-            if args[i] == "elseif" {
-                i += 1;
-                // `elseif` must be followed by a condition; a dangling `elseif`
-                // (`if 1 {a} elseif`) is "no expression after elseif". Defer to the
-                // runtime `if`, which reports it faithfully (if-2.3).
-                if i >= args.len() {
-                    return self.barrier(seg, "if missing elseif expression");
-                }
-                continue;
-            }
-            if args[i] == "else" {
-                if i + 1 >= args.len() {
-                    return self.barrier(seg, "malformed if else clause");
-                }
-                // Exactly one body may follow `else`; trailing words
-                // (`if 0 {a} else {b} junk`) are "extra words after else" — defer to
-                // the runtime `if` (if-3.5).
-                if i + 2 < args.len() {
-                    return self.barrier(seg, "if extra words after else");
-                }
-                // Only a substitution-free literal body inlines (see the
-                // clause-body note below).
-                if !super::seg_word_is_static_literal(seg, i + 2) {
-                    return self.barrier(seg, "if with non-literal body");
-                }
-                let body_tok = arg_tokens.get(i + 1);
-                let dead = later_clauses_dead;
-                if dead {
-                    self.dead_code_depth += 1;
-                }
-                else_body = Some(self.lower_body_from_tok(&args[i + 1], body_tok, namespace));
-                if dead {
-                    self.dead_code_depth -= 1;
-                }
-                else_span = body_tok.map(|t| t.span);
+        let last = plan.clauses.len().saturating_sub(1);
+        for (index, clause) in plan.clauses.iter().enumerate() {
+            // With a defect, the last clause is the one the defect stopped in
+            // or the one extra words follow (`if 0 {a} else {b} junk`): the
+            // runtime `if` reports it faithfully (if-2.3, if-3.5), so the
+            // construct defers to it before that clause is lowered.
+            if plan.defect.is_some() && index == last {
                 break;
             }
-
-            let cond_idx = i;
-            i += 1;
-            if i < args.len() && args[i] == "then" {
-                i += 1;
-            }
-            if i >= args.len() {
+            let Some(body_idx) = clause.operand(ArgRole::Body) else {
                 return self.barrier(seg, "malformed if clause");
-            }
-
-            let body_idx = i;
+            };
             // C's TclCompileIfCmd only inlines a braced-literal body; a body
             // carrying substitutions (`$x`, `[cmd]`, a quoted or concatenated
             // word like `$x1$x2`) must be substituted *then* evaluated as a
@@ -301,6 +460,23 @@ impl Lowerer<'_> {
                 return self.barrier(seg, "if with non-literal body");
             }
             let body_tok = arg_tokens.get(body_idx);
+            let Some(cond_idx) = clause.operand(ArgRole::Expr) else {
+                // Only the default clause — `else`, or the bare final body its
+                // optional keyword allows — runs without a condition.
+                if !clause.is_default {
+                    return self.barrier(seg, "malformed if clause");
+                }
+                let dead = later_clauses_dead;
+                if dead {
+                    self.dead_code_depth += 1;
+                }
+                else_body = Some(self.lower_body_from_tok(&args[body_idx], body_tok, namespace));
+                if dead {
+                    self.dead_code_depth -= 1;
+                }
+                else_span = body_tok.map(|t| t.span);
+                continue;
+            };
             let cond_tok = arg_tokens.get(cond_idx);
             let static_cond = super::static_bool(&args[cond_idx]);
             let clause_dead = later_clauses_dead || matches!(static_cond, Some(false));
@@ -326,17 +502,14 @@ impl Lowerer<'_> {
             if matches!(static_cond, Some(true)) {
                 later_clauses_dead = true;
             }
-            i += 1;
-            // After a clause, only `elseif` / `else` (or end) may follow. A bare
-            // word (`if 1<2 {a} elwood {b}`, `if 0 {a} {b}`) is "extra words
-            // after else clause" — the inline loop would otherwise mis-read it
-            // as another implicit clause. Bail to the runtime `if`, which
-            // reports the error faithfully.
-            if i < args.len() && args[i] != "elseif" && args[i] != "else" {
-                return self.barrier(seg, "if with extra words");
-            }
         }
 
+        if let Some(defect) = plan.defect {
+            return self.barrier(seg, if_defect_reason(&plan, defect));
+        }
+        if computed {
+            return self.barrier(seg, "if with a computed clause word");
+        }
         if clauses.is_empty() {
             return self.barrier(seg, "malformed if");
         }
@@ -537,7 +710,7 @@ impl Lowerer<'_> {
             .statements
             .iter()
             .any(|statement| matches!(statement, Statement::Foreach { .. }));
-        let lmap_needs_runtime = is_lmap && !Self::body_is_straight_line(&body);
+        let lmap_needs_runtime = is_lmap && !body.is_straight_line();
         if self.target.is_bytecode() && (lmap_needs_runtime || body_nests_foreach) {
             return self.barrier(seg, if is_lmap { "lmap" } else { "foreach" });
         }
@@ -553,29 +726,6 @@ impl Lowerer<'_> {
             is_array_iteration: false,
             raw_tokens: Some(cmd_tokens),
         }
-    }
-
-    /// A loop body is *straight-line* when every statement compiles to a single
-    /// fall-through block — no branch, join, or unwinding `return`. That is the
-    /// shape the inline collecting-`lmap` codegen needs: it strips the body's
-    /// trailing `POP` and appends the result via one `LMAP_COLLECT` on the
-    /// fall-through tail, so a branch/join (an `if`/`while`/`switch`/nested loop)
-    /// or a `return` that unwinds past the collect point would drop or mis-gather
-    /// results. Such a body keeps `lmap` on the runtime builtin.
-    ///
-    fn body_is_straight_line(body: &Script) -> bool {
-        body.statements.iter().all(|s| {
-            matches!(
-                s,
-                Statement::Call { .. }
-                    | Statement::AssignConst { .. }
-                    | Statement::AssignExpr { .. }
-                    | Statement::AssignValue { .. }
-                    | Statement::Incr { .. }
-                    | Statement::ExprEval { .. }
-                    | Statement::Barrier { .. }
-            )
-        })
     }
 
     /// Lower `foreachLine varName filename body` (Tcl 9.0+, TIP 670)
@@ -694,7 +844,11 @@ impl Lowerer<'_> {
 
     // try
 
-    /// Lower `try body ?on|trap matchArg varList handlerBody ...? ?finally finallyBody?`.
+    /// Lower `try body ?handler ...? ?finally finallyBody?` from the command's
+    /// clause plan: the protected clause is the body, each clause its
+    /// pattern selects becomes a [`TryHandler`] carrying the row's
+    /// [`HandlerMatch`], and the clause that runs whatever the outcome is
+    /// `finally`. Keywords and the `-` marker are the plan's.
     pub(super) fn lower_try(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
         // The bytecode/VM compile path lowers `try` to a runtime-command barrier:
         // the backend has no exception-range support, so a structured `try` can't
@@ -706,153 +860,189 @@ impl Lowerer<'_> {
 
         let args = seg.args();
         let arg_tokens = seg.arg_tokens();
-        let arg_single = seg.arg_single_token();
 
         if args.is_empty() {
             return self.barrier(seg, "malformed try");
         }
+        let Some(walk) = self.clause_walk_of(seg) else {
+            return self.barrier(seg, "malformed try");
+        };
+        // A computed word where a keyword or the marker could stand leaves
+        // the chain to the runtime `try`; the inert reading still says how far
+        // the literal clauses go before it defers.
+        let (plan, computed) = match walk {
+            Ok(plan) => (plan, false),
+            Err(abstention) => (abstention.inert, true),
+        };
+        let Some((protected, rest)) = plan.clauses.split_first() else {
+            return self.barrier(seg, "malformed try");
+        };
+        let Some(body_idx) = protected.operand(ArgRole::Body) else {
+            return self.barrier(seg, "malformed try");
+        };
         // The body is lowered via `lower_body_from_tok`, which rebases the
         // segmenter-reconstructed word text at the token's span — safe only
         // for a brace-literal (`Str`) token, matching `lower_catch`'s body
         // guard. A single-token but dynamic body (`$body`, `[cmd]`) must
         // barrier rather than be lowered as if it were the literal text.
-        if arg_tokens.is_empty() || !super::seg_word_is_static_braced(seg, 1) {
+        let Some(body_tok) = arg_tokens.get(body_idx) else {
+            return self.barrier(seg, "try with dynamic body");
+        };
+        if !super::seg_word_is_static_braced(seg, body_idx + 1) {
             return self.barrier(seg, "try with dynamic body");
         }
 
-        let body = self.lower_body_from_tok(&args[0], Some(&arg_tokens[0]), namespace);
+        let body = self.lower_body_from_tok(&args[body_idx], Some(body_tok), namespace);
         let mut handlers = Vec::new();
         let mut finally_body = None;
         let mut finally_span = None;
 
-        let mut i = 1;
-        while i < args.len() {
-            let keyword = &args[i];
-
-            if keyword == "finally" && i + 1 < args.len() {
-                let fin_tok = arg_tokens.get(i + 1);
-                // The `finally` word is a body like any other, so it needs the
-                // same static gate as the primary body above: single-token-ness
-                // alone would let `try {} finally $body` through, and rebasing
-                // the reconstructed `${body}` text at the `$body` token's span
-                // puts the inner statement off the end of the source.
-                // C's `TclCompileTryCmd` makes
-                // the same call — a `finally` word that is not a
-                // `TCL_TOKEN_SIMPLE_WORD` is `goto failedToCompile`, deferring
-                // the whole `try` to the runtime command.
-                if fin_tok.is_none() || !super::seg_word_is_static_braced(seg, i + 2) {
-                    return self.barrier(seg, "try with dynamic finally body");
+        for (offset, clause) in rest.iter().enumerate() {
+            // A clause the defect stopped in has no script word of its own.
+            let Some(clause_body) = clause.operand(ArgRole::Body) else {
+                break;
+            };
+            let clause_tok = arg_tokens.get(clause_body);
+            match clause.timing {
+                ClauseTiming::Always => {
+                    // The `finally` word is a body like any other, so it needs
+                    // the same static gate as the primary body above:
+                    // single-token-ness alone would let `try {} finally $body`
+                    // through, and rebasing the reconstructed `${body}` text at
+                    // the `$body` token's span puts the inner statement off the
+                    // end of the source. C's `TclCompileTryCmd` makes the same
+                    // call — a `finally` word that is not a
+                    // `TCL_TOKEN_SIMPLE_WORD` is `goto failedToCompile`,
+                    // deferring the whole `try` to the runtime command.
+                    if clause_tok.is_none()
+                        || !super::seg_word_is_static_braced(seg, clause_body + 1)
+                    {
+                        return self.barrier(seg, "try with dynamic finally body");
+                    }
+                    finally_body =
+                        Some(self.lower_body_from_tok(&args[clause_body], clause_tok, namespace));
+                    finally_span = clause_tok.map(|t| t.span);
                 }
-                finally_body = Some(self.lower_body_from_tok(&args[i + 1], fin_tok, namespace));
-                finally_span = fin_tok.map(|t| t.span);
-                i += 2;
-                continue;
-            }
-
-            if (keyword == "on" || keyword == "trap") && i + 3 < args.len() {
-                let match_arg = args[i + 1].clone();
-                // A trap selector is evaluated as one Tcl word and its value
-                // is then parsed as a Tcl list. Preserve the source-level
-                // substitution decision here: inspecting the decoded elements
-                // for `$` or `[` would reject literal data such as `{A {$B}}`
-                // and `{A \$B}`. A substitution-free bare/quoted word still
-                // needs backslash substitution before list parsing, whereas a
-                // braced word's content is already its literal runtime value.
-                let trap_pattern =
-                    if keyword == "trap" && super::seg_word_is_static_literal(seg, i + 2) {
-                        let match_tok = arg_tokens.get(i + 1);
-                        let value = if match_tok.is_some_and(|tok| tok.kind == TokenType::Str) {
-                            std::borrow::Cow::Borrowed(match_arg.as_str())
-                        } else {
-                            tcl_lexer::backslash_subst_in(&match_arg, self.config.escapes)
-                        };
-                        WordValueRules::from_config(&self.config)
-                            .split_list(&value)
-                            .ok()
-                            .map(|elements| elements.into_iter().map(Into::into).collect())
-                    } else {
-                        None
+                ClauseTiming::Selected => {
+                    let (Some((pattern_idx, kind)), Some(var_list_idx)) =
+                        (clause.handler(), clause.operand(ArgRole::LoopVarList))
+                    else {
+                        return self.barrier(seg, "malformed try handler");
                     };
-                let var_list = &args[i + 2];
-                let handler_tok = arg_tokens.get(i + 3);
-                let handler_single = arg_single.get(i + 3).copied().unwrap_or(false);
-
-                let Some(var_names) =
-                    parse_var_list_names(var_list, WordValueRules::from_config(&self.config))
-                else {
-                    return self.barrier(seg, "try with malformed handler variable list");
-                };
-                let result_var = var_names.first().map(|v| normalise_var_name(v).to_owned());
-                let options_var = var_names.get(1).map(|v| normalise_var_name(v).to_owned());
-
-                // A handler body of literal `-` is a fallthrough marker: the
-                // clause shares the next non-`-` handler's body (like `switch`).
-                // Treat it as an empty body rather than lowering `-` as a script
-                // — otherwise it compiles to a zero-arg call of the `-` command
-                // and trips a spurious arity error.
-                //
-                // Tcl recognises the marker by the word's *string value*, so the
-                // braced `{-}`, quoted `"-"`, and backslash-escaped (`\-`,
-                // `\x2d`, …) forms — all of which evaluate to `-` — are equally
-                // fallthroughs. Braces suppress backslash substitution, so a
-                // braced word's value is its raw content (`{\-}` is the literal
-                // two-char string `\-`, *not* a fallthrough); bare and quoted
-                // words are backslash-substituted first. A braced single-token
-                // word's representative token is a `Str` (the `{`-stripping
-                // wrapper kind); bare / quoted words are `Esc`.
-                let is_braced = handler_tok.is_some_and(|t| t.kind == TokenType::Str);
-                let body_value = if is_braced {
-                    std::borrow::Cow::Borrowed(args[i + 3].as_str())
-                } else {
-                    tcl_lexer::backslash_subst_in(&args[i + 3], self.config.escapes)
-                };
-                let is_fallthrough = handler_single && body_value == "-";
-                // Every handler body that is *not* the fallthrough marker gets
-                // the primary body's static gate: `on error {} $body` is a
-                // single VAR token, so an unconditional walk would rebase the
-                // reconstructed `${body}` text at that token and emit a span
-                // past the end of the source.  C's `TclCompileTryCmd` refuses
-                // the same shape
-                // — a handler body that is not a `TCL_TOKEN_SIMPLE_WORD` is
-                // `goto failedToCompile` — so the whole `try` defers to the
-                // runtime command, exactly as the primary-body gate does.
-                if !is_fallthrough
-                    && (handler_tok.is_none() || !super::seg_word_is_static_braced(seg, i + 4))
-                {
-                    return self.barrier(seg, "try with dynamic handler body");
+                    match self.lower_try_handler(
+                        seg,
+                        namespace,
+                        kind,
+                        [pattern_idx, var_list_idx, clause_body],
+                        plan.falls_through(offset + 1),
+                    ) {
+                        Ok(handler) => handlers.push(handler),
+                        Err(reason) => return self.barrier(seg, reason),
+                    }
                 }
-                let handler_body = if is_fallthrough {
-                    crate::ir::Script::new()
-                } else {
-                    self.lower_body_from_tok(&args[i + 3], handler_tok, namespace)
-                };
-
-                handlers.push(TryHandler {
-                    kind: keyword.clone(),
-                    match_arg,
-                    trap_pattern,
-                    var_name: result_var,
-                    options_var,
-                    body: handler_body,
-                    body_span: handler_tok.map_or(seg.span, |t| t.span),
-                    fallthrough: is_fallthrough,
-                });
-                i += 4;
-                continue;
+                _ => return self.barrier(seg, "malformed try handler"),
             }
+        }
 
+        if plan.defect.is_some() || computed {
             return self.barrier(seg, "malformed try handler");
         }
 
         Statement::Try {
             span: seg.span,
             body,
-            body_span: arg_tokens[0].span,
+            body_span: body_tok.span,
             handlers,
             finally_body,
             finally_span,
             raw_args: args.to_vec(),
         }
+    }
+
+    /// One handler clause of [`Self::lower_try`]: `words` are its pattern,
+    /// variable-list and script word indices, and `fallthrough` whether the
+    /// plan reads the script word as the grammar's fall-through marker. `Err`
+    /// is the reason the whole `try` defers to the runtime command.
+    fn lower_try_handler(
+        &mut self,
+        seg: &SegmentedCommand,
+        namespace: &str,
+        kind: HandlerMatch,
+        [pattern_idx, var_list_idx, body_idx]: [usize; 3],
+        fallthrough: bool,
+    ) -> Result<TryHandler, &'static str> {
+        let args = seg.args();
+        let arg_tokens = seg.arg_tokens();
+        let match_arg = args[pattern_idx].clone();
+        // An error-code-prefix selector (`trap`'s) is evaluated as one Tcl
+        // word and its value is then parsed as a Tcl list. Preserve the
+        // source-level substitution decision here: inspecting the decoded
+        // elements for `$` or `[` would reject literal data such as
+        // `{A {$B}}` and `{A \$B}`. A substitution-free bare/quoted word still
+        // needs backslash substitution before list parsing, whereas a braced
+        // word's content is already its literal runtime value.
+        let trap_pattern = if kind == HandlerMatch::ErrorCodePrefix
+            && super::seg_word_is_static_literal(seg, pattern_idx + 1)
+        {
+            let match_tok = arg_tokens.get(pattern_idx);
+            let value = if match_tok.is_some_and(|tok| tok.kind == TokenType::Str) {
+                std::borrow::Cow::Borrowed(match_arg.as_str())
+            } else {
+                tcl_lexer::backslash_subst_in(&match_arg, self.config.escapes)
+            };
+            WordValueRules::from_config(&self.config)
+                .split_list(&value)
+                .ok()
+                .map(|elements| elements.into_iter().map(Into::into).collect())
+        } else {
+            None
+        };
+        let Some(var_names) = parse_var_list_names(
+            &args[var_list_idx],
+            WordValueRules::from_config(&self.config),
+        ) else {
+            return Err("try with malformed handler variable list");
+        };
+        let var_name = var_names.first().map(|v| normalise_var_name(v).to_owned());
+        let options_var = var_names.get(1).map(|v| normalise_var_name(v).to_owned());
+        let handler_tok = arg_tokens.get(body_idx);
+        // A handler whose script word is the fall-through marker shares the
+        // next handler's body (like `switch`). Tcl recognises the marker by
+        // the word's *value*, and so does the plan: the braced `{-}`, quoted
+        // `"-"` and backslash-escaped (`\-`, `\x2d`) spellings all evaluate to
+        // `-`, while braces suppress backslash substitution, so `{\-}` is the
+        // two-character script `\-`. The marker is lowered as an empty script
+        // — as a script it would be a zero-arg call of the `-` command and
+        // trip a spurious arity error.
+        //
+        // Every other handler script gets the primary body's static gate:
+        // `on error {} $body` is a single VAR token, so an unconditional walk
+        // would rebase the reconstructed `${body}` text at that token and
+        // emit a span past the end of the source. C's `TclCompileTryCmd`
+        // refuses the same shape — a handler body that is not a
+        // `TCL_TOKEN_SIMPLE_WORD` is `goto failedToCompile` — so the whole
+        // `try` defers to the runtime command, exactly as the primary-body
+        // gate does.
+        if !fallthrough
+            && (handler_tok.is_none() || !super::seg_word_is_static_braced(seg, body_idx + 1))
+        {
+            return Err("try with dynamic handler body");
+        }
+        let body = if fallthrough {
+            crate::ir::Script::new()
+        } else {
+            self.lower_body_from_tok(&args[body_idx], handler_tok, namespace)
+        };
+        Ok(TryHandler {
+            kind,
+            match_arg,
+            trap_pattern,
+            var_name,
+            options_var,
+            body,
+            body_span: handler_tok.map_or(seg.span, |t| t.span),
+            fallthrough,
+        })
     }
 
     // switch
@@ -861,11 +1051,28 @@ impl Lowerer<'_> {
     // Sequential `switch` lowering: option parsing, list-form
     // unpacking, body recursion, and case-list build all share
     // local arena state.
+    /// The case list `seg`'s command declares — its fall-through body and its
+    /// keyword patterns are the registry's, never spellings in the lowering.
+    /// The call's case-list descriptor, and whether its command reads any
+    /// option rows — `case` has none, so no word of it is an option.
+    fn case_list_of(&self, seg: &SegmentedCommand) -> Option<(&'static CaseListSpec, bool)> {
+        let arg_refs: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+        self.registry
+            .resolve_call(seg.name(), &arg_refs, self.registry.own_surface_query())
+            .and_then(|resolved| {
+                resolved
+                    .spec
+                    .case_list
+                    .map(|case| (case, !resolved.spec.options.is_empty()))
+            })
+    }
+
     /// Build the `(arms, default_body, default_span)` triple from
     /// collected `SwitchPair` entries.  Extracted from
     /// [`Self::lower_switch`] to keep the dispatcher under threshold.
     fn build_switch_arms(
         &mut self,
+        case: &CaseListSpec,
         pairs: &[SwitchPair],
         arg_tokens: &[tcl_lexer::Token],
         namespace: &str,
@@ -882,7 +1089,8 @@ impl Lowerer<'_> {
             let pattern = WordValueRules::from_config(&self.config)
                 .collapse_braced_word(&pair.pattern)
                 .into_owned();
-            if pair.body_text == "-" {
+            // The case list's fall-through body shares the next arm's.
+            if case.fallthrough_body == Some(pair.body_text.as_str()) {
                 arms.push(SwitchArm {
                     pattern,
                     pattern_braced: pair.pattern_braced,
@@ -918,7 +1126,12 @@ impl Lowerer<'_> {
                 crate::ir::Script::new()
             };
 
-            if pattern == "default" && pair_idx == pairs.len() - 1 {
+            // A keyword pattern (`default`) matches unconditionally — in the
+            // final clause only, where the case list says so.
+            let final_clause = pair_idx == pairs.len() - 1;
+            if case.keyword_patterns.contains(&pattern.as_str())
+                && (final_clause || !case.keyword_patterns_require_final)
+            {
                 default_body = Some(body);
                 default_span = pair.body_span;
             } else {
@@ -943,14 +1156,14 @@ impl Lowerer<'_> {
         if args.len() < 2 {
             return self.barrier(seg, "malformed switch");
         }
+        let Some((case, reads_options)) = self.case_list_of(seg) else {
+            return self.barrier(seg, "switch without a case list");
+        };
 
-        let (mut i, mode, nocase, unknown) = parse_switch_options(args);
-
-        // An unrecognised / arg-taking option (`-foo`, `-matchvar`, …): bail to
-        // the runtime `switch`, which validates options and does the var writes.
-        if unknown {
-            return self.barrier(seg, "switch with non-inlined option");
-        }
+        let (mut i, mode, nocase) = match case_list_head(case, reads_options, args) {
+            Ok(head) => head,
+            Err(reason) => return self.barrier(seg, reason),
+        };
         if i >= args.len() {
             return self.barrier(seg, "malformed switch options");
         }
@@ -965,6 +1178,19 @@ impl Lowerer<'_> {
         // substitute.
         let subject_braced = word_is_braced(arg_tokens, arg_single, i);
         i += 1;
+        // The descriptor's literal separator (`case string ?in? …`), skipped
+        // when the word's value is it, as `Tcl_CaseObjCmd`'s `strcmp` does. A
+        // word there whose value the source does not state could be it.
+        if let Some(separator) = case.optional_subject_separator
+            && i < args.len()
+        {
+            if !super::seg_word_is_static_literal(seg, i + 1) || args[i].contains('\\') {
+                return self.barrier(seg, "case list separator is computed");
+            }
+            if args[i] == separator {
+                i += 1;
+            }
+        }
         if i >= args.len() {
             return self.barrier(seg, "switch missing arms");
         }
@@ -994,7 +1220,7 @@ impl Lowerer<'_> {
 
             // Not a well-formed Tcl list — bail to the runtime `switch`,
             // which reports the list error exactly as C Tcl does.
-            let Some(elements) = switch_body_elements(body_text) else {
+            let Some(elements) = switch_body_elements(body_text, self.config.escapes) else {
                 return self.barrier(seg, "switch case list is not a list");
             };
             // An empty arm list (`switch x {}`) is a "wrong # args" error, not a
@@ -1032,46 +1258,17 @@ impl Lowerer<'_> {
             // Multi-arg form: remaining args are pattern body pairs —
             // each pattern word substitutes at runtime.
             patterns_braced = false;
-            let remaining = args.len() - i;
-            if !remaining.is_multiple_of(2) {
-                return self.barrier(seg, "switch odd pattern count");
-            }
-            while i + 1 < args.len() {
-                let pattern = args[i].clone();
-                let pattern_span = arg_tokens.get(i).map_or(seg.span, |t| t.span);
-                let body_text_inner = args[i + 1].clone();
-                let body_tok_idx = i + 1;
-                // Like if/while/for/catch/try, an arm body that carries
-                // substitution (`$handler`, `[cmd]`, a quoted/concatenated
-                // word) is evaluated as a script from its *runtime value*, not
-                // its unsubstituted spelling. Lowering the literal spelling as a
-                // nested script would fabricate a phantom command (e.g. a Call
-                // to `${handler}`) that downstream dead-code/taint/def-use/
-                // call-graph passes reason about. Defer the whole switch to the
-                // runtime command instead. The `-` fallthrough marker is a
-                // literal, not a body, so it is exempt. (`seg.argv` includes the
-                // command word, so the body word `args[i + 1]` is index
-                // `i + 2`.).
-                if body_text_inner != "-" && !super::seg_word_is_static_literal(seg, i + 2) {
-                    return self.barrier(seg, "switch with non-literal arm body");
-                }
-                let body_span_val = arg_tokens.get(body_tok_idx).map(|t| t.span);
-                pairs.push(SwitchPair {
-                    pattern,
-                    // Per word here: `{${x}}` is literal, a bare `$pat`
-                    // substitutes.
-                    pattern_braced: word_is_braced(arg_tokens, arg_single, i),
-                    pattern_span,
-                    body_text: body_text_inner,
-                    body_span: body_span_val,
-                    body_arg_idx: Some(body_tok_idx),
-                });
-                i += 2;
+            match inline_switch_pairs(seg, case, i) {
+                Ok(inline) => pairs = inline,
+                Err(reason) => return self.barrier(seg, reason),
             }
         }
 
+        if let Some(reason) = case_list_unrepresentable(case, &pairs) {
+            return self.barrier(seg, reason);
+        }
         let (arms, default_body, default_span) =
-            self.build_switch_arms(&pairs, arg_tokens, namespace);
+            self.build_switch_arms(case, &pairs, arg_tokens, namespace);
 
         Statement::Switch {
             span: seg.span,
@@ -1085,6 +1282,8 @@ impl Lowerer<'_> {
             nocase,
             raw_args: args.to_vec(),
             raw_arg_braced: braced_word_flags(arg_tokens, arg_single, args.len()),
+            raw_arg_quoted: quoted_word_flags(arg_tokens, args.len()),
+            command: seg.name().to_owned(),
             patterns_braced,
         }
     }
@@ -1324,6 +1523,114 @@ mod tests {
         }
     }
 
+    /// `case` lowers through the switch hook on its own descriptor:
+    /// no word is an option, the `in` word is skipped, and every clause is
+    /// a glob comparison — an opaque glob `Statement::Switch` naming `case`
+    /// in each form, its final `default` the default body.
+    #[test]
+    fn case_lowers_as_an_opaque_glob_selection() {
+        for src in [
+            "case abc in a* {puts A} default {puts D}",
+            "case abc a* {puts A} default {puts D}",
+            "case abc in {a* {puts A} default {puts D}}",
+            "case abc {a* {puts A} default {puts D}}",
+        ] {
+            let m = lower_to_ir(src, &reg());
+            let Statement::Switch {
+                subject,
+                arms,
+                default_body,
+                mode,
+                nocase,
+                command,
+                ..
+            } = &m.top_level.statements[0]
+            else {
+                panic!(
+                    "expected a Switch for {src:?}, got {:?}",
+                    m.top_level.statements[0]
+                );
+            };
+            assert_eq!(subject, "abc", "{src:?}");
+            assert_eq!(*mode, SwitchMode::Glob, "{src:?}");
+            assert!(!nocase, "{src:?}");
+            assert_eq!(command, "case", "{src:?}");
+            let patterns: Vec<&str> = arms.iter().map(|arm| arm.pattern.as_str()).collect();
+            assert_eq!(patterns, ["a*"], "{src:?}");
+            assert!(default_body.is_some(), "{src:?}");
+        }
+    }
+
+    /// A `case` clause the IR arm cannot hold lowers to a barrier, so the
+    /// runtime command runs it: a pattern `case` splits as a list, a
+    /// substituted pattern that may be one, a `default` before the last
+    /// clause (a fallback wherever it stands), and a word after the subject
+    /// whose value may be the `in` separator.
+    #[test]
+    fn case_clauses_the_arm_cannot_hold_are_barriers() {
+        for src in [
+            "case abc in {x a*} {puts L} default {puts D}",
+            "case abc in {a\\*} {puts E}",
+            "case abc {{x a*} {puts L}}",
+            "case abc in $p {puts P}",
+            "case abc in default {puts D} a* {puts A}",
+            "case abc $w a* {puts A}",
+        ] {
+            let m = lower_to_ir(src, &reg());
+            assert!(
+                matches!(&m.top_level.statements[0], Statement::Barrier { .. }),
+                "expected a barrier for {src:?}, got {:?}",
+                m.top_level.statements[0],
+            );
+        }
+    }
+
+    /// From 9.0 there is no `case` command, so nothing lowers it.
+    #[test]
+    fn case_does_not_lower_under_9() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        let m = crate::lowering::lower_to_ir_with_dialect(
+            "case abc in a* {puts A}",
+            registry,
+            tcl_lexer::LexerConfig::default(),
+            Some(profile),
+        );
+        assert!(
+            !matches!(&m.top_level.statements[0], Statement::Switch { .. }),
+            "{:?}",
+            m.top_level.statements[0]
+        );
+    }
+
+    /// Each word's delimiters reach the statement: per word, whether it was
+    /// braced (`raw_arg_braced`) or double-quoted (`raw_arg_quoted`), so a
+    /// bare `-` body is told apart from a quoted or braced one.
+    #[test]
+    fn a_switch_records_how_each_word_was_delimited() {
+        let m = lower_to_ir("switch -glob -- $x a \"-\" b - c {-} d {puts d}", &reg());
+        let Statement::Switch {
+            raw_args,
+            raw_arg_braced,
+            raw_arg_quoted,
+            ..
+        } = &m.top_level.statements[0]
+        else {
+            panic!("expected a Switch, got {:?}", m.top_level.statements[0]);
+        };
+        assert_eq!(raw_args.len(), 11, "{raw_args:?}");
+        let flagged = |flags: &[bool]| -> Vec<usize> {
+            flags
+                .iter()
+                .enumerate()
+                .filter_map(|(index, &flag)| flag.then_some(index))
+                .collect()
+        };
+        assert_eq!(flagged(raw_arg_quoted), [4], "{raw_args:?}");
+        assert_eq!(flagged(raw_arg_braced), [8, 10], "{raw_args:?}");
+    }
+
     // `patterns_braced` distinguishes a literal-pattern
     // braced block from the substituting separate-words form.
 
@@ -1376,7 +1683,7 @@ mod tests {
         let m = lower_to_ir("try {error oops} on error {e opts} {puts $e}", &reg());
         if let Statement::Try { handlers, .. } = &m.top_level.statements[0] {
             assert_eq!(handlers.len(), 1);
-            assert_eq!(handlers[0].kind, "on");
+            assert_eq!(handlers[0].kind, HandlerMatch::CompletionCode);
         } else {
             panic!("expected Try");
         }
@@ -1455,16 +1762,16 @@ mod tests {
         let Statement::Try { handlers, .. } = &m.top_level.statements[0] else {
             panic!("expected Try");
         };
-        let shape: Vec<(&str, &str, bool)> = handlers
+        let shape: Vec<(HandlerMatch, &str, bool)> = handlers
             .iter()
-            .map(|h| (h.kind.as_str(), h.match_arg.as_str(), h.fallthrough))
+            .map(|h| (h.kind, h.match_arg.as_str(), h.fallthrough))
             .collect();
         assert_eq!(
             shape,
             vec![
-                ("on", "ok", true),
-                ("trap", "NONE", false),
-                ("on", "error", false)
+                (HandlerMatch::CompletionCode, "ok", true),
+                (HandlerMatch::ErrorCodePrefix, "NONE", false),
+                (HandlerMatch::CompletionCode, "error", false)
             ],
         );
         // The fallthrough handler carries no statements of its own.
@@ -1880,5 +2187,38 @@ mod switch_span_tests {
             dtext.contains("puts none"),
             "expected default body to contain `puts none`, got {dtext:?}",
         );
+    }
+
+    /// An element of a braced case list collapses its backslashes under the
+    /// document's grammar: before Tcl 8.6 a `\x` takes every hex digit that
+    /// follows and keeps the last two, so `a\x41b` is `a` and U+001B there
+    /// and `aAb` from 8.6.
+    #[test]
+    fn a_braced_case_list_decodes_its_elements_under_the_documents_escapes() {
+        let pattern_under = |dialect: &str, source: &str| -> String {
+            let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+            let module = crate::lowering::lower_to_ir_with_dialect(
+                source,
+                registry,
+                tcl_lexer::LexerConfig::for_profile(registry.profile()),
+                registry.profile(),
+            );
+            let Statement::Switch { arms, .. } = &module.top_level.statements[0] else {
+                panic!(
+                    "expected a Switch, got {:?}",
+                    module.top_level.statements[0]
+                );
+            };
+            arms[0].pattern.clone()
+        };
+        for source in [
+            r#"switch -- aAb {"a\x41b" {puts hit} default {puts miss}}"#,
+            r"switch -- aAb {a\x41b {puts hit} default {puts miss}}",
+        ] {
+            assert_eq!(pattern_under("tcl8.4", source), "a\u{1b}", "{source}");
+            assert_eq!(pattern_under("tcl8.5", source), "a\u{1b}", "{source}");
+            assert_eq!(pattern_under("tcl8.6", source), "aAb", "{source}");
+            assert_eq!(pattern_under("tcl9.0", source), "aAb", "{source}");
+        }
     }
 }

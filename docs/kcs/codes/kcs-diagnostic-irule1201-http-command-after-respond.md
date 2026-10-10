@@ -47,6 +47,11 @@ when HTTP_REQUEST { HTTP::header insert X-Custom val; HTTP::respond 200 }
 purpose is to query that state. The analyser reads this exception, and the set
 of commands that still need a live HTTP context, from the command registry.
 
+A `respond` or `redirect` in a branch the analyser proves never runs commits
+nothing, so a command after it is not reported: `if {0} { HTTP::respond 200 }`,
+or the same behind `set flag 0; if {$flag} { … }`. One in a branch that might
+run still counts.
+
 ## How to suppress
 
 Add `# noqa: IRULE1201` on the line **above** the offending command.

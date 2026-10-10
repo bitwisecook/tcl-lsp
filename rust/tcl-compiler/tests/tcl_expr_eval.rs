@@ -280,7 +280,7 @@ fn exponentiation_float_negative_exponent() {
 
 #[test]
 fn exponentiation_big_results_past_wide_stay_exact() {
-    // The folder is bignum-exact (type-tracking P4): a result past a wide
+    // The folder is bignum-exact: a result past a wide
     // promotes to the exact bignum tclsh computes — never wrapped, never
     // declined, never a rounded double.
     assert_eq!(eval_str("10 ** 17"), Some(int(100_000_000_000_000_000)));

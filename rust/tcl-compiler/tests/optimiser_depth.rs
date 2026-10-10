@@ -659,8 +659,11 @@ fn cross_event_direct_read_survives() {
     );
 
     // Control: the later event does NOT read `start`, so within the single
-    // CLIENT_ACCEPTED handler it is a genuinely unused store ⇒ O126 fires.
-    let control = "when CLIENT_ACCEPTED { set start [clock clicks] }\nwhen CLIENT_CLOSED { log local0. done }";
+    // CLIENT_ACCEPTED handler it is a genuinely unused store ⇒ O126 fires on
+    // a value that cannot raise. A command substitution the analysis does not
+    // show completing (`[clock clicks]`, which raises for a bad option) keeps
+    // its store whether or not a later event reads it.
+    let control = "when CLIENT_ACCEPTED { set start 0 }\nwhen CLIENT_CLOSED { log local0. done }";
     assert!(
         opt_fires(control, IR, "O126"),
         "control (value never read) must fire O126"
@@ -668,6 +671,11 @@ fn cross_event_direct_read_survives() {
     assert!(
         !optimised(control, IR).contains("set start"),
         "the genuinely-unused store is removed"
+    );
+    let called = "when CLIENT_ACCEPTED { set start [clock clicks] }\nwhen CLIENT_CLOSED { log local0. done }";
+    assert!(
+        !opt_fires(called, IR, "O126"),
+        "a call the analysis does not show completing keeps its store"
     );
 }
 

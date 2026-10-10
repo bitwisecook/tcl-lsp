@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! **Live environment registration, end to end** (P2-H deliverable E):
+//! **Live environment registration, end to end:**
 //! a pack-declared `environment` block becomes resolvable through the one
 //! ingress seam — `tcl_registry::model::ingress::resolve_environment` —
 //! with its declared detection facts and ambient placements; a
@@ -52,7 +52,12 @@ fn a_pack_declared_environment_becomes_resolvable_with_its_facts() {
     assert!(pack.notices.is_empty(), "{:?}", pack.notices);
     let before = resolve_environment("tcl9.0").identity.generation;
 
-    let outcome = register_pack_environments(&pack, Tier::User).expect("registration succeeds");
+    let outcome = register_pack_environments(
+        &pack,
+        Tier::User,
+        tcl_dialect::model::WorkspaceTrust::Trusted,
+    )
+    .expect("registration succeeds");
     assert_eq!(outcome.declared, 1);
     assert_eq!(outcome.extended, 0);
     let generation = outcome.generation.expect("something registered");
@@ -115,7 +120,12 @@ fn a_pack_declared_environment_becomes_resolvable_with_its_facts() {
     assert!(tcl_registry::model::is_known_environment_name("vivaldi"));
 
     // Idempotent re-registration: a pack reload replaces, never stacks.
-    register_pack_environments(&pack, Tier::User).expect("re-registration succeeds");
+    register_pack_environments(
+        &pack,
+        Tier::User,
+        tcl_dialect::model::WorkspaceTrust::Trusted,
+    )
+    .expect("re-registration succeeds");
     let resolved = resolve_environment("vivaldi-shell-tcl");
     assert_eq!(
         resolved
@@ -150,8 +160,12 @@ fn reserved_and_untrusted_claims_fail_with_the_provenance_error() {
          }\n",
     );
     assert!(pack.notices.is_empty(), "{:?}", pack.notices);
-    let error = register_pack_environments(&pack, Tier::Workspace)
-        .expect_err("a workspace tier may not extend a compiled environment");
+    let error = register_pack_environments(
+        &pack,
+        Tier::Workspace,
+        tcl_dialect::model::WorkspaceTrust::Trusted,
+    )
+    .expect_err("a workspace tier may not extend a compiled environment");
     assert!(
         matches!(
             &error,
@@ -207,8 +221,12 @@ fn a_trusted_extension_of_a_compiled_environment_is_additive() {
          }\n",
     );
     assert!(pack.notices.is_empty(), "{:?}", pack.notices);
-    let outcome =
-        register_pack_environments(&pack, Tier::Bundled).expect("a bundled extension lands");
+    let outcome = register_pack_environments(
+        &pack,
+        Tier::Bundled,
+        tcl_dialect::model::WorkspaceTrust::Trusted,
+    )
+    .expect("a bundled extension lands");
     assert_eq!(outcome.extended, 1);
 
     let resolved = resolve_environment("synopsys-eda-tcl");
@@ -227,6 +245,52 @@ fn a_trusted_extension_of_a_compiled_environment_is_additive() {
             .any(|claim| claim.extension.as_ref() == "sdc"),
         "the compiled rows stay"
     );
+}
+
+/// A profile's runtime context states the package floors its environment
+/// establishes, and a trusted `-extend` that places another package moves
+/// them: the context a compile states and a runtime is pinned with is memoised
+/// per environment-registry generation, so the next one sees the extension and
+/// is not served the statement from before it.
+#[test]
+fn a_profiles_runtime_context_follows_an_environment_extension() {
+    let profile = tcl_dialect::DialectProfile::find("synopsys-eda-tcl").expect("catalogue profile");
+    let before = tcl_registry::model::runtime_context_for_profile(profile);
+    assert!(
+        !before
+            .packages
+            .iter()
+            .any(|(name, _)| name == "ContextProbe"),
+        "{:?}",
+        before.packages
+    );
+
+    let pack = evaluate_pack(
+        "speclib probe 2.0 {\n\
+         environment synopsys-eda-tcl -extend {\n\
+         \x20   ambient ContextProbe 4.2\n\
+         }\n\
+         }\n",
+    );
+    assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+    let outcome = register_pack_environments(
+        &pack,
+        Tier::Bundled,
+        tcl_dialect::model::WorkspaceTrust::Trusted,
+    )
+    .expect("a bundled extension lands");
+    assert_eq!(outcome.extended, 1);
+
+    let after = tcl_registry::model::runtime_context_for_profile(profile);
+    assert!(
+        after
+            .packages
+            .contains(&("ContextProbe".to_owned(), "4.2".to_owned())),
+        "{:?}",
+        after.packages
+    );
+    assert_eq!(after.environment, before.environment);
+    assert_eq!(after.release, before.release);
 }
 
 /// **The production wiring**, at the seam every consumer publishes
@@ -263,6 +327,7 @@ speclib picolpack 2.0 {
             tier: tcl_spectcl::Tier::User,
             path: PathBuf::from("/probe/picolpack.tclspec"),
             origin: Origin::UserDir,
+            dependency_tier: None,
         },
         SOURCE.to_owned(),
     )]);

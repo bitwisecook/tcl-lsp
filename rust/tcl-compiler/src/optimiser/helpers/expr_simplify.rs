@@ -21,8 +21,9 @@
 //! A toolkit of AST-level expression rewriters consumed by the
 //! propagation, branch-folding, and pattern-recognition passes:
 //!
-//! - [`try_fold_expr`] — constant-fold an expression text via
-//!   [`eval_tcl_expr`].
+//! - [`try_fold_expr`] — constant-fold an expression text on the shared
+//!   expression route, the one the lattice runs
+//!   ([`crate::value_transfer::evaluate_expression_detached`]).
 //! - [`try_unwrap_expr_in_expr`] — unwrap a redundant
 //!   `[expr {…}]` in expression context (`O115`).
 //! - [`substitute_expr_constants`] — replace `$var` references
@@ -56,10 +57,10 @@ use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode, ExprOffset, render_expr};
 use crate::expr_parser::parse_expr_for_profile;
 use crate::naming::normalise_var_name;
-use crate::tcl_expr_eval::{
-    Env, eval_tcl_expr_with_octal_and_dialect, format_tcl_value, leading_zero_is_octal,
-};
+use crate::sccp::BuiltinFoldInputs;
+use crate::tcl_expr_eval::{FoldPolicy, leading_zero_is_octal};
 use crate::types::{TclType, TypeKind, TypeLattice};
+use tcl_registry::value_transfer::ExactValue;
 
 /// Operand type facts for the current function: which variable names are
 /// provably *numeric* (Int / Double / Numeric / Boolean) and which are provably
@@ -324,36 +325,49 @@ fn is_integer_string(text: &str) -> bool {
 
 // Landed: try_fold_expr (O101 — fold constant expression)
 
-/// Attempt to fold `expr` to a Tcl literal value by evaluating it
-/// with an empty environment.
-///
-/// Returns `Some(folded_text)` when every variable-free sub-
-/// expression collapses to a value and the rendered literal
-/// differs from `expr.trim()`. Returns `None` when the
-/// expression depends on a variable not in the env, a command
-/// substitution, or any domain error (match `eval_tcl_expr`'s
-/// conservative "give up, use runtime form" contract).
-#[must_use]
-pub fn try_fold_expr(
-    expr: &str,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+/// The value semantics a rewrite under `folds` evaluates with: the target's
+/// leading-zero rule, grammar and tower.
+fn rewrite_policy(folds: BuiltinFoldInputs<'_>) -> FoldPolicy {
+    FoldPolicy::for_profile(folds.dialect.and_then(leading_zero_is_octal), folds.dialect)
+}
+
+/// `node`'s value on the shared expression route
+/// ([`crate::value_transfer::evaluate_expression_detached`]) under `folds`,
+/// rendered as its source text: the value the lattice would prove, so a
+/// rewrite never folds what the lattice declines.
+fn fold_on_route(
+    node: &ExprNode,
+    constants: &std::collections::HashMap<String, ExactValue>,
+    folds: BuiltinFoldInputs<'_>,
 ) -> Option<String> {
+    let value = crate::value_transfer::evaluate_expression_detached(
+        node,
+        constants,
+        folds,
+        rewrite_policy(folds),
+    )?;
+    String::from_utf8(value.bytes).ok()
+}
+
+/// Attempt to fold `expr` to a Tcl literal value with no variable bound.
+///
+/// Returns `Some(folded_text)` when the shared expression route answers a
+/// value (the one the lattice proves under the same target and trust) and
+/// its rendering differs from `expr.trim()`. Returns `None` when the
+/// expression reads a variable or a command substitution, or when the route
+/// declines — a domain error, a math function the target lacks or the
+/// module rebinds, a result the target's tower does not hold.
+#[must_use]
+pub fn try_fold_expr(expr: &str, folds: BuiltinFoldInputs<'_>) -> Option<String> {
     let trimmed = expr.trim();
     if trimmed.is_empty() {
         return None;
     }
-    let node = parse_expr_for_profile(trimmed, dialect);
+    let node = parse_expr_for_profile(trimmed, folds.dialect);
     if matches!(node, ExprNode::Raw { .. }) {
         return None;
     }
-    let env = Env::new();
-    let value = eval_tcl_expr_with_octal_and_dialect(
-        &node,
-        &env,
-        dialect.and_then(leading_zero_is_octal),
-        dialect,
-    )?;
-    let rendered = format_tcl_value(&value);
+    let rendered = fold_on_route(&node, &std::collections::HashMap::new(), folds)?;
     if rendered == trimmed {
         return None;
     }
@@ -371,49 +385,39 @@ pub fn try_fold_expr(
 /// * **quoted / bare** (`expr "$a == $b"`, `expr $a==$b`) — Tcl substitutes
 ///   the variable *values* textually before parsing, so a non-numeric value
 ///   becomes an invalid bareword (a runtime error). Only numeric constants
-///   are bound; a string-valued var is left unbound and the fold bails,
-///   matching the SCCP `[expr …]` fold (`sccp::env_from_uses_numeric`).
+///   are bound; a string-valued var is left unbound and the fold bails.
 ///
 /// Returns the folded literal, or `None` when the expression still depends
-/// on an unresolved operand / command substitution.
+/// on an unresolved operand / command substitution, or the shared route
+/// declines.
 #[must_use]
 pub fn try_fold_expr_with_constants<S: std::hash::BuildHasher>(
     expr: &str,
     constants: &std::collections::HashMap<String, String, S>,
     braced: bool,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    folds: BuiltinFoldInputs<'_>,
 ) -> Option<String> {
-    use crate::tcl_expr_eval::EnvValue;
     let trimmed = expr.trim();
     if trimmed.is_empty() {
         return None;
     }
-    let node = parse_expr_for_profile(trimmed, dialect);
+    let node = parse_expr_for_profile(trimmed, folds.dialect);
     if matches!(node, ExprNode::Raw { .. }) {
         return None;
     }
-    let mut env = Env::new();
-    for (name, value) in constants {
-        // A dialect is in hand here (it drove `parse_expr` above), so bind under
-        // the release actually being compiled for rather than the ambient.
-        if braced
-            || is_numeric_string_under(
-                value,
-                Some(tcl_dialect::NumberSyntax::of_profile(Some(
-                    dialect.unwrap_or(tcl_dialect::DialectProfile::plain_tcl()),
-                ))),
-            )
-        {
-            env.insert(name.clone(), EnvValue::Str(value.clone()));
-        }
-    }
-    let value = eval_tcl_expr_with_octal_and_dialect(
-        &node,
-        &env,
-        dialect.and_then(leading_zero_is_octal),
-        dialect,
-    )?;
-    let rendered = format_tcl_value(&value);
+    // A dialect is in hand here (it drove `parse_expr` above), so bind under
+    // the release actually being compiled for rather than the ambient.
+    let numbers = tcl_dialect::NumberSyntax::of_profile(Some(
+        folds
+            .dialect
+            .unwrap_or(tcl_dialect::DialectProfile::plain_tcl()),
+    ));
+    let bound: std::collections::HashMap<String, ExactValue> = constants
+        .iter()
+        .filter(|(_, value)| braced || is_numeric_string_under(value, Some(numbers)))
+        .map(|(name, value)| (name.clone(), ExactValue::from_literal(value)))
+        .collect();
+    let rendered = fold_on_route(&node, &bound, folds)?;
     if rendered == trimmed {
         return None;
     }
@@ -666,7 +670,8 @@ fn simplify_node_once(
     if let Some(rewritten) = streq_promote_node(&lowered) {
         return rewritten;
     }
-    if let Some(rewritten) = reassociate_node(&lowered) {
+    let untyped = OperandTypes::default();
+    if let Some(rewritten) = reassociate_node(&lowered, numeric.unwrap_or(&untyped)) {
         return rewritten;
     }
     lowered
@@ -683,9 +688,22 @@ fn simplify_node_once(
 /// semantics are unchanged. The term-dropping cases that *would* need a
 /// provably-numeric guard — annihilating `* 0`, dropping a lone `* 1`, and a
 /// lone additive term whose constant cancels to zero (`$a + 5 - 5`) — are
-/// skipped: proving numericity needs the SSA type lattice, which this
-/// AST-level pass cannot consult, so it conservatively leaves them be.
-fn reassociate_node(node: &ExprNode) -> Option<ExprNode> {
+/// skipped.
+///
+/// Regrouping changes the order the chain's terms combine in, which only
+/// exact arithmetic tolerates, so every term must be a variable `types`
+/// proves integer. Over a double the rounding is order-dependent: `set x
+/// 10000000000000000.0; expr {$x + 1 + 2}` prints `10000000000000002.0` under
+/// tclsh 8.5 to 9.1 and `expr {$x + 3}` prints `10000000000000004.0`. A
+/// closed subtree (`2 + 3 + $x` → `5 + $x`) folds elsewhere and needs no
+/// proof.
+fn reassociate_node(node: &ExprNode, types: &OperandTypes) -> Option<ExprNode> {
+    // Every regrouped term is a variable proven integer.
+    let exact = |terms: &[ExprNode]| {
+        terms.iter().all(|term| {
+            matches!(term, ExprNode::Var { name, .. } if types.integer.contains(name.as_str()))
+        })
+    };
     let ExprNode::Binary { op, left, right } = node else {
         return None;
     };
@@ -698,6 +716,9 @@ fn reassociate_node(node: &ExprNode) -> Option<ExprNode> {
             let constant = collect_add_terms(node, &mut terms, 0)?;
             if constant == i64::MIN {
                 return None; // `-constant` would overflow in the builder
+            }
+            if !exact(&terms) {
+                return fold_closed_left(*op, left, right, collect_add_terms);
             }
             // Conservative: a lone term whose additive constant cancels to zero
             // (`$a + 5 - 5`) would emit `$a` BARE — stripping the numeric-
@@ -721,11 +742,36 @@ fn reassociate_node(node: &ExprNode) -> Option<ExprNode> {
             if constant == 0 || (constant == 1 && terms.len() == 1) {
                 return None;
             }
+            if !exact(&terms) {
+                return fold_closed_left(*op, left, right, collect_mul_terms);
+            }
             let built = build_mul_expr(&terms, constant);
             (render_expr(&built) != render_expr(node)).then_some(built)
         }
         _ => None,
     }
+}
+
+/// The closed-subtree fold a chain keeps when it may not regroup: a left
+/// operand made of integer literals alone evaluates to its constant before
+/// anything else in the chain runs, so folding it leaves the evaluation order
+/// — and a double's rounding — as written (`2 + 3 + $x` → `5 + $x`).
+fn fold_closed_left(
+    op: BinOp,
+    left: &ExprNode,
+    right: &ExprNode,
+    collect: fn(&ExprNode, &mut Vec<ExprNode>, u32) -> Option<i64>,
+) -> Option<ExprNode> {
+    if int_literal_value(left).is_some() {
+        return None;
+    }
+    let mut terms = Vec::new();
+    let constant = collect(left, &mut terms, 0)?;
+    terms.is_empty().then(|| ExprNode::Binary {
+        op,
+        left: Box::new(make_int_literal(constant)),
+        right: Box::new(right.clone()),
+    })
 }
 
 fn is_additive(n: &ExprNode) -> bool {
@@ -1708,38 +1754,53 @@ fn expr_uses_shadowed_mathfunc_at<S: std::hash::BuildHasher>(
 mod tests {
     use super::*;
 
+    /// A rewrite's fold inputs with no module mutations and no dialect.
+    fn folds() -> BuiltinFoldInputs<'static> {
+        static TRUSTED: std::sync::LazyLock<crate::command_binding::ModuleCommandMutations> =
+            std::sync::LazyLock::new(crate::command_binding::ModuleCommandMutations::default);
+        BuiltinFoldInputs {
+            registry: tcl_registry::default_registry(),
+            mutations: &TRUSTED,
+            dialect: None,
+            defining_class: None,
+            registry_engine: false,
+            trust: crate::sccp::FoldTrust::WholeModule,
+            proven_pure_parameters: false,
+        }
+    }
+
     // try_fold_expr
 
     #[test]
     fn fold_integer_arithmetic() {
-        assert_eq!(try_fold_expr("1 + 2", None).as_deref(), Some("3"));
-        assert_eq!(try_fold_expr("10 * 5", None).as_deref(), Some("50"));
-        assert_eq!(try_fold_expr("100 / 4", None).as_deref(), Some("25"));
+        assert_eq!(try_fold_expr("1 + 2", folds()).as_deref(), Some("3"));
+        assert_eq!(try_fold_expr("10 * 5", folds()).as_deref(), Some("50"));
+        assert_eq!(try_fold_expr("100 / 4", folds()).as_deref(), Some("25"));
     }
 
     #[test]
     fn fold_comparison_to_bool_literal() {
-        assert_eq!(try_fold_expr("1 < 2", None).as_deref(), Some("1"));
-        assert_eq!(try_fold_expr("3 == 3", None).as_deref(), Some("1"));
-        assert_eq!(try_fold_expr("5 > 10", None).as_deref(), Some("0"));
+        assert_eq!(try_fold_expr("1 < 2", folds()).as_deref(), Some("1"));
+        assert_eq!(try_fold_expr("3 == 3", folds()).as_deref(), Some("1"));
+        assert_eq!(try_fold_expr("5 > 10", folds()).as_deref(), Some("0"));
     }
 
     #[test]
     fn fold_returns_none_for_var_expressions() {
-        assert!(try_fold_expr("$x + 1", None).is_none());
-        assert!(try_fold_expr("[cmd]", None).is_none());
+        assert!(try_fold_expr("$x + 1", folds()).is_none());
+        assert!(try_fold_expr("[cmd]", folds()).is_none());
     }
 
     #[test]
     fn fold_returns_none_when_already_literal() {
         // "42" folds to "42" — no change, None.
-        assert!(try_fold_expr("42", None).is_none());
+        assert!(try_fold_expr("42", folds()).is_none());
     }
 
     #[test]
     fn fold_empty_expression() {
-        assert!(try_fold_expr("", None).is_none());
-        assert!(try_fold_expr("   ", None).is_none());
+        assert!(try_fold_expr("", folds()).is_none());
+        assert!(try_fold_expr("   ", folds()).is_none());
     }
 
     /// `simplify_node_once`,
@@ -2274,7 +2335,7 @@ mod tests {
 
     #[test]
     fn streq_promotion_with_numeric_string_literal_is_unsound_noop() {
-        // D5-O120: `$x == "1"` must stay numeric. `"1"` parses as a
+        // `$x == "1"` must stay numeric. `"1"` parses as a
         // number, so Tcl runs the numeric compare; promoting to `eq`
         // would flip the result when `$x` is numeric (e.g. `1.0`).
         // `"1"`/`"3.5"` are numeric; `"yes"` is a Tcl boolean word that
@@ -2353,7 +2414,9 @@ mod tests {
 
     #[test]
     fn o110_reassociates_constant_chains() {
-        // Additive and multiplicative constant reassociation (O110).
+        // Additive and multiplicative constant reassociation (O110), over
+        // terms the type lattice proves integer.
+        let integer = OperandTypes::integer(&["a", "b"]);
         for (input, want) in [
             ("$a + 1 + 2", "$a + 3"),
             ("$a * 2 * 3", "$a * 6"),
@@ -2365,10 +2428,41 @@ mod tests {
             // `$a + $b` keeps a `+` that coerces both operands.
             ("$a + $b + 1 - 1", "$a + $b"),
         ] {
-            let (out, changed) = instcombine_expr(input, false);
+            let (out, changed) = instcombine_expr_typed(input, false, Some(&integer), None);
             assert!(changed, "expected a rewrite for {input:?}");
             assert_eq!(out.trim(), want, "for {input:?}");
         }
+    }
+
+    /// Regrouping consumes the type proof: over a term the lattice proves
+    /// integer the chain regroups, and over an unproven term it is left as
+    /// written, because a double's rounding is order-dependent — `set x
+    /// 10000000000000000.0; expr {$x + 1 + 2}` prints `10000000000000002.0`
+    /// under tclsh 8.5 to 9.1, and `expr {$x + 3}` prints
+    /// `10000000000000004.0` (8.4 prints `1e+16` for both at its default
+    /// precision). A closed constant subtree still folds.
+    #[test]
+    fn reassociation_refuses_an_unproven_float_term() {
+        let integer = OperandTypes::integer(&["i"]);
+        let (out, changed) = instcombine_expr_typed("$i + 1 + 2", false, Some(&integer), None);
+        assert!(changed);
+        assert_eq!(out.trim(), "$i + 3");
+        for (context, label) in [
+            (OperandTypes::default(), "untyped"),
+            (OperandTypes::numeric_only(&["x"]), "double"),
+        ] {
+            for input in ["$x + 1 + 2", "$x * 3 * 5"] {
+                assert!(
+                    reassociate_node(&parse_expr_for_profile(input, None), &context).is_none(),
+                    "{label}: {input}"
+                );
+                let (out, changed) = instcombine_expr_typed(input, false, Some(&context), None);
+                assert!(!changed, "{label}: {input} became {out}");
+            }
+        }
+        let (out, changed) = instcombine_expr("2 + 3 + $x", false);
+        assert!(changed);
+        assert_eq!(out.trim(), "5 + $x");
     }
 
     #[test]
@@ -2378,7 +2472,11 @@ mod tests {
         // Mirror the multiplicative `$a * 1` guard and abstain (the AST pass
         // has no numeric proof).
         assert!(
-            reassociate_node(&parse_expr_for_profile("$a + 1 - 1", None)).is_none(),
+            reassociate_node(
+                &parse_expr_for_profile("$a + 1 - 1", None),
+                &OperandTypes::integer(&["a"])
+            )
+            .is_none(),
             "lone additive term cancelling to zero must not fold to a bare term",
         );
         let (out, changed) = instcombine_expr("$a + 1 - 1", false);
@@ -2390,7 +2488,11 @@ mod tests {
         // No additive chain to flatten → the reassociation does not fire
         // (a bare `1 + $a` reorder is left to other passes / suppressed).
         assert!(
-            reassociate_node(&parse_expr_for_profile("1 + $a", None)).is_none(),
+            reassociate_node(
+                &parse_expr_for_profile("1 + $a", None),
+                &OperandTypes::integer(&["a"])
+            )
+            .is_none(),
             "reassociation must not fire on a non-chain reorder",
         );
         // `* 0` annihilation across a chain needs a numeric proof this
@@ -2398,7 +2500,7 @@ mod tests {
         // result, if any, comes from the separate identity pass, not here).
         let parsed = parse_expr_for_profile("$a * 0 * 3", None);
         assert!(
-            reassociate_node(&parsed).is_none(),
+            reassociate_node(&parsed, &OperandTypes::integer(&["a"])).is_none(),
             "reassociation must not annihilate `* 0` without a numeric proof",
         );
     }

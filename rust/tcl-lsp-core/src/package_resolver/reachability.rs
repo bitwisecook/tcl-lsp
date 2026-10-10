@@ -77,10 +77,11 @@
 //!   chain would treat `for {set i 0} {$i < $n} {incr i} {…}` as "if `$i < $n`
 //!   then `incr i`, else `…`" and gate the loop body behind a *negated* guard —
 //!   a false [`Condition::Impossible`] for anything declared in it.  The
-//!   load-bearing distinction is not "loops are not modelled" but
-//!   `spec.arg_role_resolver.is_some()`: `if`'s roles are computed from the
-//!   actual clause words by a resolver, while the loops carry fixed
-//!   `arg_roles`.
+//!   load-bearing distinction is not "loops are not modelled" but the clause
+//!   grammar's [`ClauseSelection`]: `if`'s chain selects the first clause
+//!   whose condition holds, while a loop's grammar runs every clause it has
+//!   (a pack command whose roles come from a resolver is still offered to the
+//!   chain walk, as before).
 //! * conditions that are a constant boolean (`1`, `0`, `true`, `no`, …) or a
 //!   `package vsatisfies [package provide Tcl] REQ …` test, optionally negated
 //!   with `!`.
@@ -113,7 +114,7 @@
 
 use tcl_dialect::{TclVersion, Ternary};
 use tcl_lexer::{Token, TokenType};
-use tcl_registry::{CommandRegistry, Traits, arg_role::ArgRole};
+use tcl_registry::{ClauseSelection, CommandRegistry, Traits, arg_role::ArgRole};
 
 use super::{walk_command_words, word_raw, word_unwrap};
 
@@ -330,7 +331,12 @@ fn walk_script<'t>(
         if spec.traits.contains(Traits::TERMINATES_BLOCK) {
             return None;
         }
-        if spec.traits.contains(Traits::HAS_BOOLEAN_COND) && spec.arg_role_resolver.is_some() {
+        let first_match_chain = spec
+            .clause_grammar
+            .is_some_and(|grammar| grammar.selection == ClauseSelection::FirstMatch);
+        if spec.traits.contains(Traits::HAS_BOOLEAN_COND)
+            && (first_match_chain || spec.arg_role_resolver.is_some())
+        {
             match walk_if(text, words, head, registry, &reached, depth, visit) {
                 AfterIf::Stops => return None,
                 AfterIf::Continues(after) => {

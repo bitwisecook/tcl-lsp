@@ -40,6 +40,9 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         tcllib_package: Some("yaml"),
         required_package: Some("yaml"),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

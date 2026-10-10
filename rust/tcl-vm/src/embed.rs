@@ -30,18 +30,31 @@
 //! - **Register a stateful command.** [`Vm::register_native_command`] takes an
 //!   `Rc<dyn NativeCommand>`, so an embedder's command can carry state (the
 //!   emitter verbs of a `SpecTcl` hook family collect what the body emitted).
+//! - **Say what a host command provides.** [`Vm::package_provide`] does what
+//!   `package provide` does, and [`Vm::library_loaded`] records a library `info
+//!   loaded` lists, for a host command that loads native code.
+//! - **Reach the variables.** [`Vm::read_variable`], [`Vm::write_variable`] and
+//!   [`Vm::unset_variable`] do what `set` and `unset` do in the current frame,
+//!   element names and traces included; [`Vm::get_var`], [`Vm::set_var`] and
+//!   [`Vm::unset_var`] are the scalar-only forms beneath them.
+//! - **Take an error as the host's own.** [`Vm::publish_caught_error`] leaves
+//!   `$errorInfo` and `$errorCode` as a `catch` would, for a host command that
+//!   evaluated a script and swallowed what it raised.
 //! - **Restrict the command table.** [`Vm::retain_commands`] reduces a fresh VM
 //!   to a closed whitelist, which is how a sandbox is built out of a normal
 //!   interpreter rather than a second one.
 //! - **Bound the work.** [`Vm::set_command_limit`] arms the `commands` limit
 //!   the VM now enforces, and [`Vm::commands_run`] reports the fuel spent.
+//! - **Confine the stores.** [`Vm::set_stores_confined`] keeps every write in
+//!   the running procedure's own frame, so a body cannot leave state behind
+//!   for its next call.
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use tcl_runtime_api::{Completion, ScriptCompileTarget};
+use tcl_runtime_api::{Code, Completion, ScriptCompileTarget};
 
-use crate::command::{Command, NativeCommand};
+use crate::command::{Command, NativeCommand, opt_get, resolved_error_code};
 use crate::error::TclError;
 use crate::interp::Vm;
 use crate::value::Value;
@@ -193,7 +206,10 @@ impl Vm {
         let epoch_changed = handle.state.borrow().unit.command_epoch != self.trace_deopt_epoch();
         let namespace = self.current_ns().to_owned();
         let namespace_changed = handle.state.borrow().unit.source_namespace != namespace;
-        let bindings_match = self.function_command_bindings_match(&handle.state.borrow().unit.asm);
+        let bindings_match = {
+            let state = handle.state.borrow();
+            self.function_command_bindings_match(&state.unit.asm, state.unit.manifest.as_deref())
+        };
         if profile_changed
             || compiler_changed
             || epoch_changed
@@ -205,26 +221,32 @@ impl Vm {
                 source: &handle.source,
                 namespace: &namespace,
             };
-            let asm = match if self.step_trace_active() {
-                self.compile_plain_function_cached(plain_target()).map(Some)
+            let (asm, manifest) = match if self.step_trace_active() {
+                self.compile_plain_function_cached(plain_target())
+                    .map(|asm| Some((asm, None)))
             } else if profile_changed || compiler_changed || namespace_changed {
                 self.compile_fast_function_for_namespace(&handle.source, &namespace)
             } else if !current_is_plain && !bindings_match {
-                self.compile_plain_function_cached(plain_target()).map(Some)
+                self.compile_plain_function_cached(plain_target())
+                    .map(|asm| Some((asm, None)))
             } else if epoch_changed && current_is_plain {
                 self.compile_fast_function_for_namespace(&handle.source, &namespace)
             } else {
-                Ok(Some(Rc::clone(&handle.state.borrow().unit.asm)))
+                let state = handle.state.borrow();
+                Ok(Some((
+                    Rc::clone(&state.unit.asm),
+                    state.unit.manifest.clone(),
+                )))
             } {
-                Ok(Some(asm)) => asm,
+                Ok(Some(compiled)) => compiled,
                 Ok(None) => match self.compile_plain_function_cached(plain_target()) {
-                    Ok(asm) => asm,
+                    Ok(asm) => (asm, None),
                     Err(error) => return crate::command::completion_from_tcl_error(error),
                 },
                 Err(error) => return crate::command::completion_from_tcl_error(error),
             };
             *handle.state.borrow_mut() = FunctionHandleState {
-                unit: self.compiled_unit(asm, namespace),
+                unit: self.compiled_unit(asm, namespace).with_manifest(manifest),
                 owner_nonce: self.owner_nonce,
             };
         }
@@ -238,6 +260,78 @@ impl Vm {
     /// redefinition does.
     pub fn register_native_command(&mut self, name: &str, command: Rc<dyn NativeCommand>) {
         self.register_written_command(name, Command::Native(command));
+    }
+
+    /// Provide a package from the host, as `package provide name version` does.
+    ///
+    /// The version is validated for the release the VM emulates, a package
+    /// already provided at a different version is refused with the error `package
+    /// provide` gives (`conflicting versions provided for package "p": 1.0, then
+    /// 2.0`, `TCL PACKAGE VERSIONCONFLICT`), and the same version again is a
+    /// no-op. A later `package require` is satisfied from what was provided here.
+    pub fn package_provide(&mut self, name: &str, version: &str) -> Result<(), TclError> {
+        let completion =
+            crate::cmd_package::pkg_provide(self, &[Value::string(name), Value::string(version)]);
+        if completion.code.is_ok() {
+            return Ok(());
+        }
+        let mut error = TclError::new(completion.result.to_str().to_string());
+        error.error_code = crate::command::opt_get(&completion.options, "-errorcode")
+            .map(|code| code.to_str().to_string());
+        Err(error)
+    }
+
+    /// Record that the library `prefix` has been loaded into the interpreter,
+    /// from `file_name` (empty for one linked into the program), so `info loaded`
+    /// lists it. A prefix is listed once, under the file it was first loaded from.
+    pub fn library_loaded(&mut self, file_name: &str, prefix: &str) {
+        self.note_library_loaded(file_name, prefix);
+    }
+
+    /// Read the variable `name` as `set name` does in the current frame: a
+    /// scalar, or an array element spelt `a(k)`, with its read traces fired. A
+    /// variable that is not there is the error `set` raises
+    /// (`can't read "x": no such variable`).
+    pub fn read_variable(&mut self, name: &str) -> Result<Value, Completion<Value>> {
+        match self.read_var_traced(name)? {
+            Some(value) => Ok(value),
+            None => Err(crate::interp::err(self.read_miss_msg(name))),
+        }
+    }
+
+    /// Set the variable `name` as `set name value` does in the current frame: a
+    /// scalar, or an array element spelt `a(k)`, with its write traces fired. A
+    /// store `set` refuses (an array, a constant, a confined store) is the error
+    /// `set` raises.
+    pub fn write_variable(&mut self, name: &str, value: Value) -> Result<(), Completion<Value>> {
+        self.store_var_result(name, value).map(|_| ())
+    }
+
+    /// Unset the variable `name` as `unset name` does in the current frame: a
+    /// scalar, an array element spelt `a(k)` or a whole array, with its unset
+    /// traces fired. One that is not there is the error `unset` raises
+    /// (`can't unset "x": no such variable`).
+    pub fn unset_variable(&mut self, name: &str) -> Result<(), Completion<Value>> {
+        self.unset_one(name, true)
+    }
+
+    /// Publish `$errorInfo` and `$errorCode` for `completion`, an error a host
+    /// command took as its own: one that evaluated a script and swallowed its
+    /// failure leaves them as a `catch` of the script would have, so what the
+    /// script raised is what the next command reads. A completion that is not an
+    /// error publishes nothing, and nothing is published while stores are
+    /// confined to the activation.
+    pub fn publish_caught_error(&mut self, completion: &Completion<Value>) {
+        if completion.code != Code::Error {
+            return;
+        }
+        let options = self.completion_options_snapshot(completion);
+        let info = opt_get(&options, "-errorinfo").map_or_else(
+            || completion.result.to_str().to_string(),
+            |value| value.to_str().to_string(),
+        );
+        let _ = self.take_error_info();
+        self.publish_error(&info, &resolved_error_code(completion));
     }
 
     /// Every command name currently registered, sorted.
@@ -309,6 +403,29 @@ impl Vm {
     #[must_use]
     pub fn value_size_limit(&self) -> Option<u64> {
         self.value_size_limit_value()
+    }
+
+    /// Confine every store to the running procedure's own frame, or release
+    /// the confinement. While confined, a store, an array's creation or an
+    /// unset whose name resolves anywhere else — a `::`-qualified name, a
+    /// namespace variable, a global, a local linked to another frame — fails
+    /// as a Tcl error (`can't set "::n": stores are confined to the
+    /// activation`, or `can't unset …`) before anything is written or
+    /// removed.
+    /// Confining also removes the globals the host's bootstrap wrote
+    /// (`::env`, `::tcl_platform`, the library paths), again after a host
+    /// swap; releasing the confinement does not restore them. A hosted body
+    /// whose writes all stay in its own activation leaves nothing for a
+    /// later call to read and finds no host environment to read, so its
+    /// answer depends on its arguments alone.
+    pub fn set_stores_confined(&mut self, confined: bool) {
+        self.set_stores_confined_value(confined);
+    }
+
+    /// Whether stores are confined to the running procedure's own frame.
+    #[must_use]
+    pub fn stores_confined(&self) -> bool {
+        self.stores_confined_value()
     }
 
     /// The armed `commands` limit, if any.

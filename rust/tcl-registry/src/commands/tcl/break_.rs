@@ -33,6 +33,7 @@ const COMPLETION_CODES: &[CompletionCode] = &[CompletionCode::Break];
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "break",
+        runtime_backing: RuntimeBacking::shipped("break"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
@@ -52,6 +53,7 @@ pub fn spec() -> CommandSpec {
             return_value: "None in normal use — control transfers to just past the innermost enclosing loop. Trapped with catch, the caught value is an empty string.",
         }),
         inline_codegen_hook: Some(InlineCodegenHookId::Break),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::completion::BREAK),
         native_lowering: Some(NativeLowering::Completion(CompletionCode::Break)),
         // The command's whole effect is its completion code, which the exact
         // completion descriptor above already carries: it changes no

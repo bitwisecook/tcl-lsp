@@ -16,7 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The exported C entry points: every function `include/tclshim.h` declares.
+//! The exported C entry points: every function `runtime/rust/include/tcl.h`
+//! declares for the native host (`TCL_HOST_NATIVE`).
 //!
 //! Each is a thin, panic-safe adapter from the C calling convention onto
 //! [`Obj`] and [`InterpState`]. The Rust names are ordinary snake case; the
@@ -38,6 +39,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use tcl_cmd_core::prefix::{self, Resolution};
 use tcl_syntax::list;
 
+use crate::doors;
 use crate::obj::{Obj, ObjRef, TclError, decode_bytes};
 use crate::state::{CmdDeleteProc, InterpState, ObjCmdProc};
 
@@ -51,6 +53,13 @@ pub const TCL_RETURN: c_int = 2;
 pub const TCL_BREAK: c_int = 3;
 /// `TCL_CONTINUE`.
 pub const TCL_CONTINUE: c_int = 4;
+
+/// `TCL_GLOBAL_ONLY`: a variable name is read from the global namespace.
+pub const TCL_GLOBAL_ONLY: c_int = 1;
+/// `TCL_LEAVE_ERR_MSG`: a failed variable call leaves its message in the result.
+pub const TCL_LEAVE_ERR_MSG: c_int = 0x200;
+/// `TCL_EVAL_DIRECT`: evaluate without compiling, which only hints here.
+pub const TCL_EVAL_DIRECT: c_int = 0x4_0000;
 
 const TCL_EXACT: c_int = 1;
 const TCL_NULL_OK: c_int = 32;
@@ -285,42 +294,21 @@ pub unsafe extern "C" fn tcl_new_list_obj(word_count: isize, words: *const *mut 
     })
 }
 
-/// `Tcl_IncrRefCount`.
+/// `TclFreeObj`: free an object whose count the header's `Tcl_DecrRefCount`
+/// macro has lowered to zero. `Tcl_IncrRefCount`, `Tcl_DecrRefCount` and
+/// `Tcl_IsShared` are macros over the `refCount` field, as in Tcl's own header,
+/// and export nothing.
 ///
 /// # Safety
 ///
-/// `raw` must be a live object.
-#[unsafe(export_name = "Tcl_IncrRefCount")]
-pub unsafe extern "C" fn tcl_incr_ref_count(raw: *mut Obj) {
+/// `raw` must be a live object that no reference holds, and must not be used
+/// afterwards.
+#[unsafe(export_name = "TclFreeObj")]
+pub unsafe extern "C" fn tcl_free_obj(raw: *mut Obj) {
     guarded((), || {
         // SAFETY: as documented on the function.
-        unsafe { Obj::incr_ref_count(raw) };
+        unsafe { Obj::free(raw) };
     });
-}
-
-/// `Tcl_DecrRefCount`: releases a reference and frees the object at zero.
-///
-/// # Safety
-///
-/// `raw` must be a live object, and must not be used afterwards if this was
-/// its last reference.
-#[unsafe(export_name = "Tcl_DecrRefCount")]
-pub unsafe extern "C" fn tcl_decr_ref_count(raw: *mut Obj) {
-    guarded((), || {
-        // SAFETY: as documented on the function.
-        unsafe { Obj::decr_ref_count(raw) };
-    });
-}
-
-/// `Tcl_IsShared`.
-///
-/// # Safety
-///
-/// `raw` must be a live object.
-#[unsafe(export_name = "Tcl_IsShared")]
-pub unsafe extern "C" fn tcl_is_shared(raw: *mut Obj) -> c_int {
-    // SAFETY: as documented on the function.
-    guarded(0, || c_int::from(unsafe { obj(raw) }.is_shared()))
 }
 
 /// `Tcl_DuplicateObj`: a fresh copy with a reference count of zero.
@@ -822,7 +810,7 @@ pub unsafe extern "C" fn tcl_reset_result(interp_ptr: *mut InterpState) {
 /// # Safety
 ///
 /// `interp` live; `result` NULL or terminated.
-#[unsafe(export_name = "TclShim_SetResultString")]
+#[unsafe(export_name = "TclHost_SetResultString")]
 pub unsafe extern "C" fn tclshim_set_result_string(
     interp_ptr: *mut InterpState,
     result: *const c_char,
@@ -840,7 +828,7 @@ pub unsafe extern "C" fn tclshim_set_result_string(
 /// # Safety
 ///
 /// `interp` live; `piece` NULL or terminated.
-#[unsafe(export_name = "TclShim_AppendResultString")]
+#[unsafe(export_name = "TclHost_AppendResultString")]
 pub unsafe extern "C" fn tclshim_append_result_string(
     interp_ptr: *mut InterpState,
     piece: *const c_char,
@@ -913,7 +901,8 @@ pub unsafe extern "C" fn tcl_set_obj_error_code(interp_ptr: *mut InterpState, co
     });
 }
 
-/// `Tcl_PkgProvideEx`.
+/// `Tcl_PkgProvideEx`: record the package and, with the engine's door open,
+/// provide it to the engine's package database as `package provide` does.
 ///
 /// # Safety
 ///
@@ -930,13 +919,100 @@ pub unsafe extern "C" fn tcl_pkg_provide_ex(
         let state = unsafe { interp(interp_ptr) }.expect("a NULL Tcl_Interp pointer");
         // SAFETY: as above.
         let (name, version) = unsafe { (c_text(name), c_text(version)) };
-        match state.provide(&name, &version) {
-            Ok(()) => TCL_OK,
-            Err(error) => {
-                state.set_error(&error);
-                TCL_ERROR
-            }
-        }
+        doors::provide_package(state, &name, &version)
+    })
+}
+
+/// `Tcl_GetVar2Ex`: the value of a variable of the frame that called the running
+/// command, as an object kept until that command returns, or NULL.
+///
+/// # Safety
+///
+/// `interp` live; `part1` terminated; `part2` NULL or terminated.
+#[unsafe(export_name = "Tcl_GetVar2Ex")]
+pub unsafe extern "C" fn tcl_get_var2_ex(
+    interp_ptr: *mut InterpState,
+    part1: *const c_char,
+    part2: *const c_char,
+    flags: c_int,
+) -> *mut Obj {
+    guarded(std::ptr::null_mut(), || {
+        // SAFETY: as documented on the function.
+        let state = unsafe { interp(interp_ptr) }.expect("a NULL Tcl_Interp pointer");
+        // SAFETY: as above.
+        let (part1, part2) = unsafe { (c_text(part1), (!part2.is_null()).then(|| c_text(part2))) };
+        doors::get_variable(state, &part1, part2.as_deref(), flags)
+    })
+}
+
+/// `Tcl_ObjSetVar2`: set a variable of the frame that called the running
+/// command to `new_value` and answer the object now held, or NULL. The call
+/// takes a reference to `new_value` for as long as the command runs.
+///
+/// # Safety
+///
+/// `interp` live; `part1`, `part2` (when not NULL) and `new_value` live.
+#[unsafe(export_name = "Tcl_ObjSetVar2")]
+pub unsafe extern "C" fn tcl_obj_set_var2(
+    interp_ptr: *mut InterpState,
+    part1: *mut Obj,
+    part2: *mut Obj,
+    new_value: *mut Obj,
+    flags: c_int,
+) -> *mut Obj {
+    guarded(std::ptr::null_mut(), || {
+        // SAFETY: as documented on the function.
+        let state = unsafe { interp(interp_ptr) }.expect("a NULL Tcl_Interp pointer");
+        // SAFETY: as above.
+        let (part1, part2) = unsafe { (obj(part1).text(), part2.as_ref().map(Obj::text)) };
+        // SAFETY: as above.
+        let new_value = unsafe { ObjRef::adopt(new_value) };
+        doors::set_variable(state, &part1, part2.as_deref(), new_value, flags)
+    })
+}
+
+/// `Tcl_UnsetVar2`: unset a variable of the frame that called the running
+/// command.
+///
+/// # Safety
+///
+/// As [`tcl_get_var2_ex`].
+#[unsafe(export_name = "Tcl_UnsetVar2")]
+pub unsafe extern "C" fn tcl_unset_var2(
+    interp_ptr: *mut InterpState,
+    part1: *const c_char,
+    part2: *const c_char,
+    flags: c_int,
+) -> c_int {
+    guarded(TCL_ERROR, || {
+        // SAFETY: as documented on the function.
+        let state = unsafe { interp(interp_ptr) }.expect("a NULL Tcl_Interp pointer");
+        // SAFETY: as above.
+        let (part1, part2) = unsafe { (c_text(part1), (!part2.is_null()).then(|| c_text(part2))) };
+        doors::unset_variable(state, &part1, part2.as_deref(), flags)
+    })
+}
+
+/// `Tcl_EvalObjEx`: evaluate a script in the frame that called the running
+/// command, leaving its result, or its error, in the interpreter's result, and
+/// answer the completion code it had. The call takes a reference to `script`
+/// for its length.
+///
+/// # Safety
+///
+/// `interp` live; `script` live.
+#[unsafe(export_name = "Tcl_EvalObjEx")]
+pub unsafe extern "C" fn tcl_eval_obj_ex(
+    interp_ptr: *mut InterpState,
+    script: *mut Obj,
+    flags: c_int,
+) -> c_int {
+    guarded(TCL_ERROR, || {
+        // SAFETY: as documented on the function.
+        let state = unsafe { interp(interp_ptr) }.expect("a NULL Tcl_Interp pointer");
+        // SAFETY: as above.
+        let script = unsafe { ObjRef::adopt(script) };
+        doors::evaluate(state, script.get(), flags)
     })
 }
 

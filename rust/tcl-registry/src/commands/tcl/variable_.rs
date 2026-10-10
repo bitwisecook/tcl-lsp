@@ -20,7 +20,7 @@
 
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
-use crate::state_transition::local_alias_name;
+use crate::state_transition::{AliasWords, local_alias_name};
 use tcl_dialect::model::Family;
 use tcl_dialect::model::SpecSurface;
 use tcl_dialect::surface;
@@ -60,6 +60,7 @@ fn variable_state_transitions(arguments: InvocationArguments<'_>) -> StateTransi
                 local: local_alias_name(&variable),
                 target: VariableAliasTarget::CurrentNamespace { variable },
                 writes_value: argument_index + 1 < arguments.len(),
+                words: AliasWords::same(argument_index),
             },
         ));
     }
@@ -135,6 +136,7 @@ static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout::strided(ArgRole::Va
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "variable",
+        runtime_backing: RuntimeBacking::shipped("variable"),
         // Present and unrestricted: iRules enables `variable`, so it carries
         // an iRules row explicitly (`ALL_TCL.union(IRULES)`) and resolves
         // under the bare `IRULES` mask; no dialect pack under
@@ -187,11 +189,11 @@ pub fn spec() -> CommandSpec {
         lowering_hook: Some(LoweringHookId::Variable),
         native_lowering: Some(NativeLowering::Scope(ScopeKind::NamespaceVariable)),
         forms: FORMS,
-        analyser_hook: Some(crate::hooks::AnalyserHookId::Variable),
         // A value-bearing `variable name value` can run variable traces;
         // until value writes are transition-modelled, leave its world
         // declaration open rather than falsely claiming `EMPTY`.
         state_transitions: Some(VARIABLE_TRANSITIONS),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::scope_alias::VARIABLE),
         ..CommandSpec::DEFAULT
     }
 }

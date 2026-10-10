@@ -235,6 +235,7 @@ const FIELD_VALUES: &[ArgValue] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::build-info",
+        runtime_backing: RuntimeBacking::shipped("tcl::build-info"),
         surface: Some(SpecSurface::TCL90_PLUS),
         traits: Traits::BYTE_COMPILED,
         arity: Arity::new(0, 1),

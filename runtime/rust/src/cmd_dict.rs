@@ -930,6 +930,9 @@ fn update(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 }
             }
             Ok(None) => {
+                if interp.store_escapes(&var) {
+                    return interp.confined_unset_error(&var);
+                }
                 interp.var_unset(&var);
             }
             Err(e) => return bad_dict(interp, e),

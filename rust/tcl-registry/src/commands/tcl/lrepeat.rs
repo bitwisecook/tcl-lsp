@@ -98,6 +98,7 @@ const FORMS: &[FormSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lrepeat",
+        runtime_backing: RuntimeBacking::shipped("lrepeat"),
         const_fold: Some(crate::const_fold::fold_lrepeat),
         // `lrepeat count {a b} {c d}` — a call with exactly two element
         // arguments, both braced — is a `HEAD NAME BRACED BRACED`
@@ -142,6 +143,9 @@ pub fn spec() -> CommandSpec {
                 transparent_from: &[],
             },
         )],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

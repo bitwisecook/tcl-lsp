@@ -143,6 +143,9 @@ impl LiveSession {
         vm.set_compiler(Box::new(Svc::for_profile(profile)));
         let mut session = Self { vm, output };
         session.bootstrap(lib_dir)?;
+        // The pure functions run their shared cores, registered before
+        // `register_all` looks for each command's mock.
+        crate::pure_functions::register(&mut session.vm);
         session.eval("::orch::init")?;
         Ok(session)
     }

@@ -18,7 +18,7 @@
 
 //! `tcl spec` verb group — authoring `.tclspec` command packs.
 //!
-//! Three sub-actions:
+//! Four sub-actions:
 //!
 //! - `tcl spec import` reads *several releases* of a Tcl package and renders a
 //!   pack whose `introduced_version` / `retired_version` fields carry the
@@ -28,6 +28,8 @@
 //! - `tcl spec upgrade` rewrites a 1.x pack's source into `SpecTcl` 2.0.
 //! - `tcl spec export` renders a pack's loaded snapshot back out as canonical
 //!   2.0 source, which for a pack written as a program is its expansion.
+//! - `tcl spec test` holds a pack's declared facts to the Tcl package they
+//!   describe, in a real shell the project's policy has opted in.
 //!
 //! Two ways to name the releases:
 //!
@@ -60,7 +62,7 @@ use tcl_spec_studio::versions::VersionedSnapshot;
 use tcl_registry::command_snapshot::command_entry_json;
 use tcl_spectcl::{UpgradeOptions, UpgradeOutcome, UpgradeStatus, upgrade_source};
 
-use crate::cli::{SpecCommand, SpecImportArgs, SpecUpgradeArgs};
+use crate::cli::{SpecCommand, SpecImportArgs, SpecTestArgs, SpecUpgradeArgs};
 
 /// GitHub's maximum page size for `/tags`; fewer requests, same answer.
 const TAGS_PER_PAGE: usize = 100;
@@ -76,6 +78,7 @@ pub fn run(action: &SpecCommand) -> anyhow::Result<u8> {
         SpecCommand::Import(args) => run_import(args),
         SpecCommand::Upgrade(args) => run_upgrade(args),
         SpecCommand::Export(args) => run_export(args),
+        SpecCommand::Test(args) => run_test(args),
     }
 }
 
@@ -95,7 +98,7 @@ pub fn run(action: &SpecCommand) -> anyhow::Result<u8> {
 /// - **Evaluation is trusted.** The file is named on the command line by
 ///   its author rather than discovered in a workspace, so E-R2's provenance
 ///   gate (which asks *where a pack was found*) has nothing to answer here;
-///   `tcl spec check` is where a tier-gated verdict belongs.
+///   the `spectcl_check` MCP tool reports a tier-gated verdict.
 ///
 /// The text is run through the shared `SpecTcl` formatter profile — the one
 /// the studio's editors use — so an exported pack lands in the house style
@@ -159,6 +162,255 @@ fn run_export(args: &crate::cli::SpecExportArgs) -> anyhow::Result<u8> {
         );
     }
     Ok(u8::from(!losses.is_empty()))
+}
+
+/// `tcl spec test` — a pack's declared facts held to the package they describe.
+///
+/// The one place a pack's claims meet the code they are about: the package is
+/// required in a real shell and each declared command is asked what the pack
+/// says of it ([`crate::commands::spec_test`] has the questions). Requiring a
+/// package runs its Tcl, which is the decision the package manager keeps for
+/// the operator — packages are data until policy says otherwise — so the verb
+/// runs only for a package `[build] allow-build-scripts` and `tcl pkg trust`
+/// have opted in, through the same sandboxed chokepoint a build script uses. It
+/// is a CLI verb and nothing the editor runs: loading a pack never executes the
+/// package it describes.
+///
+/// The policy that opts the package in is the operator's: the project `tcl pkg`
+/// works in, found from the working directory, and never a tree the pack was
+/// found in. A package someone else ships, vendored into the project, has a
+/// `tclpkg.toml` of its own, and it must not be the thing that lets it run.
+///
+/// One row is printed per divergence. The status is 1 when there is any, when the
+/// package could not be required at all, and when the shell stopped before it had
+/// asked every command, whatever status it stopped with; it is 2 when the verb
+/// itself could not run — a pack that could not load, no shell, a package that did
+/// not finish in the time the policy allows.
+fn run_test(args: &SpecTestArgs) -> anyhow::Result<u8> {
+    let Some(target) = test_target(args)? else {
+        return Ok(0);
+    };
+    let dir = operator_project()?;
+    let loaded = tcl_pkg::policy::load(Some(&dir));
+    let package = &target.package;
+    if !loaded.config.build_script_allowed(package) {
+        eprintln!("error: running the package '{package}' is not permitted by policy");
+        eprintln!(
+            "  hint: set [build] allow-build-scripts = true and run 'tcl pkg trust {package}'"
+        );
+        return Ok(1);
+    }
+    let profile = test_profile(args, &dir, &target)?;
+    let outcome = tcl_pkg::exec::execute(&profile, &loaded.config.sandbox_policy())
+        .map_err(|error| anyhow!("{error}"))?;
+    if outcome.timed_out {
+        bail!("the shell did not finish testing '{package}' in time");
+    }
+    Ok(report_test(args, &target, &outcome))
+}
+
+/// What `tcl spec test` asks of a shell: the package to require and the
+/// questions the pack's commands raise.
+struct TestTarget {
+    package: String,
+    probes: Vec<crate::commands::spec_test::CommandProbe>,
+}
+
+/// Load the pack and name the package it describes. A failed load is an error;
+/// a valid command-free pack returns `None`, which is said on the way out.
+fn test_target(args: &SpecTestArgs) -> anyhow::Result<Option<TestTarget>> {
+    use crate::commands::spec_test::{probes_of, required_package};
+
+    if !args.pack.is_file() {
+        bail!("cannot read {}: not a file", args.pack.display());
+    }
+    // The file is named on the command line by its author, so it loads as the
+    // workspace's own pack: nothing narrows it.
+    let set = tcl_spectcl::pack::load(&[tcl_spectcl::PackFile {
+        tier: tcl_spectcl::Tier::Workspace,
+        path: args.pack.clone(),
+        origin: tcl_spectcl::discovery::Origin::Setting,
+        dependency_tier: None,
+    }]);
+    if let Some((path, error)) = set.load_errors.first() {
+        bail!("cannot load {}: {error}", path.display());
+    }
+    let probes = probes_of(&set);
+    if probes.is_empty() {
+        for notice in &set.notices {
+            eprint_status(
+                warn_style(),
+                format!(
+                    "{}:{}: {}",
+                    args.pack.display(),
+                    notice.line,
+                    notice.message
+                ),
+            );
+        }
+        if set.packs.is_empty() {
+            bail!(
+                "cannot load {}: no speclib declaration was loaded",
+                args.pack.display()
+            );
+        }
+        println!(
+            "{}: the pack declares no command to test",
+            args.pack.display()
+        );
+        return Ok(None);
+    }
+    let Some(package) = args.package.clone().or_else(|| required_package(&set)) else {
+        bail!(
+            "name the Tcl package with --package: no command of {} agrees on a `required_package`",
+            args.pack.display()
+        );
+    };
+    Ok(Some(TestTarget { package, probes }))
+}
+
+/// The sandboxed shell that runs the probe: the probe on its standard input, no
+/// network, the environment a Tcl shell needs to find its library and the
+/// package, and read access to the project and the directories `TCLLIBPATH`
+/// names.
+fn test_profile(
+    args: &SpecTestArgs,
+    dir: &Path,
+    target: &TestTarget,
+) -> anyhow::Result<tcl_sandbox::Profile> {
+    let script = crate::commands::spec_test::render_script(&target.package, &target.probes);
+    shell_profile("spec-test", args.tclsh.as_deref(), dir, script)
+}
+
+/// A sandboxed `tclsh` reading `script` from its standard input: no network,
+/// the environment a Tcl shell needs to find its library and its packages,
+/// and read access to the project and the directories `TCLLIBPATH` names.
+///
+/// The shell is `tclsh` when one is named, else the one `TCL_VENV` holds,
+/// else the newest on `PATH`.
+fn shell_profile(
+    name: &str,
+    tclsh: Option<&Path>,
+    dir: &Path,
+    script: String,
+) -> anyhow::Result<tcl_sandbox::Profile> {
+    let tclsh = match tclsh {
+        Some(path) => path.to_path_buf(),
+        None => match std::env::var_os("TCL_VENV") {
+            Some(venv) => PathBuf::from(venv).join("bin").join("tclsh"),
+            None => tcl_pkg::venv::find_tclsh()
+                .ok_or_else(|| anyhow!("tclsh not found on PATH; name one with --tclsh"))?,
+        },
+    };
+    let mut profile = tcl_sandbox::Profile::new(name, &tclsh, dir)
+        .arg("-")
+        .network(false)
+        .stdin_bytes(script.into_bytes());
+    for name in [
+        "PATH",
+        "HOME",
+        "TCL_LIBRARY",
+        "TCLLIBPATH",
+        "TMPDIR",
+        "LANG",
+        "LC_ALL",
+    ] {
+        profile = profile.pass_env(name);
+    }
+    profile.fs_read = std::iter::once(dir.to_path_buf())
+        .chain(
+            std::env::var_os("TCLLIBPATH")
+                .iter()
+                .flat_map(std::env::split_paths),
+        )
+        .collect();
+    Ok(profile)
+}
+
+/// Print one row per divergence the shell reported and the summary line, and
+/// return the status: 1 for any divergence, and for a shell that stopped before it
+/// had asked every command.
+///
+/// The probe's closing `done` line is the proof the shell finished, so it is
+/// required whatever status the shell exited with: a package that calls `exit 0`
+/// is a shell that stopped, and one that dies after a row has not been asked the
+/// rest. The summary counts the commands the shell asked, which is what was
+/// tested, and not the commands the pack declares.
+fn report_test(args: &SpecTestArgs, target: &TestTarget, outcome: &tcl_sandbox::Outcome) -> u8 {
+    let report =
+        crate::commands::spec_test::parse_report(&String::from_utf8_lossy(&outcome.stdout));
+    for divergence in &report.divergences {
+        println!("{divergence}");
+    }
+    // A package the shell could not require has nothing more asked of it.
+    let wanted = if report.package_missing() {
+        0
+    } else {
+        target.probes.len()
+    };
+    let asked = report.asked.len();
+    let finished = report.done == Some(wanted) && asked == wanted;
+    if finished {
+        if !outcome.success {
+            eprint_status(
+                warn_style(),
+                format!(
+                    "the shell exited with status {} after it had reported",
+                    exit_status(outcome)
+                ),
+            );
+        }
+        println!(
+            "{}: {asked} command(s) tested against '{}', {} divergence(s)",
+            args.pack.display(),
+            target.package,
+            report.divergences.len()
+        );
+        return u8::from(!report.divergences.is_empty());
+    }
+    let missing: Vec<&str> = target
+        .probes
+        .iter()
+        .map(|probe| probe.name.as_str())
+        .filter(|name| !report.asked.iter().any(|asked| asked == name))
+        .collect();
+    eprint_status(
+        warn_style(),
+        format!(
+            "the shell exited with status {} before it had asked every command \
+             ({asked} of {wanted} asked; not asked: {}): {}",
+            exit_status(outcome),
+            missing.join(", "),
+            String::from_utf8_lossy(&outcome.stderr).trim()
+        ),
+    );
+    println!(
+        "{}: {asked} of {wanted} command(s) tested against '{}', {} divergence(s)",
+        args.pack.display(),
+        target.package,
+        report.divergences.len()
+    );
+    1
+}
+
+fn exit_status(outcome: &tcl_sandbox::Outcome) -> String {
+    outcome
+        .code
+        .map_or_else(|| "?".to_owned(), |code| code.to_string())
+}
+
+/// The operator's project: the outermost directory at or above the working
+/// directory that holds a `tclpkg.tcl`, or the working directory when there is
+/// none. Its `tclpkg.toml` is the project layer of the policy that decides whether
+/// the package runs, and it is the outermost because a dependency vendored into
+/// the project sits under the project's manifest: the operator who stands inside
+/// the dependency has made its manifest the nearest, and the policy is not the
+/// dependency's to write.
+fn operator_project() -> anyhow::Result<PathBuf> {
+    match crate::commands::pkg::find_outermost_project_root() {
+        Some(root) => Ok(root),
+        None => std::env::current_dir().context("cannot read the working directory"),
+    }
 }
 
 /// `tcl spec upgrade` — rewrite a 1.x pack into `SpecTcl` 2.0.
@@ -395,6 +647,7 @@ fn in_memory_pack(path: &Path, source: &str) -> tcl_spectcl::PackSet {
             tier: tcl_spectcl::Tier::Workspace,
             path: path.to_path_buf(),
             origin: tcl_spectcl::discovery::Origin::DotDir,
+            dependency_tier: None,
         },
         source.to_owned(),
     )])
@@ -402,6 +655,9 @@ fn in_memory_pack(path: &Path, source: &str) -> tcl_spectcl::PackSet {
 
 /// `tcl spec import` — derive version ranges from several releases.
 pub fn run_import(args: &SpecImportArgs) -> anyhow::Result<u8> {
+    if !args.c_source.is_empty() || args.probe.is_some() {
+        return run_extension_import(args);
+    }
     // `--partial-history` is the default, and is accepted so a script can say
     // what it means rather than relying on the default staying put. The safe
     // default is the modest claim: snapshots are only ever *some* releases
@@ -458,6 +714,190 @@ pub fn run_import(args: &SpecImportArgs) -> anyhow::Result<u8> {
     }
     summarise(&import, fetched);
     Ok(0)
+}
+
+/// `tcl spec import --c-source DIR` and `--probe PACKAGE` — describe a C
+/// extension's commands from the sources that can state them.
+///
+/// Nothing in a C source or a loaded package says what a command does, so every
+/// command is a row at the conservative default for a command native code
+/// registers; what a source does state (the arity a usage message gives, the
+/// subcommands an option table names, the package a `Tcl_PkgProvide` provides)
+/// is proposed beside it. Each row carries its provenance: `c-scan` for a
+/// mechanical scan of the source, `probe` for the commands a real shell saw a
+/// `package require` add, or both. The probe runs the package, so it is held to
+/// the package manager's policy as `tcl spec test` is.
+fn run_extension_import(args: &SpecImportArgs) -> anyhow::Result<u8> {
+    use tcl_cli_support::spec_import::{C_EXTENSIONS, collect_c_sources, render_extension_import};
+    use tcl_spec_studio::infer::{ExtensionImport, UnchosenExtension, import_c_sources};
+
+    let mut origins = Vec::new();
+    let mut import = ExtensionImport::default();
+    if !args.c_source.is_empty() {
+        let mut files = Vec::new();
+        for dir in &args.c_source {
+            if !dir.is_dir() {
+                bail!("--c-source: {} is not a directory", dir.display());
+            }
+            let mut found = collect_c_sources(dir);
+            if found.is_empty() {
+                bail!(
+                    "--c-source: no C sources ({}) found under {}",
+                    C_EXTENSIONS.join(" "),
+                    dir.display()
+                );
+            }
+            origins.push(format!(
+                "c-scan: {} C file(s) under {}",
+                found.len(),
+                dir.display()
+            ));
+            if args.c_source.len() > 1 {
+                for file in &mut found {
+                    file.name = format!("{}/{}", dir.display(), file.name);
+                }
+            }
+            files.extend(found);
+        }
+        import = match import_c_sources(&files, args.entry.as_deref()) {
+            Ok(import) => import,
+            Err(UnchosenExtension::Several(entries)) => bail!(
+                "--c-source: the sources hold {} extensions, one per entry point: {}; describe \
+                 one at a time with --entry PREFIX (--entry {})",
+                entries.len(),
+                listed(&entries),
+                entries[0].prefix
+            ),
+            Err(UnchosenExtension::NotDefined { prefix, defined }) if defined.is_empty() => {
+                bail!("--entry {prefix}: the sources define no entry point, and no {prefix}_Init")
+            }
+            Err(UnchosenExtension::NotDefined { prefix, defined }) => bail!(
+                "--entry {prefix}: the sources define no {prefix}_Init; their entry points are {}",
+                listed(&defined)
+            ),
+        };
+        if let Some(entry) = &import.entry {
+            origins.push(format!("c-scan: the extension entered at {entry}"));
+        }
+    }
+    if let Some(package) = &args.probe {
+        let Some(report) = probe_package(args, package)? else {
+            return Ok(1);
+        };
+        origins.push(format!(
+            "probe: `package require {package}` in a real shell added {} command(s)",
+            report.commands.len()
+        ));
+        import.merge_probe(&report);
+    }
+
+    let pack = render_extension_import(&import, args.package.as_deref(), &origins);
+    let target = OutputTarget::from_arg(args.out.as_deref());
+    if args.json {
+        write_text_output(&target, &format!("{:#}\n", import.to_json()))?;
+    } else {
+        write_text_output(&target, &pack.pack)?;
+    }
+    summarise_extension(&import, &pack.package);
+    Ok(0)
+}
+
+/// Entry points as a list a person reads: `Doors_Init (doors.c:261), Pkga_Init
+/// (pkga.c:303)`.
+fn listed(entries: &[tcl_spec_studio::infer::ExtensionEntry]) -> String {
+    entries
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// Require `package` in a sandboxed shell and report the commands it added.
+/// `None` when the policy has not opted the package in, which is said.
+fn probe_package(
+    args: &SpecImportArgs,
+    package: &str,
+) -> anyhow::Result<Option<tcl_spec_studio::infer::ProbeReport>> {
+    use crate::commands::spec_probe::{
+        is_package_name, is_plain_name, parse_output, render_script,
+    };
+
+    if !is_package_name(package) {
+        bail!("--probe: `{package}` is not a package name");
+    }
+    let dir = operator_project()?;
+    let loaded = tcl_pkg::policy::load(Some(&dir));
+    if !loaded.config.build_script_allowed(package) {
+        eprintln!("error: running the package '{package}' is not permitted by policy");
+        eprintln!(
+            "  hint: set [build] allow-build-scripts = true and run 'tcl pkg trust {package}'"
+        );
+        return Ok(None);
+    }
+    let profile = shell_profile(
+        "spec-probe",
+        args.tclsh.as_deref(),
+        &dir,
+        render_script(package),
+    )?;
+    let outcome = tcl_pkg::exec::execute(&profile, &loaded.config.sandbox_policy())
+        .map_err(|error| anyhow!("{error}"))?;
+    if outcome.timed_out {
+        bail!("the shell did not finish probing '{package}' in time");
+    }
+    let parsed = parse_output(&String::from_utf8_lossy(&outcome.stdout));
+    if let Some(error) = &parsed.error {
+        bail!("the shell could not require '{package}': {error}");
+    }
+    if !parsed.finished() {
+        bail!(
+            "the shell stopped before it had listed what '{package}' added (status {}): {}",
+            exit_status(&outcome),
+            String::from_utf8_lossy(&outcome.stderr).trim()
+        );
+    }
+    let (commands, rejected): (Vec<String>, Vec<String>) = parsed
+        .commands
+        .into_iter()
+        .partition(|name| is_plain_name(name));
+    for name in rejected {
+        eprint_status(
+            warn_style(),
+            format!("the probe skipped a command whose name is not plain text: {name:?}"),
+        );
+    }
+    Ok(Some(tcl_spec_studio::infer::ProbeReport {
+        package: package.to_owned(),
+        version: parsed.version,
+        commands,
+    }))
+}
+
+/// One line saying what an extension import described, on standard error.
+fn summarise_extension(import: &tcl_spec_studio::infer::ExtensionImport, package: &str) {
+    use tcl_spec_studio::infer::ExtensionSource;
+    let count = |source: ExtensionSource| {
+        import
+            .commands
+            .iter()
+            .filter(|row| row.sources.contains(&source))
+            .count()
+    };
+    eprint_status(
+        warn_style(),
+        format!(
+            "{package}: {} command(s) described ({} from the C source, {} from the probe); \
+             {} computed registration(s), {} call(s) the scan cannot read",
+            import.commands.len(),
+            count(ExtensionSource::CScan),
+            count(ExtensionSource::Probe),
+            import.dynamic.len(),
+            import.blind.len()
+        ),
+    );
+    for warning in &import.warnings {
+        eprint_status(warn_style(), warning.clone());
+    }
 }
 
 /// Read every `--snapshot VERSION=PATH` into a labelled snapshot.
@@ -861,6 +1301,82 @@ mod tests {
                 "`{name}` must still be accepted"
             );
         }
+    }
+
+    fn finished_outcome(stdout: &str, code: i32) -> tcl_sandbox::Outcome {
+        tcl_sandbox::Outcome {
+            code: Some(code),
+            success: code == 0,
+            stdout: stdout.as_bytes().to_vec(),
+            stderr: Vec::new(),
+            timed_out: false,
+            isolation: tcl_sandbox::IsolationLevel::Baseline,
+            network_enforced: false,
+        }
+    }
+
+    /// The probe's closing `done` line is what says the shell finished: every
+    /// command asked and a clean exit are not enough, since a shell can stop at
+    /// any point after the last question, and the count it ends on is the one the
+    /// pack declares or, for a package the shell could not require, none.
+    #[test]
+    fn a_shell_is_finished_when_it_says_done_for_every_command_it_was_to_ask() {
+        let probe = |name: &str| crate::commands::spec_test::CommandProbe {
+            name: name.to_owned(),
+            arity: None,
+            pure: false,
+            return_type: None,
+            examples: Vec::new(),
+            reference: None,
+        };
+        let args = SpecTestArgs {
+            pack: PathBuf::from("demo.tclspec"),
+            tclsh: None,
+            package: None,
+        };
+        let target = TestTarget {
+            package: "demo".to_owned(),
+            probes: vec![probe("demo::a"), probe("demo::b")],
+        };
+        let asked = "SPEC-TEST\tasked\tdemo::a\t\nSPEC-TEST\tasked\tdemo::b\t\n";
+        let status =
+            |stdout: &str, code| report_test(&args, &target, &finished_outcome(stdout, code));
+
+        assert_eq!(status(&format!("{asked}SPEC-TEST\tdone\t-\t2\n"), 0), 0);
+        assert_eq!(
+            status(asked, 0),
+            1,
+            "every command asked and a clean exit, but no done line"
+        );
+        assert_eq!(
+            status(&format!("{asked}SPEC-TEST\tdone\t-\t1\n"), 0),
+            1,
+            "a done line that counts another number of commands"
+        );
+        assert_eq!(
+            status("SPEC-TEST\tasked\tdemo::a\t\nSPEC-TEST\tdone\t-\t2\n", 0),
+            1,
+            "a done line with a command never asked"
+        );
+        assert_eq!(
+            status(&format!("{asked}SPEC-TEST\tdone\t-\t2\n"), 3),
+            0,
+            "a shell that stopped after it had finished is a warning, not a failure"
+        );
+        // A package the shell could not require has nothing asked of it, and says so.
+        assert_eq!(
+            status(
+                "SPEC-TEST\tload\t-\tcan't find package demo\nSPEC-TEST\tdone\t-\t0\n",
+                0
+            ),
+            1,
+            "the missing package is a divergence"
+        );
+        assert_eq!(
+            status("SPEC-TEST\tload\t-\tcan't find package demo\n", 0),
+            1,
+            "and a missing package that never said done has not finished either"
+        );
     }
 
     #[test]

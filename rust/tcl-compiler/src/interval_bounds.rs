@@ -21,7 +21,8 @@
 //! The syntactic bounds checks (`analyser::bounds_checks`) only fire when *both*
 //! the container and the index are literals.  This module covers the **dynamic**
 //! cases they skip: an index that is a plain `$var` whose [`crate::intervals`]
-//! range — guard-narrowed at the use site — *proves* the access is out of range,
+//! range — narrowed at the use site by the range refinements in force there —
+//! *proves* the access is out of range,
 //! against a container length we can establish statically (a literal list /
 //! `[list …]` element count, propagated per SSA version).
 //!
@@ -40,13 +41,14 @@ use tcl_dialect::{NumberSyntax, StringCharacterModel};
 use tcl_lexer::Span;
 use tcl_syntax::expr::ast::ExprNode;
 
-use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
-use crate::intervals::{Interval, build_guard_index, compute_intervals_with, refine_interval};
+use crate::intervals::{Interval, compute_intervals_with, refine_interval};
 use crate::ir::Statement;
+use crate::sccp::SccpResult;
 use crate::segmenter::segment_commands_with_offset_and_config;
 use crate::ssa::{Phi, SsaFunction, Symbol, ValueKey, Version};
+use crate::types::TypeLattice;
 
 /// `(name, version) → Phi` index over every block, for length resolution
 /// through loop-header phis.
@@ -216,7 +218,7 @@ struct Candidate {
 
 /// The scalar variable name if `arg` is exactly `$name` / `${name}`.  Returns
 /// `None` for `end`, `end-1`, `$arr(i)`, `[expr …]`, composites.
-fn plain_var_name(arg: &str) -> Option<String> {
+pub(crate) fn plain_var_name(arg: &str) -> Option<String> {
     let s = arg.trim();
     let mut s = s.strip_prefix('$')?;
     if let Some(inner) = s.strip_prefix('{').and_then(|r| r.strip_suffix('}')) {
@@ -597,15 +599,11 @@ fn has_candidate(cfg: &CfgFunction, ssa: &SsaFunction, grammar: tcl_dialect::Lex
     false
 }
 
-/// [`find_interval_bounds_with`] under the Tcl 9.0 numeral grammar.
-///
-/// **A dialect-blind entry point**, kept for out-of-crate consumers that do not
-/// thread a dialect yet (`tcl-explorer`'s bounds view). Every in-crate caller
-/// passes the document's own grammar — see
-/// [`crate::intervals::compute_intervals`] for why `Tcl90` is the fallback and
-/// what it costs on an 8.x target.
-/// Dynamic out-of-range findings for this function (empty if none).
-/// `executable` restricts to SCCP-reachable blocks.
+/// Dynamic out-of-range findings for this function (empty if none), over
+/// the solver's result `sccp` and the type lattice `types`: the lattice seeds
+/// the intervals, and its range refinements narrow an index the types prove
+/// an integer where it is read ([`refine_interval`]). `executable` restricts
+/// to SCCP-reachable blocks.
 ///
 /// `numbers` is the target release's numeric-literal grammar, threaded from the
 /// analyser's dialect alongside `characters` (the same shape of dialect-derived
@@ -613,33 +611,27 @@ fn has_candidate(cfg: &CfgFunction, ssa: &SsaFunction, grammar: tcl_dialect::Lex
 /// `0755` is 493 up to 8.6 and 755 from 9.0 — so a version-blind read can prove
 /// a range that reality never has.
 #[must_use]
-pub fn find_interval_bounds_with<S1, S2>(
+pub fn find_interval_bounds_with<S, T>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    values: &HashMap<ValueKey, LatticeValue, S1>,
-    executable: &std::collections::HashSet<BlockId, S2>,
+    (sccp, types): (&SccpResult, &HashMap<ValueKey, TypeLattice, T>),
+    executable: &std::collections::HashSet<BlockId, S>,
     characters: Option<StringCharacterModel>,
     numbers: NumberSyntax,
     grammar: tcl_dialect::LexerGrammar,
 ) -> Vec<BoundsFinding>
 where
-    S1: std::hash::BuildHasher,
-    S2: std::hash::BuildHasher,
+    S: std::hash::BuildHasher,
+    T: std::hash::BuildHasher,
 {
     if !has_candidate(cfg, ssa, grammar) {
         return Vec::new();
     }
     let ctx = BoundsCtx {
-        cfg,
         ssa,
-        numbers,
-        intervals: compute_intervals_with(cfg, ssa, values, numbers),
-        guard_index: build_guard_index(cfg, ssa, grammar),
-        pred_counts: cfg
-            .predecessors()
-            .into_iter()
-            .map(|(bid, preds)| (bid, preds.len()))
-            .collect(),
+        sccp,
+        types,
+        intervals: compute_intervals_with(cfg, ssa, &sccp.values, numbers),
         lengths: list_length_map(ssa, grammar),
         grammar,
         str_lengths: string_length_map(ssa, characters),
@@ -691,18 +683,14 @@ where
 
 /// Read-only analysis state shared by the per-candidate bounds checks,
 /// borrowed for the duration of [`find_interval_bounds`].
-struct BoundsCtx<'a> {
-    cfg: &'a CfgFunction,
+struct BoundsCtx<'a, T> {
     ssa: &'a SsaFunction,
-    /// The target release's numeric-literal grammar — carried here so the
-    /// guard-narrowing tables it hands [`refine_interval`] read a branch's
-    /// constant bounds for the right dialect.
-    numbers: NumberSyntax,
+    /// The solver's result, whose range refinements in force at a block
+    /// narrow an index read there ([`refine_interval`]).
+    sccp: &'a SccpResult,
+    /// The type lattice, which proves an index an integer.
+    types: &'a HashMap<ValueKey, TypeLattice, T>,
     intervals: HashMap<ValueKey, Interval>,
-    guard_index: HashMap<ValueKey, Vec<BlockId>>,
-    /// Predecessor count per block — used to require a guarded branch target
-    /// have a single entry edge before its constraint is applied.
-    pred_counts: HashMap<BlockId, usize>,
     lengths: HashMap<ValueKey, i64>,
     str_lengths: HashMap<ValueKey, i64>,
     phi_index: PhiIndex<'a>,
@@ -724,7 +712,7 @@ struct CandidateSite<'a> {
     stmt_idx: usize,
 }
 
-impl BoundsCtx<'_> {
+impl<T: std::hash::BuildHasher> BoundsCtx<'_, T> {
     /// Resolve the list length backing `cand` at one call site, if known.
     fn length_for_list(&self, cand: &Candidate, site: &CandidateSite) -> Option<i64> {
         let ssa = self.ssa;
@@ -799,16 +787,11 @@ impl BoundsCtx<'_> {
         };
         let iv = refine_interval(
             &self.intervals,
-            self.cfg,
             ssa,
+            (self.sccp, self.types),
             site.bn,
             &index_var,
             index_version,
-            crate::intervals::GuardTables {
-                guard_index: &self.guard_index,
-                pred_counts: &self.pred_counts,
-                numbers: self.numbers,
-            },
         );
         if iv.is_top() || iv.is_bottom() {
             return;
@@ -965,15 +948,11 @@ fn has_division(cfg: &CfgFunction, ssa: &SsaFunction) -> bool {
     false
 }
 
-/// [`find_divide_by_zero_with`] under the Tcl 9.0 numeral grammar.
-///
-/// **A dialect-blind entry point**, kept for out-of-crate consumers that do not
-/// thread a dialect yet (`tcl-explorer`'s divide-by-zero view). Every in-crate
-/// caller passes the document's own grammar — see
-/// [`crate::intervals::compute_intervals`] for why `Tcl90` is the fallback.
 /// Divisions / modulo whose divisor is provably `[0, 0]` (a runtime error).
 ///
-/// Sound: the divisor's interval (guard-narrowed at the use site) must be
+/// Sound: the divisor's interval (narrowed at the use site by the range
+/// refinements of the solver's result `sccp` in force there, for a divisor
+/// the type lattice `types` proves an integer) must be
 /// exactly `[0, 0]`, and the block must be SCCP-executable. Shares the same
 /// interval machinery (`compute_intervals_with` / `refine_interval` /
 /// `eval_expr`) as [`find_interval_bounds_with`], including its `numbers`
@@ -981,28 +960,21 @@ fn has_division(cfg: &CfgFunction, ssa: &SsaFunction) -> bool {
 /// spelling that is not a numeral there (`0o0` under 8.4) proves nothing.
 /// Findings are returned in source-span order for deterministic output.
 #[must_use]
-pub fn find_divide_by_zero_with<S1, S2>(
+pub fn find_divide_by_zero_with<S, T>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    values: &HashMap<ValueKey, LatticeValue, S1>,
-    executable: &std::collections::HashSet<BlockId, S2>,
+    (sccp, types): (&SccpResult, &HashMap<ValueKey, TypeLattice, T>),
+    executable: &std::collections::HashSet<BlockId, S>,
     numbers: NumberSyntax,
-    grammar: tcl_dialect::LexerGrammar,
 ) -> Vec<DivZeroFinding>
 where
-    S1: std::hash::BuildHasher,
-    S2: std::hash::BuildHasher,
+    S: std::hash::BuildHasher,
+    T: std::hash::BuildHasher,
 {
     if !has_division(cfg, ssa) {
         return Vec::new();
     }
-    let intervals = compute_intervals_with(cfg, ssa, values, numbers);
-    let guard_index = build_guard_index(cfg, ssa, grammar);
-    let pred_counts: HashMap<BlockId, usize> = cfg
-        .predecessors()
-        .into_iter()
-        .map(|(bid, preds)| (bid, preds.len()))
-        .collect();
+    let intervals = compute_intervals_with(cfg, ssa, &sccp.values, numbers);
 
     let env_for =
         |uses: &HashMap<Symbol, Version>, bn: crate::cfg::BlockId| -> HashMap<String, Interval> {
@@ -1012,19 +984,7 @@ where
                     let name = ssa.var_name(sym);
                     (
                         name.to_owned(),
-                        refine_interval(
-                            &intervals,
-                            cfg,
-                            ssa,
-                            bn,
-                            name,
-                            ver,
-                            crate::intervals::GuardTables {
-                                guard_index: &guard_index,
-                                pred_counts: &pred_counts,
-                                numbers,
-                            },
-                        ),
+                        refine_interval(&intervals, ssa, (sccp, types), bn, name, ver),
                     )
                 })
                 .collect()
@@ -1136,10 +1096,9 @@ mod tests {
         super::find_divide_by_zero_with(
             &fu.cfg,
             &fu.ssa,
-            &fu.sccp.values,
+            (&fu.sccp, &fu.types),
             &fu.sccp.executable_blocks,
             tcl_dialect::NumberSyntax::default(),
-            tcl_dialect::LexerGrammar::default(),
         )
         .iter()
         .map(|d| d.op)

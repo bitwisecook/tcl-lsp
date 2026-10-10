@@ -42,6 +42,9 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(0, ArgRole::VarWrite)],
         tcllib_package: Some("cmdline"),
         required_package: Some("cmdline"),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::tcllib::WRITES_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

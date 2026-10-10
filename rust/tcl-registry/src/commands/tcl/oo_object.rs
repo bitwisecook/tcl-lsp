@@ -191,6 +191,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::object",
+        runtime_backing: RuntimeBacking::shipped("oo::object"),
         // `NOT_PROC_FACTORY`: `oo::object create Name { … }` is a
         // four-token `HEAD NAME BRACED BRACED` call — the same shape
         // `oo::class` / `oo::abstract` / `oo::configurable` match, so it
@@ -312,7 +313,7 @@ mod tests {
         );
 
         for invocation in [named, fresh] {
-            let effects = invocation.effect_footprint();
+            let effects = invocation.effects();
             assert!(
                 !effects
                     .accesses()

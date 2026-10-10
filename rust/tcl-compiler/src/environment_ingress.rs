@@ -31,6 +31,28 @@ pub(crate) use tcl_registry::model::ingress::{
     DocumentEnvironment, context_for_profile, irules_context, resolve_environment,
 };
 
+/// The generation an analysis reads under pack overlay `overlay`: the
+/// overlaid one once its packs are installed, and the plain one until then.
+///
+/// Analysis advises, and it runs again when the packs arrive — the server
+/// installs the overlay before it publishes the key, and a new key
+/// re-analyses — so reading the plain generation for the window between costs
+/// one diagnostic pass that does not know the packs' commands and nothing that
+/// outlives it. It is the one place that fallback lives. Anything that
+/// compiles reads [`DocumentEnvironment::context_registry`] and answers the
+/// miss itself, since a rewrite computed without the packs' declarations can
+/// be wrong for the workspace.
+#[must_use]
+pub(crate) fn analysis_registry(
+    environment: &DocumentEnvironment,
+    keyed: &tcl_registry::model::KeyedVersions,
+    overlay: u64,
+) -> std::sync::Arc<tcl_registry::model::ContextRegistry> {
+    environment
+        .context_registry(keyed, overlay)
+        .unwrap_or_else(|_| environment.plain_context_registry(keyed))
+}
+
 /// Intern `name` as a `&'static str` — transitional plumbing for the
 /// version-gate axis, whose `Package` arm predates the model's
 /// `Arc<str>` package names. Bounded by the compiled placement
@@ -102,16 +124,27 @@ mod tests {
     #[test]
     fn context_registries_carry_the_expected_stores() {
         let environment = resolve_environment("tcl8.5");
-        let generation = environment.context_registry(&KeyedVersions::default(), 0);
+        let generation = environment.plain_context_registry(&KeyedVersions::default());
         assert_eq!(
             generation.context().environment.id.as_str(),
             "tcl8.5",
             "the generation answers under the resolved environment"
         );
-        // An uninstalled pack overlay falls back to the un-overlaid
-        // generation.
-        let fallback = environment.context_registry(&KeyedVersions::default(), 0xDEAD);
-        assert!(Arc::ptr_eq(generation.commands(), fallback.commands()));
+    }
+
+    /// The analysis door reads the plain generation for an overlay nothing
+    /// installed; the door a compile reads gives the miss instead.
+    #[test]
+    fn an_analysis_reads_the_plain_generation_until_its_overlay_installs() {
+        let environment = resolve_environment("tcl8.5");
+        let keyed = KeyedVersions::default();
+        let plain = environment.plain_context_registry(&keyed);
+        let read = analysis_registry(&environment, &keyed, 0xDEAD);
+        assert!(Arc::ptr_eq(read.commands(), plain.commands()));
+        assert!(
+            environment.context_registry(&keyed, 0xDEAD).is_err(),
+            "the same key is a miss at the door a compile reads"
+        );
     }
 
     #[test]

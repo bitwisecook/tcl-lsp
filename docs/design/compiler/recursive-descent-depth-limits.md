@@ -174,12 +174,12 @@ defence in depth against a scope tree built some other way.
 
 | Walker | Cap | Notes |
 |---|---|---|
-| `references` (`scan_my_method_region`, `scan_obj_method_region`, `scan_next_dispatch_region`) | `MAX_DISPATCH_SCAN_DEPTH` = 256 | |
+| `references` (`scan_my_method_region`, `scan_obj_method_region`, `scan_next_dispatch_region_with_target`) | `MAX_DISPATCH_SCAN_DEPTH` = 256 | |
 | `folding` | `MAX_FOLD_DEPTH` = 256 | |
 | `declaration` | `MAX_BODY_DEPTH` = 256 (local) | not tied to the compiler's derived cap; defence in depth |
 | `refactor` | `MAX_COMMAND_SEARCH_DEPTH` = 256 | |
 | `semantic_tokens` (`collect_lambda_literal` family) | `MAX_TOKEN_RECURSION` = 32 | |
-| `formatting::engine::format_body` / `format_switch_body` | `MAX_FORMAT_DEPTH` = 128 | **conservative cap** — reachable from the `bigip-query-wasm` host; 2 MiB crash floor measured at depth 800–1200 |
+| `formatting::engine::format_body` / `format_case_list_body` | `MAX_FORMAT_DEPTH` = 128 | **conservative cap** — reachable from the `bigip-query-wasm` host; 2 MiB crash floor measured at depth 800–1200 |
 | `minify::minify_body` and siblings | `MAX_MINIFY_DEPTH` = 128 | same reasoning |
 | `package_resolver::collect_source_targets` | `MAX_SOURCE_TARGET_SCAN_DEPTH` = 256 | nested wrapper words in a `pkgIndex.tcl` `package ifneeded` body |
 
@@ -224,7 +224,7 @@ proving moderate-depth input is unaffected, under one doc-comment convention:
 
 ```rust
 /// Regression coverage for issue #996: `<function>` recurses once per
-/// <nesting unit>, with no depth cap before this fix. Empirically,
+/// <nesting unit>. The depth cap bounds that recursion. Empirically,
 /// unguarded input overflowed the native stack (SIGABRT) around depth
 /// <D> on a 2 MiB thread (`cargo test`'s per-test default). <N> is
 /// comfortably past both that crash range and `MAX_X_DEPTH` (<cap>); the

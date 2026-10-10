@@ -106,7 +106,7 @@ The obj-lifecycle and result slice of `tcl.h`, exported for extensions
 | `Tcl_GetObjResult(interp)` | (n/a) | `borrowed` | (n/a) | The interp keeps its +1; valid until the result is replaced. |
 | `Tcl_GetStringFromObj(objPtr, lengthPtr)` | `borrowed` | borrowed `char*` | (n/a) | Shimmers on demand. The pointer is into the object's own owned buffer and dies with it. Writes the byte length through `lengthPtr` when non-null. |
 | `Tcl_GetString(objPtr)` | `borrowed` | borrowed `char*` | (n/a) | As above with no length out-param. |
-| `tcl_runtime_create_interp()` | (n/a) | owning `*mut Interp` | (n/a) | Not in `tcl.h` — the host entry point until `Tcl_CreateInterp` lands. Boxes the `Rc` handle so C has a stable owning pointer. |
+| `tcl_runtime_create_interp()` | (n/a) | owning `*mut Interp` | (n/a) | Runtime host entry point, not declared in `tcl.h`. Boxes the `Rc` handle so C has a stable owning pointer. |
 | `tcl_runtime_delete_interp(interp)` | `consumed` | `void` | (n/a) | Reclaims the box, running `Drop` once; releases the interp's hold on its result. **Null-safe.** |
 | `tcl_test_reset_counters()` / `tcl_test_alloc_count()` / `tcl_test_double_free_count()` / `tcl_test_finalize()` | (n/a) | `void` / i64 | (n/a) | The leak-check surface (MM-C). No refcount interaction. |
 
@@ -131,6 +131,7 @@ a convention at the call site.
 |---|---|---|---|---|
 | `tcl_runtime_set_current_interp(interp)` | raw pointer, not retained | `void` | module-level current-interp cell | Null clears it. Every other export here no-ops or reports failure when it is null. |
 | `tcl_runtime_init_library()` | (n/a) | i32 (0 ok) | (n/a) | C's `Tcl_Init` equivalent: sources `$TCL_LIBRARY/init.tcl` (the embedded-stdlib VFS on the `wasm_stdlib` build). Returns 1 with no current interp. |
+| `tcl_runtime_identity(out, capacity)` | writable bytes, not retained | i32 (the encoding's byte length; 0 with no current interp) | (n/a) | What the runtime states of itself — the current interp's pinned context and this build's ABI, intrinsic table and embedded library — as an `ArtefactIdentityManifest`'s bytes, written only when `capacity` holds them, so a host asks once with a null buffer for the size and compares a module's own manifest before linking. No object is created or retained. |
 | `tcl_obj_new_string(ptr, len)` | copied bytes | `owned` (`rc 0`) | none | **Not retained.** Its consumer (`tcl_eval` / `tcl_eval_code` / `tcl_expr_bool`) *adopts* and frees it. |
 | `tcl_obj_new_string_owned(ptr, len)` | copied bytes | `owned` (`+1`) | none | The argv constructor for generic invocation. Deliberately unlike `tcl_obj_new_string`: `tcl_invoke_argv` **borrows** argv words, so generated cleanup must release this reference itself. |
 | `tcl_value_new_string(ptr, len)` | copied bytes | `owned` (`+1`) | none | The generated operand stack owns one reference per value. |

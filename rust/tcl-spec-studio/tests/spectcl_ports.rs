@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The equivalence gate for the eleven `.tclspec` ports.
+//! The equivalence gate for the twelve `.tclspec` ports.
 //!
 //! Every file in `docs/design/spec-dsl-examples/` names the `.rs` it was
 //! ported from. This test loads each pack through [`spectcl::evaluate_pack`],
@@ -96,7 +96,14 @@ const PORTS: &[Port] = &[
         commands: &[PortedCommand {
             name: "foreach",
             dialect: "tcl9.1",
-            unequal: NONE,
+            unequal: &[(
+                "__unrenderable",
+                "the shipped spec declares its value-transfer `semantics` (the \
+                 explicit iteration declaration of \
+                 `docs/design/compiler/value-transfers.md`); the port does \
+                 not transcribe it, so it stays on the unrenderable list. \
+                 Every field the port does carry matches",
+            )],
             unequal_subcommand: NO_SUBS,
             subcommand_subset: ALL_SUBS,
         }],
@@ -240,12 +247,24 @@ const PORTS: &[Port] = &[
                  and the port does not transcribe them. Every field the port \
                  does carry matches",
             )],
-            unequal_subcommand: &[(
-                "length",
-                "__unrenderable",
-                "the same five descriptors, declared per-subcommand on \
-                 `string length`; unrenderable for the same reason",
-            )],
+            unequal_subcommand: &[
+                (
+                    "length",
+                    "__unrenderable",
+                    "the same five descriptors, declared per-subcommand on \
+                     `string length`; unrenderable for the same reason",
+                ),
+                (
+                    "range",
+                    "__unrenderable",
+                    "the shipped `string range` declares its value-transfer \
+                     `semantics` (the direct string-range route) and folds \
+                     through that route in `const_fold_versioned` beside \
+                     `const_fold`; the port transcribes neither, so both \
+                     stay on the unrenderable list. Every field the port \
+                     does carry matches",
+                ),
+            ],
             subcommand_subset: &["length", "is", "map", "range"],
         }],
     },
@@ -615,41 +634,149 @@ const IF_CORPUS: &[&str] = &[
     "1 then a elseif 2 then b else c",
 ];
 
+/// Call shapes for `foreach`'s binder groups: the well-formed ones and the
+/// off-by-one shapes whose body is still the last word.
+const FOREACH_CORPUS: &[&str] = &[
+    "",
+    "x",
+    "x l",
+    "x l b",
+    "x l y b",
+    "x l y m b",
+    "{k v} $d {puts $k}",
+    "a $l1 b $l2 body extra",
+];
+
+/// Every shipped command or subcommand carrying a clause grammar, with the
+/// dialect it is visible in and call shapes to walk.
+const SHIPPED_GRAMMARS: &[(&str, &str, &[&str])] = &[
+    ("if", "tcl9.1", IF_CORPUS),
+    (
+        "try",
+        "tcl9.1",
+        &[
+            "b",
+            "b on ok r h",
+            "b trap {POSIX ENOENT} {} h",
+            "b on error {m o} - on break {} h finally f",
+            "b on x y",
+            "b foo on e m h",
+        ],
+    ),
+    ("catch", "tcl9.1", &["", "s", "s r", "s r o", "s r o x"]),
+    (
+        "for",
+        "tcl9.1",
+        &["a", "a b", "a b c", "a b c d", "a b c d e"],
+    ),
+    ("while", "tcl9.1", &["", "1", "1 b", "1 b c"]),
+    ("foreach", "tcl9.1", FOREACH_CORPUS),
+    ("lmap", "tcl9.1", FOREACH_CORPUS),
+    (
+        "dict",
+        "tcl9.1",
+        &[
+            "for {k v} $d body",
+            "map {k v} $d body",
+            "update d k v body",
+            "update d k1 v1 k2 v2 body",
+            "update d body",
+        ],
+    ),
+    ("array", "tcl9.1", &["for {k v} a body", "for {k v} a"]),
+];
+
 /// **Derivation is a proof obligation, not a shorthand.**
 ///
-/// `if.tclspec` replaces two hook functions with a three-line
-/// `clause_grammar`. This walks the derived grammar against the shipped
-/// `if`'s own hooks over its whole test matrix and asserts they agree case
-/// for case — roles *and* the reported defect.
+/// `if.tclspec` and `foreach.tclspec` replace hook functions with a
+/// `clause_grammar` block. Each port's grammar must *be* the shipped one, and
+/// walk the command's call shapes — roles, clauses *and* the reported defect —
+/// exactly as the shipped grammar does. Beyond the ports, every shipped
+/// grammar-carrying command is rendered to `SpecTcl` and loaded back, and its
+/// grammar (and every subcommand's) must come back unchanged.
 #[test]
 fn the_clause_grammar_derivation_agrees_with_the_shipped_walk() {
-    let source = std::fs::read_to_string(examples_dir().join("if.tclspec")).expect("if");
-    let pack = spectcl::evaluate_pack(&source);
-    let ported = pack.command("if").expect("if");
-    let grammar = ported
-        .clause_grammar
-        .as_ref()
-        .expect("if.tclspec declares a clause_grammar");
-
-    let shipped = tcl_spec_studio::environment::store_for_dialect("tcl9.1")
-        .get("if")
-        .expect("shipped if");
-    let shipped_roles = shipped.arg_role_resolver.expect("if's role resolver");
-    let shipped_shape = shipped.clause_shape_check.expect("if's shape check");
-
-    for call in IF_CORPUS {
-        let words: Vec<&str> = call.split_whitespace().collect();
-        let derived = grammar.walk(&words);
+    for (file, name, corpus) in [
+        ("if.tclspec", "if", IF_CORPUS),
+        ("foreach.tclspec", "foreach", FOREACH_CORPUS),
+    ] {
+        let source = std::fs::read_to_string(examples_dir().join(file)).expect(file);
+        let pack = spectcl::evaluate_pack(&source);
+        let ported = pack.command(name).expect(name);
+        let grammar = ported
+            .clause_grammar
+            .unwrap_or_else(|| panic!("{file} declares a clause_grammar"));
         assert_eq!(
-            derived.roles,
-            shipped_roles(&words),
-            "roles disagree for `if {call}`"
+            ported.spec.clause_grammar.map(std::ptr::from_ref),
+            Some(std::ptr::from_ref(grammar)),
+            "{file}: the spec carries the declared grammar"
         );
+        let shipped = tcl_spec_studio::environment::store_for_dialect("tcl9.1")
+            .get(name)
+            .unwrap_or_else(|| panic!("shipped {name}"));
+        let shipped_grammar = shipped
+            .clause_grammar
+            .unwrap_or_else(|| panic!("shipped {name} declares a clause grammar"));
         assert_eq!(
-            derived.error,
-            shipped_shape(&words),
-            "shape disagrees for `if {call}`"
+            grammar, shipped_grammar,
+            "{file}'s grammar is the shipped one"
         );
+        for call in corpus {
+            let words: Vec<&str> = call.split_whitespace().collect();
+            assert_eq!(
+                grammar.walk(&words, ported.spec.repeated_args),
+                shipped_grammar.walk(&words, shipped.repeated_args),
+                "the walk disagrees for `{name} {call}`"
+            );
+        }
+    }
+
+    for (name, dialect, corpus) in SHIPPED_GRAMMARS {
+        let shipped = tcl_spec_studio::environment::store_for_dialect(dialect)
+            .get(name)
+            .unwrap_or_else(|| panic!("shipped {name}"));
+        let draft = load_command(name, dialect).expect("a draft of the shipped spec");
+        let text = tcl_spec_studio::render_spectcl::render_pack(
+            &[draft.as_object().expect("a draft object").clone()],
+            dialect,
+        );
+        let pack = spectcl::evaluate_pack(&text);
+        let reloaded = pack
+            .command(name)
+            .unwrap_or_else(|| panic!("`{name}` reloads from:\n{text}"));
+        assert_eq!(
+            reloaded.spec.clause_grammar, shipped.clause_grammar,
+            "`{name}`'s grammar survives the round trip:\n{text}"
+        );
+        for sub in shipped.subcommands {
+            let back = reloaded
+                .spec
+                .subcommands
+                .iter()
+                .find(|found| found.name == sub.name)
+                .unwrap_or_else(|| panic!("`{name} {}` reloads", sub.name));
+            assert_eq!(
+                back.clause_grammar, sub.clause_grammar,
+                "`{name} {}`'s grammar survives the round trip",
+                sub.name
+            );
+        }
+        for call in *corpus {
+            let words: Vec<&str> = call.split_whitespace().collect();
+            let walk = |spec: &tcl_registry::spec::CommandSpec| match spec
+                .subcommands
+                .iter()
+                .find(|sub| words.first() == Some(&sub.name))
+            {
+                Some(sub) => sub.clause_plan(&words[1..], None),
+                None => spec.clause_plan(&words, None),
+            };
+            assert_eq!(
+                walk(reloaded.spec),
+                walk(shipped),
+                "the reloaded walk disagrees for `{name} {call}`"
+            );
+        }
     }
 }
 
@@ -728,6 +855,118 @@ fn upvar_carries_its_frame_effect_verbatim() {
         .get("upvar")
         .expect("shipped upvar");
     assert_eq!(ported.spec.frame_effect, shipped.frame_effect);
+}
+
+/// The option-effect descriptor's own round-trip fixture (the design page's
+/// `command subst { … }` example, `docs/design/compiler/registry-consumer-contracts.md`
+/// § *Options with semantic effects*): the ported pack's two option-effect
+/// families and six `-effect` / `-family` option rows answer the same
+/// substitution kinds as the shipped spec does, over `option_effect.rs`'s
+/// own `subst` corpus (`tp_no_switches_runs_every_substitution` and its
+/// siblings).
+#[test]
+fn the_subst_port_answers_the_same_kinds_as_the_shipped_spec() {
+    let source = std::fs::read_to_string(examples_dir().join("subst.tclspec")).expect("subst");
+    let pack = spectcl::evaluate_pack(&source);
+    assert!(
+        pack.notices.is_empty(),
+        "the subst port should load without a notice: {:#?}",
+        pack.notices
+    );
+    let ported = pack.command("subst").expect("subst").spec;
+    let shipped = tcl_spec_studio::environment::store_for_dialect("tcl9.1")
+        .get("subst")
+        .expect("shipped subst");
+
+    let kinds_of = |spec: &tcl_registry::CommandSpec, args: &[&str]| {
+        tcl_registry::option_effect::substitution_kinds(
+            spec.options,
+            spec.option_effect_families,
+            tcl_registry::InvocationArguments::literals(args),
+            spec.reserved_trailing_words,
+            None,
+        )
+    };
+    for args in [
+        &["hello $name"][..],
+        &["-novariables", "hello $name"][..],
+        &["-nocommands", "hello $name"][..],
+        &["-nocommands", "-nocommands", "-novariables", "x"][..],
+        &["-variables", "hello $name"][..],
+        &["-backslashes", "-commands", "x"][..],
+        &["-novariables", "-commands", "x"][..],
+        &["-no", "x"][..],
+        &["-novar", "x"][..],
+    ] {
+        assert_eq!(
+            kinds_of(ported, args),
+            kinds_of(shipped, args),
+            "the ported and shipped `subst` disagree on {args:?}"
+        );
+    }
+}
+
+/// A `member` row states what the member declares: a row without an
+/// `-effect`, or with one the vocabulary cannot read, is dropped with a
+/// notice rather than guessed at, and the rest of the grammar still loads
+/// (negative). An unwritten `callable` slot is positioned by the row's roles.
+#[test]
+fn a_member_row_without_an_effect_is_dropped_with_a_notice() {
+    use tcl_registry::definer::{CallableRole, MemberEffect, MemberReceiver};
+    let source = r"speclib probe 2.1 {
+command probe::class {
+    arity 2
+    arg 1 -role Body
+    definition_body {
+        family TclOo
+        member method -roles {0 Name 1 ParamList 2 Body}
+        member helper -roles {0 Name 1 ParamList 2 Body} \
+            -effect {callable -receiver instance -role method}
+        member ghost -roles {0 Body} -effect {callable -receiver nowhere -role method}
+    }
+}
+}
+";
+    let pack = spectcl::evaluate_pack(source);
+    let messages: Vec<&str> = pack
+        .notices
+        .iter()
+        .map(|notice| notice.message.as_str())
+        .collect();
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("member `method` has no `-effect`; row dropped")),
+        "{messages:#?}"
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("unreadable member effect")),
+        "{messages:#?}"
+    );
+    let grammar = pack
+        .command("probe::class")
+        .expect("the command loads")
+        .spec
+        .definition_body
+        .expect("the grammar loads");
+    let keywords: Vec<&str> = grammar
+        .members
+        .iter()
+        .map(|member| member.keyword)
+        .collect();
+    assert_eq!(keywords, ["helper"]);
+    assert_eq!(
+        grammar.members[0].effect,
+        MemberEffect::Callable {
+            receiver: MemberReceiver::Instance,
+            role: CallableRole::Method,
+            name_slot: Some(0),
+            params_slot: Some(1),
+            body_slot: Some(2),
+        }
+    );
 }
 
 /// `snit-type.tclspec` spells `SNIT_GRAMMAR` out inline rather than naming it,

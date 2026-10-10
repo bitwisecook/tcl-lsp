@@ -37,7 +37,7 @@ use reference_toolchains::{REFERENCE_PATCHLEVELS, REFERENCE_SOURCE_TAGS};
 /// byte payload is always returned verbatim. This policy concerns the separate
 /// string-to-bytes shimmer used by commands such as `binary encode` and
 /// `binary scan`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ByteStringEncoding {
     /// Tcl 8.x's legacy low-byte conversion.
     LegacyTruncate,
@@ -72,7 +72,7 @@ pub enum ByteStringEncoding {
 /// that four-byte string, 8.4/8.5 answer code point 240 (`0xF0`, the raw
 /// UTF-8 lead byte), 8.6 answers 55357 (`0xD83D`, the high surrogate), and
 /// 9.x answers 128512 (`U+1F600`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StringCharacterModel {
     /// Tcl 8.4-8.5: count BMP characters, but a supplementary code point
     /// counts as its four UTF-8 bytes (`TCL_UTF_MAX` 3).
@@ -212,8 +212,9 @@ impl TclVersion {
     /// Compatibility parser for a dialect name at an external boundary.
     ///
     /// Typed compiler and registry paths use [`Self::from_profile`]. An
-    /// unversioned (`"tcl"`), non-Tcl (`"f5-irules"`), or unknown name has no
-    /// fold version, so versioned folds return only their invariant subset.
+    /// unversioned (`"tcl"`) or unknown name, and a profile whose release nothing
+    /// measured, has no fold version, so versioned folds return only their
+    /// invariant subset.
     #[must_use]
     pub fn from_dialect(dialect: Option<&str>) -> Option<Self> {
         dialect
@@ -221,19 +222,12 @@ impl TclVersion {
             .and_then(Self::from_profile)
     }
 
-    /// Return the release fact represented by an already-resolved profile.
+    /// Return the release fact represented by an already-resolved profile: its
+    /// [`DialectProfile::evaluation_point`], the release its measurement stands
+    /// behind, never one read off its name.
     #[must_use]
     pub fn from_profile(profile: &DialectProfile) -> Option<Self> {
-        match profile.name {
-            "tcl8.4" => Some(Self::V8_4),
-            "tcl8.5" => Some(Self::V8_5),
-            "tcl8.6" => Some(Self::V8_6),
-            "tcl9.0" => Some(Self::V9_0),
-            // 9.1 must not fall through to `None` (which degrades a versioned
-            // fold to the dialect-invariant subset) — it behaves as 9.0+.
-            "tcl9.1" => Some(Self::V9_1),
-            _ => None,
-        }
+        profile.evaluation_point()
     }
 
     /// Map a `package require Tcl` version string (`"8.6"`, `"9.0"`,
@@ -1507,9 +1501,14 @@ mod tests {
             TclVersion::from_dialect(Some("tcl9.1")),
             Some(TclVersion::V9_1)
         );
-        // Unversioned / non-Tcl / unknown → None.
+        // A vendor fork whose release was measured has its own point.
+        assert_eq!(
+            TclVersion::from_dialect(Some("f5-irules")),
+            Some(TclVersion::V8_4)
+        );
+        // Unversioned, unknown, or a base nothing measured → None.
         assert_eq!(TclVersion::from_dialect(Some("tcl")), None);
-        assert_eq!(TclVersion::from_dialect(Some("f5-irules")), None);
+        assert_eq!(TclVersion::from_dialect(Some("expect")), None);
         assert_eq!(TclVersion::from_dialect(None), None);
     }
 

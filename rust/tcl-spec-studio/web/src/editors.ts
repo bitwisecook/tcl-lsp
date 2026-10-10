@@ -69,6 +69,7 @@ export const STRUCTURAL_KINDS = new Set([
   "hover",
   "objectClass",
   "tkGeometry",
+  "definitionBody",
 ]);
 
 /** Everything an editor needs from the surrounding app. */
@@ -643,7 +644,116 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
       );
     }
 
+    rows.push(optionEffectEditor(opt, patch));
+
     return el("div", { class: "row wide" }, rows);
+  }
+
+  // The axis vocabulary and value words the option-effect descriptor's
+  // axes take — `docs/design/compiler/registry-consumer-contracts.md`
+  // § *Options with semantic effects*. `case-sensitivity` takes no value.
+  const AXIS_VALUES: Record<string, string[]> = {
+    substitution: ["backslashes", "commands", "variables"],
+    "pattern-language": ["glob", "regex"],
+    "case-sensitivity": [],
+    selection: ["exact", "glob", "regexp", "other"],
+  };
+
+  // An option row's `effect` control: whether the option declares one, its
+  // kind (which selects the rest of the row's shape — `disables` /
+  // `selects` an axis value, `suppresses-role`, `reserves-trailing-words`,
+  // or the bare `ends-options`), and the family every kind carries.
+  function optionEffectEditor(
+    opt: Record<string, Json>,
+    patch: (next: Record<string, Json>, structural?: boolean) => void,
+  ): HTMLElement {
+    const present = opt.effect !== null && opt.effect !== undefined;
+    const effect = asRecord(opt.effect);
+    const patchEffect = (next: Record<string, Json> | null, structural = true): void => {
+      patch({ effect: next }, structural);
+    };
+    const defaultForKind = (kind: string): Record<string, Json> => {
+      const family = asString(effect.family);
+      if (kind === "disables" || kind === "selects") {
+        return { kind, axis: "substitution", value: AXIS_VALUES.substitution[0], family };
+      }
+      if (kind === "suppresses-role") return { kind, role: "VarWrite", family };
+      if (kind === "reserves-trailing-words") return { kind, n: 1, family };
+      return { kind: "ends-options", family };
+    };
+    const controls: Child[] = [
+      checkbox(
+        present,
+        (on) => patchEffect(on ? defaultForKind("disables") : null),
+        "has an effect",
+      ),
+    ];
+    if (present) {
+      const kind = asString(effect.kind);
+      const kindSelect = el(
+        "select",
+        {},
+        ["disables", "selects", "suppresses-role", "reserves-trailing-words", "ends-options"].map(
+          (k) => el("option", { value: k, text: k }),
+        ),
+      );
+      kindSelect.value = kind;
+      kindSelect.addEventListener("change", () => patchEffect(defaultForKind(kindSelect.value)));
+      controls.push(labelled("effect", kindSelect));
+      if (kind === "disables" || kind === "selects") {
+        const axis = asString(effect.axis) || "substitution";
+        const axisSelect = el(
+          "select",
+          {},
+          Object.keys(AXIS_VALUES).map((a) => el("option", { value: a, text: a })),
+        );
+        axisSelect.value = axis;
+        axisSelect.addEventListener("change", () => {
+          const values = AXIS_VALUES[axisSelect.value] ?? [];
+          patchEffect({ ...effect, axis: axisSelect.value, value: values[0] ?? null });
+        });
+        controls.push(labelled("axis", axisSelect));
+        const values = AXIS_VALUES[axis] ?? [];
+        if (values.length > 0) {
+          const valueSelect = el(
+            "select",
+            {},
+            values.map((v) => el("option", { value: v, text: v })),
+          );
+          valueSelect.value = asString(effect.value) || values[0];
+          valueSelect.addEventListener("change", () =>
+            patchEffect({ ...effect, value: valueSelect.value }),
+          );
+          controls.push(labelled("value", valueSelect));
+        }
+      } else if (kind === "suppresses-role") {
+        controls.push(
+          labelled(
+            "role",
+            catalogueSelect({ tag: "enum", catalogue: "argRole" }, asString(effect.role), (role) =>
+              patchEffect({ ...effect, role }),
+            ),
+          ),
+        );
+      } else if (kind === "reserves-trailing-words") {
+        controls.push(
+          labelled(
+            "n",
+            numberInput(asNumber(effect.n) ?? 1, (n) => patchEffect({ ...effect, n: n ?? 1 })),
+          ),
+        );
+      }
+      controls.push(
+        labelled(
+          "family",
+          textInput(asString(effect.family), (t) => patchEffect({ ...effect, family: t }, false), {
+            size: 10,
+            placeholder: "family",
+          }),
+        ),
+      );
+    }
+    return el("div", { class: "ctl" }, controls);
   }
 
   const editors: Record<string, Editor> = {
@@ -1567,6 +1677,154 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
         ),
       );
       return wrap;
+    },
+
+    clauseGrammar: (_kind, value) => {
+      if (value === null) {
+        return el("span", {
+          class: "hint",
+          text: "None — the command declares no clause grammar.",
+        });
+      }
+      const grammar = asRecord(value);
+      const slotText = (slot: Json): string => {
+        const fields = asRecord(slot);
+        const noise = asString(fields.noise);
+        if (noise !== "") return `?${noise}?`;
+        const role = asString(fields.role);
+        return asBool(fields.optional) ? `{${role} optional}` : role;
+      };
+      const rowText = (statement: string, row: Json): string => {
+        const fields = asRecord(row);
+        const slots = asArray(fields.slots);
+        const words: string[] = [statement];
+        if (statement === "group") {
+          words.push(String(asNumber(fields.layout) ?? 0));
+        } else {
+          const keyword = asString(fields.keyword);
+          const required = asBool(fields.keyword_required);
+          if (keyword !== "") words.push(required ? keyword : `?${keyword}?`);
+          words.push(`{${slots.map(slotText).join(" ")}}`);
+        }
+        const timing = asString(fields.timing);
+        if (timing !== "" && timing !== "selected") words.push("-timing", timing);
+        const handler = slots.map((slot) => asString(asRecord(slot).handler)).find((h) => h !== "");
+        if (handler !== undefined) words.push("-pattern", handler);
+        if (slots.some((slot) => asBool(asRecord(slot).conditional_binding))) {
+          words.push("-conditional");
+        }
+        return words.join(" ");
+      };
+      const lines: string[] = [];
+      const head = asRecord(grammar.head);
+      if (asArray(head.slots).length > 0 || asString(head.timing) !== "selected") {
+        lines.push(rowText("head", grammar.head));
+      }
+      for (const row of asArray(grammar.rows)) {
+        const shape = asString(asRecord(row).shape);
+        lines.push(rowText(shape === "repeated" || shape === "group" ? shape : "once", row));
+      }
+      if (grammar.tail !== null && grammar.tail !== undefined) {
+        lines.push(rowText("tail", grammar.tail));
+      }
+      const marker = asString(grammar.fallthrough_body);
+      if (marker !== "") lines.push(`fallthrough_body ${marker}`);
+      if (grammar.default_clause !== null && grammar.default_clause !== undefined) {
+        const fallback = asRecord(grammar.default_clause);
+        const row = asNumber(fallback.row);
+        lines.push(
+          `default_clause ${row === null ? "tail" : String(row)}` +
+            (asBool(fallback.final_only) ? " -final-only" : ""),
+        );
+      }
+      const selection = asString(grammar.selection);
+      if (selection !== "" && selection !== "first-match") lines.push(`selection ${selection}`);
+      return el("div", {}, [
+        el("pre", { class: "clause-grammar", text: lines.join("\n") }),
+        el("span", {
+          class: "hint",
+          text: "Read-only here: the rows are authored in the pack's clause_grammar block.",
+        }),
+      ]);
+    },
+
+    definitionBody: (_kind, value, set) => {
+      // A shipped grammar is picked by name; an inline grammar — a pack's own
+      // definer — is shown row by row, read-only, as the pack spells it.
+      const pickKind: FieldKind = { tag: "enum", catalogue: "definitionBody", optional: true };
+      if (value === null || typeof value === "string") {
+        return el("div", {}, [
+          catalogueSelect(pickKind, value, (next) => set(next)),
+          el("span", {
+            class: "hint",
+            text:
+              value === null
+                ? "None — the command declares no definition body."
+                : "A shipped grammar; its members and their effects live in the registry.",
+          }),
+        ]);
+      }
+      const grammar = asRecord(value);
+      const effectText = (effect: Json): string => {
+        const fields = asRecord(effect);
+        const kind = asString(fields.kind);
+        switch (kind) {
+          case "callable":
+            return `callable -receiver ${asString(fields.receiver)} -role ${asString(fields.role)}`;
+          case "state-declaration":
+            return `state-declaration ${asString(fields.scope)}`;
+          case "relation":
+            return `relation ${asString(fields.slot)}`;
+          case "init-script":
+            return `init-script -timing ${asString(fields.timing)}`;
+          default:
+            return kind;
+        }
+      };
+      const lines = [`family ${asString(grammar.family)}`];
+      for (const member of asArray(grammar.members)) {
+        const fields = asRecord(member);
+        const effect = effectText(fields.effect);
+        lines.push(
+          `member ${asString(fields.keyword)} -effect ${effect.includes(" ") ? `{${effect}}` : effect}`,
+        );
+      }
+      return el("div", {}, [
+        el("pre", { class: "definition-body", text: lines.join("\n") }),
+        el("span", {
+          class: "hint",
+          text: "Read-only here: the rows are authored in the pack's definition_body block.",
+        }),
+      ]);
+    },
+
+    semanticOperation: (_kind, value, set) => {
+      // A closed vocabulary keyed `KIND` or `KIND DETAIL` — the draft's
+      // `{kind, detail}` joined by a space.
+      const fields = asRecord(value);
+      const detail = asString(fields.detail);
+      const current =
+        value === null
+          ? null
+          : detail === ""
+            ? asString(fields.kind)
+            : `${asString(fields.kind)} ${detail}`;
+      return catalogueSelect(
+        { tag: "enum", catalogue: "semanticOperation", optional: true },
+        current,
+        (next) => {
+          if (next === null) {
+            set(null);
+            return;
+          }
+          const space = next.indexOf(" ");
+          set(
+            space < 0
+              ? { kind: next, detail: null }
+              : { kind: next.slice(0, space), detail: next.slice(space + 1) },
+          );
+        },
+      );
     },
 
     rustExpr: (kind, value, set) =>

@@ -120,6 +120,7 @@ const SELF_SUBCOMMAND_VALUES: &[ArgValue] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "self",
+        runtime_backing: RuntimeBacking::shipped("self"),
         traits: Traits::PURE
             | Traits::LANGUAGE_KEYWORD
             | Traits::TCLOO_INTROSPECTION
@@ -164,6 +165,7 @@ pub fn spec() -> CommandSpec {
             return_value: "Depends on the subcommand: self object, self method, self class, and self namespace each return a single name; self call, self caller, self filter, self next, and self target each return a two- or three-element list (self next returns the empty string once the chain is exhausted). Omitting the subcommand returns the same value as self object.",
         }),
         forms: FORMS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..CommandSpec::DEFAULT
     }
 }

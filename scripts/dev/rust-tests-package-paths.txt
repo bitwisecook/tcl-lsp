@@ -1,7 +1,8 @@
 # Local package directories in the full root Cargo workspace. The root Rust
 # job's doctest command intentionally covers every workspace member, including
-# the four packages excluded from its nextest invocation, so this manifest is
+# the five packages excluded from its nextest invocation, so this manifest is
 # the union of the nextest and doctest closures.
+runtime/rust
 rust/bigip-report-gen/rust
 rust/bpf-tcl
 rust/bpf-tcl-codegen
@@ -23,6 +24,7 @@ rust/tcl-diagram
 rust/tcl-dialect
 rust/tcl-engine-api
 rust/tcl-engine-tclvm
+rust/tcl-engine-wasm
 rust/tcl-explorer
 rust/tcl-f5mku
 rust/tcl-fuzz
@@ -35,6 +37,7 @@ rust/tcl-lsp-db
 rust/tcl-lsp-server
 rust/tcl-mcp
 rust/tcl-pkg
+rust/tcl-pkg-model
 rust/tcl-platform
 rust/tcl-regex
 rust/tcl-registry

@@ -188,7 +188,7 @@ fn cmd_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
-fn pkg_provide(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+pub(crate) fn pkg_provide(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     match rest {
         [name] => ok(vm
             .package_version(&name.to_str())

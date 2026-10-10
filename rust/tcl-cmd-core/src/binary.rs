@@ -713,6 +713,57 @@ pub fn format(fmt: &[u8], args: &[&[u8]]) -> Result<Vec<u8>, CmdError> {
     Ok(out)
 }
 
+/// An upper bound on the bytes [`format`] packs for `fmt` and `args`,
+/// computed without packing anything: the widest write every field can make
+/// plus the furthest absolute `@` position, saturating. A caller charges it
+/// before [`format`] runs, so a count such as `x99999999999` is refused by a
+/// budget rather than allocated. A counted numeric field's list has at most
+/// one element per byte of its argument plus one.
+#[must_use]
+pub fn format_size_bound(fmt: &[u8], args: &[&[u8]]) -> u64 {
+    let wide = |n: usize| u64::try_from(n).unwrap_or(u64::MAX);
+    let mut next = args.iter().map(|arg| wide(arg.len()));
+    let mut writes = 0u64;
+    let mut furthest = 0u64;
+    let mut i = 0usize;
+    while i < fmt.len() {
+        let ty = fmt[i];
+        i += 1;
+        if ty.is_ascii_whitespace() {
+            continue;
+        }
+        let count = parse_count(fmt, &mut i);
+        let span = |all: u64| match count {
+            Count::Num(n) => wide(n),
+            Count::Star => all,
+            Count::None => 1,
+        };
+        let field = match ty {
+            b'a' | b'A' => span(next.next().unwrap_or(0)),
+            b'b' | b'B' => span(next.next().unwrap_or(0)).div_ceil(8),
+            b'h' | b'H' => span(next.next().unwrap_or(0)).div_ceil(2),
+            b'c' | b's' | b'S' | b't' | b'i' | b'I' | b'n' | b'w' | b'W' | b'm' => {
+                span(next.next().unwrap_or(0).saturating_add(1))
+                    .saturating_mul(wide(int_kind(ty).0))
+            }
+            b'f' | b'r' | b'R' | b'd' | b'q' | b'Q' => {
+                span(next.next().unwrap_or(0).saturating_add(1))
+                    .saturating_mul(wide(float_kind(ty).0))
+            }
+            b'x' => span(1),
+            b'@' => {
+                if let Count::Num(n) = count {
+                    furthest = furthest.max(wide(n));
+                }
+                0
+            }
+            _ => 0,
+        };
+        writes = writes.saturating_add(field);
+    }
+    writes.saturating_add(furthest)
+}
+
 /// Split a numeric-field argument into list elements (the canonical Tcl list
 /// message on a malformed value).
 fn split_field(arg: &[u8]) -> Result<Vec<std::borrow::Cow<'_, str>>, CmdError> {
@@ -1115,6 +1166,40 @@ mod tests {
         assert!(format(b"x99999999999999999999999", &[]).is_err());
         // A normal field still formats.
         assert_eq!(format(b"a3", &[b"hi"]).unwrap(), b"hi\0");
+    }
+
+    /// The size bound covers every packed output and saturates on a count
+    /// no allocation could hold.
+    #[test]
+    fn format_size_bound_covers_the_packed_output() {
+        let cases: &[(&[u8], &[&[u8]])] = &[
+            (b"H*", &[b"414243444546"]),
+            (b"a3 c", &[b"foo", b"65"]),
+            (b"A5", &[b"ab"]),
+            (b"b*", &[b"10100000101"]),
+            (b"h3", &[b"abc"]),
+            (b"s*", &[b"1 2 3"]),
+            (b"c2 d*", &[b"1 2 3", b"1.5 2"]),
+            (b"x3 X c @10 c", &[b"1", b"2"]),
+            (b"c @* c", &[b"1", b"2"]),
+            (b"w", &[b"-1"]),
+            (b"", &[]),
+        ];
+        for (fmt, args) in cases {
+            let packed = format(fmt, args).expect("a valid format");
+            let bound = format_size_bound(fmt, args);
+            assert!(
+                u64::try_from(packed.len()).unwrap() <= bound,
+                "{}: {} packed past the bound {bound}",
+                String::from_utf8_lossy(fmt),
+                packed.len()
+            );
+        }
+        assert_eq!(
+            format_size_bound(b"x99999999999999999999999", &[]),
+            u64::MAX
+        );
+        assert_eq!(format_size_bound(b"a2 a*", &[b"xyz", b"hello"]), 7);
     }
 
     #[test]

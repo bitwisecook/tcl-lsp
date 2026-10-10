@@ -2824,18 +2824,34 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
+/// The commands the object system binds in every object's namespace, each with
+/// the binding it takes: `my`, and `myclass` (TIP 478), a per-object command
+/// dispatching on the object's class, for invoking class-side (`self method`)
+/// methods. The backing report names them from here.
+const OBJECT_NAMESPACE_COMMANDS: [(&str, ObjectBinding); 2] =
+    [("my", Command::OoMy), ("myclass", Command::OoMyClass)];
+
+/// The binding a command the object system installs in each object's namespace
+/// takes, from the object's identity.
+type ObjectBinding = fn(OoId) -> Command;
+
+/// The names of the commands the object system binds in every object's
+/// namespace.
+pub(crate) fn object_namespace_command_names() -> impl Iterator<Item = &'static str> {
+    OBJECT_NAMESPACE_COMMANDS.iter().map(|(name, _)| *name)
+}
+
 impl Interp {
-    /// Register the per-object `my` command in the object's namespace (`<fqn>::my`).
+    /// Register the per-object `my` and `myclass` commands in the object's
+    /// namespace (`<fqn>::my`).
     pub(crate) fn oo_register_my(&mut self, object: OoId) {
         let fqn = self.oo_name(object);
-        let mut name = fqn.clone();
-        name.extend_from_slice(b"::my");
-        self.ns_register(&name, Command::OoMy(object));
-        // `myclass` (TIP 478): a per-object command dispatching on the object's
-        // class, for invoking class-side (`self method`) methods.
-        let mut mc = fqn;
-        mc.extend_from_slice(b"::myclass");
-        self.ns_register(&mc, Command::OoMyClass(object));
+        for (name, binding) in OBJECT_NAMESPACE_COMMANDS {
+            let mut full = fqn.clone();
+            full.extend_from_slice(b"::");
+            full.extend_from_slice(name.as_bytes());
+            self.ns_register(&full, binding(object));
+        }
     }
 
     /// Whether evaluation is currently inside an `oo::define`/`oo::objdefine`

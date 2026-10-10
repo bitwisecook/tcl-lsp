@@ -47,7 +47,15 @@ Assign the variable before using it.
 raises `W210`. (A scalar `set X 1` makes `info exists` true but leaves `array
 exists` false.) A check also narrows the branches it guards: inside
 `if {[info exists X]} { … }` reading `$X` is safe; on the `else` side it is
-still unset and still flagged. When existence is statically provable the check
+still unset and still flagged. The narrowing holds through `&&` — inside
+`if {[info exists X] && $ok} { … }` too — and lasts until a command the
+analyser cannot see through, such as an `eval` of a computed script, may
+have unset the variable again. It narrows the procedure's own variables
+only: a global, a variable reached through `global` or `upvar`, an object's
+variable or an interpreter variable such as `errorInfo` can be set or unset
+by any call, so a check on one proves nothing past it — reading one inside
+`if {[info exists ::errorInfo]} { … }` is still not flagged, but a later
+check on it is never folded. When existence is statically provable the check
 folds to a constant and is reported as
 [`I230`](kcs-diagnostic-i230-constant-existence-check.md) instead.
 
@@ -108,9 +116,6 @@ test one {a test} -body {
     list $last $err $it                  ;# none of the three is flagged
 } -result {…}
 ```
-
-Before this was registry-driven the rule read only a **top-level `set`**, so
-that body drew three warnings (issue #2117).
 
 A braced mention does still count as *use* for
 [`W211`](kcs-diagnostic-w211-variable-set-not-used.md) and
@@ -179,6 +184,25 @@ proc main {} {
 }
 ```
 
+## A `regexp` or `scan` that does not match still keeps what was there
+
+`regexp`, `scan`, and `binary scan` leave a target exactly as it was when
+nothing in the input reaches it — a `regexp` that does not match, or a
+`scan` field past the point the input runs out. Reading the target
+afterwards reads whatever was set before the call, not the call itself,
+so the check follows the read back to that earlier assignment as usual:
+
+```tcl
+proc f {s} {
+    set a before
+    regexp {(x)(y)} $s a b   ;# a and b are untouched when $s does not match
+    puts $a                  ;# not flagged — before is still there
+}
+```
+
+Without the `set a before` line first, `$a` is still flagged: a no-match
+preserves whatever was there, and an unset variable stays unset.
+
 ## Computed variable names silence the check
 
 Tcl can compute a variable's *name* at run time:
@@ -215,6 +239,36 @@ it writes, and treats the call as the assignment. That covers `upvar` with a
 literal name or a by-name parameter, `uplevel 1 {…}`, and
 `uplevel 1 [list set …]`, plus one hop of `uplevel 1 [list helper …]`.
 
+Where the analyser has summarised the procedure, the call is the assignment the
+summary states for each variable a by-name argument names, as the call leaves
+it. A call that unsets the variable leaves it unset, so a read after it is
+flagged; a call that sets it only on some paths leaves a variable nothing set
+before the call unset on the others, and a read after it is flagged too — the
+check has one wording, with no "may be" form:
+
+```tcl
+proc reset {name} {upvar 1 $name v; unset v}
+proc maybe {name c} {upvar 1 $name v; if {$c} {set v 9}}
+proc a {} {
+    set m 1
+    reset m
+    puts $m           ;# flagged — reset unset m
+}
+proc b {c} {
+    maybe k $c
+    puts $k           ;# flagged — maybe sets k only when c is true
+}
+proc d {c} {
+    set k 1
+    maybe k $c
+    puts $k           ;# not flagged — k was set before the call
+}
+```
+
+A procedure the analyser has no summary for — one that runs code it cannot
+see, or names a variable it computes — is the assignment of every variable a
+by-name argument names, as above.
+
 Only a write to *your* frame counts: `upvar #0` writes a global, `upvar 0` the
 callee's own local, and `upvar 2` your caller's caller.
 
@@ -227,6 +281,79 @@ computed name.
 Note the difference between `eval` and `uplevel`: `eval $script` runs in the
 procedure that writes it, so it can set that procedure's own locals;
 `uplevel 1 $script` runs one frame up, so it cannot.
+
+## A name only the body of a `catch` sets
+
+A `catch` runs its body until the first error, so a name only the body sets may
+still be unset after it, and a read of the name there is flagged — whether the
+analyser keeps the `catch` as one statement or inlines it:
+
+```tcl
+catch { set x 1 }
+puts $x            ;# flagged — the body may stop before it sets x
+```
+
+A name set before the `catch`, and the variables the `catch` itself assigns (its
+result and options variables), are set however the body ends and are not
+flagged.
+
+## Code the analyser cannot see may have set the name
+
+A call to a command the analyser cannot see — a `source`, a procedure defined in
+another file, a command whose name is computed — can create a global the file
+has not set by then. A read of a name nothing in the file has set, after such a
+call, is not flagged:
+
+```tcl
+source other.tcl
+puts $g            ;# not flagged — other.tcl may have set g
+```
+
+The same holds after a `catch` whose body runs such a call. Inside a procedure
+the silence is per name. A `source` runs its file in the procedure's own frame,
+so a read after it is not flagged. A procedure the analyser cannot see — one
+defined in another file, or `upvar` reached through an alias — sets a local of
+yours through `upvar 1` under a name it is given, so only the names the call
+spells as words of its own stop being flagged:
+
+```tcl
+proc build {} {
+    setdef options name blue  ;# setdef lives in another file
+    puts $options             ;# not flagged — setdef is handed `options`
+    puts $other               ;# flagged — setdef is not handed `other`
+}
+```
+
+The call has to come first on every path to the read. These are still flagged: a
+read in the words of the call itself (`foo $g`), a call on one branch of an `if`
+only, a read with no such call ahead of it at all (`puts $g` on its own), a name
+the file sets on some other path (`if {$argc} {set g 1}` before the call), and,
+in a procedure, a name the call does not spell.
+
+A command a [stub](../kcs-howto-annotate-commands-with-stubs.md) declares is one
+the analyser cannot see until the stub states what the command does to the
+caller's variables. A plain stub — every argument a value, name, pattern or
+channel, no flag but `-pure` or `-unsafe` — with `-frame own` or `-frame none`
+sets nothing in the procedure that calls it, so a read after the call of a name
+nothing has set is flagged; with `-frame caller` it may set any variable of that
+procedure, as `argparse` does, so no read of an unset name in the procedure is
+flagged:
+
+```tcl
+# tcl-lsp: stubs-begin
+# tcl-lsp: stub db_query {sql} -frame own
+# tcl-lsp: stub db_bind {spec} -frame caller
+# tcl-lsp: stubs-end
+
+proc a {} {
+    db_query {select 1}
+    puts $row              ;# flagged — db_query sets nothing here
+}
+proc b {} {
+    db_bind {row count}
+    puts $row              ;# not flagged — db_bind may have set row
+}
+```
 
 ## How to suppress
 

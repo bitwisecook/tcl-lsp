@@ -69,6 +69,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tclPkgSetup",
+        runtime_backing: RuntimeBacking::package_source("package.tcl"),
         // `surface: Some(SpecSurface::ALL_TCL)` here is deliberate. Under the
         // explicit-per-spec model `ALL_TCL` spans every core Tcl version but
         // not an iRules row, so the spec never intersects iRules' bare

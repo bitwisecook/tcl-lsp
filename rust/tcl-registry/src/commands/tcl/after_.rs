@@ -117,6 +117,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
 ];
@@ -125,6 +126,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "after",
+        runtime_backing: RuntimeBacking::shipped("after"),
         surface: Some(SpecSurface::ALL_TCL),
         // The `cancel` subform destroys a scheduled
         // handler (`Tcl_AfterObjCmd`, tclTimer.c) — see the `destructive`

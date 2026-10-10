@@ -56,6 +56,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "rename",
+        runtime_backing: RuntimeBacking::shipped("rename"),
         surface: Some(SpecSurface::ALL_TCL),
         // `FIRE_AND_FORGET_TEARDOWN`: `Tcl_RenameObjCmd` → `TclRenameCommand`
         // (tclCmdMZ.c / tclBasic.c) deletes `oldName` (an empty `newName`

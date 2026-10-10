@@ -50,7 +50,8 @@
 use std::collections::{BTreeMap, HashSet};
 use std::sync::OnceLock;
 
-use tcl_registry::{CommandRegistry, Traits};
+use tcl_registry::value_transfer::resolve_semantics;
+use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use crate::ir::{Module, Script, Statement};
 use crate::var_escape::types::ProcEscapeSummary;
@@ -75,34 +76,6 @@ fn frame_hash_builtins() -> &'static HashSet<String> {
     SET.get_or_init(|| {
         CommandRegistry::build_default()
             .commands_with_trait(Traits::FRAME_HASH_BUILTIN)
-            .into_iter()
-            .map(str::to_owned)
-            .collect()
-    })
-}
-
-/// Memoised set of `info` subcommands that introspect by variable name
-/// (`info exists|vars|locals|args|default`), sourced from the registry's
-/// [`Traits::INTROSPECTS_BY_NAME`] subcommand trait.
-fn info_introspecting_subcmds() -> &'static HashSet<String> {
-    static SET: OnceLock<HashSet<String>> = OnceLock::new();
-    SET.get_or_init(|| {
-        CommandRegistry::build_default()
-            .subcommands_with_trait("info", Traits::INTROSPECTS_BY_NAME)
-            .into_iter()
-            .map(str::to_owned)
-            .collect()
-    })
-}
-
-/// Memoised set of `trace` subcommands that target a variable by name
-/// (`trace add|remove|info|variable|vdelete|vinfo`), sourced from the
-/// registry's [`Traits::TARGETS_VARIABLE_BY_NAME`] subcommand trait.
-fn trace_name_targeting() -> &'static HashSet<String> {
-    static SET: OnceLock<HashSet<String>> = OnceLock::new();
-    SET.get_or_init(|| {
-        CommandRegistry::build_default()
-            .subcommands_with_trait("trace", Traits::TARGETS_VARIABLE_BY_NAME)
             .into_iter()
             .map(str::to_owned)
             .collect()
@@ -258,62 +231,62 @@ fn stmt_disables_slots(stmt: &Statement, ineligible_names: &mut HashSet<String>)
             true
         }
         Statement::Call { command, args, .. } => {
-            if is_dynamic_value(command) {
-                return true;
-            }
-            let cmd = normalise_cmd(command);
-            if dynamic_eval_set().contains(cmd) {
-                return true;
-            }
-            if cmd == "set" && !args.is_empty() && is_dynamic_value(&args[0]) {
-                return true;
-            }
-            if cmd == "info" && !args.is_empty() {
-                let sub = args[0].as_str();
-                if info_introspecting_subcmds().contains(sub) {
-                    if args.len() >= 2 {
-                        let target = &args[1];
-                        if is_dynamic_value(target) {
-                            return true;
-                        }
-                        ineligible_names.insert(target.clone());
-                    } else {
-                        return true;
-                    }
-                }
-                if sub == "level" || sub == "frame" {
-                    return true;
-                }
-            }
-            if cmd == "trace" && !args.is_empty() {
-                let sub = args[0].as_str();
-                if trace_name_targeting().contains(sub) {
-                    if (sub == "add" || sub == "remove" || sub == "info") && args.len() >= 3 {
-                        if args[1] == "variable" {
-                            let target = &args[2];
-                            if is_dynamic_value(target) {
-                                return true;
-                            }
-                            ineligible_names.insert(target.clone());
-                        }
-                    } else if (sub == "variable" || sub == "vdelete" || sub == "vinfo")
-                        && args.len() >= 2
-                    {
-                        let target = &args[1];
-                        if is_dynamic_value(target) {
-                            return true;
-                        }
-                        ineligible_names.insert(target.clone());
-                    }
-                }
-            }
-            if frame_hash_builtins().contains(cmd) {
-                return true;
-            }
-            false
+            is_dynamic_value(command)
+                || call_disables_slots(normalise_cmd(command), args, ineligible_names)
         }
         _ => false,
     }
+}
+
+/// The verdict on one call, from the registry's declarations for the
+/// invocation: `true` takes the whole proc out of slot resolution; otherwise
+/// the literal locals its by-name words target join *`ineligible_names`*.
+fn call_disables_slots(cmd: &str, args: &[String], ineligible_names: &mut HashSet<String>) -> bool {
+    if dynamic_eval_set().contains(cmd) || frame_hash_builtins().contains(cmd) {
+        return true;
+    }
+    let registry = tcl_registry::default_registry();
+    let words: Vec<&str> = args.iter().map(String::as_str).collect();
+    let Some(call) = registry.resolve_call(cmd, &words, None) else {
+        return false;
+    };
+    let named = |role| registry.arg_indices_for_role(cmd, &words, role);
+    let dynamic = |index: &usize| args.get(*index).is_some_and(|word| is_dynamic_value(word));
+    // A cell write whose name word substitutes reaches any local.
+    if resolve_semantics(call.spec, call.sub, call.form).writes_value_word() {
+        return named(ArgRole::VarWrite).iter().any(dynamic)
+            || named(ArgRole::VarRead).iter().any(dynamic);
+    }
+    let traits = call.spec.traits | call.sub.map_or_else(Traits::empty, |sub| sub.traits);
+    let targets = if traits.contains(Traits::INTROSPECTS_BY_NAME) {
+        // The introspected name is the word after the subcommand.
+        let Some(target) = args.get(usize::from(call.sub.is_some())) else {
+            return true;
+        };
+        vec![target]
+    } else if traits.contains(Traits::CURRENT_FRAME_INTROSPECTION) {
+        return true;
+    } else if traits.contains(Traits::TARGETS_VARIABLE_BY_NAME) {
+        let written = named(ArgRole::VarWrite);
+        if written.is_empty() {
+            // With no `VarWrite` word the invocation targets a command, or a
+            // cell its roles do not place; only the first leaves the locals.
+            return named(ArgRole::CommandName).is_empty();
+        }
+        written
+            .iter()
+            .filter_map(|&index| args.get(index))
+            .collect()
+    } else {
+        return false;
+    };
+    for target in targets {
+        if is_dynamic_value(target) {
+            return true;
+        }
+        ineligible_names.insert(target.clone());
+    }
+    false
 }
 
 /// Return a `{local_name: slot_index}` mapping for *script*'s
@@ -682,6 +655,41 @@ mod tests {
         assert_eq!(slots.get("y"), Some(&0));
     }
 
+    /// The trace target is the word the registry gives the `VarWrite` role,
+    /// so an abbreviated type resolves as `trace` does; a command trace names
+    /// no local; a trace form that places no variable takes the proc out.
+    #[test]
+    fn trace_targets_are_the_registry_roles() {
+        let s = ProcEscapeSummary::default();
+        let with = |call_stmt: Statement| {
+            let body = script_with(vec![
+                assign_const("x", "1"),
+                assign_const("y", "2"),
+                call_stmt,
+            ]);
+            assign_local_slots(&body, &s, &[])
+        };
+        let slots = with(call("trace", &["add", "var", "x", "write", "cb"]));
+        assert!(!slots.contains_key("x"));
+        assert_eq!(slots.get("y"), Some(&0));
+        let slots = with(call("trace", &["add", "command", "x", "rename", "cb"]));
+        assert_eq!(slots.len(), 2);
+        assert!(with(call("trace", &["vinfo", "x"])).is_empty());
+        assert!(with(call("trace", &["info", "variable", "x"])).is_empty());
+    }
+
+    /// Every invocation that observes the current frame without naming a
+    /// variable takes the proc out: `info level` and `info frame` as before,
+    /// and `info coroutine` and `info errorstack` beside them.
+    #[test]
+    fn current_frame_introspection_disables_whole_proc() {
+        let s = ProcEscapeSummary::default();
+        for sub in ["coroutine", "errorstack"] {
+            let body = script_with(vec![assign_const("x", "1"), call("info", &[sub])]);
+            assert!(assign_local_slots(&body, &s, &[]).is_empty(), "info {sub}");
+        }
+    }
+
     #[test]
     fn trace_add_variable_dynamic_target_disables_proc() {
         let s = ProcEscapeSummary::default();
@@ -747,6 +755,7 @@ mod tests {
                 name: "$varname".into(),
                 name_braced: false,
                 amount: None,
+                amount_braced: false,
                 safe_on_uninit: false,
             },
         ]);

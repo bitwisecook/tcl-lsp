@@ -39,6 +39,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "tcl::prefix all table string",
         pure: true,
         return_type: Some(TclType::List),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -48,6 +51,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "tcl::prefix longest table string",
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -73,6 +79,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-message",
@@ -82,6 +89,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-error",
@@ -91,9 +99,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
 ];
@@ -102,6 +114,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::prefix",
+        runtime_backing: RuntimeBacking::shipped("tcl::prefix"),
         traits: Traits::NOT_PROC_FACTORY,
         // Added in Tcl 8.6 (TIP 265).
         surface: Some(SpecSurface::TCL86_PLUS),

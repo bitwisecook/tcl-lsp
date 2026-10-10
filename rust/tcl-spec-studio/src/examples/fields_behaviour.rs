@@ -128,6 +128,26 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
         },
     ),
     (
+        "clause_grammar",
+        Example {
+            code: "try {\n    open $path\n} trap {POSIX ENOENT} {msg} {\n    puts $msg\n} finally {\n    cleanup\n}",
+            focuses: &[
+                focus(
+                    0,
+                    "try {",
+                    "the head: a protected body whose completion is observed",
+                ),
+                focus(
+                    2,
+                    "trap {POSIX ENOENT}",
+                    "a repeated row; its pattern selects by errorcode prefix",
+                ),
+                focus(2, "{msg}", "the handler's binder list, bound when it runs"),
+                focus(4, "finally", "the tail: runs whatever the outcome"),
+            ],
+        },
+    ),
+    (
         "clause_shape_check",
         Example {
             code: "if {$a} { one } elseif {$b}",
@@ -173,24 +193,6 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
                     1,
                     "{work later}",
                     "the resolver reports Deferred when -async is present",
-                ),
-            ],
-        },
-    ),
-    (
-        "substitution_resolver",
-        Example {
-            code: "subst {hello $name}\nsubst -novariables {hello $name}",
-            focuses: &[
-                focus(
-                    0,
-                    "$name",
-                    "the resolver reports variables on, so this reads the variable",
-                ),
-                focus(
-                    1,
-                    "$name",
-                    "-novariables turns that kind off, so this is literal text",
                 ),
             ],
         },
@@ -248,6 +250,17 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
                     "a different spelling resolves to its own operation, ListLength",
                 ),
             ],
+        },
+    ),
+    (
+        "semantic_operation_windows",
+        Example {
+            code: "set n [llength $items]",
+            focuses: &[focus(
+                0,
+                "llength",
+                "has the operation of the window covering the primary release; where the point does not settle it, a plain invoke",
+            )],
         },
     ),
     (
@@ -325,6 +338,24 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
         },
     ),
     (
+        "codegen_hook_windows",
+        Example {
+            code: "lappend items $value",
+            focuses: &[
+                focus(
+                    0,
+                    "lappend",
+                    "takes the emitter of the window covering the primary release",
+                ),
+                focus(
+                    0,
+                    "$value",
+                    "under a profile spanning a window's edge the call is dispatched plain instead",
+                ),
+            ],
+        },
+    ),
+    (
         "inline_codegen_hook",
         Example {
             code: "if {[info exists cfg(port)]} { use $cfg(port) }\nset n [llength $items]",
@@ -340,6 +371,17 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
                     "another value-position call with its own inline emitter",
                 ),
             ],
+        },
+    ),
+    (
+        "inline_codegen_hook_windows",
+        Example {
+            code: "set n [llength $items]",
+            focuses: &[focus(
+                0,
+                "[llength $items]",
+                "uses the value-position emitter of the window covering the primary release",
+            )],
         },
     ),
     (
@@ -365,6 +407,68 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
                 focus(1, "global", "a scope link"),
                 focus(2, "break", "a fixed completion"),
             ],
+        },
+    ),
+    (
+        "native_lowering_windows",
+        Example {
+            code: "lappend items $x",
+            focuses: &[focus(
+                0,
+                "lappend",
+                "a cell read-modify-write shape in the window covering the primary release",
+            )],
+        },
+    ),
+    (
+        "semantics",
+        Example {
+            code: "incr count
+set n [llength $items]
+append log $line",
+            focuses: &[
+                focus(0, "incr", "a derived cell update with a direct route"),
+                focus(
+                    1,
+                    "[llength $items]",
+                    "a declared direct route in value position",
+                ),
+                focus(
+                    2,
+                    "append",
+                    "a derived cell update whose route is not yet enabled",
+                ),
+            ],
+        },
+    ),
+    (
+        "route",
+        Example {
+            code: "evaluate -direct ListOfArgs\nevaluate -expression tcl.expr\nevaluate -implementation tenant.label.v1 -host bounded_tcl { body {name} { fold $name } }",
+            focuses: &[
+                focus(
+                    0,
+                    "-direct",
+                    "a registry evaluator that reads only the call's arguments",
+                ),
+                focus(1, "-expression", "the shared expression engine"),
+                focus(
+                    2,
+                    "-implementation",
+                    "a declared implementation, whose body is below",
+                ),
+            ],
+        },
+    ),
+    (
+        "body",
+        Example {
+            code: "evaluate -implementation tenant.label.v1 -host bounded_tcl {\n    inputs {arg 0 exact}\n    body {name} { fold [string cat \"tenant:\" $name] }\n}",
+            focuses: &[focus(
+                2,
+                "fold [string cat \"tenant:\" $name]",
+                "the body: the declared input as its parameter, answering with fold",
+            )],
         },
     ),
     (
@@ -1107,11 +1211,15 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
         Example {
             code: "oo::class create Stack {\n    variable items\n    method push {x} { lappend items $x }\n}",
             focuses: &[
-                focus(1, "variable items", "a member keyword the grammar names"),
+                focus(
+                    1,
+                    "variable items",
+                    "a member row whose effect declares per-instance state",
+                ),
                 focus(
                     2,
                     "method push {x}",
-                    "name and parameter list are known words",
+                    "a callable: its effect places the name and parameter list",
                 ),
                 focus(
                     2,

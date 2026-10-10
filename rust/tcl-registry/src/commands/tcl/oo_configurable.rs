@@ -34,6 +34,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::configurable",
+        runtime_backing: RuntimeBacking::shipped("oo::configurable"),
         // `oo::configurable create Name { … }` is a four-token `HEAD NAME
         // BRACED BRACED` call — the same shape `oo::class` and
         // `oo::abstract` also match, which is why it carries

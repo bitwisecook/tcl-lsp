@@ -24,11 +24,13 @@
  * (Tcl_GetIndexFromObj subcommand dispatch over the whole value API) and a
  * clientData-carrying counter with a delete procedure.
  *
- * The same source compiles against a real Tcl 9 `tcl.h`, which is how the
- * expected strings in the integration tests were captured.
+ * It includes <tcl.h>: the project's authored header
+ * (runtime/rust/include/tcl.h) serves it natively, and the same source compiles
+ * against a real Tcl 9 `tcl.h`, which is how the expected strings in the
+ * integration tests were captured.
  */
 
-#include "tclshim.h"
+#include <tcl.h>
 #include <string.h>
 
 #if TCL_MAJOR_VERSION < 9

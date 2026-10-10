@@ -28,6 +28,9 @@
 //! design established in the lexer crate.
 
 use tcl_lexer::{LexerConfig, SourceMap, Span, Token};
+use tcl_registry::definer::{CallableRole, MemberReceiver};
+/// A [`TryHandler`]'s selection vocabulary, the registry's clause-row fact.
+pub use tcl_registry::value_transfer::HandlerMatch;
 
 use crate::expr_ast::ExprNode;
 use crate::segmenter::SegmentedCommand;
@@ -180,6 +183,11 @@ pub enum WordExpr {
         parts: Vec<WordPart>,
         /// Full source range of the word.
         source: SourceSite,
+        /// C's message where its parser rejects the word for what follows
+        /// a closing brace or quote (`{a}b`, `"a"b`, `{*}$x` under 8.4),
+        /// which the parts still model leniently so the analyser reads
+        /// them; a consumer that must not run past a parse error reads it.
+        rejected: Option<&'static str>,
     },
     /// Tcl 8.5+ argument expansion around another word expression.
     Expand {
@@ -365,11 +373,11 @@ pub enum WordOpacity {
 /// proc <cond> {} { puts "hit-cond" }
 /// proc <caller-frame-opaque> {} { puts "hit-cfo" }
 /// proc <global-frame-script> {} { puts "hit-gfs" }
-/// proc <upvar-invalidate> {} { puts "hit-uv" }
+/// proc <word-effects> {} { puts "hit-we" }
 /// proc <empty_clause> {} { puts "hit-ec" }
 /// <cond> ; <caller-frame-opaque> ; <global-frame-script>
-/// <upvar-invalidate> ; <empty_clause>
-/// ->  hit-cond / hit-cfo / hit-gfs / hit-uv / hit-ec   (all five run)
+/// <word-effects> ; <empty_clause>
+/// ->  hit-cond / hit-cfo / hit-gfs / hit-we / hit-ec   (all five run)
 /// ```
 ///
 /// Not even the empty name is reservable — `proc {} {} { puts EMPTY-NAME-RAN
@@ -390,9 +398,13 @@ pub enum SyntheticMarker {
     /// tclsh's bytecode has there, so the clause keeps its place in the
     /// instruction stream.
     EmptyClause,
-    /// Caller-side `defs` for an `[upvar_proc …]` embedded in a word, carried
-    /// on a statement of its own because the host statement cannot hold them.
-    UpvarInvalidate,
+    /// What the `[…]` substitutions in a statement's words do to the frame —
+    /// the names they write, and those they read before writing — as a
+    /// definition point of its own: the statement's words read a name before
+    /// and after a substitution writes it, and a statement's SSA records one
+    /// version of each name it reads. It is paired with the statement whose
+    /// words they are by construction, never by span ([`WordEffectsHost`]).
+    WordEffects(WordEffectsHost),
     /// A callee that runs an unreadable script at the global frame
     /// (`uplevel #0 $body`): it can write any global or namespace
     /// name, so the site widens instead of enumerating defs.
@@ -402,11 +414,45 @@ pub enum SyntheticMarker {
     /// site widens. It sits *beside* the call it widens for, which is why
     /// naming the callee on it would make codegen run the callee twice.
     CallerFrameOpaque,
-    /// A registry-resolved invocation declares a dynamic evaluation or
-    /// analysis barrier. The marker sits beside the real call (or before a
-    /// host statement for an embedded substitution), so it widens scalar
-    /// facts without dispatching the command a second time.
-    RegistryBarrier,
+    /// A call to code the module cannot see — a head the module cannot name
+    /// (a literal it neither defines nor the registry ships, an alias to the
+    /// unresolved-command handler, a binding the source-order timeline cannot
+    /// name, a computed head), a `source`, or code of that kind a script a
+    /// statement keeps inside itself runs. That code may write, unset or read
+    /// any name of the frame it is called from: a plain name at the top level
+    /// is the global `::name`, and a procedure's local is in the reach of a
+    /// callee that runs `upvar 1` or `uplevel 1`, which an autoloaded or
+    /// unknown-handled callee can do on every release. The marker sits beside
+    /// the call (ahead of the statement for a `[…]` substitution's call), is
+    /// no command to run, and widens once: the SSA gives every name live past
+    /// it a fresh version ([`crate::ssa::SsaFunction::value_clobbers`]),
+    /// whose value is unknown while every proof about the version before it
+    /// stands, and records the version each name holds where it sits
+    /// ([`crate::ssa::SsaFunction::is_observed_by_unseen_call`]), which the
+    /// code it reaches may read.
+    UnseenCall,
+    /// The names a statement that keeps its scripts inside itself may write
+    /// into the frame, carried on a statement of its own beside it because the
+    /// scripts are not lowered: what a callee an arm of an opaque `switch`
+    /// calls writes (`zero line` with `upvar 1`), after the `switch`, and every
+    /// name the body of an opaque `catch` or `try` writes, ahead of the call.
+    /// The names are *may*-definitions of the statement, as the writes the arms
+    /// of a `switch` make themselves are ([`crate::ssa::switch_may_defs`]).
+    ArmWrites,
+}
+
+/// Where the statement whose words a [`SyntheticMarker::WordEffects`]
+/// definition point states the effects of stands, as the CFG builder puts
+/// the two ([`crate::ssa::word_effects_host`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum WordEffectsHost {
+    /// The statement right after the definition point: an assignment, an
+    /// expression or a command whose own words substitute.
+    Statement,
+    /// A control statement's words — a `return`'s value, a `switch`'s
+    /// subject and patterns, a `catch` or `try` header — which run before the
+    /// statement dispatches: no statement of the block holds them.
+    Dispatch,
 }
 
 /// Original parsed tokens for a command invocation.
@@ -791,6 +837,30 @@ impl Script {
             procedure_binding_requirements: procedure_binding_requirements.into(),
         }
     }
+
+    /// Whether every statement compiles to a single fall-through block — no
+    /// branch, join, loop or unwinding `return`. That is the shape the inline
+    /// collecting-`lmap` codegen needs: it strips the body's trailing `POP` and
+    /// appends the result via one `LMAP_COLLECT` on the fall-through tail, so a
+    /// branch or join (an `if`, `while`, `switch` or nested loop) or a `return`
+    /// that unwinds past the collect point would drop or mis-gather results.
+    /// Lowering keeps such a body's `lmap` on the runtime builtin, and a pass
+    /// that rewrites a body afterwards must not give it one.
+    #[must_use]
+    pub fn is_straight_line(&self) -> bool {
+        self.statements.iter().all(|statement| {
+            matches!(
+                statement,
+                Statement::Call { .. }
+                    | Statement::AssignConst { .. }
+                    | Statement::AssignExpr { .. }
+                    | Statement::AssignValue { .. }
+                    | Statement::Incr { .. }
+                    | Statement::ExprEval { .. }
+                    | Statement::Barrier { .. }
+            )
+        })
+    }
 }
 
 /// Depth cap for [`for_each_statement`]'s recursion over nested
@@ -907,11 +977,14 @@ pub struct IfClause {
     pub body_span: Span,
 }
 
-/// A `try` handler clause (`on`/`trap`).
+/// A `try` handler clause — a clause of the command's clause plan that is
+/// selected by its pattern word.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TryHandler {
-    /// Handler kind: `"on"` or `"trap"`.
-    pub kind: String,
+    /// The vocabulary the handler's pattern word selects it by — the clause
+    /// row's [`HandlerMatch`]: a completion code (`try`'s `on`) or an
+    /// `-errorcode` prefix (`trap`).
+    pub kind: HandlerMatch,
     /// Return code or error class pattern to match.
     pub match_arg: String,
     /// Parsed error-code prefix for a statically literal `trap` selector.
@@ -940,7 +1013,10 @@ pub struct TryHandler {
 /// A `switch` arm: pattern + body.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SwitchArm {
-    /// Pattern text — the word's *value*.
+    /// Pattern text: an element of a braced arm list is its decoded value,
+    /// and a pattern given as a separate word is its spelling with the
+    /// delimiters removed, as the subject of a `Statement::Switch` is —
+    /// `value_transfer::recorded_word_value` gives that word's value.
     pub pattern: String,
     /// Whether this arm's pattern word was braced, so its value is literal.
     ///
@@ -1082,6 +1158,11 @@ pub enum Statement {
         name_braced: bool,
         /// Increment amount (None = 1).
         amount: Option<String>,
+        /// Whether the *amount* word was a brace-string literal
+        /// (`incr x {$n}`): its text is the amount itself, never a
+        /// substitution — the program raises `expected integer but got
+        /// "$n"` — mirroring [`Self::AssignConst::name_braced`] for the name.
+        amount_braced: bool,
         /// Whether it is safe if the variable is uninitialised.
         safe_on_uninit: bool,
     },
@@ -1391,8 +1472,11 @@ pub enum Statement {
     Switch {
         /// Source span.
         span: Span,
-        /// Subject text being matched — the word's *value*, with any
-        /// delimiters already removed.
+        /// The subject word as the source spells it, its delimiters removed:
+        /// a bare or quoted word's escapes are not decoded and a braced
+        /// word's continuations are not collapsed, so this is a spelling, not
+        /// a value. `value_transfer::recorded_word_value` gives the value the
+        /// selection and the dispatch chain read it by.
         subject: String,
         /// `true` when the subject came from a braced word, so its value is
         /// literal and suppresses substitution.
@@ -1433,6 +1517,16 @@ pub enum Statement {
         /// Empty when the flags are unknown (a hand-built statement), which the
         /// emitter reads as "none braced" — the prior behaviour.
         raw_arg_braced: Vec<bool>,
+        /// Per-[`Self::Switch::raw_args`] "this word was double-quoted" flags,
+        /// beside [`Self::Switch::raw_arg_braced`]: a word neither braced nor
+        /// quoted was spelled bare, which is how 9.1b0's byte-compiled
+        /// `switch` recognises a fall-through body — so the selection record
+        /// reads a quoted `-` apart from a bare one. Empty when unknown.
+        raw_arg_quoted: Vec<bool>,
+        /// The command as the source spells it: `switch`, or another
+        /// case-list command lowered through the same hook (`case`). The
+        /// generic invoke of an opaque form names it.
+        command: String,
         /// `true` when the arms came from a single braced
         /// `{pat body …}` block — patterns are literal list elements
         /// with no substitution. `false` when supplied as separate
@@ -1444,6 +1538,60 @@ pub enum Statement {
 }
 
 impl Statement {
+    /// The statement standing where code the module cannot see runs
+    /// ([`SyntheticMarker::UnseenCall`]): it carries no name and is no command
+    /// to run. The SSA gives the names live past it fresh versions and records
+    /// the version each name holds where it stands.
+    #[must_use]
+    pub fn unseen_call_marker(span: Span) -> Self {
+        Self::Call {
+            span,
+            command: "<unseen-call>".to_owned(),
+            canonical_command: None,
+            args: Vec::new(),
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: Some(CommandTokens::marker(SyntheticMarker::UnseenCall)),
+            foreach_groups: None,
+        }
+    }
+
+    /// The definition point of what the `[…]` substitutions in a statement's
+    /// words do to the frame ([`SyntheticMarker::WordEffects`]): the names
+    /// they write and those they read before writing, for the statement
+    /// `host` places. It carries no command to run.
+    #[must_use]
+    pub fn word_effects(
+        span: Span,
+        (defs, reads): (Vec<String>, Vec<String>),
+        host: WordEffectsHost,
+    ) -> Self {
+        Self::Call {
+            span,
+            command: "<word-effects>".to_owned(),
+            canonical_command: None,
+            args: Vec::new(),
+            defs,
+            reads,
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: Some(CommandTokens::marker(SyntheticMarker::WordEffects(host))),
+            foreach_groups: None,
+        }
+    }
+
+    /// Where the statement whose words this definition point states the
+    /// effects of stands, when this is one ([`SyntheticMarker::WordEffects`]).
+    #[must_use]
+    pub fn word_effects_host(&self) -> Option<WordEffectsHost> {
+        match self.synthetic_marker() {
+            Some(SyntheticMarker::WordEffects(host)) => Some(host),
+            _ => None,
+        }
+    }
+
     /// Return the synthetic marker attached to this statement, when it has
     /// one. Markers carry analysis-only effects beside their source command.
     #[must_use]
@@ -1459,14 +1607,26 @@ impl Statement {
     /// Whether this statement represents an invocation that code generation
     /// and command-effect analyses must execute.
     ///
-    /// `RegistryBarrier` widens scalar facts only; its adjacent source call
-    /// already performs the real dispatch. Other synthetic barriers retain
-    /// their existing executable semantics.
+    /// The marker for code the module cannot see
+    /// ([`SyntheticMarker::UnseenCall`]) widens facts only; the call beside it
+    /// performs the real dispatch. Other synthetic statements retain their
+    /// existing executable semantics.
     #[must_use]
     pub fn is_executable_invocation(&self) -> bool {
-        !matches!(
-            self.synthetic_marker(),
-            Some(SyntheticMarker::RegistryBarrier)
+        !matches!(self.synthetic_marker(), Some(SyntheticMarker::UnseenCall))
+    }
+
+    /// Whether this is the barrier a `return` lowers to when it leaves the
+    /// procedure or its completion is not known — `return` with options
+    /// ([`crate::lowering::hooks::control::try_lower_return`]) or with an
+    /// expanded word. The CFG takes it for a procedure exit, and it writes
+    /// no variable.
+    #[must_use]
+    pub fn is_return_barrier(&self) -> bool {
+        matches!(
+            self,
+            Self::Barrier { reason, .. }
+                if matches!(reason.as_str(), "return with options" | "return with expansion")
         )
     }
 
@@ -1632,14 +1792,35 @@ pub enum MethodKind {
 }
 
 impl MethodKind {
-    /// Parse from the string representation.
+    /// The frame shape a callable member opens, read off its member-effect
+    /// facts (`registry-consumer-contracts.md` § *The member-effect
+    /// descriptor*): its [`CallableRole`] and the side its row resolves to
+    /// after every wrapper shift.
+    ///
+    /// A method on the instances is a [`Self::Method`] and one on the class or
+    /// type object a [`Self::ClassMethod`]; a namespace procedure
+    /// ([`CallableRole::Procedure`], snit's `proc`) runs with no instance in
+    /// frame, the class-method shape. A constructor or destructor exists only
+    /// on the instances: the type-object spelling is no member at all (tclsh
+    /// 8.6.18 and 9.0.4: `oo::class create X { self constructor {} {} }` →
+    /// `invalid command name "constructor"`). An option accessor or mutator
+    /// opens no method frame of its own, and nothing is a method on both
+    /// sides at once, so each of those answers `None`.
     #[must_use]
-    pub fn from_str_lossy(s: &str) -> Self {
-        match s {
-            "classmethod" => Self::ClassMethod,
-            "constructor" => Self::Constructor,
-            "destructor" => Self::Destructor,
-            _ => Self::Method,
+    pub const fn from_effect(role: CallableRole, receiver: MemberReceiver) -> Option<Self> {
+        match (role, receiver) {
+            (CallableRole::Method, MemberReceiver::Instance) => Some(Self::Method),
+            (CallableRole::Method, MemberReceiver::TypeObject) | (CallableRole::Procedure, _) => {
+                Some(Self::ClassMethod)
+            }
+            (CallableRole::Constructor, MemberReceiver::Instance) => Some(Self::Constructor),
+            (CallableRole::Destructor, MemberReceiver::Instance) => Some(Self::Destructor),
+            (CallableRole::Method, MemberReceiver::Both)
+            | (
+                CallableRole::Constructor | CallableRole::Destructor,
+                MemberReceiver::TypeObject | MemberReceiver::Both,
+            )
+            | (CallableRole::Accessor | CallableRole::Mutator, _) => None,
         }
     }
 
@@ -1689,6 +1870,43 @@ pub enum TopLevelKind {
     /// does not.
     ProcedureBody,
 }
+
+/// The variables the scripts a module stores as callbacks write, destroy or
+/// bind.
+///
+/// A script a command stores to run after it returns — an `after` or
+/// `fileevent` handler, a `bind`ing, a variable trace's callback, everything
+/// the registry states as a callback
+/// ([`tcl_registry::CommandRegistry::callback_script_indices`]) — runs at the
+/// global level, or in the frame of the code that fires it. A plain name in
+/// it can denote a variable the registering code holds, and nothing in that
+/// code's text shows the write. Whole-module and position-independent, like
+/// [`Module::traced_variables`]: a name in [`Self::names`] is externally
+/// mutable in every function, and the solver never refines it.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+pub struct DeferredWrites {
+    /// The literal names a callback script writes, destroys or binds
+    /// (`global`, `upvar`, `variable`), the leading `::` stripped and an
+    /// element's array beside it.
+    pub names: std::collections::BTreeSet<String>,
+    /// A callback writes, destroys or binds a name computed at run time, so
+    /// any variable may change at any time.
+    pub any: bool,
+}
+
+impl DeferredWrites {
+    /// Whether no callback script of the module writes anything.
+    #[must_use]
+    pub fn is_clear(&self) -> bool {
+        self.names.is_empty() && !self.any
+    }
+}
+
+/// The fact of a build with no module to scan: no callback writes anything.
+pub static NO_DEFERRED_WRITES: DeferredWrites = DeferredWrites {
+    names: std::collections::BTreeSet::new(),
+    any: false,
+};
 
 /// A top-level module: procedures + top-level script.
 ///
@@ -1842,6 +2060,70 @@ pub struct Module {
     /// Forces the propagation optimiser to treat *every* variable as
     /// potentially traced.
     pub has_dynamic_variable_trace: bool,
+    /// The variables the scripts the module stores as callbacks write — see
+    /// [`DeferredWrites`]. Populated after lowering, beside
+    /// [`Self::traced_variables`].
+    pub deferred_writes: DeferredWrites,
+    /// The definitions of pack commands this module's calls were inlined
+    /// from, and where [`Self::source`] holds their text — see
+    /// [`ReferenceBodies`].
+    pub reference_bodies: ReferenceBodies,
+    /// The commands the document declares (`# tcl-lsp: stub`) as plain
+    /// calls, which the catalogue does not hold — see
+    /// [`DeclaredFrameEffects`]. Empty for a module lowered without the
+    /// document's declarations.
+    pub declared_frame_effects: DeclaredFrameEffects,
+}
+
+/// The commands a document declares whose declarations state their frame
+/// effect and nothing a reader of the catalogue alone would miss
+/// ([`tcl_registry::model::DeclaredCommand::plain_call_frame_effect`]), by
+/// normalised qualified name, with the effect each states: `None` for one
+/// that crosses no frame (`-frame own`, `-frame none`), `argparse`'s
+/// caller-frame effect for `-frame caller`.
+///
+/// The module's command table holds them as it holds a catalogue command
+/// (`ModuleCommandBindings`), so a call to one is a call to a command the
+/// module can name, and it brings the stated effect where a catalogue
+/// command's call brings the registry's ([`crate::dynamic_names`]). A
+/// declaration that states no frame effect leaves its command out, and a call
+/// to it stays a call to code the module cannot see; a name the catalogue
+/// holds keeps the catalogue's answer, which is what the flow graph reads.
+pub type DeclaredFrameEffects =
+    std::collections::BTreeMap<String, Option<tcl_registry::FrameEffectSpec>>;
+
+/// The reference bodies a module's calls were inlined from.
+///
+/// A command a pack declares `TclBody`-backed has its definition in the pack,
+/// not in the module that calls it. The inliner lowers that definition on its
+/// own and shifts its spans past the end of [`Module::source`], then appends
+/// the definition's text there, so every span in the module — the module's own
+/// and the borrowed — indexes one text and codegen slices each as it always
+/// did. The appended text is no part of the module: [`Module::own_source`]
+/// is what an artefact carries as its source, and what a plain recompile
+/// reads.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ReferenceBodies {
+    /// The byte offset in [`Module::source`] at which the appended
+    /// definitions start; `None` when nothing was appended.
+    pub appendix_start: Option<usize>,
+    /// The definitions appended, by what identifies each to the runtime.
+    pub imports: Vec<ReferenceImport>,
+}
+
+/// One pack command's definition, as copied into a module.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceImport {
+    /// The rooted name the definition creates (`::vendor::double`).
+    pub name: String,
+    /// The definition's raw parameter list.
+    pub parameters: String,
+    /// The definition's body text, as the live procedure would hold it.
+    pub body: String,
+    /// The kind of backing the definition was declared with.
+    pub backing: tcl_runtime_api::BackingKind,
+    /// The pack facts that declared the backing the definition came from.
+    pub facts: tcl_runtime_api::PackFactStamp,
 }
 
 fn execution_namespace_for_qname(qname: &str) -> String {
@@ -1854,6 +2136,16 @@ fn execution_namespace_for_qname(qname: &str) -> String {
 }
 
 impl Module {
+    /// The source text the module was lowered from, without the definitions
+    /// the inliner appended ([`ReferenceBodies`]).
+    #[must_use]
+    pub fn own_source(&self) -> &str {
+        match self.reference_bodies.appendix_start {
+            Some(end) => self.source.get(..end).unwrap_or(&self.source),
+            None => &self.source,
+        }
+    }
+
     /// Executable roots whose invocation is independent of an enclosing
     /// statement: the module load script, retained procedures and methods,
     /// and retained replacement methods.
@@ -2075,7 +2367,7 @@ mod tests {
 
     #[test]
     fn for_each_statement_descends_into_upframe_body() {
-        // FN guard (P1, code review): `UpFrame` (a static-body `uplevel
+        // FN guard: `UpFrame` (a static-body `uplevel
         // ?level? {...}`) has a nested `body: Script` just like `Block` /
         // `While` / `Catch` / `Foreach`, but was missing from the grouped
         // match arm — the visitor stopped at the `UpFrame` statement itself
@@ -2244,6 +2536,7 @@ mod tests {
                 name: "i".into(),
                 name_braced: false,
                 amount: None,
+                amount_braced: false,
                 safe_on_uninit: false,
             }]),
             next_span: Span::new(23, 31),
@@ -2272,15 +2565,45 @@ mod tests {
     }
 
     #[test]
-    fn method_kind_roundtrip() {
-        for kind in [
+    fn method_kind_from_effect() {
+        use tcl_registry::definer::{CallableRole as R, MemberReceiver as S};
+        let cases = [
+            (R::Method, S::Instance, Some(MethodKind::Method)),
+            (R::Method, S::TypeObject, Some(MethodKind::ClassMethod)),
+            (R::Procedure, S::TypeObject, Some(MethodKind::ClassMethod)),
+            (R::Procedure, S::Instance, Some(MethodKind::ClassMethod)),
+            (R::Constructor, S::Instance, Some(MethodKind::Constructor)),
+            (R::Destructor, S::Instance, Some(MethodKind::Destructor)),
+            (R::Method, S::Both, None),
+            (R::Constructor, S::TypeObject, None),
+            (R::Destructor, S::TypeObject, None),
+            (R::Accessor, S::Instance, None),
+            (R::Mutator, S::Instance, None),
+        ];
+        for (role, receiver, kind) in cases {
+            assert_eq!(
+                MethodKind::from_effect(role, receiver),
+                kind,
+                "{role:?} on {receiver:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn method_kind_spellings_are_the_analysers() {
+        let spellings: Vec<&str> = [
             MethodKind::Method,
             MethodKind::ClassMethod,
             MethodKind::Constructor,
             MethodKind::Destructor,
-        ] {
-            assert_eq!(MethodKind::from_str_lossy(kind.as_str()), kind);
-        }
+        ]
+        .into_iter()
+        .map(MethodKind::as_str)
+        .collect();
+        assert_eq!(
+            spellings,
+            ["method", "classmethod", "constructor", "destructor"]
+        );
     }
 
     #[test]
@@ -2395,7 +2718,7 @@ mod tests {
             body: Script::new(),
             body_span: Span::new(4, 10),
             handlers: vec![TryHandler {
-                kind: "on".into(),
+                kind: HandlerMatch::CompletionCode,
                 match_arg: "error".into(),
                 trap_pattern: None,
                 var_name: Some("e".into()),
@@ -2415,7 +2738,7 @@ mod tests {
         } = &stmt
         {
             assert_eq!(handlers.len(), 1);
-            assert_eq!(handlers[0].kind, "on");
+            assert_eq!(handlers[0].kind, HandlerMatch::CompletionCode);
             assert!(finally_body.is_some());
         }
     }
@@ -2425,6 +2748,8 @@ mod tests {
         let stmt = Statement::Switch {
             subject_braced: false,
             raw_arg_braced: Vec::new(),
+            raw_arg_quoted: Vec::new(),
+            command: "switch".into(),
             span: Span::new(0, 80),
             subject: "$cmd".into(),
             subject_span: Span::new(7, 11),

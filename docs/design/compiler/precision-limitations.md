@@ -1,20 +1,15 @@
 # Known precision limitations
 
-Places where the compiler is deliberately less precise than it could be, or
-less precise than it should be. Each entry says what is imprecise, why it
-matters, and where the code is.
+Where analysis loses precision or an optimiser rewrite changes Tcl
+behaviour. Each entry describes the behaviour, its consequence, and the
+owning code.
 
-Two kinds of entry appear here:
+- **Open** — an unmodelled case, including an incorrect rewrite where the
+  comparison demonstrates one.
+- **Accepted** — a deliberate conservative limit and its trade-off.
 
-- **Open** — a real gap that should be closed when a motivating case or the
-  enabling substrate arrives.
-- **Accepted** — a limitation kept on purpose because the precise alternative
-  is net-negative on real code. These are recorded so the trade-off is not
-  re-litigated from scratch, and so a future change that shifts the trade-off
-  knows what it is overturning.
-
-Ground truth throughout is C tclsh 9.0.3, cross-checked against 8.x wherever the
-behaviour is dialect-sensitive.
+The reference interpreter is the pinned C Tcl 9.0.4 release, with other
+releases named where behaviour is dialect-sensitive.
 
 ---
 
@@ -87,6 +82,30 @@ this definition ever execute? — which is a much larger effort for a low payoff
 
 The conservative register-anything-defined behaviour is the right trade-off.
 
+## Accepted — a regexp match past the dissector's cap declines rather than approximates
+
+`tcl-regex`'s dissection walks a repeat's iterations and a
+concatenation's items in loops with a backward finish table, skips a
+subtree without a capture, and closes an unbounded repeat's reach with a
+worklist — but it still stops rather than approximate once a pattern's
+structure exceeds its depth cap, and the engine's own fuel and depth
+limits (`ExecLimits`) can also stop a search outright. Each of the three
+ways the engine can finish — `Matched`, `NoMatch`, or `Stopped` — is
+answered honestly: a stopped search is never folded as a no-match. The
+analysis declines, while `regexp` / `regsub` / `switch -regexp` / `lsearch
+-regexp` in the project runtime raise
+`error while matching regular expression: …`.
+These are the project engine's limits; C Tcl may complete the same match.
+
+The caps bound analysis and runtime work. Raising them permits more work
+but does not make the stopped result knowable. Every release the profile
+spans must agree on a folded answer; a capture that remains undecided on
+one release cannot be published as a common result. The `AnalysisMatch::charge` bound keeps a
+compile's cost proportional to its declared length squared, and the
+pattern cache is bounded (4 MiB, coldest evicted first) rather than
+grown, for the same reason: precision here trades against the budget
+every other route shares, not against effort available to spend once.
+
 ## Accepted — `upvar` alias identity is name-based, not relational
 
 Two distinct local alias names can genuinely alias the same caller variable
@@ -98,3 +117,397 @@ of different names overlapping: rare, and sound in the suppress-only direction.
 The consequence is a false negative rather than a false positive: a genuinely
 dead write through one alias is not reported when an unrelated alias in the same
 frame is read.
+
+## Open — a read inside some nested or cross-frame bodies is not recorded
+
+`ir_helpers::variable_read_effects_from_commands` and the SSA's own use
+scan see a nested command's read or write only where the lowering places a
+synthetic statement for it: a condition's `<cond>`, a value word's or a
+`return` word's own word effects (`<word-effects>`), and a host statement's
+own uses.
+The following positions can leave reads or writes unrecorded and produce
+an incorrect rewrite. The examples below reproduce under `tclsh` 9.0.4;
+each comparison describes the original and optimised program's output:
+
+- **Some script bodies nested in a substitution** (#2323) —
+  `set x 1; puts [foreach v 1 {incr x}]; puts $x` prints `1` after
+  optimisation where tclsh prints `2`. This does not apply to every nested
+  body: `set x 1; puts [eval {info exists x}]; set x 2` keeps its first
+  store and prints `1` before and after optimisation.
+  A script a substitution runs once, in this frame, whatever it
+  completes with — the protected script of a `catch` and the body of a
+  `try`, which the clause grammar names — is recorded where its text is
+  known, brace-quoted or a quoted word that substitutes nothing
+  (`[catch "incr x"]`): `set x 1; puts [catch {unset x}]` keeps `set x 1`,
+  and `set x 1; set c [catch {incr x}]; if {$x == 2} …` is not decided on
+  the value `x` held before the body. The script stops at its first error,
+  so each place it writes may keep what it held, and the statement reads
+  that as well: `set c old` stays ahead of `set r [catch {lassign {x y z} a
+  b c} m]` where `b` may be an array. A script that is run-time data
+  (`[catch $script]`, `[catch "incr $name"]`) may write any name, so it
+  puts a barrier ahead of the statement, as the statement form does.
+- **An `uplevel 0 {…}` body** (#2261) — that is the *current* frame, not a
+  nested one, so its reads and writes are the caller's, but nothing records
+  them:
+  `proc p {} {set x 1; uplevel 0 {puts $x}; set x 2; puts $x}` prints `1`
+  then `2`; with `set x 1` removed as dead (O109) the rewrite raises
+  `can't read "x": no such variable`.
+- **A `foreach` list word's own substitution** (#2262) — the list
+  expression's side effects are real but not materialised as a use of what
+  it reads,
+  so a later read of a name the expression itself mutated is forwarded
+  from its stale prior value instead: `proc p {} {set n 1; foreach v
+  [incr n] {}; puts $n}` prints `2` (`incr n` runs once, as the list
+  word); the optimised program prints `1`, O102 having forwarded `n`'s
+  value from before the loop header ran.
+
+Why it has not been done: each position needs the lowering to model a body
+it does not open a synthetic statement for at all, which is more than a
+scan-order fix — the bodies a substitution runs other than those of `catch`
+and `try` are tracked as #2323; `uplevel 0` (#2261) and the loop header's
+list word (#2262) are tracked on their own. Extend the synthetic-statement placement (or, for
+`uplevel 0`, model the body as reading and writing the *current* frame
+rather than a nested one) when one of these is the motivating case.
+
+## Open — a statement's nested writes are evaluated for an assignment or an `expr` only
+
+The solver evaluates the writes a statement's own `[…]` substitutions make —
+the ordered evaluation state under `LocalWrites` — only where the statement is
+an assignment of an expression, an `expr` on its own, or an assignment of one
+command substitution whose command is on the expression engine's route or a
+registry-owned one (`LatticeDriver::evaluate_embedded`): `set r [expr …]`,
+`set a [incr n]`, `set c [catch {…} m]`. A `puts` argument, a `return`, a
+branch condition and any other command's value keep the effect-free policy,
+which declines a nested write that runs: `puts [expr {$x + [incr x] + $x}];
+puts $x` folds nothing and forwards nothing past the statement, though it
+prints `5` and `2`, `if {[catch {error boom} m]} {puts $m}` leaves `m`
+unknown, and `set r [expr {$x + [incr x] + $x}]; puts $r; puts $x` folds both
+reads. That is sound, and short of what the assignment form proves.
+
+Two shapes are left undecided as well. A nested command that reads a variable
+no statement records as a use (`[string length $y]`, `[incr x $y]`) leaves the
+expression unevaluated: the statement's word effects and the host record the
+reads of the places the words write and of the expression's own variables, not
+of a nested command's own words. And at a script's top level, where a `catch` stays one
+call, `catch {expr {[incr x] + [error mid]}}` is not evaluated and leaves `x`
+unknown; in a procedure, where the `catch` is lowered into blocks, the error
+ends the evaluation with its prefix and `x` is 2.
+
+Why it has not been done: the first shape needs the host statement to state
+the reads of its own substitutions, which is more than a policy change.
+Extend the host list, and the reads the word effects record, when one of
+these is the motivating case.
+
+## Open — a constant the solver proves at a φ is not inlined into a read
+
+The proved-read rewrite (O100's "Inline the constant value of 'x' proved at
+this read", `run_load_forwarding` in `optimiser/propagation.rs`) inlines the
+value of a version a statement defines, and skips a read of a φ's version;
+the name-keyed projection the other O100 forms read drops a variable whose
+versions hold different constants. So `proc p {} {set x 1; catch {expr
+{[incr x] + [error mid]}} msg; puts $x}` keeps `puts $x`, though `tcl
+explore --show sccp` proves `x#3 = const(2)` there, the φ where the `catch`
+ends; and `proc p {c} {set x 1; if {$c} {set x 2} else {set x 2}; puts $x}`
+keeps it too. The branch folds read the lattice, so `if {$x == 2}` in the
+read's place is decided (I230, O101). That is sound — the read stays — and
+short of what the lattice proves.
+
+Why it has not been done: the def-use consumer knows the φ's version, but
+the rewrite asks for a defining statement whose span it rewrites, which a φ
+does not have. Extend `run_load_forwarding` to a φ's version when a program
+motivates it.
+
+## Open — an element of a place a store preserved holds no value
+
+`scan` goes on past a store it cannot make and preserves the place that store
+failed on. The solver gives the definitions of that place's elements — the
+fan of a whole-variable write — no value, since a definition takes only the
+stores to its own place (`defs_from_placed` in `value_transfer.rs`). So after
+`array set a {k keep}; set b old; catch {scan {1 2} {%d %d} a b}`, `$a(k)` is
+unknown and `if {$a(k) eq "keep"} …` is not decided, where after `catch
+{lassign {x y} b a}`, which stops at `a` and never reaches it, I230 reports the
+condition always true and O101 folds it. Sound, and short of what tclsh
+leaves.
+
+Why it has not been done: an element's definition would take the stores to
+its base where every one of them is a `Preserve`, a rule the driver does not
+state yet for any command. Extend `defs_from_placed` when a program motivates
+it.
+
+## Open — a nested unbind's kill is not a definition
+
+A nested `[unset x]` is recorded as reading the version of `x` it
+observes — the fix every other existence-read position (a condition, a
+value word, a `return` word) takes — but never as *killing* it. A killing
+definition would have to sit on the synthetic statement the lowering
+places **before** its host statement, so the host word's own reads would
+see the killed version too: `set y $x[unset x]` would draw a spurious
+W210 on `$x` and read no value, where `tclsh` 8.4.20 to 9.1.0 read `$x`
+before the unset runs and then remove it, in source order within the one
+word. `proc p {} {set x 1; puts [unset x]; puts $x}` therefore still
+rewrites `puts $x` to `puts 1` (O102), where every release raises `can't
+read "x"` on the second `puts`.
+
+The suppress-only direction — an existence read keeps the store live,
+never the reverse — means the unmodelled kill can only under-report a
+read-before-set past a nested unbind, never delete a store a real read
+still needs. Modelling the kill precisely needs a second synthetic
+statement per nested unbind (one for the read it makes, ordered before its
+host word; one for the kill, ordered after it), which no other existence
+read needs and which the placement machinery does not have a slot for
+today. Tracked as #2263.
+
+## Open — a write through `::name` does not alias the top-level `name`
+
+In top-level code a plain name is the global of that name, and the solver
+gives it the footing it gives a procedure's local: the constant it
+propagates, and the narrowing a test proves in the arm the test guards
+(`refined_values` in `sccp.rs`), hold until a call to a command the file
+does not define gives the name a fresh version, and a name one of the file's
+procedures declares `global` is neither propagated nor narrowed. A write
+through the qualified spelling in the same code is not read as a write to the
+plain name:
+
+```tcl
+set z a
+set ::z c
+set w $z
+puts $w
+```
+
+prints `c` under tclsh 8.4 to 9.1, and `tcl opt` forwards `z`'s literal
+(O102), removes `set w` (O109) and inlines `w` (O100), so the rewritten
+program prints `a`. With `set z [gets stdin]` and the three statements inside
+`if {$z eq "a"}`, the arm's narrowing gives `w` the same `a`, which O100
+inlines, and a test `if {$z eq "c"}` after `set ::z c` there is reported
+always false (I230) and folded, where tclsh takes it.
+
+Why it has not been done: the escaping set (`escaping_names` in `sccp.rs`,
+over `var_observability::analyse_var_observability`) has no entry for a name
+the same body writes through its qualified spelling, and the narrowing reads
+the same set, so neither is less sound than the other; the fix is that entry,
+for both at once. Tracked as #2370.
+
+## Open — a procedure's implicit return value is not a recorded use
+
+Every Tcl command returns a value, and the last one a procedure body runs
+supplies the call's own result when nothing calls `return` explicitly.
+Nothing in the SSA records that implicit read: `proc p {} {set y 5; set y}`
+prints `5` under every release (`set y`, the bare form, reads `y`), but O126
+sees only that `y`'s one definition has no recorded use and removes
+`set y 5`, leaving `set y` to read an undefined `y` — the
+rewritten procedure raises `can't read "y"` where the original returns `5`.
+
+Why it has not been done: the CFG's terminator for a body with no explicit
+`return` does not carry an operand the way `Terminator::Return { value }`
+does for an explicit one, so there is no use site to attach; giving the
+implicit return path a value operand is a small CFG change with a
+correctness payoff (every procedure without a trailing `return`, which
+idiomatic Tcl leans on heavily) disproportionate to how the case was
+found — auditing existence-read positions. Tracked as #2264.
+
+## Open — a procedure that calls one defined after it has no transfer summary
+
+A procedure's transfer summary (`interprocedural/transfer.rs`)
+says what a call to it does to its caller's places; a caller's lattice
+applies it, and without one the call widens every place it may write. A
+procedure has none when it reaches code the module cannot see, and the flow
+graph marks a call to a procedure the file defines *later* as exactly that:
+the source-order timeline gives the call the unseen-call marker
+(`SyntheticMarker::UnseenCall`), since at the definition the callee is not
+yet bound. So in
+
+```tcl
+proc twice {name} {upvar 1 $name w; bump w; bump w}
+proc bump {name} {upvar 1 $name v; incr v}
+```
+
+`twice` has no summary, where with `bump` defined first it has one, its
+place bound afterwards; mutual recursion therefore never summarises, while
+a procedure that calls itself does. The answer is sound — the call keeps
+the widening every call to unseen code has — and only precision is lost.
+
+Why it has not been done: the marker is the flow graph's source-order rule
+for every caller, not the summary's, and a procedure body runs after the
+whole file in the ordinary case; reading a forward call as a call to the
+procedure the file defines is a change to that rule, with its own witnesses.
+
+## Open — an embedded call whose result its statement needs leaves its places unknown
+
+A unit's lattice applies a callee's transfer summary to the places a call
+names, a `[…]` command a statement's words run among them, but takes no
+call's result: its values feed every rewrite, and a result exact only under
+one call's arguments would let a fold drop the call. A
+statement whose words need the result exactly — an operand of an `expr`, an
+element of a `list` — is then not evaluated, and its word effects, the
+places the call writes among them, take the generic answer: in
+
+```tcl
+proc bump {name {by 1}} {upvar 1 $name v; incr v $by}
+proc s {} {set m 2; set t [expr {[bump m] + $m}]; return $t}
+```
+
+`m` and `t` are unknown after the assignment in `s`'s lattice, as `m` is
+beside a nested `incr` whose neighbour the run does not hold (§ *a
+statement's nested writes are evaluated for an assignment or an `expr`
+only*). `set r [bump n]` is evaluated, so there `n` holds the re-run's
+value. O103's argument-sensitive re-run takes the call's result, so `[s]`
+folds to 6, as tclsh 8.4 to 9.1 print. The answer is sound, and short of
+what the re-run proves.
+
+Why it has not been done: evaluating a statement's writes where its result
+is not known is a change to the pair's evaluation for every nested command,
+the registry's routes included, not the summary's.
+
+## Open — a module that rebinds any builtin summarises no procedure
+
+A module that rebinds a builtin — a `proc` named like one, a `rename` or an
+alias onto one, or a rebinding whose subject the scan cannot name — has no
+transfer summaries at all (`ModuleCommandMutations::rebinds_builtins`). The
+flow graph lowers a builtin to a typed statement (`set`, `incr`, `expr`) with
+no call in it, so a call to the module's replacement there is invisible to
+the summary's call walk, which could then miss a frame the replacement
+reaches. Every call to a procedure of such a module keeps the widening.
+
+Why it has not been done: telling which typed statements a rebinding moves
+is the lowering's question, answered per command; the conservative rule
+holds until a rebinding module motivates the precise one.
+
+## Open — a procedure that hands on a local linked to a place it cannot name has no transfer summary
+
+A call's `Name` argument may name a place outside the caller's frame — a
+qualified name, or a local the caller links to a namespace's variable with
+`upvar #0`, `global`, `variable` or `namespace upvar` — and the caller's
+summary states that place among the outer places it writes. A local linked to a place the summary cannot name — one of
+two places, by the path taken, or an object's or a connection's variable —
+leaves the procedure with no summary, and a call to it keeps the widening
+every call to code the module cannot see has:
+
+```tcl
+proc bump {name} {upvar 1 $name v; incr v}
+proc f {c} {if {$c} {upvar #0 g x} else {upvar #0 k x}; bump x}
+```
+
+The answer is sound, and only precision is lost.
+
+Why it has not been done: a place chosen by the path is a set of places the
+summary's outer writes have no form for, and an object's or a connection's
+variable lives in no namespace a place reference names.
+
+## Open — a procedure whose `upvar` level names no known frame has no transfer summary
+
+A transfer summary's `Name` role is a place in the frame a level selects, and
+the summary is applied at a call only for the caller's frame, level 1: a
+procedure that links a local through `upvar` at a computed level, or at any
+level other than its caller's, has none, and a call to it keeps the widening
+every call to code the module cannot see has. The level word is read as the
+registry's frame effect reads it — present by argument-count parity, its
+value a `FrameLevel` — so in
+
+```tcl
+proc q {lvl a} {upvar $lvl $a b; set b 1}
+proc c {} {set x 0; q 1 x; return $x}
+```
+
+`$lvl` is the level and `($a, b)` the pair, and `x` is unknown after `q 1 x`
+in `c`'s lattice, though tclsh 8.4 to 9.1 leave it 1. The answer is sound,
+and only precision is lost.
+
+Why it has not been done: a summary per level would be context-sensitive,
+the computed level a seed the call site supplies; one context-insensitive
+summary per procedure is the rule.
+
+## Open — a release-blind fold of index arithmetic declines
+
+The shared index parser (`rust/tcl-cmd-core/src/index.rs`) reads an index as
+the release it is given reads it, and the sums are 8.5's: tclsh 8.4.20 raises
+`bad index "1+1": must be integer or end?-integer?` where 8.5 to 9.1 answer.
+The compiler's `lindex`, `lrange` and `string index` / `last` folds
+(`rust/tcl-registry/src/const_fold.rs`, `parse_index`, and
+`commands/tcl/string_.rs`) name no release, so they answer only where every
+release reads the index alike: `lindex {a b c} 1+1` no longer folds under any
+dialect, where it folded to `c` before the parser told 8.4 apart (and, under
+8.4, folded to a value tclsh raises on). The answer is sound, and only the
+arithmetic's precision is lost; a route that names the release, as `string
+range`'s and `string first`'s do, keeps it under every profile that names
+one, and O129 and codegen fold through the route where a command
+declares one. The integer range is the release's too:
+`lindex $l 4294967295` is the last element up to 8.6, which wrap it to 32
+bits, and past it from 9.0, so it folds under no dialect here; and a reading
+no release decides alone declines on the routes as well — a magnitude from
+2^64 − 2^32 + 1 to 2^64 − 1, which 8.4 and 8.5 read only where the host's
+`long` is 64 bits, and an `end` offset 8.6 reads apart as a literal
+and as a value.
+
+Why it has not been done: the folds take no release until they move to
+`VersionedConstFoldFn`, or onto routes of their own.
+
+## Open — the path routes answer only names every platform reads alike
+
+The `file join`, `dirname`, `tail`, `extension`, `rootname` and `split`
+routes (`rust/tcl-registry/src/value_transfer/path.rs`) answer a name only
+where the Unix and Windows readings agree on every release: a
+name with a backslash, a colon (a drive or a volume), a leading `//` (a share
+root) or a `~` (a home directory to 8.x) declines with
+`ReleaseAmbiguous(Platform)`, because no profile fixes the platform; `file
+normalize`, which reads the host's working directory and its links, declares
+`none (platform)`. So `[file dirname C:/proj/lib]` and `[file join ~ lib]`
+fold in neither the lattice nor O129 nor codegen, though each reads one way
+on the host that runs it; the language server's own path resolution
+(`rust/tcl-compiler/src/auto_path_eval.rs`) keeps the host's reading for
+them, waived as `irreducible`.
+
+Why it has not been done: a platform axis a caller could fix — the language
+server's host, or a profile pinning a target platform — would answer the
+rest, and the evaluation page's contract keeps `PLATFORM` unsatisfiable on
+the direct route until one exists.
+
+## Open — most pure commands have no route and say why
+
+Every command that declares purity has a route or an explicit `none` with its
+reason (`docs/generated/value-transfers.md`), and most declare
+`none (unauthored)` (`ROUTE_UNAUTHORED`, `rust/tcl-registry/src/value_transfer/builtins.rs`):
+a value their words decide, with no route authored. Among them are commands
+whose shared core the runtimes already run — `string compare`, `equal`,
+`index`, `last`, `map`, `repeat`, `replace`, `reverse`, `tolower`, `toupper`,
+`totitle`, `trim`, `trimleft`, `trimright`, `wordend`, `wordstart`, `is`,
+`cat` and `insert`, `concat`, `join`, `lindex`, `linsert`, `lrange`,
+`lremove`, `lrepeat`, `lreplace`, `lreverse`, `lsearch`, the read-only `dict`
+subcommands, `binary encode` and `decode`, `tcl::prefix`, the `::tcl::mathop`
+and `::tcl::mathfunc` commands — and tcllib's candidates for a proven route
+(`value-transfers-migration.md` § *Third-party commands*, Tier 2), of which
+only `base32` has one. Such a call folds only where a `const_fold` callback
+answers it, through the constant-substitution engine (O129, codegen); no route
+evaluates it in the lattice, so a value built from it is not a constant
+downstream of the statement.
+
+Why it has not been done: each route needs its differential against every
+release's `tclsh` (or the package's own implementation); the classification
+carries no route.
+
+## Accepted — a route on a package's command assumes the package is loaded
+
+The analysis reads a package command's spec wherever its name resolves,
+whether or not the module requires the package (W120 reports the missing
+`package require`), and its routes are no exception: `[base32::encode abc]`
+folds to `MFRGG===` in a script that never loads `base32`, where the call
+raises `invalid command name`. Every other descriptor of the command — its
+arity, its purity, its roles — makes the same assumption.
+
+Why it is accepted: a package is often required by another file of the
+program, which a module cannot see, so gating each route on the module's own
+`package require` would cost the folds of every library split across files;
+the missing require is a diagnostic of its own.
+
+## Open — a standalone expression fold drops its command wrapper
+
+`optimiser::expr_simplify::try_rewrite_expr` uses the folded value as the
+replacement for the whole standalone `expr` statement. `expr {2 + 3}`
+therefore becomes `5`, which `tclsh` 9.0.4 rejects with
+`invalid command name "5"`. In a procedure the same rewrite also loses the
+implicit return value's executable command. Folding `[expr {2 + 3}]`
+inside `puts` produces the valid `puts 5` instead.
+
+The standalone rewrite must retain an `expr` command and render its result
+as a valid expression operand, including string-valued results. Until then,
+disable O101 when optimising standalone expressions.

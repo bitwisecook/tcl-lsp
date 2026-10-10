@@ -49,6 +49,7 @@
 //! reproduced exactly (deliberate-divergence allowlist: **empty**).
 
 use std::cmp::Reverse;
+use std::fmt;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use rustc_hash::FxHashMap;
@@ -295,6 +296,53 @@ fn store_profile(environment_id: &str) -> &'static DialectProfile {
     DialectProfile::find(environment_id).unwrap_or_else(DialectProfile::plain_tcl)
 }
 
+/// Every profile a generation's store key can carry: the catalogue's, and the
+/// permissive sink [`store_profile`] answers for each environment the
+/// catalogue does not hold — `tk`, the lenient `tcl`, and any environment a
+/// pack declares.
+///
+/// A host that installs a workspace's pack overlay installs it under each of
+/// these, so that no environment the ingress resolves asks for a key nothing
+/// installed: a document in one of them would otherwise meet an
+/// [`OverlayMiss`] for the life of the session.
+pub fn store_profiles() -> impl Iterator<Item = &'static DialectProfile> {
+    DialectProfile::all()
+        .iter()
+        .chain(std::iter::once(DialectProfile::plain_tcl()))
+}
+
+/// A pack overlay's registry generation that nothing has installed.
+///
+/// A non-zero overlay names the generation a workspace's `SpecTcl` packs
+/// built, whose contents only the loader crate can write, so this crate can
+/// look one up and never make one. A miss says those packs are not installed
+/// for this environment, yet or any more. A consumer that compiles — the
+/// compile service, the unit the editor's queries build — declines rather
+/// than go on with the plain generation under the pack set's name, since a
+/// rewrite computed without the packs' declarations could be wrong for the
+/// workspace; an analysis, which only advises and runs again once the packs
+/// arrive, reads the plain generation meanwhile and says so at its own door.
+/// Overlay `0` is no overlay and never misses.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OverlayMiss {
+    /// The canonical id of the environment the generation was asked for.
+    pub environment: String,
+    /// The overlay key that resolved to nothing.
+    pub overlay: u64,
+}
+
+impl fmt::Display for OverlayMiss {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "the pack overlay {:#x} is not installed for `{}`",
+            self.overlay, self.environment
+        )
+    }
+}
+
+impl std::error::Error for OverlayMiss {}
+
 /// The command store for one `(environment, pack overlay)` generation —
 /// the very `Arc` the old `(profile, overlay)` cache owns
 /// ([`crate::cache::registry_for_profile_if_built`]), shared by handle:
@@ -303,8 +351,8 @@ fn store_profile(environment_id: &str) -> &'static DialectProfile {
 /// Mirrors that function's contract exactly: overlay `0` is the
 /// always-buildable un-overlaid store; a non-zero overlay is **look-up
 /// only** — its contents come from a loader closure only `tcl-spectcl`
-/// can write, so a miss returns `None` and the caller falls back to the
-/// un-overlaid generation, exactly as the analyser always has.
+/// can write, so a miss returns `None`, which the generation door reports
+/// as an [`OverlayMiss`].
 fn command_store(
     environment: &EnvironmentDefinition,
     overlay: u64,
@@ -345,16 +393,21 @@ pub fn registry_for_environment(
 /// threaded — the model mirror of the old
 /// `registry_for_profile_if_built(profile, overlay)` door: overlay `0`
 /// always builds; a non-zero overlay resolves only when its pack-carrying
-/// store has been installed, and a miss returns `None` so the caller
-/// falls back to the un-overlaid generation rather than caching a
-/// pack-less generation under the pack's key forever.
-#[must_use]
+/// store has been installed, and a miss is an [`OverlayMiss`] the caller
+/// must answer for itself. Nothing here takes the un-overlaid generation
+/// in its place, and nothing caches a pack-less generation under the
+/// pack's key.
+///
+/// # Errors
+///
+/// [`OverlayMiss`] when `overlay` is non-zero and no pack-carrying store
+/// has been installed under it for this environment.
 pub fn registry_for_environment_if_built(
     environment: &Arc<EnvironmentDefinition>,
     identity: &EnvironmentIdentity,
     keyed: &KeyedVersions,
     overlay: u64,
-) -> Option<Arc<ContextRegistry>> {
+) -> Result<Arc<ContextRegistry>, OverlayMiss> {
     static CACHE: OnceLock<Mutex<FxHashMap<GenerationKey, Arc<ContextRegistry>>>> = OnceLock::new();
     let cache = CACHE.get_or_init(|| Mutex::new(FxHashMap::default()));
     let key: GenerationKey = (
@@ -369,20 +422,23 @@ pub fn registry_for_environment_if_built(
         .expect("context registry cache mutex")
         .get(&key)
     {
-        return Some(Arc::clone(generation));
+        return Ok(Arc::clone(generation));
     }
     // Assembled outside the lock; a racing thread's duplicate build is
     // dropped in favour of the first published entry. The store lookup
-    // stays outside too: an overlay miss must not park a `None` in the
+    // stays outside too: an overlay miss must not park anything in the
     // cache — the packs may be installed a moment later.
-    let commands = command_store(environment, overlay)?;
+    let commands = command_store(environment, overlay).ok_or_else(|| OverlayMiss {
+        environment: environment.id.as_str().to_owned(),
+        overlay,
+    })?;
     let assembled = Arc::new(ContextRegistry::assemble(
         ResolvedContext::resolve(Arc::clone(environment), keyed),
         commands,
     ));
     let mut guard = cache.lock().expect("context registry cache mutex");
     prune_overlaid_generations(&mut guard, overlay);
-    Some(Arc::clone(guard.entry(key).or_insert(assembled)))
+    Ok(Arc::clone(guard.entry(key).or_insert(assembled)))
 }
 
 /// Bound the generation cache the way the old overlay cache bounds
@@ -426,7 +482,7 @@ fn prune_overlaid_generations(
 #[must_use]
 pub fn resolve_invocation_in_context<'r, 'w>(
     commands: &'r CommandRegistry,
-    context: Option<&ResolvedContext>,
+    context: Option<&'w ResolvedContext>,
     name: &'w str,
     args: &'w [&'w str],
 ) -> Option<ResolvedInvocation<'r, 'w>> {
@@ -439,6 +495,31 @@ pub fn resolve_invocation_in_context<'r, 'w>(
     // proof adds the full availability conjunct the mask alone lacks.
     context.resolve_spec(commands, name)?;
     commands.resolve_invocation(name, args, Some(context.authoring_query()))
+}
+
+/// [`resolve_invocation_in_context`] over structured source words: a word
+/// the caller knows was substituted, expanded or opaque stays so, and every
+/// derived query of the resolution — the state transitions an alias consumer
+/// applies among them — abstains on it rather than reading its spelling.
+///
+/// Same invariant (I4), same proof: a carried context must prove the literal
+/// head, and selection proceeds at the context's authoring point. A computed
+/// head selects nothing.
+#[must_use]
+pub fn resolve_invocation_words_in_context<'r, 'w>(
+    commands: &'r CommandRegistry,
+    context: Option<&'w ResolvedContext>,
+    words: crate::InvocationWords<'w>,
+) -> Option<ResolvedInvocation<'r, 'w>> {
+    let Some(context) = context else {
+        return commands
+            .resolve_structured_invocation(words, None)
+            .resolved();
+    };
+    context.resolve_spec(commands, words.head_literal()?)?;
+    commands
+        .resolve_structured_invocation(words, Some(context.authoring_query()))
+        .resolved()
 }
 
 /// The legacy-selection twin of [`resolve_invocation_in_context`] for the
@@ -527,6 +608,32 @@ pub(crate) mod tests {
     use tcl_dialect::DialectProfile;
     use tcl_dialect::model::EnvironmentRegistry;
     use tcl_dialect::model::SpecSurface;
+
+    /// A host installs a pack overlay under [`store_profiles`], so every key
+    /// [`store_profile`] can produce has to be on that list: a catalogue
+    /// environment, `tk`, the lenient `tcl`, and one no catalogue holds (the
+    /// shape of a pack-declared environment) each read their store from it.
+    #[test]
+    fn every_store_key_is_a_profile_a_host_can_install() {
+        let installable: Vec<&'static DialectProfile> = store_profiles().collect();
+        let ids = DialectProfile::all()
+            .iter()
+            .map(|profile| profile.name)
+            .chain(["tk", "tcl", "a-pack-declared-environment"]);
+        for id in ids {
+            let profile = store_profile(id);
+            assert!(
+                installable
+                    .iter()
+                    .any(|candidate| std::ptr::eq(*candidate, profile)),
+                "`{id}` reads a store a host cannot install into"
+            );
+        }
+        assert!(std::ptr::eq(
+            store_profile("tk"),
+            DialectProfile::plain_tcl()
+        ));
+    }
 
     fn new_registry_for(profile_name: &str) -> Arc<ContextRegistry> {
         let environments = EnvironmentRegistry::compiled();
@@ -1002,10 +1109,10 @@ pub(crate) mod tests {
     }
 
     /// The pack-overlay door mirrors `registry_for_profile_if_built`: an
-    /// uninstalled overlay misses (the caller falls back to the
-    /// un-overlaid generation), an installed overlay resolves to a
-    /// generation over the pack-carrying store, and the store's
-    /// `ambient_package` rows surface through the context's pack floors.
+    /// uninstalled overlay is an [`OverlayMiss`] naming it, an installed
+    /// overlay resolves to a generation over the pack-carrying store, and
+    /// the store's `ambient_package` rows surface through the context's
+    /// pack floors.
     #[test]
     fn pack_overlays_thread_through_the_generation_door() {
         const OVERLAY: u64 = 0x00F1_F00D;
@@ -1013,8 +1120,12 @@ pub(crate) mod tests {
         let definition = environments.resolve("tcl8.6").expect("tcl8.6");
         let identity = environments.identity_of(&definition);
         let keyed = KeyedVersions::default();
-        assert!(
-            registry_for_environment_if_built(&definition, &identity, &keyed, OVERLAY).is_none(),
+        assert_eq!(
+            registry_for_environment_if_built(&definition, &identity, &keyed, OVERLAY).err(),
+            Some(OverlayMiss {
+                environment: "tcl8.6".to_owned(),
+                overlay: OVERLAY,
+            }),
             "an uninstalled overlay must miss, never cache a pack-less generation"
         );
         let profile = DialectProfile::find("tcl8.6").expect("catalogue profile");

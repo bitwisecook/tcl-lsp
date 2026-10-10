@@ -34,6 +34,50 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
+/// `{keyVar valueVar} dictionaryValue`: the one binder list and the value it
+/// iterates — `dict for` and `dict map` bind a single key/value list rather
+/// than `foreach`'s repeating groups, so their binder is the head, not a
+/// group row.
+const DICT_LOOP_HEAD: &[ClauseSlot] = &[
+    ClauseSlot::of(ArgRole::LoopVarList),
+    ClauseSlot::of(ArgRole::Value),
+];
+/// A body script.
+const SCRIPT: &[ClauseSlot] = &[ClauseSlot::of(ArgRole::Body)];
+
+/// `dict for {keyVar valueVar} dictionaryValue body` and `dict map`'s
+/// identical shape: the binder and the value, then the body per entry.
+/// `dict for`'s and `dict map`'s own `arg_roles` carry the binder's flat
+/// `LoopVarList`.
+pub const DICT_LOOP_GRAMMAR: ClauseGrammarSpec = ClauseGrammarSpec {
+    head: ClauseRow::head(DICT_LOOP_HEAD, ClauseTiming::PerIteration),
+    rows: &[],
+    tail: Some(ClauseRow::once(None, SCRIPT, ClauseTiming::PerIteration)),
+    fallthrough_body: None,
+    default_clause: None,
+    selection: ClauseSelection::All,
+    surface: None,
+};
+
+/// `dict update`'s dictionary variable: a value to the clause grammar — its
+/// read-modify-write pair is the resolver's.
+const DICT_VARIABLE: &[ClauseSlot] = &[ClauseSlot::of(ArgRole::Value)];
+
+/// `dict update dictionaryVariable key varName ?key varName ...? body`: the
+/// dictionary variable, the key/variable pairs — `repeated_args[0]`'s stride,
+/// each variable bound only when its key is present (the layout's
+/// `conditional_binding`) — and the body, which runs once whenever the call
+/// does.
+pub const DICT_UPDATE_GRAMMAR: ClauseGrammarSpec = ClauseGrammarSpec {
+    head: ClauseRow::head(DICT_VARIABLE, ClauseTiming::Always),
+    rows: &[ClauseRow::group(0, ClauseTiming::Always)],
+    tail: Some(ClauseRow::once(None, SCRIPT, ClauseTiming::Always)),
+    fallthrough_body: None,
+    default_clause: None,
+    selection: ClauseSelection::All,
+    surface: None,
+};
+
 /// Dynamic resolver: last arg is body for `dict update`/`dict with`.
 ///
 /// Arg 0 (the dict variable) plays both `VarRead` and `VarWrite` roles —
@@ -104,7 +148,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "append",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictAppend)),
-        traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
+        // A keyed update reads the dictionary it rewrites: the store that
+        // feeds `dict set d k v` is observed, not overwritten, whatever the
+        // spelling (`::tcl::dict::set`, an alias) reaches it.
+        traits: Traits::READS_BEFORE_WRITE.union(Traits::UNCONDITIONAL_VARIABLE_WRITE),
         arity: Arity::at_least(2),
         detail: "Append to a value in a dictionary.",
         synopsis: "dict append dictionaryVariable key ?string ...?",
@@ -127,6 +174,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         )],
         mutator: true,
         safe_on_uninit: Some(SpecSurface::ALL_TCL),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::keyed_update::DICT_APPEND,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -140,6 +190,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::Dict),
         return_elements: Some(ReturnElements::DictOfPairs { from: 0 }),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -158,6 +211,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 transparent_from: &[],
             },
         )],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -183,6 +239,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // `Tcl_GetIndexFromObj` accepts any unique prefix (see
         // `FILTER_TYPE_VALUES`'s doc comment).
         arg_values_accept_prefix: true,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -196,6 +255,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // result is not body's own result.
         return_type: Some(TclType::String),
         arg_roles: &[(0, ArgRole::LoopVarList), (2, ArgRole::Body)],
+        clause_grammar: Some(&DICT_LOOP_GRAMMAR),
         arg_types: &[(
             1,
             ArgTypeHint {
@@ -206,7 +266,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         )],
         loop_list_header: true,
         cfg_rewrite_name: Some("::tcl::dict::for"),
-        analyser_hook: Some(crate::hooks::AnalyserHookId::DictFor),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::RUNS_A_CALLBACK,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -230,12 +292,18 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 transparent_from: &[],
             },
         )],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "incr",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictIncr)),
-        traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
+        // A keyed update reads the dictionary it rewrites: the store that
+        // feeds `dict set d k v` is observed, not overwritten, whatever the
+        // spelling (`::tcl::dict::set`, an alias) reaches it.
+        traits: Traits::READS_BEFORE_WRITE.union(Traits::UNCONDITIONAL_VARIABLE_WRITE),
         arity: Arity::new(2, 3),
         detail: "Increment a value in a dictionary.",
         synopsis: "dict incr dictionaryVariable key ?increment?",
@@ -252,6 +320,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         safe_on_uninit: Some(SpecSurface::ALL_TCL),
         return_type: Some(TclType::Dict),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::keyed_update::DICT_INCR),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -270,12 +339,18 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 transparent_from: &[],
             },
         )],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "lappend",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictListAppend)),
-        traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
+        // A keyed update reads the dictionary it rewrites: the store that
+        // feeds `dict set d k v` is observed, not overwritten, whatever the
+        // spelling (`::tcl::dict::set`, an alias) reaches it.
+        traits: Traits::READS_BEFORE_WRITE.union(Traits::UNCONDITIONAL_VARIABLE_WRITE),
         arity: Arity::at_least(2),
         detail: "Append list elements to a dictionary value.",
         synopsis: "dict lappend dictionaryVariable key ?value ...?",
@@ -295,6 +370,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 transparent_from: &[],
             },
         )],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::keyed_update::DICT_LAPPEND,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -304,6 +382,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Apply a transformation to each dictionary entry.",
         synopsis: "dict map {keyVar valueVar} dictionaryValue body",
         arg_roles: &[(0, ArgRole::LoopVarList), (2, ArgRole::Body)],
+        clause_grammar: Some(&DICT_LOOP_GRAMMAR),
         arg_types: &[(
             1,
             ArgTypeHint {
@@ -316,6 +395,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         loop_list_header: true,
         surface: Some(SpecSurface::TCL86_PLUS),
         cfg_rewrite_name: Some("::tcl::dict::map"),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::RUNS_A_CALLBACK,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -326,6 +408,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "dict merge ?dictionaryValue ...?",
         pure: true,
         return_type: Some(TclType::Dict),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -343,6 +428,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 transparent_from: &[],
             },
         )],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -363,12 +451,18 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 transparent_from: &[],
             },
         )],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "set",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictSet)),
-        traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
+        // A keyed update reads the dictionary it rewrites: the store that
+        // feeds `dict set d k v` is observed, not overwritten, whatever the
+        // spelling (`::tcl::dict::set`, an alias) reaches it.
+        traits: Traits::READS_BEFORE_WRITE.union(Traits::UNCONDITIONAL_VARIABLE_WRITE),
         arity: Arity::at_least(3),
         detail: "Set a value in a dictionary.",
         synopsis: "dict set dictionaryVariable key ?key ...? value",
@@ -386,6 +480,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         safe_on_uninit: Some(SpecSurface::ALL_TCL),
         return_type: Some(TclType::Dict),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::keyed_update::DICT_SET),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -404,12 +499,18 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 transparent_from: &[],
             },
         )],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "unset",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictUnset)),
-        traits: Traits::FIRE_AND_FORGET_TEARDOWN.union(Traits::UNCONDITIONAL_VARIABLE_WRITE),
+        // The key removal keeps every other key: the prior dictionary is read.
+        traits: Traits::FIRE_AND_FORGET_TEARDOWN
+            .union(Traits::READS_BEFORE_WRITE)
+            .union(Traits::UNCONDITIONAL_VARIABLE_WRITE),
         arity: Arity::at_least(2),
         detail: "Remove keys from a dictionary variable.",
         synopsis: "dict unset dictionaryVariable key ?key ...?",
@@ -438,6 +539,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // — identical in the 8.5, 8.6, 9.0, and 9.1 sources), the same
         // auto-vivify behaviour as `append`/`incr`/`lappend`/`set` above.
         safe_on_uninit: Some(SpecSurface::ALL_TCL),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::keyed_update::DICT_UNSET),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -455,6 +557,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "dict update dictionaryVariable key varName ?...? body",
         arg_role_resolver: Some(dict_last_arg_body),
         arg_role_resolver_roles: &[ArgRole::VarWrite, ArgRole::VarRead, ArgRole::Body],
+        // The clause structure; the resolver keeps the dictionary variable's
+        // read-modify-write pair, which one clause slot cannot carry.
+        clause_grammar: Some(&DICT_UPDATE_GRAMMAR),
         // `dictionaryVariable key varName ?key varName ...? body` — each
         // `varName` is a local the body sees, at every other index from 2
         // (after the subcommand word), with the trailing body excluded.
@@ -478,7 +583,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             },
         )],
         mutator: true,
-        analyser_hook: Some(crate::hooks::AnalyserHookId::DictUpdate),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::body::DICT_UPDATE),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -497,6 +602,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 transparent_from: &[],
             },
         )],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -521,6 +629,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         )],
         mutator: true,
         analyser_hook: Some(crate::hooks::AnalyserHookId::DictWith),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::body::DICT_WITH),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -538,6 +647,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 transparent_from: &[],
             },
         )],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -562,6 +674,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 transparent_from: &[],
             },
         )],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -585,6 +700,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 transparent_from: &[],
             },
         )],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -608,6 +726,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 transparent_from: &[],
             },
         )],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
 ];
@@ -616,6 +737,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "dict",
+        runtime_backing: RuntimeBacking::shipped("dict"),
         // The `unset` subform removes keys (`DictUnsetCmd`, tclDictObj.c) —
         // `FIRE_AND_FORGET_TEARDOWN` and the `destructive` flag live on
         // that subcommand.
@@ -640,6 +762,9 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         implementation_namespace: Some("::tcl::dict"),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }
@@ -821,6 +946,7 @@ pub fn qualified_specs() -> Vec<CommandSpec> {
             let &(_, summary, synopsis) = QUALIFIED_HOVER.iter().find(|&&(n, _, _)| n == bare)?;
             Some(CommandSpec {
                 name: qualified,
+                runtime_backing: RuntimeBacking::shipped(qualified),
                 traits: sub.traits
                     | if sub.pure {
                         Traits::PURE
@@ -853,6 +979,10 @@ pub fn qualified_specs() -> Vec<CommandSpec> {
                 return_elements: sub.return_elements,
                 var_elements_effect: sub.var_elements_effect,
                 safe_on_uninit: sub.safe_on_uninit,
+                // The value transfer too: `::tcl::dict::incr d k` evaluates
+                // through the same keyed update as `dict incr d k`, the
+                // dictionary operand found by its role in either layout.
+                semantics: sub.semantics,
                 options: sub.options,
                 hover: Some(HoverSnippet::brief(
                     summary,
@@ -905,6 +1035,26 @@ mod tests {
             "::tcl::dict::set must mark its dict variable (arg 0) as VarWrite: {:?}",
             set.arg_roles,
         );
+        // The value transfer rides along: each keyed update's qualified
+        // spelling declares the subcommand's own specialisation.
+        for bare in ["set", "unset", "incr", "append", "lappend"] {
+            let sub = SUBCOMMANDS.iter().find(|s| s.name == bare).expect(bare);
+            let (
+                SemanticsDeclaration::Declared(sub_semantics),
+                SemanticsDeclaration::Declared(qualified_semantics),
+            ) = (
+                sub.semantics,
+                get(&format!("::tcl::dict::{bare}")).semantics,
+            )
+            else {
+                panic!("dict {bare} and its qualified spelling must declare their semantics");
+            };
+            assert_eq!(
+                sub_semantics.identity(),
+                qualified_semantics.identity(),
+                "dict {bare}"
+            );
+        }
         let for_ = get("::tcl::dict::for");
         assert!(
             for_.arg_roles
@@ -913,9 +1063,15 @@ mod tests {
             "::tcl::dict::for must mark its body (arg 2) as Body: {:?}",
             for_.arg_roles,
         );
+        // `DictFor` is retired: `dict for`'s loop variables and body bind
+        // and walk through the generic `arg_roles` /
+        // `ArgRole::Body` paths above (no handler ever read the hook for
+        // anything else), so the qualified spelling carrying no hook too is
+        // the subcommand's contract transferring verbatim, the same as
+        // every other field this test checks.
         assert!(
-            for_.analyser_hook.is_some(),
-            "::tcl::dict::for must carry the DictFor analyser hook",
+            for_.analyser_hook.is_none(),
+            "::tcl::dict::for carries no analyser hook post-retirement",
         );
         assert!(
             for_.traits

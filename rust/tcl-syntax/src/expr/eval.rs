@@ -337,6 +337,9 @@ mod tests {
     struct Ops {
         commands: Vec<String>,
         calls: Vec<String>,
+        /// When set, every quoted operand is recorded here and read back
+        /// marked, so a test can tell which hook the walker called.
+        quoted: Option<Vec<String>>,
     }
 
     impl ExprOps for Ops {
@@ -348,8 +351,14 @@ mod tests {
                 .map(V::Num)
                 .or_else(|_| Ok(V::Str(text.to_string())))
         }
-        fn string(&mut self, inner: &str, _substitutes: bool) -> Result<V, String> {
-            Ok(V::Str(inner.to_string()))
+        fn string(&mut self, inner: &str, substitutes: bool) -> Result<V, String> {
+            match &mut self.quoted {
+                Some(seen) if substitutes => {
+                    seen.push(inner.to_string());
+                    Ok(V::Str(format!("quoted:{inner}")))
+                }
+                _ => Ok(V::Str(inner.to_string())),
+            }
         }
         fn var(&mut self, name: &str) -> Result<V, String> {
             // `x` → 10, `y` → 0; any other name (an `arr(idx)` reference
@@ -536,6 +545,22 @@ mod tests {
         assert_eq!(eval_str("5 in {1 2 3}").unwrap(), V::Num(0));
         assert_eq!(eval_str("5 ni {1 2 3}").unwrap(), V::Num(1));
         assert_eq!(eval_str("2 ni {1 2 3}").unwrap(), V::Num(0));
+    }
+
+    /// Only the delimiter says whether `expr` substitutes inside a string
+    /// operand, so the walker hands a `"…"` operand to `string` as one that
+    /// substitutes and a `{…}` one as one that does not.
+    #[test]
+    fn a_quoted_operand_reaches_its_own_hook() {
+        let node = parse_expr(r#""a" eq {a}"#, None);
+        let mut ops = Ops {
+            quoted: Some(Vec::new()),
+            ..Ops::default()
+        };
+        assert_eq!(eval(&node, &mut ops).unwrap(), V::Num(0));
+        assert_eq!(ops.quoted, Some(vec!["a".to_owned()]));
+        // A consumer that does not tell them apart reads both alike.
+        assert_eq!(eval_str(r#""a" eq {a}"#).unwrap(), V::Num(1));
     }
 
     #[test]

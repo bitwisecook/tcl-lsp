@@ -27,7 +27,7 @@
 //! A command spec supplies a [`WorldEffectDescriptor`].  It may contain a
 //! static footprint and, for argument-dependent forms, a resolver.  Consumers
 //! receive only the resulting [`EffectFootprint`] through
-//! [`crate::ResolvedInvocation::effect_footprint`]; they never infer an effect
+//! [`crate::ResolvedInvocation::effects`]; they never infer an effect
 //! from a command name.  The resolved footprint also bridges the established
 //! [`crate::CommandBindingTransition`], [`crate::FrameEffectSpec`], and
 //! [`crate::SideEffect`] declarations, so this vocabulary augments rather than

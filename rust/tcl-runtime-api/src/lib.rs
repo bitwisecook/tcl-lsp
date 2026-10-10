@@ -490,6 +490,21 @@ pub mod codegen_abi;
 /// Runtime-issued guards for speculative compiler fast paths.
 pub mod guard;
 
+/// What a runtime reports it backs, by command name.
+mod backing;
+pub use backing::{BackingReport, RegisteredBacking};
+
+/// What a specialised site claims about the spec-pack facts it rests on.
+mod site_claim;
+pub use site_claim::{BackingKind, PackFactStamp, SiteClaim};
+
+/// What an artefact says about the world it was compiled for, and the
+/// runtime's counterpart to compare it against.
+pub mod manifest;
+pub use manifest::{
+    ArtefactIdentityManifest, ManifestDecodeError, ManifestField, Rung, RungSet, RuntimeContext,
+};
+
 // -- Compile service (the EVAL_STK / dynamic-code injection point) --
 
 /// A compilation failure surfaced by [`CompileService`].
@@ -827,6 +842,14 @@ pub trait VarStore {
     /// immutable bindings override it to reject them before mutation.
     fn unset_command(&mut self, frame: FrameId, name: &str) -> Result<bool, VarUnsetError> {
         Ok(self.unset(frame, name))
+    }
+    /// Whether removing `name`, resolved from `frame`, is refused because
+    /// the engine confines stores to the running procedure's own frame and
+    /// the variable lives outside it — asked by a command before it removes
+    /// anything. An engine that confines nothing refuses nothing.
+    fn unset_confined(&self, frame: FrameId, name: &str) -> bool {
+        let _ = (frame, name);
+        false
     }
     /// Whether a variable exists in `frame`.
     fn exists(&self, frame: FrameId, name: &str) -> bool;

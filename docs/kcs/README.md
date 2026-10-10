@@ -40,6 +40,17 @@ symptom with several possible causes worth telling apart. See rule 13 in
 
 ## Issues
 
+- [kcs-issue-the-value-transfers-gate-reports-a-command-name.md](kcs-issue-the-value-transfers-gate-reports-a-command-name.md)
+  — `cargo xtask value-transfers` fails on a line that recognises a Tcl
+  command by name in a file it holds clean, on a ratcheted file whose
+  count of such lines rose, on an unclassified variable-writing command,
+  or on a stale inventory, and what each message asks for.
+- [kcs-issue-the-registry-axes-gate-reports-a-keyword.md](kcs-issue-the-registry-axes-gate-reports-a-keyword.md)
+  — `cargo xtask registry-axes` fails on a line that compares a word the
+  registry declares (a command, option, member keyword, clause keyword, or
+  special variable) in a file it holds clean, on a ratcheted file whose
+  count rose, on a waiver without an axis or an expiry, or on a stale
+  ledger, and what each message asks for.
 - [kcs-issue-lsp-features-are-missing.md](kcs-issue-lsp-features-are-missing.md)
   — squiggles, hovers, and completions do not appear in VS Code and
   you want to know whether the Tcl Language Server started at all.
@@ -54,9 +65,6 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — the spec studio reports a command written and the Pack DSL pane does not
   change, because the document is a program the studio patches rather than
   rewrites.
-- [kcs-issue-a-tcl-lsp-server-process-outlives-the-editor.md](kcs-issue-a-tcl-lsp-server-process-outlives-the-editor.md)
-  — a `tcl-lsp-server` process is still running, busy on every core, after
-  the editor window that started it has closed.
 - [kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md](kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md)
   — builds in one git worktree fail or pass with artefacts from a
   sibling checkout because the worktrees share one cargo target
@@ -67,9 +75,6 @@ symptom with several possible causes worth telling apart. See rule 13 in
 - [kcs-issue-smoke-fallback-does-not-match-nextest.md](kcs-issue-smoke-fallback-does-not-match-nextest.md)
   — the manifest-backed Cargo smoke fallback rejects a missing or ambiguous
   ownership row when cargo-nextest is unavailable.
-- [kcs-issue-false-diagnostics-inside-a-multi-word-eval.md](kcs-issue-false-diagnostics-inside-a-multi-word-eval.md)
-  — an E002 or W210 on a multi-word `eval`, `uplevel`, or `namespace eval`
-  is about the joined script, not the first word.
 - [kcs-issue-uplevel-injected-variable-is-reported-unset.md](kcs-issue-uplevel-injected-variable-is-reported-unset.md)
   — when a write a helper makes in an outer frame through `uplevel` is
   believed, and when the caller's read still draws W210 or W212.
@@ -79,16 +84,16 @@ symptom with several possible causes worth telling apart. See rule 13 in
 - [kcs-issue-irule-word-operator-is-not-analysed.md](kcs-issue-irule-word-operator-is-not-analysed.md)
   — an iRules word operator (`contains`, `starts_with`, …) is neither
   folded by `tcl opt` nor reported by the analyser, because the file's
-  dialect never reached the optimiser or the expression parser.
+  selected dialect does not recognise the operator.
 - [kcs-issue-reconstruct-a-stress-test-failure.md](kcs-issue-reconstruct-a-stress-test-failure.md)
   — a stress-test suite run failed and you want to reconstruct it from
   the `STRESS_FAILURE:` reproduction bundle.
 - [kcs-issue-vscode-test-timed-out-on-didopen.md](kcs-issue-vscode-test-timed-out-on-didopen.md)
   — a VS Code extension test timed out draining `didOpen`, and you want to
   tell a wedged server apart from one wedged document.
-- [kcs-issue-vscode-test-runner-reports-false-hang.md](kcs-issue-vscode-test-runner-reports-false-hang.md)
-  — `make test-ext` reports "mocha never completed (likely hung)" on a run
-  that actually passed every test.
+- [kcs-issue-vscode-test-watchdog-stops-the-suite.md](kcs-issue-vscode-test-watchdog-stops-the-suite.md)
+  — distinguish a stalled test, an absolute time ceiling, and an extension
+  host that never wrote a heartbeat.
 - [kcs-issue-vscode-test-feature-toggle-sampled-once.md](kcs-issue-vscode-test-feature-toggle-sampled-once.md)
   — a feature-toggle test samples the provider once right after disabling it
   and is flaky (or fails deterministically) instead of waiting on the result.
@@ -166,11 +171,27 @@ symptom with several possible causes worth telling apart. See rule 13 in
 - [kcs-qa-what-is-the-c-extension-shim.md](kcs-qa-what-is-the-c-extension-shim.md)
   — what the C extension shim is, when to use it instead of a Tcl hook
   body or a native hook, and why a spec pack can never load one.
+- [kcs-qa-why-is-my-pack-hook-dormant.md](kcs-qa-why-is-my-pack-hook-dormant.md)
+  — why a workspace spec pack's hook bodies do not run until the editor
+  trusts the folder, what keeps working meanwhile, and how to trust the
+  workspace in VS Code.
+- [kcs-qa-why-was-my-pack-codegen-hook-refused.md](kcs-qa-why-was-my-pack-codegen-hook-refused.md)
+  — why a spec pack's `codegen_hook`, `inline_codegen_hook`, or intrinsic
+  `semantic_operation` row draws a warning outside a bundled pack or
+  without a matching `alias_of`, and why the command still works.
+- [kcs-qa-why-was-a-declaration-dropped-from-my-dependencys-pack.md](kcs-qa-why-was-a-declaration-dropped-from-my-dependencys-pack.md)
+  — why a spec pack shipped by a dependency loses its `alias_of` or
+  `runtime_backing` row unless the package is your own or one your manifest
+  requires directly (a Tcl body only if it is your own), and what still works.
 - [kcs-qa-when-is-a-proc-parameter-treated-as-a-constant.md](kcs-qa-when-is-a-proc-parameter-treated-as-a-constant.md)
   — when the analyser binds a procedure parameter to a compile-time
   literal from its call sites, which indirect calls (`$cmd args`, callback
   prefixes, `eval`) count as call sites too, and why adding one of them
   makes the folded diagnostics disappear.
+- [kcs-qa-where-is-diagnostic-policy-applied.md](kcs-qa-where-is-diagnostic-policy-applied.md)
+  — the one policy step below every surface that decides whether a
+  diagnostic is shown, hidden, or relabelled, the order its reasons apply
+  in, and where a new rule goes.
 
 ## How-Tos
 
@@ -242,6 +263,16 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — the SpecTcl pack quickstart: the minimal `.tclspec` shape, the
   three discovery tiers, validation, and how the running server picks
   a saved pack up.
+- [kcs-howto-declare-an-option-effect-in-a-tclspec-pack.md](kcs-howto-declare-an-option-effect-in-a-tclspec-pack.md)
+  — give an option a semantic effect (disables or selects an axis value,
+  suppresses a role, reserves trailing words, or ends option parsing), the
+  family that groups options over one axis, and the worked `subst`
+  example.
+- [spectcl/kcs-howto-declare-an-evaluator-for-a-pack-command.md](spectcl/kcs-howto-declare-an-evaluator-for-a-pack-command.md)
+  — give a pack command a computed answer: the `semantics` / `evaluate` /
+  `facts` statements, the `-implementation` block's four rows, the body
+  verbs, and what a declaration must avoid to stay a pure function of its
+  own inputs.
 - [kcs-howto-author-a-sslictcl-declaration.md](kcs-howto-author-a-sslictcl-declaration.md)
   — write a `.sslictcl` TLS declaration with the editor's help: how the
   document is recognised, what completion offers at each level, and how to
@@ -254,6 +285,11 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — tell the server that a compiled `.dll` / `.so` extension brings Tk (or
   any other package) up from its C `Init`, so the Tk completions, hover and
   checks switch on without a `package require Tk` in the source.
+- [kcs-howto-describe-a-c-extension.md](kcs-howto-describe-a-c-extension.md)
+  — describe a compiled Tcl extension's commands from its C source and a
+  sandboxed `package require` with `tcl spec import --c-source` and
+  `--probe`, each row at the conservative default for native code and
+  carrying its provenance, and narrow what you know.
 - [kcs-howto-derive-version-ranges-from-releases.md](kcs-howto-derive-version-ranges-from-releases.md)
   — derive `introduced_version` / `retired_version` facts from several
   package releases with `tcl spec import`, read the evidence header it
@@ -322,6 +358,26 @@ under [`compiler/`](compiler/README.md).
   compile time now that SpecTcl packs can load at runtime, and what that
   means for W002/W123 and any consumer that memoises "is this command
   known".
+- [kcs-qa-what-does-a-value-transfer-declaration-say.md](compiler/kcs-qa-what-does-a-value-transfer-declaration-say.md)
+  — where the constant-propagation pass learns what a command computes and
+  which variables it writes: the registry's three-state `semantics`
+  declaration, what is derived from a descriptor, and why no command name
+  belongs in the compiler for it.
+- [kcs-qa-why-does-a-constant-fold-depend-on-the-dialect.md](compiler/kcs-qa-why-does-a-constant-fold-depend-on-the-dialect.md)
+  — why `incr` of `010` or `string range … 010 end` folds to one value
+  under Tcl 8.6, another under 9.0, and not at all under a vendor dialect:
+  the direct route runs the shared core under the target's release, and a
+  profile naming no release gets only the answer every release gives.
+- [kcs-qa-why-does-a-regexp-sometimes-not-fold.md](compiler/kcs-qa-why-does-a-regexp-sometimes-not-fold.md)
+  — why a literal pattern against a proven subject can still answer
+  `overdefined`: the engine's typed `Matched`/`NoMatch`/`Stopped` result,
+  why a `Stopped` search declines rather than folds to no-match, and the
+  compile and cache budgets that bound the work before it starts.
+- [kcs-qa-why-does-a-renamed-command-stop-folding.md](compiler/kcs-qa-why-does-a-renamed-command-stop-folding.md)
+  — why `incr n` stops folding once the file defines `proc incr` or renames
+  `incr`: the lattice evaluates a command only while the module's own
+  bindings prove its name means the builtin, in the editor and on the
+  command line alike.
 
 ## Diagnostics and optimisations (per-code pages)
 

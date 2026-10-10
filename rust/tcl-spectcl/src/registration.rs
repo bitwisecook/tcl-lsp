@@ -16,13 +16,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! **The pack-side environment registration seam** (P2-H, deliverable E):
+//! **Pack-side environment registration:**
 //! a loaded pack's `environment` blocks — declarations and `-extend`
 //! contributions — enter the live [`EnvironmentRegistry`] through
 //! [`tcl_registry::model::register_environments`], under the §6.4 trust
 //! lattice, with invalidation riding the registry-generation machinery.
 //!
-//! ## What registers, and what does not (yet)
+//! ## Registered declarations
 //!
 //! - [`PackEnvironment`] declarations register as
 //!   [`EnvironmentDefinition`]s at the pack tier's provenance;
@@ -63,6 +63,7 @@
 //! [`EnvironmentDefinition`]: tcl_dialect::model::EnvironmentDefinition
 //! [`EnvironmentExtension`]: tcl_registry::model::EnvironmentExtension
 
+use tcl_dialect::model::WorkspaceTrust;
 use tcl_registry::model::{
     EnvironmentExtension, EnvironmentRegistrationError, EnvironmentSource, SyncOutcome,
 };
@@ -173,8 +174,9 @@ pub fn register_pack_set(packs: &PackSet) -> PackSetRegistration {
     let mut sources = Vec::with_capacity(packs.packs.len());
     let mut rejected = Vec::new();
     for pack in &packs.packs {
-        let tier = PackEnvironmentTier::of(pack.tier);
-        if let Some(error) = untrusted_compiled_extension(&pack.environments, pack.tier) {
+        let tier = PackEnvironmentTier::of(pack.tier, pack.trust);
+        if let Some(error) = untrusted_compiled_extension(&pack.environments, pack.tier, pack.trust)
+        {
             rejected.push(PackRejection {
                 pack: pack.name.clone(),
                 error,
@@ -239,7 +241,7 @@ fn register_pack_dialects(packs: &PackSet) -> (usize, usize, Vec<DialectRejectio
     let mut cores = Vec::new();
     let mut refused = Vec::new();
     for pack in &packs.packs {
-        let tier = PackEnvironmentTier::of(pack.tier);
+        let tier = PackEnvironmentTier::of(pack.tier, pack.trust);
         for dialect in &pack.dialects {
             match crate::dialect_conversion::to_dynamic_family(dialect, &pack.name, tier) {
                 Ok(family) => families.push(family),
@@ -262,7 +264,7 @@ fn register_pack_dialects(packs: &PackSet) -> (usize, usize, Vec<DialectRejectio
     // must still hand Jim's back or it would retire it.
     let mut pack_rosters = Vec::new();
     for pack in &packs.packs {
-        let provenance = PackEnvironmentTier::of(pack.tier).provenance();
+        let provenance = pack.provenance();
         pack_rosters.extend(crate::surface_roster_conversion::to_inherited_surfaces(
             &pack.surface_rosters,
             provenance,
@@ -370,26 +372,26 @@ fn source_id_key(pack: &MergedPack) -> &'static str {
 }
 
 /// The E-R2 tier pre-check, per pack: a workspace or studio-override pack
-/// may not extend a compiled environment.
+/// may not extend a compiled environment — keyed on the tier, trusted
+/// workspace included, as it always was; the trust state only decides which
+/// provenance the refusal names.
 fn untrusted_compiled_extension(
     environments: &[PackEnvironment],
     tier: Tier,
+    trust: WorkspaceTrust,
 ) -> Option<EnvironmentRegistrationError> {
     if !matches!(tier, Tier::Workspace | Tier::StudioOverride) {
         return None;
     }
+    let pack_tier = PackEnvironmentTier::of(tier, trust);
     environments
         .iter()
         .filter(|environment| environment.extends)
         .find_map(|environment| {
-            crate::loader::reserved_environment_name_for(
-                &environment.id,
-                PackEnvironmentTier::of(tier),
-            )
-            .map(
+            crate::loader::reserved_environment_name_for(&environment.id, pack_tier).map(
                 |reserved| EnvironmentRegistrationError::UntrustedExtension {
                     base: reserved,
-                    provenance: PackEnvironmentTier::of(tier).provenance(),
+                    provenance: pack_tier.provenance(),
                 },
             )
         })
@@ -417,8 +419,9 @@ fn split(
 }
 
 /// Register one loaded pack's environments into the live registry at
-/// `tier`, transactionally: either every block lands or the error names
-/// the violation and the registry is untouched.
+/// `tier` under `trust` (the editor's Workspace Trust state, which only the
+/// workspace tier reads), transactionally: either every block lands or the
+/// error names the violation and the registry is untouched.
 ///
 /// # Errors
 ///
@@ -429,8 +432,9 @@ fn split(
 pub fn register_pack_environments(
     pack: &Pack,
     tier: Tier,
+    trust: WorkspaceTrust,
 ) -> Result<RegistrationOutcome, EnvironmentRegistrationError> {
-    register_environments(&pack.environments, pack.dialects.len(), tier)
+    register_environments(&pack.environments, pack.dialects.len(), tier, trust)
 }
 
 /// [`register_pack_environments`] over bare blocks, for callers holding
@@ -439,14 +443,15 @@ pub fn register_environments(
     environments: &[PackEnvironment],
     dialect_blocks: usize,
     tier: Tier,
+    trust: WorkspaceTrust,
 ) -> Result<RegistrationOutcome, EnvironmentRegistrationError> {
-    let pack_tier = PackEnvironmentTier::of(tier);
+    let pack_tier = PackEnvironmentTier::of(tier, trust);
     // The E-R2 pre-check, reusing the loader's own reserved-name
     // question: a workspace or studio-override pack may not extend a
     // compiled environment, whatever provenance its tier maps to — the
     // loader tier is the trust boundary the evaluation gate enforces, and
     // this seam enforces the same one for CST-loaded packs.
-    if let Some(error) = untrusted_compiled_extension(environments, tier) {
+    if let Some(error) = untrusted_compiled_extension(environments, tier, trust) {
         return Err(error);
     }
     let (definitions, extensions) = split(environments, pack_tier);

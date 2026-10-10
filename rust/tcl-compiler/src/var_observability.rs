@@ -152,6 +152,23 @@ fn alias_flag(
 /// own flow-insensitive whole-body scan — the recognition logic for
 /// `global` / `variable` / `upvar` / `trace` lives here once.
 pub(crate) fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRegistry) {
+    // An opaque `switch` keeps its arm bodies inline, so a `global`, `upvar`
+    // or `variable` inside an arm is written in no block of the CFG. Any arm
+    // may run, so each binding one holds is applied as if it had — the
+    // lattice is a union, which is the may-alias answer.
+    if matches!(stmt, Statement::Switch { .. }) {
+        for script in crate::ir_helpers::nested_bodies(stmt) {
+            crate::ir::for_each_statement(script, &mut |inner| {
+                stmt_gen_direct(inner, state, registry);
+            });
+        }
+        return;
+    }
+    stmt_gen_direct(stmt, state, registry);
+}
+
+/// [`stmt_gen`] for one statement's own words.
+fn stmt_gen_direct(stmt: &Statement, state: &mut State, registry: &CommandRegistry) {
     let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) = stmt else {
         return;
     };
@@ -686,7 +703,7 @@ mod tests {
 
     #[test]
     fn scan_module_global_names_finds_declaration_inside_static_uplevel_body() {
-        // FN guard (P1, code review): a `global` declaration hidden inside a
+        // FN guard: a `global` declaration hidden inside a
         // static-body `uplevel #0 { ... }` lowers to `Statement::UpFrame`,
         // not a plain nested block — `for_each_statement` must still descend
         // into it. Confirmed against tclsh 8.6: `set g 4; proc helper {}
@@ -729,6 +746,7 @@ mod tests {
                     local: variable.clone(),
                     target: VariableAliasTarget::Global { variable },
                     writes_value: false,
+                    words: tcl_registry::AliasWords::same(0),
                 },
             ));
         }
@@ -924,5 +942,20 @@ mod tests {
             !baseline_folds.is_empty(),
             "control: a registry that cannot see `bindglobal` does fold",
         );
+    }
+
+    /// A `global` an arm of an opaque `switch` holds binds its name in this
+    /// frame whenever that arm runs, and the arms stay inside the statement:
+    /// the name is marked from the switch on, and a name no arm binds is not.
+    #[test]
+    fn a_global_bound_in_an_opaque_switch_arm_marks_the_name() {
+        let c = cu(
+            "proc ::p {s} { set x 1\nswitch -glob -- $s { q* { global g; set g 2 } }\nputs $g }",
+        );
+        let fu = c.function("::p").unwrap();
+        let reg = registry();
+        let obs = analyse_var_observability(&fu.cfg, &reg);
+        assert!(obs.escaping_var_names().contains("g"));
+        assert!(!obs.escaping_var_names().contains("x"));
     }
 }

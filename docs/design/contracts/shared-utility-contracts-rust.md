@@ -45,7 +45,7 @@ entry point, or gate moves without this contract being updated.
 | quotes / braces / word spans | `rust/tcl-lexer/src/ranges.rs` | `close_quote_offset`; `word_closer_offset`; `word_span_at`; `braced_var_name_end` | `${...}` close rule per release (`BracedVarStyle`); tmsh brace mode per dialect | none |
 | array-index source scan | `rust/tcl-lexer/src/ranges.rs`; `rust/tcl-dialect/src/grammar.rs` | `scan_array_index`; `ArrayIndexSyntax` | `LexerGrammar::array_index` per release | none |
 | word substitution components | `rust/tcl-lexer/src/word_parts.rs` | `decompose`; `decompose_spanned`; `scan_var_ref`; `command_subst_close`; `quoted_word_close`; `SubstFlags`; `WordPart`; `SpannedPart`; `WordBody`; `VarRef`; `RawVarRef`; `MISSING_QUOTE`; `MISSING_CLOSE_BRACKET`; `MISSING_CLOSE_BRACE`; `MISSING_PAREN`; `EXTRA_AFTER_CLOSE_BRACE` | `LexerConfig` per emulated release (`${...}` close rule, array-index source mask, escape grammar); compiled-word vs source-word `$` spelling | none |
-| indices | `rust/tcl-cmd-core/src/index.rs` | `resolve_with`; `drill` | grammar-parameterised, inheriting the number axis | none |
+| indices | `rust/tcl-cmd-core/src/index.rs` | `read_with`, `read_under`; `drill` | grammar- or release-parameterised, inheriting the number axis and reading each integer in the release's range | none |
 | binary field grammar | `rust/tcl-cmd-core/src/binary.rs` | `specifiers`; `Specifier`; `is_specifier`; `signedness_available`; `specifier_min_version` | field letters per release (`t n m r R q Q` are 8.5+); the TIP 275 unsigned suffix (`u` only, after any field letter) per resolved release | none |
 | option words / subcommands | `rust/tcl-cmd-core/src/prefix.rs`; `rust/tcl-cmd-core/src/ensemble.rs`; `rust/tcl-registry/src/hover.rs`; `rust/tcl-registry/src/spec.rs` | `OptionTable`; `OptionSpec`; `SubCommand`; `first_positional_index`; `ensemble::EnsembleToken`; `ensemble::InvocationLayout`; `ensemble::invocation_layout`; `ensemble::UNKNOWN_DELETED_MESSAGE`; `ensemble::UNKNOWN_DELETED_ERROR_CODE`; `ensemble::CREATE_OPTIONS`; `ensemble::CONFIG_OPTIONS`; `ensemble::SUBCOMMANDS`; `ensemble::resolve_subcommand`; `ensemble::subcommand_choices`; `ensemble::unknown_subcommand_message`; `ensemble::validate_map_targets` | option surface per release/dialect; ensemble token lifecycle and invocation layout invariant | `xtask-option-registry-drift` |
 | trace argument decoding | `rust/tcl-cmd-core/src/trace.rs` | `TraceKind`; `resolve_option`; `resolve_type`; `parse_ops`; `parse_legacy_variable_ops`; `legacy_ops_letters`; `callback_op_word` | option surface per release (the 8.x-only `variable`/`vdelete`/`vinfo` forms) | none |
@@ -63,8 +63,10 @@ entry point, or gate moves without this contract being updated.
 | iRules execution boundaries and placement | `rust/tcl-syntax/src/event_handler.rs`; `rust/tcl-registry/src/events.rs`; `rust/tcl-registry/src/registry.rs`; `rust/tcl-irules/src/when_block.rs`; `rust/tcl-irules/src/executable.rs` | `event_handlers`; `event_handlers_with_head_predicate`; `script_commands`; `top_level_when_handlers_with_registry_and_head_resolver`; `IrulesDeclarationArguments`; `IrulesExecutionContext`; `IrulesCommandPlacement`; `IrulesTopLevelDeclaration`; `IrulesTopLevelEffect`; `CommandRegistry::irules_command_placement`; `CommandRegistry::irules_event_declaration`; `CommandRegistry::irules_top_level_declaration`; `CommandRegistry::irules_top_level_declaration_shape`; `CommandRegistry::irules_top_level_effect`; `when_blocks`; `irules_executable_commands` | caller-supplied `LexerConfig`; offset-keyed resolved command identity; exact single-braced declaration body; declaration-only top level; known-event roots; call-reachable procedure bodies; stateful priority (`0..=1000`, default 500) | `xtask-gen-ai-diagnostics` |
 | text similarity | `rust/tcl-compiler/src/text.rs` | `edit_distance`; `rank_suggestions`; `rank_containment_suggestions` | invariant | none |
 | per-command knowledge | `rust/tcl-registry/src/spec.rs`; `rust/tcl-registry/src/hooks.rs`; `rust/tcl-registry/src/registry.rs` | `CommandSpec`; `SubCommand`; `CommandRegistry` | per release/dialect | `xtask-command-backing` |
+| constant evaluation and value transfers | `rust/tcl-registry/src/value_transfer/mod.rs`; `rust/tcl-registry/src/value_transfer/declaration.rs`; `rust/tcl-registry/src/value_transfer/route.rs`; `rust/tcl-registry/src/value_transfer/const_ops.rs`; `rust/tcl-registry/src/value_transfer/cell_write.rs`; `rust/tcl-registry/src/value_transfer/keyed_update.rs`; `rust/tcl-compiler/src/value_transfer.rs` | `CommandSemantics`; `SemanticsDeclaration`; `resolve_semantics`; `ResolvedSemantics`; `EvalRoute`; `NativeEvalId`; `ConstOps`; `CellWriteSemantics`; `KeyedUpdateSemantics`; `AnalysisContextKey` | the resolved invocation's binding, selected form, and target profile, carried in one analysis context; a route declares the release axes it needs | `xtask-value-transfers` |
+| command vocabulary outside the registry | `rust/tcl-registry/src/registry.rs`; `rust/tcl-registry/src/clause_grammar.rs`; `rust/tcl-registry/src/definer.rs`; `rust/tcl-registry/src/special_vars.rs` | `CommandRegistry`; `clause_keywords`; `DefinitionBodyGrammar`; `SPECIAL_VARS` | per dialect surface: the vocabulary is every word the registry declares across every loadable dialect and the shipped `.tclspec` packs | `xtask-registry-axes` |
 | dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs`; `rust/tcl-dialect/src/version.rs`; `rust/tcl-dialect/data/reference-toolchains.tsv` | `DialectProfile`; `LexerGrammar`; `TclVersion`; `TclVersion::patchlevel`; `TclVersion::reference_source_tag`; `TclVersion::has_error_stack`; `find` | the resolved dialect/release axis plus exact pinned reference patchlevel/source tag | `xtask-editor-extensions` |
-| C Tcl conformance oracles | `rust/tcl-test-support/src/lib.rs` | `reference_patchlevel`; `reference_source_tag`; `locate_tclsh`; `available_tclshs`; `run_script`; `locate_source_tree`; `Tclsh`; `TclSourceTree`; `ScriptOutcome` | exact interpreter/source agreement and provenance for the selected release line | none |
+| C Tcl conformance oracles | `rust/tcl-test-support/src/lib.rs` | `reference_patchlevel`; `reference_source_tag`; `locate_tclsh`; `available_tclshs`; `witness_tclsh`; `REQUIRE_TCLSH`; `run_script`; `locate_source_tree`; `Tclsh`; `TclSourceTree`; `ScriptOutcome` | exact interpreter/source agreement and provenance for the selected release line; an output witness's missing release fails where `TCL_LSP_REQUIRE_TCLSH` requires it and is reported otherwise | none |
 | interpreter platform bootstrap | `rust/tcl-platform/src/lib.rs` | `bootstrap::Values`; `bootstrap::Snapshot`; `bootstrap::snapshot`; `bootstrap::entries`; `bootstrap::HOST_ARRAYS`; `bootstrap::HOST_PATH_GLOBALS`; `bootstrap::safe_scrub_keys`; `bootstrap::SHARED_LIBRARY_EXTENSION` | key, selected-host snapshot, rebootstrap-clear, safe-scrub, and canonical Unix shared-library suffix invariant; runtime identity supplied per engine | none |
 | shared plain types | `rust/tcl-core-types/src/lib.rs`; `rust/tcl-core-types/src/diag_code.rs` | `OoId`; `DiagCode` | interpreter-local OO identity and diagnostic codes are invariant across dialects | `xtask-diag-tables` |
 | diagnostic suppression directives | `rust/tcl-compiler/src/analyser/utils.rs` | `parse_file_suppression`; `parse_noqa_marker`; `parse_noqa_line_suppressions_for_dialect`; `apply_preceding_noqa`; `line_suppressed`; `FILE_SUPPRESS_KEY` | directive shapes are release-invariant; the noqa pre-scan segments under the document dialect's `LexerConfig` | none |
@@ -73,7 +75,8 @@ entry point, or gate moves without this contract being updated.
 | SslicTcl finding identity | `rust/tcl-sslictcl/src/policy.rs` | `evaluate_policy`; `PolicyFinding` | invariant `(check id, endpoint)` identity; the `grade` id is reserved | none |
 | SslicTcl embedded source data | `rust/tcl-sslictcl/src/trust.rs` | `embedded_dataset` | pinned upstream revisions, recorded with hashes and licences in `data/provenance.json` | `xtask-sslictcl-data` |
 | SslicTcl declaration surface | `rust/tcl-registry/src/commands/sslictcl/mod.rs`; `rust/tcl-registry/src/definer.rs` | `sslictcl_command_specs`; `SSLICTCL_GRAMMARS` | the `sslictcl` authoring surface (`SpecSurface::SSLICTCL`); Tcl 9.0 core underneath | none |
-| SslicTcl editor projection | `rust/tcl-lsp-core/src/sslictcl_diagnostics.rs`; `rust/tcl-lsp-core/src/declaration_outline.rs` | `applies_to`; `diagnostics`; `SUPERSEDED_ANALYSER_CODES`; `supersede_analyser_diagnostics`; `is_declaration_document`; `declarations` | resolved authoring surface (the `sslictcl` package) per document | none |
+| SslicTcl editor projection | `rust/tcl-lsp-core/src/sslictcl_diagnostics.rs`; `rust/tcl-lsp-core/src/declaration_outline.rs` | `applies_to`; `diagnostics`; `SUPERSEDED_ANALYSER_CODES`; `is_declaration_document`; `declarations` | resolved authoring surface (the `sslictcl` package) per document | none |
+| diagnostic policy | `rust/tcl-lsp-core/src/diagnostic_policy.rs`; `rust/tcl-lsp-core/src/diagnostic_report.rs`; `rust/tcl-lsp-core/src/config_ini.rs` | `apply`; `Policy`; `PolicyBuilder`; `Report`; `Finding`; `Directives`; `dialect_overlaps`; `document_report`; `standalone_findings`; `optimise_under_policy`; `settings_from_ini`; `merge_settings`; `global_layer`; `project_layer_for` | the dialect's overlap table; the document's configuration layers, resolved per code; the step order is release-invariant | none |
 <!-- end-owner-resolution-manifest -->
 
 ### Compiler evaluated substitutions
@@ -110,6 +113,16 @@ the alias whose expression words a later sibling evaluates.
   records the interpreter's reported value as provenance. An explicitly
   paired source-tree interpreter may name another patchlevel on the same
   release line, but its binary and `generic/tcl.h` must agree exactly.
+- The output witnesses — the programs the value-transfer tests run before and
+  after `tcl opt`, in `tcl-compiler`'s `value_transfer_witnesses.rs`,
+  `tcl-registry`'s `differential_fold.rs` and `tcl-cli`'s
+  `value_transfers_cli.rs` — find each release's interpreter through one
+  helper, `witness_tclsh`, over `locate_tclsh`. A release it does not find
+  fails the test when `TCL_LSP_REQUIRE_TCLSH` names it (a comma-separated
+  list, `9.0` or `8.6,9.0`, or any value naming none for every release), and
+  is otherwise reported as skipped on standard error, past the test harness's
+  capture, so a run that compared under fewer releases says so. CI's test job
+  requires the 9.0 interpreter it installs.
 - `ParsedVersion::parse` owns package-version grammar. The versionless public
   helpers (`validate_version`, `validate_requirement`, `compare_versions`,
   `version_satisfies`, and provider selection) use the strict Tcl 8 grammar
@@ -729,6 +742,22 @@ the alias whose expression words a later sibling evaluates.
   thin adapters: `runtime/rust`'s single `Interp::wrong_args` method
   and the VM's `interp::err_wrong_args`.
 
+### `tcl-registry` — constant evaluation and value transfers
+
+- `value_transfer` — what one invocation computes on the value axis, as a
+  registry-owned `CommandSemantics` specialisation reached through the
+  resolved invocation (`InvocationSemantics::value`), with three declaration
+  states at command, subcommand, and form scope and a derivation from a
+  descriptor that states the same operation. The compiler's
+  `value_transfer` module is the engine: it proves operands from the SCCP
+  lattice and applies validated answers, and it recognises no command by
+  name — `cargo xtask value-transfers` is the gate. Every direct route is
+  implemented in the registry (`NativeEvalId::owner`); the one transfer
+  that stays in the compiler is listed in the migration page's ledger.
+  Design:
+  [value-transfers.md](../compiler/value-transfers.md),
+  [value-evaluation.md](../compiler/value-evaluation.md).
+
 ### `tcl-compiler` — nested command-substitution words
 
 - `word_subst::nested_command_words` is the one recovery of the words
@@ -774,16 +803,20 @@ the alias whose expression words a later sibling evaluates.
   matched the bare substring instead would silence every finding on the
   command below `# do not use noqa here`.
 - The analyser records the map but does not filter with it — only the surface
-  that renders a finding knows which line it lands on — so every consumer asks
-  through `line_suppressed`: the language server's analyser, compiler-check,
-  optimiser, source-style, XC and SslicTcl lifts, the `diag` / `lint` /
-  `validate` CLI verbs, and the W305 producer that the non-Tcl F5 adapters
-  share. That is what makes a directive mean the same thing in the editor and
-  on the command line, as
+  that renders a finding knows which line it lands on. One consumer applies
+  the map now: the policy step, through `Directives::reason_for`
+  (`rust/tcl-lsp-core/src/diagnostic_policy.rs`), whose bucket rule restates
+  `line_suppressed`'s and is pinned equal to it by
+  `directives_agree_with_line_suppressed`. That is what makes a directive
+  mean the same thing in the editor and on the command line, as
   [`docs/kcs/kcs-howto-suppress-diagnostics.md`](../../kcs/kcs-howto-suppress-diagnostics.md)
-  promises. A surface that reimplements the check drifts on the wildcard entry
-  or the file-level bucket, which silences a different set of findings than
-  the directive names.
+  promises; see [diagnostic-policy.md](../compiler/diagnostic-policy.md).
+  No producer filters with it, the W305 producer
+  (`rust/tcl-compiler/src/analyser/source_integrity.rs`) included. The one
+  policy step left inside the analyser is its fold of the top-of-file
+  directive into its production skip (`apply_disabled_diagnostics`,
+  `rust/tcl-compiler/src/analyser/diagnostics.rs`), which the report declares
+  as a gap rather than reading as clean.
 
 ### `tcl-core-types` + `tcl-runtime-api` — command-table identity
 
@@ -889,6 +922,39 @@ the alias whose expression words a later sibling evaluates.
   system, rooted in `CommandRegistry::document_grammar` for a dialect whose
   file is itself a declaration body. Completion and the token walk read it,
   and this owner must not grow a second answer to it.
+
+### `tcl-lsp-core` — diagnostic policy
+
+- `diagnostic_policy::apply` is the one function that decides whether and
+  how a finding shows: the five configuration scopes, the default-off seed,
+  severity overrides, the optimiser and shimmer switches, overlap
+  precedence and encoding abstention, in one fixed order, for every
+  producer's finding on every surface. `PolicyBuilder` resolves the
+  configuration layers, lowest first, into the `Policy` `apply` reads, so
+  only it — never a merged, already-flattened settings value — can name the
+  layer that decided a code. `Report` keeps every finding paired with its
+  outcome, including the ones it hides, each with a `Reason`, so "why is
+  this not firing" has one answer every surface can read.
+- `diagnostic_report::document_report` and `standalone_findings` are where
+  a surface without the language server's salsa database gets the same
+  producer set the editor does before handing it to `apply`:
+  `document_report` adds the producers this crate owns (the source-style
+  pass, the byte-integrity pass, the SslicTcl projection) to a surface's own
+  findings, and `standalone_findings` runs the analyser and the compiler
+  checks over one compilation unit for a surface with no database at all.
+  `optimise_under_policy` is the rewrite loop every rewrite surface
+  (`tcl opt`, MCP `optimize`, `tcl-lsp.optimiseDocument`) shares: it admits
+  a pass's rewrites into the optimiser's own multipass loop only where the
+  policy shows them.
+- `config_ini::settings_from_ini` and `merge_settings` are the one INI parse
+  and the one three-layer merge: every surface that reads a `config.ini` or
+  a `.tcl-lsp.ini` — the server, the CLI, the MCP tools — resolves the same
+  layers `PolicyBuilder` builds the policy from.
+- Consumers: `rust/tcl-lsp-server/src/lib.rs`,
+  `rust/tcl-cli/src/commands/diag.rs`, `transform.rs`, `policy.rs`,
+  `rust/tcl-mcp/src/tools.rs`. A producer emits a typed finding and reads no
+  policy; a surface renders a `Report` and decides nothing itself. Design:
+  [diagnostic-policy.md](../compiler/diagnostic-policy.md).
 
 ## Decision rules / contracts
 

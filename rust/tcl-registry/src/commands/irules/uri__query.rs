@@ -51,6 +51,7 @@ pub const fn spec() -> CommandSpec {
             ..SideEffect::DEFAULT
         }],
         taint_source: Some(TaintColour::TAINTED),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::irules::URI_QUERY),
         ..CommandSpec::DEFAULT
     }
 }

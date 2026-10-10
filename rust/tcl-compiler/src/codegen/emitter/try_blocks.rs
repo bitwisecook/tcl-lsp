@@ -151,6 +151,7 @@ fn catch_result_vars(cfg: &CfgFunction, catch_end: &str) -> (Option<String>, Opt
             defs,
             ..
         } = stmt
+            // value-transfer-ok: irreducible — the defs-only marker `lower_catch` builds on a catch end block, not a Tcl invocation
             && command == "catch"
             && args.is_empty()
         {
@@ -168,6 +169,7 @@ pub fn is_catch_defs_marker(stmt: &crate::ir::Statement) -> bool {
     matches!(
         stmt,
         crate::ir::Statement::Call { command, args, .. }
+            // value-transfer-ok: irreducible — the defs-only marker `lower_catch` builds on a catch end block, not a Tcl invocation
             if command == "catch" && args.is_empty()
     )
 }

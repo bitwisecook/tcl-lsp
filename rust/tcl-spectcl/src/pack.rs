@@ -37,20 +37,24 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use tcl_dialect::model::{Provenance, WorkspaceTrust};
 use tcl_registry::registry::CommandRegistry;
 
 use crate::discovery::{Origin, PackFile, Tier};
+use crate::hooks::{DormantHook, dormant_hooks};
 use crate::loader::{Notice, Pack, PackCommand};
+use crate::stamps::StampRefusal;
 
-/// How loudly a notice should be shown. Every notice is a *degradation*, never
-/// a failure — the pack still loads — so nothing here is an error.
+/// How loudly a notice should be shown. Severity is presentation, not a load
+/// verdict: [`PackSet::load_errors`] carries whole-pack evaluation failures.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Severity {
     /// Something the author wrote was dropped: an unknown word, a duplicate
     /// definition, an unreadable file. Worth fixing.
     Warning,
     /// Something the loader decided, correctly, that the author may not have
-    /// expected: a shipped name left alone, a shadowed tier.
+    /// expected: a shipped name left alone, a shadowed tier, a hook body an
+    /// untrusted workspace holds dormant.
     Information,
 }
 
@@ -94,6 +98,82 @@ impl PackNotice {
             severity,
         }
     }
+
+    /// The warning a refused codegen-axis stamp draws
+    /// ([`crate::stamps`]): on the declaring command's row, naming the
+    /// stamp, the provenance or the rule that refused it, and the target the
+    /// stamp would have had to sit on. A warning, because something the
+    /// author wrote was dropped — though only the stamp: the command loads
+    /// with every analysis fact it declared.
+    #[must_use]
+    pub fn stamp_refused(command: &PackCommand, refusal: &StampRefusal) -> Self {
+        Self {
+            path: command.file.clone(),
+            line: command.line,
+            context: format!("command {}", command.spec.name),
+            message: refusal.message(),
+            severity: Severity::Warning,
+        }
+    }
+
+    /// The warning a declaration the package's distance from the root
+    /// forbids draws ([`crate::stamps::admit_declarations`]): on the
+    /// declaring command's row, naming the declaration and the tier. A
+    /// warning, because something the author wrote was dropped — though only
+    /// that declaration: the command loads with every analysis fact it
+    /// declared.
+    #[must_use]
+    pub fn declaration_refused(
+        command: &PackCommand,
+        refusal: &crate::stamps::DeclarationRefusal,
+    ) -> Self {
+        Self {
+            path: command.file.clone(),
+            line: command.line,
+            context: format!("command {}", command.spec.name),
+            message: refusal.message(),
+            severity: Severity::Warning,
+        }
+    }
+
+    /// The notice a hook body held dormant by an untrusted workspace draws:
+    /// once per hook, on the row that declares it, never once per call. It
+    /// is information, not a warning — nothing is wrong with the pack, and
+    /// granting the workspace trust is what runs the body.
+    #[must_use]
+    pub fn dormant(hook: &DormantHook) -> Self {
+        Self {
+            path: hook.file.clone(),
+            line: hook.line,
+            context: format!("command {}", hook.command),
+            message: format!(
+                "`{}` is dormant: the workspace is not trusted, so this hook body does not \
+                 run and the command keeps its declarative facts",
+                hook.field
+            ),
+            severity: Severity::Information,
+        }
+    }
+
+    /// The notice a `runtime_backing tcl-body {-pack-text …}` draws: once,
+    /// on the declaring command's row. The body text travels with the pack,
+    /// so an upgrade of the library it models diverges from it silently;
+    /// information, because nothing is wrong with the pack, and the sites that
+    /// rest on such a body turn plain on the first mismatch.
+    #[must_use]
+    pub fn pack_text_backing(command: &PackCommand) -> Self {
+        Self {
+            path: command.file.clone(),
+            line: command.line,
+            context: format!("command {}", command.spec.name),
+            message:
+                "`runtime_backing tcl-body {-pack-text …}` carries the body in the pack, so an \
+                      upgrade of the library it models diverges from it silently; sites that rest \
+                      on it turn plain dispatch on the first mismatch"
+                    .to_owned(),
+            severity: Severity::Information,
+        }
+    }
 }
 
 /// One pack, merged from every file that named it.
@@ -105,6 +185,11 @@ pub struct MergedPack {
     pub dsl_version: String,
     /// The tier the pack loaded from.
     pub tier: Tier,
+    /// The editor's Workspace Trust state the pack loaded under — the
+    /// workspace's for a workspace-tier pack, [`WorkspaceTrust::Trusted`]
+    /// for every other tier ([`Tier::trust_under`]). With [`Self::tier`] it
+    /// is the pack's provenance ([`Self::provenance`]).
+    pub trust: WorkspaceTrust,
     /// The files that contributed, in merge (sorted path) order.
     pub files: Vec<PathBuf>,
     /// The pack's human-readable name, from the first file that declares
@@ -119,6 +204,9 @@ pub struct MergedPack {
     /// are floors, and [`CommandRegistry::ambient_package_floor`] takes the
     /// highest. Dropping one here would silently lower the floor instead.
     pub ambient_packages: Vec<crate::loader::AmbientPackage>,
+    /// The special variables the pack declares, merged
+    /// first-declaration-wins across the pack's files.
+    pub special_vars: Vec<crate::loader::PackSpecialVar>,
     /// The `environment NAME { … }` blocks the pack declares (`SpecTcl`
     /// 2.0), merged first-declaration-wins across the pack's files.
     ///
@@ -160,6 +248,16 @@ impl MergedPack {
     pub fn command(&self, name: &str) -> Option<&PackCommand> {
         self.commands.iter().find(|c| c.spec.name == name)
     }
+
+    /// The §6.4 trust class the pack's definitions carry: its tier read
+    /// under its trust state, so a pack from a workspace the editor has not
+    /// trusted is [`Provenance::WorkspaceUntrusted`]. Authority does not
+    /// read this — every declarative fact the pack states reaches the
+    /// registry whatever it answers — only the gates the trust ruling names.
+    #[must_use]
+    pub fn provenance(&self) -> Provenance {
+        crate::loader::PackEnvironmentTier::of(self.tier, self.trust).provenance()
+    }
 }
 
 /// Every pack a workspace loads, plus everything the load wanted to say.
@@ -169,6 +267,9 @@ pub struct PackSet {
     pub packs: Vec<MergedPack>,
     /// Every notice, from every file, in file-then-line order.
     pub notices: Vec<PackNotice>,
+    /// Whole-pack evaluation failures, with their source files, before merging.
+    /// Ordinary notices do not imply failure: a valid pack may declare no commands.
+    pub load_errors: Vec<(PathBuf, crate::LoadError)>,
     /// Content key over every contributing file plus the vocabulary version
     /// and loader build — the identity this pack set installs under in the
     /// per-profile registry cache. `0` for an empty set, which is the
@@ -188,9 +289,9 @@ impl PackSet {
     /// loader exists to make impossible.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.packs
-            .iter()
-            .all(|p| p.commands.is_empty() && p.ambient_packages.is_empty())
+        self.packs.iter().all(|p| {
+            p.commands.is_empty() && p.ambient_packages.is_empty() && p.special_vars.is_empty()
+        })
     }
 
     /// Every file that contributed to, or produced a notice about, this set —
@@ -214,6 +315,33 @@ impl PackSet {
         self.notices.iter().filter(move |n| n.path == path)
     }
 
+    /// The pack facts a VM holds while it runs code compiled against this
+    /// set's installed registry (`tcl_vm::Vm::set_pack_facts`): one stamp
+    /// for each pack file whose commands the set installs, under the set's
+    /// key (the registry's overlay generation) and `evaluator_revision` —
+    /// the revision the compiling thread's sites recorded
+    /// (`tcl_compiler::site_claims::evaluator_revision`). A site whose claim
+    /// is not among them is refused, so a changed pack turns its sites plain.
+    #[must_use]
+    pub fn fact_stamps(&self, evaluator_revision: u64) -> Vec<tcl_runtime_api::PackFactStamp> {
+        let mut stamps: Vec<tcl_runtime_api::PackFactStamp> = self
+            .packs
+            .iter()
+            .flat_map(|pack| {
+                pack.commands.iter().map(move |command| {
+                    tcl_compiler::site_claims::pack_fact_stamp(
+                        &crate::install::pack_origin(pack, command),
+                        self.key,
+                        evaluator_revision,
+                    )
+                })
+            })
+            .collect();
+        stamps.sort();
+        stamps.dedup();
+        stamps
+    }
+
     /// Every `(extension, dialect)` routing pair the set's packs declare —
     /// the rows with a `-dialect`, deduplicated first-pack-wins in the
     /// set's (name-sorted) pack order.
@@ -235,22 +363,37 @@ impl PackSet {
 
 /// [`load_sources`] with the sources already in hand and no prior notices —
 /// the door `tcl spec upgrade --verify` loads a rewritten pack through
-/// without ever putting it on disk.
+/// without ever putting it on disk. Trusted: an authoring tool's own file,
+/// never an editor's workspace ([`load_in_memory_under`] names the state).
 #[must_use]
 pub fn load_in_memory(sources: Vec<(PackFile, String)>) -> PackSet {
-    load_sources(sources, Vec::new())
+    load_in_memory_under(sources, WorkspaceTrust::Trusted)
 }
 
-/// Load and merge every discovered file.
-///
-/// Reads each file, loads it through [`crate::cache::evaluate_pack_cached`]
-/// at the file's own provenance tier (so an unchanged pack costs a hash check,
-/// and design E-R2 gates what an untrusted tier may register), then groups by
-/// `speclib` name.
+/// [`load_in_memory`] with the workspace tier's files loaded under `trust`.
+#[must_use]
+pub fn load_in_memory_under(sources: Vec<(PackFile, String)>, trust: WorkspaceTrust) -> PackSet {
+    load_sources(sources, Vec::new(), trust, None)
+}
+
+/// Load and merge every discovered file, the workspace tier trusted — a
+/// caller holding an editor's trust state loads through [`load_under`].
 #[must_use]
 pub fn load(files: &[PackFile]) -> PackSet {
-    let (sources, notices) = read_sources(&tcl_lsp_core::vfs::NativeStore, files);
-    load_sources(sources, notices)
+    load_under(files, WorkspaceTrust::Trusted)
+}
+
+/// Load and merge every discovered file, the workspace tier's under `trust`.
+///
+/// Reads each file, loads it through [`crate::cache::evaluate_pack_cached`]
+/// at the file's own provenance tier and trust state (so an unchanged pack
+/// costs a hash check, and design E-R2 gates what an untrusted provenance may
+/// register), then groups by `speclib` name.
+#[must_use]
+pub fn load_under(files: &[PackFile], trust: WorkspaceTrust) -> PackSet {
+    let store = tcl_lsp_core::vfs::NativeStore;
+    let (sources, notices) = read_sources(&store, files);
+    load_sources(sources, notices, trust, Some(&store))
 }
 
 /// Read every discovered file, turning an unreadable one into a notice rather
@@ -298,33 +441,49 @@ pub(crate) fn read_sources(
 /// `notices` carries whatever the caller already collected before sources
 /// were in hand (e.g. [`load`]'s unreadable-file notices); embedded sources
 /// never fail to "read", so [`crate::bundled`] always passes an empty vec.
+///
+/// `trust` is the editor's Workspace Trust state; each file reads it through
+/// its own tier ([`Tier::trust_under`]), so only the workspace tier's files
+/// evaluate, cache and merge under it.
 #[must_use]
 pub(crate) fn load_sources(
     sources: Vec<(PackFile, String)>,
     mut notices: Vec<PackNotice>,
+    trust: WorkspaceTrust,
+    store: Option<&dyn tcl_lsp_core::vfs::SourceStore>,
 ) -> PackSet {
     // Keyed from the bytes, before anything is parsed: the key must describe
     // the input, not what the loader made of it.
-    let key = set_key(&sources);
+    let mut key = set_key(&sources, trust);
+    // What the load reads beside the packs — the package files their
+    // `-package-source` backings name — is input too.
+    let mut provisioned = xxhash_rust::xxh3::Xxh3::new();
+    let mut read_any = false;
 
     // Group by declared pack name. `BTreeMap` so the resulting pack order is
     // by name, deterministically. Each file is parsed exactly once here — the
     // merge below consumes these `Pack`s rather than re-reading the source.
     let mut by_name: BTreeMap<String, Vec<(PackFile, Pack)>> = BTreeMap::new();
+    let mut load_errors = Vec::new();
     for (file, source) in sources {
         // A pack carrying `include` rows loads through a file-system
         // include context scoped to its own directory, and bypasses both
         // cache tiers — the key hashes only this file's bytes and so cannot
         // see an included file change under it.
+        let file_trust = file.tier.trust_under(trust);
         let pack = if crate::loader::uses_include(&source) {
             crate::cache::evaluate_pack_including(
                 &source,
                 file.tier,
+                file_trust,
                 &std::rc::Rc::new(crate::loader::IncludeContext::for_file(&file.path)),
             )
         } else {
-            crate::cache::evaluate_pack_cached(&source, file.tier)
+            crate::cache::evaluate_pack_cached(&source, file.tier, file_trust)
         };
+        if let Some(error) = &pack.load_error {
+            load_errors.push((file.path.clone(), error.clone()));
+        }
         if pack.name.is_empty() {
             // No `speclib` wrapper: nothing to merge, but the loader's
             // explanation of why still belongs on the file.
@@ -361,7 +520,27 @@ pub(crate) fn load_sources(
             ));
         }
 
-        packs.push(merge_group(&name, winning_tier, winners, &mut notices));
+        let mut merged = merge_group(
+            &name,
+            winning_tier,
+            winning_tier.trust_under(trust),
+            winners,
+            &mut notices,
+        );
+        admit_commands(&mut merged, &mut notices);
+        read_any |= provision_beside(&mut merged, store, &mut provisioned, &mut notices);
+        crate::loader::derive_implementations(&mut merged.commands, &mut notices);
+        say_pack_text_backings(&merged, &mut notices);
+        // The execution half of the trust ruling, said where the author
+        // looks: each body an untrusted workspace holds dormant, on its own
+        // row. `hooks::plan_for` reads the same list and allocates none of
+        // them a slot.
+        notices.extend(
+            dormant_hooks(&merged.name, &merged.commands, merged.provenance())
+                .iter()
+                .map(PackNotice::dormant),
+        );
+        packs.push(merged);
     }
 
     // Cross-pack collisions, once every pack is merged — the only point where
@@ -374,9 +553,20 @@ pub(crate) fn load_sources(
     });
     notices.dedup();
 
+    if read_any {
+        // A set that read nothing keeps the key its sources gave it. A
+        // digest of 0 would read as "no packs" to the registry cache.
+        key = match xxhash_rust::xxh3::xxh3_64(
+            &[&key.to_le_bytes()[..], &provisioned.digest().to_le_bytes()].concat(),
+        ) {
+            0 => 1,
+            folded => folded,
+        };
+    }
     let set = PackSet {
         packs,
         notices,
+        load_errors,
         key,
     };
     // Publish the packs' declared extension routing so dialect detection's
@@ -393,6 +583,67 @@ pub(crate) fn load_sources(
         crate::registration::extension_routes(&set),
     );
     set
+}
+
+/// What the load reads beside a pack, through the store that read the packs:
+/// the files its `-package-source` backings point at and the compiled
+/// extensions its `-host wasm_extension` implementations run, each digest
+/// folded into `provisioned`. A load with no store reads neither, and a
+/// command whose body is not in hand is simply not inlined. Answers whether
+/// it read anything.
+fn provision_beside(
+    merged: &mut MergedPack,
+    store: Option<&dyn tcl_lsp_core::vfs::SourceStore>,
+    provisioned: &mut xxhash_rust::xxh3::Xxh3,
+    notices: &mut Vec<PackNotice>,
+) -> bool {
+    let Some(store) = store else {
+        return false;
+    };
+    let sources = crate::package_sources::provision(&mut merged.commands, store, notices);
+    let artefacts =
+        crate::extension_artefacts::provision(&merged.name, &mut merged.commands, store, notices);
+    for digest in [sources, artefacts].into_iter().flatten() {
+        provisioned.update(&digest.to_le_bytes());
+    }
+    sources.is_some() || artefacts.is_some()
+}
+
+/// The capability gate on the merged commands of one pack, each refusal said on
+/// its command's row.
+///
+/// The stamp rejection rule: a codegen-axis stamp survives only as a bundled
+/// pack's `alias_of` target's own. Only the stamp goes; the command keeps every
+/// analysis fact it declared. Then the gate's other two declarations, on the same
+/// command: what a package too far from the root may not say.
+fn admit_commands(merged: &mut MergedPack, notices: &mut Vec<PackNotice>) {
+    let provenance = merged.provenance();
+    for command in &mut merged.commands {
+        for refusal in
+            crate::stamps::admit_codegen_stamps(command, provenance, crate::stamps::shipped())
+        {
+            notices.push(PackNotice::stamp_refused(command, &refusal));
+        }
+        for refusal in crate::stamps::admit_declarations(command) {
+            notices.push(PackNotice::declaration_refused(command, &refusal));
+        }
+    }
+}
+
+/// A body carried in the pack is the one backing that goes stale without anyone
+/// touching the pack, so it is said at load.
+fn say_pack_text_backings(merged: &MergedPack, notices: &mut Vec<PackNotice>) {
+    for command in &merged.commands {
+        if matches!(
+            command.spec.runtime_backing,
+            tcl_registry::RuntimeBacking::TclBody {
+                source: tcl_registry::BodySource::PackText { .. },
+                ..
+            }
+        ) {
+            notices.push(PackNotice::pack_text_backing(command));
+        }
+    }
 }
 
 /// Report every command name two *different* packs both claim.
@@ -592,10 +843,21 @@ fn cross_pack_extension_notices(packs: &[MergedPack]) -> Vec<PackNotice> {
     out
 }
 
+/// Append each of `rows` whose name no row in `into` already has: across a
+/// pack's files the first declaration wins, as it does within one file.
+fn merge_first_wins<T>(into: &mut Vec<T>, rows: Vec<T>, name: impl for<'a> Fn(&'a T) -> &'a str) {
+    for row in rows {
+        if !into.iter().any(|prior| name(prior) == name(&row)) {
+            into.push(row);
+        }
+    }
+}
+
 /// Merge one tier's files for one pack name, first-definition-wins.
 fn merge_group(
     name: &str,
     tier: Tier,
+    trust: WorkspaceTrust,
     files: Vec<(PackFile, Pack)>,
     notices: &mut Vec<PackNotice>,
 ) -> MergedPack {
@@ -603,10 +865,12 @@ fn merge_group(
         name: name.to_owned(),
         dsl_version: String::new(),
         tier,
+        trust,
         files: files.iter().map(|(f, _)| f.path.clone()).collect(),
         display_name: None,
         file_extensions: Vec::new(),
         ambient_packages: Vec::new(),
+        special_vars: Vec::new(),
         environments: Vec::new(),
         dialects: Vec::new(),
         surface_rosters: Vec::new(),
@@ -653,6 +917,9 @@ fn merge_group(
             }
         }
         merged.ambient_packages.extend(pack.ambient_packages);
+        merge_first_wins(&mut merged.special_vars, pack.special_vars, |row| {
+            row.spec.name
+        });
         for environment in pack.environments {
             // Declarations dedupe by id (first wins, as within one file);
             // `-extend` blocks are additive contributions and every one is
@@ -666,20 +933,15 @@ fn merge_group(
                 merged.environments.push(environment);
             }
         }
-        for dialect in pack.dialects {
-            if !merged
-                .dialects
-                .iter()
-                .any(|prior| prior.name == dialect.name)
-            {
-                merged.dialects.push(dialect);
-            }
-        }
+        merge_first_wins(&mut merged.dialects, pack.dialects, |dialect| {
+            dialect.name.as_str()
+        });
         merged.surface_rosters.extend(pack.surface_rosters);
         for mut command in pack.commands {
             // The merge is the only layer that knows which file a command came
             // from, so this is where that gets recorded.
             command.file.clone_from(&file.path);
+            command.dependency_tier = file.dependency_tier;
             if let Some((first_path, first_line)) = first_seen.get(command.spec.name) {
                 notices.push(PackNotice {
                     path: file.path.clone(),
@@ -717,10 +979,12 @@ fn merge_group(
 
 /// The content key for a whole pack set.
 ///
-/// Covers, in order, every file's tier, path and byte content, plus the
-/// vocabulary version and loader build — so moving a pack between tiers, or
-/// upgrading the server, is as much a change as editing it.
-fn set_key(sources: &[(PackFile, String)]) -> u64 {
+/// Covers, in order, every file's tier, trust state, dependency tier, path and
+/// byte content, plus the vocabulary version and loader build — so moving a
+/// pack between tiers, its package moving in the lockfile's graph, the editor
+/// granting or withdrawing trust in the workspace, or upgrading the server, is
+/// as much a change as editing it.
+fn set_key(sources: &[(PackFile, String)], trust: WorkspaceTrust) -> u64 {
     if sources.is_empty() {
         return 0;
     }
@@ -728,6 +992,10 @@ fn set_key(sources: &[(PackFile, String)]) -> u64 {
     crate::cache::stamp_build(&mut hasher);
     for (file, source) in sources {
         hasher.update(&[file.tier as u8]);
+        hasher.update(&[file.tier.trust_under(trust) as u8]);
+        // A package moving in the lockfile's graph changes what its packs may
+        // declare, so it changes the set as much as an edit does.
+        hasher.update(&[file.dependency_tier.map_or(0, |tier| tier as u8 + 1)]);
         hasher.update(file.path.to_string_lossy().as_bytes());
         hasher.update(&[0]);
         hasher.update(source.as_bytes());
@@ -831,7 +1099,37 @@ mod tests {
             tier: Tier::Workspace,
             path,
             origin: Origin::DotDir,
+            dependency_tier: None,
         }
+    }
+
+    #[test]
+    fn merged_sets_retain_load_failures_even_before_a_pack_names_itself() {
+        let _cache = cache_guard();
+        let dir = tmpdir("load-errors");
+        let unsupported = write(&dir, "unsupported.tclspec", "speclib demo 99.0 {}");
+        let broken = write(&dir, "broken.tclspec", "error before_header");
+        let empty = write(&dir, "empty.tclspec", "speclib empty 2.0 {}");
+        let set = load(&[
+            workspace_file(unsupported.clone()),
+            workspace_file(broken.clone()),
+            workspace_file(empty.clone()),
+        ]);
+        assert_eq!(set.load_errors.len(), 2, "{set:#?}");
+        assert_eq!(
+            set.load_errors[0],
+            (
+                unsupported,
+                crate::LoadError::UnsupportedMajor("99.0".to_owned())
+            )
+        );
+        assert_eq!(set.load_errors[1].0, broken);
+        assert!(matches!(
+            set.load_errors[1].1,
+            crate::LoadError::EvaluationFailed(_)
+        ));
+        assert!(set.packs.iter().any(|pack| pack.files.contains(&empty)));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -934,12 +1232,14 @@ mod tests {
                 tier: Tier::StudioOverride,
                 path: studio,
                 origin: Origin::StudioOverride,
+                dependency_tier: None,
             },
             workspace_file(ws.clone()),
             PackFile {
                 tier: Tier::User,
                 path: user.clone(),
                 origin: Origin::UserDir,
+                dependency_tier: None,
             },
         ]);
         assert_eq!(set.packs.len(), 1);

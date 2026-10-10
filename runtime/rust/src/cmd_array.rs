@@ -225,6 +225,11 @@ fn array_default(
             if argv.len() != 5 {
                 return interp.wrong_args(b"array default set arrayName value");
             }
+            // A default is part of the array: setting one outside the
+            // activation is a store confinement refuses.
+            if interp.store_escapes(&name) {
+                return interp.confined_store_error(&name);
+            }
             match interp.set_array_default(&name, argv[4]) {
                 Ok(()) => {
                     interp.set_result(argv[4]);
@@ -278,6 +283,9 @@ fn array_default(
         b"unset" => {
             if argv.len() != 4 {
                 return interp.wrong_args(b"array default unset arrayName");
+            }
+            if interp.store_escapes(&name) {
+                return interp.confined_store_error(&name);
             }
             // A missing variable is a silent no-op; a scalar errors (C).
             if interp.var_exists(&name) {
@@ -412,6 +420,11 @@ fn array_set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.report_cmd_error(tcl_cmd_core::CmdError::argument_format(
             "list must have an even number of elements",
         ));
+    }
+    // Confined stores refuse the array outside the activation before it is
+    // made, as they refuse each element store below.
+    if interp.store_escapes(&name) {
+        return interp.confined_store_error(&name);
     }
     // `array set a {}` still materialises an empty array (and a scalar `a`
     // errors `variable isn't array`), so ensure the array up front — the loop

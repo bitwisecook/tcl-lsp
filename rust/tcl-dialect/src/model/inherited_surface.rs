@@ -21,9 +21,8 @@
 //! 2026-08-28).
 //!
 //! [`Ancestry`](super::family::Ancestry) lets a derived family reach its
-//! ancestor's command surface without re-authoring it — the mechanism P6
-//! used to collapse the jim branch's 76 hand-written core commands into
-//! one edge. That is right for a [`Lineage::Fork`]: a fork *is* the
+//! ancestor's command surface without re-authoring it.
+//! This applies to a [`Lineage::Fork`]: a fork *is* the
 //! ancestor's source plus changes, so what the ancestor had, the fork has
 //! until it says otherwise.
 //!

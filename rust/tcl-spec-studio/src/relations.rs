@@ -43,6 +43,7 @@ pub const CLUSTERS: &[Cluster] = &[
               overrides them, and the layouts that repeat them.",
         members: &[
             "arg_roles",
+            "clause_grammar",
             "arg_role_resolver",
             "arg_role_resolver_roles",
             "repeated_args",
@@ -98,6 +99,7 @@ pub const CLUSTERS: &[Cluster] = &[
         members: &[
             "options",
             "option_relations",
+            "option_effect_families",
             "option_placement",
             "constraints",
             "setter_constraints",
@@ -176,6 +178,9 @@ pub const CLUSTERS: &[Cluster] = &[
             "result_stability",
             "const_fold",
             "const_fold_versioned",
+            "semantics",
+            "route",
+            "body",
         ],
     },
     Cluster {
@@ -216,7 +221,6 @@ pub const CLUSTERS: &[Cluster] = &[
             "creates_scope_alias",
             "variable_scope",
             "loop_list_header",
-            "substitution_resolver",
         ],
     },
     Cluster {
@@ -242,13 +246,36 @@ pub const CLUSTERS: &[Cluster] = &[
               pipeline.",
         members: &[
             "semantic_operation",
+            "semantic_operation_windows",
             "lowering_hook",
             "codegen_hook",
+            "codegen_hook_windows",
             "inline_codegen_hook",
+            "inline_codegen_hook_windows",
             "native_lowering",
+            "native_lowering_windows",
+            "semantics",
             "analyser_hook",
             "bpf_op",
             "cfg_rewrite_name",
+        ],
+    },
+    Cluster {
+        name: "Builtin identity",
+        why: "Which shipped builtin a pack command is, the codegen-axis \
+              stamps a bundled pack may carry on it only as that builtin's own \
+              — the stamp rejection rule reads them together — and how its \
+              behaviour reaches the runtime, from which code generation \
+              chooses the identity a compiled site records.",
+        members: &[
+            "alias_of",
+            "runtime_backing",
+            "codegen_hook",
+            "codegen_hook_windows",
+            "inline_codegen_hook",
+            "inline_codegen_hook_windows",
+            "semantic_operation",
+            "semantic_operation_windows",
         ],
     },
     Cluster {
@@ -268,6 +295,7 @@ pub const CLUSTERS: &[Cluster] = &[
         why: "Commands whose arguments are pattern/body clauses rather than a \
               fixed list.",
         members: &[
+            "clause_grammar",
             "case_list",
             "clause_shape_check",
             "pattern_type",

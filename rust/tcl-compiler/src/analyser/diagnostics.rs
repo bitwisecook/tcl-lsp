@@ -73,7 +73,7 @@ use rustc_hash::FxHashSet;
 
 use helpers::{
     UndefSuppressionSemantics, build_undef_suppression, collect_defined_vars,
-    collect_existence_guards, globals_read_by_procs, globals_written_by_procs,
+    globals_read_by_procs, globals_written_by_procs,
 };
 
 use super::state::Analyser;
@@ -106,11 +106,13 @@ pub(in crate::analyser) use validity::{
 
 // The W110 operator-anchor selector is consumed by the EXPR-argument
 // dispatch in `crate::analyser::commands`.
+pub(in crate::analyser) use proven::{CallWords, ProvenSite};
 pub(in crate::analyser) use usage::W110Anchor;
 
 mod const_dispatch;
 mod dataflow;
 pub(in crate::analyser) mod helpers;
+mod proven;
 mod security;
 mod unresolved;
 mod usage;
@@ -301,29 +303,6 @@ impl<'a> BodyFrame<'a> {
             Self::TopLevel | Self::Method(_) => None,
         }
     }
-
-    /// The entry facts the `[info exists]` fold needs: the
-    /// frame's formal parameters, plus a method's instance variables.
-    #[must_use]
-    fn existence_frame(self) -> crate::sccp::ExistenceFrame<'a> {
-        match self {
-            Self::TopLevel => crate::sccp::ExistenceFrame {
-                params: &[],
-                object_state: None,
-                initial_global: true,
-            },
-            Self::Procedure(p) => crate::sccp::ExistenceFrame {
-                params: &p.params,
-                object_state: None,
-                initial_global: false,
-            },
-            Self::Method(m) => crate::sccp::ExistenceFrame {
-                params: &m.params,
-                object_state: Some(&m.instance_vars),
-                initial_global: false,
-            },
-        }
-    }
 }
 
 impl Analyser {
@@ -454,6 +433,8 @@ impl Analyser {
         registry: &tcl_registry::CommandRegistry,
     ) {
         self.settle_cu_derived_object_facts(cu, registry);
+        self.settle_w123_widening(cu);
+        self.loop_unseen_writes = super::bounds_checks::ModuleUnseenWrites::of(&cu.ir_module);
 
         // **W128.** Flag calls to commands renamed or
         // deleted earlier in the file via the flow-sensitive
@@ -465,7 +446,7 @@ impl Analyser {
         // proc in this module writes to.  Top-level RBS (W210)
         // is suppressed for these variables — a helper proc may
         // populate them before the top-level read fires.
-        let globals_written = globals_written_by_procs(cu);
+        let globals_written = globals_written_by_procs(cu, registry);
 
         // **FP-DS-04 cross-scope traces.** A `::`-qualified global with a write
         // trace anywhere in the module is observable across scopes, so a
@@ -537,7 +518,7 @@ impl Analyser {
         // above. Fold those names in so the top-level assignment is neither a
         // dead store (W220) nor an unused variable (W211): both emitters honour
         // this set (W211 via `textually_referenced.extend(cross_event_vars)`).
-        top_level_cross_event_vars.extend(globals_read_by_procs(cu));
+        top_level_cross_event_vars.extend(globals_read_by_procs(cu, registry));
 
         // pkgIndex.tcl's ``$dir`` is set by the package loader before the
         // index script runs, so a read of it is not read-before-set (W210).
@@ -573,11 +554,12 @@ impl Analyser {
         // ``CompilationUnit::functions``.
         // Iterate top-level explicitly so we can pass the IR
         // module through.
+        let module = crate::interprocedural::ModuleProcedures::of_unit(cu, registry);
         self.emit_cfg_ssa_diagnostics_for_function_full(
             &cu.top_level,
             BodyFrame::TopLevel,
-            &top_level_known_defined,
-            &top_level_cross_event_vars,
+            (&top_level_known_defined, &top_level_cross_event_vars),
+            Some(&module),
         );
         self.emit_channel_diagnostics(&cu.top_level, registry);
         for (qname, fu) in &cu.procedures {
@@ -602,8 +584,8 @@ impl Analyser {
                     .procedures
                     .get(qname)
                     .map_or(BodyFrame::TopLevel, BodyFrame::Procedure),
-                &extra_known_defined,
-                &cross_event_vars,
+                (&extra_known_defined, &cross_event_vars),
+                Some(&module),
             );
             self.emit_channel_diagnostics(fu, registry);
             // IRULE4005 — racy ``static::``
@@ -626,9 +608,19 @@ impl Analyser {
             registry,
             &cbn_proc_index,
             &traced_globals,
-            &unit_commands,
+            (&unit_commands, &module),
         );
 
+        self.emit_cross_function_diagnostics(cu, registry);
+    }
+
+    /// The post-passes over the whole unit's walk-collected sites, run once
+    /// every function's own pass has.
+    fn emit_cross_function_diagnostics(
+        &mut self,
+        cu: &crate::compilation_unit::CompilationUnit,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
         // Cross-function post-pass: resolve $var-as-command sites
         // collected during the walk.
         self.emit_var_command_diagnostics(cu, registry);
@@ -647,6 +639,10 @@ impl Analyser {
         // emitting the indirect head references and their writable
         // literal-anchored twins.
         self.settle_const_dispatches(cu);
+
+        // The literal-only checks the walk abstained from, over the words
+        // the lattice proves.
+        self.emit_proven_word_diagnostics(cu);
     }
 
     /// `TclOO`/snit method bodies.  `cu.methods` is kept in a *separate* map
@@ -670,7 +666,10 @@ impl Analyser {
         registry: &tcl_registry::CommandRegistry,
         cbn_proc_index: &crate::interprocedural::ProcIndex,
         traced_globals: &HashSet<String>,
-        unit_commands: &UnitCommandResolver<'_>,
+        (unit_commands, module): (
+            &UnitCommandResolver<'_>,
+            &crate::interprocedural::ModuleProcedures<'_>,
+        ),
     ) {
         for (qname, fu) in &cu.methods {
             let method_ir = cu.ir_module.methods.get(qname);
@@ -722,8 +721,8 @@ impl Analyser {
             self.emit_cfg_ssa_diagnostics_for_function_full(
                 fu,
                 method_ir.map_or(BodyFrame::TopLevel, BodyFrame::Method),
-                &known_bound,
-                &cross_event_vars,
+                (&known_bound, &cross_event_vars),
+                Some(module),
             );
             self.emit_channel_diagnostics(fu, registry);
         }
@@ -739,21 +738,24 @@ impl Analyser {
         registry: &tcl_registry::CommandRegistry,
         cbn_proc_index: &crate::interprocedural::ProcIndex,
         traced_globals: &HashSet<String>,
-        unit_commands: &UnitCommandResolver<'_>,
+        (unit_commands, module): (
+            &UnitCommandResolver<'_>,
+            &crate::interprocedural::ModuleProcedures<'_>,
+        ),
     ) {
         self.emit_method_body_diagnostics(
             cu,
             registry,
             cbn_proc_index,
             traced_globals,
-            unit_commands,
+            (unit_commands, module),
         );
         self.emit_lambda_body_diagnostics(
             cu,
             registry,
             cbn_proc_index,
             traced_globals,
-            unit_commands,
+            (unit_commands, module),
         );
     }
 
@@ -780,7 +782,10 @@ impl Analyser {
         registry: &tcl_registry::CommandRegistry,
         cbn_proc_index: &crate::interprocedural::ProcIndex,
         traced_globals: &HashSet<String>,
-        unit_commands: &UnitCommandResolver<'_>,
+        (unit_commands, module): (
+            &UnitCommandResolver<'_>,
+            &crate::interprocedural::ModuleProcedures<'_>,
+        ),
     ) {
         for qname in &cu.ir_module.lambda_body_units {
             let (Some(fu), Some(ir_proc)) =
@@ -802,8 +807,8 @@ impl Analyser {
             self.emit_cfg_ssa_diagnostics_for_function_full(
                 fu,
                 BodyFrame::Procedure(ir_proc),
-                &known_bound,
-                &cross_event_vars,
+                (&known_bound, &cross_event_vars),
+                Some(module),
             );
             self.emit_channel_diagnostics(fu, registry);
         }
@@ -822,8 +827,8 @@ impl Analyser {
         self.emit_cfg_ssa_diagnostics_for_function_full(
             function_unit,
             frame,
-            &HashSet::new(),
-            &HashSet::new(),
+            (&HashSet::new(), &HashSet::new()),
+            None,
         );
     }
 
@@ -845,8 +850,8 @@ impl Analyser {
         self.emit_cfg_ssa_diagnostics_for_function_full(
             function_unit,
             frame,
-            extra_known_defined,
-            &HashSet::new(),
+            (extra_known_defined, &HashSet::new()),
+            None,
         );
     }
 
@@ -861,12 +866,16 @@ impl Analyser {
     /// | cross_event_imports`) and for `pkgIndex.tcl` `$dir`,
     /// which the package loader assigns before the script body
     /// runs.
-    pub fn emit_cfg_ssa_diagnostics_for_function_full(
+    ///
+    /// `module` holds the module's procedures where the caller has them, so
+    /// the read-before-set check reads what a call to one does to the places
+    /// it names from its transfer summary.
+    pub(crate) fn emit_cfg_ssa_diagnostics_for_function_full(
         &mut self,
         function_unit: &crate::compilation_unit::FunctionUnit,
         frame: BodyFrame<'_>,
-        extra_known_defined: &HashSet<String>,
-        cross_event_vars: &HashSet<String>,
+        (extra_known_defined, cross_event_vars): (&HashSet<String>, &HashSet<String>),
+        module: Option<&crate::interprocedural::ModuleProcedures<'_>>,
     ) {
         let defined = collect_defined_vars(&function_unit.cfg);
         // Alias recognition is registry-driven; fall back to the cached
@@ -915,7 +924,6 @@ impl Analyser {
         // [`BodyFrame`]).
         let ir_proc = frame.procedure();
         let initial_global = frame.is_initial_global();
-        let existence_frame = frame.existence_frame();
         self.emit_dead_store_diagnostics(function_unit, &defined, &scope_aliases, cross_event_vars);
         self.emit_unused_variable_diagnostics(
             function_unit,
@@ -924,6 +932,7 @@ impl Analyser {
             &textually_referenced,
         );
         self.emit_possible_paste_error_diagnostics(function_unit);
+        self.emit_w102_template_plans(function_unit);
         // Shared read-before-set context: the SCCP-executable block set and
         // the name-level suppression (`dict with` keys, qualified-`variable`
         // alias tails, dict vars), threaded through both the version-0
@@ -943,11 +952,9 @@ impl Analyser {
                 dialect: Some(self.analysis_context().context().authoring_query()),
                 registry: self.registry.as_deref(),
                 rules: self.word_rules(),
-                lexer_config: self.lexer_config(),
+                module,
             },
         );
-        let exists_guards =
-            collect_existence_guards(function_unit, self.registry.as_deref(), self.lexer_config());
         let rbs_params: HashSet<&str> = ir_proc
             .map(|p| p.params.iter().map(String::as_str).collect())
             .unwrap_or_default();
@@ -959,18 +966,23 @@ impl Analyser {
             extra_known_defined,
             supp: &supp,
         };
-        self.emit_read_before_set_diagnostics(function_unit, ir_proc, &read_before_set_ctx);
+        let already_reported =
+            self.emit_read_before_set_diagnostics(function_unit, ir_proc, &read_before_set_ctx);
+        let registry = self.registry.clone();
         // Phi-from-undef on `return $v` reads (the def-use builder records
         // statement + branch-condition uses but NOT `Terminator::Return`
         // values).
         self.emit_return_phi_undef_w210(
             function_unit,
             &dataflow::ReturnUndefCtx {
+                already_reported: &already_reported,
+                registry: registry
+                    .as_deref()
+                    .unwrap_or_else(|| tcl_registry::default_registry()),
                 initial_global,
                 global_aliases: &global_aliases,
                 dialect: Some(self.analysis_context().context().authoring_query()),
                 params: &rbs_params,
-                exists_guards: &exists_guards,
                 scope_aliases: &scope_aliases,
                 extra_known_defined,
                 defined_vars: &defined,
@@ -978,10 +990,7 @@ impl Analyser {
                 supp: &supp,
             },
         );
-        // W210 on reads of a provably-no-match regexp / scan output var.
-        self.emit_provably_unset_w210(function_unit, &considered, &defined);
-        self.emit_constant_branch_diagnostics(function_unit);
-        self.emit_existence_constant_branch_diagnostics(function_unit, existence_frame);
+        self.emit_branch_fact_diagnostics(function_unit);
         self.emit_invalid_ip_diagnostics(function_unit);
         self.emit_w233_divide_by_zero(function_unit);
         self.emit_interval_bounds_diagnostics(function_unit);

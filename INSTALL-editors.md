@@ -243,7 +243,9 @@ What differs from the desktop:
   launches (`tclLsp.serverPath`, `tclLsp.rustServerPath`,
   `tclLsp.runtimeValidation.*`) and where it reads from (`tclLsp.libraryPaths`,
   `tclLsp.specPacks`, `tclLsp.packageManager.*`) are ignored until you trust
-  the workspace.
+  the workspace. A spec pack the workspace carries still loads its
+  declarations, but its hook bodies stay dormant until then
+  ([why a pack hook is dormant](docs/kcs/kcs-qa-why-is-my-pack-hook-dormant.md)).
 
 To run the web build from a checkout:
 

@@ -24,6 +24,8 @@
 //! modified before an exception, and at condition sites to track
 //! definitions produced by command substitutions.
 
+use std::collections::BTreeSet;
+
 use tcl_lexer::{LexerConfig, SourceMap, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry, InvocationWord, InvocationWords, Traits};
 
@@ -33,6 +35,7 @@ pub(crate) use crate::ir::ExecutionNamespace;
 use crate::ir::{CommandTokens, Script, Statement, WordExpr, WordPart};
 use crate::naming::normalise_var_name;
 use crate::segmenter::SegmentedCommand;
+use crate::var_refs::VarReferenceScanner;
 
 /// The nested script bodies a structured-control-flow statement contains —
 /// every shape a flow-*insensitive* whole-body walk needs to recurse into
@@ -537,13 +540,24 @@ fn cmd_substitution_out_vars(
     if arg_words.iter().any(|word| word.expanded) {
         return;
     }
+    let args: Vec<&str> = arg_words.iter().map(|w| w.text.as_str()).collect();
+    // A command the document's release does not have writes nothing: under
+    // Tcl 8.4 `lassign` raises `invalid command name`, so its words name no
+    // place. Availability is the registry's answer, asked by resolving the
+    // invocation under the registry's own surface — which a profile-less
+    // registry leaves blind, answering for every release.
+    if registry
+        .resolve_invocation(cmd, &args, registry.own_surface_query())
+        .is_none()
+    {
+        return;
+    }
     if registry
         .get(cmd)
         .is_some_and(|s| s.traits.contains(Traits::DESTROYS_VARIABLE))
     {
         return;
     }
-    let args: Vec<&str> = arg_words.iter().map(|w| w.text.as_str()).collect();
     for idx in registry.arg_indices_for_role(cmd, &args, ArgRole::VarWrite) {
         if let Some(w) = arg_words.get(idx) {
             push_out_var(w, out);
@@ -1025,12 +1039,14 @@ pub(crate) struct VariableReadEffects {
 
 /// Project the variable cells recursively recovered command substitutions read
 /// **by name** — an [`ArgRole::VarRead`](tcl_registry::ArgRole::VarRead) word
-/// such as `info exists n` or `array size a`.
+/// such as `info exists n` or `array size a`, and a destroyer's target
+/// (`unset x`), whose existence the unbind reads.
 ///
 /// The read half of [`variable_write_effects_from_commands`], and needed for
 /// the same reason: a store observed only by an existence query looked unread,
 /// so `proc p {} {set x 1; if {[info exists x]} {puts yes}}` had `set x 1`
-/// removed and stopped printing `yes` (#2132).
+/// removed and stopped printing `yes` (#2132), and one observed only by a
+/// nested `[unset x]` was removed until the unset raised.
 #[must_use]
 pub(crate) fn variable_read_effects_from_commands<'a>(
     commands: impl IntoIterator<Item = &'a Vec<CommandWord>>,
@@ -1058,6 +1074,35 @@ pub(crate) fn variable_read_effects_from_commands<'a>(
     out
 }
 
+/// The variables a recovered command destroys — the targets of a
+/// [`Traits::DESTROYS_VARIABLE`] invocation (`unset x`), which
+/// [`variable_read_effects_from_commands`] records as reads of what they
+/// observe: an existence read, never a value read.
+#[must_use]
+pub(crate) fn destroyed_variables(
+    words: &[CommandWord],
+    registry: &CommandRegistry,
+) -> Vec<String> {
+    let Some(head) = words.first() else {
+        return Vec::new();
+    };
+    let args: Vec<InvocationWord<'_>> = words
+        .iter()
+        .skip(1)
+        .map(CommandWord::invocation_word)
+        .collect();
+    let words = InvocationWords::structured(head.invocation_word(), &args);
+    let destroys = registry
+        .resolve_structured_invocation(words, registry.own_surface_query())
+        .resolved()
+        .is_some_and(|call| call.semantics.traits.contains(Traits::DESTROYS_VARIABLE));
+    if destroys {
+        registry.variable_read_projection(words).literal_names
+    } else {
+        Vec::new()
+    }
+}
+
 /// Project variable writes from recursively recovered command substitutions.
 #[must_use]
 pub(crate) fn variable_write_effects_from_commands<'a>(
@@ -1082,6 +1127,19 @@ pub(crate) fn variable_write_effects_from_commands<'a>(
                 out.read_names.push(name);
             }
         }
+        // A conditional writer (`regexp`, `scan`, `binary scan`) leaves each
+        // target it does not reach as it was, so the store feeding one is
+        // observed, not overwritten: the nested twin of the SSA's rule for
+        // the same commands as statements. `set v d; if {[regexp {(x)} $s
+        // -> v]} {…}; puts $v` prints `d` when nothing matches, and without
+        // the read `set v d` was deleted as a dead store (#2051).
+        if conditionally_writes(words, registry) {
+            for name in &projection.literal_names {
+                if !out.read_names.contains(name) {
+                    out.read_names.push(name.clone());
+                }
+            }
+        }
         for name in projection.literal_names {
             if !out.names.contains(&name) {
                 out.names.push(name);
@@ -1089,6 +1147,22 @@ pub(crate) fn variable_write_effects_from_commands<'a>(
         }
     }
     out
+}
+
+/// Whether the recovered command `words` names a conditional writer: the
+/// registry's `CONDITIONAL_VARIABLE_WRITE` trait on the invocation (a
+/// subcommand's included, `binary scan`'s), resolved over its literal words.
+fn conditionally_writes(words: &[CommandWord], registry: &CommandRegistry) -> bool {
+    let Some(head) = words.first().and_then(CommandWord::literal) else {
+        return false;
+    };
+    let args: Vec<&str> = words[1..]
+        .iter()
+        .map(|word| word.literal().unwrap_or_default())
+        .collect();
+    registry
+        .invocation_traits(head, &args, registry.own_surface_query())
+        .contains(tcl_registry::Traits::CONDITIONAL_VARIABLE_WRITE)
 }
 
 /// Tokenise source text into a list of commands, each a list of words.
@@ -1112,9 +1186,14 @@ pub(crate) fn tokenise_command_words(source: &str, config: LexerConfig) -> Vec<V
         .collect()
 }
 
+/// Where one recovered command sits in [`EvaluatedCommandSubstitutions`]'
+/// inventories, in the order the walk met it.
+#[derive(Clone, Copy)]
 enum CommandSubstitutionIndex {
+    /// An index into [`EvaluatedCommandSubstitutions::commands`].
     Ordinary(usize),
-    InFrameExpression(usize),
+    /// An index into [`EvaluatedCommandSubstitutions::in_frame_commands`].
+    InFrame(usize),
 }
 
 /// Registry/dialect-shaped command invocations recovered from every evaluated
@@ -1124,8 +1203,9 @@ pub(crate) struct EvaluatedCommandSubstitutions {
     /// Commands in evaluation order within each recovered bracket script.
     pub commands: Vec<Vec<CommandWord>>,
     /// Commands reached only by descending into a brace-quoted word the
-    /// callee evaluates as an **expression in this frame** — the `[incr x]`
-    /// of `puts [expr {$x + [incr x]}]`.
+    /// callee evaluates **in this frame**: an expression — the `[incr x]` of
+    /// `puts [expr {$x + [incr x]}]` — or a protected script, the body of a
+    /// `catch` — the `incr x` of `[catch {incr x}]`.
     ///
     /// Kept apart from [`Self::commands`] rather than merged into it because
     /// the two answer different questions. A consumer asking *what cells does
@@ -1137,26 +1217,56 @@ pub(crate) struct EvaluatedCommandSubstitutions {
     /// unbraced `return [fib $n]` earns for a reason unrelated to this word.
     /// Closing that second gap means fixing the recursion summary first; the
     /// two are separate, and this split says which is which.
-    pub in_frame_expression_commands: Vec<Vec<CommandWord>>,
+    pub in_frame_commands: Vec<Vec<CommandWord>>,
+    /// The commands of [`Self::in_frame_commands`] reached inside a protected
+    /// script — the body of a `catch` or a `try` — with the substitutions and
+    /// expression words in it. Each runs only where every command before it
+    /// in the script completed normally, and the error that stops the rest
+    /// is absorbed, not raised: a write among them may not happen, and the
+    /// place keeps what it held where the script stopped first.
+    pub protected_commands: Vec<Vec<CommandWord>>,
+    /// The brace-quoted words themselves — the text of each `{$x + [incr x]}`
+    /// or `{incr x; puts $y}` a recovered command evaluates in this frame,
+    /// which is where the variable reads of that word sit: no command word of
+    /// [`Self::in_frame_commands`] holds them.
+    pub in_frame_texts: Vec<String>,
     /// Indices into both inventories in the order the shared walk evaluates
     /// them. Keeping the classifications separate must not move an earlier
     /// expression's nested invocation after a later sibling substitution.
     evaluation_order: Vec<CommandSubstitutionIndex>,
-    /// A malformed fragment or recursion-limit hit prevented complete recovery.
+    /// A malformed fragment, a recursion-limit hit, or a protected script that
+    /// is run-time data (`[catch $script]`) prevented complete recovery.
     pub opaque: bool,
 }
 
 impl EvaluatedCommandSubstitutions {
+    /// Record `words`, reached as `reach` says, after every command the walk
+    /// met before it.
+    fn record(&mut self, reach: Reach, words: Vec<CommandWord>) {
+        if reach == Reach::Statement {
+            self.evaluation_order
+                .push(CommandSubstitutionIndex::Ordinary(self.commands.len()));
+            self.commands.push(words);
+            return;
+        }
+        if reach == Reach::Protected {
+            self.protected_commands.push(words.clone());
+        }
+        self.evaluation_order
+            .push(CommandSubstitutionIndex::InFrame(
+                self.in_frame_commands.len(),
+            ));
+        self.in_frame_commands.push(words);
+    }
+
     /// Every command the statement may run, whether or not it took an in-frame
-    /// expression word to reach, in Tcl evaluation order. Variable-effect and
+    /// word to reach, in Tcl evaluation order. Variable-effect and
     /// binding-transition consumers use this view; call-graph consumers may
     /// still select the ordinary inventory without changing its classification.
     pub(crate) fn all_commands(&self) -> impl Iterator<Item = &Vec<CommandWord>> {
         self.evaluation_order.iter().map(|index| match *index {
             CommandSubstitutionIndex::Ordinary(index) => &self.commands[index],
-            CommandSubstitutionIndex::InFrameExpression(index) => {
-                &self.in_frame_expression_commands[index]
-            }
+            CommandSubstitutionIndex::InFrame(index) => &self.in_frame_commands[index],
         })
     }
 }
@@ -1238,11 +1348,23 @@ struct SubstitutionWalkContext<'a> {
     conditional: bool,
 }
 
+/// Where a recovered command runs, relative to the statement whose
+/// substitutions the walk recovers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Reach {
+    /// A substitution the statement runs itself.
+    Statement,
+    /// A word a recovered command evaluates in this frame: an expression.
+    InFrame,
+    /// A protected script, or a word or substitution inside one.
+    Protected,
+}
+
 fn walk_text(
     text: &str,
     context: &SubstitutionWalkContext<'_>,
     depth: u32,
-    in_frame_expression: bool,
+    reach: Reach,
     out: &mut EvaluatedCommandSubstitutions,
 ) {
     if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
@@ -1257,29 +1379,20 @@ fn walk_text(
     for token in tokens.iter().filter(|token| token.kind == TokenType::Cmd) {
         let inner = source_map.token_text(*token);
         let recovered = tokenise_command_words(inner, context.config);
+        let protected = reach == Reach::Protected;
         for words in recovered {
             // Tcl substitutes command words from left to right before it
             // invokes the enclosing command. A nested `[rename …]` therefore
             // changes the binding that resolves its outer command; recording
             // the outer command first reverses that observable order.
             for word in words.iter().filter(|word| !word.braced_literal) {
-                walk_text(&word.text, context, depth + 1, in_frame_expression, out);
+                walk_text(&word.text, context, depth + 1, reach, out);
             }
-            walk_braced_expr_words(&words, context, depth, out);
+            walk_in_frame_words(&words, context, (depth, protected), out);
             if let Some(observe) = context.observe {
                 observe(&words, context.conditional);
             }
-            if in_frame_expression {
-                out.evaluation_order
-                    .push(CommandSubstitutionIndex::InFrameExpression(
-                        out.in_frame_expression_commands.len(),
-                    ));
-                out.in_frame_expression_commands.push(words);
-            } else {
-                out.evaluation_order
-                    .push(CommandSubstitutionIndex::Ordinary(out.commands.len()));
-                out.commands.push(words);
-            }
+            out.record(reach, words);
         }
     }
 }
@@ -1288,7 +1401,7 @@ fn walk_text(
 /// as indices into its own argv-minus-head.
 ///
 /// The single owner of that question, shared by the two walks that ask it: the
-/// variable-effect walk ([`walk_braced_expr_words`]) and the call-site walk
+/// variable-effect walk ([`walk_in_frame_words`]) and the call-site walk
 /// ([`crate::word_subst::lifted_calls_with_registry`]). The two disagreeing
 /// about which commands a statement runs is what let `return [expr {[fact …]}]`
 /// hide a recursive call from the caller-evidence scan (#2118).
@@ -1330,8 +1443,8 @@ pub(crate) fn in_frame_expression_arg_indices(
     descend
 }
 
-/// Descend the brace-quoted words a recovered command evaluates **as an
-/// expression in this frame**.
+/// Descend the brace-quoted words a recovered command evaluates **in this
+/// frame**: an expression, and a protected script.
 ///
 /// The word lexer is right to stop at `{…}` — the *command* parser
 /// substitutes nothing there — but `expr` re-parses that text as an
@@ -1340,12 +1453,28 @@ pub(crate) fn in_frame_expression_arg_indices(
 /// `puts [incr x]` does, and without this descent the write was invisible
 /// and O102 forwarded a stale literal across it (#2141).
 ///
-/// Which words those are is [`in_frame_expression_arg_indices`]' to answer;
-/// this walks the brace-quoted ones among them.
-fn walk_braced_expr_words(
+/// Which words are an expression is [`in_frame_expression_arg_indices`]' to
+/// answer; this walks the brace-quoted ones among them.
+///
+/// A script the call's clause plan places as protected
+/// ([`tcl_registry::ClauseTiming::Protected`]: the body of `catch` and of
+/// `try`) runs once in this frame whatever it does, and its completion is
+/// observed rather than propagated, so what it writes and reads is the
+/// statement's: `set c [catch {incr x}]` writes `x`, and an `if` that reads
+/// it was folded on the value `x` held before (#2231). Its commands are
+/// descended, and their own protected scripts and expression words with
+/// them, where the script is known text: brace-quoted, or a quoted or bare
+/// word that substitutes nothing (`[catch "incr x"]`). A script that is
+/// run-time data (`[catch $script]`) is unreadable, and the walk is marked
+/// [`EvaluatedCommandSubstitutions::opaque`]. Every other body is left: it
+/// may run zero or many times, in another frame, or bind names of its own,
+/// which a flat command list cannot represent. What the walk reaches inside
+/// a protected script, or inside a word of a command `in_protected` says
+/// is in one, is also [`EvaluatedCommandSubstitutions::protected_commands`].
+fn walk_in_frame_words(
     words: &[CommandWord],
     context: &SubstitutionWalkContext<'_>,
-    depth: u32,
+    (depth, in_protected): (u32, bool),
     out: &mut EvaluatedCommandSubstitutions,
 ) {
     if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
@@ -1417,7 +1546,85 @@ fn walk_braced_expr_words(
         else {
             continue;
         };
-        walk_text(&word.text, &expression_context, depth + 1, true, out);
+        out.in_frame_texts.push(word.text.clone());
+        let reach = if in_protected {
+            Reach::Protected
+        } else {
+            Reach::InFrame
+        };
+        walk_text(&word.text, &expression_context, depth + 1, reach, out);
+    }
+
+    walk_protected_scripts(words, (lookup, &args, shift), context, depth, out);
+}
+
+/// Descend the scripts the call `words` runs as protected — the ones its
+/// clause plan places at [`tcl_registry::ClauseTiming::Protected`], the body
+/// of a `catch` or a `try` — where each is known text ([`walk_in_frame_words`]
+/// says which). `callee` is the command the call reaches, its argv after any
+/// words an alias prepends, and how many those are.
+fn walk_protected_scripts(
+    words: &[CommandWord],
+    (lookup, args, shift): (&str, &[&str], usize),
+    context: &SubstitutionWalkContext<'_>,
+    depth: u32,
+    out: &mut EvaluatedCommandSubstitutions,
+) {
+    let protected: Vec<usize> = context
+        .registry
+        .clause_plan(lookup, args)
+        .map(|plan| {
+            plan.clauses
+                .iter()
+                .filter(|clause| clause.timing == tcl_registry::ClauseTiming::Protected)
+                .flat_map(|clause| clause.operands(tcl_registry::ArgRole::Body))
+                .collect()
+        })
+        .unwrap_or_default();
+    for index in protected {
+        let Some(source_index) = index.checked_sub(shift) else {
+            continue;
+        };
+        let Some(word) = words.get(source_index + 1) else {
+            continue;
+        };
+        // The script is the text of a brace-quoted word, or of a quoted or
+        // bare word that substitutes nothing and has no escape to read. A word
+        // that substitutes, or is expanded, is run-time data: the script may
+        // write any name, so the walk is incomplete.
+        let script = if word.braced_literal {
+            Some(word.text.as_str())
+        } else {
+            word.literal().filter(|_| !word.raw.contains('\\'))
+        };
+        let Some(script) = script else {
+            out.opaque = true;
+            continue;
+        };
+        out.in_frame_texts.push(script.to_owned());
+        // The script's commands run in order, each after the substitutions
+        // of its own words, and any of them may be skipped: an error before
+        // it stops the script.
+        let script_context = SubstitutionWalkContext {
+            conditional: true,
+            ..*context
+        };
+        for inner in tokenise_command_words(script, context.config) {
+            for word in inner.iter().filter(|word| !word.braced_literal) {
+                walk_text(
+                    &word.text,
+                    &script_context,
+                    depth + 1,
+                    Reach::Protected,
+                    out,
+                );
+            }
+            walk_in_frame_words(&inner, &script_context, (depth + 1, true), out);
+            if let Some(observe) = script_context.observe {
+                observe(&inner, script_context.conditional);
+            }
+            out.record(Reach::Protected, inner);
+        }
     }
 }
 
@@ -1497,7 +1704,7 @@ pub(crate) fn command_substitutions_in_surfaces_with_replay(
         conditional,
     };
     for text in surfaces {
-        walk_text(text, &context, 0, false, &mut out);
+        walk_text(text, &context, 0, Reach::Statement, &mut out);
     }
     out
 }
@@ -1531,6 +1738,65 @@ pub(crate) fn expression_command_substitutions_with_replay(
         heads,
         observe,
     )
+}
+
+/// Every variable `stmt` may read by substitution, wherever the read sits: in
+/// its own words or expression, in the commands its `[…]` substitutions run,
+/// and in the expression words those commands evaluate in this frame
+/// (`embedded`, recovered from the same statement).
+///
+/// The statement's own uses cover its words. The commands its substitutions
+/// run and the expression words they evaluate are scanned as text, because the
+/// lowering keeps no word structure for them (an expression's
+/// `ExprNode::Command` is one opaque spelling, an `incr` amount is a string).
+/// The effect call that carries an embedded command's write needs the whole
+/// set: a name that write defines is read by the words before, between and
+/// after it.
+#[must_use]
+pub(crate) fn statement_substituted_reads(
+    stmt: &Statement,
+    embedded: &EvaluatedCommandSubstitutions,
+    scanner: &mut VarReferenceScanner,
+    registry: &CommandRegistry,
+) -> BTreeSet<String> {
+    let mut reads: BTreeSet<String> = crate::ssa::uses_of(stmt, scanner, registry)
+        .into_iter()
+        .collect();
+    let surfaces = evaluated_command_substitution_surfaces(stmt, registry);
+    for text in surfaces
+        .texts
+        .iter()
+        .copied()
+        .chain(embedded.in_frame_texts.iter().map(String::as_str))
+    {
+        reads.extend(scanner.scan_word(text, registry));
+    }
+    reads
+}
+
+/// [`statement_substituted_reads`] for a branch condition: its own variables,
+/// the commands its substitutions run, and the expression words they evaluate.
+#[must_use]
+pub(crate) fn condition_substituted_reads(
+    condition: &ExprNode,
+    embedded: &EvaluatedCommandSubstitutions,
+    scanner: &mut VarReferenceScanner,
+    registry: &CommandRegistry,
+) -> BTreeSet<String> {
+    let mut reads: BTreeSet<String> = condition
+        .vars_element_qualified_with_config(scanner.lexer_config())
+        .into_iter()
+        .collect();
+    let mut texts: Vec<&str> = Vec::new();
+    let (mut opaque, mut conditional) = (false, false);
+    collect_expr_command_surface_refs(condition, &mut texts, &mut opaque, &mut conditional, 0);
+    for text in texts
+        .into_iter()
+        .chain(embedded.in_frame_texts.iter().map(String::as_str))
+    {
+        reads.extend(scanner.scan_word(text, registry));
+    }
+    reads
 }
 
 /// Map one segmented command onto its per-word [`CommandWord`] facts.
@@ -1874,6 +2140,105 @@ mod tests {
         assert!(commands(true).is_empty());
     }
 
+    /// The commands of `surface` a statement's substitution recovers, under
+    /// the 8.6 registry.
+    fn recovered(surface: &str) -> EvaluatedCommandSubstitutions {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        command_substitutions_in_surfaces_with_replay(
+            &[surface],
+            false,
+            false,
+            registry,
+            None,
+            None,
+        )
+    }
+
+    /// The head spelling of each command, sorted.
+    fn heads<'a>(commands: impl IntoIterator<Item = &'a Vec<CommandWord>>) -> Vec<&'a str> {
+        let mut heads: Vec<&str> = commands
+            .into_iter()
+            .filter_map(|words| words.first())
+            .map(|word| word.text.as_str())
+            .collect();
+        heads.sort_unstable();
+        heads
+    }
+
+    /// The script a `catch` protects, and the body of a `try`, run once in the
+    /// frame the substitution is written in, so their commands are the
+    /// statement's: `[catch {incr x}]` writes `x`, and so does `[catch "incr
+    /// x"]`, whose word substitutes nothing. Nothing else is descended by a
+    /// command's name — a handler, a `finally`, an `if` arm, a loop body, an
+    /// `eval` — and a script that is run-time data is not known text: the walk
+    /// is incomplete.
+    #[test]
+    fn a_protected_script_is_descended_and_no_other_body_is() {
+        let one = recovered("[catch {incr x}]");
+        assert_eq!(heads(&one.commands), ["catch"]);
+        assert_eq!(heads(&one.in_frame_commands), ["incr"]);
+        assert_eq!(one.in_frame_texts, ["incr x"]);
+
+        let two = recovered("[catch {catch {incr x}}]");
+        assert_eq!(heads(&two.in_frame_commands), ["catch", "incr"]);
+        assert_eq!(two.in_frame_texts, ["catch {incr x}", "incr x"]);
+
+        let in_expr = recovered("[catch {expr {[incr x] + 1}}]");
+        assert_eq!(heads(&in_expr.in_frame_commands), ["expr", "incr"]);
+
+        let in_substitution = recovered("[catch {set y [incr x]}]");
+        assert_eq!(heads(&in_substitution.in_frame_commands), ["incr", "set"]);
+
+        let body_only = recovered("[try {incr x} on error {} {incr y} finally {incr z}]");
+        assert_eq!(heads(&body_only.in_frame_commands), ["incr"]);
+        assert_eq!(body_only.in_frame_texts, ["incr x"]);
+
+        let quoted = recovered("[catch \"incr x; set y 2\"]");
+        assert_eq!(heads(&quoted.in_frame_commands), ["incr", "set"]);
+        assert_eq!(quoted.in_frame_texts, ["incr x; set y 2"]);
+        assert!(!quoted.opaque);
+        let nested_quoted = recovered("[catch \"catch {incr x}\"]");
+        assert_eq!(heads(&nested_quoted.in_frame_commands), ["catch", "incr"]);
+
+        for other in [
+            "[if {1} {incr x}]",
+            "[eval {incr x}]",
+            "[foreach v {1} {incr x}]",
+            "[while {1} {incr x}]",
+        ] {
+            let embedded = recovered(other);
+            assert!(
+                !heads(&embedded.in_frame_commands).contains(&"incr")
+                    && embedded
+                        .in_frame_texts
+                        .iter()
+                        .all(|text| !text.contains("incr"))
+                    && !embedded.opaque,
+                "{other}"
+            );
+        }
+        for computed in [
+            "[catch $script]",
+            "[catch [list incr x]]",
+            "[catch \"incr $name\"]",
+            "[catch \"incr x\\n\"]",
+            "[catch {*}$script]",
+            "[try $script on error {} {}]",
+        ] {
+            let embedded = recovered(computed);
+            assert!(
+                embedded.opaque
+                    && !heads(&embedded.in_frame_commands).contains(&"incr")
+                    && embedded
+                        .in_frame_texts
+                        .iter()
+                        .all(|text| !text.contains("incr")),
+                "{computed}"
+            );
+        }
+        assert!(!recovered("[catch {incr x}]").opaque);
+    }
+
     #[test]
     fn complete_substitution_inventory_preserves_expression_sibling_order() {
         let registry = CommandRegistry::build_default();
@@ -1897,7 +2262,7 @@ mod tests {
         );
         assert_eq!(heads(embedded.commands.iter().collect()), ["expr", "aaa"]);
         assert_eq!(
-            heads(embedded.in_frame_expression_commands.iter().collect()),
+            heads(embedded.in_frame_commands.iter().collect()),
             ["rename", "rename", "set"]
         );
         assert!(!embedded.opaque);

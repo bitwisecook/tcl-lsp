@@ -47,7 +47,7 @@ spec. The design was driven the same way — by porting hard shipped specs
 drafting specs for external libraries (ticklecharts, apave, SpiceGenTcl,
 tcllib modules) rather than by inventing syntax in the abstract.
 
-**Where the migration half stops, exactly.** `refine NAME { … }` is the
+**Invocation refinement limits.** `refine NAME { … }` is the
 **invocation refinement** — arity, a literal `selector`, argument roles,
 options and relations, availability, and the replacement `traits` /
 `mutator` / effects one call shape states — written in the owning scope's
@@ -243,6 +243,24 @@ unaffected" — with an **Open a GitHub issue** action that pre-fills an
 issue from the crash record, shown to the user before posting; nothing
 leaves the machine without a click.
 
+**A hook body cannot write, or read, outside its own call.** Beyond the
+command whitelist, `Engine::confine_stores` refuses any store, array
+creation or unset whose name resolves outside the running body's own
+activation — a `::`-qualified name, a namespace variable, a linked
+variable — as an ordinary Tcl error,
+which the emitter protocol already treats as an abstention; and it
+removes the globals the host's own bootstrap seeds (`::env`,
+`::tcl_platform`, `::tcl_library`, `::auto_path`), so a body cannot read
+the analysing machine's environment either. The host confines every
+engine once, after it restricts the command surface, and an engine that
+cannot confine its stores fails the pack's sandbox the way one that
+cannot restrict its commands does. This closes what "deprivileged,
+deterministic, and bounded" means above: a call site's answer is a
+function of its declared inputs, never of an earlier call in the same
+pack or of the machine the analysis happens to run on
+([value-evaluation.md](../compiler/value-evaluation.md) § *Per-evaluation
+state: writes outside the activation are denied*).
+
 **Hot-path budget — measured** (release build, cross-checked against the
 `tclvm` CLI): a VM resolver body costs **28 µs** per invocation against a
 whole-call-site native budget of **410 ns** — the VM's floor is ~487 ns
@@ -276,9 +294,12 @@ is 16.6 µs; pack load by the static fast path is **4.28 ms** for a
 |---|---|---|
 | `tcl-engine-api` | bottom | The **Tcl extension interface**: `CompileUnit` → engine handle, invoked with owned structured `Value`s (list and dict are first-class, so `words`/`ctx` never round-trip through text); `HostCommand` for embedder-registered commands; `Budget` the engine must enforce; `EngineError` distinguishing a script error, a budget blowout, and a crash. No dependencies at all. |
 | `tcl-engine-tclvm` | bottom | The `tcl-vm` implementation: `Vm::define_procedure` (compile once), `Vm::invoke_command`, `Vm::register_native_command` (stateful host commands), `Vm::retain_commands` (a closed whitelist), and the enforced `commands` limit + wall-clock cap. |
+| `tcl-runtime::engine` | bottom | The runtime's implementation (`runtime/rust`, its `engine` feature): `RuntimeEngine` over an `Interp`, a unit a procedure, a host command an extension command whose procedure is a Rust trampoline, and the interpreter's own command limit, wall-clock cap, value-size cap, confined stores and closed whitelist. Every hook family runs on it as on `tcl-vm` (`families_e2e.rs`). |
+| `tcl-engine-wasm` | bottom | The runtime compiled to `wasm32` as an engine, under wasmtime: `WasmEngine` over one instance of `tcl_runtime.wasm`, the interpreter's own limits through the runtime's `tcl_engine_*` exports, and fuel, the epoch and a cap on the memory's growth for what they cannot see; a C extension built for the runtime loaded as a side module; every WASI import a stub that answers the same on every run; and `WasmExtensionHost`, the host the registry's extension seam binds. The language server never links it. |
 | `tcl-spec-hooks` | top | The **hook host**: emitter verbs as native commands, the per-family calling conventions and the literal-only precondition, abstention and error policy, per-pack engines, `catch_unwind`, quarantine-on-first-crash with a structured crash record, and the sandbox whitelist plus `foldlist`. Also the pack evaluator (`pack_eval`) that runs a whole pack file under the same sandbox. |
-| `tcl-cshim` | consumer 2 | The **C-Tcl shim** ([c-extension-shim.md](../runtime/c-extension-shim.md)): a C extension compiled against `include/tclshim.h` registers its commands through `Engine::define_command`, with `Tcl_Obj` crossing as typed values. |
+| `tcl-cshim` | consumer 2 | The **C-Tcl shim** ([c-extension-shim.md](../runtime/c-extension-shim.md)): a C extension compiled against the authored `tcl.h` (`runtime/rust/include/tcl.h`, its native leg) registers its commands through `Engine::define_command`, with `Tcl_Obj` crossing as typed values. |
 | `tcl-registry::pack_hooks` | seam | Slots, per-family thunk tables, the thread-local host, and the **shape-keyed cache**. A pack hook is a plain function pointer of the family's shipped type, so `run_const_fold` and every other consumer is unchanged and unaware. |
+| `tcl-registry::extension_host` | seam | The **extension evaluation seam**: `ExtensionHost` (`load` an artefact, named by its content hash, and `evaluate` one command's exact words under an `ImplementationBudget`), the thread-local host, and a `Transient` decline on a thread with none. |
 
 - **The two budgets bound different things.** The command limit counts
   *dispatched* commands — as C Tcl's does — so a loop the compiler inlines
@@ -294,7 +315,7 @@ is 16.6 µs; pack load by the static fast path is **4.28 ms** for a
 
 `rust/tcl-spectcl/tests/spec_corpus.rs` is the gate over **every
 `.tclspec` the repository ships** — the eight bundled loadables under
-`specs/`, the eleven ports and the five external drafts under
+`specs/`, the twelve ports and the five external drafts under
 [`spec-dsl-examples/`](../spec-dsl-examples/). Per pack it loads through the
 real loader, installs into a real per-profile registry, runs the analyser
 and the optimiser over the corpus files in `samples/` that call the pack's
@@ -305,8 +326,8 @@ commands loaded, notices, hooks invoked, quarantines, and load + analysis
 wall clock. Accepted load notices live in
 `rust/tcl-spectcl/tests/spec_corpus_baseline.txt`, compared as a multiset
 in both directions so a fixed notice must also be deleted from the
-baseline. The `state_transitions` / `world_effects` rows the loader does
-not yet read are the bulk of that baseline.
+baseline. The `world_effects` rows the loader does not yet read are part
+of that baseline.
 
 Its negative half is `rust/tcl-spectcl/tests/fixtures/hostile.tclspec`: an
 unbounded loop, a dispatch-heavy fold, and a body that panics. All three
@@ -350,6 +371,11 @@ let packs survive releases without rebuilds:
   does not know and names the fix: the pack loads nothing at all, and one
   notice says why. An unknown *minor* within a known major keeps loading
   maximally.
+- `PackSet::load_errors` preserves whole-pack evaluation failures and their
+  file paths through merging, including failures before a `speclib` header.
+  Ordinary notices do not imply a failed load, and a valid pack can declare no
+  commands. `tcl spec test` rejects failed loads with status 2 before requiring
+  a package; a valid command-free pack exits 0 without starting a shell.
 - `VOCABULARY_VERSION` (`rust/tcl-spectcl/src/lib.rs`, part of the
   compiled-cache key) bumps only when a word's meaning changes — once, for
   2.0, because the legacy `dialects` word's translation output changed.
@@ -474,6 +500,17 @@ message. See [W139](../../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-vers
   naming the environment spelling, because an availability-**narrowing**
   word a reader cannot honour must not leave the wider claim standing.
 
+- **`special_var NAME -kind K -access A -origin O ?-dialects {…}?
+  ?-startup B?`.** An interpreter-provided global the pack's dialect has —
+  the pack-authored twin of a `SPECIAL_VARS` row, installed into the pack's
+  registry generation and read through `CommandRegistry::special_vars()`
+  beside the shipped rows. `-dialects` gates the variable as a command's
+  `dialects` row gates a command (it narrows where the variable exists; it
+  is not an environment placement), and `-startup` states the lifecycle
+  event that makes it readable before user code. The vocabulary is in
+  [special-variable-registry.md](special-variable-registry.md) § *Declaring
+  one in a pack*.
+
 - **Callback timing and taint.** `option … -script-timing
   SameInvocation|Deferred|ReferenceOnly` separates temporal control flow
   from `-body-kind`; `SameInvocation` is the default and remains a
@@ -524,6 +561,38 @@ message. See [W139](../../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-vers
   host did not mount. See
   [contracts/lsp-source-store.md](../contracts/lsp-source-store.md), "The
   virtual spec-pack mount".
+- **A pack a package ships is placed by the lockfile.** A file found beside
+  a `tclpkg.tcl` carries the tier of the package that ships it
+  (`PackFile::dependency_tier`): the workspace's own package is the root, a
+  package the root manifest names in `require` is direct, one reached only
+  through another package is transitive, and one named only in
+  `dev-require` is a development dependency. Discovery computes the tier
+  from the `tclpkg.lock` beside the *outermost* manifest that has one inside
+  the workspace folder — not the nearest, because an installed dependency
+  can carry a manifest and a lockfile of its own and would otherwise name
+  itself a root — reading through the same closed-file store as the packs,
+  and never from what a package's own manifest claims. A file found any
+  other way, and a file in a project with no lockfile, have no tier. Below a
+  project that has a lockfile a file always has one: a package the lockfile
+  does not list, a manifest that does not read and a lockfile that does not
+  read each leave it transitive, the least a package gets. The tier is part
+  of the pack set's key, so a package moving in the lockfile's graph reloads
+  what its packs may declare.
+- **A package names its packs with a `spec` directive.** A manifest that says
+  `spec { packs {rules.tclspec vendor/more.tclspec} tier direct }` names the
+  `.tclspec` files it ships, as paths relative to the manifest and inside the
+  package, and discovery loads exactly those beside it — a draft or a fixture
+  next to the manifest is not a pack — while a manifest without the directive
+  keeps the scan of every `.tclspec` under its directory. The directive is
+  data, as every manifest directive is: it names files and runs nothing.
+  `tier` is the tier the package asks for its packs when it is a dependency,
+  and it is a request: the load holds it no nearer the root than the position
+  the lockfile's graph gives the package, so a package may ask for less than
+  its position licenses and never more, and the workspace's own package takes
+  no request. A pack the directive names that is not there is reported on the
+  file by the load. `tcl pkg install` records a hash of each pack a fetched
+  package names in the lockfile (`spec_integrity`), the same content hash a
+  compiled unit's claim on the pack carries.
 - **Live reload of a pack outside the workspace needs a 3.17 client.** The
   session-wide watcher registration uses workspace-relative patterns, which a
   client matches only inside its workspace folders, so the user tier and any
@@ -540,8 +609,10 @@ message. See [W139](../../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-vers
   (`$XDG_CACHE_HOME/tcl-lsp/spectcl/` and platform equivalents): a pack's
   evaluated snapshot is written keyed by `EvalSnapshotKey` — a
   non-cryptographic hash of the pack source **plus the SpecTcl vocabulary
-  version, the loader-eval version and the tier** — so an edited pack or
-  an upgraded server recompiles exactly once. The cache is disposable by
+  version, the loader-eval version, the tier and the workspace trust
+  state** — so an edited pack or an upgraded server recompiles exactly
+  once, and an untrusted workspace's snapshot never answers for a trusted
+  one's. The cache is disposable by
   contract: delete it and nothing breaks but first-load time; a corrupt or
   stale entry falls back to a fresh evaluation, never an error.
 - **CLI and MCP.** `tcl spec import` derives version ranges for a
@@ -549,10 +620,17 @@ message. See [W139](../../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-vers
   1.x pack to the newest vocabulary (`--check`, `--verify`, `--restyle`;
   [dialect-and-package-registry-centralisation.md](dialect-and-package-registry-centralisation.md)
   §6); `tcl spec export` renders a pack as canonical SpecTcl — its
-  expansion, if it is a program. The MCP server carries `spectcl_check`
+  expansion, if it is a program; `tcl spec test` requires the package a pack
+  describes in a real shell — only under the package manager's opt-in policy,
+  because that runs the package's code — and reports each declared fact
+  (arity, examples, return type, purity, a Tcl-body reference body) the
+  package does not bear out. The MCP server carries `spectcl_check`
   (evaluate a pack and report notices, `load_error`, target-dependence,
-  and what the workspace tier would refuse), `spectcl_expand` (`spec
-  export` over MCP), and `spec_import`. There is no CLI `spec check`
+  and — for a caller-chosen `tier`/`trust` pair, defaulting to a trusted
+  workspace — the provenance an `-override`/`dialect`/reserved-name
+  declaration would be refused under and which hook bodies stay dormant),
+  `spectcl_expand` (`spec export` over MCP), and `spec_import`. There is no
+  CLI `spec check`
   verb. The `spec-author` skill emits the DSL for the private-library
   path.
 
@@ -566,7 +644,7 @@ mapping from a static manifest, so it needs telling.
 The server *advertises* the pairs. `pack_file_extensions` appears on the
 `tcl-lsp.getEffectiveConfig` result and again in the
 `tcl-lsp/specPacksReloaded` notification, which is sent once a reload has
-fully landed. Each row carries the extension, the claiming pack, the
+completed. Each row carries the extension, the claiming pack, the
 dialect, and the **existing** editor language id the extension should
 ride, because no editor can mint a new language id at runtime.
 
@@ -633,21 +711,72 @@ workspace with no setting at all. It cannot name anything outside the
 folder the user opened, so it is the same class of content as the `.tcl`
 files the analyser already reads.
 
-What makes that safe is the sandbox, not trust: a pack's executable
-surface is its evaluation and its hook bodies, both pure words-to-data on
-a closed command whitelist (no `open`, `exec`, `source`, or `socket`),
-each pack gets its own engine, and every invocation runs under a command
-count and wall-clock budget with `catch_unwind` and
-quarantine-on-first-crash around it. A workspace pack can make the editor
+Trust gates *execution*, not *authority*, and the two are separated.
+**Authority** is the interface contract's ruling 3
+([../compiler/value-transfers.md](../compiler/value-transfers.md)
+§ *Rulings*): a loaded workspace pack's well-formed declarative facts are
+believed, with no widen-only tier and no provenance cap, whatever the
+editor's trust state. **Execution** is gated: in a workspace the editor has
+not marked trusted, no pack hook body runs — `const_fold`,
+`arg_role_resolver`, `constraints`, and every other family abstains exactly
+as a declared-but-unbound hook does, and each dormant hook is reported on
+the pack file. Pack *evaluation* stays ungated, because its only input is
+the pack itself, it runs once per `EvalSnapshotKey` under the budget, and
+the frozen snapshot is what carries the declarative facts authority
+protects. The trust state is one input, `WorkspaceTrust`
+(`tcl_dialect::model`), carried on `DiscoveryOptions::workspace_trust` into
+the load; a client that does not report it is treated as trusted. The
+loader maps a workspace pack to `Provenance::WorkspaceTrusted` or
+`Provenance::WorkspaceUntrusted` by it — `MergedPack::provenance`, the E-R2
+gate and the evaluated snapshot's cache key all read it, so a pack in an
+untrusted workspace that `-override`s a compiled name is refused as a Spec
+Studio override's is, with every declarative fact of an unrefused pack
+reaching the registry either way.
+
+The language server takes the state from the client alone:
+`initializationOptions.workspaceTrust` (`"trusted"` or `"untrusted"`) at
+`initialize`, before the first pack load, and a top-level `workspaceTrust`
+in a `workspace/didChangeConfiguration` push when the editor grants trust,
+which reloads the packs (the pack-set key mixes the state, so the reload
+re-installs with no file moved). It never reads the state from a `tclLsp`
+setting: VS Code's configuration sync pushes that section, and a
+`workspace/configuration` pull answers it, from every settings layer — the
+workspace's own `.vscode/settings.json` among them — so a nested key would
+let an untrusted workspace declare itself trusted. The VS Code extension
+sends `workspace.isTrusted`; the other editors send nothing and are
+trusted. In an untrusted workspace `tcl_spectcl::hooks::plan_for` gives the
+workspace tier's bodies no slot, so each field keeps the loader's
+abstaining placeholder — the declared-but-unbound abstention — and the hook
+host never sees the text, while `pack::load_sources` reports each dormant
+body once, as an information notice on the row that declares it, with the
+message "`FIELD` is dormant: the workspace is not trusted, so this hook body
+does not run and the command keeps its declarative facts". Only bodies are
+gated: a `-native ID` runs shipped code the pack only names, and a
+derivation (`clause_grammar`, `from-frame-effect`) is the loader's own. A
+Spec Studio override's bodies run — the tier is untrusted for registration,
+but it is the author's own live edit. The user's answer is
+[why is my pack hook dormant](../../kcs/kcs-qa-why-is-my-pack-hook-dormant.md).
+
+What makes the ungated evaluation safe is the sandbox, not trust: a pack's
+executable surface is its evaluation and its hook bodies, both pure
+words-to-data on a closed command whitelist (no `open`, `exec`, `source`,
+or `socket`), each pack gets its own engine, and every invocation runs
+under a command count and wall-clock budget with `catch_unwind` and
+quarantine-on-first-crash around it — the containment a hook body runs
+under wherever it runs. A workspace pack can make the editor
 say something wrong about the workspace's own code; it cannot reach the
 machine. Two further floors hold regardless of tier: an override can never
-weaken a shipped spec's security facts (`tcl-registry::security_floor`
-unions set-valued facts and keeps single-valued ones — the I6 invariant),
-and the workspace and Spec Studio tiers cannot `-override` a compiled
-command name, declare a `dialect` block, or claim a reserved `environment`
-name (refused at registration, with the provenance named). If a hook family
-ever gains ambient authority, the workspace tier has to become trust-gated
-in the same breath.
+weaken a shipped spec's security facts, nor swap which shipped
+implementation the command is (`tcl-registry::security_floor` unions
+set-valued facts and keeps single-valued ones — the taint colours and
+sinks, and the command-level `codegen_hook`, `inline_codegen_hook`,
+`lowering_hook`, `analyser_hook`, `semantic_operation`,
+`state_transitions`, `native_lowering` and `bpf_op` — the I6 invariant; an
+override still changes arity, options, roles and hover, and the floor
+reads command-level values only), and the workspace and Spec Studio tiers
+cannot `-override` a compiled command name, declare a `dialect` block, or
+claim a reserved `environment` name (refused at registration, with the
+provenance named).
 
 ## Authoring rules for SpecTcl 2.0 (design E)
 
@@ -843,9 +972,104 @@ the form and the Pack DSL pane as projections of it; the contract is
 
 Behaviour that is not a pure words→data function stays native: commands
 needing new lowering/codegen/analyser specialisations are contribution
-candidates. The `state_transitions` and `world_effects` block rows are
-documented vocabulary the loader does not yet read (dropped with a
-notice), a library-defined completion code scoped to one command's body
+candidates. A `state_transitions` **resolver** is readable for two
+families and no more: it may emit `VariableCellAliasTransition` and
+`NamespaceTransition` facts, and no `CommandBindingTransition`,
+`InterpreterTransition`, `ObjectDispatchTransition`, or `TraceTransition`
+fact, because those four decide binding and realm identity — the
+compiler's own proof
+([../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
+§ *The two hook bodies that remain*). The loader reads every row of a
+`state_transitions` block, and a `resolver {words ctx} { … }` body is a
+hook of its own family whose two verbs — `alias LOCAL TARGET ?-level
+LEVEL?` and `namespace-variable NAME`, word indices each — state
+variable-cell alias facts: a namespace variable a call declares is the
+alias `variable` states to the current namespace's cell, so no verb
+builds a `NamespaceTransition` today. A fact naming a computed word
+abstains and widens the variable-cell domains instead of naming a cell,
+and no verb reaches the four forbidden families.
+
+Naming an *existing* specialisation is not open either where it changes
+emitted code. A **codegen-axis stamp** — `codegen_hook`,
+`inline_codegen_hook`, or `semantic_operation {Intrinsic …}`, on a
+command, a subcommand, or a form — survives the load only on a bundled
+pack's command whose `alias_of NAME` names the shipped builtin carrying
+that same stamp at the same site. From the user, workspace, or Spec Studio
+tier, or on a command with no such target, the load drops the stamp and
+publishes a warning on the command's row naming the provenance and the
+`alias_of` the stamp would have had to sit on; the command keeps every
+other fact it declared
+([../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
+§ *The loader's stamp rejection rule*). Bytecode specialised through an
+admitted stamp, or folded to a constant by a pack's `const_fold`, records
+the pack's name, content hash and vocabulary version with the overlay
+generation it compiled under, and the VM runs it only while it holds the
+same facts: an edited pack turns such a site back to ordinary dispatch
+rather than changing what it computes (§ *What the artefact records per
+rung* there).
+
+A pack may also say how a command's behaviour reaches the runtime, with
+`runtime_backing` — `none`, `host-native`, `shipped-builtin ID`,
+`tcl-body {-package-source PATH ?-evaluate?}`, or `tcl-body {-pack-text {TEXT}
+?-evaluate?}` (a `RuntimeBacking`, rung 4 of the same page). Every shipped core
+command declares one and an override keeps the shipped command's (the security
+floor). A
+`tcl-body` backing is a **reference body**: the text of the `proc` that defines
+the command, which the compiler inlines into the procedures that call it. The
+text is the pack's own for `-pack-text`, and for `-package-source` the file of
+the package that ships the pack, relative to the nearest directory above the
+pack that holds a `tclpkg.tcl`, read once at load through the store that read
+the pack — the compiler reads no file, an unreadable path is a warning on the
+command's row, and what was read is part of the pack set's key. The text must be
+exactly one `proc` that defines the command it backs; anything else is passed
+over, as is a call the policy that inlines a module's own procedures declines,
+and a call at a script's global level. A site that inlines one records the
+pack's facts with a claim on the binding that holds the live command to that
+definition, and the VM runs it only while the command is a procedure of exactly
+that text and holds the same facts: a library that diverges from the pack turns
+the site back to ordinary dispatch ([../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
+§ *What the artefact records per rung*, rung 3). A `-pack-text` body, which a
+library upgrade makes diverge silently, is reported at load as an information
+notice on the command's row. A command backed any other way is never inlined.
+
+When the author adds `-evaluate` beside the source and the body is also one the
+bounded host can run — one `proc` with required parameters, every command on the
+hook host's whitelist, nothing reaching for the frame, a channel, a process or
+the world, `return` only as the last statement — the load derives the command's
+declared implementation from it, as an `evaluate -implementation` written beside
+the body would, and the analyser evaluates a call whose arguments it knows by
+running the body in an engine pinned to the release the call is analysed under
+([../compiler/value-evaluation.md](../compiler/value-evaluation.md) § *The
+declared-implementation route*). The flag is the author's assertion that the body
+answers what a real shell does under every release the pack is analysed for: the
+engine emulates an older release imperfectly, so nothing is derived from a body
+whose author did not say so, and such a body draws no notice. The derivation
+needs the command's `arity` to be exactly the body's parameters. A command whose
+author wrote its `semantics` or `evaluate` is left as written, and the flag
+beside either is a contradiction the notice says; one with subcommands or forms,
+one with arity windows and one with another arity are left without, and so is a
+body the scan refuses, each with a warning on the command's row that says why.
+
+How far the package that ships a pack sits from the workspace root narrows
+what the pack may declare, beside the gate above: a declaration must pass
+both. The workspace's own package may declare everything, a direct
+dependency may declare `alias_of` and a `runtime_backing` but no codegen-axis
+stamp and no reference body (a `tcl-body` backing), and a transitive or
+development dependency may declare none of the three, so a package deep in a
+dependency graph cannot change what the workspace emits (`CodegenCapability::for_tier`,
+[../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
+§ *Dialects and packages*). The load drops an `alias_of` or a backing the
+tier may not declare and publishes a warning on the command's row that names
+the tier — "`alias_of lassign` refused for `dep::unpack`: a transitive
+dependency's pack may not declare `alias_of`; only the workspace's own
+package and its direct dependencies may", and "`runtime_backing tcl-body
+{-pack-text …}` refused for `dep::double`: a direct dependency's pack may not
+declare a reference body; only the workspace's own package may" — and the
+command keeps every other fact. A pack no package ships has no tier and is not narrowed. The user's
+answer is [why was a declaration dropped from my dependency's pack](../../kcs/kcs-qa-why-was-a-declaration-dropped-from-my-dependencys-pack.md).
+
+The `world_effects` block rows stay documented vocabulary the loader does
+not read, a library-defined completion code scoped to one command's body
 has no spelling, and a method-scoped taint sink is a registry change
 rather than a DSL one — the register is in
 [`spec-dsl-examples/README.md`](../spec-dsl-examples/README.md), "Known

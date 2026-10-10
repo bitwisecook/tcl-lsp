@@ -10,6 +10,6 @@ environments []
 dialects []
 registrations 1
 notices 1
-notice command foreach 45 presentation names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
+notice command foreach 49 presentation names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
 commands 1
-command foreach line 10 overrides false degraded false spec 6de1e5ff78928431 hooks 11d82c6adf139993 grammar 715ea0deb6f6f5f9
+command foreach line 10 overrides false degraded false spec 9f0eee73e7c226a1 hooks 3f3805ec9138a3a6 grammar ae5354c48da95c8d

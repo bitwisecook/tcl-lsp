@@ -59,8 +59,10 @@ use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
 use crate::value_shapes::is_pure_var_ref;
 
-use super::hints::{arg_shimmer_type, inert_braced_args, is_numeric_compatible, is_pure_intrep};
+use super::hints::{arg_shimmer_type, inert_braced_args, is_numeric_compatible, is_pure_value};
 use super::use_site::foreach_header_expected_type;
+use crate::value_transfer::FoldedType;
+use tcl_registry::value_transfer::RepresentationEvidence;
 
 /// Upper bound on the tracked may-set — a value committed to more than this
 /// many distinct intreps across paths widens to "unknown" (never fires).
@@ -240,6 +242,7 @@ impl CommitFacts {
             ssa: ctx.ssa,
             types: ctx.types,
             values: ctx.values,
+            folded: ctx.folded,
         }
     }
 
@@ -270,6 +273,10 @@ pub struct CommitCtx<'a> {
     pub types: &'a HashMap<ValueKey, TypeLattice>,
     /// SCCP constants, for the numeric-literal purity distinction.
     pub values: &'a HashMap<ValueKey, LatticeValue>,
+    /// The folded types SCCP's evaluations state
+    /// ([`crate::sccp::SccpResult::folded_types`]): a computed value's
+    /// representation decides its purity before its constant does.
+    pub folded: &'a HashMap<ValueKey, FoldedType>,
 }
 
 impl CommitCtx<'_> {
@@ -303,6 +310,7 @@ pub struct CommitWalker<'a> {
     ssa: &'a SsaFunction,
     types: &'a HashMap<ValueKey, TypeLattice>,
     values: &'a HashMap<ValueKey, LatticeValue>,
+    folded: &'a HashMap<ValueKey, FoldedType>,
 }
 
 impl CommitWalker<'_> {
@@ -334,6 +342,7 @@ impl CommitWalker<'_> {
             ssa: self.ssa,
             types: self.types,
             values: self.values,
+            folded: self.folded,
         };
         initial_state(&ctx, key).unwrap_or_default()
     }
@@ -345,6 +354,7 @@ impl CommitWalker<'_> {
             ssa: self.ssa,
             types: self.types,
             values: self.values,
+            folded: self.folded,
         };
         for read in typed_reads_of_statement(&ctx, stmt, uses) {
             apply_read(&ctx, &mut self.state, read, None);
@@ -353,22 +363,27 @@ impl CommitWalker<'_> {
 }
 
 /// The state a version starts in at its def: pure when the producer left the
-/// value uncommitted ([`is_pure_intrep`] over the type lattice + SCCP constant
-/// — a literal, an interpolation, or a string-command result), committed to
-/// the producer's intrep otherwise (`[list …]`, `[dict create …]`, `expr`,
-/// `binary format`, …).  `None` when the version has no known type (stays
-/// pure-with-unknown: never drives a warning because `must_pay` needs a
-/// non-empty may-set).
+/// value uncommitted ([`is_pure_value`]: the representation its evaluation
+/// states, else the type lattice + SCCP constant — a literal, an
+/// interpolation, or a string-command result), committed to the producer's
+/// intrep otherwise (`[list …]`, `[dict create …]`, `expr`, `binary format`,
+/// a computed `[string length $s]`, …) — the intrep the route constructed
+/// when it says, else the type lattice's.  `None` when the version has no
+/// known type (stays pure-with-unknown: never drives a warning because
+/// `must_pay` needs a non-empty may-set).
 fn initial_state(ctx: &CommitCtx<'_>, key: ValueKey) -> Option<CommitState> {
     let lattice = ctx.types.get(&key)?;
     if lattice.kind() != TypeKind::Known {
         return Some(CommitState::pure());
     }
     let t = lattice.tcl_type()?;
-    Some(if is_pure_intrep(t, ctx.values.get(&key)) {
+    let folded = ctx.folded.get(&key);
+    let representation = folded.map_or(RepresentationEvidence::Unknown, |f| f.representation);
+    Some(if is_pure_value(t, ctx.values.get(&key), representation) {
         CommitState::pure()
     } else {
-        CommitState::committed(t, None)
+        let built = folded.and_then(FoldedType::constructed_intrep);
+        CommitState::committed(built.unwrap_or(t), None)
     })
 }
 
@@ -633,7 +648,7 @@ fn push_lifted_reads(
 ) {
     let config = tcl_lexer::LexerConfig::for_profile(ctx.registry.profile());
     for lifted in crate::word_subst::lifted_calls(tokens, config) {
-        if let Some(expr_text) = expr_substitution_body(&lifted) {
+        if let Some(expr_text) = expr_substitution_body(&lifted, ctx.registry) {
             let expr = tcl_syntax::expr::parser::parse_expr_for_profile(
                 &expr_text,
                 ctx.registry.profile(),
@@ -653,9 +668,19 @@ fn push_lifted_reads(
 /// The expression text of a lifted `[expr …]`, or `None` for any other
 /// command. `expr` concatenates its arguments, and the single-argument braced
 /// form is the only one whose text is a verbatim source slice, so a
-/// multi-argument `expr` is left alone rather than guessed at.
-fn expr_substitution_body(lifted: &crate::word_subst::LiftedCall) -> Option<String> {
-    if lifted.command != "expr" && lifted.command != "::expr" {
+/// multi-argument `expr` is left alone rather than guessed at. The lifted
+/// call is `expr` when its resolved head carries
+/// [`Traits::EXPR_CONCATENATES_ARGS`](tcl_registry::Traits::EXPR_CONCATENATES_ARGS),
+/// not by comparing the spelling.
+fn expr_substitution_body(
+    lifted: &crate::word_subst::LiftedCall,
+    registry: &CommandRegistry,
+) -> Option<String> {
+    let is_expr = registry.get(&lifted.command).is_some_and(|spec| {
+        spec.traits
+            .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
+    });
+    if !is_expr {
         return None;
     }
     let [only] = lifted.args.as_slice() else {
@@ -825,6 +850,7 @@ mod tests {
             ssa: &fu.ssa,
             types: &fu.types,
             values: &fu.sccp.values,
+            folded: &fu.sccp.folded_types,
         };
         let facts = compute_commit_facts(
             &fu.cfg,
@@ -855,6 +881,7 @@ mod tests {
             ssa: &fu.ssa,
             types: &fu.types,
             values: &fu.sccp.values,
+            folded: &fu.sccp.folded_types,
         };
         let mut node = ExprNode::Var {
             text: "$v".into(),
@@ -912,6 +939,7 @@ mod tests {
             ssa: &fu.ssa,
             types: &fu.types,
             values: &fu.sccp.values,
+            folded: &fu.sccp.folded_types,
         };
         let entry = fu.cfg.entry;
         let mut walker = facts.walker(&ctx, entry);
@@ -950,6 +978,7 @@ mod tests {
             ssa: &fu.ssa,
             types: &fu.types,
             values: &fu.sccp.values,
+            folded: &fu.sccp.folded_types,
         };
         let sym = fu.ssa.var_symbol("a").unwrap();
         // Find the block holding the `dict size` call and replay to it.
@@ -990,6 +1019,7 @@ mod tests {
             ssa: &fu.ssa,
             types: &fu.types,
             values: &fu.sccp.values,
+            folded: &fu.sccp.folded_types,
         };
         let pushback = facts.single_commitments(&ctx);
         let sym = fu.ssa.var_symbol("l").unwrap();
@@ -1012,6 +1042,7 @@ mod tests {
             ssa: &fu.ssa,
             types: &fu.types,
             values: &fu.sccp.values,
+            folded: &fu.sccp.folded_types,
         };
         let pushback = facts.single_commitments(&ctx);
         let sym = fu.ssa.var_symbol("d").unwrap();

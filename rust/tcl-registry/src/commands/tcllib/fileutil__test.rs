@@ -40,6 +40,7 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(2, ArgRole::VarWrite)],
         tcllib_package: Some("fileutil"),
         required_package: Some("fileutil"),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::tcllib::WRITES_PLATFORM),
         ..CommandSpec::DEFAULT
     }
 }

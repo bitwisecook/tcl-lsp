@@ -6,6 +6,12 @@ callee's own [SCCP](../../GLOSSARY.md#sccp) run as `param_constants`. The
 fold that follows feeds `I230`, the optimiser's `O101` constant-condition
 suggestion, and `O107`'s unreachable-code suggestion.
 
+The seed is the procedure's own lattice's alone. What the interprocedural
+summary says a procedure returns is read from a run with no seed
+([interprocedural-analysis.md](interprocedural-analysis.md) § *Step 2b*), so a
+value exact only because every caller passes the same literal never becomes
+the procedure's constant return, which O103 applies to every call.
+
 The whole contract of that seed is one sentence: **it is sound only if the
 scan enumerated every caller.** A caller the scan fails to attribute does
 not merely go uncounted — it vanishes from the "every caller agrees"
@@ -96,12 +102,15 @@ discriminator for the latter is "the whole word is one substitution"
 "the word contains a `$`": `catch {puts $x}` carries readable script text
 and is still walked in place, whereas `catch $body` does not.
 
-Three further whole-module gates withdraw every seed for the same
+Two further whole-module gates withdraw every seed for the same
 "completeness is unproven" reason: a `package provide` in the file (another
-file may call these procedures), a `rename` / `interp alias` touching the
-callee's name (`trusts_proc_binding`), and a frame-shifting `uplevel` body
-(its writes land in a frame the per-scope variable scan does not own, so
-every value set becomes unenumerable).
+file may call these procedures) and a `rename` / `interp alias` touching the
+callee's name (`trusts_proc_binding`). A frame-shifting `uplevel` body is
+not a gate of its own: its writes land in a frame the per-scope variable
+scan does not own, so every value a local holds becomes unenumerable to the
+scan, while a literal seed survives it (`bump n` keeps `name = n`). The
+seeds are withdrawn where a dispatch word such as `$cmd` then cannot be
+enumerated, as an unenumerable dispatch word always withdraws them.
 
 ## Known residual gaps
 
@@ -126,6 +135,34 @@ every value set becomes unenumerable).
   the registry to say which argument of a frame-shifting command is its
   level. Pinned by
   `uplevel_zero_body_resolves_against_global_not_enclosing_namespace`.
+
+## A call's effects on its caller
+
+This page's seed runs one way, from every caller into the callee's own
+lattice. The other way runs per call: a procedure's transfer summary
+([interprocedural-analysis.md](interprocedural-analysis.md) § *Transfer
+summaries*) says what a call does to the places its `Name` arguments name
+and to the outer places it writes, and the caller's lattice applies it
+where the call runs — at a call statement, and at a command a statement's
+words run, through the statement's word effects: the definition point the
+CFG builder puts right ahead of the statement and pairs with it by
+construction (`<word-effects>`, `ssa::word_effects_host`), never by span. A
+place takes what a re-run of the callee leaves in it, the callee's
+parameters holding that one call's arguments and its links the caller's
+places before the call, so `set n 1; bump n` leaves `n` at 2; a `Name`
+parameter the call omits names the place its default spells, so after `set
+n 1; bumpd` for `proc bumpd {{name n}} {upvar 1 $name v; incr v}` the
+caller's `n` is 2. A call whose re-run under its seeds reaches no exit, or
+whose word count the callee rejects, never completes normally, and where a
+run reads its caller's exits it is a raise there. That value is
+exact under one call only, so it never enters the callee's own lattice or
+its summary, which this page's seed reaches only where every caller agrees.
+One summary serves every caller: after `set n 1; bump n; set other 10; bump
+other` the caller's lattice holds `n` at 2 and `other` at 11, each call
+re-running `bump` under its own place, and `bump`'s body is left as written,
+since a body specialised to one place is right only while that call stays
+the only one — and a call a word nests (`set z [bump m]`) is a call site too
+(#2134).
 
 ## Seeing it
 

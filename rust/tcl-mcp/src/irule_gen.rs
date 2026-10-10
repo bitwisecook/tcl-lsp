@@ -34,6 +34,8 @@ use std::fmt::Write as _;
 use regex::Regex;
 use serde_json::{Value, json};
 use tcl_registry::events::EventRegistry;
+use tcl_registry::value_transfer::{EvalRoute, NativeEvalId};
+use tcl_registry::{ArgRole, CommandRegistry, InvocationWord, InvocationWords};
 use tcl_syntax::list::list_element;
 
 /// The prose emitted for `multi_tmm_hint` when multi-TMM patterns are detected.
@@ -126,10 +128,10 @@ pub fn generate_irule_test(args: &Value) -> Value {
     let closure = tcl_irules::irules_executable_commands(source, registry);
     let commands_used = extract_irule_commands(&closure);
     let objects = extract_object_refs(source, registry, &closure);
-    let variables = extract_variables(&closure);
+    let variables = extract_variables(registry, &closure);
 
     let cfg_paths = crate::irule_test::cfg_paths_json(source);
-    let multi_tmm = needs_multi_tmm(&closure, &variables);
+    let multi_tmm = needs_multi_tmm(registry, &closure, &variables);
 
     let ctx = ScriptContext {
         basename: "irule.tcl",
@@ -208,12 +210,38 @@ fn extract_object_refs(
     }
 }
 
+/// The cell a command writes, as the registry resolves its words: the
+/// direct route it runs and the variable its `VarWrite` operand names.
+fn cell_written<'f>(
+    registry: &CommandRegistry,
+    fact: &'f tcl_irules::IrulesExecutableCommand,
+) -> Option<(NativeEvalId, &'f str)> {
+    let words: Vec<&str> = fact.args.iter().map(String::as_str).collect();
+    let literal: Vec<InvocationWord<'_>> =
+        words.iter().copied().map(InvocationWord::Literal).collect();
+    let resolved = registry
+        .resolve_structured_invocation(
+            InvocationWords::structured(InvocationWord::Literal(&fact.command), &literal),
+            registry.own_surface_query(),
+        )
+        .resolved()?;
+    let EvalRoute::Direct { id } = resolved.semantics.value.semantics()?.route() else {
+        return None;
+    };
+    let target = *registry
+        .arg_indices_for_role(&fact.command, &words, ArgRole::VarWrite)
+        .first()?;
+    Some((id, fact.args.get(target)?.as_str()))
+}
+
 /// Extract `static::` variable names (`_extract_variables`), sorted + deduped.
-fn extract_variables(commands: &[tcl_irules::IrulesExecutableCommand]) -> Variables {
+fn extract_variables(
+    registry: &CommandRegistry,
+    commands: &[tcl_irules::IrulesExecutableCommand],
+) -> Variables {
     let mut static_vars: BTreeSet<String> = BTreeSet::new();
     for fact in commands {
-        if fact.command == "set"
-            && let Some(name) = fact.args.first()
+        if let Some((NativeEvalId::CellWrite, name)) = cell_written(registry, fact)
             && name.starts_with("static::")
         {
             static_vars.insert(name.trim_start_matches("static::").to_owned());
@@ -253,6 +281,7 @@ fn infer_profiles(events: &[String]) -> Vec<String> {
 /// Detect whether an iRule should be tested in multi-TMM mode
 /// (`_needs_multi_tmm`).
 fn needs_multi_tmm(
+    registry: &CommandRegistry,
     commands: &[tcl_irules::IrulesExecutableCommand],
     variables: &Variables,
 ) -> bool {
@@ -261,17 +290,18 @@ fn needs_multi_tmm(
         fact.event
             .as_deref()
             .is_some_and(|event| HOT_EVENTS.contains(&event))
-            && matches!(fact.command.as_str(), "set" | "incr")
-            && fact
-                .args
-                .first()
-                .is_some_and(|arg| arg.starts_with("static::"))
+            && matches!(
+                cell_written(registry, fact),
+                Some((NativeEvalId::CellWrite | NativeEvalId::CellIncrement, name))
+                    if name.starts_with("static::")
+            )
     });
     let has_counter = commands.iter().any(|fact| {
-        fact.command == "incr"
-            && fact.args.first().is_some_and(|arg| {
-                arg.starts_with("static::") || arg.to_ascii_lowercase().contains("count")
-            })
+        matches!(
+            cell_written(registry, fact),
+            Some((NativeEvalId::CellIncrement, name))
+                if name.starts_with("static::") || name.to_ascii_lowercase().contains("count")
+        )
     });
     let uses_shared_table = commands.iter().any(|fact| {
         fact.command == "table"
@@ -1058,7 +1088,7 @@ mod tests {
         );
     }
 
-    /// Adversarial-review finding: reusing the raw `matches_glob`/
+    /// Reusing the raw `matches_glob`/
     /// `matches_regex` pattern text verbatim as the simulated request URI
     /// produces a generated test whose own simulated request doesn't
     /// satisfy the very condition its branch exercises — confirmed against
@@ -1239,20 +1269,20 @@ mod tests {
         assert!(names.contains(&"pool".to_owned()), "{names:?}");
         assert!(!names.contains(&"HTTP::respond".to_owned()), "{names:?}");
         assert!(!names.contains(&"table".to_owned()), "{names:?}");
-        let variables = extract_variables(&commands);
+        let variables = extract_variables(registry(), &commands);
         assert!(
             variables.static_vars.is_empty(),
             "{:?}",
             variables.static_vars
         );
-        assert!(!needs_multi_tmm(&commands, &variables));
+        assert!(!needs_multi_tmm(registry(), &commands, &variables));
         assert_eq!(object_refs(inert).pools, ["live"]);
 
         let live = "when HTTP_REQUEST { set static::hits 0; incr static::hits; table incr key; HTTP::respond 200 }";
         let commands = executable(live);
-        let variables = extract_variables(&commands);
+        let variables = extract_variables(registry(), &commands);
         assert_eq!(variables.static_vars, ["hits"]);
-        assert!(needs_multi_tmm(&commands, &variables));
+        assert!(needs_multi_tmm(registry(), &commands, &variables));
     }
 
     #[test]

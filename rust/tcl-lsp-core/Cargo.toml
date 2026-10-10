@@ -27,6 +27,12 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
+[features]
+# The diagnostic-policy truth table (`diagnostic_policy::truth_table`), for
+# the adapter crates' tests: each enables it from its `[dev-dependencies]`,
+# so no shipped build carries the table.
+truth-table = []
+
 [dependencies]
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-dialect = { path = "../tcl-dialect" }

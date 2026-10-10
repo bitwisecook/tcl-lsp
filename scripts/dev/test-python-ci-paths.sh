@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Contract tests for the Python lane's native-engine dependency closure,
+# Contract tests for the Python suite's native-engine dependency closure,
 # source-content cache identity, and fail-closed CI wiring.
 
 set -eu

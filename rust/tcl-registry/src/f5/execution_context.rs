@@ -185,7 +185,7 @@ impl BigIpExecutionContext {
         }
     }
 
-    /// The build profile of the context's interpreter (review B1).
+    /// The build profile of the context's interpreter.
     ///
     /// [`BuildProfileId::F5Scriptd32`] for `IAppImplementation` — measured
     /// `tcl_platform(wordSize) == 4` against TMM's 8 (§4) — and

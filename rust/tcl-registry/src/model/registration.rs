@@ -156,9 +156,23 @@ pub fn provenance_label(provenance: Provenance) -> &'static str {
         Provenance::User => "user",
         Provenance::WorkspaceTrusted => "trusted workspace",
         Provenance::WorkspaceUntrusted => "untrusted workspace",
-        Provenance::StudioOverride => "studio override",
+        // The discovery tier's own label (`tcl_spectcl::Tier::label`), so a
+        // report naming both the provenance and the tier spells the class once.
+        Provenance::StudioOverride => "Spec Studio override",
         Provenance::Document => "document",
     }
+}
+
+/// Whether a definition of this provenance is gated by §6.4's untrusted
+/// rules (design E-R2) — the one exported door onto
+/// [`Provenance::is_untrusted`], re-exported as `tcl_registry::model::untrusted`.
+/// Before it existed, `tcl-spectcl`'s loader kept its own copy of the same
+/// three-variant match over a discovery tier rather than a provenance
+/// (#2139); it now calls this one, so the loader and the registration layer
+/// can no longer disagree about what "untrusted" means.
+#[must_use]
+pub fn untrusted(provenance: Provenance) -> bool {
+    provenance.is_untrusted()
 }
 
 impl std::fmt::Display for EnvironmentRegistrationError {
@@ -385,7 +399,7 @@ fn assemble(
     let mut rebuilt = tcl_dialect::model::compiled_definitions();
     for definition in &declared {
         // A bundled pack restating an environment the compiled seed already
-        // carries from that same pack (D17) replaces the seed row: the
+        // carries from that same pack replaces the seed row: the
         // on-disk pack is authoritative, and two rows would collide.
         let seeded = (definition.provenance == Provenance::BundledPack)
             .then(|| {
@@ -537,7 +551,7 @@ fn triage(state: &DynamicState, sources: &[EnvironmentSource]) -> (Vec<bool>, Ve
 /// reload that found nothing new does not invalidate downstream caches —
 /// and so is a set whose **rebuilt registry** is identical to the live
 /// one: the bundled packs restate the very rows the compiled seed already
-/// carries from them (D17), and a publish that changes no definition must
+/// carries from them, and a publish that changes no definition must
 /// not re-key every per-context generation cache in the process.
 #[must_use]
 pub fn sync_environment_sources(sources: Vec<EnvironmentSource>) -> SyncOutcome {
@@ -843,7 +857,7 @@ mod tests {
         assert!(ids.iter().all(|id| id != "tcl"), "{ids:?}");
     }
 
-    /// D17: a bundled pack restating an environment the compiled seed
+    /// a bundled pack restating an environment the compiled seed
     /// already carries from it replaces the seed row rather than colliding
     /// with it; a lower tier claiming the same name is refused with the
     /// provenance named, and the bundled definition keeps resolving.
@@ -1271,5 +1285,34 @@ mod tests {
         .expect("registration succeeds");
         let after = resolve_environment("tcl9.0").identity.generation;
         assert!(after > before, "generation must move: {before} -> {after}");
+    }
+
+    /// The one exported predicate names exactly §6.4's three untrusted
+    /// classes, and agrees with [`Provenance::is_untrusted`] for every
+    /// variant — there is no second reading to drift from it (#2139).
+    #[test]
+    fn the_one_untrusted_predicate_names_the_three_classes() {
+        for provenance in [
+            Provenance::BuiltIn,
+            Provenance::BundledPack,
+            Provenance::User,
+            Provenance::WorkspaceTrusted,
+            Provenance::WorkspaceUntrusted,
+            Provenance::StudioOverride,
+            Provenance::Document,
+        ] {
+            assert_eq!(
+                untrusted(provenance),
+                provenance.is_untrusted(),
+                "{provenance:?}"
+            );
+        }
+        assert!(untrusted(Provenance::WorkspaceUntrusted));
+        assert!(untrusted(Provenance::StudioOverride));
+        assert!(untrusted(Provenance::Document));
+        assert!(!untrusted(Provenance::BuiltIn));
+        assert!(!untrusted(Provenance::BundledPack));
+        assert!(!untrusted(Provenance::User));
+        assert!(!untrusted(Provenance::WorkspaceTrusted));
     }
 }

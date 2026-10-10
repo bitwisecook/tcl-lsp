@@ -231,9 +231,11 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     crate::cmd_coro::register(vm);
     crate::cmd_event::register(vm);
     crate::cmd_thread::register(vm);
-    // Last so the spec-derived intrinsic identities remain live after the
-    // startup registration sweep's conservative command-epoch invalidations.
+    // `string` last, as the registration order has always had it.
     crate::cmd_string::register(vm);
+    // With the command table complete, attach the registry's identities to the
+    // builtins in it.
+    vm.attach_identities();
 }
 
 /// `exit ?returnCode?` — request process termination with `returnCode`
@@ -292,21 +294,50 @@ fn cmd_set(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 /// `source ?-encoding name? ?-nopkg? fileName` — read a file and evaluate it
-/// as a script in the current context. `-encoding` is accepted and ignored
-/// (files are read as UTF-8); Tcl 9's `-nopkg` suppresses package bookkeeping
-/// that this VM does not otherwise perform, so it uses the same read path.
+/// as a script in the current context.
+///
+/// The file is read through the host's filesystem and decoded as the named
+/// encoding, which is UTF-8 from Tcl 9 and the system encoding before it. The
+/// names are the four `encoding system` accepts (`utf-8`, `iso8859-1`, `ascii`
+/// and `unicode`), and any other is Tcl's `unknown encoding`. A
+/// host with no filesystem reads nothing, as the other runtime's host does.
+/// Tcl 9's `-nopkg` suppresses package bookkeeping that this VM does not
+/// otherwise perform, so it takes the same read path.
 fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let path = match args {
-        [file] => file.to_str(),
-        [flag, _enc, file] if &*flag.to_str() == "-encoding" => file.to_str(),
-        [flag, file] if &*flag.to_str() == "-nopkg" => file.to_str(),
-        _ => {
-            return err("wrong # args: should be \"source ?-encoding name? ?-nopkg? fileName\"");
+    const USAGE: &str = "wrong # args: should be \"source ?-encoding name? ?-nopkg? fileName\"";
+    let mut encoding_name = None;
+    let mut rest = args;
+    loop {
+        match rest {
+            [flag, name, tail @ ..] if &*flag.to_str() == "-encoding" && !tail.is_empty() => {
+                encoding_name = Some(name.to_str());
+                rest = tail;
+            }
+            [flag, tail @ ..] if &*flag.to_str() == "-nopkg" && !tail.is_empty() => rest = tail,
+            _ => break,
         }
+    }
+    let [file] = rest else {
+        return err(USAGE);
     };
-    let contents = match std::fs::read_to_string(&*path) {
-        Ok(c) => c,
-        Err(e) => return err(format!("couldn't read file \"{path}\": {e}")),
+    let path = file.to_str();
+    let encoding = match encoding_name {
+        Some(name) => match tcl_cmd_core::channel::resolve_system_encoding(&name) {
+            Ok(encoding) => encoding,
+            Err(error) => return completion_from_cmd_error(error),
+        },
+        None if vm.runtime_version() >= tcl_dialect::TclVersion::V9_0 => {
+            tcl_platform::SystemEncoding::Utf8
+        }
+        None => vm.system_encoding(),
+    };
+    let read = vm
+        .host()
+        .filesystem()
+        .map_or(Err(tcl_platform::HostError::NotFound), |fs| fs.read(&path));
+    let contents = match read {
+        Ok(bytes) => tcl_cmd_core::channel::decode_text(&bytes, encoding),
+        Err(e) => return err(format!("couldn't read file \"{path}\": {}", e.reason())),
     };
     // Track the path so `info script` (and callers like `[file dirname [info
     // script]]`) resolve relative to the file being sourced.

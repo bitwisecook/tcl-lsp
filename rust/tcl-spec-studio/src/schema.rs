@@ -121,6 +121,25 @@ pub enum FieldKind {
     /// `Option<TkGeometryManagerSpec>` — static geometry-container and
     /// placement semantics, edited field by field.
     TkGeometry,
+    /// `Option<&'static ClauseGrammarSpec>` — a clause chain's word grammar:
+    /// the head, the keyword and keywordless rows, the tail, and the chain's
+    /// fall-through, default and selection rules. Plain data, carried field by
+    /// field and shown read-only in the form.
+    ClauseGrammar,
+    /// `Option<&'static DefinitionBodyGrammar>` — a definer's body grammar:
+    /// the name of the shipped grammar it is (`tcloo`, `snit`, …), or the
+    /// whole grammar, every member row stating its effect. Plain data; a
+    /// shipped name is picked, an inline grammar is shown read-only.
+    DefinitionBody,
+    /// `Option<SemanticOperationId>` — the target-neutral operation identity,
+    /// a closed vocabulary: `invoke`, an intrinsic, or a structured lowering.
+    SemanticOperation,
+    /// [`tcl_registry::RuntimeBacking`] — how the command's behaviour reaches
+    /// the runtime, held as the statement's own spelling (`none`,
+    /// `host-native`, `shipped-builtin ID`, `tcl-body {-package-source PATH
+    /// ?-evaluate?}`, `tcl-body {-pack-text {TEXT} ?-evaluate?}`) and edited as
+    /// text.
+    RuntimeBacking,
     /// A field the studio cannot model as data — a function pointer or a
     /// reference to a `&'static` descriptor. Held (and emitted) as a verbatim
     /// Rust expression the author supplies.
@@ -140,7 +159,9 @@ impl FieldKind {
             Self::Count => "count",
             Self::OptCount => "optCount",
             Self::OptIndex => "optIndex",
-            Self::Text => "text",
+            // A backing is edited as text: its draft value is the statement's
+            // own spelling.
+            Self::Text | Self::RuntimeBacking => "text",
             Self::OptText => "optText",
             Self::Prose => "prose",
             Self::TextList => "textList",
@@ -168,6 +189,9 @@ impl FieldKind {
             Self::SubSubCommands => "subSubCommands",
             Self::ObjectClass => "objectClass",
             Self::TkGeometry => "tkGeometry",
+            Self::ClauseGrammar => "clauseGrammar",
+            Self::DefinitionBody => "definitionBody",
+            Self::SemanticOperation => "semanticOperation",
             Self::RustExpr { .. } => "rustExpr",
         }
     }
@@ -340,6 +364,22 @@ pub const NESTED_FIELDS: &[NestedFieldSchema] = &[
         field: "tk_geometry",
         group: "Advanced",
     },
+    NestedFieldSchema {
+        key: "route",
+        label: "Evaluation route",
+        doc: "How the declaration computes its answer: none, a shipped direct evaluator, the shared expression engine, or a declared implementation.",
+        owner: "DeclaredSemantics",
+        field: "semantics",
+        group: HOOKS,
+    },
+    NestedFieldSchema {
+        key: "body",
+        label: "Implementation body",
+        doc: "The declared implementation's Tcl body, run in the bounded host under its declared inputs and budget.",
+        owner: "DeclaredSemantics",
+        field: "semantics",
+        group: HOOKS,
+    },
 ];
 
 impl FieldSchema {
@@ -482,6 +522,13 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Closed set of roles the dynamic resolver can emit when an invocation cannot be resolved precisely.",
     ),
     f(
+        "clause_grammar",
+        "Clause grammar",
+        ARGS,
+        FieldKind::ClauseGrammar,
+        "The word grammar of a clause chain (`if`/`elseif`/`else`, `try`/`on`/`trap`/`finally`, a loop's fixtures and body): where each keyword, condition, script and binder sits, and when each body runs. Its walk answers the argument roles and the chain's structural defect.",
+    ),
+    f(
         "arg_presentation",
         "Argument presentation",
         ARGS,
@@ -539,15 +586,6 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
             hint: "Some(my_timing_resolver)",
         },
         "Callback assigning SameInvocation, Deferred, or ReferenceOnly to executable positions from the actual argument list.",
-    ),
-    f(
-        "substitution_resolver",
-        "Substitution resolver",
-        ADVANCED,
-        FieldKind::RustExpr {
-            hint: "Some(substitution::subst_substitutions)",
-        },
-        "Callback reporting which of backslash, command and variable substitution this call runs over its own argument text, for a PERFORMS_SUBSTITUTION command whose switches change the answer. Absent means every kind on every call.",
     ),
     f(
         "callback_taint_inputs",
@@ -686,10 +724,17 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "semantic_operation",
         "Semantic operation",
         HOOKS,
-        FieldKind::RustExpr {
-            hint: "Some(SemanticOperationId::Intrinsic(IntrinsicId::ListLength))",
-        },
+        FieldKind::SemanticOperation,
         "Target-neutral operation identity selected before backend dispatch.",
+    ),
+    f(
+        "semantic_operation_windows",
+        "Semantic operation windows",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "SEMANTIC_OPERATION_WINDOWS",
+        },
+        "Per-release semantic operations, for a command whose target-neutral operation differs across Tcl releases. Empty unless it does; the plain operation is the fallback where no window covers the primary release, and a point that does not settle the release dispatches plain.",
     ),
     f(
         "completion",
@@ -756,6 +801,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Per-command TclVM bytecode emitter. Unset uses the generic invoke emitter.",
     ),
     f(
+        "codegen_hook_windows",
+        "Bytecode codegen hook windows",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "CODEGEN_HOOK_WINDOWS",
+        },
+        "Per-release bytecode emitters, for a command whose TclVM emitter differs across Tcl releases. Empty unless it does; the plain hook is the fallback where no window covers the primary release, and a point that does not settle the release dispatches plain.",
+    ),
+    f(
         "inline_codegen_hook",
         "Inline codegen hook",
         HOOKS,
@@ -764,6 +818,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
             optional: true,
         },
         "Emitter for the value-position and catch-body paths.",
+    ),
+    f(
+        "inline_codegen_hook_windows",
+        "Inline codegen hook windows",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "INLINE_CODEGEN_HOOK_WINDOWS",
+        },
+        "Per-release value-position emitters; the contract of the bytecode codegen hook windows.",
     ),
     f(
         "bpf_op",
@@ -782,6 +845,24 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
             hint: "Some(NativeLowering::Structured(LoweringHookId::Set))",
         },
         "Which native code shape the executable-IR lowering gives this command; stamped beside the lowering hook or intrinsic it mirrors. Unset is the generic argv invocation.",
+    ),
+    f(
+        "native_lowering_windows",
+        "Native lowering windows",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "NATIVE_LOWERING_WINDOWS",
+        },
+        "Per-release native lowering shapes; the contract of the bytecode codegen hook windows. A windowed shape is not a basis for a derived value-transfer specialisation.",
+    ),
+    f(
+        "semantics",
+        "Value-transfer declaration",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "SemanticsDeclaration::Declared(&value_transfer::builtins::LIST_LENGTH)",
+        },
+        "The value-transfer specialisation declared at command scope — what an invocation computes, which storage it writes, and the route that computes it (below) — or an explicit abstention (`Declined`). Unset inherits, or derives from a descriptor stating the same operation. A shipped, compiled-in specialisation is nameable but not reconstructable, so it also reads unset here.",
     ),
     f(
         "analyser_hook",
@@ -1005,6 +1086,17 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
          each checked natively with no VM entry.",
     ),
     f(
+        "option_effect_families",
+        "Option-effect families",
+        OPTS,
+        FieldKind::RustExpr {
+            hint: "&[OptionEffectFamily { name: \"match\", base: FamilyBase::Only(EffectAxis::PatternLanguage(PatternType::Glob)), \
+                   combine: FamilyCombine::LastWins, surface: None }]",
+        },
+        "The families this command's option effects cite — where each axis starts \
+         and how two options of the family combine.",
+    ),
+    f(
         "option_placement",
         "Option placement",
         OPTS,
@@ -1210,7 +1302,7 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Pattern-argument resolver",
         OPTS,
         FieldKind::RustExpr {
-            hint: "Some(lsearch_pattern_args)",
+            hint: "Some(my_pattern_resolver)",
         },
         "Native hook selecting pattern positions and languages for a concrete call.",
     ),
@@ -1297,6 +1389,26 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Whether the replacement accepts the deprecated argument list unchanged.",
     ),
     f(
+        "alias_of",
+        "Alias of",
+        IDENTITY,
+        FieldKind::OptText,
+        "The shipped builtin this pack command is — the only admissible source \
+         of a builtin identity for a pack command. Unset for every shipped \
+         command and every pack command that names no target.",
+    ),
+    f(
+        "runtime_backing",
+        "Runtime backing",
+        IDENTITY,
+        FieldKind::RuntimeBacking,
+        "How the command's behaviour reaches the runtime: `none`, \
+         `host-native`, `shipped-builtin ID`, `tcl-body {-package-source \
+         PATH ?-evaluate?}` or `tcl-body {-pack-text {TEXT} ?-evaluate?}`. \
+         Every shipped core command declares it; a command that declares \
+         nothing reads as `none` — nothing executes it.",
+    ),
+    f(
         "byte_array_payload",
         "Byte-array payload",
         ADVANCED,
@@ -1319,10 +1431,8 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "definition_body",
         "Definition-body grammar",
         ADVANCED,
-        FieldKind::RustExpr {
-            hint: "Some(&definer::TCLOO_CLASS_BODY)",
-        },
-        "Body grammar for a class or type definer, so the generic walker can recurse.",
+        FieldKind::DefinitionBody,
+        "Body grammar for a class or type definer — a shipped grammar by name, or member rows that each state their effect — so the generic walker can recurse.",
     ),
     f(
         "manufacturer_methods",
@@ -1513,6 +1623,13 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Closed set of roles the dynamic resolver can emit when an invocation cannot be resolved precisely.",
     ),
     f(
+        "clause_grammar",
+        "Clause grammar",
+        ARGS,
+        FieldKind::ClauseGrammar,
+        "The word grammar of a clause chain (`if`/`elseif`/`else`, `try`/`on`/`trap`/`finally`, a loop's fixtures and body): where each keyword, condition, script and binder sits, and when each body runs. Its walk answers the argument roles and the chain's structural defect.",
+    ),
+    f(
         "arg_presentation",
         "Argument presentation",
         ARGS,
@@ -1666,6 +1783,15 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "TclVM bytecode emitter for this subcommand.",
     ),
     f(
+        "codegen_hook_windows",
+        "Bytecode codegen hook windows",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "CODEGEN_HOOK_WINDOWS",
+        },
+        "Per-release bytecode emitters for this subcommand. A subcommand whose windows state nothing at the primary release inherits the command's hook; one whose windows the point does not settle dispatches plain.",
+    ),
+    f(
         "inline_codegen_hook",
         "Inline codegen hook",
         HOOKS,
@@ -1674,6 +1800,24 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
             optional: true,
         },
         "Value-position emitter, overriding the command's when this subcommand matches.",
+    ),
+    f(
+        "inline_codegen_hook_windows",
+        "Inline codegen hook windows",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "INLINE_CODEGEN_HOOK_WINDOWS",
+        },
+        "Per-release value-position emitters for this subcommand; the contract of its bytecode codegen hook windows.",
+    ),
+    f(
+        "semantics",
+        "Value-transfer declaration",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "SemanticsDeclaration::Declared(&value_transfer::builtins::STRING_LENGTH)",
+        },
+        "The value-transfer specialisation declared for this subcommand, overriding the command's, or an explicit abstention that stops the command's from applying here. Its route is edited below.",
     ),
     f(
         "analyser_hook",
@@ -1713,6 +1857,16 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         },
         "Subcommand-specific option relations (E-R14), evaluated by the same \
          native checker as the command-level ones.",
+    ),
+    f(
+        "option_effect_families",
+        "Option-effect families",
+        OPTS,
+        FieldKind::RustExpr {
+            hint: "&[OptionEffectFamily { name: \"match\", base: FamilyBase::AllOn, \
+                   combine: FamilyCombine::Accumulate, surface: None }]",
+        },
+        "The families this subcommand's option effects cite.",
     ),
     f(
         "option_placement",
@@ -1772,10 +1926,17 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "semantic_operation",
         "Semantic operation",
         HOOKS,
-        FieldKind::RustExpr {
-            hint: "Some(SemanticOperationId::Intrinsic(IntrinsicId::DictGet))",
-        },
+        FieldKind::SemanticOperation,
         "Target-neutral operation identity overriding the parent command.",
+    ),
+    f(
+        "semantic_operation_windows",
+        "Semantic operation windows",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "SEMANTIC_OPERATION_WINDOWS",
+        },
+        "Per-release semantic operations for this subcommand; the contract of its bytecode codegen hook windows.",
     ),
     f(
         "completion",
@@ -2126,8 +2287,49 @@ fn custom_variant(id: &str, key: &str, doc: &str) -> Value {
     })
 }
 
-fn custom_catalogues() -> [(&'static str, Value); 5] {
+/// The semantic-operation vocabulary as a catalogue: one entry per
+/// operation, keyed `KIND` or `KIND DETAIL` in the operation's own spellings
+/// (`invoke`, `intrinsic list-length`, `structured-lowering expr`) — the
+/// draft's `{kind, detail}` joined by a space.
+fn semantic_operation_catalogue() -> Value {
+    Value::Array(
+        tcl_spectcl::semantic_operations()
+            .map(|operation| {
+                let key = operation.detail_str().map_or_else(
+                    || operation.kind_str().to_owned(),
+                    |detail| format!("{} {detail}", operation.kind_str()),
+                );
+                let doc = match operation.detail_str() {
+                    None => "generic Tcl argv invocation — the conservative fallback".to_owned(),
+                    Some(detail) => format!("the `{detail}` {}", operation.kind_str()),
+                };
+                custom_variant("semanticOperation", &key, &doc)
+            })
+            .collect(),
+    )
+}
+
+/// The shipped definer grammars a `definition_body` can name.
+fn definition_body_catalogue() -> Value {
+    Value::Array(
+        tcl_spectcl::SHIPPED_DEFINITION_BODIES
+            .iter()
+            .map(|(name, grammar)| {
+                let doc = format!(
+                    "the shipped {:?} grammar ({} members)",
+                    grammar.family,
+                    grammar.members.len()
+                );
+                custom_variant("definitionBody", name, &doc)
+            })
+            .collect(),
+    )
+}
+
+fn custom_catalogues() -> [(&'static str, Value); 7] {
     [
+        ("semanticOperation", semantic_operation_catalogue()),
+        ("definitionBody", definition_body_catalogue()),
         (
             "optionPlacement",
             json!([

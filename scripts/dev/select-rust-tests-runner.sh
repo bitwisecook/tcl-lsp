@@ -5,10 +5,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 # Print the preferred runner for a trusted broad Rust suite. Tank remains the
-# default while its logical lane is idle; ambiguous API state fails over to a
+# default while its runner is idle; ambiguous API state fails over to a
 # fresh hosted runner instead of risking an unbounded self-hosted queue. This
 # is deliberately best-effort: the job-level concurrency group remains the
-# final guard if two channel jobs observe the lane as idle simultaneously.
+# final guard if two channel jobs observe the runner as idle simultaneously.
 
 set -eu
 

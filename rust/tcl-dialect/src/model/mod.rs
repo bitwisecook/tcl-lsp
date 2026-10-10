@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The new core/environment model of the registry redesign (issue #1631,
-//! `docs/design/registry/dialect-and-package-registry-redesign.md` — P1 of §8).
+//! `docs/design/registry/dialect-and-package-registry-redesign.md` §8).
 //!
 //! Five submodules carry the model's first layer and its algebra:
 //!
@@ -53,9 +53,9 @@ pub mod point;
 pub mod version_set;
 
 pub use authored_surface::{
-    CorePoint, CorePoints, SpecProvider, SpecSurface, SpecWindow, SurfaceLayer, SurfaceQuery,
-    surface_admits, surface_admits_from, surface_breadth, surface_nearness, surface_provided_by,
-    surfaces_overlap,
+    CorePoint, CorePoints, PackageFloor, SpecProvider, SpecSurface, SpecWindow, SurfaceLayer,
+    SurfaceQuery, surface_admits, surface_admits_from, surface_breadth, surface_nearness,
+    surface_provided_by, surfaces_overlap,
 };
 pub use dynamic::{
     DynamicCore, DynamicFamily, DynamicFamilyError, DynamicFamilyId, DynamicRegistration,
@@ -64,12 +64,13 @@ pub use dynamic::{
 };
 pub use environment::{
     BundledCore, BundledEnvironmentRow, BundledPlacement, BundledVersion, ConfigurationOrigin,
-    CoreProfileSelector, DEFAULT_ENVIRONMENT_ID, DetectionFacts, EditorLanguageIdentityId,
-    EnvironmentDefinition, EnvironmentId, EnvironmentIdentity, EnvironmentKind, EnvironmentOverlay,
-    EnvironmentOverlayError, EnvironmentPolicy, EnvironmentRegistry, EnvironmentRegistryError,
-    FileExtensionClaim, KeyedAxis, LENIENT_ENVIRONMENT_ID, PackageChanges, PackagePlacement,
-    Placement, Provenance, TargetChanges, WorldPolicy, bundled_pack_definitions,
-    compiled_definitions, release_line, reserved_against,
+    CoreProfileSelector, DEFAULT_ENVIRONMENT_ID, DependencyTier, DetectionFacts,
+    EditorLanguageIdentityId, EnvironmentDefinition, EnvironmentId, EnvironmentIdentity,
+    EnvironmentKind, EnvironmentOverlay, EnvironmentOverlayError, EnvironmentPolicy,
+    EnvironmentRegistry, EnvironmentRegistryError, FileExtensionClaim, KeyedAxis,
+    LENIENT_ENVIRONMENT_ID, PackageChanges, PackagePlacement, Placement, Provenance, TargetChanges,
+    WorkspaceTrust, WorldPolicy, bundled_pack_definitions, compiled_definitions, release_line,
+    reserved_against,
 };
 pub use expr_grammar::{
     ExprArity, ExprGrammar, ExprSubstitution, MathFunc, MathFuncSet, PrecedenceTable, WordOperator,

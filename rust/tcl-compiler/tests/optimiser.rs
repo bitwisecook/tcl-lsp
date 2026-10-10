@@ -367,10 +367,16 @@ fn dead_store_and_dead_code_elimination() {
 
 #[test]
 fn instcombine_reassociation_and_identity_annihilator() {
-    // tclsh sweep: $a + 1 + 2 == $a + 3 for all $a.
-    let reassoc = "set v [expr {$a + 1 + 2}]";
-    assert!(optimised(reassoc, TCL).contains("set v [expr {$a + 3}]"));
-    assert!(opt_fires(reassoc, TCL, "O110"));
+    // Regrouping needs every term proven integer: `$x + 1 + 2` equals `$x +
+    // 3` for every integer `$x`, but over a double the rounding is
+    // order-dependent — `set x 10000000000000000.0; expr {$x + 1 + 2}` prints
+    // `10000000000000002.0` and `expr {$x + 3}` `10000000000000004.0` under
+    // tclsh 8.5 to 9.1 — so an unproven `$a` keeps its chain.
+    let reassoc = int_x("set v [expr {$x + 1 + 2}]");
+    assert!(optimised(&reassoc, TCL).contains("set v [expr {$x + 3}]"));
+    assert!(opt_fires(&reassoc, TCL, "O110"));
+    let unproven = "set v [expr {$a + 1 + 2}]";
+    assert!(optimised(unproven, TCL).contains("set v [expr {$a + 1 + 2}]"));
 
     // Identity/annihilator drops need provably-INT $x — wrap in the `_int_x`
     // loop. tclsh sweep (x≥0): x**0==1, x**1==x, x<<0==x, x>>0==x, x&0==0,
@@ -641,12 +647,16 @@ fn structure_elimination_switch() {
     assert!(optimised(gdef, TCL).contains("set z 3"));
     assert!(opt_fires(gdef, TCL, "O112"));
 
-    // -regexp is NOT statically eliminated.
-    assert!(!opt_fires(
-        "switch -regexp abc {\n    ^a { set x 1 }\n    default { set y 2 }\n}",
-        TCL,
-        "O112"
-    ));
+    // -regexp folds through the regexp engine: `^a` matches abc (first arm),
+    // `^b` does not (default). tclsh 8.6: arm 1 and arm 2 respectively.
+    let re = "switch -regexp abc {\n    ^a { set x 1 }\n    default { set y 2 }\n}";
+    assert!(optimised(re, TCL).contains("set x 1"));
+    assert!(!optimised(re, TCL).contains("set y 2"));
+    assert!(!optimised(re, TCL).contains("switch"));
+    assert!(opt_fires(re, TCL, "O112"));
+    let rdef = "switch -regexp abc {\n    ^b { set x 1 }\n    default { set y 2 }\n}";
+    assert!(!optimised(rdef, TCL).contains("set x 1"));
+    assert!(optimised(rdef, TCL).contains("set y 2"));
 
     // -glob fallthrough (`a* -` then `z* {body}`) selects the next body.
     // tclsh: switch -glob abc {a* - z* {1} default {2}} ⇒ 1.
@@ -1132,13 +1142,12 @@ fn string_compare_o120_conservative_non_rewrites() {
 
 #[test]
 fn multi_set_packing_o119() {
-    // OMISSION: with an `eval {$a $b $c}` barrier the constants are forwarded
-    // *through* the `eval {...}` braced literal (O102/O109) — `eval {1 2 3}` — so
-    // by the time O119 would run there are no surviving stores to pack, and O119
-    // never fires. tclsh: `set a 1; set b 2; set c 3; eval {$a $b $c}` and the
-    // folded `eval {1 2 3}` are identical, so the rewrite is sound. Assert the
-    // packing-disabled invariants; the missing positive O119 packing is a known
-    // gap.
+    // With an `eval {$a $b $c}` barrier the constants are forwarded *through*
+    // the `eval {...}` braced literal (O102) — `eval {1 2 3}`. The command the
+    // script runs, `1` here, is one the module cannot see, and at the top level
+    // it may read the globals `a`, `b` and `c`, so their stores stay and O119
+    // packs them. tclsh: `set a 1; set b 2; set c 3; eval {$a $b $c}`, the
+    // folded `eval {1 2 3}` and the packed form are the same program.
 
     // Tcl 9.0: individual `set` is faster ⇒ O119 must not fire.
     let t9 = "set a 1\nset b 2\nset c 3\nputs \"$a $b $c\"";
@@ -1148,11 +1157,11 @@ fn multi_set_packing_o119() {
     let few = "set a 1\nset b 2\nputs \"$a $b\"";
     assert!(!opt_fires(few, TCL, "O119"));
 
-    // The eval-barrier forms are folded rather than packed; assert the sound
-    // constant-forwarded result instead of the (absent) O119 packing.
+    // The words are forwarded and the stores, which the unseen command may
+    // read, are packed.
     assert_eq!(
         optimised("set a 1\nset b 2\nset c 3\neval {$a $b $c}", TCL),
-        "eval {1 2 3}"
+        "lassign {1 2 3} a b c\neval {1 2 3}"
     );
 }
 
@@ -2139,7 +2148,8 @@ fn o107_still_fires_on_genuinely_unreachable_method_code() {
 /// overwritten-before-read. O109 deleted it and the program changed:
 /// tclsh 9.0.4 / 8.6.18 print `2` then `2` for the original; the rewritten
 /// program printed `1` then `1` (8.4 raises `can't read "n"`, which does not
-/// even create the variable).
+/// even create the variable). The store stays, and both reads hold what the
+/// increment left.
 #[test]
 fn a_nested_rmw_read_keeps_its_feeding_store_alive() {
     let src = "set n 1\nset result [incr n]\nputs $result\nputs $n\n";
@@ -2150,8 +2160,8 @@ fn a_nested_rmw_read_keeps_its_feeding_store_alive() {
     );
     assert_eq!(
         optimised(src, TCL),
-        src,
-        "nothing in this program is safe to rewrite"
+        "set n 1\nset result [incr n]\nputs 2\nputs 2\n",
+        "the store and the increment stay; both reads are 2"
     );
 }
 
@@ -2190,12 +2200,21 @@ fn a_write_nested_in_a_braced_expr_word_kills_the_reaching_definition() {
 }
 
 /// The same family, in the two other shapes the issue lists. Each was checked
-/// against tclsh 9.0.4: `3`/`2` for the first, `5`/`3` for the second.
+/// against tclsh 9.0.4: `3`/`2` for the first, `5`/`3` for the second. The
+/// store the first `[incr n]` reads stays, and the later reads are of the
+/// nested store: each is forwarded the value the expression left, which the
+/// statement's definitions hold.
 #[test]
 fn a_write_nested_in_a_braced_expr_word_keeps_its_feeding_store() {
-    for src in [
-        "set n 1\nset r [expr {$n + [incr n]}]\nputs $r\nputs $n\n",
-        "set n 1\nset r [expr {[incr n] + [incr n]}]\nputs $r\nputs $n\n",
+    for (src, forwarded) in [
+        (
+            "set n 1\nset r [expr {$n + [incr n]}]\nputs $r\nputs $n\n",
+            "set n 1\nset r [expr {$n + [incr n]}]\nputs 3\nputs 2\n",
+        ),
+        (
+            "set n 1\nset r [expr {[incr n] + [incr n]}]\nputs $r\nputs $n\n",
+            "set n 1\nset r [expr {[incr n] + [incr n]}]\nputs 5\nputs 3\n",
+        ),
     ] {
         assert!(
             !opt_fires(src, TCL, "O109"),
@@ -2204,8 +2223,8 @@ fn a_write_nested_in_a_braced_expr_word_keeps_its_feeding_store() {
         );
         assert_eq!(
             optimised(src, TCL),
-            src,
-            "{src}: nothing is safe to rewrite"
+            forwarded,
+            "{src}: the later reads are the nested store's"
         );
     }
 }
@@ -2233,12 +2252,17 @@ fn a_braced_expr_word_with_no_nested_write_still_folds() {
 /// the write in both, and forwarding the literal into the read is sound.
 /// tclsh 9.0.4: `lappend x 1` then `puts $x` prints `1 1`, and `incr x; puts 2`
 /// prints `2`, matching the originals.
+///
+/// The write chain folds through the lattice's proven `$x` too (O104 / O130
+/// over a lattice operand), so the
+/// forwarded read and the store it extends become the one store
+/// `set x {1 1}`; tclsh 8.4.20 – 9.1b0 print `1 1` for both programs.
 #[test]
 fn a_direct_read_before_write_still_forwards_its_literal() {
     let appended = optimised("set x 1\nlappend x $x\nputs $x\n", TCL);
-    assert!(
-        appended.contains("lappend x 1"),
-        "a direct RMW read still forwards: {appended}"
+    assert_eq!(
+        appended, "set x {1 1}\nputs $x\n",
+        "a direct RMW read still forwards, and the chain folds through it"
     );
     let incremented = optimised("set x 1\nset x [expr {$x + 1}]\nputs $x\n", TCL);
     assert!(
@@ -2330,10 +2354,14 @@ fn a_structural_body_is_not_the_enclosing_statements_surface() {
 /// The `for` case is the widest: its condition contributed neither reads nor
 /// writes at all, so the store was deleted *and* the stale literal forwarded
 /// into the loop body.
+///
+/// The existence rung decides `[info exists
+/// x]` inside the fixed point, so the first program's condition folds to `1`
+/// (O101) — a sound rewrite that still prints `yes` — and the store it read
+/// stays.
 #[test]
 fn a_condition_substitution_reads_the_frames_variables() {
     for src in [
-        "proc p {} {\n  set x 1\n  if {[info exists x]} { puts yes }\n}\np\n",
         "proc p {} { set n 5; if {[incr n]} { puts $n } }\np\n",
         "proc p {} { set s foo; while {[string length [append s bar]] < 12} { puts $s } }\np\n",
     ] {
@@ -2344,6 +2372,13 @@ fn a_condition_substitution_reads_the_frames_variables() {
             opt_codes(src, TCL)
         );
     }
+    let exists_src = "proc p {} {\n  set x 1\n  if {[info exists x]} { puts yes }\n}\np\n";
+    assert_eq!(
+        optimised(exists_src, TCL),
+        "proc p {} {\n  set x 1\n  if {1} { puts yes }\n}\np\n",
+        "only the decided query folds, and the store it read stays: {:?}",
+        opt_codes(exists_src, TCL)
+    );
 
     // The `for` case keeps one legitimate rewrite — `set i 0` really is an
     // unused variable — so it is asserted on the store the condition reads
@@ -2468,14 +2503,27 @@ fn a_conditional_writer_does_not_kill_the_store_it_may_preserve() {
         );
         // Asserted on the stores rather than byte-identity: the `binary scan`
         // row also gets a legitimate O100, specialising its one call site's
-        // `$d` to `AB`, which is unrelated and correct.
+        // `$d` to `AB`, and the `regexp` row's proven no-match keeps both
+        // values in the lattice, so its `puts` reads them as the
+        // constants they are — both unrelated and correct.
         let out = optimised(src, TCL);
-        assert_eq!(
-            out.matches("before").count(),
-            src.matches("before").count(),
-            "{why}: every store the command may preserve survives: {out}"
-        );
+        for store in src
+            .lines()
+            .map(str::trim)
+            .filter(|line| line.starts_with("set ") && line.ends_with(" before"))
+        {
+            assert!(
+                out.lines().any(|line| line.trim() == store),
+                "{why}: the store `{store}` the command may preserve survives: {out}"
+            );
+        }
     }
+    // The proven no-match preserves both variables, and says so.
+    let out = optimised(
+        "proc p {} {\n    set a before\n    set b before\n    regexp {(x)(y)} zz a b\n    puts \"$a $b\"\n}\np\n",
+        TCL,
+    );
+    assert!(out.contains("puts \"before before\""), "{out}");
 }
 
 /// Precision: a command that writes its target on *every* path still has its

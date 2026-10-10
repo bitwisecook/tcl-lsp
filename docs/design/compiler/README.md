@@ -67,6 +67,48 @@ User-facing compiler troubleshooting and how-tos live in
   and liveness.
 - [constant-folding-type-inference.md](constant-folding-type-inference.md)
   — SCCP and type lattice.
+- [value-transfers.md](value-transfers.md) — the registry's value axis
+  (issue #1943): the consumer interface contract — the ownership boundary, one invocation and one analysis
+  context, the answer protocol of result plus ordered storage outcomes
+  indexed by completion path, the three permissions, the lift over the
+  lattice, the existence rung, the template-word plan, the ordered
+  evaluation state behind `expr` as the first client, branch facts with
+  predicate refinement as edge facts, bounded-loop enumeration,
+  proc-level transfer summaries, and diagnostics as consumers of facts.
+- [value-evaluation.md](value-evaluation.md) — the evaluation contract
+  behind that interface — the direct route over the shared cores through `ConstOps`, its
+  adapters and the closed admissibility axis set, the shared expression
+  engine, the regexp owner with typed precision, the
+  declared-implementation route in the bounded engine with per-evaluation
+  state, one memo under one context with the evaluator generation, budgets
+  and cancellation, target semantics, and the `.tclspec` authoring grammar
+  stated as row shapes per statement, block, option flag and body verb.
+- [value-transfers-examples.md](value-transfers-examples.md) —
+  worked examples — one program per optimisation and diagnostic code the
+  value axis touches and per rung, each with what the tool reports and the
+  rule behind it, the open defects the examples witness, and the
+  declarations behind the examples as they are written in the Rust command
+  registry and in `.tclspec` packs.
+- [value-transfers-migration.md](value-transfers-migration.md) —
+  the command-knowledge inventory — what the
+  registry owns and what remains elsewhere, what each analysis,
+  optimisation, and diagnostic reads, the third-party tiers, the drift gate
+  and its ledger, and the validation matrix.
+- [registry-consumer-contracts.md](registry-consumer-contracts.md)
+  — the description, identity, and backing contracts under which the
+  registry drives the analyser, codegen, and the runtimes: the three
+  descriptors (clause grammar, member effect, option effect) behind one
+  derived query per axis; the trust and stub rulings; alias identity with
+  the loader's stamp rejection, site claims and pack fact stamps the VM
+  checks at admission, and per-member guard identities; the take-shipped
+  floor and every core command's `runtime_backing`; the dependency-tier
+  capability matrix and the workspace overlay; the runtimes' backing query,
+  the intrinsic table by family, and the artefact manifest with its context
+  pin; rung 3 pack claims, `tcl spec test`, and the manifest's `spec`
+  directive with the lockfile's `spec_integrity`; versioned codegen stamps,
+  the evidence-gated vendor evaluation point, and package floors; and the
+  extension legs. Not built: rung 4's shipped implementation and the
+  identity kind codegen chooses from the backing.
 - [type-tracking.md](type-tracking.md) — the comprehensive value-type model
   (purity / first-use commitment, union nodes, container element types, the
   numeric tower) with its oracle corpus.
@@ -175,6 +217,13 @@ User-facing compiler troubleshooting and how-tos live in
   ownership, typed finding contracts, and overlap rules.
 - [diagnostics-integration.md](diagnostics-integration.md) — aggregation
   and suppression policy boundary.
+- [diagnostic-policy.md](diagnostic-policy.md) — one diagnostic
+  policy owner below every surface (issue #2089): typed producers,
+  one `Policy` holding the five documented suppression scopes, default-off
+  seeding, severity overrides, the optimiser and shimmer switches, overlap
+  precedence and encoding abstention, one `apply` that keeps a suppressed
+  finding with its reason, thin adapters for the editor, the CLI, the MCP
+  tools, code actions and `tcl opt`, and the truth table every adapter runs.
 - [async-diagnostics-tiering.md](async-diagnostics-tiering.md) —
   fast/deep tiering and cancellation expectations.
 

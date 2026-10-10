@@ -519,7 +519,7 @@ mod tests {
 
     #[test]
     fn set_expr_on_float_var_is_not_incr() {
-        // D5-O114: `x` is DOUBLE here, so `expr {$x + 1}` promotes to a
+        // `x` is DOUBLE here, so `expr {$x + 1}` promotes to a
         // float while `incr` would error — the rewrite must not fire.
         let opts = run_pass("set x 1.5\nset x [expr {$x + 1}]");
         assert!(

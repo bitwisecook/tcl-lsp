@@ -1441,7 +1441,10 @@ fn function_facts(
             continue;
         };
         for (stmt_idx, statement) in cfg_block.statements.iter().enumerate() {
-            if !statement.is_executable_invocation() {
+            // An analysis marker shares its host's span and is no command to
+            // plan: counted as a second sighting of that span it would send
+            // the host back to the source-span fallback.
+            if crate::ssa::is_effect_marker(statement) || !statement.is_executable_invocation() {
                 continue;
             }
             if let Statement::AssignConst {
@@ -1881,7 +1884,7 @@ pub(super) fn emit_wasm(
             registry,
             config: options.semantic_optimisations(),
         });
-    codegen(
+    let (mut module, report) = codegen(
         &unit.ir_module,
         &unit.source,
         options.data_base,
@@ -1890,7 +1893,25 @@ pub(super) fn emit_wasm(
         analysis,
         native,
         mode,
-    )
+    );
+    module.manifest = Some(module_manifest(unit));
+    (module, report)
+}
+
+/// What the module says about the world it was compiled for: the context of
+/// the profile the unit's dialect resolves to and this build's intrinsic
+/// table. A WASM site records no pack claim — a guarded fast path is checked
+/// against the live command on every call — so the module's packs are none.
+fn module_manifest(unit: &CompilationUnit) -> tcl_runtime_api::ArtefactIdentityManifest {
+    let profile = unit
+        .ir_module
+        .dialect
+        .as_deref()
+        .map_or_else(tcl_dialect::DialectProfile::plain_tcl, |name| {
+            crate::environment_ingress::resolve_environment(name).analyser_profile()
+        });
+    tcl_registry::model::runtime_context_for_profile(profile)
+        .identity(&[], tcl_registry::intrinsic_table_hash())
 }
 
 /// The native tier's inputs, present only when the pipeline selected it.

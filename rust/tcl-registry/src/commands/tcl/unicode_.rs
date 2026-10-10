@@ -84,6 +84,7 @@ static PROFILE_OPTIONS: [OptionSpec; 1] = [OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 }];
 
 /// One `unicode to<form>` normalization subcommand: `?-profile profile? string`
@@ -101,6 +102,9 @@ const fn normalise_sub(
         options: &PROFILE_OPTIONS,
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     }
 }
@@ -146,6 +150,7 @@ static SUBCOMMANDS: [SubCommand; 4] = [
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "unicode",
+        runtime_backing: RuntimeBacking::shipped("unicode"),
         traits: Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE,
         surface: Some(SpecSurface::TCL91),
         arity: Arity::at_least(1),
@@ -165,6 +170,9 @@ pub fn spec() -> CommandSpec {
             examples: "set s \"e\\u0301\"\nputs [string length $s]              ;# 2: e + combining acute accent\nset composed [unicode tonfc $s]\nputs [string length $composed]       ;# 1: precomposed U+00E9\nset decomposed [unicode tonfd $composed]\nputs [string equal $decomposed $s]   ;# 1: round-trips to the decomposed form\n\n# Compatibility folding: full-width Latin letters collapse to plain ASCII\nputs [unicode tonfkc \\uFF21\\uFF22\\uFF23]   ;# ABC\n\nif {[catch {unicode tonfc -profile strict $data} result]} {\n    puts \"invalid Unicode data: $result\"\n}",
             return_value: "The normalized copy of string. With the default -profile strict, invalid or ill-formed Unicode data in string raises an exception rather than returning a value; with -profile replace, the command substitutes a Unicode-conformant replacement and returns the normalized result instead.",
         }),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

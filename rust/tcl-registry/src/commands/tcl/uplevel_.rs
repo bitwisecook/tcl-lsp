@@ -125,6 +125,7 @@ fn uplevel_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "uplevel",
+        runtime_backing: RuntimeBacking::shipped("uplevel"),
         // Present and unrestricted — `uplevel` carries an iRules row
         // explicitly (`ALL_TCL.union(IRULES)`), resolving under the bare
         // `IRULES` mask — a pure control-flow primitive with no

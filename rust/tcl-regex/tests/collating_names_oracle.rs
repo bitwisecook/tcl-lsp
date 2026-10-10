@@ -62,13 +62,14 @@ fn engine_matches_only(name: &str, cp: u32) -> bool {
     };
     // Matches its own codepoint …
     let subj = [cp];
-    if re.exec(&subj, 0, 0).is_none() {
+    if re.exec(&subj, 0, 0).matched().is_none() {
         return false;
     }
-    // … and does not match a different one (0x00..0x7f, skipping cp).
+    // … and does not match a different one (0x00..0x7f, skipping cp): a
+    // completed no-match, never a stopped search.
     (0u32..0x80)
         .filter(|&o| o != cp)
-        .all(|o| re.exec(&[o], 0, 0).is_none())
+        .all(|o| re.exec(&[o], 0, 0) == tcl_regex::ExecOutcome::NoMatch)
 }
 
 #[test]

@@ -40,6 +40,9 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         tcllib_package: Some("textutil"),
         required_package: Some("textutil"),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

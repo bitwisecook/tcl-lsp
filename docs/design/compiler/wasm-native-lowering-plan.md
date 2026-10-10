@@ -1,10 +1,9 @@
 # WASM native lowering
 
-> **Status:** the architecture behind the opt-in native tier of
-> `compile_wasm` — the native lowered IR, its lattices and framing elision,
-> the runtime ABI it targets, the sample tiers and framing budgets that gate
-> it, and the corpus evidence behind its priorities. The tier's emitted
-> shapes are documented in [wasm-codegen.md](wasm-codegen.md#the-native-tier).
+The opt-in native tier of `compile_wasm` uses native lowered IR,
+representation lattices and framing elision. This page describes its
+runtime ABI, sample tiers, framing budgets, and corpus evidence. The emitted
+shapes are documented in [wasm-codegen.md](wasm-codegen.md#the-native-tier).
 
 ## 1. Goal and governing rule
 
@@ -141,8 +140,11 @@ same knowledge; the bytecode backend does not consume them.
 1. **No command cache in dispatch.** `dispatch_inner` copies the command
    name into a fresh `Vec<u8>` per call and walks the namespace path;
    `CmdArena` (dense `u32` ids) exists but dispatch does not use it. The
-   `CommandEnvironment` guard epoch is exactly the validation a direct-call
-   handle would need.
+   validation a direct-call handle would need is the command's token
+   generation, which a guard check already reads to find its attestation,
+   together with the lookup domains' epochs (`CommandEnvironment`,
+   `Namespace`, `UnknownHandling`), which move on namespace and interpreter
+   events and not when a command is rebound.
 2. **`run_proc` cost.** Renders every argument to bytes for `info level`
    unconditionally and binds parameters by name; a compiled body is entered
    through it.

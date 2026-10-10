@@ -49,6 +49,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "exit",
+        runtime_backing: RuntimeBacking::shipped("exit"),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED
             | Traits::TERMINATES_BLOCK

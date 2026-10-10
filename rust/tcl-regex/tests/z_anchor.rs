@@ -20,8 +20,8 @@
 //! (`regc_lex.c`); earlier releases reject it. The engine gates it on
 //! `REG_ZANCHOR`. Oracle: tclsh 9.1.0 and 9.0.4.
 
-use tcl_regex::Regex;
 use tcl_regex::defs::{REG_ADVANCED, REG_EXTENDED, REG_NEWLINE, REG_ZANCHOR};
+use tcl_regex::{ExecOutcome, Regex};
 
 fn cps(s: &str) -> Vec<u32> {
     s.chars().map(|c| c as u32).collect()
@@ -29,7 +29,11 @@ fn cps(s: &str) -> Vec<u32> {
 
 fn matches(pattern: &str, subject: &str, cflags: i32) -> bool {
     let re = Regex::compile_str(pattern, cflags).expect("pattern compiles");
-    re.exec(&cps(subject), 0, 0).is_some()
+    match re.exec(&cps(subject), 0, 0) {
+        ExecOutcome::Matched(_) => true,
+        ExecOutcome::NoMatch => false,
+        ExecOutcome::Stopped(stop) => panic!("`{pattern}` against {subject:?} stopped: {stop:?}"),
+    }
 }
 
 #[test]

@@ -43,6 +43,9 @@ fn pure_rows(pkg: &'static str, table: &'static [Row]) -> Vec<CommandSpec> {
             )),
             tcllib_package: Some(pkg),
             required_package: Some(pkg),
+            semantics: SemanticsDeclaration::Declared(
+                &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+            ),
             ..CommandSpec::DEFAULT
         })
         .collect()

@@ -395,3 +395,263 @@ fn retain_commands_reduces_the_table_to_a_whitelist() {
         denied.result.to_str()
     );
 }
+
+/// Run `script` on the VM and answer its result, or its error as `error: …`.
+fn run(vm: &mut Vm, script: &str) -> String {
+    match vm.eval_source(script) {
+        Ok(completion) if completion.code.is_ok() => completion.result.to_str().to_string(),
+        Ok(completion) => format!("error: {}", completion.result.to_str()),
+        Err(error) => format!("error: {}", error.message),
+    }
+}
+
+#[test]
+fn a_package_the_host_provides_satisfies_a_require() {
+    let mut vm = vm();
+    assert_eq!(
+        run(&mut vm, "package require hostpkg"),
+        "error: can't find package hostpkg",
+        "nothing provides it yet"
+    );
+    vm.package_provide("hostpkg", "1.2")
+        .expect("a version is provided");
+    assert_eq!(run(&mut vm, "package require hostpkg"), "1.2");
+    assert_eq!(run(&mut vm, "package provide hostpkg"), "1.2");
+    assert_eq!(
+        run(&mut vm, "package require hostpkg 1.1"),
+        "1.2",
+        "a requirement the version meets"
+    );
+    assert!(
+        run(&mut vm, "package require hostpkg 2.0").starts_with("error: "),
+        "and one it does not"
+    );
+}
+
+#[test]
+fn a_package_the_host_provides_is_refused_as_package_provide_refuses_it() {
+    let mut vm = vm();
+    vm.package_provide("hostpkg", "1.0")
+        .expect("a version is provided");
+    vm.package_provide("hostpkg", "1.0")
+        .expect("the same version again is a no-op");
+
+    let conflict = vm
+        .package_provide("hostpkg", "2.0")
+        .expect_err("a different version conflicts");
+    assert_eq!(
+        run(&mut vm, "package provide hostpkg 2.0"),
+        format!("error: {}", conflict.message),
+        "the message is the script command's"
+    );
+    assert_eq!(
+        conflict.message,
+        "conflicting versions provided for package \"hostpkg\": 1.0, then 2.0"
+    );
+    assert_eq!(
+        conflict.error_code.as_deref(),
+        Some("TCL PACKAGE VERSIONCONFLICT")
+    );
+
+    let invalid = vm
+        .package_provide("other", "1..2")
+        .expect_err("a malformed version is refused");
+    assert_eq!(
+        run(&mut vm, "package provide other 1..2"),
+        format!("error: {}", invalid.message),
+        "as the script command refuses it"
+    );
+    assert_eq!(
+        run(&mut vm, "package provide other"),
+        "",
+        "and nothing is provided"
+    );
+}
+
+#[test]
+fn info_loaded_lists_the_libraries_a_host_recorded() {
+    let mut vm = vm();
+    assert_eq!(run(&mut vm, "info loaded"), "", "nothing is loaded");
+    assert_eq!(run(&mut vm, "info loaded {}"), "");
+
+    vm.library_loaded("", "Pkga");
+    vm.library_loaded("/opt/pkgb/libpkgb.so", "Pkgb");
+    assert_eq!(
+        run(&mut vm, "info loaded"),
+        "{{} Pkga} {/opt/pkgb/libpkgb.so Pkgb}"
+    );
+    assert_eq!(
+        run(&mut vm, "info loaded {}"),
+        "{{} Pkga} {/opt/pkgb/libpkgb.so Pkgb}",
+        "the current interpreter's, as the empty interpreter name asks"
+    );
+    assert_eq!(run(&mut vm, "info loaded {} Pkgb"), "/opt/pkgb/libpkgb.so");
+    assert_eq!(
+        run(&mut vm, "info loaded {} Pkga"),
+        "",
+        "a static library's file is empty"
+    );
+    assert_eq!(
+        run(&mut vm, "info loaded {} Nosuch"),
+        "",
+        "an unloaded prefix"
+    );
+    assert_eq!(
+        run(&mut vm, "info loaded child"),
+        "error: could not find interpreter \"child\"",
+        "another interpreter is not reachable"
+    );
+
+    vm.library_loaded("/elsewhere/libpkgb.so", "Pkgb");
+    assert_eq!(
+        run(&mut vm, "info loaded {} Pkgb"),
+        "/opt/pkgb/libpkgb.so",
+        "a prefix is listed under the file it was first loaded from"
+    );
+    assert_eq!(
+        run(&mut vm, "info loaded"),
+        "{{} Pkga} {/opt/pkgb/libpkgb.so Pkgb}",
+        "and once"
+    );
+}
+
+fn failed(result: Result<Value, tcl_vm::Completion<Value>>) -> String {
+    let completion = result.expect_err("an error");
+    assert_eq!(completion.code, Code::Error);
+    completion.result.to_str().to_string()
+}
+
+#[test]
+fn a_variable_is_read_written_and_unset_as_set_and_unset_do() {
+    let mut vm = vm();
+    vm.write_variable("x", Value::string("1"))
+        .expect("a scalar is set");
+    assert_eq!(run(&mut vm, "set x"), "1");
+    assert_eq!(vm.read_variable("x").expect("reads").to_str().as_ref(), "1");
+
+    vm.write_variable("a(k)", Value::string("v"))
+        .expect("an element is set");
+    assert_eq!(run(&mut vm, "set a(k)"), "v", "as the array element it is");
+    assert_eq!(
+        vm.read_variable("a(k)").expect("reads").to_str().as_ref(),
+        "v"
+    );
+
+    assert_eq!(
+        failed(vm.read_variable("nosuch")),
+        "can't read \"nosuch\": no such variable"
+    );
+    assert_eq!(
+        failed(vm.read_variable("a")),
+        "can't read \"a\": variable is array"
+    );
+    assert_eq!(
+        failed(vm.read_variable("a(no)")),
+        "can't read \"a(no)\": no such element in array"
+    );
+    assert_eq!(
+        failed(vm.read_variable("x(k)")),
+        "can't read \"x(k)\": variable isn't array"
+    );
+    assert_eq!(
+        vm.write_variable("a", Value::string("2"))
+            .expect_err("an array is not a scalar")
+            .result
+            .to_str()
+            .as_ref(),
+        "can't set \"a\": variable is array"
+    );
+
+    vm.unset_variable("a(k)").expect("an element is unset");
+    assert_eq!(run(&mut vm, "info exists a(k)"), "0");
+    vm.unset_variable("x").expect("a scalar is unset");
+    assert_eq!(run(&mut vm, "info exists x"), "0");
+    assert_eq!(
+        vm.unset_variable("nosuch")
+            .expect_err("nothing to unset")
+            .result
+            .to_str()
+            .as_ref(),
+        "can't unset \"nosuch\": no such variable"
+    );
+}
+
+#[test]
+fn the_variable_forms_fire_the_traces_a_script_would() {
+    let mut vm = vm();
+    assert_eq!(
+        run(
+            &mut vm,
+            "set log {}; set x 0; \
+             trace add variable x {read write unset} {apply {{n1 n2 op} {lappend ::log $op}}}; \
+             set log {}"
+        ),
+        ""
+    );
+    vm.write_variable("x", Value::string("1")).expect("writes");
+    vm.read_variable("x").expect("reads");
+    vm.unset_variable("x").expect("unsets");
+    assert_eq!(
+        run(&mut vm, "set log"),
+        "write read unset",
+        "each form fires the trace of its operation"
+    );
+}
+
+fn failure(message: &str, options: Value) -> Completion<Value> {
+    Completion::new(Code::Error, Value::string(message), options)
+}
+
+#[test]
+fn an_error_a_host_took_as_its_own_leaves_error_code_and_error_info() {
+    let mut vm = vm();
+    assert_eq!(
+        run(&mut vm, "info exists errorCode"),
+        "0",
+        "nothing has failed"
+    );
+    vm.publish_caught_error(&failure(
+        "boom",
+        Value::list(vec![Value::string("-errorcode"), Value::string("MY CODE")]),
+    ));
+    assert_eq!(run(&mut vm, "set errorCode"), "MY CODE");
+    assert_eq!(run(&mut vm, "set errorInfo"), "boom");
+
+    vm.publish_caught_error(&failure("plain", Value::empty()));
+    assert_eq!(
+        run(&mut vm, "set errorCode"),
+        "NONE",
+        "an error that carries no code is NONE, as a catch publishes it"
+    );
+    assert_eq!(run(&mut vm, "set errorInfo"), "plain");
+
+    vm.publish_caught_error(&failure("wrong # args: should be \"x\"", Value::empty()));
+    assert_eq!(
+        run(&mut vm, "set errorCode"),
+        "TCL WRONGARGS",
+        "and the code a usage error defaults to is the one a catch gives it"
+    );
+}
+
+#[test]
+fn a_completion_that_is_not_an_error_publishes_nothing() {
+    let mut vm = vm();
+    for code in [Code::Ok, Code::Return, Code::Break, Code::Continue] {
+        vm.publish_caught_error(&Completion::new(code, Value::string("x"), Value::empty()));
+    }
+    assert_eq!(run(&mut vm, "info exists errorCode"), "0");
+    assert_eq!(run(&mut vm, "info exists errorInfo"), "0");
+}
+
+#[test]
+fn confined_stores_keep_a_taken_error_out_of_the_globals() {
+    let mut vm = vm();
+    vm.set_stores_confined(true);
+    vm.publish_caught_error(&failure("boom", Value::empty()));
+    vm.set_stores_confined(false);
+    assert_eq!(
+        run(&mut vm, "info exists errorCode"),
+        "0",
+        "a body confined to its own frame leaves no global behind"
+    );
+}

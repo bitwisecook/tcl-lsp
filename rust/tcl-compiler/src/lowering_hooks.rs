@@ -222,9 +222,9 @@ pub fn dispatch_lowering_hook(
 ) -> Option<Statement> {
     match hook {
         LoweringHookId::Expr => crate::lowering::hooks::control::try_lower_expr(cmd),
-        LoweringHookId::Return => Some(crate::lowering::hooks::control::try_lower_return(
-            cmd, aliases, registry, context,
-        )),
+        LoweringHookId::Return => {
+            crate::lowering::hooks::control::try_lower_return(cmd, aliases, registry, context)
+        }
         LoweringHookId::Set => Some(lower_set(cmd, aliases, registry, context)),
         LoweringHookId::Incr => Some(crate::lowering::hooks::incr::try_lower_incr(
             cmd,

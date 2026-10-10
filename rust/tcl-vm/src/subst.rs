@@ -31,7 +31,7 @@
 //!
 //! The word decomposition itself is **not** implemented here: this module is a
 //! consumer of `tcl_lexer::word_parts`, the one owner shared with
-//! `runtime/rust` and (next lane) the compiler's segmenter. The compiled-word
+//! `runtime/rust` and the compiler. The compiled-word
 //! convention — a bare `$` is data, `${…}` and `[…]` substitute — is the
 //! owner's `SubstFlags::compiled_word()` rather than a private scanner.
 

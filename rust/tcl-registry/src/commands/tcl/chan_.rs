@@ -165,6 +165,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-buffering",
@@ -179,6 +180,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-buffersize",
@@ -188,6 +190,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-encoding",
@@ -197,6 +200,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-eofchar",
@@ -206,6 +210,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-translation",
@@ -219,6 +224,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-profile",
@@ -233,6 +239,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     // Socket / terminal channel-type options, all Tcl 9.0+ (TIPs 344 and
     // 160). Settable only on the matching channel type; documented on
@@ -246,6 +253,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-keepalive",
@@ -255,6 +263,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-inputmode",
@@ -269,6 +278,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
 ];
 
@@ -282,6 +292,7 @@ const COPY_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-command",
@@ -291,6 +302,7 @@ const COPY_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
 ];
 
@@ -303,6 +315,7 @@ const PUTS_OPTIONS: &[OptionSpec] = &[OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 }];
 
 /// `chan read`'s `-nonewline` flag.
@@ -314,6 +327,7 @@ const READ_OPTIONS: &[OptionSpec] = &[OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 }];
 
 /// `chan close`'s `direction` positional argument (index 1) — Tcl 8.6+
@@ -441,6 +455,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -531,6 +546,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -593,6 +609,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "chan gets channelId ?varName?",
         return_type: Some(TclType::String),
         arg_roles: &[(0, ArgRole::Channel), (1, ArgRole::VarWrite)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::GETS),
         side_effects: &[
             SideEffect {
                 target: SideEffectTarget::FileIo,
@@ -621,6 +638,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -638,6 +656,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -757,6 +776,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -789,6 +809,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -819,6 +840,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-buffering",
@@ -828,6 +850,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-buffersize",
@@ -837,6 +860,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-encoding",
@@ -846,6 +870,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-eofchar",
@@ -855,6 +880,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-profile",
@@ -864,6 +890,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-translation",
@@ -873,12 +900,14 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
 ];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "chan",
+        runtime_backing: RuntimeBacking::shipped("chan"),
         traits: Traits::BYTE_COMPILED,
         // `chan` is a Tcl 8.5+ ensemble: no chan.n manual page and no `chan`
         // entry in the 8.4 command index (confirmed: the 8.4 URL 404s and the

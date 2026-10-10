@@ -353,6 +353,10 @@ const MOD_DECLARATION: u32 = 1 << 0;
 /// (the "`TclOO` Tricks" wiki helper) or Tcllib `ooutil`'s `mymethod`: they
 /// read as method-body keywords to a human either way, and the highlighter
 /// has no package-load information to decide otherwise.
+// registry-axis-ok: irreducible — as the doc comment above explains, both
+// words are genuinely without a `CommandSpec` to carry `LANGUAGE_KEYWORD`
+// in every dialect below 9.0 (there is no registry fact to read instead);
+// until never
 const METHOD_BODY_HELPER_SUB_KEYWORDS: &[&str] = &["callback", "mymethod"];
 
 /// `true` for sub-keywords highlighted as `keyword` that are **not**
@@ -367,7 +371,7 @@ const METHOD_BODY_HELPER_SUB_KEYWORDS: &[&str] = &["callback", "mymethod"];
 /// same-named user proc outside a definition body is never mis-coloured and
 /// `TclOO` and snit members behave identically. This residue only covers what
 /// the grammar does not otherwise model: clause keywords of `if`/`try`/`switch`
-/// ([`tcl_registry::traits::CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC`] —
+/// ([`tcl_registry::traits::clause_keywords_without_command_spec`] —
 /// shared with `xtask`'s `gen_tmlanguage_keywords` TextMate-grammar generator,
 /// so the two never drift on which clause words are real keywords) and the
 /// `TclOO` method-*body* helper commands
@@ -375,7 +379,7 @@ const METHOD_BODY_HELPER_SUB_KEYWORDS: &[&str] = &["callback", "mymethod"];
 /// standalone commands (`if`, `while`, `proc`, `when`, `oo::*`, …) come from
 /// the registry's `LANGUAGE_KEYWORD` trait.
 fn is_language_keyword_sub_keyword(name: &str) -> bool {
-    tcl_registry::traits::CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC.contains(&name)
+    tcl_registry::traits::clause_keywords_without_command_spec().contains(&name)
         || METHOD_BODY_HELPER_SUB_KEYWORDS.contains(&name)
 }
 
@@ -2458,6 +2462,11 @@ fn insert_generic_option_overrides(
         };
         // `--` ends option processing (Tcl convention). Colour the marker, then
         // stop — nothing after it is an option.
+        // registry-axis-ok: irreducible — this whole function only runs once
+        // `registry.get(head).is_some()` has already returned `false` (a
+        // few lines up): a computed/dynamic head with no `CommandSpec` at
+        // all, so there is no per-command `EndsOptions` row here to read;
+        // until never
         if text == "--" {
             if let Some(tok) = seg.argv.get(i) {
                 overrides
@@ -2481,6 +2490,9 @@ fn insert_generic_option_overrides(
         let vi = i + 1;
         if let Some(val_tok) = seg.argv.get(vi)
             && matches!(val_tok.kind, TokenType::Esc | TokenType::Str)
+            // registry-axis-ok: irreducible — same reason as this function's
+            // other "--" check above: no `CommandSpec` exists for this head;
+            // until never
             && literal_word(vi).is_none_or(|w| w != "--" && !is_generic_option_word(w))
         {
             overrides
@@ -2686,6 +2698,12 @@ fn insert_registry_method_options(
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     for (i, text) in seg.texts.iter().enumerate().skip(2) {
+        // registry-axis-ok: irreducible — generic across every object
+        // method's option set; only `switch` and `regexp` have
+        // `OptionEffectKind::EndsOptions` populated on a "--" row today, so
+        // reading `method_sub`'s own row here would stop recognising "--"
+        // for virtually every other method (`formatting/keywords.rs`'s
+        // `scan_options` has the same gap, for the same reason); until never
         if text == "--" {
             // End-of-options marker — colour it, then stop (Tcl convention).
             if let Some(tok) = seg.argv.get(i) {
@@ -2793,6 +2811,14 @@ fn user_class_provides_method(
     if hierarchy.method_target(class, method).is_some() {
         return true;
     }
+    // registry-axis-ok: irreducible — `oo::object`'s own `SUBCOMMANDS` doc
+    // comment spells out why this is `destroy` alone: it is "the [only]
+    // exported method" reachable through an instance's public name (`new`
+    // and `create` are class-level, not instance methods, despite being
+    // registered on the same command); no trait yet distinguishes
+    // instance-exported from class-level registry subcommands generically,
+    // so asking that query would take a new registry concept, not a
+    // mechanical read of an existing one; until never
     if method == "destroy" {
         return true;
     }
@@ -2828,6 +2854,10 @@ fn insert_user_configure_options(
         return;
     }
     for (i, text) in seg.texts.iter().enumerate().skip(2) {
+        // registry-axis-ok: irreducible — `props` (above) is derived
+        // entirely from the class's own declared properties, not from any
+        // registered `OptionSpec` row — a generated property accessor has no
+        // command-level "--" fact in the registry to read at all; until never
         if text == "--" {
             if let Some(tok) = seg.argv.get(i) {
                 overrides
@@ -2848,12 +2878,13 @@ fn insert_user_configure_options(
                 .or_insert(ArgOverride::Decorator);
         }
         // The immediately-following literal word is this property's value.
+        let next_word = seg.texts.get(i + 1).map(String::as_str);
+        // registry-axis-ok: irreducible — same reason as this loop's other
+        // "--" check above; until never
+        let next_word_is_a_value = next_word.is_some_and(|w| !w.starts_with('-') && w != "--");
         if let Some(val_tok) = seg.argv.get(i + 1)
             && matches!(val_tok.kind, TokenType::Esc | TokenType::Str)
-            && seg
-                .texts
-                .get(i + 1)
-                .is_some_and(|w| !w.starts_with('-') && w != "--")
+            && next_word_is_a_value
         {
             overrides
                 .entry(val_tok.span.start())
@@ -2917,33 +2948,47 @@ fn definer_class_name_idx(
     registry: &CommandRegistry,
 ) -> Option<(usize, bool)> {
     let bare = head.strip_prefix("::").unwrap_or(head);
-    let declares = bare != "oo::define";
-    let name_idx = match bare {
-        "oo::class" | "oo::configurable" | "oo::abstract" | "oo::singleton"
-            if seg.texts.get(1).map(String::as_str) == Some("create") =>
-        {
-            2
-        }
-        "oo::define" if seg.texts.len() >= 3 => 1,
-        // snit / itcl definers name the class directly at arg 1 and the body at
-        // arg 2 (`snit::type Name { … }`, `itcl::class Name { … }`) — so a
-        // `$self method …` / `$this method …` dispatch in the body resolves
-        // against the class, exactly as `my` does for `TclOO`.  Driven by the
-        // registry's definer-family grammar, not a hardcoded name list.
-        _ if seg.texts.len() >= 3
-            && matches!(
-                registry
-                    .get(head)
-                    .and_then(|s| s.definition_body)
-                    .map(|g| g.family),
-                Some(DefinerFamily::Snit | DefinerFamily::Itcl)
-            ) =>
-        {
-            1
-        }
-        _ => return None,
-    };
-    Some((name_idx, declares))
+    let spec = registry.get(bare)?;
+    // `TclOO`'s two definer shapes share one family, distinguished by their
+    // own registered subcommands rather than a name list: the metaclasses
+    // (`oo::class`, `oo::configurable`, `oo::abstract`, `oo::singleton`)
+    // manufacture the class through their own `create` subcommand, with the
+    // name following it; the bare script form (`oo::define` /
+    // `oo::objdefine`, neither of which registers a `create` subcommand)
+    // instead operates directly on an existing class named at argv[1].
+    if matches!(
+        spec.definition_body.map(|g| g.family),
+        Some(DefinerFamily::TclOo)
+    ) {
+        // registry-axis-ok: irreducible — finding *which* subcommand is the
+        // class-factory one still needs its well-known spelling somewhere;
+        // no registry field marks a `SubCommand` as the manufacturer entry
+        // point independently of a name (that would be new registry schema,
+        // not a mechanical read of an existing one) — but it is named only
+        // once here, and the source-word check just below reads the
+        // discovered name back rather than repeating the literal; until
+        // never
+        let factory_subcommand = spec.subcommands.iter().find(|sc| sc.name == "create");
+        return if let Some(sub) = factory_subcommand {
+            (seg.texts.get(1).map(String::as_str) == Some(sub.name)).then_some((2, true))
+        } else {
+            (seg.texts.len() >= 3).then_some((1, false))
+        };
+    }
+    // snit / itcl definers name the class directly at arg 1 and the body at
+    // arg 2 (`snit::type Name { … }`, `itcl::class Name { … }`) — so a
+    // `$self method …` / `$this method …` dispatch in the body resolves
+    // against the class, exactly as `my` does for `TclOO`.  Driven by the
+    // registry's definer-family grammar, not a hardcoded name list.
+    if seg.texts.len() >= 3
+        && matches!(
+            spec.definition_body.map(|g| g.family),
+            Some(DefinerFamily::Snit | DefinerFamily::Itcl)
+        )
+    {
+        return Some((1, true));
+    }
+    None
 }
 
 /// Mark the class name at a definer head so it emits as `Class` rather than a
@@ -3011,6 +3056,13 @@ fn insert_self_method_overrides(
     // convention of those class systems rather than a command at all, so
     // they stay matched by name here.
     let is_self_head = crate::definition::is_self_dispatch_keyword(head)
+        // registry-axis-ok: irreducible — `self`/`this` are each one entry
+        // of their family's broader `implicit_vars` list (snit also
+        // implicitly binds `selfns`/`type`/`options`/…, itcl only `this`),
+        // and nothing marks which one of a family's implicit vars is *the*
+        // self-receiver, so reading `implicit_vars` here would still need
+        // to know which element to trust — the same naming-convention fact
+        // the comment above already gives by name; until never
         || object_handle_name(head).is_some_and(|n| n == "self" || n == "this")
         || tcl_compiler::value_shapes::parse_command_substitution_with_config(
             head,
@@ -3133,6 +3185,11 @@ fn insert_enum_value_overrides(
     let mut i = 1usize;
     while i < seg.texts.len() {
         let word = seg.texts[i].as_str();
+        // registry-axis-ok: irreducible — same population gap as
+        // `formatting/keywords.rs`'s `scan_options`: only `switch` and
+        // `regexp` have `OptionEffectKind::EndsOptions` populated on a "--"
+        // row today, so reading `spec`'s own row here would stop
+        // recognising "--" for every other command's options; until never
         if word == "--" {
             break;
         }
@@ -3217,12 +3274,17 @@ fn insert_oo_define_keyword_overrides(
         return;
     }
     mark_keyword(2);
-    // `self` introduces the real definition keyword (`method`, `constructor`,
-    // …) at `seg.texts[3]`. This is the `oo::define` *definer-grammar*
-    // wrapper word, not the `TclOO` `self` introspection command — a
-    // different axis from `Traits::TCLOO_INTROSPECTION`, resolved through
-    // the definer grammar's own `MemberKind::Wrapper` modelling.
-    if first == "self" && seg.texts.get(3).is_some_and(|w| grammar.is_member(w)) {
+    // A wrapper member (`self`, TclOO's only one) introduces the real
+    // definition keyword (`method`, `constructor`, …) at `seg.texts[3]`.
+    // `first == "self"` would also be the `TclOO` `self` introspection
+    // command by spelling — a different axis from
+    // `Traits::TCLOO_INTROSPECTION` — so this reads the member's own
+    // `MemberKind` from the grammar instead of the spelling.
+    if grammar
+        .member(first)
+        .is_some_and(|m| m.kind == MemberKind::Wrapper)
+        && seg.texts.get(3).is_some_and(|w| grammar.is_member(w))
+    {
         mark_keyword(3);
     }
     // The one-liner definer form carries a whole member call inline —
@@ -4191,6 +4253,11 @@ fn classify_regex_component(matched: &str) -> TokenKind {
             TokenKind::RegexpEscape
         };
     }
+    // registry-axis-ok: irreducible — ARE (`regexp`/`regsub` pattern-string)
+    // metacharacters, not Tcl command syntax; `|`/`^`/`$` coincide with
+    // `::tcl::mathop` operator spellings the same way `eq`/`ne`/`-` do
+    // elsewhere in the tree (see the irreducible waivers on those); until
+    // never
     match matched {
         "^" | "$" => TokenKind::RegexpAnchor,
         "|" => TokenKind::RegexpAlternation,
@@ -5708,10 +5775,20 @@ fn bind_object_handle(
             if !family_constructs_by_bare_word(hierarchy, registry, &class) {
                 return;
             }
-            // A bare construction needs an instance-name argument that is not a
-            // (non-`create`) typemethod call on the type.
+            // A bare construction needs an instance-name argument that is not
+            // a typemethod call on the type — except the metaclass's own
+            // registered manufacturer keyword (snit: `create`), read from
+            // its `definition_body`'s `manufacturers` list rather than
+            // hardcoded, which is always a construction even when a class
+            // also happens to declare a same-named `typemethod`.
             if !args.first().is_some_and(|a| {
-                a == "create" || !class_declares_typemethod(hierarchy, registry, &class, a)
+                let is_manufacturer = hierarchy
+                    .classes
+                    .get(&class)
+                    .and_then(|cd| registry.get(&cd.metaclass))
+                    .and_then(|spec| spec.definition_body)
+                    .is_some_and(|grammar| grammar.manufacturer(a).is_some());
+                is_manufacturer || !class_declares_typemethod(hierarchy, registry, &class, a)
             }) {
                 return;
             }
@@ -11325,5 +11402,43 @@ mod tests {
         }
 
         assert!(failures.is_empty(), "{}", failures.join("\n  "));
+    }
+
+    /// `insert_format_overrides` marks a format/clock/binary-role
+    /// argument by its registry-declared *position*, independent of
+    /// whether that word is literal — so a computed word (`$fmt`) reaches
+    /// the sub-tokeniser exactly as a literal one does, and each
+    /// sub-tokeniser already "falls back to the default classification"
+    /// (its own doc comment, `ArgOverride`) when it finds no specifier in
+    /// the token's own bytes. `$fmt`'s own text is `"$fmt"`, never a `%`
+    /// specifier, so it renders as a plain `variable` token — a computed
+    /// pattern is explained at its use through hover and inlay hints
+    /// (`hover.rs`/`inlay_hints.rs`), never painted here at a token
+    /// range it does not have.
+    #[test]
+    fn a_computed_format_word_falls_back_to_its_plain_classification() {
+        let names = legend_token_types();
+        let kind_of = |src: &str, needle: &str| {
+            decode_words(src, &reg())
+                .into_iter()
+                .find(|(_, _, _, _, word)| word == needle)
+                .map(|(_, _, _, kind, _)| names[kind as usize])
+        };
+        assert_eq!(
+            kind_of("set fmt \"%-20s %d\"\nformat $fmt a 1\n", "$fmt"),
+            Some("variable"),
+            "a computed format argument is an ordinary variable token, not formatSpec"
+        );
+        assert_eq!(
+            kind_of(
+                "set fmt \"%Y-%m-%d\"\nclock format 0 -format $fmt\n",
+                "$fmt"
+            ),
+            Some("variable")
+        );
+        assert_eq!(
+            kind_of("set fmt \"a3 i\"\nbinary format $fmt foo 1\n", "$fmt"),
+            Some("variable")
+        );
     }
 }

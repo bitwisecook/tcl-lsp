@@ -57,6 +57,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "yield",
+        runtime_backing: RuntimeBacking::shipped("yield"),
         // `TCL86_PLUS` alone already resolves availability correctly
         // everywhere, via the mask-intersection rule
         // (`CommandSpec::supports_dialect` / `ProfileQueries::is_available`):

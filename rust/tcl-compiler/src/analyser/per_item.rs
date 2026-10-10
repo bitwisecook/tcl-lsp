@@ -128,6 +128,13 @@ pub enum PerItemFallback {
     /// read walk-level state the isolated-body memo key does not carry,
     /// so a declared document takes the full path rather than diverge.
     DeclaredTargets,
+    /// The document invokes a definer only the workspace's packs declare.
+    /// The shell reads the un-overlaid store (`per_item_setup`),
+    /// where that command has no definition-body grammar, so the class it
+    /// makes — and every member its body declares — would be invisible;
+    /// the full path reads the overlaid store, until the per-body memo key
+    /// carries the pack overlay.
+    PackDefiner,
 }
 
 impl PerItemFallback {
@@ -149,6 +156,7 @@ impl PerItemFallback {
             Self::ClassFactsCollide => "class-facts-collide",
             Self::MethodInstanceReplay => "method-instance-replay",
             Self::DeclaredTargets => "declared-targets",
+            Self::PackDefiner => "pack-definer",
         }
     }
 }
@@ -378,10 +386,15 @@ impl Analyser {
         self.pending_instances = Some(Vec::new());
         self.pending_bareword_dispatch_sites = Some(Vec::new());
         self.defer_proc_bodies = true;
+        self.pack_definer_seen = false;
         self.walk_commands_top_level(&commands, false);
         self.defer_proc_bodies = false;
         if file_env_pushed {
             self.body_scope_stack.pop();
+        }
+        if self.pack_definer_seen {
+            self.per_item_fallback = Some(PerItemFallback::PackDefiner);
+            return self.fresh_full_analyse(source, dialect);
         }
 
         // Tk activation, first opportunity.  A `package require
@@ -520,11 +533,10 @@ impl Analyser {
             self.environment
                 .as_ref()
                 .expect("resolved at the top of per_item_setup")
-                .context_registry(
+                .plain_context_registry(
                     &crate::environment_ingress::DocumentEnvironment::keyed_versions(
                         &self.library_versions,
                     ),
-                    0,
                 )
                 .commands(),
         ));
@@ -1060,6 +1072,7 @@ impl Analyser {
         // rule when it replays the call sites it deferred.
         // `rebase_fragment_pending` has already shifted them.
         self.ensemble_record_offsets.extend(frag.ensemble_offsets);
+        self.loop_candidates.extend(frag.loop_candidates);
         // Replay the body's qualified global reads against the shell's real
         // global scope (rebased to the body's position): a `$::g` read lands as
         // a reference on the enclosing `::g` exactly as a whole-file walk would.
@@ -1310,6 +1323,11 @@ pub struct BodyFragment {
     /// the whole-file DFS's "declaration precedes the call site" visibility
     /// rule to an ensemble created inside a proc body.
     ensemble_offsets: std::collections::HashMap<String, u32>,
+    /// The conditional loops the body's walk examined
+    /// ([`super::state::Analyser::loop_candidates`]), body-relative until the
+    /// graft rebases them, so the shell's CFG/SSA pass resolves a loop inside
+    /// a proc body against its unit's branch fact as the whole-file walk does.
+    loop_candidates: Vec<super::bounds_checks::LoopTerminationCandidate>,
     /// Every offset-keyed synthetic identity the isolated pass minted
     /// (`@dynns@<off>` / `@dynclass@<off>` / `@autoname@<off>`), with
     /// **body-relative** offsets — the whole fragment is body-relative, so
@@ -1510,6 +1528,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         widget_sites: a.widget_dispatch_sites,
         var_literal_checks: a.pending_var_literal_checks,
         ensemble_offsets: a.ensemble_record_offsets,
+        loop_candidates: a.loop_candidates,
         minted_synthetics: a.minted_synthetic_names,
     }
 }
@@ -2072,6 +2091,9 @@ fn rebase_fragment_pending(frag: &mut BodyFragment, d: u32) {
     }
     for off in frag.ensemble_offsets.values_mut() {
         *off += d;
+    }
+    for candidate in &mut frag.loop_candidates {
+        candidate.condition_span = shift(candidate.condition_span, d);
     }
     for off in frag.walk_alias_offsets.values_mut() {
         *off += d;

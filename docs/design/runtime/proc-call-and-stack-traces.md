@@ -381,7 +381,7 @@ info — this is what the conservative principle buys.
   info. The path + line is what makes `errorInfo` cite the real file.
 - **`package require`/`provide`** — a command (no special frame protocol) that
   triggers `source`/load of the providing script; it inherits the `source`
-  frame machinery for traces. (Loading a **C** extension is the Track-2 loader.)
+  frame machinery for traces. C extensions load through the extension ABI.
 - **`info level ?N?`** — reads the frame stack (`words`, `level`).
   **`info frame ?N?`** — reads the `CmdFrame` chain (type/file/line/cmd).
   **`catch`/`error`/`return`** — operate on the `ExceptionState` + options dict.

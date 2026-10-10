@@ -34,6 +34,9 @@ tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-compiler = { path = "../tcl-compiler" }
+# The `Finding` conversion (`diagnostic_policy`) — the shared crate stays
+# below this one, so the XC conversion lives here.
+tcl-lsp-core = { path = "../tcl-lsp-core" }
 serde_json = "1"
 
 [dev-dependencies]

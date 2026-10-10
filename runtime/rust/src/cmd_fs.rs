@@ -187,7 +187,7 @@ fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // The pure `/`-based path text ops are the shared `tcl_cmd_core::path` core.
         b"dirname" => str_result(
             interp,
-            tcl_cmd_core::path::dirname(&arg(2).unwrap_or_default()),
+            &tcl_cmd_core::path::dirname(&arg(2).unwrap_or_default()),
         ),
         b"tail" => str_result(
             interp,
@@ -204,13 +204,16 @@ fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"home" => file_home(interp, argv),
         b"join" => {
             let parts: Vec<Vec<u8>> = argv[2..].iter().map(|&a| obj_bytes(a)).collect();
-            str_result(interp, &join(&parts))
+            str_result(interp, &tcl_cmd_core::path::join(&parts))
         }
         b"link" => file_link(interp, argv),
         b"lstat" => file_stat(interp, argv, true),
         b"split" => {
-            let parts = split_path(&arg(2).unwrap_or_default());
-            let objs: Vec<*mut TclObj> = parts.iter().map(|p| new_string(p)).collect();
+            let name = arg(2).unwrap_or_default();
+            let objs: Vec<*mut TclObj> = tcl_cmd_core::path::split(&name)
+                .into_iter()
+                .map(new_string)
+                .collect();
             interp.set_result(list::new_list_obj(&objs));
             Code::Ok
         }
@@ -603,7 +606,7 @@ fn file_copy(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     for &source_obj in sources {
         let source = obj_bytes(source_obj);
         let destination = if target_is_dir {
-            join(&[target.clone(), tcl_cmd_core::path::tail(&source).to_vec()])
+            tcl_cmd_core::path::join(&[target.as_slice(), tcl_cmd_core::path::tail(&source)])
         } else {
             target.clone()
         };
@@ -714,7 +717,7 @@ fn file_rename(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     for &source_obj in sources {
         let source = obj_bytes(source_obj);
         let destination = if target_is_dir {
-            join(&[target.clone(), tcl_cmd_core::path::tail(&source).to_vec()])
+            tcl_cmd_core::path::join(&[target.as_slice(), tcl_cmd_core::path::tail(&source)])
         } else {
             target.clone()
         };
@@ -968,37 +971,6 @@ fn trim_trailing(p: &[u8]) -> &[u8] {
     &p[..end]
 }
 
-fn join(parts: &[Vec<u8>]) -> Vec<u8> {
-    let mut out: Vec<u8> = Vec::new();
-    for part in parts {
-        if part.is_empty() {
-            continue;
-        }
-        if part.starts_with(b"/") || out.is_empty() {
-            out = part.clone(); // absolute component resets
-        } else {
-            if out.last() != Some(&b'/') {
-                out.push(b'/');
-            }
-            out.extend_from_slice(part);
-        }
-    }
-    out
-}
-
-fn split_path(p: &[u8]) -> Vec<Vec<u8>> {
-    let mut parts: Vec<Vec<u8>> = Vec::new();
-    if p.starts_with(b"/") {
-        parts.push(b"/".to_vec());
-    }
-    for seg in p.split(|&c| c == b'/') {
-        if !seg.is_empty() {
-            parts.push(seg.to_vec());
-        }
-    }
-    parts
-}
-
 /// Lexical normalize: make absolute (against `cwd`) and resolve `.`/`..` without
 /// requiring the path to exist. `cwd` is the host's working directory (`pwd`).
 fn normalize(p: &[u8], cwd: &[u8]) -> Vec<u8> {
@@ -1147,7 +1119,11 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     // Patterns: each remaining arg, or (with -join) all joined into one.
     let pats: Vec<Vec<u8>> = argv[i..].iter().map(|&a| obj_bytes(a)).collect();
-    let patterns: Vec<Vec<u8>> = if join_mode { vec![join(&pats)] } else { pats };
+    let patterns: Vec<Vec<u8>> = if join_mode {
+        vec![tcl_cmd_core::path::join(&pats)]
+    } else {
+        pats
+    };
 
     let base = directory.clone();
     let mut hits: Vec<Vec<u8>> = Vec::new();

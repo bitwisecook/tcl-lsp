@@ -20,7 +20,7 @@
 
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
-use crate::state_transition::local_alias_name;
+use crate::state_transition::{AliasWords, local_alias_name};
 use tcl_dialect::model::Family;
 use tcl_dialect::model::SpecSurface;
 use tcl_dialect::surface;
@@ -60,6 +60,7 @@ fn global_state_transitions(arguments: InvocationArguments<'_>) -> StateTransiti
                 local: local_alias_name(&variable),
                 target: VariableAliasTarget::Global { variable },
                 writes_value: false,
+                words: AliasWords::same(argument_index),
             },
         ));
     }
@@ -109,6 +110,7 @@ static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout::every(ArgRole::VarW
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "global",
+        runtime_backing: RuntimeBacking::shipped("global"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
@@ -156,9 +158,9 @@ pub fn spec() -> CommandSpec {
         native_lowering: Some(NativeLowering::Scope(ScopeKind::Global)),
         codegen_hook: Some(CodegenHookId::Global),
         forms: FORMS,
-        analyser_hook: Some(crate::hooks::AnalyserHookId::Global),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(GLOBAL_TRANSITIONS),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::scope_alias::GLOBAL),
         ..CommandSpec::DEFAULT
     }
 }

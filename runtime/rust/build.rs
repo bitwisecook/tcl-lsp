@@ -51,6 +51,7 @@ fn main() {
     // (which `-D warnings` turns into a hard lint failure) in the wasm or
     // no-source builds where the backend is disabled.
     println!("cargo:rustc-check-cfg=cfg(have_tommath)");
+    println!("cargo:rustc-check-cfg=cfg(runtime_c_tests)");
 
     // The regex engine is now the pure-Rust `tcl-regex` crate (a normal cargo
     // dependency); no C is compiled for it here. Only the bignum backend
@@ -58,6 +59,9 @@ fn main() {
 
     let target = env::var("TARGET").unwrap_or_default();
     let is_wasm = target.contains("wasm");
+    if !is_wasm && env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
+        compile_c_tests();
+    }
 
     // Reserve the low data window the AOT WASM backend relocates its constant
     // pool into (`tcl-compiler` `RESERVED_DATA_BASE` = 0x10_0000). Rust's wasm32
@@ -228,6 +232,55 @@ fn main() {
     // Signals the bignum obj rep + FFI are available (gates `src/bignum.rs`).
     // (`rustc-check-cfg` for `have_tommath` is emitted unconditionally up top.)
     println!("cargo:rustc-cfg=have_tommath");
+}
+
+/// The extension the hosts share as their conformance test, `pkga.c`, compiled
+/// for this host against the header's WASM leg, for the runtime's own test of
+/// its C API (`tests/pkga_extension.rs`). Only a search path is published: the
+/// test names the archive with `#[link]`, so the library never carries the
+/// extension. Without a C compiler the test is left out, with a warning.
+fn compile_c_tests() {
+    let (Ok(manifest), Ok(out)) = (env::var("CARGO_MANIFEST_DIR"), env::var("OUT_DIR")) else {
+        return;
+    };
+    let (manifest, out) = (PathBuf::from(manifest), PathBuf::from(out));
+    let source = manifest.join("../../rust/tcl-cshim/tests/c/pkga.c");
+    let include = manifest.join("include");
+    println!("cargo:rerun-if-changed={}", source.display());
+    println!("cargo:rerun-if-changed={}", include.join("tcl.h").display());
+    println!("cargo:rerun-if-env-changed=CC");
+    println!("cargo:rerun-if-env-changed=AR");
+    if !source.is_file() {
+        return;
+    }
+    let cc = env::var("CC").unwrap_or_else(|_| "cc".into());
+    let ar = env::var("AR").unwrap_or_else(|_| "ar".into());
+    let object = out.join("pkga.o");
+    let archive = out.join("libruntime_pkga.a");
+    let _ = fs::remove_file(&archive);
+    let compiled = split_cmd(&cc)
+        .args(["-c", "-O2", "-fPIC", "-std=c99", "-DTCL_HOST_WASM", "-I"])
+        .arg(&include)
+        .arg(&source)
+        .arg("-o")
+        .arg(&object)
+        .status()
+        .is_ok_and(|status| status.success());
+    let archived = compiled
+        && split_cmd(&ar)
+            .arg("rcs")
+            .arg(&archive)
+            .arg(&object)
+            .status()
+            .is_ok_and(|status| status.success());
+    if !archived {
+        println!(
+            "cargo:warning=pkga.c was not compiled with {cc}; the C API extension test is skipped"
+        );
+        return;
+    }
+    println!("cargo:rustc-link-search=native={}", out.display());
+    println!("cargo:rustc-cfg=runtime_c_tests");
 }
 
 /// Build a [`Command`] from a possibly multi-word program string (e.g. a

@@ -211,6 +211,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "return",
+        runtime_backing: RuntimeBacking::shipped("return"),
         // Present and unrestricted: its `dialects` group carries the
         // `IRULES` bit explicitly (`ALL_TCL.union(IRULES)`), so it resolves
         // under the bare `IRULES` availability mask — a pure control-flow
@@ -249,6 +250,7 @@ pub fn spec() -> CommandSpec {
         lowering_hook: Some(LoweringHookId::Return),
         native_lowering: Some(NativeLowering::Structured(LoweringHookId::Return)),
         inline_codegen_hook: Some(InlineCodegenHookId::Return),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::completion::RETURN),
         forms: FORMS,
         context_gate: Some(return_context_gate),
         options: const {

@@ -310,8 +310,10 @@ Use braces: {{ \u{2026} }}"
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
     ) {
+        // value-transfer-ok: options — W311 reads the encoding option's position, which `option_placement` on the registry will carry
         let opt_start = if cmd_name == "fconfigure" {
             1
+            // value-transfer-ok: options — W311 reads the encoding option's position, which `option_placement` on the registry will carry
         } else if cmd_name == "chan" && args.first().map(String::as_str) == Some("configure") {
             2
         } else {
@@ -692,7 +694,17 @@ Use braces: {{ \u{2026} }}"
         arg_expand: &[bool],
         cmd_tok: tcl_lexer::Token,
     ) {
-        if cmd_name != "append" || args.len() < 2 || arg_tokens.len() < 2 {
+        // The check is about the string append's semantics — a padded
+        // value word is list construction by hand — so it fires on the
+        // command whose resolved plan is that cell update, whatever its
+        // spelling.
+        let is_append = self.registry.as_deref().is_some_and(|registry| {
+            matches!(
+                crate::value_transfer::resolved_cell_update(registry, cmd_name, args),
+                Some((tcl_registry::native_lowering::CellUpdate::Append, _))
+            )
+        });
+        if !is_append || args.len() < 2 || arg_tokens.len() < 2 {
             return;
         }
         for (i, text) in args.iter().enumerate().skip(1) {

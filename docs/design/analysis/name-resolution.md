@@ -335,11 +335,12 @@ one storage cell** — one variable with two names. Identical 8.4 → 9.1; only
 ### 4.1 The analyser's link model
 
 `VarDef::link_target` holds the qualified cell name, mirroring `VAR_LINK`.
-It is populated by `handle_global_command` (`::v`),
-`handle_variable_command` (`<current-ns>::v`), and
-`handle_namespace_upvar_command` (`<ns>::otherVar`) — each keeping the
-**full qualified path**, so a relative `variable child::v` targets
-`<ns>::child::v` and `namespace upvar ::a b::c local` targets `::a::b::c`.
+It is populated by `apply_state_transitions`, from the
+`VariableCellAliasTransition` each invocation states — `global` (`::v`),
+`variable` (`<current-ns>::v`), `namespace upvar` (`<ns>::otherVar`), and a
+pack command's alias facts alike — each keeping the **full qualified
+path**, so a relative `variable child::v` targets `<ns>::child::v` and
+`namespace upvar ::a b::c local` targets `::a::b::c`.
 `definition::linked_var_reference_spans` walks the scope tree and unions the
 uses of every `VarDef` sharing one cell, wired into references, rename, and
 document highlight, and surviving the incremental graft. Two same-named
@@ -391,7 +392,7 @@ EDA shells follow their embedded cores; an unknown base takes the stricter
 Three layers honour it:
 
 - **VM** — a `RuntimeVersion` knob (default `V9_0`, inherited by
-  `fork_child`, exposed as `tclvm --tcl-version`) gates `locate_from` for
+  `fork_child`, exposed as `tclvm --tcl-version`) gates variable-place resolution for
   reads, writes, `unset`, `incr`, and `info exists`.
 - **Runtime** — `Namespaces.ns_var_global_fallback` gates `ns_scope_fallback`
   in `classify`. A declared-but-unset `variable` installs a **self-link
@@ -549,13 +550,10 @@ A class named by a `superclass` / `mixin` / itcl `inherit` argument is a
 `record_member_command_references`, dispatching on registry data —
 `MemberSpec::all_args_ref == MemberRefKind::Class` and member
 `ArgRole::CommandName` positions (which is also how `forward`'s TARGET is
-handled, generalised off its former hardcoded special case) — never on a
-member keyword. The redundant `superclass_refs` / `mixin_refs` band-aid was
-removed from `references::class_references`, so references, rename, and the
-code-lens count read one source of truth and cannot diverge. This gap was
-real and silent: on a deeply-namespaced one-class-per-file project, Find All
-References on a class returned only its declaration and rename left 64
-`superclass` sites dangling.
+handled) — never on a member keyword. `references::class_references`
+consumes those recorded references, so Find All References, rename, and the
+code-lens count share the same source of truth, including namespaced
+`superclass` and `mixin` sites.
 
 ### 5.6 Object→class binding is a lattice — and the ⊤ taxonomy
 

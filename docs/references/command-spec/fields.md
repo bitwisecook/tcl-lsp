@@ -17,6 +17,18 @@ The word a script calls the command by — exactly as it is typed in Tcl, includ
 
 On a subcommand this is the subcommand word itself (`length` in `string length`).
 
+### `alias_of` — Alias of
+
+*command only* — The shipped builtin this pack command is — the only admissible source of a builtin identity for a pack command. Unset for every shipped command and every pack command that names no target.
+
+The shipped builtin this pack command *is* — `lassign` for a `vendor::unpack` that behaves exactly like it. The only admissible source of a builtin identity for a pack command: a codegen stamp (`codegen_hook`, `inline_codegen_hook`, an intrinsic `semantic_operation`) survives only as the builtin this names carries it, and only in a bundled pack — anywhere else the load drops it with a warning. A site specialised on such a stamp records the builtin's identity, so the compiled code runs where the pack name is an alias of that builtin. Unset for a shipped command, or a pack command that claims no builtin identity.
+
+### `runtime_backing` — Runtime backing
+
+*command only* — How the command's behaviour reaches the runtime: `none`, `host-native`, `shipped-builtin ID`, `tcl-body {-package-source PATH ?-evaluate?}` or `tcl-body {-pack-text {TEXT} ?-evaluate?}`. Every shipped core command declares it; a command that declares nothing reads as `none` — nothing executes it.
+
+How the command's behaviour reaches the runtime, from which code generation chooses the identity a compiled site records — never from the command's name. `shipped-builtin ID` is a builtin the runtime registers, known by its registry identity; `tcl-body {-package-source PATH}` is a Tcl body the package's own installed source supplies, and `tcl-body {-pack-text {TEXT}}` one carried in the pack (reported at load, because a library upgrade then diverges from it silently); `-evaluate` after either source is the author's assertion that the analyser may run the body to fold a call under the release it analyses for, and nothing is run whose author did not say so; `host-native` is a command the host registered natively, attested by a guard identity and never by a procedure definition; `none`, the default, says nothing executes it in the target runtime. A shipped command keeps its backing through any override.
+
 ## Availability
 
 Where and when the command exists: which dialects ship it, which package must be required first, and the version that introduced, deprecated, or removed it. This group is what makes "unknown command", "needs Tcl 8.6", and "missing package require" accurate — for most third-party commands it is the highest-value group after the name and arity.
@@ -131,7 +143,28 @@ Roles are what make the editor light up a body argument as real code, treat `var
 
 *command and subcommand* — Closed set of roles the dynamic resolver can emit when an invocation cannot be resolved precisely.
 
-The complete set of roles the dynamic argument-role resolver can ever return. This is declarative even though the resolver itself is code. Consumers use it when substitutions or expansions hide the exact argument values, so omitting a possible role can suppress analysis while adding an impossible role makes analysis needlessly conservative.
+The complete set of roles the dynamic argument-role resolver can ever return. This is declarative even though the resolver itself is code. Consumers use it when substitutions or expansions hide the exact argument values, so omitting a possible role can suppress analysis while adding an impossible role makes analysis needlessly conservative. A command whose clause grammar replaced its resolver keeps this as the closed set the grammar's walk emits.
+
+### `clause_grammar` — Clause grammar
+
+*command and subcommand* — The word grammar of a clause chain (`if`/`elseif`/`else`, `try`/`on`/`trap`/`finally`, a loop's fixtures and body): where each keyword, condition, script and binder sits, and when each body runs. Its walk answers the argument roles and the chain's structural defect.
+
+The word grammar of a clause chain, as data: `if`'s `elseif`/`else` chain, `try`'s handlers, a loop's fixtures and body. The registry walks every call against it once, and that one walk answers where each keyword, condition and script sits (the argument roles), which clause runs when (each row's timing), and the chain's first structural defect (what `if`'s E004 reports).
+
+A keyword is compared only where a clause could start and at a `?noise?` slot; every other slot is filled positionally, so `if else {a}` is a well-formed `if` whose condition is the bareword `else`. `try` in the DSL:
+
+```
+clause_grammar {
+    head {Body} -timing protected
+    repeated on   {Pattern LoopVarList Body} -timing selected -pattern completion-code
+    repeated trap {Pattern LoopVarList Body} -timing selected -pattern error-code-prefix
+    tail finally  {Body} -timing always
+    fallthrough_body -
+    selection first-match
+}
+```
+
+A slot is a role name, `?word?` for a noise word, or `{ROLE optional}`; `group N` cites the `repeat` layout a loop's binder groups follow. The form shows the rows read-only.
 
 ### `arg_presentation` — Argument presentation
 
@@ -336,6 +369,12 @@ Declared options get completion, spelling checks, and correct highlighting of fl
 *command and subcommand* — Registry-declared relations between this command's options and arguments (E-R14) — mutual exclusion, directional requires, requires-one-of, and forbids, each checked natively with no VM entry.
 
 What this command's options and arguments require of one another. Four relations, and the checker evaluates every one of them natively — no script runs, whatever the document does. `option_conflict {-glob -regexp}` is the symmetric "not together"; `option_requires -command {-channel}` is the directional one (`bibtex::parse`'s `-command` is a channel callback and is useless without `-channel`); `option_requires_one_of {} {-channel {arg 0}}` says a call must supply at least one of a set, subject optional; and `option_forbids {-order in} {{-type bfs}}` is the asymmetric exclusion (`struct::tree walk` rejects an in-order breadth-first walk). A term is an option (`-channel`), an option carrying a value (`{-type bfs}`), a positional argument (`{arg 0}`), or a positional carrying a value (`{arg 1 text}`). Absence is only ever proven on a call the analyser could read to its end, so a `{*}$opts` call abstains instead of accusing.
+
+### `option_effect_families` — Option-effect families
+
+*command and subcommand* — The families this command's option effects cite — where each axis starts and how two options of the family combine.
+
+Where an option axis starts, and how two options over it combine. An option row may declare what its presence does to the call — turn a substitution kind or a pattern language on or off, fold case, pick a match mode, suppress a role, change the trailing-operand reservation, or end the option run — and every such effect names a family declared here. A family's base is where its axis values start (all on, all off, or one named value on) and its combine rule says whether its options accumulate (`subst`'s switches) or the last one decides (`lsearch`'s match styles). Two families over the same axis value are alternatives: a call using both cannot be read, and the error itself is an option relation. The pack spelling arrives with the option-row `-effect` flag.
 
 ### `option_placement` — Option placement
 
@@ -549,7 +588,13 @@ Named entry points into the compiler for commands that need special-cased loweri
 
 *command and subcommand* — Target-neutral operation identity selected before backend dispatch.
 
-Names the abstract operation the command performs ("list length", "dict get") so the compiler backends can share one implementation across spellings. Only meaningful for commands the compiler executes; user packages leave it unset.
+Names the abstract operation the command performs ("list length", "dict get") so the compiler backends can share one implementation across spellings. A closed vocabulary: `invoke` (the generic call every command falls back to), one of the registry's intrinsics, or one of its structured lowerings — SpecTcl writes it `semantic_operation Invoke`, `{Intrinsic ID}` or `{StructuredLowering ID}`. Only meaningful for commands the compiler executes; user packages leave it unset.
+
+### `semantic_operation_windows` — Semantic operation windows
+
+*command and subcommand* — Per-release semantic operations, for a command whose target-neutral operation differs across Tcl releases. Empty unless it does; the plain operation is the fallback where no window covers the primary release, and a point that does not settle the release dispatches plain.
+
+Per-release semantic operations, for the rare command or subcommand whose operation differs between Tcl releases. SpecTcl writes one `semantic_operation SPELLING -introduced V ?-deprecated V? ?-retired V?` row per window, beside the plain row, which stays the operation for every release no window covers. Windows must not overlap. A point that does not settle the release — none pinned, or the whole ladder across a window's edge — selects nothing and the call is dispatched plain, never by a guess between windows. Bundled packs only: the stamp rejection rule treats a windowed stamp as it treats the plain one.
 
 ### `lowering_hook` — Lowering hook
 
@@ -563,11 +608,23 @@ Compiler internals: picks a specialised translation of this command into the com
 
 Compiler internals: a specialised bytecode emitter for the Tcl VM, mirroring the commands C Tcl byte-compiles specially. Leave unset; the generic "invoke the command" path is always correct.
 
+### `codegen_hook_windows` — Bytecode codegen hook windows
+
+*command and subcommand* — Per-release bytecode emitters, for a command whose TclVM emitter differs across Tcl releases. Empty unless it does; the plain hook is the fallback where no window covers the primary release, and a point that does not settle the release dispatches plain.
+
+Compiler internals: per-release bytecode emitters, for the rare command or subcommand whose Tcl VM emitter differs between Tcl releases. SpecTcl writes one `codegen_hook -native ID -introduced V ?-deprecated V? ?-retired V?` row per window, beside the plain row, which stays the emitter for every release no window covers. Windows must not overlap. A point that does not settle the release — none pinned, or the whole ladder across a window's edge — selects nothing and the call is dispatched plain, never by a guess between windows. Bundled packs only: the stamp rejection rule treats a windowed stamp as it treats the plain one.
+
 ### `inline_codegen_hook` — Inline codegen hook
 
 *command and subcommand* — Emitter for the value-position and catch-body paths.
 
 Compiler internals: the bytecode emitter used when the command sits in value position (`set x [llength $l]`) or in a catch body. Leave unset for user packages.
+
+### `inline_codegen_hook_windows` — Inline codegen hook windows
+
+*command and subcommand* — Per-release value-position emitters; the contract of the bytecode codegen hook windows.
+
+Compiler internals: per-release value-position emitters, written as `inline_codegen_hook -native ID -introduced V ?-deprecated V? ?-retired V?` rows with the contract of the bytecode codegen hook windows.
 
 ### `bpf_op` — BPF-Tcl lowering descriptor
 
@@ -580,6 +637,18 @@ Only for the BPF-Tcl dialect: how this command lowers to a BPF operation. Anythi
 *command only* — Which native code shape the executable-IR lowering gives this command; stamped beside the lowering hook or intrinsic it mirrors. Unset is the generic argv invocation.
 
 Compiler internals: which native code shape the executable-IR lowering gives this command — a structural hook, a cell read-modify-write, an intrinsic, a fixed completion, a scope link, or a definition. It is stamped beside the lowering hook or intrinsic it mirrors; unset means the generic argv invocation through runtime dispatch.
+
+### `native_lowering_windows` — Native lowering windows
+
+*command only* — Per-release native lowering shapes; the contract of the bytecode codegen hook windows. A windowed shape is not a basis for a derived value-transfer specialisation.
+
+Compiler internals: per-release native lowering shapes, with the contract of the bytecode codegen hook windows. Like the plain shape it has no SpecTcl spelling — a pack has nothing to say about the compiler's own native tier. A windowed shape is not a basis for a derived value-transfer specialisation, which reads the plain shape only.
+
+### `semantics` — Value-transfer declaration
+
+*command and subcommand* — The value-transfer specialisation declared at command scope — what an invocation computes, which storage it writes, and the route that computes it (below) — or an explicit abstention (`Declined`). Unset inherits, or derives from a descriptor stating the same operation. A shipped, compiled-in specialisation is nameable but not reconstructable, so it also reads unset here.
+
+Compiler internals: the value-transfer specialisation the analyser asks about an invocation — what it computes, which variables it writes, and the evaluator route that computes it — or an explicit abstention. Unset inherits the enclosing scope's declaration, or derives one from a descriptor that states the same operation (a cell read-modify-write, a destroyed variable). A pack states it with three statements at command, subcommand, or per-form scope: `semantics { effects …; result -semantic T; stores …; iterate … }` for the structure this field holds, `evaluate …` for the route below, and `facts …` for the abstract transfer a pack may state but nothing reads yet (checked at load time, not carried here or anywhere else). Most commands leave all three unset.
 
 ### `analyser_hook` — Analyser hook
 
@@ -604,6 +673,18 @@ A hook validating relationships *between* literal arguments that a per-position 
 *subcommand only* — Lowered command name for an ensemble subcommand the lowering pass rewrites.
 
 Compiler internals: the plain command name this ensemble subcommand is rewritten to during lowering. Leave unset for user packages.
+
+### `DeclaredSemantics.route` — Evaluation route
+
+*nested DeclaredSemantics field* — How the declaration computes its answer: none, a shipped direct evaluator, the shared expression engine, or a declared implementation.
+
+How the declared specialisation computes its answer: no evaluator (`evaluate none`), a shipped direct evaluator over the registry's own cores (`-direct ID`), the shared expression engine under a named language profile (`-expression tcl.expr` / `bpf.expr`), or a declared implementation (`-implementation ID -host bounded_tcl { … }`, or `-host wasm_extension { extension FILE PREFIX … }` for a compiled C extension's command, run on the thread's extension host and named by the artefact's content hash) — see the body box below for the bounded host's Tcl.
+
+### `DeclaredSemantics.body` — Implementation body
+
+*nested DeclaredSemantics field* — The declared implementation's Tcl body, run in the bounded host under its declared inputs and budget.
+
+A declared implementation's Tcl body: the whitelisted commands of `docs/design/registry/spec-packs.md`'s sandboxed host, taking the declaration's inputs as parameters and answering with `fold VALUE`, `write TARGET VALUE`, or `preserve TARGET` — silence declines the whole answer. Only meaningful when the route above is a declared implementation.
 
 ## Taint and security
 
@@ -765,7 +846,7 @@ For commands that reach into another stack frame the way `upvar`, `uplevel`, and
 
 *command only* — Validator for a clause chain whose shapes are not a single min..=max range.
 
-A validator for commands whose legal shapes cannot be captured by a single min–max argument count — `if`'s `elseif`/`else` chain is the canonical case: any length is fine, but only in the right rhythm. This is code, so in the studio it is a reference; if your command has a clause grammar, write the rhythm out in the issue notes ("`cond body` pairs, optionally ending `else body`").
+A validator for commands whose legal shapes cannot be captured by a single min–max argument count. The escape hatch, not the mechanism: a chain a clause grammar can spell — `if`'s `elseif`/`else` rhythm is the canonical case — derives its defect from the grammar instead. This is code, so in the studio it is a reference; write the grammar as a `clause_grammar` block wherever the rows can say it.
 
 ### `command_prefix_resolver` — Command-prefix resolver
 
@@ -778,12 +859,6 @@ The dynamic sibling of the command-prefix positions: a hook for when *which* wor
 *command and subcommand* — Callback assigning SameInvocation, Deferred, or ReferenceOnly to executable positions from the actual argument list.
 
 The dynamic sibling of per-option `script_timing`: use it when the same executable position runs now in one invocation shape but is stored in another, as with `send -async`. It emits an exact index plus `SameInvocation`, `Deferred`, or `ReferenceOnly`; the index must already be a `Body`, `LambdaLiteral`, or `CommandPrefix`. Silence leaves the option timing or command-level compatibility fallback in force. In SpecTcl the body calls `timing IDX SameInvocation|Deferred|ReferenceOnly`.
-
-### `substitution_resolver` — Substitution resolver
-
-*command only* — Callback reporting which of backslash, command and variable substitution this call runs over its own argument text, for a PERFORMS_SUBSTITUTION command whose switches change the answer. Absent means every kind on every call.
-
-The per-call sibling of the `PERFORMS_SUBSTITUTION` trait: use it when switches decide *which* of backslash, command and variable substitution the call runs over its own argument, as with `subst -novariables`. The trait alone tells a consumer only that some substitution happens, which is not enough to answer "does this argument read a variable?". Silence means every kind on every call, and a call the resolver cannot read must answer every kind — assuming a substitution does not happen is what loses a real read.
 
 ### `command_forms` — Invocation refinements
 
@@ -873,11 +948,11 @@ F5 only: describes a `<proto>::payload`-style command's layout so the binary-dat
 
 ### `definition_body` — Definition-body grammar
 
-*command only* — Body grammar for a class or type definer, so the generic walker can recurse.
+*command only* — Body grammar for a class or type definer — a shipped grammar by name, or member rows that each state their effect — so the generic walker can recurse.
 
-For commands that *define a class or type* with a body of member declarations — `oo::class create`, `snit::type`, `itcl::class`. The grammar lists the member keywords (`method`, `constructor`, `variable`, …) and which words of each are the name, the parameter list, and the body, so navigation, folding, and highlighting work inside the class body with no code written.
+For commands that *define a class or type* with a body of member declarations — `oo::class create`, `snit::type`, `itcl::class`. The grammar lists the member keywords (`method`, `constructor`, `variable`, …), which words of each are the name, the parameter list, and the body, and what each member *declares* — its effect: a callable (a method, constructor or option handler, on the instances or the type, or a procedure in the definition's own namespace), a forward, state, a class relation, a visibility change, a retraction, a definition-time script, or configuration. Navigation, folding, highlighting and the class model all read it, with no code written.
 
-Grammars are shared, named descriptors: if your package has its own definer, the studio cannot author the grammar inline — describe the member keywords and their shapes in the issue notes.
+A shipped grammar is picked by name (`tcloo`, `snit`, `itcl`, …). A package with its own definer spells the grammar out in its pack's `definition_body { … }` block — one `member` row per keyword, each with its `-effect` — and the form shows those rows.
 
 ### `manufacturer_methods` — Manufacturer methods
 
@@ -993,9 +1068,6 @@ Compiler internals: hand-written analyser families for commands whose behaviour 
 
 | Value | Meaning |
 |---|---|
-| `Set` | set |
-| `Variable` | variable |
-| `Global` | global |
 | `Proc` | proc |
 | `OptProc` | argparse-style proc |
 | `Apply` | apply |
@@ -1007,15 +1079,9 @@ Compiler internals: hand-written analyser families for commands whose behaviour 
 | `NamespaceForget` | namespace forget |
 | `NamespacePath` | namespace path |
 | `NamespaceUnknown` | namespace unknown |
-| `NamespaceUpvar` | namespace upvar |
 | `Foreach` | foreach |
-| `For` | for |
 | `Switch` | switch |
 | `Catch` | catch |
-| `Try` | try |
-| `Upvar` | upvar |
-| `DictFor` | dict for |
-| `DictUpdate` | dict update |
 | `DictWith` | dict with |
 | `InterpAlias` | interp alias |
 | `InterpEval` | interp eval |
@@ -1031,10 +1097,7 @@ Compiler internals: hand-written analyser families for commands whose behaviour 
 | `PackageIfneeded` | package ifneeded |
 | `PackagePrefer` | package prefer |
 | `Source` | source |
-| `Append` | append |
-| `Lappend` | lappend |
 | `RegexPatternCapture` | regexp capture binding |
-| `Incr` | incr |
 | `Load` | load |
 
 ### Appended arity
@@ -1344,6 +1407,80 @@ When a script-valued option is evaluated relative to the command that receives i
 | `Deferred` | stored by the receiving invocation for a later callback |
 | `ReferenceOnly` | identified for registration matching or lookup, but not invoked |
 
+### Semantic operation
+
+The target-neutral operation a command performs, as a closed vocabulary: `invoke` — the generic call every command falls back to — an intrinsic (`intrinsic list-length`, `intrinsic dict-get`, …), or a structured lowering (`structured-lowering expr`, …). The compiler backends share one implementation per operation across its spellings.
+
+| Value | Meaning |
+|---|---|
+| `invoke` | generic Tcl argv invocation — the conservative fallback |
+| `intrinsic list-assign` | the `list-assign` intrinsic |
+| `intrinsic list-length` | the `list-length` intrinsic |
+| `intrinsic list-index` | the `list-index` intrinsic |
+| `intrinsic list-range` | the `list-range` intrinsic |
+| `intrinsic list-replace` | the `list-replace` intrinsic |
+| `intrinsic list-insert` | the `list-insert` intrinsic |
+| `intrinsic list-set` | the `list-set` intrinsic |
+| `intrinsic list-construct` | the `list-construct` intrinsic |
+| `intrinsic dict-get` | the `dict-get` intrinsic |
+| `intrinsic dict-set` | the `dict-set` intrinsic |
+| `intrinsic dict-unset` | the `dict-unset` intrinsic |
+| `intrinsic dict-incr` | the `dict-incr` intrinsic |
+| `intrinsic dict-append` | the `dict-append` intrinsic |
+| `intrinsic dict-list-append` | the `dict-list-append` intrinsic |
+| `intrinsic string-index` | the `string-index` intrinsic |
+| `intrinsic string-range` | the `string-range` intrinsic |
+| `intrinsic string-equal` | the `string-equal` intrinsic |
+| `intrinsic string-compare` | the `string-compare` intrinsic |
+| `intrinsic string-replace` | the `string-replace` intrinsic |
+| `intrinsic string-length` | the `string-length` intrinsic |
+| `intrinsic string-is` | the `string-is` intrinsic |
+| `intrinsic regexp` | the `regexp` intrinsic |
+| `intrinsic info-exists` | the `info-exists` intrinsic |
+| `intrinsic array-exists` | the `array-exists` intrinsic |
+| `intrinsic array-names` | the `array-names` intrinsic |
+| `intrinsic array-size` | the `array-size` intrinsic |
+| `intrinsic concat` | the `concat` intrinsic |
+| `intrinsic channel-write` | the `channel-write` intrinsic |
+| `structured-lowering expr` | the `expr` structured-lowering |
+| `structured-lowering return` | the `return` structured-lowering |
+| `structured-lowering set` | the `set` structured-lowering |
+| `structured-lowering incr` | the `incr` structured-lowering |
+| `structured-lowering append-or-lappend` | the `append-or-lappend` structured-lowering |
+| `structured-lowering unset` | the `unset` structured-lowering |
+| `structured-lowering global` | the `global` structured-lowering |
+| `structured-lowering variable` | the `variable` structured-lowering |
+| `structured-lowering upvar` | the `upvar` structured-lowering |
+| `structured-lowering proc` | the `proc` structured-lowering |
+| `structured-lowering when` | the `when` structured-lowering |
+| `structured-lowering namespace-eval` | the `namespace-eval` structured-lowering |
+| `structured-lowering if` | the `if` structured-lowering |
+| `structured-lowering switch` | the `switch` structured-lowering |
+| `structured-lowering for` | the `for` structured-lowering |
+| `structured-lowering while` | the `while` structured-lowering |
+| `structured-lowering foreach` | the `foreach` structured-lowering |
+| `structured-lowering lmap` | the `lmap` structured-lowering |
+| `structured-lowering foreach-line` | the `foreach-line` structured-lowering |
+| `structured-lowering catch` | the `catch` structured-lowering |
+| `structured-lowering try` | the `try` structured-lowering |
+| `structured-lowering dict` | the `dict` structured-lowering |
+| `structured-lowering eval` | the `eval` structured-lowering |
+| `structured-lowering uplevel` | the `uplevel` structured-lowering |
+| `structured-lowering apply` | the `apply` structured-lowering |
+| `structured-lowering array-for` | the `array-for` structured-lowering |
+
+### Shipped definer grammar
+
+The definition-body grammars the registry ships and a pack may name: `TclOO`'s class body (and its configurable variant), snit's type and widget bodies, and [incr Tcl]'s class body. Each lists its member keywords, where each member's name, parameter list and body sit, and what each member declares.
+
+| Value | Meaning |
+|---|---|
+| `tcloo` | the shipped TclOo grammar (19 members) |
+| `tcloo-configurable` | the shipped TclOo grammar (19 members) |
+| `snit` | the shipped Snit grammar (15 members) |
+| `snit-widget` | the shipped Snit grammar (15 members) |
+| `itcl` | the shipped Itcl grammar (10 members) |
+
 ### Side-effect targets
 
 The kinds of state a structured side effect can read or write — from Tcl variables and channels through files, network, logs, and the whole F5 surface (HTTP state, tables, pools, SSL). Pick the closest target; `Unknown` exists for effects that fit nothing.
@@ -1525,6 +1662,7 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `DECLARES_NAMESPACE` | declares the namespace its NamespaceName word names |
 | `TK_GEOMETRY_MANAGER` | a Tk geometry manager |
 | `DEFERS_BODY` | stores its script argument instead of running it; unset means the body is treated as executed |
+| `BODY_RUNS_IN_OWN_FRAME` | the script it stores is a definition body that runs in a frame of its own, not a callback |
 | `DEFINITION_BODY_MEMBER_ONLY` | legal only inside a definition body that declares it as a member |
 
 ### Transform conditions

@@ -80,7 +80,7 @@
 //! A few real, in-scope words never come from the registry projection:
 //!
 //! * **Clause continuations** (`else`, `elseif`, `on`, `trap`, `finally` —
-//!   [`tcl_registry::traits::CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC`], shared
+//!   [`tcl_registry::traits::clause_keywords_without_command_spec`], shared
 //!   with `tcl_lsp_core::semantic_tokens`'s equivalent residue so the two
 //!   never drift on which clause words are real keywords) and the iRules
 //!   block keyword `when` have no standalone `CommandSpec` (or, for `when`,
@@ -130,13 +130,13 @@ use tcl_dialect::model::{Family, SurfaceQuery};
 use anyhow::{Context, Result, bail};
 use tcl_dialect::{EscapeSyntax, NumberSyntax};
 use tcl_registry::CommandRegistry;
-use tcl_registry::traits::{CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC, Traits};
+use tcl_registry::traits::{Traits, clause_keywords_without_command_spec};
 use tcl_syntax::naming::textmate_variable_name_body;
 
 use crate::util::{self, repo_root};
 
 /// The iRules block keyword `when`, added alongside
-/// [`CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC`] (see module docs for why it
+/// [`clause_keywords_without_command_spec`] (see module docs for why it
 /// isn't covered by the `ALL_TCL` dialect scope this generator otherwise
 /// uses).
 const WHEN: &str = "when";
@@ -335,7 +335,7 @@ fn classify(reg: &CommandRegistry) -> Buckets {
     }
 
     b.control.extend(
-        CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC
+        clause_keywords_without_command_spec()
             .iter()
             .chain([&WHEN])
             .map(|s| (*s).to_owned()),

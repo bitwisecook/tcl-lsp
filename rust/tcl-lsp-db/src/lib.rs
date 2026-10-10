@@ -91,8 +91,9 @@
 //! `memo.value` cleared while their dependency information is kept, so an
 //! evicted query is simply recomputed on demand.  It is sound by construction
 //! — salsa refuses to evict anything that is not `Derived` — and this crate
-//! has no untracked reads (`registry()` is a process-wide immutable cache), so
-//! every deep query qualifies.
+//! has no untracked reads (`registry()` is a process-wide immutable cache, and
+//! the one mutable cache a query reads, the workspace's pack overlays, is read
+//! behind the [`OverlayEpoch`] input), so every deep query qualifies.
 //!
 //! Two caps, sized by what the key counts:
 //!
@@ -159,11 +160,12 @@
 //! Two rules follow, and breaking either restores a KB-per-keystroke leak
 //! while looking like an optimisation:
 //!
-//! 1. **[`SourceFile`], [`AnalyserConfig`], and [`Project`] stay at
-//!    `Durability::LOW`** — salsa's default, which this workspace never
-//!    overrides.  Marking the document text or the analyser config `HIGH`
-//!    "because it rarely changes" would stamp every key in the table above
-//!    non-`LOW`, and none would ever be collected again.
+//! 1. **[`SourceFile`], [`AnalyserConfig`], [`Project`], and
+//!    [`EvaluatorEpoch`] stay at `Durability::LOW`** — salsa's default,
+//!    which this workspace never overrides.  Marking the document text or
+//!    the analyser config `HIGH` "because it rarely changes" would stamp
+//!    every key in the table above non-`LOW`, and none would ever be
+//!    collected again.
 //! 2. **The per-body keys are interned from inside a tracked query.**  That is
 //!    why `memoised_compilation_unit` is crate-private and documented as
 //!    tracked-query-only: reached from [`compilation_unit`] its interning
@@ -192,8 +194,8 @@
 //! The full contract is written up in
 //! `docs/design/rust/salsa-interned-gc.md`.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
-use std::sync::Arc;
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
+use std::sync::{Arc, Mutex};
 
 use tcl_compiler::cfg_builder::build_cfg_function_with_upvars_and_config;
 use tcl_compiler::cfg_builder::global_write_info::GlobalWriteInfo;
@@ -225,7 +227,7 @@ use tcl_lsp_core::document_symbols::DocumentSymbol;
 use tcl_lsp_core::folding::FoldingRange;
 use tcl_lsp_core::semantic_tokens::{SemanticTokens, VarNameArgRoles};
 use tcl_registry::CommandRegistry;
-use tcl_registry::model::DeclaredSurface;
+use tcl_registry::model::{DeclaredSurface, KeyedVersions, OverlayMiss};
 
 /// Database trait exposing the durable (non-salsa) command registry to
 /// tracked queries.
@@ -236,9 +238,22 @@ pub trait TclDb: salsa::Database {
     fn registry(&self, dialect: &str) -> &'static CommandRegistry;
 
     /// An owning registry handle for a workspace pack generation already
-    /// installed by the server. Falls back to the plain profile on a cache
-    /// miss; only `tcl-spectcl` can construct the overlay's contents.
-    fn registry_with_overlay(&self, dialect: &str, overlay: u64) -> Arc<CommandRegistry>;
+    /// installed by the server. Only `tcl-spectcl` can construct the
+    /// overlay's contents, so a generation nothing installed is an
+    /// [`OverlayMiss`], not the plain profile under the pack's key: what a
+    /// query does without the packs is that query's decision — the queries
+    /// that build a unit decline ([`compilation_unit`]), and the ones that
+    /// only advise read the plain registry and say so.
+    ///
+    /// # Errors
+    ///
+    /// [`OverlayMiss`] when `overlay` is non-zero and no pack-carrying
+    /// registry has been installed under it for `dialect`.
+    fn registry_with_overlay(
+        &self,
+        dialect: &str,
+        overlay: u64,
+    ) -> Result<Arc<CommandRegistry>, OverlayMiss>;
 }
 
 /// The Tcl LSP query database.
@@ -248,15 +263,103 @@ pub trait TclDb: salsa::Database {
 /// registry it hands out is the process-wide per-profile cache in
 /// `tcl-registry`, not per-snapshot state.
 #[salsa::db]
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct TclDatabase {
     storage: salsa::Storage<Self>,
+}
+
+/// How many resolved overlay generations the process's queries hold.
+const HELD_OVERLAYS: usize = 64;
+
+/// The overlay generations the process's queries have resolved, and the
+/// misses they have abstained on.
+///
+/// The process-wide registry cache retires an overlay generation once it
+/// indexes too many, and a query can still be running — or being re-verified
+/// — at a key it retired. A per-procedure query that looked the generation up
+/// again would find it gone and disagree with the unit that keyed it, so the
+/// queries hold what they have resolved and answer from that first. A
+/// generation is content-addressed by its key, so serving one the cache no
+/// longer indexes is never stale. It is process-wide because the cache it
+/// backs up is, and every database — the server's snapshots, a test's own —
+/// resolves the same key to the same generation.
+///
+/// It also keeps each distinct miss once, for the host to report
+/// ([`take_overlay_misses`]): a workspace whose packs are not installed
+/// misses on every query, and one line says so.
+#[derive(Default)]
+struct OverlayGenerations {
+    held: Mutex<VecDeque<(OverlayKey, Arc<CommandRegistry>)>>,
+    misses: Mutex<MissLog>,
+}
+
+/// An environment's canonical id and a pack overlay: what names a generation.
+type OverlayKey = (String, u64);
+
+/// The misses seen, and the ones not yet reported.
+#[derive(Default)]
+struct MissLog {
+    seen: HashSet<OverlayKey>,
+    unreported: Vec<OverlayMiss>,
+}
+
+impl OverlayGenerations {
+    fn held(&self, key: &OverlayKey) -> Option<Arc<CommandRegistry>> {
+        self.held
+            .lock()
+            .expect("overlay generation mutex")
+            .iter()
+            .find(|(held, _)| held == key)
+            .map(|(_, registry)| Arc::clone(registry))
+    }
+
+    fn hold(&self, key: OverlayKey, registry: Arc<CommandRegistry>) {
+        let mut held = self.held.lock().expect("overlay generation mutex");
+        if held.iter().any(|(existing, _)| *existing == key) {
+            return;
+        }
+        // A key that installs is no longer a miss on record: if it is retired
+        // and misses again, that is a new miss for the host to report, not
+        // one it has already heard about.
+        self.misses
+            .lock()
+            .expect("overlay miss mutex")
+            .seen
+            .remove(&key);
+        held.push_back((key, registry));
+        while held.len() > HELD_OVERLAYS {
+            held.pop_front();
+        }
+    }
+
+    fn record(&self, miss: &OverlayMiss) {
+        let mut log = self.misses.lock().expect("overlay miss mutex");
+        if log.seen.insert((miss.environment.clone(), miss.overlay)) {
+            log.unreported.push(miss.clone());
+        }
+    }
 }
 
 #[salsa::db]
 impl salsa::Database for TclDatabase {}
 
+impl Default for TclDatabase {
+    fn default() -> Self {
+        Self::with_storage(salsa::Storage::default())
+    }
+}
+
 impl TclDatabase {
+    /// A database over `storage`, its [`EvaluatorEpoch`] created at 0 before
+    /// any query can run: a query that read the epoch's absence would record
+    /// no dependency, and a later epoch would never reach it.
+    fn with_storage(storage: salsa::Storage<Self>) -> Self {
+        let db = Self { storage };
+        let _epoch = EvaluatorEpoch::new(&db, 0);
+        let _overlays = OverlayEpoch::new(&db, 0);
+        db
+    }
+
     /// Construct a database that forwards, for every salsa `WillExecute` event,
     /// the `database_key` of the query about to run (its `Debug` string) to
     /// `logger`.  Lets a profiler count per-query re-executions across an edit
@@ -269,7 +372,7 @@ impl TclDatabase {
                 logger(format!("{database_key:?}"));
             }
         })));
-        Self { storage }
+        Self::with_storage(storage)
     }
 
     /// Construct a database that forwards, for every interned-slot **reuse**
@@ -292,7 +395,123 @@ impl TclDatabase {
                 logger(format!("{key:?}"));
             }
         })));
-        Self { storage }
+        Self::with_storage(storage)
+    }
+}
+
+/// The overlay generations the process's queries hold.
+fn overlay_generations() -> &'static OverlayGenerations {
+    static GENERATIONS: std::sync::OnceLock<OverlayGenerations> = std::sync::OnceLock::new();
+    GENERATIONS.get_or_init(OverlayGenerations::default)
+}
+
+/// The overlay misses the process's queries have answered without the packs
+/// since the last call, each distinct one once: the host reports them, so a
+/// workspace whose packs are not installed is one line in its log rather than
+/// one per query.
+#[must_use]
+pub fn take_overlay_misses() -> Vec<OverlayMiss> {
+    std::mem::take(
+        &mut overlay_generations()
+            .misses
+            .lock()
+            .expect("overlay miss mutex")
+            .unreported,
+    )
+}
+
+/// The process's evaluator epoch as the database last took it
+/// (`tcl_registry::pack_hooks::evaluator_epoch`): it moves when a hook plan
+/// is published or a hook is quarantined, on any thread.
+///
+/// The memoised lattices are shared by every worker, while the hosts that
+/// run declared implementations are per thread, so what a thread's host can
+/// answer is invisible to a memo unless an input says it changed. This is
+/// that input, and the smallest one that does it: [`compilation_unit`] and
+/// [`proc_taint_solve`] read it, and every per-procedure
+/// [`ValueTransferContext`] carries it, so a new epoch re-keys every
+/// memoised lattice. The
+/// language server sets it with [`set_evaluator_epoch`] where it reloads
+/// packs and after each diagnostics pass, which is where it first sees a
+/// quarantine on the worker that ran the pass.
+///
+/// At salsa's default `Durability::LOW`, as every input here is, though it
+/// moves only at a reload or a quarantine: the per-body keys are interned by
+/// the queries that read it (the crate docs' "The interned garbage collector
+/// is load-bearing").
+#[salsa::input(singleton)]
+pub struct EvaluatorEpoch {
+    #[returns(copy)]
+    pub generation: u64,
+}
+
+/// The database's evaluator epoch, as a tracked read; `0` for a database
+/// built without one.
+fn evaluator_epoch(db: &dyn TclDb) -> u64 {
+    EvaluatorEpoch::try_get(db).map_or(0, |epoch| epoch.generation(db))
+}
+
+/// The process's overlay epoch as the database last took it
+/// (`tcl_registry::overlay_epoch`): it moves when an overlay generation is
+/// installed or retired, on any thread.
+///
+/// The cache the overlays live in is process-wide state, so a query that found
+/// no generation for an overlay has no input to say one has since been
+/// installed, and a query that resolved one has none to say it was retired.
+/// This is that input, taken the way [`EvaluatorEpoch`] is: every query that
+/// resolves a pack overlay reads it ([`unit_registry`]), so what was answered
+/// against the old state — a unit built, or none built for want of the packs —
+/// is asked again when the host moves it. The language server sets it with
+/// [`set_overlay_epoch`] where it publishes the pack key.
+///
+/// At salsa's default `Durability::LOW`, as every input here is: the per-body
+/// keys are interned by the queries that read it (the crate docs' "The
+/// interned garbage collector is load-bearing").
+#[salsa::input(singleton)]
+pub struct OverlayEpoch {
+    #[returns(copy)]
+    pub generation: u64,
+}
+
+/// The database's overlay epoch, as a tracked read; `0` for a database built
+/// without one.
+fn overlay_epoch(db: &dyn TclDb) -> u64 {
+    OverlayEpoch::try_get(db).map_or(0, |epoch| epoch.generation(db))
+}
+
+/// Take `generation` as the database's overlay epoch, returning whether it
+/// moved. A value it already holds writes nothing, so a sync that finds the
+/// overlays unchanged invalidates no memo.
+pub fn set_overlay_epoch(db: &mut TclDatabase, generation: u64) -> bool {
+    use salsa::Setter as _;
+    match OverlayEpoch::try_get(db) {
+        Some(epoch) if epoch.generation(db) == generation => false,
+        Some(epoch) => {
+            epoch.set_generation(db).to(generation);
+            true
+        }
+        None => {
+            let _epoch = OverlayEpoch::new(db, generation);
+            true
+        }
+    }
+}
+
+/// Take `generation` as the database's evaluator epoch, returning whether it
+/// moved. A value it already holds writes nothing, so a sync that finds the
+/// evaluators unchanged invalidates no memo.
+pub fn set_evaluator_epoch(db: &mut TclDatabase, generation: u64) -> bool {
+    use salsa::Setter as _;
+    match EvaluatorEpoch::try_get(db) {
+        Some(epoch) if epoch.generation(db) == generation => false,
+        Some(epoch) => {
+            epoch.set_generation(db).to(generation);
+            true
+        }
+        None => {
+            let _epoch = EvaluatorEpoch::new(db, generation);
+            true
+        }
     }
 }
 
@@ -323,18 +542,28 @@ impl TclDb for TclDatabase {
         tcl_lsp_core::registry_for_dialect(dialect)
     }
 
-    fn registry_with_overlay(&self, dialect: &str, overlay: u64) -> Arc<CommandRegistry> {
-        // An overlay generation that has not been installed yet falls back
-        // to the un-overlaid one rather than failing closed.
-        // `DocumentEnvironment::context_registry` threads through
-        // `registry_for_profile_if_built(profile, overlay)` to preserve
-        // that behaviour.
+    fn registry_with_overlay(
+        &self,
+        dialect: &str,
+        overlay: u64,
+    ) -> Result<Arc<CommandRegistry>, OverlayMiss> {
         let environment = tcl_lsp_core::environment_for_dialect(dialect);
-        Arc::clone(
-            environment
-                .context_registry(&tcl_registry::model::KeyedVersions::default(), overlay)
-                .commands(),
-        )
+        let generations = overlay_generations();
+        let key = (environment.id().to_owned(), overlay);
+        if let Some(held) = generations.held(&key) {
+            return Ok(held);
+        }
+        match environment.context_registry(&KeyedVersions::default(), overlay) {
+            Ok(generation) => {
+                let commands = Arc::clone(generation.commands());
+                generations.hold(key, Arc::clone(&commands));
+                Ok(commands)
+            }
+            Err(miss) => {
+                generations.record(&miss);
+                Err(miss)
+            }
+        }
     }
 }
 
@@ -470,7 +699,7 @@ pub struct AnalyserConfig {
     #[returns(ref)]
     pub generic_variable_patterns: Option<Vec<String>>,
     /// Target BIG-IP release (`tclLsp.bigipVersion`) for the keyed
-    /// library-version axis; `None` = the D5 oldest-supported default.
+    /// library-version axis; `None` = the oldest-supported default.
     #[returns(ref)]
     pub bigip_version: Option<String>,
     /// The workspace's loaded `SpecTcl` pack set, by content identity
@@ -519,6 +748,14 @@ pub struct AnalyserConfig {
 /// the file has no cross-file view — which is every gate and fuzzer input,
 /// since [`SourceFile::new`] leaves the field `None`. Production reads only
 /// the incremental query.
+///
+/// `config.disabled_diagnostics` is the analyser's production-time skip —
+/// rule 2's permitted saving in `docs/design/compiler/diagnostic-policy.md`
+/// § What the producers leave to the policy: the codes the document's policy
+/// turns off, which the analyser need not compute. It is never a presentation filter. The
+/// surface that reads this analysis declares the same set to its report, so a
+/// code left uncomputed is explained rather than read as clean; what the
+/// document shows is the policy step's decision.
 #[salsa::tracked(returns(clone))]
 pub fn file_analysis(
     db: &dyn salsa::Database,
@@ -541,15 +778,15 @@ pub fn file_analysis(
     Arc::new(analyser.analyse(file.text(db), file.dialect(db)))
 }
 
-/// Offset-stable item tree — the per-item firewall's foundation (slice 1 of
-/// `docs/design/rust/incremental-analysis.md`). One item per declaration, keyed
+/// Offset-stable item tree — the per-item firewall's foundation
+/// (`docs/design/rust/incremental-analysis.md`). One item per declaration, keyed
 /// by stable name + kind so a shifted-but-unedited proc keeps its identity.
 ///
-/// **Slice-1 anchor.** `ensemble_namespaces` lives on the `Analyser`, not the
+/// **Anchor.** `ensemble_namespaces` lives on the `Analyser`, not the
 /// returned `AnalysisResult`, so this query runs `analyse` directly and reads
 /// the ensemble set off the instance rather than reusing [`file_analysis`]. The
-/// item set therefore *cannot* diverge from `analyse`. Slices 2–3 re-home this
-/// onto a cheap, independent CST extractor — guarded by the `file_decls` corpus
+/// item set therefore *cannot* diverge from `analyse`; it is guarded by the
+/// `file_decls` corpus
 /// gate + the `incremental == fresh` differential fuzzer + the full-rebuild
 /// fallback (item detection is config-independent, hence no `AnalyserConfig`;
 /// the one cross-file input it does read, `SourceFile::workspace_class_factories`,
@@ -1226,10 +1463,10 @@ fn callback_exact_arity_diagnostic(
 /// of the W123 toggle (matching local arity), since the arity check keys off these
 /// rather than the (possibly filtered) W123 diagnostic.
 ///
-/// `is_disabled` honours the user's `disabled_diagnostics` for the synthesised
-/// arity code: it is produced *after* the analyser applied its own
-/// [`apply_disabled_diagnostics`](tcl_compiler::analyser::Analyser) filter (and the
-/// LSP lift does not re-filter), so the filter must be replicated here.
+/// `is_disabled` reads the analyser's `disabled_diagnostics` for the
+/// synthesised arity code: the synthesised arity codes honour the same
+/// production skip as the analyser's own; whether they show is the policy
+/// step's decision.
 #[must_use]
 pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
     diags: &[tcl_compiler::analyser::types::Diagnostic],
@@ -1281,6 +1518,10 @@ pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
 /// the server's workspace-index oracle. Keeping this helper limited to
 /// callback metadata lets the opt-in project pass retain that independent
 /// check without competing for direct-call verdicts.
+///
+/// `is_disabled` reads the analyser's `disabled_diagnostics`: the synthesised
+/// arity codes honour the same production skip as the analyser's own; whether
+/// they show is the policy step's decision.
 #[must_use]
 pub fn apply_project_callback_arity<S: std::hash::BuildHasher>(
     diags: &[tcl_compiler::analyser::types::Diagnostic],
@@ -1376,6 +1617,9 @@ pub fn project_diagnostics(
     config: AnalyserConfig,
     project: Project,
 ) -> Arc<Vec<tcl_compiler::analyser::types::Diagnostic>> {
+    // The analyser's production skip: the synthesised arity codes honour the
+    // same production skip as the analyser's own; whether they show is the
+    // policy step's decision.
     let disabled = config.disabled_diagnostics(db);
     // `file_analysis_incremental` (not the coarse `file_analysis`) so this reuses
     // the per-item firewall result the diagnostics worker already computed for
@@ -1670,6 +1914,45 @@ pub struct CfgContext<'db> {
 /// reuse is what frees both, and it only reclaims `Durability::LOW` slots
 /// interned inside a tracked query.  See the crate docs' "The interned garbage
 /// collector is load-bearing"; pinned by `tests/interned_gc.rs`.
+/// The value-transfer analysis context of one module, interned once per
+/// distinct value so a per-procedure [`FnLatticeKey`] carries an id rather
+/// than the context's fields: every procedure of a module shares it, an edit
+/// that changes no binding evidence re-interns nothing, and the per-revision
+/// key stays as small as before the context joined it (the memory-growth
+/// plateau `tests/memory_growth.rs` pins).
+#[salsa::interned]
+pub struct ValueTransferContext<'db> {
+    /// The context's hashable identity, as the compiler computes it per
+    /// module.
+    #[returns(ref)]
+    pub key: tcl_compiler::value_transfer::AnalysisContextKey,
+    /// The command trust the key's snapshot stands for, rebuilt once per
+    /// distinct context rather than once per procedure: the shared lattice
+    /// folds every route under it with the `ObservedBindings` stance, as a
+    /// whole-module build does, so the memoised lattice and a fresh one
+    /// answer every head alike.
+    #[returns(ref)]
+    pub mutations: tcl_compiler::command_binding::ModuleCommandMutations,
+    /// The [`EvaluatorEpoch`] the context was built under, so a new epoch —
+    /// a plan reload, a quarantine — is a new context and every memoised
+    /// lattice under the old one is re-keyed.
+    #[returns(copy)]
+    pub evaluator_epoch: u64,
+}
+
+impl<'db> ValueTransferContext<'db> {
+    /// The interned context for `key` under evaluator epoch `epoch`, with the
+    /// command trust rebuilt from its snapshot.
+    pub fn of(
+        db: &'db dyn TclDb,
+        key: tcl_compiler::value_transfer::AnalysisContextKey,
+        epoch: u64,
+    ) -> Self {
+        let mutations = key.bindings.to_mutations();
+        Self::new(db, key, mutations, epoch)
+    }
+}
+
 #[salsa::interned]
 pub struct FnLatticeKey<'db> {
     #[returns(ref)]
@@ -1718,6 +2001,15 @@ pub struct FnLatticeKey<'db> {
     /// dynamically replaceable command spelling into builtin-only CFG edges.
     #[returns(copy)]
     pub plain_command_dispatch: bool,
+    /// The analysis context every value-transfer answer in the body is
+    /// keyed under (`docs/design/compiler/value-transfers.md` § *One
+    /// invocation, one context*): the module's command-binding evidence, the
+    /// registry and overlay generations, the tier, and the evaluator
+    /// revision. A whole-module fact folded into the key like
+    /// `traced_variables`, so a `rename` anywhere in the file re-keys every
+    /// procedure's lattice — the sensitivity the design asks for.
+    #[returns(copy)]
+    pub analysis_context: ValueTransferContext<'db>,
 }
 
 /// Memoised offset-0 baseline lattice (CFG → SSA → def-use → SCCP → type →
@@ -1743,7 +2035,8 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
         context.proc_params(db).iter().cloned().collect();
     let global_write_procs: HashMap<String, GlobalWriteInfo> =
         context.global_write_ctx(db).iter().cloned().collect();
-    let registry = db.registry(key.dialect(db));
+    let registry = lattice_registry(db, key);
+    let registry: &CommandRegistry = &registry;
     // The request's exact grammar, not one reconstructed from the registry or
     // environment name: grammar overrides are part of the memo identity.
     let config = key.lexer_config(db);
@@ -1768,16 +2061,21 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
     let trace_facts = ModuleTraceFacts {
         traced_variables: &traced_variables,
         has_dynamic_variable_trace: key.has_dynamic_variable_trace(db),
+        deferred_writes: &key.analysis_context(db).key(db).deferred_writes,
     };
     Arc::new(
-        FunctionUnit::build_with_param_constants_and_classes(
+        FunctionUnit::build_with_param_constants_and_classes_under(
             key.qname(db),
             cfg,
             key.params(db),
             tcl_compiler::compilation_unit::UnitDialect { registry, config },
             param_constants.as_ref(),
             &known_classes,
-            trace_facts,
+            tcl_compiler::compilation_unit::ModuleAnalysisFacts {
+                trace: trace_facts,
+                analysis_context: key.analysis_context(db).key(db),
+                command_trust: key.analysis_context(db).mutations(db),
+            },
         )
         .with_semantic_analysis(
             registry,
@@ -1820,6 +2118,11 @@ pub struct ProcBodyKey<'db> {
     pub namespace: String,
     #[returns(ref)]
     pub dialect: String,
+    /// The workspace pack overlay the body lowers against (`0` for none):
+    /// a pack command's declared roles shape its lowering as a shipped
+    /// command's do.
+    #[returns(copy)]
+    pub overlay: u64,
 }
 
 /// Memoised offset-0 isolated lowering of one top-level `proc` body.
@@ -1831,7 +2134,7 @@ pub struct ProcBodyKey<'db> {
 // LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
 #[salsa::tracked(lru = 512, returns(clone))]
 pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Script> {
-    let registry = db.registry(key.dialect(db));
+    let registry = nested_registry(db, key.dialect(db), key.overlay(db));
     // The body's own environment grammar — the key already carries the
     // dialect, so the three truncated `LexerConfig` fields are derived
     // rather than interned as duplicate key fields.
@@ -1841,7 +2144,7 @@ pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Sc
     Arc::new(tcl_compiler::lowering::lower_proc_body_isolated(
         key.body_text(db),
         key.namespace(db),
-        registry,
+        &registry,
         config,
         tcl_lsp_core::optional_profile_for_dialect(key.dialect(db)),
     ))
@@ -1887,6 +2190,20 @@ pub(crate) fn memoised_compilation_unit(
     build_unit_with_keys(db, source, options).0
 }
 
+/// `qname`'s offset-0 lattice key, when the unit reads its lattice from the
+/// memo: a lattice that read another procedure of the module was built
+/// afresh for the unit (`SccpResult::reads_module`), and every reader of the
+/// memo — the checks, the rewrites, the taint cascade — takes the unit's.
+fn memo_key<'db>(
+    db: &'db dyn TclDb,
+    keys: &HashMap<String, FnLatticeKey<'db>>,
+    qname: &str,
+) -> Option<FnLatticeKey<'db>> {
+    keys.get(qname)
+        .copied()
+        .filter(|&key| !function_lattice(db, key).sccp.reads_module)
+}
+
 /// `memoised_compilation_unit` that also returns the per-procedure
 /// [`FnLatticeKey`] map built during lowering (qname → offset-0 baseline key).
 ///
@@ -1914,6 +2231,9 @@ fn build_unit_with_keys<'db>(
     let dialect_key = dialect.map_or("", |profile| profile.name);
     let dialect_opt =
         dialect.and_then(|profile| tcl_lsp_core::stated_profile_for_dialect(profile.name));
+    // A tracked read: a new epoch re-runs the query this build is part of,
+    // and the contexts below carry it into every lattice key.
+    let epoch = evaluator_epoch(db);
     // The module CFG context is the same for every procedure in this build;
     // intern it once on the first request and reuse the id (O(procs), not
     // O(procs²)).
@@ -1964,6 +2284,7 @@ fn build_unit_with_keys<'db>(
             req.traced_variables.to_vec(),
             req.has_dynamic_variable_trace,
             req.plain_command_dispatch,
+            ValueTransferContext::of(db, req.analysis_context.clone(), epoch),
         );
         lattice_keys.insert(req.qname.to_owned(), key);
         // The memo stores the unit at **offset 0** and the builder rebases the
@@ -1999,12 +2320,14 @@ fn build_unit_with_keys<'db>(
         // Same offset-0-plus-rebase contract as `lattice_memo` above: the caller
         // shifts the returned `Script` to the body's real position, so it needs
         // an owned copy.
+        let overlay = registry.overlay_generation().unwrap_or(0);
         let body_memo = |body_text: &str, namespace: &str| -> Script {
             let key = ProcBodyKey::new(
                 db,
                 body_text.to_owned(),
                 namespace.to_owned(),
                 dialect_key.to_owned(),
+                overlay,
             );
             (*lower_proc_body(db, key)).clone()
         };
@@ -2022,7 +2345,7 @@ fn build_unit_with_keys<'db>(
         registry,
         dialect_opt,
         &mut |qname: &str, ia: &InterproceduralAnalysis| {
-            let key = *lattice_keys.get(qname)?;
+            let key = memo_key(db, &lattice_keys, qname)?;
             let summary_key = taint_summary_key(db, ia, qname, dialect_key);
             // A hit returns the memoised map by refcount: `FunctionUnit::taints`
             // is span-free (the offset rebase never touches it), so the unit can
@@ -2144,7 +2467,8 @@ pub fn taint_cascade<'db>(
     let baseline = function_lattice(db, lattice_key);
     let dialect = summary_key.dialect(db);
     let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
-    let registry = db.registry(dialect);
+    let registry = lattice_registry(db, lattice_key);
+    let registry: &CommandRegistry = &registry;
 
     // Reconstruct the minimal summary: a stub per known name (resolution
     // domain), with the real taint-relevant fields overlaid for the reachable
@@ -2325,7 +2649,8 @@ pub fn proc_summary_cascade<'db>(
     let params = lattice_key.params(db);
     let dialect = deps_key.dialect(db);
     let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
-    let registry = db.registry(dialect);
+    let registry = lattice_registry(db, lattice_key);
+    let registry: &CommandRegistry = &registry;
 
     // Reconstruct the minimal interproc summary (stub per known name + real
     // fields for the reachable set) — identical to `taint_cascade`'s rebuild.
@@ -2385,7 +2710,8 @@ pub fn function_checks<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<V
     let fu = function_lattice(db, key);
     let dialect = key.dialect(db);
     let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
-    let registry = db.registry(dialect);
+    let registry = lattice_registry(db, key);
+    let registry: &CommandRegistry = &registry;
     // Per-procedure memo — procs have no implicit instance variables.
     Arc::new(tcl_compiler::compiler_checks::function_nontaint_checks(
         &fu,
@@ -2459,16 +2785,23 @@ fn rebase_check(mut d: CompilerCheck, body_offset: u32) -> CompilerCheck {
 
 /// Byte-identical to a bare `run_all_checks`, guarded by the `compiler_check`
 /// corpus differential + the debug fixpoint guard.
+///
+/// `None` when the workspace's packs are not installed under `overlay`
+/// ([`compilation_unit`] says why nothing is built without them).
 // LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
 #[salsa::tracked(lru = 512, returns(clone))]
 pub fn proc_taint_solve<'db>(
     db: &'db dyn TclDb,
     file: SourceFile,
     cfg: LexerCfgKey<'db>,
-) -> Arc<CheckSolve> {
+    overlay: u64,
+) -> Option<Arc<CheckSolve>> {
     let dialect = file.dialect(db).clone();
     let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
-    let registry = db.registry(&dialect);
+    let Ok(registry) = unit_registry(db, &dialect, overlay) else {
+        return abstain();
+    };
+    let registry: &CommandRegistry = &registry;
     let external = file.external_call_sites(db).clone();
     let declared = declared_command_surface(db, file);
     let (cu, lattice_keys) = build_unit_with_keys(
@@ -2482,9 +2815,9 @@ pub fn proc_taint_solve<'db>(
         &cu,
         registry,
         dialect_opt,
-        &mut |qname, params, fu, known, summaries| match lattice_keys.get(qname) {
+        &mut |qname, params, fu, known, summaries| match memo_key(db, &lattice_keys, qname) {
             // Memoised path: the proc has an offset-0 baseline key.
-            Some(&lattice_key) => {
+            Some(lattice_key) => {
                 let body_source = cu
                     .ir_module
                     .procedures
@@ -2503,7 +2836,8 @@ pub fn proc_taint_solve<'db>(
                 (*proc_summary_cascade(db, lattice_key, deps_key)).clone()
             }
             // Fallback (a proc without a memoised lattice — e.g. an unanalysable
-            // body): run the real inference directly, exactly as the bare solve.
+            // body — or whose lattice read another procedure): run the real
+            // inference directly, exactly as the bare solve.
             None => tcl_compiler::taint_interproc::infer_proc_summary(
                 qname,
                 params,
@@ -2526,8 +2860,8 @@ pub fn proc_taint_solve<'db>(
     // (no offset add).
     let mut fn_checks: Vec<CompilerCheck> = Vec::new();
     for fu in cu.analysable_functions() {
-        match lattice_keys.get(&fu.name) {
-            Some(&key) => {
+        match memo_key(db, &lattice_keys, &fu.name) {
+            Some(key) => {
                 let body_offset = cu
                     .ir_module
                     .procedures
@@ -2540,9 +2874,10 @@ pub fn proc_taint_solve<'db>(
                 );
             }
             None => {
-                // The built unit's fallback fus (complexity-guarded / top level)
-                // carry **absolute** spans already (`base_offset == 0`), so the
-                // per-function checks need no rebase.
+                // The built unit's fallback fus (complexity-guarded / top level,
+                // or built afresh) carry **absolute** spans already
+                // (`base_offset == 0`), so the per-function checks need no
+                // rebase.
                 for d in tcl_compiler::compiler_checks::function_nontaint_checks(
                     fu,
                     registry,
@@ -2596,11 +2931,11 @@ pub fn proc_taint_solve<'db>(
         registry,
         tcl_lsp_core::stated_profile_for_dialect(&dialect),
     );
-    Arc::new(CheckSolve {
+    Some(Arc::new(CheckSolve {
         taints,
         fn_checks,
         optimisations,
-    })
+    }))
 }
 
 /// Hashable normalisation of a callee's `ConstantReturn` (`f64` isn't `Hash`/`Eq`)
@@ -2633,6 +2968,18 @@ pub struct OptCalleeSummary {
     /// Per-parameter traits (`upvar` / call-by-name / passthrough / …), sorted —
     /// the `call_by_name` O109/O126 suppression reads a callee's by-name params.
     pub param_traits: Vec<(String, Vec<tcl_compiler::interprocedural::ProcArgTrait>)>,
+    /// Each parameter's default, sorted by parameter — the same suppression
+    /// reads the place an omitted by-name argument's default names.
+    pub param_defaults: Vec<(String, String)>,
+    /// Whether a call completes normally whatever its arguments hold — the
+    /// O109/O126/O108 raise proof takes a pure callee's unused store as dead
+    /// where it does.
+    pub completes: bool,
+    /// The callees surely defined before the load may first run this
+    /// procedure, which the same proof takes as callable from its body. The
+    /// positions they are proved from stay out of the key, so an edit that
+    /// only moves text leaves it alone.
+    pub defined_callees: Vec<String>,
 }
 
 fn opt_callee_from_summary(s: &ProcSummary) -> OptCalleeSummary {
@@ -2647,6 +2994,12 @@ fn opt_callee_from_summary(s: &ProcSummary) -> OptCalleeSummary {
         })
         .collect();
     param_traits.sort_by(|a, b| a.0.cmp(&b.0));
+    let mut param_defaults: Vec<(String, String)> = s
+        .param_defaults
+        .iter()
+        .map(|(param, default)| (param.clone(), default.clone()))
+        .collect();
+    param_defaults.sort();
     OptCalleeSummary {
         qname: s.qualified_name.clone(),
         params: s.params.clone(),
@@ -2665,6 +3018,9 @@ fn opt_callee_from_summary(s: &ProcSummary) -> OptCalleeSummary {
         return_passthrough_param: s.return_passthrough_param.clone(),
         return_depends_on_params: s.return_depends_on_params.clone(),
         param_traits,
+        param_defaults,
+        completes: s.completes,
+        defined_callees: s.defined_callees.clone(),
     }
 }
 
@@ -2693,6 +3049,9 @@ fn opt_callee_to_summary(o: &OptCalleeSummary) -> ProcSummary {
         .iter()
         .map(|(p, ts)| (p.clone(), ts.iter().copied().collect()))
         .collect();
+    s.param_defaults = o.param_defaults.iter().cloned().collect();
+    s.completes = o.completes;
+    s.defined_callees.clone_from(&o.defined_callees);
     s
 }
 
@@ -2806,7 +3165,8 @@ pub fn function_optimisations<'db>(
     let body = key.body(db).clone();
     let dialect = key.dialect(db).clone();
     let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
-    let registry = db.registry(&dialect);
+    let registry = lattice_registry(db, key);
+    let registry: &CommandRegistry = &registry;
     let body_source = deps.body_source(db).clone();
 
     let mut ia = InterproceduralAnalysis::default();
@@ -2886,6 +3246,9 @@ pub fn function_optimisations<'db>(
         has_dynamic_trace: false,
         traced_variables: BTreeSet::new(),
         has_dynamic_variable_trace: false,
+        deferred_writes: tcl_compiler::ir::DeferredWrites::default(),
+        reference_bodies: tcl_compiler::ir::ReferenceBodies::default(),
+        declared_frame_effects: std::collections::BTreeMap::new(),
     };
     let empty_cfg = tcl_compiler::cfg::Function::new("::", "entry");
     let top_fu = FunctionUnit::build(
@@ -2922,6 +3285,7 @@ pub fn function_optimisations<'db>(
         // document of its own to carry stub declarations.
         caller_scope: tcl_compiler::compilation_unit::UnitCallerScope::default(),
         declared_commands: tcl_registry::model::DeclaredSurface::new(),
+        transfers: tcl_compiler::interprocedural::TransferSummaries::default(),
     };
     Arc::new(tcl_compiler::optimiser::optimise_unit_raw(
         &cu,
@@ -2932,7 +3296,8 @@ pub fn function_optimisations<'db>(
 
 /// Whether `module` carries any whole-module trace fact (execution *or*
 /// variable — `Module::traced_commands` / `has_dynamic_trace` /
-/// `traced_variables` / `has_dynamic_variable_trace`).
+/// `traced_variables` / `has_dynamic_variable_trace`) or any callback script
+/// that writes a variable (`Module::deferred_writes`).
 ///
 /// The single-proc offset-0 `Module` [`function_optimisations`] builds has
 /// no way to reconstruct these — its `OptDepsKey` threads `proc_names` /
@@ -2949,9 +3314,10 @@ fn module_has_trace_facts(module: &tcl_compiler::ir::Module) -> bool {
         || module.has_dynamic_trace
         || !module.traced_variables.is_empty()
         || module.has_dynamic_variable_trace
+        || !module.deferred_writes.is_clear()
 }
 
-/// Assemble a document's optimisations from the per-procedure memo (Task 4).
+/// Assemble a document's optimisations from the per-procedure memo.
 ///
 /// For a non-iRules module with no command mutations and a lattice key for every
 /// analysable procedure, each proc's raw optimisations come from the memoised
@@ -2959,8 +3325,9 @@ fn module_has_trace_facts(module: &tcl_compiler::ir::Module) -> bool {
 /// top-level body's raw optimisations are computed on a top-level-only unit (small,
 /// not memoised), and the whole-module [`finalise_optimisations`] runs once over the
 /// assembled set.  Otherwise (iRules / command mutations / a complexity-guarded
-/// proc without a key) it falls back to the whole-module [`optimise_unit`] — always
-/// byte-identical, guarded by the `compiler_check` random-edit + corpus fuzzers.
+/// proc without a key / a memoised lattice that read another procedure) it falls
+/// back to the whole-module [`optimise_unit`] — always byte-identical, guarded by
+/// the `compiler_check` random-edit + corpus fuzzers.
 fn solve_optimisations<'db>(
     db: &'db dyn TclDb,
     cu: &CompilationUnit,
@@ -2987,11 +3354,17 @@ fn solve_optimisations<'db>(
             .values()
             .any(|s| s.pure && !(s.can_fold_static_calls && s.constant_return.is_some()))
     });
+    // A memoised lattice that read another procedure is not the unit's: the
+    // unit built that procedure afresh (`SccpResult::reads_module`).
+    let reads_module = lattice_keys
+        .values()
+        .any(|&key| function_lattice(db, key).sccp.reads_module);
     if is_irules
         || !cu.methods.is_empty()
         || mutations != tcl_compiler::command_binding::ModuleCommandMutations::default()
         || has_arg_sensitive_target
         || !every_proc_keyed
+        || reads_module
         || module_has_trace_facts(&cu.ir_module)
     {
         return tcl_compiler::optimiser::optimise_unit(cu, registry, dialect_opt);
@@ -3107,6 +3480,9 @@ fn top_level_only_unit(
             has_dynamic_trace: cu.ir_module.has_dynamic_trace,
             traced_variables: cu.ir_module.traced_variables.clone(),
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+            deferred_writes: cu.ir_module.deferred_writes.clone(),
+            reference_bodies: cu.ir_module.reference_bodies.clone(),
+            declared_frame_effects: cu.ir_module.declared_frame_effects.clone(),
         },
         cfg_module: tcl_compiler::cfg::CfgModule {
             top_level: cu.cfg_module.top_level.clone(),
@@ -3121,6 +3497,7 @@ fn top_level_only_unit(
         connection_scope: None,
         caller_scope: cu.caller_scope.clone(),
         declared_commands: cu.declared_commands.clone(),
+        transfers: cu.transfers.clone(),
     }
 }
 
@@ -3180,6 +3557,107 @@ fn lexer_cfg_key<'db>(db: &'db dyn TclDb, dialect: &str) -> LexerCfgKey<'db> {
     )
 }
 
+/// The registry a unit resolves against: the dialect's shared one, or its
+/// generation carrying a workspace pack overlay.
+enum UnitRegistry {
+    /// The dialect's process-wide registry ([`TclDb::registry`]).
+    Shared(&'static CommandRegistry),
+    /// The dialect's registry with the workspace's packs
+    /// ([`TclDb::registry_with_overlay`]).
+    Overlaid(Arc<CommandRegistry>),
+}
+
+impl std::ops::Deref for UnitRegistry {
+    type Target = CommandRegistry;
+
+    fn deref(&self) -> &CommandRegistry {
+        match self {
+            Self::Shared(registry) => registry,
+            Self::Overlaid(registry) => registry,
+        }
+    }
+}
+
+/// The registry a unit for `dialect` under pack overlay `overlay` resolves
+/// against: the shared one when there is no overlay (`0`), so a workspace
+/// with no packs resolves exactly as before, and the overlaid generation
+/// otherwise (`docs/design/compiler/value-transfers.md` § *One invocation,
+/// one context*: a workspace pack's declarations reach the memoised
+/// lattice).
+///
+/// # Errors
+///
+/// [`OverlayMiss`] when the overlay is non-zero and its packs are not
+/// installed: the caller decides what it may do without them.
+fn unit_registry(db: &dyn TclDb, dialect: &str, overlay: u64) -> Result<UnitRegistry, OverlayMiss> {
+    if overlay == 0 {
+        return Ok(UnitRegistry::Shared(db.registry(dialect)));
+    }
+    // A tracked read: a moved overlay epoch asks the query again.
+    let _epoch = overlay_epoch(db);
+    db.registry_with_overlay(dialect, overlay)
+        .map(UnitRegistry::Overlaid)
+}
+
+/// The registry a memoised per-procedure query resolves against: the one the
+/// unit query that keyed it resolved.
+///
+/// A per-procedure query runs inside, or is re-verified for, a unit query
+/// that has already resolved this overlay through
+/// [`TclDb::registry_with_overlay`], and the database holds what it resolved,
+/// so this cannot miss for a key a unit query resolved. Being asked for one
+/// none did is a caller error, and it stops here: a lattice computed against
+/// a registry the packs are missing from would be memoised under the packs'
+/// key.
+fn nested_registry(db: &dyn TclDb, dialect: &str, overlay: u64) -> UnitRegistry {
+    unit_registry(db, dialect, overlay).unwrap_or_else(|miss| {
+        panic!("{miss}: a per-procedure query ran for an overlay no unit query resolved")
+    })
+}
+
+/// [`nested_registry`] for a lattice key, which carries its overlay in the
+/// analysis context.
+fn lattice_registry(db: &dyn TclDb, key: FnLatticeKey<'_>) -> UnitRegistry {
+    let overlay = key
+        .analysis_context(db)
+        .key(db)
+        .overlay_generation
+        .unwrap_or(0);
+    nested_registry(db, key.dialect(db), overlay)
+}
+
+/// A query that cannot be answered without packs nobody has installed
+/// answers nothing. The answer depends on the overlay epoch, which
+/// [`unit_registry`] read, so it is asked again when the host moves the epoch
+/// after installing the packs.
+fn abstain<T>() -> Option<T> {
+    None
+}
+
+/// [`abstain`] for the checks-and-optimisations pass: no findings, and no
+/// rewrites.
+fn abstain_diagnostics() -> Arc<CompilerDiagnostics> {
+    Arc::new(CompilerDiagnostics {
+        checks: Vec::new(),
+        optimisations: Vec::new(),
+    })
+}
+
+/// The registry the token queries classify commands against: the overlaid
+/// generation once the packs are installed, and the dialect's plain one until
+/// then.
+///
+/// Highlighting advises and is asked for again once the packs arrive (a pack
+/// reload has the client re-pull its tokens), so a window of pack commands
+/// coloured as unknown ones costs nothing that outlives it; nothing here
+/// builds a unit or offers a rewrite, which is why this is the one query
+/// family that reads the plain registry for a miss. The miss is not
+/// memoised past the overlay epoch that [`unit_registry`] read.
+fn token_registry(db: &dyn TclDb, dialect: &str, overlay: u64) -> UnitRegistry {
+    unit_registry(db, dialect, overlay)
+        .unwrap_or_else(|_| UnitRegistry::Shared(db.registry(dialect)))
+}
+
 /// The [`UnitBuildOptions`] every [`CompilationUnit`] built for `file` under
 /// `cfg` shares — one place so the taint solve and the shared unit cannot
 /// drift on the dialect, the cross-file view, or the document's own
@@ -3223,31 +3701,49 @@ pub fn declared_command_surface(db: &dyn TclDb, file: SourceFile) -> Arc<Declare
 }
 
 /// The shared, memoised [`CompilationUnit`] for a document under a given lexer
-/// config — built via `memoised_compilation_unit` (per-procedure lattices on
-/// the salsa-native [`function_lattice`] graph).  Tracked + keyed on
-/// `(file, cfg)` so the analyser tail ([`file_analysis_incremental`]) and the
+/// config and workspace pack overlay (`0` for none) — built via
+/// `memoised_compilation_unit` (per-procedure lattices on the salsa-native
+/// [`function_lattice`] graph) against the overlay's registry, so a pack's
+/// declarations reach every lattice of the file and a pack edit, which
+/// changes the overlay, invalidates them.  Tracked + keyed on
+/// `(file, cfg, overlay)` so the analyser tail ([`file_analysis_incremental`]) and the
 /// optimiser/compiler-checks pass ([`compiler_check_diagnostics`]) **share one
 /// build per edit** whenever their configs coincide — every dialect bar
 /// `tcl8.4` and the three `f5-tcl`-grammar dialects (`f5-irules`, `f5-tmsh`,
 /// `f5-iapps`, all of which select `GRAMMAR_F5_TCL`);
 /// for those four the configs differ, so each consumer builds its own.  Byte-identical to a direct
 /// `memoised_compilation_unit` call.
+///
+/// **`None` is an abstention, not an error page.** A non-zero `overlay` names a
+/// pack generation only the pack loader can build, so when nothing has
+/// installed it for the document's dialect ([`TclDb::registry_with_overlay`]
+/// answers an [`OverlayMiss`]) there is no unit: a unit built against the
+/// plain registry would resolve every pack command as an unknown one and
+/// would be memoised under the pack's key, and the rewrites the optimiser
+/// and the checks derive from it could be wrong for the workspace. The miss
+/// is recorded once for the host ([`take_overlay_misses`]), nothing is
+/// published in its place, and the abstention reads the overlay epoch
+/// ([`set_overlay_epoch`]), so it runs again — and so does everything that
+/// read it — once the host installs the packs and moves the epoch.
 // LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
 #[salsa::tracked(lru = 512, returns(clone))]
 pub fn compilation_unit<'db>(
     db: &'db dyn TclDb,
     file: SourceFile,
     cfg: LexerCfgKey<'db>,
-) -> Arc<CompilationUnit> {
+    overlay: u64,
+) -> Option<Arc<CompilationUnit>> {
     let dialect = file.dialect(db).clone();
-    let registry = db.registry(&dialect);
+    let Ok(registry) = unit_registry(db, &dialect, overlay) else {
+        return abstain();
+    };
     let external = file.external_call_sites(db).clone();
     let declared = declared_command_surface(db, file);
-    Arc::new(memoised_compilation_unit(
+    Some(Arc::new(memoised_compilation_unit(
         db,
         file.text(db),
-        unit_build_options(db, file, cfg, registry, external.as_deref(), &declared),
-    ))
+        unit_build_options(db, file, cfg, &registry, external.as_deref(), &declared),
+    )))
 }
 
 /// Incremental whole-file analysis: the per-item path with each `proc` body's
@@ -3259,6 +3755,14 @@ pub fn compilation_unit<'db>(
 /// (and rebased) instead of rebuilt.  Byte-identical to [`file_analysis`] (and
 /// `analyse`) — proven by the `per_item_corpus` gate over the shared
 /// `analyse_per_item_with` orchestration.
+///
+/// `config.disabled_diagnostics` is the analyser's production-time skip —
+/// rule 2's permitted saving in `docs/design/compiler/diagnostic-policy.md`
+/// § What the producers leave to the policy: the codes the document's policy
+/// turns off, which the analyser need not compute. It is never a presentation filter. The
+/// surface that reads this analysis declares the same set to its report, so a
+/// code left uncomputed is explained rather than read as clean; what the
+/// document shows is the policy step's decision.
 // LRU-capped: per-file key, see the crate docs' "Deep-memo eviction".
 #[salsa::tracked(lru = 64, returns(clone))]
 pub fn file_analysis_incremental(
@@ -3294,7 +3798,12 @@ pub fn file_analysis_incremental(
     // for *every* environment, because both consumers intern the same
     // environment id.
     let cfg_key = lexer_cfg_key(db, &dialect);
-    analyser.set_cu_override(compilation_unit(db, file, cfg_key));
+    // Without the packs' generation there is no shared unit, and the analyser
+    // builds its own against the registry it reads (the plain one until the
+    // packs are installed): analysis advises and runs again once they are.
+    if let Some(unit) = compilation_unit(db, file, cfg_key, config.spec_pack_key(db)) {
+        analyser.set_cu_override(unit);
+    }
 
     let mut body_fn = |body: &DeferredBody| -> BodyFragment {
         let key = ItemBodyKey::new(
@@ -3331,8 +3840,8 @@ pub fn file_analysis_incremental(
 
 /// The compiler-checks + optimiser diagnostics for one document, unfiltered.
 ///
-/// Returned by [`compiler_check_diagnostics`] for the server to filter
-/// (optimiser master switch / per-code disables) and lift into LSP diagnostics.
+/// Returned by [`compiler_check_diagnostics`]. Unfiltered: every surface
+/// converts these to findings, and the policy step decides what shows.
 /// Kept independent of the runtime gate so the query caches across config
 /// toggles.  `Clone + PartialEq` for salsa early-cutoff.
 #[derive(Clone, PartialEq)]
@@ -3370,8 +3879,8 @@ fn compiler_diagnostics_from_unit(
 /// query (so an unchanged procedure is built once and shared with the analyser
 /// tail).  The optimiser lowers with the dialect lexer config — distinct from
 /// the analyser tail's default config, so the two intern different bodies and
-/// never cross-pollute.  Byte-identical to the direct
-/// `lift_compiler_diagnostics` build.
+/// never cross-pollute.  Byte-identical to
+/// [`compiler_check_diagnostics_uncached`].
 // LRU-capped: per-file key, see the crate docs' "Deep-memo eviction".
 #[salsa::tracked(lru = 64, returns(clone))]
 pub fn compiler_check_diagnostics(
@@ -3381,13 +3890,21 @@ pub fn compiler_check_diagnostics(
 ) -> Arc<CompilerDiagnostics> {
     let dialect = file.dialect(db).clone();
     let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
-    let registry = db.registry(&dialect);
+    let overlay = config.spec_pack_key(db);
+    // No packs installed, no unit and no rewrites: nothing is offered in place
+    // of what the workspace's own declarations would have decided.
+    let Ok(registry) = unit_registry(db, &dialect, overlay) else {
+        return abstain_diagnostics();
+    };
+    let registry: &CommandRegistry = &registry;
     // Share the analyser tail's build via the [`compilation_unit`] query when the
     // dialect's lexer config matches the default (every dialect but `tcl8.4` /
     // `f5-irules`): the optimiser lowers with the dialect config, so a matching
     // config interns the same `LexerCfgKey` and reuses the same per-edit build.
     let cfg_key = lexer_cfg_key(db, &dialect);
-    let cu = compilation_unit(db, file, cfg_key);
+    let Some(cu) = compilation_unit(db, file, cfg_key, overlay) else {
+        return abstain_diagnostics();
+    };
     // Both halves of `run_all_checks` come from the memoised [`proc_taint_solve`]:
     // the interprocedural taint solve (`solve.taints`)
     // and the per-procedure non-taint checks (`solve.fn_checks`, already rebased),
@@ -3397,7 +3914,9 @@ pub fn compiler_check_diagnostics(
     // into the same deterministic order `run_all_checks` produces.  Byte-identical
     // to the in-line build; guarded by the corpus differential.  Optimiser
     // unchanged.
-    let solve = proc_taint_solve(db, file, cfg_key);
+    let Some(solve) = proc_taint_solve(db, file, cfg_key, overlay) else {
+        return abstain_diagnostics();
+    };
     let mut checks = solve.fn_checks.clone();
     let generic_patterns = config.generic_variable_patterns(db).as_deref();
     tcl_compiler::compiler_checks::push_taint_and_module_checks(
@@ -3428,7 +3947,8 @@ pub fn compiler_check_diagnostics_uncached(
 ) -> CompilerDiagnostics {
     let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
     // No `SourceFile` here means no path, so only the document's own inline
-    // block is reachable; a sidecar-declared role can only widen the answer.
+    // block is reachable; a command only a sidecar declares answers as the
+    // catalogue has it.
     let declared = tcl_compiler::analyser::utils::document_declared_surface(text, None, dialect);
     let cu = CompilationUnit::build_with_options(
         text,
@@ -3470,16 +3990,33 @@ pub fn document_symbols(
     tcl_lsp_core::document_symbols::document_symbols_from_analysis(file.text(db), &analysis)
 }
 
-/// The document's [`CompilationUnit`] under the default lexer config — a thin
-/// wrapper over [`compilation_unit`] that interns the `LexerCfgKey` from the
-/// file's dialect, so callers that only have `(db, file)` (semantic tokens,
-/// server-side accessors) share the same memoised build as the diagnostics
-/// path.
+/// The document's [`CompilationUnit`] under the default lexer config and no
+/// pack overlay — a thin wrapper over [`compilation_unit`] that interns the
+/// `LexerCfgKey` from the file's dialect, for the server-side accessors that
+/// only have `(db, file)`. It shares the diagnostics path's memoised build
+/// when the workspace has no packs; a caller holding an [`AnalyserConfig`]
+/// uses [`document_compilation_unit_for`] to share it with packs too.
 // LRU-capped: per-file key, see the crate docs' "Deep-memo eviction".
 #[salsa::tracked(lru = 64, returns(clone))]
 pub fn document_compilation_unit(db: &dyn TclDb, file: SourceFile) -> Arc<CompilationUnit> {
     let cfg_key = lexer_cfg_key(db, file.dialect(db));
-    compilation_unit(db, file, cfg_key)
+    compilation_unit(db, file, cfg_key, 0).expect("a unit with no pack overlay always builds")
+}
+
+/// The document's [`CompilationUnit`] under the default lexer config and
+/// `config`'s pack overlay: the diagnostics path's memoised build, which a
+/// consumer resolving against the overlaid registry reads so the unit and
+/// the registry agree on which commands the workspace's packs declare.
+///
+/// `None` when the packs are not installed ([`compilation_unit`]).
+#[must_use]
+pub fn document_compilation_unit_for(
+    db: &dyn TclDb,
+    file: SourceFile,
+    config: AnalyserConfig,
+) -> Option<Arc<CompilationUnit>> {
+    let cfg_key = lexer_cfg_key(db, file.dialect(db));
+    compilation_unit(db, file, cfg_key, config.spec_pack_key(db))
 }
 
 /// Semantic tokens — wraps `semantic_tokens::full_with_cu`; reads the durable
@@ -3509,14 +4046,14 @@ pub fn document_compilation_unit(db: &dyn TclDb, file: SourceFile) -> Arc<Compil
 // anyway, so a borrow would buy nothing even if it were safe.
 #[salsa::tracked(returns(clone))]
 pub fn semantic_tokens(db: &dyn TclDb, file: SourceFile, config: AnalyserConfig) -> SemanticTokens {
-    let registry = db.registry_with_overlay(file.dialect(db), config.spec_pack_key(db));
-    let cu = document_compilation_unit(db, file);
+    let registry = token_registry(db, file.dialect(db), config.spec_pack_key(db));
+    let cu = document_compilation_unit_for(db, file, config);
     let analysis = file_analysis_incremental(db, file, config);
     tcl_lsp_core::semantic_tokens::full_with_cu_and_analysis(
         file.text(db),
         tcl_lsp_core::profile_for_dialect(file.dialect(db)),
         &registry,
-        Some(&cu),
+        cu.as_deref(),
         Some(&analysis),
     )
 }
@@ -3708,8 +4245,8 @@ pub fn semantic_tokens_project(
     project: Project,
     config: AnalyserConfig,
 ) -> SemanticTokens {
-    let registry = db.registry_with_overlay(file.dialect(db), config.spec_pack_key(db));
-    let cu = document_compilation_unit(db, file);
+    let registry = token_registry(db, file.dialect(db), config.spec_pack_key(db));
+    let cu = document_compilation_unit_for(db, file, config);
     let classes = project_class_index(db, project);
     let proc_roles = project_proc_var_index(db, project);
     let named_instances = project_named_instance_index(db, project);
@@ -3718,7 +4255,7 @@ pub fn semantic_tokens_project(
         file.text(db),
         tcl_lsp_core::profile_for_dialect(file.dialect(db)),
         &registry,
-        Some(&cu),
+        cu.as_deref(),
         tcl_lsp_core::semantic_tokens::WorkspaceTokenFacts {
             classes: Some(&classes),
             proc_roles: Some(&proc_roles),
@@ -3744,9 +4281,53 @@ pub fn folding_ranges(db: &dyn TclDb, file: SourceFile) -> Vec<FoldingRange> {
 }
 
 #[cfg(test)]
+mod value_transfer_parity;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::Mutex;
+
+    /// A key that misses, installs, retires and misses again is reported each
+    /// time it misses: the log keeps a miss once while it stands, and forgets
+    /// it when the key installs.
+    #[test]
+    fn a_key_that_installs_is_reported_again_if_it_misses_later() {
+        let generations = OverlayGenerations::default();
+        let key: OverlayKey = ("tcl9.0".to_owned(), 0xAB);
+        let miss = OverlayMiss {
+            environment: key.0.clone(),
+            overlay: key.1,
+        };
+        let take = |generations: &OverlayGenerations| {
+            std::mem::take(&mut generations.misses.lock().expect("miss log").unreported)
+        };
+        generations.record(&miss);
+        generations.record(&miss);
+        assert_eq!(
+            take(&generations),
+            vec![miss.clone()],
+            "one record while it stands"
+        );
+
+        let registry = Arc::new(CommandRegistry::build_default());
+        generations.hold(key.clone(), Arc::clone(&registry));
+        // Retired: later keys push it out of the held generations.
+        let later = u64::try_from(HELD_OVERLAYS).expect("a small count");
+        for overlay in 0..=later {
+            generations.hold(
+                ("tcl9.0".to_owned(), 0x1000 + overlay),
+                Arc::clone(&registry),
+            );
+        }
+        assert!(generations.held(&key).is_none(), "the key was retired");
+        generations.record(&miss);
+        assert_eq!(
+            take(&generations),
+            vec![miss],
+            "a miss after the key installed is a new one"
+        );
+    }
 
     fn cfg(db: &TclDatabase) -> AnalyserConfig {
         AnalyserConfig::new(
@@ -3843,8 +4424,8 @@ mod tests {
         let cfg_key = lexer_cfg_key(&db, "tcl8.6");
         let file_a = SourceFile::new(&db, SRC.to_owned(), "tcl8.6".to_owned(), None);
         let file_b = SourceFile::new(&db, SRC.to_owned(), "tcl8.6".to_owned(), None);
-        let first = compilation_unit(&db, file_a, cfg_key);
-        let second = compilation_unit(&db, file_b, cfg_key);
+        let first = compilation_unit(&db, file_a, cfg_key, 0).expect("no overlay always builds");
+        let second = compilation_unit(&db, file_b, cfg_key, 0).expect("no overlay always builds");
         for qname in ["::alpha", "::beta"] {
             let a = first
                 .procedures
@@ -3884,7 +4465,7 @@ mod tests {
         let db = TclDatabase::default();
         let cfg_key = lexer_cfg_key(&db, "tcl8.4");
         let file = SourceFile::new(&db, SRC.to_owned(), "tcl8.4".to_owned(), None);
-        let unit = compilation_unit(&db, file, cfg_key);
+        let unit = compilation_unit(&db, file, cfg_key, 0).expect("no overlay always builds");
         let subject = unit
             .procedures
             .get("::subject")
@@ -3928,6 +4509,11 @@ mod tests {
                 Vec::new(),
                 false,
                 false,
+                ValueTransferContext::of(
+                    &db,
+                    tcl_compiler::value_transfer::AnalysisContextKey::detached(),
+                    0,
+                ),
             )
         };
 
@@ -4998,8 +5584,8 @@ mod tests {
         );
     }
 
-    /// The slice-3 firewall: a body-only edit (same length, so other bodies
-    /// keep their offset) recomputes exactly one `item_body_analysis`.
+    /// A body-only edit (same length, so other bodies keep their offset)
+    /// recomputes exactly one `item_body_analysis`.
     #[test]
     fn body_edit_recomputes_one_item() {
         use salsa::Setter as _;
@@ -5607,7 +6193,7 @@ mod tests {
         );
     }
 
-    /// The per-procedure optimiser memo (`function_optimisations`, Task 4) must
+    /// The per-procedure optimiser memo (`function_optimisations`) must
     /// skip an unrelated procedure across edits: a body edit that does not change a
     /// proc's *opt-projection* (`OptDepsKey`) leaves every other proc's optimise a
     /// cache hit, while the edited proc's own re-keys (its `FnLatticeKey` changed).
@@ -5663,6 +6249,75 @@ mod tests {
             runs(&log),
             1,
             "unrelated body edit -> exactly ONE function_optimisations recomputes"
+        );
+    }
+
+    /// The opt projection a memoised procedure reads its callees through keeps
+    /// what the dead-store passes ask of them: the completion, and each
+    /// parameter's default, which the call-by-name reads take for an omitted
+    /// `Name` argument.
+    #[test]
+    fn the_opt_projection_keeps_completion_and_defaults() {
+        let mut summary = ProcSummary::unknown("::bumpd");
+        summary.params = vec!["name".to_owned()];
+        summary
+            .param_defaults
+            .insert("name".to_owned(), "n".to_owned());
+        summary.completes = true;
+        let projected = opt_callee_to_summary(&opt_callee_from_summary(&summary));
+        assert_eq!(projected.param_defaults, summary.param_defaults);
+        assert!(projected.completes);
+    }
+
+    /// A callee that completes whatever its arguments hold makes the unused
+    /// store of its call dead in the per-procedure optimiser memo as in the
+    /// whole-module build: the memo reads a callee's summary through its
+    /// opt projection, which carries the completion with the purity.
+    #[test]
+    fn a_completing_callee_reaches_the_optimiser_memo() {
+        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = {
+            let l = Arc::clone(&log);
+            move |ev: salsa::Event| {
+                if let salsa::EventKind::WillExecute { database_key } = ev.kind {
+                    l.lock().unwrap().push(format!("{database_key:?}"));
+                }
+            }
+        };
+        let db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(sink))),
+        };
+        // `k` is pure with an argument-independent constant return and `f`
+        // prints, so no procedure is an argument-sensitive fold target and the
+        // module keeps the memo path rather than the whole-module fallback.
+        let text = "proc k {} { return 1 }\nproc f {} {\n    set u [k]\n    puts done\n}\n";
+        let file = SourceFile::new(&db, text.to_owned(), "tcl8.6".to_owned(), None);
+        let memoised = compiler_check_diagnostics(&db, file, cfg(&db));
+        assert_eq!(
+            log.lock()
+                .unwrap()
+                .iter()
+                .filter(|key| key.contains("function_optimisations"))
+                .count(),
+            2,
+            "each procedure's optimisations come from the memo"
+        );
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let whole = compiler_check_diagnostics_uncached(text, registry, "tcl8.6", None, None);
+        let codes = |optimisations: &[Optimisation]| -> Vec<(String, u32, u32)> {
+            optimisations
+                .iter()
+                .map(|o| (o.code.as_str().to_owned(), o.span.start(), o.span.end()))
+                .collect()
+        };
+        assert_eq!(codes(&memoised.optimisations), codes(&whole.optimisations));
+        assert!(
+            memoised
+                .optimisations
+                .iter()
+                .any(|o| o.code.as_str() == "O126"),
+            "the unused store of a completing call goes; got {:?}",
+            memoised.optimisations
         );
     }
 

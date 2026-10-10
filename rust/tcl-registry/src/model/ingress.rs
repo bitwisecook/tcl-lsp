@@ -92,7 +92,7 @@ use tcl_dialect::model::{
 };
 use tcl_dialect::{DialectProfile, LexerGrammar, LibraryVersionOverrides};
 
-use crate::model::assembly::{ContextRegistry, registry_for_environment_if_built};
+use crate::model::assembly::{ContextRegistry, OverlayMiss, registry_for_environment_if_built};
 use crate::model::context::{KeyedVersions, ResolvedContext};
 
 /// The **live** environment registry: the compiled seed set at
@@ -397,23 +397,37 @@ impl DocumentEnvironment {
 
     /// The registry generation for this environment at `overlay` — the
     /// pack-overlay key threaded exactly as the old
-    /// `registry_for_profile_if_built(profile, overlay)` door: a
-    /// not-yet-installed overlay falls back to the un-overlaid generation,
-    /// the state the process was in a moment ago.
-    #[must_use]
-    pub fn context_registry(&self, keyed: &KeyedVersions, overlay: u64) -> Arc<ContextRegistry> {
+    /// `registry_for_profile_if_built(profile, overlay)` door, except that
+    /// a miss is an error: an overlay nothing has installed is not the
+    /// un-overlaid generation under another name, and the caller decides
+    /// what it may do without the packs. [`Self::plain_context_registry`]
+    /// is the generation with no overlay, which cannot miss.
+    ///
+    /// # Errors
+    ///
+    /// [`OverlayMiss`] when `overlay` is non-zero and its pack-carrying
+    /// store has not been installed for this environment.
+    pub fn context_registry(
+        &self,
+        keyed: &KeyedVersions,
+        overlay: u64,
+    ) -> Result<Arc<ContextRegistry>, OverlayMiss> {
         registry_for_environment_if_built(&self.definition, &self.identity, keyed, overlay)
-            .unwrap_or_else(|| {
-                registry_for_environment_if_built(&self.definition, &self.identity, keyed, 0)
-                    .expect("the un-overlaid generation always builds")
-            })
+    }
+
+    /// The generation with no pack overlay, at `keyed` — always built, so
+    /// there is no miss to answer.
+    #[must_use]
+    pub fn plain_context_registry(&self, keyed: &KeyedVersions) -> Arc<ContextRegistry> {
+        registry_for_environment_if_built(&self.definition, &self.identity, keyed, 0)
+            .expect("the un-overlaid generation always builds")
     }
 
     /// The un-overlaid generation at default keyed axes — the plain
     /// "registry for this document" answer.
     #[must_use]
     pub fn default_context_registry(&self) -> Arc<ContextRegistry> {
-        self.context_registry(&KeyedVersions::default(), 0)
+        self.plain_context_registry(&KeyedVersions::default())
     }
 }
 
@@ -788,13 +802,7 @@ mod tests {
         // Tk placement.
         let tk = resolve_environment("tk");
         let tk_context = tk.default_context_registry();
-        assert!(
-            tk_context
-                .context()
-                .authoring_query()
-                .packages
-                .contains(&"Tk")
-        );
+        assert!(tk_context.context().authoring_query().carries("Tk"));
         assert!(tk_context.context().placement_is_ambient("Tk"));
         // …and no plain-Tcl environment gains it from the lenient hosted
         // rule: *hosting* Tk is not *shipping* it.
@@ -802,10 +810,7 @@ mod tests {
             let environment = resolve_environment(plain);
             let generation = environment.default_context_registry();
             let context = generation.context();
-            assert!(
-                !context.authoring_query().packages.contains(&"Tk"),
-                "{plain}"
-            );
+            assert!(!context.authoring_query().carries("Tk"), "{plain}");
             assert!(context.can_host_package("Tk"), "{plain}");
             assert!(!context.placement_is_ambient("Tk"), "{plain}");
         }
@@ -855,8 +860,33 @@ mod tests {
             "tcl8.5",
             "the generation answers under the resolved environment"
         );
-        let fallback = environment.context_registry(&KeyedVersions::default(), 0xDEAD);
-        assert!(Arc::ptr_eq(generation.commands(), fallback.commands()));
+    }
+
+    /// A pack overlay nothing installed is an error the caller sees, not the
+    /// plain generation under another name. Overlay `0` is no overlay and is
+    /// the plain generation; the installed half of the door is
+    /// `pack_overlays_thread_through_the_generation_door`'s.
+    #[test]
+    fn an_uninstalled_overlay_is_an_error_not_the_plain_generation() {
+        const OVERLAY: u64 = 0x0DEA_DBEE;
+        let environment = resolve_environment("tcl8.5");
+        let keyed = KeyedVersions::default();
+        assert_eq!(
+            environment.context_registry(&keyed, OVERLAY).err(),
+            Some(OverlayMiss {
+                environment: "tcl8.5".to_owned(),
+                overlay: OVERLAY,
+            }),
+            "nothing installed the overlay"
+        );
+        // A miss leaves nothing behind: the same key misses again.
+        assert!(environment.context_registry(&keyed, OVERLAY).is_err());
+
+        let plain = environment.plain_context_registry(&keyed);
+        let unoverlaid = environment
+            .context_registry(&keyed, 0)
+            .expect("no overlay never misses");
+        assert!(Arc::ptr_eq(unoverlaid.commands(), plain.commands()));
     }
 }
 

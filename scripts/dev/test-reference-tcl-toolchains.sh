@@ -166,7 +166,7 @@ fi
 
 # The three real-tclsh conformance binaries in the full Rust partition fail
 # closed after rejecting stale distro interpreters. Keep their CI provisioning
-# on the same Make entry point as SpecTcl so neither lane can silently fall back
+# on the same Make entry point as SpecTcl so neither suite can silently fall back
 # to an unpinned patchlevel.
 rust_tests_block="$(awk '
     /^  rust-tests-shard:/ { in_rust_tests = 1 }

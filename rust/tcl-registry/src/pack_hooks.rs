@@ -40,16 +40,21 @@
 //!   from a cache keyed by command + word shape rather than re-entering the
 //!   VM.  [`HookInputs`] is that declaration and [`HookInputs::shape_only`]
 //!   is the cacheability rule; the cache itself is thread-local, like the
-//!   host.
+//!   host. A content-keyed entry keeps the call's content and a hit compares
+//!   it: the hash is the bucket, never the proof.
+//! - **The evaluator generation.** [`evaluator_generation`] names this
+//!   thread's host and its health, changing wherever the cache is cleared
+//!   for a host change, so an analysis memo keyed by it never serves one
+//!   worker's answers to a worker whose evaluators differ.
 //!
 //! Nothing here evaluates anything. If no host is installed — the default in
 //! every process that has not loaded a pack — every thunk answers its family's
 //! documented silence, and the cost is one relaxed atomic load.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, AtomicU64, Ordering};
 use std::sync::{LazyLock, Mutex, OnceLock};
 
 use tcl_dialect::TclVersion;
@@ -62,7 +67,16 @@ use crate::invocation_words::{
     CommandPrefixArguments, InvocationArguments, InvocationWord, InvocationWordKind,
 };
 use crate::literal_validation::{LiteralArgumentValidation, LiteralArgumentValidator};
-use crate::spec::{ArgRoleResolver, CommandPrefixResolver, ContextGate, ScriptTimingResolver};
+use crate::spec::{
+    ArgRoleResolver, CommandPrefixResolver, ConstraintsHook, ContextGate, ScriptTimingResolver,
+};
+use crate::state_transition::{
+    AliasWords, CallerFrameSelection, StateTransition, StateTransitionResolver, StateTransitions,
+    TransitionSubject, VARIABLE_ALIAS_DOMAINS, VariableAliasTarget, VariableCellAliasTransition,
+};
+use crate::value_transfer::{
+    ContextDependency, DeclaredStructure, EvalRoute, EvaluatorGeneration, ImplementationBudget,
+};
 
 /// How many hooks of one family a process may install.
 ///
@@ -74,7 +88,7 @@ use crate::spec::{ArgRoleResolver, CommandPrefixResolver, ContextGate, ScriptTim
 /// folders loses the 65th's behaviour, never its facts.
 pub const SLOTS_PER_FAMILY: usize = 64;
 
-/// The ten hook families, which is what fixes a hook's calling convention:
+/// The hook families, which is what fixes a hook's calling convention:
 /// its emitter verbs, what silence means, and whether it may run on a call
 /// carrying a non-literal word.
 ///
@@ -109,11 +123,23 @@ pub enum HookFamily {
     /// through `option-present` / `option-value` / `arg-count` / `literal`
     /// and emits `invalid SLOT MESSAGE ?-conflict?` / `abstain REASON`.
     Constraints,
+    /// `evaluate -implementation` — a declared implementation's body. Its
+    /// parameters are the declared inputs, in order, and it emits `fold
+    /// VALUE`, `write TARGET VALUE` and `preserve TARGET`
+    /// (`docs/design/compiler/value-evaluation.md` § *The body verbs*).
+    Evaluate,
+    /// `state_transitions { resolver … }` — emits `alias LOCAL TARGET
+    /// ?-level LEVEL?` and `namespace-variable NAME`, word indices each, and
+    /// so states variable-cell alias facts and nothing else
+    /// (`docs/design/compiler/registry-consumer-contracts.md` § *The two hook
+    /// bodies that remain*): no verb reaches the command-binding,
+    /// interpreter, object-dispatch or trace families.
+    StateTransitionResolver,
 }
 
 /// Every family, in declaration order — the index a slot's family contributes
 /// to the per-family tables.
-pub const HOOK_FAMILIES: [HookFamily; 11] = [
+pub const HOOK_FAMILIES: [HookFamily; 13] = [
     HookFamily::ArgRoleResolver,
     HookFamily::CommandPrefixResolver,
     HookFamily::ScriptTimingResolver,
@@ -125,6 +151,8 @@ pub const HOOK_FAMILIES: [HookFamily; 11] = [
     HookFamily::ClauseShapeCheck,
     HookFamily::OptionArity,
     HookFamily::Constraints,
+    HookFamily::Evaluate,
+    HookFamily::StateTransitionResolver,
 ];
 
 impl HookFamily {
@@ -152,6 +180,8 @@ impl HookFamily {
                 "literal",
                 "arg-count",
             ],
+            Self::Evaluate => &["fold", "write", "preserve"],
+            Self::StateTransitionResolver => &["alias", "namespace-variable"],
         }
     }
 
@@ -173,6 +203,9 @@ impl HookFamily {
             // The declarative relations already answered; a silent hook adds
             // nothing to their verdict.
             Self::Constraints => "no report",
+            // Silence establishes nothing: the evaluation declines.
+            Self::Evaluate => "a decline",
+            Self::StateTransitionResolver => "no transitions",
         }
     }
 
@@ -189,7 +222,7 @@ impl HookFamily {
     pub fn requires_all_literal(self) -> bool {
         matches!(
             self,
-            Self::ConstFold | Self::ConstFoldVersioned | Self::OptionArity
+            Self::ConstFold | Self::ConstFoldVersioned | Self::OptionArity | Self::Evaluate
         )
     }
 
@@ -208,6 +241,8 @@ impl HookFamily {
             Self::ClauseShapeCheck => "clause_shape_check",
             Self::OptionArity => "options.arity_hook",
             Self::Constraints => "constraints",
+            Self::Evaluate => "evaluate",
+            Self::StateTransitionResolver => "state_transitions.resolver",
         }
     }
 
@@ -224,9 +259,246 @@ impl HookFamily {
             Self::ClauseShapeCheck => 8,
             Self::OptionArity => 9,
             Self::Constraints => 10,
+            Self::Evaluate => 11,
+            Self::StateTransitionResolver => 12,
         }
     }
 }
+
+/// A native implementation, named `SCOPE::FIELD`
+/// (`docs/design/compiler/value-evaluation.md` § *`-native ID`, and the
+/// per-family catalogues*). `SCOPE` is the command name, `command::subcommand`
+/// for a subcommand-scoped field, or `command::subcommand::-option` for an
+/// option-scoped one; `FIELD` is the field's own DSL keyword
+/// ([`HookFamily::field`], or `semantics` / `evaluate` / `facts`, the two
+/// statements no family owns and the one that is also `HookFamily::Evaluate`
+/// itself).
+///
+/// Every family and those two extra fields gets one of these tables below,
+/// each keyed by the full id, holding the shipped Rust value the id names.
+/// An empty table means nothing this build ships is reachable by id yet —
+/// not that the field cannot be declared natively — and every `-native ID`
+/// still keeps loading; it only ever fails to resolve.
+/// `rust/tcl-spectcl/src/loader.rs`'s `native_hook_tables_cover_their_catalogues`
+/// holds each table's id set level with `tcl_spectcl::catalogue`'s picker
+/// list of the same name, so a table that gains a shipped entry and a
+/// catalogue that does not name it fail the same assertion, from either
+/// side.
+pub const ARG_ROLE_RESOLVER_NATIVE: &[(&str, ArgRoleResolver)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`].
+pub const COMMAND_PREFIX_RESOLVER_NATIVE: &[(&str, CommandPrefixResolver)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`].
+pub const SCRIPT_TIMING_RESOLVER_NATIVE: &[(&str, ScriptTimingResolver)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`]. The shipped folders' unversioned
+/// constant folders, keyed by the command or subcommand each folds
+/// (`docs/design/compiler/value-evaluation.md`'s worked example).
+pub const CONST_FOLD_NATIVE: &[(&str, ConstFoldFn)] = &[
+    // `fold_range` itself is `VersionedConstFoldFn`-shaped (it reads the
+    // release); the unversioned slot `string range` actually ships is the
+    // unanimous-answer wrapper around it.
+    (
+        "string::range::const_fold",
+        crate::commands::tcl::fold_range_unanimous,
+    ),
+    (
+        "string::replace::const_fold",
+        crate::commands::tcl::fold_replace,
+    ),
+    ("regsub::const_fold", crate::commands::tcl::fold_regsub),
+    ("scan::const_fold", crate::commands::tcl::fold_scan),
+    ("list::const_fold", crate::const_fold::fold_list),
+    ("lindex::const_fold", crate::const_fold::fold_lindex),
+    ("concat::const_fold", crate::const_fold::fold_concat),
+    ("llength::const_fold", crate::const_fold::fold_llength),
+    ("lreverse::const_fold", crate::const_fold::fold_lreverse),
+    ("join::const_fold", crate::const_fold::fold_join),
+    ("split::const_fold", crate::const_fold::fold_split),
+    ("lrepeat::const_fold", crate::const_fold::fold_lrepeat),
+    ("lrange::const_fold", crate::const_fold::fold_lrange),
+    ("dict::get::const_fold", crate::const_fold::fold_dict_get),
+    (
+        "dict::exists::const_fold",
+        crate::const_fold::fold_dict_exists,
+    ),
+    ("dict::size::const_fold", crate::const_fold::fold_dict_size),
+    ("dict::keys::const_fold", crate::const_fold::fold_dict_keys),
+    (
+        "dict::values::const_fold",
+        crate::const_fold::fold_dict_values,
+    ),
+    (
+        "dict::create::const_fold",
+        crate::const_fold::fold_dict_create,
+    ),
+    (
+        "dict::merge::const_fold",
+        crate::const_fold::fold_dict_merge,
+    ),
+    // The `::tcl::dict::` spellings are commands of their own
+    // (`qualified_specs()`), each carrying its subcommand's folder.
+    (
+        "::tcl::dict::get::const_fold",
+        crate::const_fold::fold_dict_get,
+    ),
+    (
+        "::tcl::dict::exists::const_fold",
+        crate::const_fold::fold_dict_exists,
+    ),
+    (
+        "::tcl::dict::size::const_fold",
+        crate::const_fold::fold_dict_size,
+    ),
+    (
+        "::tcl::dict::keys::const_fold",
+        crate::const_fold::fold_dict_keys,
+    ),
+    (
+        "::tcl::dict::values::const_fold",
+        crate::const_fold::fold_dict_values,
+    ),
+    (
+        "::tcl::dict::create::const_fold",
+        crate::const_fold::fold_dict_create,
+    ),
+    (
+        "::tcl::dict::merge::const_fold",
+        crate::const_fold::fold_dict_merge,
+    ),
+    ("string::cat::const_fold", crate::commands::tcl::fold_cat),
+    (
+        "string::compare::const_fold",
+        crate::commands::tcl::fold_compare,
+    ),
+    (
+        "string::equal::const_fold",
+        crate::commands::tcl::fold_equal,
+    ),
+    (
+        "string::first::const_fold",
+        crate::commands::tcl::fold_first,
+    ),
+    (
+        "string::index::const_fold",
+        crate::commands::tcl::fold_index,
+    ),
+    ("string::last::const_fold", crate::commands::tcl::fold_last),
+    (
+        "string::length::const_fold",
+        crate::commands::tcl::fold_length,
+    ),
+    (
+        "string::map::const_fold",
+        crate::commands::tcl::fold_string_map,
+    ),
+    (
+        "string::match::const_fold",
+        crate::commands::tcl::fold_match,
+    ),
+    (
+        "string::repeat::const_fold",
+        crate::commands::tcl::fold_repeat,
+    ),
+    (
+        "string::reverse::const_fold",
+        crate::commands::tcl::fold_reverse,
+    ),
+    (
+        "string::tolower::const_fold",
+        crate::commands::tcl::fold_tolower,
+    ),
+    (
+        "string::totitle::const_fold",
+        crate::commands::tcl::fold_totitle,
+    ),
+    (
+        "string::toupper::const_fold",
+        crate::commands::tcl::fold_toupper,
+    ),
+    ("string::trim::const_fold", crate::commands::tcl::fold_trim),
+    (
+        "string::trimleft::const_fold",
+        crate::commands::tcl::fold_trimleft,
+    ),
+    (
+        "string::trimright::const_fold",
+        crate::commands::tcl::fold_trimright,
+    ),
+    (
+        "namespace::qualifiers::const_fold",
+        crate::commands::tcl::fold_qualifiers,
+    ),
+    (
+        "namespace::tail::const_fold",
+        crate::commands::tcl::fold_tail,
+    ),
+    ("subst::const_fold", crate::commands::tcl::fold_subst),
+];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`]. The shipped folders' release-aware
+/// constant folders.
+pub const CONST_FOLD_VERSIONED_NATIVE: &[(&str, VersionedConstFoldFn)] = &[
+    (
+        "string::is::const_fold_versioned",
+        crate::commands::tcl::fold_is,
+    ),
+    (
+        "string::range::const_fold_versioned",
+        crate::commands::tcl::fold_range,
+    ),
+    (
+        "format::const_fold_versioned",
+        crate::commands::tcl::fold_format,
+    ),
+    (
+        "regsub::const_fold_versioned",
+        crate::commands::tcl::fold_regsub_versioned,
+    ),
+];
+
+/// [`crate::spec::CommandSpec::taint_sink_gate`]'s function-pointer shape,
+/// named so [`TAINT_SINK_GATE_NATIVE`]'s element type stays under clippy's
+/// `type_complexity` threshold.
+pub type TaintSinkGateFn = fn(&[&str]) -> bool;
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`].
+pub const TAINT_SINK_GATE_NATIVE: &[(&str, TaintSinkGateFn)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`].
+pub const CONTEXT_GATE_NATIVE: &[(&str, ContextGate)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`].
+pub const LITERAL_ARGUMENT_VALIDATOR_NATIVE: &[(&str, LiteralArgumentValidator)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`].
+pub const CLAUSE_SHAPE_CHECK_NATIVE: &[(&str, ClauseShapeChecker)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`].
+pub const OPTION_ARITY_NATIVE: &[(&str, OptionValueHook)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`].
+pub const CONSTRAINTS_NATIVE: &[(&str, ConstraintsHook)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`]. `semantics -native ID`: the shipped
+/// structural plan, by name.
+pub const SEMANTICS_NATIVE: &[(&str, DeclaredStructure)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`]. `evaluate -native ID`: a shipped
+/// evaluator whose route the catalogue entry itself names. `-direct` and
+/// `-expression` are different, already-closed catalogues of their own
+/// (`NativeEvalId::ALL`, `LanguageProfileId::ALL`), not `SCOPE::FIELD` ids.
+pub const EVALUATE_NATIVE: &[(&str, EvalRoute)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`]. `state_transitions { resolver -native
+/// ID }`.
+pub const STATE_TRANSITION_RESOLVER_NATIVE: &[(&str, StateTransitionResolver)] = &[];
+
+/// See [`ARG_ROLE_RESOLVER_NATIVE`]. `facts -native ID`: checked, not
+/// stored — nothing reads a pack's facts yet — so the table records only
+/// which ids are shipped.
+pub const FACTS_NATIVE: &[(&str, ())] = &[];
 
 /// One input a hook body declares it reads.
 ///
@@ -343,9 +615,10 @@ impl HookInputs {
     /// may read is either fixed for the slot (`command`, `subcommand`) or part
     /// of the shape key (`nwords`, `kinds`, `tcl-version`, `in-event-body`).
     ///
-    /// `dialect` and `option` are *not* in the key, so declaring either is
-    /// uncacheable today; widening the key is the change to make if a pack
-    /// needs it.
+    /// `option` is *not* in the key, so declaring it is uncacheable today.
+    /// `dialect` is in the key — a release-pinned body runs on an engine
+    /// pinned to it — but declaring it still makes a hook uncacheable;
+    /// widening this rule is the change to make if a pack needs it.
     ///
     /// [`Self::binds_words`] is what keeps this honest: a hook that is
     /// shape-cacheable by this rule is not handed the words at all.
@@ -539,6 +812,16 @@ pub struct HookCall<'w> {
     /// was the bug — an iRules document reported `tcl9.0`, so a hook could
     /// never tell the two apart.
     pub dialect: Option<&'static str>,
+    /// The `evaluate` family's declared store targets, as the body names
+    /// them (`write TARGET VALUE`); empty for every other family.
+    pub targets: &'w [usize],
+    /// The `evaluate` family's own budget, which narrows the host's for this
+    /// call; the default narrows nothing.
+    pub budget: ImplementationBudget,
+    /// The `evaluate` family's declared context dependencies, in
+    /// declaration order: part of what a cached answer is compared on;
+    /// empty for every other family.
+    pub depends: &'w [ContextDependency],
 }
 
 impl HookCall<'_> {
@@ -552,10 +835,22 @@ impl HookCall<'_> {
     }
 }
 
+/// What an `evaluate` body stated: the result `fold` named, and one store
+/// per declared target in call order — `write TARGET VALUE` as the value,
+/// `preserve TARGET` as `None`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvaluationAnswer {
+    /// The invocation's result, when the body called `fold`.
+    pub result: Option<String>,
+    /// `(target, Some(value))` for a `write`, `(target, None)` for a
+    /// `preserve`, in call order.
+    pub stores: Vec<(usize, Option<String>)>,
+}
+
 /// What a hook invocation produced: the emitter verb it called, or an
 /// abstention.
 ///
-/// One enum for all ten families because the *protocol* is one protocol; the
+/// One enum for every family because the *protocol* is one protocol; the
 /// thunk that receives it knows its family and converts, applying that
 /// family's silence to [`Self::Abstain`] and to any answer of the wrong shape
 /// (a host bug must degrade, not mis-answer).
@@ -591,6 +886,41 @@ pub enum HookAnswer {
         /// The W141 message, when the hook rejected the value.
         invalid: Option<String>,
     },
+    /// `fold` / `write` / `preserve` — an `evaluate` body's answer, every
+    /// declared target spoken for.
+    Evaluation(EvaluationAnswer),
+    /// `alias …` / `namespace-variable …` — a `state_transitions` resolver
+    /// body's facts, by word index, in call order.
+    Transitions(Vec<PackTransition>),
+}
+
+/// One fact a `state_transitions` resolver body stated, by the index of the
+/// words it names. The thunk reads each index against the call's own words,
+/// so a computed word is known for what it is: its fact abstains and widens
+/// [`VARIABLE_ALIAS_DOMAINS`] rather than naming a cell. Only the variable
+/// alias family has a verb, which is what keeps a pack body from stating a
+/// command-binding, interpreter, object-dispatch or trace fact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackTransition {
+    /// `alias LOCAL TARGET ?-level LEVEL?` — the word at `local` names a
+    /// current-frame variable bound to the variable the word at `target`
+    /// names in the caller's frame, or in the frame the level word at
+    /// `level` selects (`upvar`'s fact).
+    Alias {
+        /// The local variable's word.
+        local: usize,
+        /// The target variable's word.
+        target: usize,
+        /// The level word, when the call names one.
+        level: Option<usize>,
+    },
+    /// `namespace-variable NAME` — the word at `name` names a variable of the
+    /// current namespace the call binds locally under its tail (`variable`'s
+    /// fact).
+    NamespaceVariable {
+        /// The variable's word.
+        name: usize,
+    },
 }
 
 /// The hook host, as the registry sees it.
@@ -605,6 +935,14 @@ pub enum HookAnswer {
 pub trait PackHookHost {
     /// Answer one hook invocation.
     fn invoke(&self, slot: HookSlot, call: &HookCall<'_>) -> HookAnswer;
+
+    /// Whether `slot`'s hook can run on this host now: `false` once it is
+    /// quarantined or its pack poisoned. A state of the host, never a
+    /// verdict on any call's inputs.
+    fn is_available(&self, slot: HookSlot) -> bool {
+        let _ = slot;
+        true
+    }
 }
 
 /// Per-family allocation counters. Process-global because a slot is baked
@@ -703,6 +1041,19 @@ thread_local! {
     /// The shape-keyed answer cache, and its counters.
     static SHAPE_CACHE: RefCell<ShapeCache> = RefCell::new(ShapeCache::default());
 
+    /// This thread's evaluator generation.
+    static GENERATION: Cell<EvaluatorGeneration> =
+        const { Cell::new(EvaluatorGeneration::NO_HOST) };
+
+    /// Whether this thread's host was built from a published plan
+    /// ([`install_plan_host`]), so the registered installer keeps it in step
+    /// with the plan; a host installed directly ([`install_host`]) is its
+    /// installer's own business.
+    static FROM_PLAN: Cell<bool> = const { Cell::new(false) };
+
+    /// The commands the host's engines dispatched since the last take.
+    static SPENT: Cell<u64> = const { Cell::new(0) };
+
     /// The dialect whose registry this thread is currently analysing against,
     /// as [`DialectProfile::name`] spells it (`f5-irules`, `tcl9.0`, …).
     ///
@@ -774,31 +1125,166 @@ pub fn set_installer(installer: fn()) {
     let _ = INSTALLER.set(installer);
 }
 
+/// The next generation no state has had. Process-wide, so a generation
+/// minted on one thread is never minted again on another.
+static NEXT_GENERATION: AtomicU32 = AtomicU32::new(1);
+
+/// A generation no other state shares.
+fn fresh_generation() -> EvaluatorGeneration {
+    // Zero is the host-absent state; a wrapped counter skips it.
+    EvaluatorGeneration(NEXT_GENERATION.fetch_add(1, Ordering::Relaxed).max(1))
+}
+
+/// The generation of a host built from published plan `plan`: one per plan,
+/// shared by every thread whose host was built from it.
+fn plan_generation(plan: u64) -> EvaluatorGeneration {
+    static PLANS: LazyLock<Mutex<HashMap<u64, EvaluatorGeneration>>> =
+        LazyLock::new(|| Mutex::new(HashMap::new()));
+    let mut plans = match PLANS.lock() {
+        Ok(plans) => plans,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    *plans.entry(plan).or_insert_with(fresh_generation)
+}
+
 /// Install `host` as this thread's pack-hook host, replacing any previous one.
 ///
 /// Every pack-declared hook on this thread abstains until this is called, so
 /// a worker thread that never installs a host behaves exactly like a build
-/// with no packs loaded.
+/// with no packs loaded. The host gets a generation of its own; a host built
+/// from a published plan is installed with [`install_plan_host`] instead, so
+/// every worker serving that plan shares its memoised answers.
 pub fn install_host(host: Rc<dyn PackHookHost>) {
+    install(host, fresh_generation(), false);
+}
+
+/// Install `host`, built from the published plan `plan`, as this thread's
+/// host: every thread that installs a host for one plan is at one
+/// generation.
+pub fn install_plan_host(host: Rc<dyn PackHookHost>, plan: u64) {
+    install(host, plan_generation(plan), true);
+}
+
+fn install(host: Rc<dyn PackHookHost>, generation: EvaluatorGeneration, from_plan: bool) {
     ANY_HOST.store(true, Ordering::Relaxed);
     clear_cache();
     HOST.with(|slot| {
         slot.borrow_mut().replace(host);
     });
+    GENERATION.with(|current| current.set(generation));
+    FROM_PLAN.with(|current| current.set(from_plan));
 }
 
-/// Remove this thread's host; every pack hook abstains again.
+/// Remove this thread's host; every pack hook abstains again, and the
+/// thread is at [`EvaluatorGeneration::NO_HOST`].
 pub fn clear_host() {
     clear_cache();
     HOST.with(|slot| {
         slot.borrow_mut().take();
     });
+    GENERATION.with(|current| current.set(EvaluatorGeneration::NO_HOST));
+    FROM_PLAN.with(|current| current.set(false));
+}
+
+/// Record that the host's engine dispatched `commands` answering the call
+/// in flight: a declared implementation's evaluation charges them to its
+/// budget one-to-one (`docs/design/compiler/value-evaluation.md` § *Units
+/// and charges*).
+pub fn record_commands_spent(commands: u64) {
+    SPENT.with(|spent| spent.set(spent.get().saturating_add(commands)));
+}
+
+/// The commands recorded since the last take, which starts the count
+/// again.
+#[must_use]
+pub fn take_commands_spent() -> u64 {
+    SPENT.with(|spent| spent.replace(0))
+}
+
+/// Record that this thread's host quarantined a hook or poisoned a pack:
+/// the cached answers go, the thread takes a generation no other state
+/// has, since what its host can still run is its own, and the process's
+/// [`evaluator_epoch`] moves.
+pub fn note_quarantine() {
+    clear_cache();
+    GENERATION.with(|current| current.set(fresh_generation()));
+    advance_evaluator_epoch();
+}
+
+/// The process's evaluator epoch: it moves whenever the evaluators some
+/// thread serves change in a way a memo shared between threads must see —
+/// a hook plan published ([`advance_evaluator_epoch`], which the plan's
+/// owner calls), or a hook quarantined ([`note_quarantine`]).
+static EVALUATOR_EPOCH: AtomicU64 = AtomicU64::new(0);
+
+/// The process's evaluator epoch. A thread's own
+/// [`evaluator_generation`] keys what it computes; this is the one number a
+/// memo shared by every thread — the language server's query database —
+/// takes as an input, so a plan reload or a quarantine anywhere re-keys it.
+#[must_use]
+pub fn evaluator_epoch() -> u64 {
+    EVALUATOR_EPOCH.load(Ordering::Relaxed)
+}
+
+/// Move the process's [`evaluator_epoch`]: the evaluators some thread
+/// serves have changed.
+pub fn advance_evaluator_epoch() {
+    EVALUATOR_EPOCH.fetch_add(1, Ordering::Relaxed);
+}
+
+/// This thread's evaluator generation, building its host first as
+/// [`dispatch`] would, so the generation names the evaluators an analysis
+/// that starts now runs with.
+#[must_use]
+pub fn evaluator_generation() -> EvaluatorGeneration {
+    if ANY_HOST.load(Ordering::Relaxed) || INSTALLER.get().is_some() {
+        ensure_host();
+    }
+    GENERATION.with(Cell::get)
+}
+
+/// This thread's host, first brought up to the published plan by the
+/// registered installer.
+///
+/// Unless the thread's host was installed directly ([`install_host`]), the
+/// installer runs before the host is read, every time: it builds a host for
+/// a thread that has none — abstaining there would answer "no packs" on a
+/// thread that simply had not been initialised — and rebuilds one whose
+/// plan was superseded. A thread that kept whatever plan host it last had
+/// would serve the old plan: a pool thread last used under plan N, reached
+/// by a query no worker closure re-synced, would compute a lattice through
+/// plan N's host and memoise it under plan N+1's pack key and evaluator
+/// epoch. When nothing moved the installer returns after one atomic load
+/// and one thread-local read.
+fn ensure_host() -> Option<Rc<dyn PackHookHost>> {
+    let direct = HOST
+        .with(|slot| slot.borrow().clone())
+        .filter(|_| !FROM_PLAN.with(Cell::get));
+    if direct.is_some() {
+        return direct;
+    }
+    if let Some(installer) = INSTALLER.get() {
+        installer();
+    }
+    HOST.with(|slot| slot.borrow().clone())
 }
 
 /// Whether this thread has a host installed.
 #[must_use]
 pub fn has_host() -> bool {
     ANY_HOST.load(Ordering::Relaxed) && HOST.with(|slot| slot.borrow().is_some())
+}
+
+/// Whether this thread's host can run `slot`'s hook now, building the host
+/// first as [`dispatch`] would. `false` — no host, or the hook quarantined
+/// or its pack poisoned — is transient: it says nothing about any call's
+/// inputs, so an answer that rests on it must not be kept as a verdict.
+#[must_use]
+pub fn slot_available(slot: HookSlot) -> bool {
+    if !ANY_HOST.load(Ordering::Relaxed) {
+        return false;
+    }
+    ensure_host().is_some_and(|host| host.is_available(slot))
 }
 
 /// The shape key: everything a shape-cacheable hook may read, packed.
@@ -819,13 +1305,116 @@ struct ShapeKey {
     /// `tcl-version` as a stable discriminant — `TclVersion` is `Ord` but not
     /// `Hash`, and only its identity matters here.
     version: Option<&'static str>,
+    /// The profile the call is analysed under. A hook body may not read it
+    /// and stay cacheable, but a release-pinned body runs on an engine
+    /// pinned to it, so one release's answer is never served under another.
+    dialect: Option<&'static str>,
     in_event_body: bool,
     content: u64,
 }
 
+/// Everything a content-keyed answer rests on beyond its [`ShapeKey`]: the
+/// words' values, the `constraints` family's invocation view, and the
+/// `evaluate` family's declared targets, budget and dependencies. Kept with
+/// the answer and compared on every hit, because the key's `content` is a
+/// hash — the bucket, never the proof. The profile the target semantics
+/// derive from is the key's `dialect`, compared exactly.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct CallContent {
+    words: Vec<String>,
+    constraints: Option<ConstraintContent>,
+    targets: Vec<usize>,
+    budget: ImplementationBudget,
+    depends: Vec<ContextDependency>,
+}
+
+/// An owned copy of a [`ConstraintCallCtx`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ConstraintContent {
+    options: Vec<(&'static str, Option<String>)>,
+    positionals: Vec<Option<String>>,
+    complete: bool,
+}
+
+impl CallContent {
+    /// The content of `call` a `mode` slot's answer may depend on: all of
+    /// it for a content-keyed slot, nothing for a shape-keyed one — whose
+    /// key already holds everything its body is given.
+    fn of(call: &HookCall<'_>, mode: CacheMode) -> Self {
+        if mode != CacheMode::Content {
+            return Self::default();
+        }
+        Self {
+            words: call
+                .words
+                .iter()
+                .map(|word| word.value.to_owned())
+                .collect(),
+            constraints: call.constraints.map(|view| ConstraintContent {
+                options: view
+                    .options
+                    .iter()
+                    .map(|(name, value)| (*name, value.map(str::to_owned)))
+                    .collect(),
+                positionals: view
+                    .positionals
+                    .iter()
+                    .map(|word| word.map(str::to_owned))
+                    .collect(),
+                complete: view.complete,
+            }),
+            targets: call.targets.to_vec(),
+            budget: call.budget,
+            depends: call.depends.to_vec(),
+        }
+    }
+
+    /// Whether `call` has exactly this content, compared without copying.
+    fn matches(&self, call: &HookCall<'_>, mode: CacheMode) -> bool {
+        if mode != CacheMode::Content {
+            return true;
+        }
+        let constraints_match = match (&self.constraints, call.constraints) {
+            (None, None) => true,
+            (Some(kept), Some(view)) => {
+                kept.complete == view.complete
+                    && kept.options.len() == view.options.len()
+                    && kept.options.iter().zip(view.options).all(
+                        |((name, value), (other, other_value))| {
+                            name == other && value.as_deref() == *other_value
+                        },
+                    )
+                    && kept.positionals.len() == view.positionals.len()
+                    && kept
+                        .positionals
+                        .iter()
+                        .zip(view.positionals)
+                        .all(|(kept, word)| kept.as_deref() == *word)
+            }
+            _ => false,
+        };
+        constraints_match
+            && self.words.len() == call.words.len()
+            && self
+                .words
+                .iter()
+                .zip(call.words)
+                .all(|(kept, word)| kept == word.value)
+            && self.targets == call.targets
+            && self.budget == call.budget
+            && self.depends == call.depends
+    }
+}
+
+/// One cached answer, with the content it was computed for.
+struct CacheEntry {
+    content: CallContent,
+    answer: HookAnswer,
+}
+
 #[derive(Default)]
 struct ShapeCache {
-    entries: HashMap<ShapeKey, HookAnswer>,
+    entries: HashMap<ShapeKey, CacheEntry>,
     hits: u64,
     misses: u64,
 }
@@ -867,9 +1456,14 @@ pub fn clear_cache() {
 
 /// A stable hash of everything a [`CacheMode::Content`] slot may read beyond
 /// the shape: the words' literal values and the `constraints` family's
-/// structured invocation view.
+/// structured invocation view. The bucket a content-keyed answer is found
+/// in; [`CallContent::matches`] is what proves the hit.
 fn content_hash(call: &HookCall<'_>) -> u64 {
     use std::hash::{Hash as _, Hasher as _};
+    #[cfg(test)]
+    if let Some(forced) = tests::FORCED_CONTENT_HASH.with(Cell::get) {
+        return forced;
+    }
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     for word in call.words {
         word.value.hash(&mut hasher);
@@ -904,6 +1498,7 @@ fn shape_key(slot: HookSlot, call: &HookCall<'_>, mode: CacheMode) -> Option<Sha
         nwords: u16::try_from(call.words.len()).ok()?,
         kinds,
         version: call.version.map(TclVersion::version_string),
+        dialect: call.dialect,
         in_event_body: call.in_event_body,
         content: match mode {
             CacheMode::Content => content_hash(call),
@@ -934,7 +1529,11 @@ pub fn dispatch(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
     if let Some(key) = key
         && let Some(hit) = SHAPE_CACHE.with(|cache| {
             let mut cache = cache.borrow_mut();
-            let hit = cache.entries.get(&key).cloned();
+            let hit = cache
+                .entries
+                .get(&key)
+                .filter(|entry| entry.content.matches(call, mode))
+                .map(|entry| entry.answer.clone());
             if hit.is_some() {
                 cache.hits += 1;
             }
@@ -943,19 +1542,7 @@ pub fn dispatch(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
     {
         return hit;
     }
-    let mut host = HOST.with(|slot| slot.borrow().clone());
-    if host.is_none() {
-        // This thread has never dispatched a hook before (or the plan moved
-        // under it). Build its host now rather than abstaining: abstaining
-        // here would silently answer "no packs" on a thread that simply had
-        // not been initialised, which is the same command resolving
-        // differently depending on which worker took the task.
-        if let Some(installer) = INSTALLER.get() {
-            installer();
-            host = HOST.with(|slot| slot.borrow().clone());
-        }
-    }
-    let Some(host) = host else {
+    let Some(host) = ensure_host() else {
         return HookAnswer::Abstain;
     };
     let answer = host.invoke(slot, call);
@@ -966,7 +1553,14 @@ pub fn dispatch(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
             if cache.entries.len() >= MAX_CACHE_ENTRIES {
                 cache.entries.clear();
             }
-            cache.entries.insert(key, answer.clone());
+            // A colliding bucket holds the latest content's answer.
+            cache.entries.insert(
+                key,
+                CacheEntry {
+                    content: CallContent::of(call, mode),
+                    answer: answer.clone(),
+                },
+            );
         });
     }
     answer
@@ -1035,6 +1629,9 @@ fn call_of<'w>(words: &'w [HookWord<'w>], version: Option<TclVersion>) -> HookCa
         option: None,
         constraints: None,
         dialect: current_dialect(),
+        targets: &[],
+        budget: ImplementationBudget::default(),
+        depends: &[],
     }
 }
 
@@ -1138,6 +1735,9 @@ fn context_gate_thunk<const N: u16>(args: &[&str], in_event_body: bool) -> Optio
         option: None,
         constraints: None,
         dialect: current_dialect(),
+        targets: &[],
+        budget: ImplementationBudget::default(),
+        depends: &[],
     };
     match dispatch(
         HookSlot {
@@ -1195,6 +1795,9 @@ fn option_arity_thunk<const N: u16>(args: &[&str], start: usize) -> OptionValueO
         option: Some(option),
         constraints: None,
         dialect: current_dialect(),
+        targets: &[],
+        budget: ImplementationBudget::default(),
+        depends: &[],
     };
     match dispatch(
         HookSlot {
@@ -1262,6 +1865,9 @@ fn constraints_thunk<const N: u16>(
             complete: facts.complete,
         }),
         dialect: current_dialect(),
+        targets: &[],
+        budget: ImplementationBudget::default(),
+        depends: &[],
     };
     match dispatch(
         HookSlot {
@@ -1273,6 +1879,81 @@ fn constraints_thunk<const N: u16>(
         HookAnswer::Constraints(reports) => reports,
         _ => Vec::new(),
     }
+}
+
+/// The `state_transitions` resolver family's thunk: the body's facts, read
+/// against the call's own words.
+fn state_transition_thunk<const N: u16>(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let words = structured_words(arguments);
+    match dispatch(
+        HookSlot {
+            family: HookFamily::StateTransitionResolver,
+            index: N,
+        },
+        &call_of(&words, None),
+    ) {
+        HookAnswer::Transitions(stated) => pack_transitions(arguments, &stated),
+        _ => StateTransitions::default(),
+    }
+}
+
+/// The facts a resolver body's verbs state, in call order. A fact naming a
+/// word past the call names nothing and is dropped; a fact naming a computed
+/// word abstains and widens [`VARIABLE_ALIAS_DOMAINS`] for that word — the
+/// family's contract that an abstention widens rather than narrows.
+fn pack_transitions(
+    arguments: InvocationArguments<'_>,
+    stated: &[PackTransition],
+) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    for &fact in stated {
+        match stated_alias(arguments, fact) {
+            Ok(alias) => transitions.push(StateTransition::VariableCellAlias(alias)),
+            Err(Some(computed)) => transitions.widen(computed, VARIABLE_ALIAS_DOMAINS),
+            Err(None) => {}
+        }
+    }
+    transitions
+}
+
+/// The alias `fact` states over `arguments`, or why it states none:
+/// `Err(Some(word))` for the first computed word it names, `Err(None)` for a
+/// word past the call.
+fn stated_alias(
+    arguments: InvocationArguments<'_>,
+    fact: PackTransition,
+) -> Result<VariableCellAliasTransition, Option<TransitionSubject>> {
+    let literal = |index: usize| match TransitionSubject::from_argument(arguments, index) {
+        Some(subject @ TransitionSubject::Literal(_)) => Ok(subject),
+        other => Err(other),
+    };
+    Ok(match fact {
+        PackTransition::Alias {
+            local,
+            target,
+            level,
+        } => VariableCellAliasTransition {
+            local: literal(local)?,
+            target: VariableAliasTarget::CallerSelectedFrame {
+                frame: match level {
+                    None => CallerFrameSelection::DefaultCaller,
+                    Some(level) => CallerFrameSelection::Explicit(literal(level)?),
+                },
+                variable: literal(target)?,
+            },
+            writes_value: false,
+            words: AliasWords { local, target },
+        },
+        PackTransition::NamespaceVariable { name } => {
+            let variable = literal(name)?;
+            VariableCellAliasTransition {
+                local: crate::state_transition::local_alias_name(&variable),
+                target: VariableAliasTarget::CurrentNamespace { variable },
+                writes_value: false,
+                words: AliasWords::same(name),
+            }
+        }
+    })
 }
 
 /// The 64 slot indices, handed to a macro that needs one item per slot.
@@ -1313,6 +1994,8 @@ macro_rules! slot_tables {
             [$(option_arity_thunk::<$index>),*];
         static CONSTRAINTS_THUNKS: [crate::spec::ConstraintsHook; SLOTS_PER_FAMILY] =
             [$(constraints_thunk::<$index>),*];
+        static STATE_TRANSITION_THUNKS: [StateTransitionResolver; SLOTS_PER_FAMILY] =
+            [$(state_transition_thunk::<$index>),*];
     };
 }
 
@@ -1390,9 +2073,22 @@ pub fn constraints_fn(slot: HookSlot) -> Option<crate::spec::ConstraintsHook> {
     thunk_index(slot, HookFamily::Constraints).map(|index| CONSTRAINTS_THUNKS[index])
 }
 
+/// The `state_transitions` resolver function pointer for `slot`.
+#[must_use]
+pub fn state_transition_resolver_fn(slot: HookSlot) -> Option<StateTransitionResolver> {
+    thunk_index(slot, HookFamily::StateTransitionResolver)
+        .map(|index| STATE_TRANSITION_THUNKS[index])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    thread_local! {
+        /// The content hash every call on this thread is forced to, when
+        /// set: two different contents in one bucket.
+        pub(super) static FORCED_CONTENT_HASH: Cell<Option<u64>> = const { Cell::new(None) };
+    }
 
     struct FixedHost(HookAnswer);
 
@@ -1449,6 +2145,84 @@ mod tests {
         clear_host();
     }
 
+    /// A resolver body's facts are read against the call's own words: a
+    /// literal alias becomes an alias fact; a fact naming a computed word
+    /// abstains and widens the variable-cell domains for that word; a fact
+    /// naming a word past the call names nothing; and silence is no
+    /// transitions. No verb can state any family but the alias one.
+    #[test]
+    fn a_resolver_body_states_alias_facts_and_widens_where_it_abstains() {
+        use crate::state_transition::{
+            CallerFrameSelection, StateTransition, StateTransitionWidening, VariableAliasTarget,
+            VariableCellAliasTransition,
+        };
+        let slot = allocate(
+            HookFamily::StateTransitionResolver,
+            &HookInputs::unrestricted(),
+        )
+        .expect("a resolver slot is available");
+        let resolver = state_transition_resolver_fn(slot).expect("the slot's family matches");
+        install_host(Rc::new(FixedHost(HookAnswer::Transitions(vec![
+            PackTransition::Alias {
+                local: 2,
+                target: 1,
+                level: Some(0),
+            },
+            PackTransition::NamespaceVariable { name: 3 },
+            PackTransition::Alias {
+                local: 9,
+                target: 1,
+                level: None,
+            },
+        ]))));
+        let words = [
+            InvocationWord::Literal("#0"),
+            InvocationWord::Literal("other"),
+            InvocationWord::Literal("mine"),
+            InvocationWord::Dynamic,
+        ];
+        let transitions = resolver(InvocationArguments::structured(&words));
+        let facts: Vec<&StateTransition> = transitions
+            .facts()
+            .iter()
+            .map(|fact| &fact.transition)
+            .collect();
+        assert_eq!(
+            facts,
+            [
+                &StateTransition::VariableCellAlias(VariableCellAliasTransition {
+                    local: TransitionSubject::Literal("mine".to_owned()),
+                    target: VariableAliasTarget::CallerSelectedFrame {
+                        frame: CallerFrameSelection::Explicit(TransitionSubject::Literal(
+                            "#0".to_owned()
+                        )),
+                        variable: TransitionSubject::Literal("other".to_owned()),
+                    },
+                    writes_value: false,
+                    words: AliasWords {
+                        local: 2,
+                        target: 1,
+                    },
+                }),
+                &StateTransition::Widen(StateTransitionWidening {
+                    domains: VARIABLE_ALIAS_DOMAINS.to_vec(),
+                    subject: TransitionSubject::Unknown {
+                        argument_index: 3,
+                        word_kind: InvocationWordKind::Dynamic,
+                    },
+                }),
+            ]
+        );
+        install_host(Rc::new(FixedHost(HookAnswer::Abstain)));
+        assert!(
+            resolver(InvocationArguments::structured(&words))
+                .facts()
+                .is_empty(),
+            "silence is no transitions"
+        );
+        clear_host();
+    }
+
     #[test]
     fn declared_shape_inputs_are_cacheable_and_words_are_not() {
         assert!(HookInputs::parse(&["nwords", "kinds"]).shape_only());
@@ -1479,6 +2253,100 @@ mod tests {
         assert_eq!(host.calls.get(), 2);
         let stats = cache_stats();
         assert_eq!((stats.hits, stats.misses, stats.entries), (1, 2, 2));
+        clear_host();
+    }
+
+    /// A host folding its words, counting its calls.
+    struct EchoHost {
+        calls: Cell<u32>,
+    }
+
+    impl PackHookHost for EchoHost {
+        fn invoke(&self, _slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
+            self.calls.set(self.calls.get() + 1);
+            HookAnswer::Fold(
+                call.words
+                    .iter()
+                    .map(|word| word.value)
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            )
+        }
+    }
+
+    /// A content-keyed answer is proven on every hit, never found by its
+    /// hash alone: two calls whose content hashes collide are two misses,
+    /// each answered for its own words, and the same content again is a
+    /// hit.
+    #[test]
+    fn a_hash_collision_is_not_a_hit() {
+        let slot = allocate(HookFamily::ConstFold, &HookInputs::parse(&["words"])).unwrap();
+        assert_eq!(cache_mode(slot), CacheMode::Content);
+        let fold = const_fold_fn(slot).unwrap();
+        let host = Rc::new(EchoHost {
+            calls: Cell::new(0),
+        });
+        install_host(host.clone());
+        FORCED_CONTENT_HASH.with(|forced| forced.set(Some(7)));
+        assert_eq!(fold(&["abc"]), Some("abc".to_owned()));
+        assert_eq!(
+            fold(&["xyz"]),
+            Some("xyz".to_owned()),
+            "one bucket, another content: not a hit"
+        );
+        assert_eq!(host.calls.get(), 2);
+        assert_eq!(fold(&["xyz"]), Some("xyz".to_owned()));
+        assert_eq!(host.calls.get(), 2, "the same content is a hit");
+        FORCED_CONTENT_HASH.with(|forced| forced.set(None));
+        clear_host();
+    }
+
+    /// The evaluator generation names the host and its health: installing
+    /// one moves the worker off `NO_HOST`, a quarantine gives it a
+    /// generation no other state has and moves the process's epoch, and
+    /// clearing the host returns it to `NO_HOST`. Two workers serving one
+    /// published plan share a generation, so their memoised answers are
+    /// shared; the worker whose host then quarantines a hook shares it with
+    /// no one.
+    #[test]
+    fn host_install_and_quarantine_bump_the_generation() {
+        // A plan no other test in this binary publishes.
+        const PLAN: u64 = u64::MAX - 7;
+        clear_host();
+        assert_eq!(evaluator_generation(), EvaluatorGeneration::NO_HOST);
+        install_host(Rc::new(FixedHost(HookAnswer::Abstain)));
+        let installed = evaluator_generation();
+        assert_ne!(installed, EvaluatorGeneration::NO_HOST);
+        install_host(Rc::new(FixedHost(HookAnswer::Abstain)));
+        let reinstalled = evaluator_generation();
+        assert_ne!(reinstalled, installed, "a host without a plan is its own");
+        let epoch = evaluator_epoch();
+        note_quarantine();
+        assert_ne!(evaluator_generation(), reinstalled);
+        assert!(
+            evaluator_epoch() > epoch,
+            "a quarantine moves the process's epoch"
+        );
+        clear_host();
+        assert_eq!(evaluator_generation(), EvaluatorGeneration::NO_HOST);
+
+        install_plan_host(Rc::new(FixedHost(HookAnswer::Abstain)), PLAN);
+        let here = evaluator_generation();
+        let (there, quarantined) = std::thread::spawn(|| {
+            install_plan_host(Rc::new(FixedHost(HookAnswer::Abstain)), PLAN);
+            let shared = evaluator_generation();
+            note_quarantine();
+            (shared, evaluator_generation())
+        })
+        .join()
+        .expect("the worker ran");
+        assert_eq!(there, here, "one plan, one generation");
+        assert_ne!(quarantined, here, "a quarantine is its worker's own");
+        assert_eq!(
+            evaluator_generation(),
+            here,
+            "and this worker keeps its own"
+        );
         clear_host();
     }
 

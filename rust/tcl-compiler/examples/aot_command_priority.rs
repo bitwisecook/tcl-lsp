@@ -266,10 +266,15 @@ impl Census<'_> {
         args: &[&str],
         depth: u32,
     ) -> Option<usize> {
-        let case = self.registry.get(name).and_then(|s| s.case_list)?;
+        let spec = self.registry.get(name)?;
+        let case = spec.case_list?;
         let call_shape = CallShape {
             subject_args: usize::from(case.subject_args),
-            regex_option: case.regex_option,
+            // The regex-mode switch is the option row whose effect selects
+            // regular-expression matching.
+            regex_option: spec.option_selecting(tcl_registry::EffectAxis::Selection(
+                tcl_registry::CaseMatchMode::Regexp,
+            )),
             value_options: case.value_options_require_regex,
         };
         let clause_call = clause_list_call(args, &call_shape)?;
