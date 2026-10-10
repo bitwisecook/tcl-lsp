@@ -1,0 +1,117 @@
+ *
+ * Results:
+ *	A standard Tcl object result.
+ *
+ * Side effects:
+ *	See the user documentation.
+ *
+ *----------------------------------------------------------------------
+ */
+
+	/* ARGSUSED */
+int
+Tcl_ErrorObjCmd(
+    ClientData dummy,		/* Not used. */
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument objects. */
+{
+    Tcl_Obj *options, *optName;
+
+    if ((objc < 2) || (objc > 4)) {
+	Tcl_WrongNumArgs(interp, 1, objv, "message ?errorInfo? ?errorCode?");
+	return TCL_ERROR;
+    }
+
+    TclNewLiteralStringObj(options, "-code error -level 0");
+
+    if (objc >= 3) {		/* Process the optional info argument */
+	TclNewLiteralStringObj(optName, "-errorinfo");
+	Tcl_ListObjAppendElement(NULL, options, optName);
+	Tcl_ListObjAppendElement(NULL, options, objv[2]);
+    }
+
+    if (objc >= 4) {		/* Process the optional code argument */
+	TclNewLiteralStringObj(optName, "-errorcode");
+	Tcl_ListObjAppendElement(NULL, options, optName);
+	Tcl_ListObjAppendElement(NULL, options, objv[3]);
+    }
+
+    Tcl_SetObjResult(interp, objv[1]);
+    return Tcl_SetReturnOptions(interp, options);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_EvalObjCmd --
+ *
+ *	This object-based procedure is invoked to process the "eval" Tcl
+ *	command. See the user documentation for details on what it does.
+ *
+ * Results:
+ *	A standard Tcl object result.
+ *
+ * Side effects:
+ *	See the user documentation.
+ *
+ *----------------------------------------------------------------------
+ */
+
+	/* ARGSUSED */
+int
+Tcl_EvalObjCmd(
+    ClientData dummy,		/* Not used. */
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument objects. */
+{
+    int result;
+    register Tcl_Obj *objPtr;
+    Interp *iPtr = (Interp *) interp;
+
+    if (objc < 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "arg ?arg ...?");
+	return TCL_ERROR;
+    }
+
+    if (objc == 2) {
+	/*
+	 * TIP #280. Make argument location available to eval'd script.
+	 */
+
+	CmdFrame* invoker = iPtr->cmdFramePtr;
+	int word          = 1;
+	TclArgumentGet (interp, objv[1], &invoker, &word);
+
+	result = TclEvalObjEx(interp, objv[1], TCL_EVAL_DIRECT,
+		invoker, word);
+    } else {
+	/*
+	 * More than one argument: concatenate them together with spaces
+	 * between, then evaluate the result. Tcl_EvalObjEx will delete the
+	 * object when it decrements its refcount after eval'ing it.
+	 */
+
+	objPtr = Tcl_ConcatObj(objc-1, objv+1);
+
+	/*
+	 * TIP #280. Make invoking context available to eval'd script.
+	 */
+
+	result = TclEvalObjEx(interp, objPtr, TCL_EVAL_DIRECT, NULL, 0);
+    }
+    if (result == TCL_ERROR) {
+	Tcl_AppendObjToErrorInfo(interp, Tcl_ObjPrintf(
+		"\n    (\"eval\" body line %d)", interp->errorLine));
+    }
+    return result;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_ExitObjCmd --
+ *
+ *	This procedure is invoked to process the "exit" Tcl command. See the
+ *	user documentation for details on what it does.

@@ -102,6 +102,11 @@ mod tests {
 
     #[test]
     fn selected_mathop_identity_matches_all_60_native_name_and_argv_controls() {
+        // naming.mathop.original-jim-source-and-helper-context
+        // docs/design/analysis/name-resolution-proofs/mathop-original-jim-source-and-helper-context.md
+        // The pinned current Jim distribution reconfirms these ten unchanged
+        // Jim public code/result pairs with its actual NamespaceInfo library.
+        // It does not establish the different old CLI's library roster.
         let rows = include_str!("../../tcl-cmd-core/tests/data/native_mathop_identity/rows.txt");
         let decode = |text: &str| {
             text.as_bytes()
@@ -116,7 +121,13 @@ mod tests {
             let fields: Vec<_> = row.split('\t').collect();
             let profile =
                 tcl_registry::model::ingress::resolve_environment(fields[0]).unit_profile();
-            let mut vm = crate::native_fixture::interpreter(profile);
+            let libraries = if fields[0] == "jim" {
+                &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceInfo][..]
+            } else {
+                &[]
+            };
+            let mut vm =
+                crate::native_fixture::interpreter_with_scripted_libraries(profile, libraries);
             let source = String::from_utf8(decode(fields[4])).unwrap();
             let completion = vm.eval_source(&source).unwrap_or_else(|error| {
                 panic!(
@@ -148,6 +159,11 @@ mod tests {
 
     #[test]
     fn original_mathop_compilation_matches_all_84_native_controls() {
+        // naming.mathop.original-jim-source-and-helper-context
+        // docs/design/analysis/name-resolution-proofs/mathop-original-jim-source-and-helper-context.md
+        // Current Jim independently reconfirms these fourteen unchanged guarded
+        // script completions with NamespaceInfo. The unavailable mathop branch
+        // does not observe original Jim specialised compilation or operators.
         let rows = include_str!("../../tcl-cmd-core/tests/data/native_mathop_compilation/rows.txt");
         let decode = |text: &str| {
             text.as_bytes()
@@ -162,7 +178,13 @@ mod tests {
             let fields: Vec<_> = row.split('\t').collect();
             let profile =
                 tcl_registry::model::ingress::resolve_environment(fields[0]).unit_profile();
-            let mut vm = crate::native_fixture::interpreter(profile);
+            let libraries = if fields[0] == "jim" {
+                &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceInfo][..]
+            } else {
+                &[]
+            };
+            let mut vm =
+                crate::native_fixture::interpreter_with_scripted_libraries(profile, libraries);
             let source = String::from_utf8(decode(fields[4])).unwrap();
             let completion = vm.eval_source(&source).unwrap_or_else(|error| {
                 panic!(

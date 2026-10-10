@@ -66,8 +66,8 @@ pub use datagroup::{
     DataGroupDefinition, OriginalExactCaseSource, OriginalExactSwitchSource,
     OriginalScalarVariableSubject, ScalarVariableSourceSyntax, data_group_tcl,
     extract_to_datagroup, extract_to_datagroup_from_if, extract_to_datagroup_from_switch,
-    original_exact_case_source_at_analysis, original_exact_switch_source_at_analysis,
-    scalar_variable_source_syntax,
+    extract_to_datagroup_with_analysis, original_exact_case_source_at_analysis,
+    original_exact_switch_source_at_analysis, scalar_variable_source_syntax,
 };
 pub use extract_proc::{extract_proc, extract_proc_rename_command};
 pub use extract_variable::extract_variable;

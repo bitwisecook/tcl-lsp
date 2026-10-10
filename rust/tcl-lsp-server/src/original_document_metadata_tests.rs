@@ -1286,3 +1286,80 @@ async fn project_evidence_publication_withdraws_incomplete_checked_contributors(
         assert!(caller.external_call_sites(&*db).is_some());
     }
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn tk_preview_keeps_configured_constructor_and_reports_unavailable_overlay() {
+    // naming.core.original-tk-source-context
+    // docs/design/analysis/name-resolution-proofs/core-original-tk-source-context.md
+    // This public command projects source hints, without creating a widget.
+    use salsa::Setter as _;
+    let backend = crate::tests::test_backend();
+    let packs = tcl_spectcl::pack::load_in_memory(vec![(
+        tcl_spectcl::PackFile {
+            tier: tcl_spectcl::Tier::Workspace,
+            path: PathBuf::from("/workspace/.tcl-lsp/preview361.tclspec"),
+            origin: tcl_spectcl::discovery::Origin::DotDir,
+            dependency_tier: None,
+        },
+        "speclib preview361 1.0 {
+command preview361::frame {
+arity 1
+creates_instance_at 0
+required_package Tk
+}
+}"
+        .to_owned(),
+    )]);
+    assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
+    *backend.spec_packs.lock().await = PublishedPackSet {
+        seq: 361,
+        packs: Arc::new(packs),
+    };
+    backend.sync_db_config().await;
+    let uri = Uri::from_file_path("/workspace/preview361.tcl").unwrap();
+    let source = "package require Tk\npreview361::frame .kept";
+    backend.documents.lock("test").await.insert(
+        uri.clone(),
+        DocumentState::new(source.to_owned(), "tcl8.6".to_owned()),
+    );
+    backend
+        .db_set_source(&uri, source, "tcl8.6".to_owned())
+        .await;
+    let analysis = backend
+        .analysis_for(&uri, Arc::from(source), "tcl8.6".to_owned())
+        .await;
+    assert_eq!(
+        analysis
+            .resolved_registry()
+            .unwrap()
+            .snapshot()
+            .semantic_key(),
+        registry.snapshot().semantic_key()
+    );
+    let arguments = [serde_json::json!({ "uri": uri.as_str() })];
+    let model = backend
+        .tk_preview_command(&arguments)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(model["widget_count"], 2, "{model}");
+    assert_eq!(model["root"]["children"][0]["path"], ".kept", "{model}");
+
+    let config = *backend.db_config.lock().await;
+    {
+        let mut db = backend.db.lock().await;
+        config.set_spec_pack_key(&mut *db).to(u64::MAX - 361);
+    }
+    let unavailable = backend
+        .tk_preview_command(&arguments)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(unavailable["widget_count"], 0, "{unavailable}");
+    assert!(unavailable.get("root").is_none(), "{unavailable}");
+    assert_eq!(
+        unavailable["uncertainties"][0]["kind"], "source_context_unavailable",
+        "{unavailable}"
+    );
+}

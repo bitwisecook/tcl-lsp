@@ -1,0 +1,59 @@
+ *	An error message is generated in interp's result object to
+ *	indicate that a command was invoked with the wrong number of
+ *	arguments.  The message has the form
+ *		wrong # args: should be "foo bar additional stuff"
+ *	where "foo" and "bar" are the initial objects in objv (objc
+ *	determines how many of these are printed) and "additional stuff"
+ *	is the contents of the message argument.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+Tcl_WrongNumArgs(interp, objc, objv, message)
+    Tcl_Interp *interp;			/* Current interpreter. */
+    int objc;				/* Number of arguments to print
+					 * from objv. */
+    Tcl_Obj *CONST objv[];		/* Initial argument objects, which
+					 * should be included in the error
+					 * message. */
+    CONST char *message;		/* Error message to print after the
+					 * leading objects in objv. The
+					 * message may be NULL. */
+{
+    Tcl_Obj *objPtr;
+    int i;
+    register IndexRep *indexRep;
+
+    TclNewObj(objPtr);
+    Tcl_SetObjResult(interp, objPtr);
+    Tcl_AppendToObj(objPtr, "wrong # args: should be \"", -1);
+    for (i = 0; i < objc; i++) {
+	/*
+	 * If the object is an index type use the index table which allows
+	 * for the correct error message even if the subcommand was
+	 * abbreviated.  Otherwise, just use the string rep.
+	 */
+	
+	if (objv[i]->typePtr == &tclIndexType) {
+	    indexRep = (IndexRep *) objv[i]->internalRep.otherValuePtr;
+	    Tcl_AppendStringsToObj(objPtr, EXPAND_OF(indexRep), (char *) NULL);
+	} else {
+	    Tcl_AppendStringsToObj(objPtr, Tcl_GetString(objv[i]),
+		    (char *) NULL);
+	}
+
+	/*
+	 * Append a space character (" ") if there is more text to follow
+	 * (either another element from objv, or the message string).
+	 */
+	if ((i < (objc - 1)) || message) {
+	    Tcl_AppendStringsToObj(objPtr, " ", (char *) NULL);
+	}
+    }
+
+    if (message) {
+	Tcl_AppendStringsToObj(objPtr, message, (char *) NULL);
+    }
+    Tcl_AppendStringsToObj(objPtr, "\"", (char *) NULL);
+}

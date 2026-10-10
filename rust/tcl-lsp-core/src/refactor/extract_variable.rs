@@ -39,16 +39,17 @@ pub fn extract_variable(
     line_index: &LineIndex,
 ) -> Option<Refactoring> {
     let (start, end) = selection;
-    let config = analysis.body_lexer_config?;
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let config = current.config();
     let image = SourceImage::document(source);
-    if end <= start || !analysis.matches_original_source_image(&image, config) {
+    if end <= start {
         return None;
     }
     let selected = source.get(start as usize..end as usize)?;
     if selected.trim().is_empty() {
         return None;
     }
-    let registry = analysis.resolved_registry()?;
+    let registry = current.registry();
     if !analysis.allows_lexical_declaration_advice() {
         let reason = original_assignment_candidate(source, Span::new(start, end), var_name, analysis)
             .err().unwrap_or_else(|| "Variable extraction requires an independently proved inserted store and evaluation movement".to_owned());
@@ -65,7 +66,7 @@ pub fn extract_variable(
     }
     let value = logical_value_word(selected, config)?;
     let setter = unique_logical_command(registry, analysis, LoweringHookId::Set)?;
-    let command = super::find_command_at(source, start, None, registry, config)?;
+    let command = super::find_original_command_at(source, start, analysis)?;
     let (command_start, command_end) = super::command_span_offsets(source, &command);
     if start < command_start || end > command_end {
         return None;

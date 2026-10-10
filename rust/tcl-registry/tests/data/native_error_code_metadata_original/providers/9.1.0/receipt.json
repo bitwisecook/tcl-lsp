@@ -1,0 +1,27 @@
+{
+  "provider": "9.1.0",
+  "request_sha256": "32f27a866072782f27faedb50f0b783b339846d5c06c5e82cdf6b8a34fa14a17",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/.proofs/native-error-code-metadata430/probe.tcl"
+  ],
+  "selected_environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "source_sha256": "11c9c5def98a57ede58c2814f742488628982fecf4e42c60967db0bf5992f6f2",
+  "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+  "executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+  "version_receipt": "/workspace/.proofs/native-jim-class-source269/9.1.0/receipt.json",
+  "version_receipt_sha256": "496e47fce5ab0c75d2c56654c7b242652d257dfd2f049869934e5190c6671bb8",
+  "returncode": 0,
+  "signal": null,
+  "timeout": false,
+  "start_unix_seconds": 1791651706.2711744,
+  "end_unix_seconds": 1791651706.2788086,
+  "stdout_file": "/workspace/.proofs/native-error-code-metadata430/providers/9.1.0/execute.stdout",
+  "stdout_sha256": "833cd154081bdfd6c36e6705622eb13f14482d5e7bed146826418fcf97622cbd",
+  "stderr_file": "/workspace/.proofs/native-error-code-metadata430/providers/9.1.0/execute.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "closed_marker": true,
+  "status": "closed"
+}

@@ -138,6 +138,8 @@ pub struct TkGeometryPlacement {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TkUncertaintyKind {
+    /// The complete current source input is missing, unavailable or stale.
+    SourceContextUnavailable,
     /// A constructor's declared path argument was dynamic or invalid.
     DynamicWidgetPath,
     /// A geometry manager's first argument was dynamic or not a widget path.
@@ -336,29 +338,29 @@ pub fn analyse_tk_ui(
     // naming.core.original-tk-source-context
     // docs/design/analysis/name-resolution-proofs/core-original-tk-source-context.md
     let retained = tk_source_analysis(source, dialect, registry);
-    let input = retained
-        .resolved_input
-        .as_ref()
-        .expect("explicit Tk source input");
+    analyse_tk_ui_with_analysis(source, &retained)
+}
+
+/// Build a static Tk model from an actual document analysis. The complete
+/// source image, lexer configuration and availability generation remain
+/// attached; unavailable or stale analyses report uncertainty before walking.
+/// This supplies no Native command, widget instance or execution entry.
+#[must_use]
+pub fn analyse_tk_ui_with_analysis(source: &str, retained: &AnalysisResult) -> TkUiModel {
+    // naming.core.original-tk-source-context
+    // docs/design/analysis/name-resolution-proofs/core-original-tk-source-context.md
+    let Some(input) = retained.resolved_input.as_ref() else {
+        return unavailable_tk_context();
+    };
+    if tcl_compiler::source_graph::current_analysis(source, retained).is_none() {
+        return unavailable_tk_context();
+    }
     let context = input.context_registry();
     let registry = context.commands();
     let tk_active = context.context().authoring_query().package("Tk").is_some()
-        || source_requires_tk(source, &retained);
+        || source_requires_tk(source, retained);
     if !tk_active {
-        return TkUiModel {
-            schema_version: TK_UI_SCHEMA_VERSION,
-            tk_active: false,
-            root: None,
-            widget_count: 0,
-            widgets_truncated: 0,
-            orphan_widgets: Vec::new(),
-            uncertainties: Vec::new(),
-            uncertainties_truncated: 0,
-            geometry_conflicts: Vec::new(),
-            document_uri: None,
-            document_version: None,
-            document_sha256: None,
-        };
+        return empty_tk_model();
     }
     let mut analysis = TkAnalysis::default();
     let tk_version = context
@@ -366,8 +368,8 @@ pub fn analyse_tk_ui(
         .placement_floor("Tk")
         .map(tcl_dialect::model::Version::as_str);
 
-    visit_analysis_executable_commands(source, &retained, &mut |command, _, region| {
-        let Some(head) = tk_source_head(source, &retained, command) else {
+    visit_analysis_executable_commands(source, retained, &mut |command, _, region| {
+        let Some(head) = tk_source_head(source, retained, command) else {
             return false;
         };
         collect_tk_command(
@@ -383,6 +385,33 @@ pub fn analyse_tk_ui(
     });
 
     finish_tk_analysis(analysis)
+}
+
+fn empty_tk_model() -> TkUiModel {
+    TkUiModel {
+        schema_version: TK_UI_SCHEMA_VERSION,
+        tk_active: false,
+        root: None,
+        widget_count: 0,
+        widgets_truncated: 0,
+        orphan_widgets: Vec::new(),
+        uncertainties: Vec::new(),
+        uncertainties_truncated: 0,
+        geometry_conflicts: Vec::new(),
+        document_uri: None,
+        document_version: None,
+        document_sha256: None,
+    }
+}
+
+fn unavailable_tk_context() -> TkUiModel {
+    let mut model = empty_tk_model();
+    model.uncertainties.push(uncertainty(
+        TkUncertaintyKind::SourceContextUnavailable,
+        Span::new(0, 0),
+        "Current source context is unavailable; widget facts could not be determined.",
+    ));
+    model
 }
 
 fn finish_tk_analysis(analysis: TkAnalysis) -> TkUiModel {
@@ -1494,6 +1523,80 @@ mod tests {
             dialect,
             crate::registry_for_dialect_profile(dialect),
         )
+    }
+
+    #[test]
+    fn supplied_tk_preview_keeps_actual_availability_and_refuses_withheld_source() {
+        // naming.core.original-tk-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-tk-source-context.md
+        let source = "package require Tk\nttk::toggleswitch .new\nframe .kept";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let newer = crate::registry_for_dialect_profile(crate::profile_for_dialect("tcl9.1"));
+        let analyse = |version: &str| {
+            let generation =
+                tcl_registry::model::context_for_profile(crate::profile_for_dialect(version));
+            let context = std::sync::Arc::new(
+                generation.with_command_store(newer.snapshot().shared_registry()),
+            );
+            let input = ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                context,
+                LexerConfig {
+                    braced_var: tcl_dialect::BracedVarStyle::FirstClose,
+                    ..LexerConfig::for_profile(Some(profile))
+                },
+            );
+            Analyser::new()
+                .with_resolved_input(input)
+                .analyse(source, profile.name)
+        };
+        let current = analyse("tcl9.1");
+        let paths = |analysis: &AnalysisResult| {
+            analyse_tk_ui_with_analysis(source, analysis)
+                .root
+                .unwrap()
+                .children
+                .into_iter()
+                .map(|widget| widget.path)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(paths(&current), vec![".kept", ".new"]);
+        let older = analyse("tcl8.6");
+        assert_eq!(
+            current
+                .resolved_registry()
+                .unwrap()
+                .snapshot()
+                .semantic_key(),
+            older.resolved_registry().unwrap().snapshot().semantic_key()
+        );
+        assert_eq!(paths(&older), vec![".kept"]);
+
+        let mut missing = current.clone();
+        missing.resolved_input = None;
+        let mut foreign = current.clone();
+        foreign.resolved_input = older.resolved_input.clone();
+        let mut grammar = current.clone();
+        grammar.body_lexer_config = Some(LexerConfig::for_profile(Some(profile)));
+        let mut unavailable = current.clone();
+        unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+            environment: "tcl".to_owned(),
+            overlay: u64::MAX - 361,
+        });
+        for refused in [&missing, &foreign, &grammar, &unavailable] {
+            let model = analyse_tk_ui_with_analysis(source, refused);
+            assert_eq!(model.widget_count, 0);
+            assert!(model.root.is_none());
+            assert_eq!(
+                model.uncertainties[0].kind,
+                TkUncertaintyKind::SourceContextUnavailable
+            );
+        }
+        assert_eq!(
+            analyse_tk_ui_with_analysis("frame .changed", &current).widget_count,
+            0
+        );
     }
 
     #[test]

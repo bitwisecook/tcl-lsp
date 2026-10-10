@@ -1,0 +1,48 @@
+{
+  "request_sha256": "8228eae6950ab50c2ee30c2789e055dc6755ec8fe8f610bff88887b2d8534c19",
+  "operation": {
+    "kind": "original-case",
+    "family": "identity",
+    "case": 9,
+    "command": [
+      "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/9/wrapper.tcl"
+    ],
+    "source_file": "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/9/source.tcl",
+    "source_sha256": "54e22f4f49a8449bfd9f4caa4638025007c6674427e1dbf689e15cf14d49a482",
+    "wrapper_file": "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/9/wrapper.tcl",
+    "wrapper_sha256": "1ec487ac86f364359932edac71b19e5befc36cb34aea81e313f3cdd5adfc38b9",
+    "source_hex": "6966207b215b6c6c656e677468205b696e666f20636f6d6d616e6473203a3a74636c3a3a6d6174686f703a3a2b5d5d7d207b736574206d61726b657220554e415641494c41424c457d20656c7365207b72656e616d65203a3a74636c3a3a6d6174686f703a3a2b206f726967696e616c3b2070726f63203a3a74636c3a3a6d6174686f703a3a2b2061726773207b72657475726e204f564552524944457d3b206c697374205b6f726967696e616c203220335d205b3a3a74636c3a3a6d6174686f703a3a2b203220335d7d",
+    "source_length": 203,
+    "source_contains_non_ascii": false,
+    "source_contains_nul": false,
+    "source_line_feed_count": 0,
+    "old_capture_manifest": "/workspace/tcl-lsp/rust/tcl-cmd-core/tests/data/native_mathop_identity/manifest.json",
+    "old_capture_index": 9,
+    "old_executable": "/tmp/2286-oracles/jimtcl/jimsh",
+    "old_executable_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+    "expected_code": 0,
+    "expected_result_hex": "554e415641494c41424c45"
+  },
+  "command": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/9/wrapper.tcl"
+  ],
+  "selected_environment": {},
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "returncode": 0,
+  "signal": null,
+  "timeout": false,
+  "start_unix_seconds": 1791652301.764288,
+  "end_unix_seconds": 1791652301.7720294,
+  "stdout_file": "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/9/execute.stdout",
+  "stdout_sha256": "c377b4592d0bd037b08bd79f68ea6a17f0823be0ef9f3fbf04618cb2436ab930",
+  "stderr_file": "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/9/execute.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "closed_marker": true,
+  "status": "closed",
+  "public_result_record_count": 1,
+  "observed_code": 0,
+  "observed_result_hex": "554e415641494c41424c45",
+  "old_public_code_and_result_match": true
+}

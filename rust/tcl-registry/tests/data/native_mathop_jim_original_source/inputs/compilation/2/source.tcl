@@ -1,0 +1,1 @@
+if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {proc p {} {list [::tcl::mathop::+ 5] [::tcl::mathop::* 5] [::tcl::mathop::& 5] [::tcl::mathop::| 5] [::tcl::mathop::^ 5] [::tcl::mathop::** 5] [::tcl::mathop::- 5] [::tcl::mathop::/ 4]}; p}

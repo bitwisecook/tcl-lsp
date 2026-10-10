@@ -3426,7 +3426,6 @@ pub fn proc_summary_cascade<'db>(
     let fu = function_lattice(db, lattice_key);
     let qname = lattice_key.qname(db);
     let params = lattice_key.params(db);
-    let dialect = deps_key.dialect(db);
     let dialect_opt = lattice_key
         .snapshot(db)
         .profile
@@ -3490,7 +3489,6 @@ pub fn proc_summary_cascade<'db>(
 #[salsa::tracked(lru = 512, returns(clone))]
 pub fn function_checks<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<Vec<CompilerCheck>> {
     let fu = function_lattice(db, key);
-    let dialect = key.dialect(db);
     let dialect_opt = key.snapshot(db).profile.map(|profile| profile.profile());
     let registry = lattice_registry(db, key);
     let registry: &CommandRegistry = &registry;

@@ -54,15 +54,28 @@ pub(crate) fn interpreter_with_output(
     vm
 }
 
-/// Retain an actual native core and source compiler, then explicitly load only
-/// the shared scripted dictionary library needed by distribution specimens.
-/// Native core observers keep using `core` or `interpreter` independently.
+/// Retain an actual native core and source compiler, then load exactly the
+/// independently selected distribution libraries. An empty selection remains
+/// a core-and-compiler fixture; no catalogue or process-wide default supplies
+/// additional libraries.
+pub(crate) fn interpreter_with_scripted_libraries(
+    profile: &'static tcl_dialect::DialectProfile,
+    libraries: &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary],
+) -> Vm {
+    let mut vm = interpreter(profile);
+    for &library in libraries {
+        vm.install_scripted_library(library);
+    }
+    vm
+}
+
+/// Select only the shared scripted dictionary library required by distribution
+/// specimens. Native core observers use `core` or `interpreter` independently.
 pub(crate) fn interpreter_with_dictionary_library(
     profile: &'static tcl_dialect::DialectProfile,
 ) -> Vm {
-    let mut vm = interpreter(profile);
-    vm.install_scripted_library(
-        tcl_registry::native_scripted_distribution::NativeScriptedLibrary::Dictionary,
-    );
-    vm
+    interpreter_with_scripted_libraries(
+        profile,
+        &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary::Dictionary],
+    )
 }

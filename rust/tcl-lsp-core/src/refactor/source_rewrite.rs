@@ -47,40 +47,17 @@ pub(super) fn select(
     hook: LoweringHookId,
     obligation: RewriteObligation,
 ) -> Option<(SegmentedCommand, Option<RewriteObligation>)> {
-    let config = analysis.body_lexer_config?;
-    if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config) {
-        return None;
-    }
-    let registry = analysis.resolved_registry()?;
-    let metadata = tcl_compiler::registry_invocation::InvocationMetadataContext::for_source_input(
-        registry,
-        analysis.resolved_input.as_ref()?,
-        config,
-        analysis.resolved_profile(),
-    )?;
-    if analysis.allows_lexical_declaration_advice() {
-        let command = super::find_command_at(source, cursor, None, registry, config)?;
-        let realm = analysis.retained_command_realm()?;
-        let selected = match realm.binding_at(command.name(), command.span.start()) {
-            tcl_compiler::realm::RealmBindingFact::Unchanged => command.name(),
-            tcl_compiler::realm::RealmBindingFact::Command(name) => name,
-            tcl_compiler::realm::RealmBindingFact::Rebound => return None,
-        };
-        if metadata
-            .context()
-            .resolve_spec(registry, selected)?
-            .lowering_hook
-            != Some(hook)
-        {
-            return None;
-        }
-        return Some((command, None));
-    }
     let walk = FrameWalk::new(source, analysis)?;
     let command = original_command_at(&walk, source, source, 0, cursor, hook, 0)?;
-    // Original conditional handler selection grants structure only. The
-    // individual rewrite must consume its independently selected permission.
-    Some((command, Some(obligation)))
+    if !walk.complete() {
+        return None;
+    }
+    // Logical compatibility and original conditional source geometry retain
+    // separate rewrite permissions after the same current source selection.
+    Some((
+        command,
+        (!analysis.allows_lexical_declaration_advice()).then_some(obligation),
+    ))
 }
 
 fn original_command_at(
@@ -116,30 +93,17 @@ fn original_command_at(
                 );
             }
         }
-        if let Some(selected) = walk.structure(source, &command) {
-            if selected.facts.lowering_hook == Some(hook) {
-                return Some(command);
-            }
-        } else {
-            // An action can describe a selected original handler without
-            // asserting expression evaluation or granting its replacement.
-            let tokens = walk.tokens(source, &command);
-            let advice =
-                tcl_compiler::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
-                    walk.nesting,
-                    Some(walk.metadata_context()?),
-                    &tokens,
-                )?;
-            let words = advice.unanimous_command_words()?;
-            if walk
-                .metadata_context()?
-                .context()
-                .resolve_spec(walk.nesting, words.command())?
-                .lowering_hook
-                == Some(hook)
-            {
-                return Some(command);
-            }
+        let words = walk.source_words(source, &command)?;
+        if words.origins().iter().enumerate().skip(1).any(|(index, origin)| {
+            !matches!(origin, tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written) if *written == index)
+        }) {
+            return None;
+        }
+        if words.with_source_schema(&walk.source_context(), |schema| {
+            schema.semantics.lowering_hook == Some(hook)
+        }) == Some(true)
+        {
+            return Some(command);
         }
     }
     None
@@ -307,6 +271,37 @@ mod tests {
                 .is_none()
             );
         }
+    }
+
+    #[test]
+    fn logical_source_rewrite_keeps_captured_values_outside_written_clause_positions() {
+        // naming.refactor.original-source-rewrite-permissions
+        // docs/design/analysis/name-resolution-proofs/refactor-original-source-rewrite-permissions.md
+        let plain = "interp alias {} evaluate {} expr\nevaluate 1 + 2";
+        let analysis = Analyser::new().analyse(plain, "tcl");
+        let cursor = u32::try_from(plain.rfind("evaluate").unwrap()).unwrap();
+        let (_, obligation) = select(
+            plain,
+            cursor,
+            &analysis,
+            LoweringHookId::Expr,
+            RewriteObligation::ExpressionEvaluation,
+        )
+        .expect("written operands of selected original alias");
+        assert!(obligation.is_none());
+        let captured = "interp alias {} evaluate {} expr 1\nevaluate + 2";
+        let analysis = Analyser::new().analyse(captured, "tcl");
+        let cursor = u32::try_from(captured.rfind("evaluate").unwrap()).unwrap();
+        assert!(
+            select(
+                captured,
+                cursor,
+                &analysis,
+                LoweringHookId::Expr,
+                RewriteObligation::ExpressionEvaluation
+            )
+            .is_none()
+        );
     }
 
     // Implementation contract: naming.refactor.original-source-rewrite-permissions

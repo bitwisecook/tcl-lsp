@@ -141,24 +141,30 @@ mod tests {
             name: "credential_current",
             surface: Some(tcl_dialect::model::SpecSurface::TCL86_PLUS),
             arity: tcl_registry::Arity::at_least(0),
-            options: &[tcl_registry::hover::OptionSpec {
-                name: "-headers",
-                value: tcl_registry::hover::OptionValue::value("value"),
-                ..tcl_registry::hover::OptionSpec::DEFAULT
-            }],
+            options: Box::leak(
+                vec![tcl_registry::hover::OptionSpec {
+                    name: "-headers",
+                    value: tcl_registry::hover::OptionValue::value("value"),
+                    ..tcl_registry::hover::OptionSpec::DEFAULT
+                }]
+                .into_boxed_slice(),
+            ),
             credential_options: &["-headers"],
             ..tcl_registry::CommandSpec::DEFAULT
         });
         registry.insert(tcl_registry::CommandSpec {
             name: "header_current",
             surface: Some(tcl_dialect::model::SpecSurface::TCL86_PLUS),
-            subcommands: &[tcl_registry::SubCommand {
-                name: "insert",
-                arity: tcl_registry::Arity::exact(2),
-                credential_arg: Some(2),
-                sensitive_headers: &["authorization"],
-                ..tcl_registry::SubCommand::DEFAULT
-            }],
+            subcommands: Box::leak(
+                vec![tcl_registry::SubCommand {
+                    name: "insert",
+                    arity: tcl_registry::Arity::exact(2),
+                    credential_arg: Some(2),
+                    sensitive_headers: &["authorization"],
+                    ..tcl_registry::SubCommand::DEFAULT
+                }]
+                .into_boxed_slice(),
+            ),
             ..tcl_registry::CommandSpec::DEFAULT
         });
         input(Arc::new(baseline.with_command_store(Arc::new(registry))))

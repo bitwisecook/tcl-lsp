@@ -1710,6 +1710,7 @@ mod tests {
 
     #[test]
     fn generic_original_operands_share_native_source_channel_and_escape_rules() {
+        // Contract: naming.compiler.original-info-commands-literal-resolution
         // Software integration only. The original info-commands native
         // comparison separately observes escaped-NUL versus counted raw NUL.
         // docs/design/analysis/name-resolution-proofs/compiler-original-info-commands-literal-resolution.md

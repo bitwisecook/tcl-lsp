@@ -1,0 +1,56 @@
+proc {namespace info} {cmd {pattern *}} {
+	set current [uplevel 1 ::namespace canon]
+	# Now we may need to strip $pattern
+	if {[string first :: $pattern] == 0} {
+		set global 1
+		set prefix ::
+	} else {
+		set global 0
+		set clen [string length $current]
+		incr clen 2
+	}
+	set fqp [namespace canon $current $pattern]
+	switch -glob -- $cmd {
+		co* - p* {
+			if {$global} {
+				set result [info $cmd $fqp]
+			} else {
+				# Add commands in the current namespace
+				set r {}
+				foreach c [info $cmd $fqp] {
+					dict set r [string range $c $clen end] 1
+				}
+				if {[string match co* $cmd]} {
+					# Now in the global namespace
+					foreach c [info -nons commands $pattern] {
+						dict set r $c 1
+					}
+				}
+				set result [dict keys $r]
+			}
+		}
+		ch* {
+			set result [info channels $pattern]
+		}
+		v* {
+			#puts "uplevel #0 info gvars $fqp"
+			set result [uplevel #0 info -nons vars $fqp]
+		}
+		g* {
+			set result [info globals $fqp]
+		}
+		l* {
+			set result [uplevel 1 info -nons locals $pattern]
+		}
+	}
+	if {$global} {
+		set result [lmap p $result { string cat $prefix $p }]
+	}
+	return $result
+}
+
+proc {namespace upvar} {ns args} {
+	set nscanon ::[uplevel 1 [list ::namespace canon $ns]]
+	set script [list upvar 0]
+	foreach {other local} $args {
+		lappend script ${nscanon}::$other $local

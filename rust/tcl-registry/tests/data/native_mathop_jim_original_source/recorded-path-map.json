@@ -1,0 +1,556 @@
+{
+  "scope": "Exact absolute request/receipt paths and original bytes remain unchanged. Reused byte-identical current original inputs and prior public rows do not authenticate the old different executable source/library roster.",
+  "required_pins": [
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.h",
+      "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+      "published_path": "rust/tcl-registry/tests/data/native_jim_core_alias_prefix273/jim.h"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/libjim.a",
+      "sha256": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/libjim.a"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/Makefile",
+      "sha256": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/Makefile"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "published_path": "rust/tcl-registry/tests/data/native_jim_alias_error_extent279/request/jim.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c",
+      "sha256": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb",
+      "published_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim-subcmd.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jim-interp.c",
+      "sha256": "6913a5abf6518b9bdf6b953130ae006e4369207baab2d70bd58b4a55bd0edee9",
+      "published_path": "rust/tcl-registry/tests/data/native_child_alias_inventory298/jim-interp.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/oo.tcl",
+      "sha256": "42f6b0150881a8d286c1ee9a9b30bdf1b06cf39850c576d9dfc104ef3c0eeef5",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/oo.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/_oo.c",
+      "sha256": "a3f26330db47cdfd64377059db2a11b5fcc53d3ae112dfb390686b4f7836eca3",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/_oo.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/_load-static-exts.c",
+      "sha256": "69742674664cfa4ca43495d61075ee681b1c55ed9215eb27ebd2902b69d66979",
+      "published_path": "rust/tcl-registry/tests/data/native_child_bootstrap_context303/source/_load-static-exts.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "published_path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/jim/provider.elf"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jim-namespace.c",
+      "sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+      "published_path": "rust/tcl-registry/tests/data/native_jim_alias_introspection274/jim-namespace.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/nshelper.tcl",
+      "sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+      "published_path": "rust/tcl-registry/tests/data/native_jim_alias_introspection274/nshelper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/_nshelper.c",
+      "sha256": "34b0622f8b6b30947e7409c9666d955fc4d3eb1c5ed8d67ae4699c919a8c4698",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/_nshelper.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jimautoconf.h",
+      "sha256": "aa112b883e9d9ad1ffc775431524cec57f23d34f643a56ce657951cfae8e3092",
+      "published_path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/jimautoconf.h"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/stdlib.tcl",
+      "sha256": "3597b76b785f697242a5354816792ad5fa538dd0a41b3973bdcbcb5edbb8893a",
+      "published_path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/jim/stdlib.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/_stdlib.c",
+      "sha256": "593b57426539e77ab00efb961a77c1f8a3845ce0c82f29943516f30db4142751",
+      "published_path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/jim/_stdlib.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-jim-class-source269/jim/receipt.json",
+      "sha256": "006a4501536c0ae6e1919ef33f8cfcad38ebd8698b965f90abfcd6d364e32b54",
+      "published_path": "rust/tcl-registry/tests/data/native_jim_class_source269/jim/receipt.json"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jimsh.c",
+      "sha256": "a0db99e0d9d562dbbc7ed97813669e6039547548c7e9612a1dc5503b6860668c",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/original-inputs/workspace--.proofs--native-providers--jimtcl--jimsh.c"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/source-windows/jimsh.c.txt",
+      "sha256": "eb89469d3e47a9199aa0c4af694982e0d5eaada3cff39937210a772fc9bb8193",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/source-windows/jimsh.c.txt"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/source-windows/_load-static-exts.c.txt",
+      "sha256": "69742674664cfa4ca43495d61075ee681b1c55ed9215eb27ebd2902b69d66979",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/source-windows/_load-static-exts.c.txt"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/source-windows/_nshelper.c.txt",
+      "sha256": "91755c8a3b44e314d47cf3aa64e3cd9fe1e23550c5046fceb145601fa682cdff",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/source-windows/_nshelper.c.txt"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/source-windows/nshelper.tcl.txt",
+      "sha256": "2b496317aafaf70f4f62a1b117b2ec1bd950448449cae47a9eb9e2aecc6af77a",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/source-windows/nshelper.tcl.txt"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/source-windows/jim.c.txt",
+      "sha256": "af1817a1451bfbb3c2fec59394f5423a82f2bde5c55030abc1e817861eb73905",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/source-windows/jim.c.txt"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/source-windows/Makefile.txt",
+      "sha256": "1c682f49540c40b601f1dacf7dc8b315a8b85aa976bb1609e60271d37e448f3f",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/source-windows/Makefile.txt"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/rust/tcl-cmd-core/tests/data/native_mathop_identity/rows.txt",
+      "sha256": "b72747cc3f2e5cd504cfcf6cde79cd583c735a798862c063995df92df9551dbc",
+      "published_path": "rust/tcl-cmd-core/tests/data/native_mathop_identity/rows.txt"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/rust/tcl-cmd-core/tests/data/native_mathop_identity/manifest.json",
+      "sha256": "9d475437e90be3ea265c75fce373057650c1dd69d1239421b17bc3874faff8cd",
+      "published_path": "rust/tcl-cmd-core/tests/data/native_mathop_identity/manifest.json"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/0/source.tcl",
+      "sha256": "0c4d6e03f82d0ef604314793534fa09915a4de16c2e00bc0f31cb5c90718a718",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/0/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/0/wrapper.tcl",
+      "sha256": "6a6d1bb8e3c8e12b6f33c30fe60bed7e6ab14e45a39c239cd5ff4ba2581db17c",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/0/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/1/source.tcl",
+      "sha256": "1470e438293018a45e20052f31891b68c08d1f55cf861db6b038a257dd1cce01",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/1/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/1/wrapper.tcl",
+      "sha256": "5a065246643f2a8c75c70cd6b4da399dcb316355b38fd82cd4533ad2b83ad0fc",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/1/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/2/source.tcl",
+      "sha256": "ee448b398565000f5749df9f104c1f2e42e986d30d242a26901a7e25af208843",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/2/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/2/wrapper.tcl",
+      "sha256": "a729d23166943bcd0cc39140f1c738bbb322f621b73374bd527bd1c2a1895326",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/2/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/3/source.tcl",
+      "sha256": "064d5e1e819aeef263826de13754bbfb726c53986b9e96d0cf57a799d73d714b",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/3/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/3/wrapper.tcl",
+      "sha256": "79efbc040f4a9aabcc38f276bc6c04bafa3941fb35fb52da90900e6c15f0eb7c",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/3/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/4/source.tcl",
+      "sha256": "137e2346e7cfd3df4b759caf479a4e7049a02dd5e6791a916cd33645fddc70af",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/4/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/4/wrapper.tcl",
+      "sha256": "40b12805132a2c229d31b572134b4706041a5d0c19a250e3bacf88f245e818fe",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/4/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/5/source.tcl",
+      "sha256": "b5c06003f8d1870f9c5eecf43cbc9050fbed13d0a2d69db25999853f03802af7",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/5/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/5/wrapper.tcl",
+      "sha256": "93f361cabb45290d67273ffc03e1341b59979a7a675d91d4dabfa8d31581f326",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/5/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/6/source.tcl",
+      "sha256": "c227d1ec721f9a3157458a9b36249f25bdb964fdbb12037074bbbbb5decc1cd1",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/6/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/6/wrapper.tcl",
+      "sha256": "2e4f7f23b0ce2ad34c4513d4092e9d54a7dccd034574280e4011a53d600810f2",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/6/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/7/source.tcl",
+      "sha256": "af6e4c1def462f4213da3b29de65ffda3248363d6305aac23109359df8355f73",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/7/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/7/wrapper.tcl",
+      "sha256": "785cadd600e3e51f17980c7593c7baecbb804c8e6ae7a1a6c3ee9089c11a5aae",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/7/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/8/source.tcl",
+      "sha256": "388bd697b16aa715bc1d7aa1622c140e6fc39791ee700a2d7f5613bfc9973289",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/8/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/8/wrapper.tcl",
+      "sha256": "d6956754eff837f3f5d1458c4851f716473b1b183b885ebc74b18eb5fb205468",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/8/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/9/source.tcl",
+      "sha256": "54e22f4f49a8449bfd9f4caa4638025007c6674427e1dbf689e15cf14d49a482",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/9/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/9/wrapper.tcl",
+      "sha256": "1ec487ac86f364359932edac71b19e5befc36cb34aea81e313f3cdd5adfc38b9",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/9/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/rust/tcl-cmd-core/tests/data/native_mathop_compilation/rows.txt",
+      "sha256": "213c7f7bb86af5448af160fc0e7eb77857d2dca7cf9dfccec2b1a3ce652e7764",
+      "published_path": "rust/tcl-cmd-core/tests/data/native_mathop_compilation/rows.txt"
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/rust/tcl-cmd-core/tests/data/native_mathop_compilation/manifest.json",
+      "sha256": "1696d1501d6fcca41cd2efcef40a81cdba73743377ce5c3e6891cbf232e703fb",
+      "published_path": "rust/tcl-cmd-core/tests/data/native_mathop_compilation/manifest.json"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/0/source.tcl",
+      "sha256": "7ae8424bf919e727f3146437eced74685a138dfe62aaf9270b93265136497828",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/0/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/0/wrapper.tcl",
+      "sha256": "1723402464c0e0e13e11388f36d9d3063535944d6a8f82f2278c7922247c8563",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/0/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/1/source.tcl",
+      "sha256": "0d2e2fc584e85225896cc745aa831023e23b3a3896097dac720dab616d295a74",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/1/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/1/wrapper.tcl",
+      "sha256": "3de50a3647eee7f5d369dc170eaedd85233ed6ce991ef7778a66dff848bd76a8",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/1/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/2/source.tcl",
+      "sha256": "9cb9bdf411936260449df082213c9dde35ab1076d990bd770363431e7b640ba9",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/2/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/2/wrapper.tcl",
+      "sha256": "fffe30e4d8fecd222fa62cba31e4f234a35b0e30fb27cc0d9cb3faaf9497043e",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/2/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/3/source.tcl",
+      "sha256": "4375dfbfee182eb43177b154dce1cbba90d47d4853ebe84e08592a5c97a22e77",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/3/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/3/wrapper.tcl",
+      "sha256": "2cf70c5a8551bdce0e1dc49f322a8c681bbb7f59ee74ea9d5092c84cb9941a8a",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/3/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/4/source.tcl",
+      "sha256": "eb35065710bd41e85f2cb62b69678e2242fe86528c9d4190604a5b5759f56935",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/4/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/4/wrapper.tcl",
+      "sha256": "f9c1f377f501b99a7939592d38983225c763e300ccf42d0523a412d4c7edd449",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/4/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/5/source.tcl",
+      "sha256": "7c633dfa30c4efc27915408b2ce178c2b973e0e55b71a6408223af3b37809fa5",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/5/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/5/wrapper.tcl",
+      "sha256": "197444c9b83623251b8cdf02db546311cf0c347c78a15a986382f3b767711ddf",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/5/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/6/source.tcl",
+      "sha256": "ba37a8fbeab46d6b4b3b1741bd41817e1cf622f6acca5c6a25381fefa5b18c7e",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/6/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/6/wrapper.tcl",
+      "sha256": "1c8c116c4ca54a3f012c71555a4ec53a0e67c9eb9e3ca0d55a0f6e32be688d79",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/6/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/7/source.tcl",
+      "sha256": "66c463b692d5f96d7c47aa3d6c738f31f6e1f98d4aa88fe0c9235f9403a6597a",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/7/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/7/wrapper.tcl",
+      "sha256": "ed4c50962270d76bb73a2c1afad8c9a019e1ab8ba4f7531e96df00eef0e32f88",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/7/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/8/source.tcl",
+      "sha256": "0f6bdb4785ce49866a25e306e8e61955f9ca24df82fe6e802bcba8b9fd58fa23",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/8/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/8/wrapper.tcl",
+      "sha256": "3bb632125c96039a002057629826d551d26a14ff65a18b0e9f8215132e97d72c",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/8/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/9/source.tcl",
+      "sha256": "7d1abebd421c4bf7668cec0a1e947d258d387a99bf94f1e24bd978bc6fb14619",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/9/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/9/wrapper.tcl",
+      "sha256": "7d6a51c5afeb3884b814b528cf1f66a39cc8e33bf5a13d5bddff4960a826e22c",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/9/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/10/source.tcl",
+      "sha256": "db83cd7aea618cc15638f266fddd4421c346bc898d5779b7e86b5e49a8b61950",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/10/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/10/wrapper.tcl",
+      "sha256": "758a66d7992bd36854be7362d6c099e1d559934bfa355cea8a93f4c9695a5e08",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/10/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/11/source.tcl",
+      "sha256": "6d89fdbb23d4051213ed55e834d9ac51b1cc2ff5c7c4585a1f2c17d4da8eda42",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/11/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/11/wrapper.tcl",
+      "sha256": "703a71efa0a0b3b109e5410a155971a8dff99a56039179b1142e05c6d4b5b47e",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/11/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/12/source.tcl",
+      "sha256": "8e70c509b8907945349ebdfa6e9ef6e962175d2e813ae5e662d5a087e2cc677e",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/12/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/12/wrapper.tcl",
+      "sha256": "a98c0464884eec25492c41da63eacc515defc2ac974a23a58a772f457fa6bdca",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/12/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/13/source.tcl",
+      "sha256": "9999582cb4214297901081d72ea213a93a4512ca94ab848046500f816606000d",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/13/source.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/13/wrapper.tcl",
+      "sha256": "ff2e2e9faad382606ec954ac933694ac751a687b610a2ec576b187932eee0726",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/13/wrapper.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/metadata.tcl",
+      "sha256": "fda22c48458ba61b701655b99ba88aed0c5c96c9c817e7cd49b63d26ec7c1568",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/metadata.tcl"
+    },
+    {
+      "original_path": "/workspace/.proofs/native-mathop-jim-source435/launch.py",
+      "sha256": "a33a1e54fe61c5160a38f8da94251ccfa58522b09b968f194dbde8cfee2c3cf4",
+      "published_path": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/launch.py"
+    }
+  ],
+  "recorded_to_published": {
+    "/workspace/.proofs/native-mathop-jim-source435/closure.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/closure.json",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/0/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/0/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/0/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/0/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/1/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/1/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/1/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/1/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/10/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/10/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/10/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/10/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/11/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/11/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/11/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/11/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/12/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/12/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/12/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/12/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/13/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/13/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/13/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/13/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/2/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/2/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/2/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/2/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/3/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/3/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/3/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/3/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/4/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/4/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/4/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/4/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/5/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/5/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/5/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/5/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/6/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/6/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/6/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/6/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/7/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/7/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/7/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/7/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/8/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/8/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/8/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/8/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/9/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/9/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/compilation/9/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/compilation/9/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/0/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/0/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/0/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/0/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/1/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/1/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/1/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/1/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/2/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/2/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/2/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/2/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/3/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/3/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/3/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/3/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/4/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/4/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/4/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/4/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/5/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/5/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/5/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/5/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/6/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/6/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/6/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/6/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/7/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/7/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/7/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/7/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/8/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/8/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/8/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/8/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/9/source.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/9/source.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/inputs/identity/9/wrapper.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/9/wrapper.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/launch.py": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/launch.py",
+    "/workspace/.proofs/native-mathop-jim-source435/metadata.tcl": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/metadata.tcl",
+    "/workspace/.proofs/native-mathop-jim-source435/prepare.py": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/prepare.py",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/0/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/0/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/0/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/0/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/0/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/0/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/1/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/1/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/1/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/1/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/1/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/1/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/10/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/10/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/10/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/10/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/10/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/10/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/11/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/11/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/11/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/11/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/11/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/11/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/12/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/12/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/12/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/12/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/12/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/12/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/13/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/13/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/13/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/13/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/13/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/13/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/2/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/2/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/2/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/2/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/2/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/2/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/3/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/3/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/3/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/3/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/3/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/3/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/4/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/4/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/4/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/4/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/4/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/4/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/5/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/5/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/5/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/5/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/5/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/5/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/6/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/6/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/6/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/6/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/6/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/6/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/7/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/7/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/7/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/7/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/7/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/7/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/8/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/8/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/8/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/8/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/8/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/8/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/9/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/9/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/9/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/9/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/compilation/9/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/compilation/9/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/0/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/0/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/0/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/0/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/0/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/0/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/1/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/1/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/1/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/1/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/1/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/1/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/2/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/2/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/2/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/2/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/2/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/2/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/3/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/3/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/3/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/3/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/3/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/3/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/4/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/4/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/4/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/4/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/4/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/4/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/5/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/5/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/5/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/5/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/5/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/5/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/6/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/6/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/6/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/6/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/6/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/6/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/7/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/7/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/7/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/7/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/7/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/7/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/8/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/8/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/8/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/8/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/8/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/8/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/9/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/9/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/9/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/9/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/cases/identity/9/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/9/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/metadata/execute.stderr": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/metadata/execute.stderr",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/metadata/execute.stdout": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/metadata/execute.stdout",
+    "/workspace/.proofs/native-mathop-jim-source435/providers/jim/metadata/receipt.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/metadata/receipt.json",
+    "/workspace/.proofs/native-mathop-jim-source435/request.json": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/request.json",
+    "/workspace/.proofs/native-mathop-jim-source435/source-windows/Makefile.txt": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/source-windows/Makefile.txt",
+    "/workspace/.proofs/native-mathop-jim-source435/source-windows/_load-static-exts.c.txt": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/source-windows/_load-static-exts.c.txt",
+    "/workspace/.proofs/native-mathop-jim-source435/source-windows/_nshelper.c.txt": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/source-windows/_nshelper.c.txt",
+    "/workspace/.proofs/native-mathop-jim-source435/source-windows/jim.c.txt": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/source-windows/jim.c.txt",
+    "/workspace/.proofs/native-mathop-jim-source435/source-windows/jimsh.c.txt": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/source-windows/jimsh.c.txt",
+    "/workspace/.proofs/native-mathop-jim-source435/source-windows/nshelper.tcl.txt": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/source-windows/nshelper.tcl.txt",
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "rust/tcl-registry/tests/data/native_jim_core_alias_prefix273/jim.h",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/libjim.a",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/Makefile",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "rust/tcl-registry/tests/data/native_jim_alias_error_extent279/request/jim.c",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim-subcmd.c",
+    "/workspace/.proofs/native-providers/jimtcl/jim-interp.c": "rust/tcl-registry/tests/data/native_child_alias_inventory298/jim-interp.c",
+    "/workspace/.proofs/native-providers/jimtcl/oo.tcl": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/oo.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/_oo.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/_oo.c",
+    "/workspace/.proofs/native-providers/jimtcl/_load-static-exts.c": "rust/tcl-registry/tests/data/native_child_bootstrap_context303/source/_load-static-exts.c",
+    "/workspace/.proofs/native-providers/jimtcl/jimsh": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/jim/provider.elf",
+    "/workspace/.proofs/native-providers/jimtcl/jim-namespace.c": "rust/tcl-registry/tests/data/native_jim_alias_introspection274/jim-namespace.c",
+    "/workspace/.proofs/native-providers/jimtcl/nshelper.tcl": "rust/tcl-registry/tests/data/native_jim_alias_introspection274/nshelper.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/_nshelper.c": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/_nshelper.c",
+    "/workspace/.proofs/native-providers/jimtcl/jimautoconf.h": "rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs/jim/jimautoconf.h",
+    "/workspace/.proofs/native-providers/jimtcl/stdlib.tcl": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/jim/stdlib.tcl",
+    "/workspace/.proofs/native-providers/jimtcl/_stdlib.c": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/jim/_stdlib.c",
+    "/workspace/.proofs/native-jim-class-source269/jim/receipt.json": "rust/tcl-registry/tests/data/native_jim_class_source269/jim/receipt.json",
+    "/workspace/.proofs/native-providers/jimtcl/jimsh.c": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/original-inputs/workspace--.proofs--native-providers--jimtcl--jimsh.c",
+    "/workspace/tcl-lsp/rust/tcl-cmd-core/tests/data/native_mathop_identity/rows.txt": "rust/tcl-cmd-core/tests/data/native_mathop_identity/rows.txt",
+    "/workspace/tcl-lsp/rust/tcl-cmd-core/tests/data/native_mathop_identity/manifest.json": "rust/tcl-cmd-core/tests/data/native_mathop_identity/manifest.json",
+    "/workspace/tcl-lsp/rust/tcl-cmd-core/tests/data/native_mathop_compilation/rows.txt": "rust/tcl-cmd-core/tests/data/native_mathop_compilation/rows.txt",
+    "/workspace/tcl-lsp/rust/tcl-cmd-core/tests/data/native_mathop_compilation/manifest.json": "rust/tcl-cmd-core/tests/data/native_mathop_compilation/manifest.json",
+    "/workspace/.proofs/native-jim-class-source269/probe.tcl": "rust/tcl-registry/tests/data/native_jim_class_source269/probe.tcl",
+    "/workspace/.proofs/native-jim-class-source269/jim/stdout": "rust/tcl-registry/tests/data/native_jim_class_source269/jim/stdout",
+    "/workspace/.proofs/native-jim-class-source269/jim/stderr": "rust/tcl-registry/tests/data/native_c_alias_holder197/8.4.20/stderr"
+  }
+}

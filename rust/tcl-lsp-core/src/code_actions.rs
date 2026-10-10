@@ -1864,17 +1864,16 @@ fn refactor_engine_actions(
     resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<CodeAction> {
     use crate::refactor;
-    let Some(registry) = resolution.registry else {
-        return Vec::new();
-    };
-    let mut out = Vec::new();
-
-    let Some(config) = analysis.body_lexer_config else {
-        return Vec::new();
-    };
-    if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config) {
+    if resolution.registry.is_none() {
         return Vec::new();
     }
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
+        return Vec::new();
+    };
+    let registry = current.registry();
+    let resolution = resolution.with_registry(registry);
+    let mut out = Vec::new();
 
     let cursor = line_index.offset_at_utf16(
         range.start_line,
@@ -1917,7 +1916,7 @@ fn refactor_engine_actions(
     }
     if analysis.allows_retained_logical_declaration_advice()
         && let Some(r) =
-            refactor::extract_to_datagroup(source, cursor, "", registry, line_index, config)
+            refactor::extract_to_datagroup_with_analysis(source, cursor, "", analysis, line_index)
     {
         out.push(refactoring_to_action(&r, source, line_index));
     }

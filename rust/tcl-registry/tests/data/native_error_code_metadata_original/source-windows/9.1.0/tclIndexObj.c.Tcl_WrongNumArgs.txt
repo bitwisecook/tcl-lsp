@@ -1,0 +1,117 @@
+ *	in the interpreter to generate complex multi-part messages by calling
+ *	this function repeatedly. This allows the code that knows how to
+ *	handle ensemble-related error messages to be kept here while still
+ *	generating suitable error messages for commands like [read] and
+ *	[socket]. Ideally, this would be done through an extra flags argument,
+ *	but that wouldn't be source-compatible with the existing API and it's
+ *	a fairly rare requirement anyway.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+Tcl_WrongNumArgs(
+    Tcl_Interp *interp,		/* Current interpreter. */
+    Tcl_Size objc,		/* Number of arguments to print from objv. */
+    Tcl_Obj *const *objv,	/* Initial argument objects, which should be
+				 * included in the error message. */
+    const char *message)	/* Error message to print after the leading
+				 * objects in objv. The message may be
+				 * NULL. */
+{
+    Tcl_Obj *objPtr;
+    Tcl_Size i, len, elemLen;
+    char flags;
+    Interp *iPtr = (Interp *)interp;
+    const char *elementStr;
+
+    TclNewObj(objPtr);
+    if (iPtr->flags & INTERP_ALTERNATE_WRONG_ARGS) {
+	iPtr->flags &= ~INTERP_ALTERNATE_WRONG_ARGS;
+	Tcl_AppendObjToObj(objPtr, Tcl_GetObjResult(interp));
+	Tcl_AppendToObj(objPtr, " or \"", TCL_INDEX_NONE);
+    } else {
+	Tcl_AppendToObj(objPtr, "wrong # args: should be \"", TCL_INDEX_NONE);
+    }
+
+    /*
+     * If processing an ensemble implementation, rewrite the results in
+     * terms of how the ensemble was invoked.
+     */
+
+    if (iPtr->ensembleRewrite.sourceObjs != NULL) {
+	Tcl_Size toSkip = iPtr->ensembleRewrite.numInsertedObjs;
+	Tcl_Size toPrint = iPtr->ensembleRewrite.numRemovedObjs;
+	Tcl_Obj *const *origObjv = TclEnsembleGetRewriteValues(interp);
+
+	/*
+	 * Only do rewrite the command if all the replaced objects are
+	 * actually arguments (in objv) to this function. Otherwise it just
+	 * gets too complicated and it's to just give a slightly
+	 * confusing error message...
+	 */
+
+	if (objc < toSkip) {
+	    goto addNormalArgumentsToMessage;
+	}
+
+	/*
+	 * Strip out the actual arguments that the ensemble inserted.
+	 */
+
+	objv += toSkip;
+	objc -= toSkip;
+
+	/*
+	 * Assume no object is of index type.
+	 */
+
+	for (i=0 ; i<toPrint ; i++) {
+	    /*
+	     * Add the element, quoting it if necessary.
+	     */
+	    const Tcl_ObjInternalRep *irPtr;
+
+	    if ((irPtr = TclFetchInternalRep(origObjv[i], &tclIndexType))) {
+		IndexRep *indexRep = (IndexRep *)irPtr->twoPtrValue.ptr1;
+
+		elementStr = EXPAND_OF(indexRep);
+		elemLen = strlen(elementStr);
+	    } else {
+		elementStr = TclGetStringFromObj(origObjv[i], &elemLen);
+	    }
+	    flags = 0;
+	    len = TclScanElement(elementStr, elemLen, &flags);
+
+	    if (len != elemLen) {
+		char *quotedElementStr = (char *)TclStackAlloc(interp, len + 1);
+
+		len = TclConvertElement(elementStr, elemLen,
+			quotedElementStr, flags);
+		Tcl_AppendToObj(objPtr, quotedElementStr, len);
+		TclStackFree(interp, quotedElementStr);
+	    } else {
+		Tcl_AppendToObj(objPtr, elementStr, elemLen);
+	    }
+
+	    /*
+	     * Add a space if the word is not the last one (which has a
+	     * moderately complex condition here).
+	     */
+
+	    if (i + 1 < toPrint || objc!=0 || message!=NULL) {
+		Tcl_AppendStringsToObj(objPtr, " ", (char *)NULL);
+	    }
+	}
+    }
+
+    /*
+     * Now add the arguments (other than those rewritten) that the caller took
+     * from its calling context.
+     */
+
+  addNormalArgumentsToMessage:
+    for (i = 0; i < objc; i++) {
+	/*
+	 * If the object is an index type, use the index table which allows for
+	 * the correct error message even if the subcommand was abbreviated.

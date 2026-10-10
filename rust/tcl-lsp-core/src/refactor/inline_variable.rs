@@ -24,9 +24,7 @@ use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and
 use tcl_lexer::{LexerConfig, LineIndex, Token, TokenType};
 use tcl_registry::CommandRegistry;
 
-use super::{
-    MAX_COMMAND_SEARCH_DEPTH, RefactorEdit, Refactoring, find_command_at, token_end_offset,
-};
+use super::{MAX_COMMAND_SEARCH_DEPTH, RefactorEdit, Refactoring, token_end_offset};
 use crate::code_actions::ActionKind;
 
 /// Inline the variable defined by the `set` command at byte offset
@@ -40,23 +38,14 @@ pub fn inline_variable(
     source: &str,
     cursor: u32,
     analysis: &AnalysisResult,
-    registry: &CommandRegistry,
+    _registry: &CommandRegistry,
     line_index: &LineIndex,
 ) -> Option<Refactoring> {
-    let config = analysis.body_lexer_config?;
-    if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config) {
-        return None;
-    }
-    let cmd = if analysis.allows_lexical_declaration_advice() {
-        find_command_at(source, cursor, None, registry, config)?
-    } else {
-        super::find_original_command_at(source, cursor, analysis)?
-    };
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let config = current.config();
+    let cmd = super::find_original_command_at(source, cursor, analysis)?;
     let (var_name, ref_span, value_index) = if analysis.allows_lexical_declaration_advice() {
-        if cmd.name() != "set" || cmd.texts.len() != 3 {
-            return None;
-        }
-        let var_name = cmd.texts[1].clone();
+        let (var_name, value_index) = logical_set_operands(source, analysis, &cmd)?;
         let cmd_line = line_index.line_at(cmd.span.start());
         let definition = walk_scopes(&analysis.global_scope)
             .into_iter()
@@ -67,7 +56,7 @@ pub fn inline_variable(
         let [reference] = definition.references.as_slice() else {
             return None;
         };
-        (var_name, *reference, 2)
+        (var_name, *reference, value_index)
     } else {
         original_inline_binding(source, analysis, &cmd)?
     };
@@ -106,7 +95,7 @@ pub fn inline_variable(
     // Resolve the reference's VAR token + enclosing word so we know,
     // from the tokens alone, whether the reference is a standalone word
     // or interpolated inside a larger word.
-    let ctx = reference_token(source, ref_span.start(), registry, config, analysis)?;
+    let ctx = reference_token(source, ref_span.start(), config, analysis)?;
 
     // The `$var` / `${var}` span to replace.  The VAR token starts at
     // `$`; its end omits the braced form's `}`, so re-add it.
@@ -158,6 +147,37 @@ pub fn inline_variable(
         data_group: None,
         disabled: None,
     })
+}
+
+/// Logical source edits use selected Set structure, independently of a
+/// Native store or Normal receipt. Captured data has no current word to edit.
+fn logical_set_operands(
+    source: &str,
+    analysis: &AnalysisResult,
+    command: &SegmentedCommand,
+) -> Option<(String, usize)> {
+    let walk = super::FrameWalk::new(source, analysis)?;
+    let words = walk.source_words(source, command)?;
+    if words.arguments().len() != 2
+        || words.with_source_schema(&walk.source_context(), |schema| {
+            schema.semantics.lowering_hook == Some(tcl_registry::hooks::LoweringHookId::Set)
+        }) != Some(true)
+        || !words
+            .roles()?
+            .contains(&(0, tcl_registry::ArgRole::VarWrite))
+    {
+        return None;
+    }
+    let name = std::str::from_utf8(words.arguments()[0].literal_bytes()?)
+        .ok()?
+        .to_owned();
+    let tcl_compiler::registry_invocation::InvocationWordOrigin::Written(value) =
+        words.origins().get(2)?
+    else {
+        return None;
+    };
+    command.argv.get(*value)?;
+    Some((name, *value))
 }
 
 /// Source selection and rendering data, without a runtime name lookup grant.
@@ -378,15 +398,10 @@ struct RefContext {
 fn reference_token(
     source: &str,
     ref_off: u32,
-    registry: &CommandRegistry,
     config: LexerConfig,
     analysis: &AnalysisResult,
 ) -> Option<RefContext> {
-    let cmd = if analysis.allows_lexical_declaration_advice() {
-        find_command_at(source, ref_off, None, registry, config)?
-    } else {
-        super::find_original_command_at(source, ref_off, analysis)?
-    };
+    let cmd = super::find_original_command_at(source, ref_off, analysis)?;
     resolve_in_command(source, &cmd, ref_off, config, 0)
 }
 
@@ -495,6 +510,73 @@ mod tests {
         let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
         let li = LineIndex::new(source);
         inline_variable(source, cursor, &analysis, &reg, &li).map(|r| r.apply(source))
+    }
+
+    #[test]
+    fn logical_inline_set_uses_selected_operation_and_preserves_capture_geometry() {
+        // naming.refactor.original-variable-inline-permission
+        // docs/design/analysis/name-resolution-proofs/original-variable-inline-permission.md
+        let mut registry = CommandRegistry::build_default();
+        let mut setter = registry.get("set").unwrap().clone();
+        setter.name = "selected_write";
+        setter.surface = Some(tcl_registry::model::SpecSurface::TCL90_PLUS);
+        registry.insert(setter);
+        let registry = std::sync::Arc::new(registry);
+        let source = "interp alias {} write {} selected_write held\nwrite VALUE\nputs $held";
+        let analysis = super::super::test_logical_analysis(source, "tcl9.0", registry.clone());
+        let cursor = u32::try_from(source.find("write VALUE").unwrap()).unwrap();
+        let command = super::super::find_original_command_at(source, cursor, &analysis).unwrap();
+        assert_eq!(
+            logical_set_operands(source, &analysis, &command),
+            Some(("held".into(), 1))
+        );
+        let older = super::super::test_logical_analysis(source, "tcl8.4", registry.clone());
+        assert!(logical_set_operands(source, &older, &command).is_none());
+        let captured = "interp alias {} write {} selected_write held VALUE\nwrite\nputs $held";
+        let analysis = super::super::test_logical_analysis(captured, "tcl9.0", registry);
+        let cursor = u32::try_from(captured.find("\nwrite\n").unwrap() + 1).unwrap();
+        let command = super::super::find_original_command_at(captured, cursor, &analysis).unwrap();
+        assert!(logical_set_operands(captured, &analysis, &command).is_none());
+        let replaced = "proc set args {}; set held VALUE\nputs $held";
+        let analysis = Analyser::new().analyse(replaced, "tcl");
+        let cursor = u32::try_from(replaced.find("set held").unwrap()).unwrap();
+        let command = super::super::find_original_command_at(replaced, cursor, &analysis).unwrap();
+        assert!(logical_set_operands(replaced, &analysis, &command).is_none());
+    }
+
+    #[test]
+    fn logical_inline_edits_require_current_source_and_complete_metadata_owner() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        let source = "set held VALUE\nputs $held";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let registry = analysis.resolved_registry().unwrap();
+        let index = LineIndex::new(source);
+        assert_eq!(
+            inline_variable(source, 0, &analysis, registry, &index)
+                .unwrap()
+                .apply(source),
+            "puts VALUE"
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        let mut stale = analysis.clone();
+        stale.body_lexer_config.as_mut().unwrap().strict_quoting =
+            !analysis.body_lexer_config.unwrap().strict_quoting;
+        let mut foreign = analysis.clone();
+        let input = analysis.resolved_input.as_ref().unwrap();
+        foreign.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::resolve_environment("tcl9.0").default_context_registry(),
+            input.lexer_config(),
+        ));
+        for unavailable in [missing, stale, foreign] {
+            assert!(inline_variable(source, 0, &unavailable, registry, &index).is_none());
+        }
+        assert!(
+            inline_variable("set held OTHER\nputs $held", 0, &analysis, registry, &index).is_none()
+        );
     }
 
     /// `walk_scopes_at_depth` recurses once per nested namespace / proc

@@ -1,0 +1,1 @@
+if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc watch {cmd op} {lappend ::seen [lindex $cmd 0]}; trace add execution ::tcl::mathop::+ enter watch; rename ::tcl::mathop::+ renamed; set sum [renamed 2 3]; list $sum $seen}

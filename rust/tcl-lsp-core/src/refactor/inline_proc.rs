@@ -77,7 +77,7 @@ use tcl_dialect::{BracedVarStyle, NumberSyntax};
 use tcl_lexer::{LexerConfig, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
-use super::{RefactorEdit, Refactoring, command_span_offsets, find_command_at, token_end_offset};
+use super::{RefactorEdit, Refactoring, command_span_offsets, token_end_offset};
 use crate::code_actions::ActionKind;
 
 /// Inline the proc called at byte offset `cursor`.
@@ -123,7 +123,7 @@ pub fn inline_proc_in_program(
     let registry = current.registry();
     let config = current.config();
     let resolution = resolution.with_registry(registry);
-    let call = find_command_at(source, cursor, None, registry, config)?;
+    let call = super::find_original_command_at(source, cursor, analysis)?;
     let head = call.name();
     if head.is_empty() {
         return None;
@@ -1469,6 +1469,28 @@ mod original_inline_destination_tests {
 #[cfg(test)]
 mod selected_source_body_tests {
     use super::*;
+
+    #[test]
+    fn logical_inline_call_selection_uses_current_original_body_regions() {
+        // naming.source.original-refactor-command-selection
+        // docs/design/analysis/name-resolution-proofs/original-refactor-command-selection.md
+        let source = "interp alias {} run {} eval\nproc p {x} {expr {$x + 1}}\nrun {p 2}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let cursor = u32::try_from(source.rfind("p 2").unwrap()).unwrap();
+        let command = super::super::find_original_command_at(source, cursor, &analysis).unwrap();
+        assert_eq!(command.name(), "p");
+        assert_eq!(command.span.start(), cursor);
+        let registry = analysis.resolved_registry().unwrap();
+        let action = inline_proc(source, cursor, &analysis, registry).unwrap();
+        assert!(action.disabled.is_none(), "{:?}", action.disabled);
+        assert!(action.apply(source).ends_with("run {expr {2 + 1}}"));
+        let inert = "proc eval args {}; proc p {x} {expr {$x + 1}}; eval {p 2}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(inert, "tcl");
+        let cursor = u32::try_from(inert.rfind("p 2").unwrap()).unwrap();
+        let command = super::super::find_original_command_at(inert, cursor, &analysis).unwrap();
+        assert_ne!(command.span.start(), cursor);
+        assert_eq!(command.name(), "eval");
+    }
 
     #[test]
     fn original_logical_inline_keeps_selected_expression_and_refuses_frame_sensitive_alias() {

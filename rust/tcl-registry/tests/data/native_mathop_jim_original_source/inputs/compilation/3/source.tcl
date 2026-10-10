@@ -1,0 +1,1 @@
+if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set seen {}; proc tick {} {lappend ::seen HIT; return VALUE}; proc p {} {list [::tcl::mathop::<] [::tcl::mathop::< [tick]] [::tcl::mathop::eq [tick]]}; list [p] $seen}

@@ -1167,6 +1167,28 @@ impl PackageResolver {
         self.packages.keys().map(String::as_str).collect()
     }
 
+    /// All registered package implementation paths, before version selection.
+    /// This inventory lets callers capture each file's own source configuration;
+    /// it does not establish that any provider is selected or a loader ran.
+    #[must_use]
+    pub fn provider_source_files(&self) -> Vec<PathBuf> {
+        let mut paths = self
+            .packages
+            .values()
+            .flatten()
+            .flat_map(|provider| provider.source_files.iter().cloned())
+            .chain(
+                self.original_packages
+                    .values()
+                    .flatten()
+                    .flat_map(|provider| provider.metadata().source_files.iter().cloned()),
+            )
+            .collect::<Vec<_>>();
+        paths.sort();
+        paths.dedup();
+        paths
+    }
+
     /// Every auto-loadable command name known to the scanned paths.
     #[must_use]
     pub fn auto_command_names(&self) -> Vec<&str> {

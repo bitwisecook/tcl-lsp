@@ -6602,8 +6602,13 @@ and actual immutable ContextRegistry for Registry-driven syntax diagnostics.
 advice and W146 literal validation consume its effective roles and selected
 literal values. `RegistrySourceDiagnosticSubject` keeps the purpose, effective
 operand ordinal, original written ordinal and whole-word extent together.
-Captured prefixes and unanchored expansion values receive no written span;
-dynamic values and pre-substituted vectors cannot manufacture a literal.
+`OriginalRegistryWords::original_argument_word` can also retain a captured
+prefix's genuine producer word after checking its original origin, image and
+complete configuration. Its read-only diagnostic subject may anchor that
+producer span. `operands`, written indices, cursor anchors and CU value queries
+retain their separate Written-only correspondence; a captured value acquires no
+written operand or replacement extent at the current call. Unanchored expansion
+values, dynamic values and pre-substituted vectors cannot manufacture a literal.
 `Diagnostic::registry_source` and the Core typed subject transport preserve this
 source purpose independently of message text. They grant no handler, current
 runtime value, physical cell, Native compilation, Normal completion or edit
@@ -7443,6 +7448,40 @@ applicability without proving package installation. These descriptive source
 facts establish no accepted runtime argv or handler result. See the
 [Registry diagnostic contract](../analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md).
 
+Existing template, reparse, frame/interpreter-crossing and path diagnostics use
+that selected descriptor and its effective operand layout. A nested command
+substitution requires its own original child selection; a parent Body role or
+reporting name cannot select the child. Value refinement uses the complete
+current CU, its WordIndex and `proven_word_value`, with exact original Written
+ordinal and span correspondence. A source template plan or a proven value
+supplies no new command lookup, child frame or evaluation permission.
+
+W303 pattern advice shares `authored_source_pattern_arguments` and
+`authored_source_case_pattern_layout`. A case-list pattern retains genuine
+static list-element ancestry inside its whole original word; the typed
+`PatternShape` subject preserves that path. Selected pattern mode and option
+availability remain independent of the pattern value and proposed edit.
+Unknown selectors, incomplete lists and altered original geometry decline the
+projection.
+
+W310 Registry metadata uses `authored_source_credential_arguments` on the
+already selected option or subcommand descriptor. Its coordinates remain
+effective post-head ordinals, including captured prefixes. Hardcoded-literal
+advice requires static original bytes at the genuine producer word; a dynamic
+value refined by the CU cannot become a source literal. Default written
+credential flags retain their separate lexical policy and do not acquire a
+Registry source subject from that policy.
+
+W311 uses the explicit `ChannelConfigurationSpec::EncodingTranslation`
+descriptor through `authored_source_channel_configuration`; a Channel role
+alone supplies no option relationship. The shared option scan must reach its
+admitted End boundary with known single-value widths and retain the final
+encoding and translation occurrences. Unknown values and overwritten settings
+cannot support a warning from earlier pairs. The native rows, SpecTcl
+`channel_configuration` property and Studio draft/renderers share the same
+closed descriptor. Captured static values can retain read-only subjects, while
+channel state, successful handlers and edits require independent owners.
+
 Logical procedure models select
 `Registry::authored_source_semantics_in_context` from the actual complete
 ContextRegistry. That authored descriptor roster remains distinct from source
@@ -7638,8 +7677,10 @@ Registry-authored transition subjects. `SourceAdviceNameInput::Native` retains
 the independently selected command lookup, alias publication and rename
 source/destination inputs. Consumers must not normalize labels into command
 slots. `SourceAdviceNameInput::Logical` instead retains the whole original word
-and shared ASCII source presentation under a positively validated immutable
-`logical_source_input`. It issues no Native naming key, value object or policy;
+and its value through `original_static_word_source_bytes`, checked UTF-8 and the
+source owner's NUL boundary under a positively validated immutable
+`logical_source_input`. Unicode source names retain their original bytes.
+It issues no Native naming key, value object or policy;
 both purposes use the same source-order graph and transition recipes. The tape preserves source
 order, captured prefix producers, known shadows, deletions and rebinding.
 Aliased or moved transition operations also retain their genuine earlier
@@ -7652,6 +7693,12 @@ The immutable `CommandBindingRealm` shares this preparation under the complete
 `ContextRegistry`. Compiler `source_registry_words` issues the same sealed
 `OriginalRegistryWords` to source consumers. `OriginalRegistrySource::SourceTransitions`
 retains any written transition lineage and unknown applicability obligations.
+When a Registry-backed Logical target must correspond to source advice, both
+are resolved through that same actual ContextRegistry and must identify the
+same selected descriptor. A rooted slot key, authored descriptor name and
+reporting spelling retain separate purposes; trimming or comparing displayed
+names cannot establish this correspondence. Original prefix, absence and
+unknown-target guards remain part of the source selection.
 
 Native baseline source descriptors come only from visible Registry rows in an
 authentic closed root entry with the same complete name policy. Missing rows,

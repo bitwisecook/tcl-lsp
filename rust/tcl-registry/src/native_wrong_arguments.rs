@@ -117,19 +117,73 @@ mod tests {
 
     #[test]
     fn measured_native_codes_have_independent_origin() {
-        for (name, expected) in [
-            ("tcl8.4", "NONE"),
-            ("tcl8.5", "NONE"),
-            ("tcl8.6", "TCL WRONGARGS"),
-            ("tcl9.0", "TCL WRONGARGS"),
-            ("tcl9.1", "TCL WRONGARGS"),
-            ("jim", "NONE"),
+        // naming.diagnostics.original-error-code-metadata-not-message
+        // docs/design/analysis/name-resolution-proofs/diagnostics-original-error-code-metadata-not-message.md
+        // Only the original public `catch {set}` error-code field supplies the
+        // expectation. The separate origin/String assertions below exercise
+        // software selection; these streams do not observe physical headers.
+        for (name, original) in [
+            (
+                "tcl8.4",
+                include_str!(
+                    "../tests/data/native_error_code_metadata_original/providers/8.4.20/execute.stdout"
+                ),
+            ),
+            (
+                "tcl8.5",
+                include_str!(
+                    "../tests/data/native_error_code_metadata_original/providers/8.5.19/execute.stdout"
+                ),
+            ),
+            (
+                "tcl8.6",
+                include_str!(
+                    "../tests/data/native_error_code_metadata_original/providers/8.6.18/execute.stdout"
+                ),
+            ),
+            (
+                "tcl9.0",
+                include_str!(
+                    "../tests/data/native_error_code_metadata_original/providers/9.0.4/execute.stdout"
+                ),
+            ),
+            (
+                "tcl9.1",
+                include_str!(
+                    "../tests/data/native_error_code_metadata_original/providers/9.1.0/execute.stdout"
+                ),
+            ),
+            (
+                "jim",
+                include_str!(
+                    "../tests/data/native_error_code_metadata_original/providers/jim/execute.stdout"
+                ),
+            ),
         ] {
+            let records = original
+                .lines()
+                .filter_map(|line| {
+                    line.strip_prefix("CASE genuine-set-wrongargs code 1 result_hex ")
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(records.len(), 1, "{name}: exact original set-arity record");
+            let (_, code_hex) = records[0]
+                .split_once(" errorCode_available 1 errorCode_hex ")
+                .expect("the original process observed a public errorCode value");
+            assert_eq!(code_hex.len() % 2, 0, "{name}: complete counted hex");
+            let expected = code_hex
+                .as_bytes()
+                .chunks_exact(2)
+                .map(|pair| {
+                    u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16)
+                        .expect("original emitted hexadecimal bytes")
+                })
+                .collect::<Vec<_>>();
             let environment = crate::model::ingress::resolve_environment(name);
             let protocol = crate::InvocationDialect::of_profile(environment.analyser_profile())
                 .native_wrong_arguments_protocol()
                 .unwrap();
-            assert_eq!(protocol.error_code(), expected, "{name}");
+            assert_eq!(protocol.error_code().as_bytes(), expected, "{name}");
             assert_eq!(protocol.origin(), NativeWrongArgumentsOrigin::Native);
             let dialect = crate::InvocationDialect::of_profile(environment.analyser_profile());
             assert_eq!(

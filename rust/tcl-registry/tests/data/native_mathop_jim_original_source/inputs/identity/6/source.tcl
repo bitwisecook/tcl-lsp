@@ -1,0 +1,1 @@
+if {![llength [info commands ::tcl::mathop::+]]} {set marker UNAVAILABLE} else {set events {}; proc number {v} {lappend ::events $v; return $v}; interp alias {} aliasplus {} ::tcl::mathop::+; set sum [aliasplus [number 2] [number 3]]; list $sum $events}

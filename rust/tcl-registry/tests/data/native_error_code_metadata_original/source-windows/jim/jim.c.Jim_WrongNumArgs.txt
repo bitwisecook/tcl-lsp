@@ -1,0 +1,117 @@
+    Jim_IncrRefCount(listObjPtr);
+    objPtr = Jim_ListJoin(interp, listObjPtr, " ", 1);
+    Jim_DecrRefCount(interp, listObjPtr);
+    Jim_IncrRefCount(objPtr);
+
+    return objPtr;
+}
+
+ /* This function should not be necessary for simple commands.
+  * Instead set minargs/maxargs and a usage string when registering the command and
+  * optionally return JIM_USAGE from the command proc to generate a usage message.
+  */
+void Jim_WrongNumArgs(Jim_Interp *interp, int argc, Jim_Obj *const *argv, const char *msg)
+{
+    Jim_Obj *objPtr = JimJoinCmdArgs(interp, argc, argv);
+    if (*msg) {
+        Jim_SetResultFormatted(interp, "wrong # args: should be \"%#s %s\"", objPtr, msg);
+    }
+    else {
+        Jim_SetResultFormatted(interp, "wrong # args: should be \"%#s\"", objPtr);
+    }
+    Jim_DecrRefCount(interp, objPtr);
+}
+
+/**
+ * Calculates the taint of the given objects (skipping NULL entries).
+ */
+int Jim_CalcTaint(int argc, Jim_Obj *const *argv)
+{
+    int taint = 0;
+#ifdef JIM_TAINT
+    int i;
+    for (i = 0; i < argc; i++) {
+        if (argv[i]) {
+            taint |= argv[i]->taint;
+        }
+    }
+#endif
+    return taint;
+}
+
+void Jim_SetTaintError(Jim_Interp *interp, int cmdargs, Jim_Obj *const *argv)
+{
+#ifdef JIM_TAINT
+    Jim_Obj *objPtr = JimJoinCmdArgs(interp, cmdargs, argv);
+    Jim_SetResultFormatted(interp, "%#s: tainted data", objPtr);
+    Jim_DecrRefCount(interp, objPtr);
+    Jim_SetGlobalVariableStr(interp, "errorCode", Jim_NewStringObj(interp, "TAINTED", -1));
+#endif
+}
+
+/**
+ * May add the key and/or value to the list.
+ */
+typedef void JimHashtableIteratorCallbackType(Jim_Interp *interp, Jim_Obj *listObjPtr,
+    Jim_Obj *keyObjPtr, void *value, Jim_Obj *patternObjPtr, int type);
+
+#define JimTrivialMatch(pattern)    (strpbrk((pattern), "*[?\\") == NULL)
+
+/**
+ * For each key of the hash table 'ht' with object keys that
+ * matches the glob pattern (all if NULL), invoke the callback to add entries to a list.
+ * Returns the list.
+ */
+static Jim_Obj *JimHashtablePatternMatch(Jim_Interp *interp, Jim_HashTable *ht, Jim_Obj *patternObjPtr,
+    JimHashtableIteratorCallbackType *callback, int type)
+{
+    Jim_HashEntry *he;
+    Jim_Obj *listObjPtr = Jim_NewListObj(interp, NULL, 0);
+
+    /* Check for the non-pattern case. We can do this much more efficiently. */
+    if (patternObjPtr && JimTrivialMatch(Jim_String(patternObjPtr))) {
+        he = Jim_FindHashEntry(ht, patternObjPtr);
+        if (he) {
+            callback(interp, listObjPtr, Jim_GetHashEntryKey(he), Jim_GetHashEntryVal(he),
+                patternObjPtr, type);
+        }
+    }
+    else {
+        Jim_HashTableIterator htiter;
+        JimInitHashTableIterator(ht, &htiter);
+        while ((he = Jim_NextHashEntry(&htiter)) != NULL) {
+            callback(interp, listObjPtr, Jim_GetHashEntryKey(he), Jim_GetHashEntryVal(he),
+                patternObjPtr, type);
+        }
+    }
+    return listObjPtr;
+}
+
+/* Keep these in order */
+#define JIM_CMDLIST_COMMANDS 1
+#define JIM_CMDLIST_PROCS 2
+#define JIM_CMDLIST_ALIASES 4
+#define JIM_CMDLIST_CHANNELS 8
+
+#define JIM_CMDLIST_ALL 0x1000
+
+/**
+ * Adds matching command names (procs, channels) to the list.
+ */
+static void JimCommandMatch(Jim_Interp *interp, Jim_Obj *listObjPtr,
+    Jim_Obj *keyObj, void *value, Jim_Obj *patternObj, int type)
+{
+    Jim_Cmd *cmdPtr = (Jim_Cmd *)value;
+    int match = 1;
+
+    if ((type & JIM_CMDLIST_PROCS) && !(cmdPtr->flags & JIM_CMD_ISPROC)) {
+        /* not a proc */
+        return;
+    }
+    if ((type & JIM_CMDLIST_CHANNELS) && !(cmdPtr->flags & JIM_CMD_ISCHANNEL)) {
+        /* not a channel */
+        return;
+    }
+    if ((type & JIM_CMDLIST_ALIASES) && !(cmdPtr->flags & JIM_CMD_ISALIAS)) {
+        /* not an alias */
+        return;

@@ -43,6 +43,7 @@ mod original_document_metadata_tests;
 #[cfg(test)]
 mod original_workspace_diagnostics_tests;
 pub mod path_glob;
+mod provider_source;
 pub mod rt;
 pub mod service;
 /// The stdout decoupling pump the native binary serves through. Native only:
@@ -3413,6 +3414,7 @@ struct DiagInputs {
     /// Package database for the W120 workspace-refinement post-filter.
     package_resolver: Arc<RwLock<PackageResolver>>,
     package_prefer: tcl_lsp_core::package_resolver::PackagePrefer,
+    provider_dialects: provider_source::ProviderDialectInputs,
     /// Memo for the unclosed-delimiter recovery path's widened known-command
     /// set (see [`RecoveryNameCache`]).
     recovery_names: Arc<Mutex<RecoveryNameCache>>,
@@ -5931,6 +5933,14 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
             rehoming_gate: &inputs.rehoming_gate,
             package_resolver: &inputs.package_resolver,
             package_prefer: inputs.package_prefer,
+            provider_capture: provider_source::ProviderCaptureInputs {
+                db: &inputs.db,
+                files: &inputs.db_files,
+                global: &inputs.db_config,
+                folders: &inputs.folder_db_configs,
+                store: &inputs.store,
+                dialects: &inputs.provider_dialects,
+            },
             recovery_names: &inputs.recovery_names,
             entry_points: &inputs.entry_points,
             folder_root: inputs.folder_root.as_deref(),
@@ -5956,6 +5966,7 @@ struct AnalyserPathInputs<'a> {
     rehoming_gate: &'a Arc<tokio::sync::Mutex<()>>,
     package_resolver: &'a Arc<RwLock<PackageResolver>>,
     package_prefer: tcl_lsp_core::package_resolver::PackagePrefer,
+    provider_capture: provider_source::ProviderCaptureInputs<'a>,
     /// Memo for the unclosed-delimiter recovery path's widened known-command
     /// set (see [`RecoveryNameCache`]).
     recovery_names: &'a Arc<Mutex<RecoveryNameCache>>,
@@ -6222,6 +6233,11 @@ async fn run_deep_diagnostics(
     } else {
         None
     };
+    let provider_sources = inputs
+        .provider_capture
+        .capture(inputs.package_resolver, needs_inheritance)
+        .await;
+    let provider_access = provider_source::ProviderSourceAccess::Supplied(&provider_sources);
     let result = refine_and_lift_diagnostics(
         &analysis,
         analyser_diags,
@@ -6229,7 +6245,7 @@ async fn run_deep_diagnostics(
         &RefinementInputs {
             inheritance: &inheritance,
             package_resolver: inputs.package_resolver,
-            store: inputs.store,
+            provider_sources: &provider_access,
             registry: &inputs.registry,
             workspace_known_names,
             settled_calls,
@@ -6665,9 +6681,8 @@ struct LiftInputs<'a> {
 struct RefinementInputs<'a> {
     inheritance: &'a SourceInheritance,
     package_resolver: &'a Arc<RwLock<PackageResolver>>,
-    /// Where the W120 transitive scan reads a resolved package's
-    /// implementation files from — see [`crate::vfs`].
-    store: &'a Arc<dyn vfs::SourceStore>,
+    /// Each provider's own checked source/configuration, captured before resolution.
+    provider_sources: &'a provider_source::ProviderSourceAccess<'a>,
     registry: &'a CommandRegistry,
     /// The workspace index's memoised command names — read whenever this
     /// document has a W123 to refine, because
@@ -6758,7 +6773,7 @@ async fn refine_and_lift_diagnostics(
         analysis.as_ref(),
         refinement.inheritance,
         refinement.package_resolver,
-        refinement.store.as_ref(),
+        refinement.provider_sources,
         refinement.registry,
     )
     .await;
@@ -6770,7 +6785,7 @@ async fn refine_and_lift_diagnostics(
         analysis.as_ref(),
         refinement.inheritance,
         refinement.package_resolver,
-        refinement.store.as_ref(),
+        refinement.provider_sources,
         inputs.dialect,
     )
     .await;
@@ -19133,17 +19148,14 @@ impl Backend {
                 data: None,
             });
         }
-        let registry = self.registry_for_dialect(&doc.dialect).await;
-        let text = doc.text.clone();
-        let dialect = doc.dialect.clone();
+        let analysis = self
+            .analysis_for(&uri, Arc::clone(&doc.text), doc.dialect.clone())
+            .await;
+        let text = Arc::clone(&doc.text);
         let document_uri = uri_str.to_owned();
         let document_version = doc.version;
         let mut model = crate::rt::spawn_blocking(move || {
-            core_tk_preview::analyse_tk_ui(
-                &text,
-                tcl_lsp_core::profile_for_dialect(&dialect),
-                &registry,
-            )
+            core_tk_preview::analyse_tk_ui_with_analysis(&text, &analysis)
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -22450,6 +22462,7 @@ impl Backend {
             live_publication_gate: Arc::clone(&self.live_publication_gate),
             package_resolver: Arc::clone(&self.package_resolver),
             package_prefer: self.default_package_prefer().await,
+            provider_dialects: provider_source::ProviderDialectInputs::capture(self).await,
             recovery_names: Arc::clone(&self.recovery_names),
             entry_points,
             folder_root,
@@ -22991,12 +23004,29 @@ impl Backend {
             let registry = self.registry_for_dialect(inputs.dialect.name).await;
             settle_cross_file_calls(&index, analysis, &registry, uri.as_str())
         };
+        let dialects = provider_source::ProviderDialectInputs::capture(self).await;
+        let provider_sources = provider_source::ProviderCaptureInputs {
+            db: &self.db,
+            files: &self.db_files,
+            global: &self.db_config,
+            folders: &self.folder_db_configs,
+            store: &self.store,
+            dialects: &dialects,
+        }
+        .capture(
+            &self.package_resolver,
+            analyser_diags
+                .iter()
+                .any(|diagnostic| matches!(diagnostic.code, DiagCode::W120 | DiagCode::W123)),
+        )
+        .await;
+        let provider_access = provider_source::ProviderSourceAccess::Supplied(&provider_sources);
         let analyser_diags = refine_workspace_w120(
             analyser_diags,
             analysis,
             &inheritance,
             &self.package_resolver,
-            self.store.as_ref(),
+            &provider_access,
             inputs.registry,
         )
         .await;
@@ -23005,7 +23035,7 @@ impl Backend {
             analysis,
             &inheritance,
             &self.package_resolver,
-            self.store.as_ref(),
+            &provider_access,
             inputs.dialect,
         )
         .await;
@@ -23070,14 +23100,9 @@ impl Backend {
             .project_callback_diagnostics_if(cross_file_on, source, analysis, disabled)
             .await
             .unwrap_or_else(|| analysis.diagnostics.clone());
-        // The push path's `refine_and_lift_diagnostics` supersession, mirrored:
-        // in a never-evaluated `.sslictcl` document the loader owns the verdict
-        // on an unrecognised word, so neither a pulled report nor a code action
-        // may offer the analyser's unknown-command guess over one.
-        let mut analyser_diags = analyser_diags;
-        if tcl_lsp_core::sslictcl_diagnostics::applies_to(dialect) {
-            tcl_lsp_core::sslictcl_diagnostics::supersede_analyser_diagnostics(&mut analyser_diags);
-        }
+        // Dialect overlap decisions belong to the shared diagnostic policy,
+        // which retains the typed finding and its suppression reason for both
+        // published reports and applicable code actions.
         self.refine_pull_analyser_diagnostics(
             uri,
             analyser_diags,
@@ -31300,8 +31325,8 @@ async fn f5_dialect_diagnostics(
 ///
 /// The analyser only knows the packages required/provided *in the document*;
 /// here the workspace + `TCLLIBPATH` `pkgIndex.tcl` files additionally say
-/// what each `package require` (transitively) pulls in — exactly the
-/// knowledge C Tcl gains by running the `ifneeded` scripts.
+/// conditional dependency advice from each registered implementation source.
+/// Each provider keeps its own configured input; this scan proves no loader ran.
 ///
 /// Two rules, mirroring C Tcl's reality that a package's load script can
 /// register arbitrary commands:
@@ -31317,6 +31342,7 @@ async fn f5_dialect_diagnostics(
 ///    pull in — e.g. `package require myTkPackage`, whose implementation does
 ///    `package require Tk`, makes `Tk` available and suppresses its W120, while
 ///    a required package that does *not* pull in `Tk` leaves the W120 standing.
+#[cfg(test)]
 fn refine_w120_diagnostics(
     diags: Vec<tcl_compiler::analyser::Diagnostic>,
     package_requires: &[String],
@@ -31426,11 +31452,12 @@ struct W120Availability {
     /// A required package neither the registry nor the database can resolve —
     /// it may load anything, so every W120 is unprovable.
     unknowable: bool,
-    /// The transitive closure of package names the requires pull in.
+    /// The conditional transitive closure of package dependency source advice.
     available: std::collections::HashSet<String>,
 }
 
 impl W120Availability {
+    #[cfg(test)]
     fn resolve(
         package_requires: &[String],
         resolver: &PackageResolver,
@@ -31461,7 +31488,7 @@ impl W120Availability {
         roots: &[tcl_lsp_core::package_resolver::PackageRequirementAdvice],
         target: Option<tcl_dialect::TclVersion>,
         resolver: &PackageResolver,
-        store: &dyn vfs::SourceStore,
+        sources: &provider_source::ProviderSourceAccess<'_>,
         registry: &CommandRegistry,
     ) -> Self {
         use tcl_lsp_core::package_resolver::{
@@ -31487,15 +31514,10 @@ impl W120Availability {
                 &|path, parent| {
                     let unknown =
                         || Requirement::new(Key::Unknown, Vec::new(), false, parent.prefer());
-                    let Some(content) = store.read_to_string(path).ok() else {
+                    let Ok(inventory) = sources.inventory(path, version, resolver) else {
                         return vec![unknown()];
                     };
-                    let Some(version) = version else {
-                        return vec![unknown()];
-                    };
-                    let analysis = Analyser::new()
-                        .structure_only()
-                        .analyse(&content, version.dialect_name());
+                    let analysis = &inventory.analysis;
                     analysis
                         .package_requires
                         .iter()
@@ -31503,7 +31525,7 @@ impl W120Availability {
                             Requirement::from_source_requirement(
                                 required,
                                 tcl_lsp_core::package_resolver::package_prefer_at(
-                                    &analysis,
+                                    analysis,
                                     required.range.start(),
                                     parent.prefer(),
                                 ),
@@ -31682,7 +31704,7 @@ async fn refine_workspace_w120(
     analysis: &AnalysisResult,
     inheritance: &SourceInheritance,
     package_resolver: &Arc<RwLock<PackageResolver>>,
-    store: &dyn vfs::SourceStore,
+    sources: &provider_source::ProviderSourceAccess<'_>,
     registry: &CommandRegistry,
 ) -> Vec<tcl_compiler::analyser::Diagnostic> {
     if !analyser_diags.iter().any(|d| d.code == DiagCode::W120) {
@@ -31732,7 +31754,7 @@ async fn refine_workspace_w120(
                 }
             }
             let available = scans.entry(roots.clone()).or_insert_with(|| {
-                W120Availability::resolve_original(&roots, target, &resolver, store, registry)
+                W120Availability::resolve_original(&roots, target, &resolver, sources, registry)
             });
             if !available.suppresses(&diagnostic) {
                 result.push(diagnostic);
@@ -31755,7 +31777,28 @@ async fn refine_workspace_w120(
     if inheritance.placed.is_empty() {
         let mut available = own;
         available.extend(inheritance.ambient.iter().cloned());
-        return refine_w120_diagnostics(analyser_diags, &available, &resolver, store, registry);
+        let roots = available
+            .iter()
+            .map(|name| {
+                tcl_lsp_core::package_resolver::PackageRequirementAdvice::authored_metadata(
+                    name,
+                    tcl_lsp_core::package_resolver::PackagePrefer::Stable,
+                )
+            })
+            .collect::<Vec<_>>();
+        let availability = W120Availability::resolve_original(
+            &roots,
+            analysis.resolved_profile().and_then(|profile| {
+                tcl_registry::InvocationDialect::of_profile(profile).tcl_version
+            }),
+            &resolver,
+            sources,
+            registry,
+        );
+        return analyser_diags
+            .into_iter()
+            .filter(|diagnostic| !availability.suppresses(diagnostic))
+            .collect();
     }
     // One transitive scan per distinct availability set, keyed by its sorted
     // contents — so the overwhelmingly common "every W120 sees the same
@@ -31773,9 +31816,26 @@ async fn refine_workspace_w120(
         available.extend(inheritance.available_at(off, body));
         available.sort();
         available.dedup();
-        let scan = scans
-            .entry(available.clone())
-            .or_insert_with(|| W120Availability::resolve(&available, &resolver, store, registry));
+        let scan = scans.entry(available.clone()).or_insert_with(|| {
+            let roots = available
+                .iter()
+                .map(|name| {
+                    tcl_lsp_core::package_resolver::PackageRequirementAdvice::authored_metadata(
+                        name,
+                        tcl_lsp_core::package_resolver::PackagePrefer::Stable,
+                    )
+                })
+                .collect::<Vec<_>>();
+            W120Availability::resolve_original(
+                &roots,
+                analysis.resolved_profile().and_then(|profile| {
+                    tcl_registry::InvocationDialect::of_profile(profile).tcl_version
+                }),
+                &resolver,
+                sources,
+                registry,
+            )
+        });
         if !scan.suppresses(&diag) {
             out.push(diag);
         }
@@ -31814,14 +31874,31 @@ fn defined_command_tails(text: &str, dialect: &'static tcl_dialect::DialectProfi
 
 /// Original declaration slots for package availability, independent of the
 /// reporting maps used for completion labels.
+#[cfg(test)]
 fn defined_original_commands(
     text: &str,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Vec<tcl_compiler::signature_scan::scope::SignatureSourceCommand> {
     let result = Analyser::new().structure_only().analyse(text, dialect.name);
+    defined_original_commands_from_analysis(text, &result)
+}
+
+fn defined_original_commands_from_analysis(
+    text: &str,
+    result: &AnalysisResult,
+) -> Vec<tcl_compiler::signature_scan::scope::SignatureSourceCommand> {
+    let Some(input) = result.resolved_input.as_ref() else {
+        return Vec::new();
+    };
+    if !result.matches_original_source_image(
+        &tcl_lexer::SourceImage::document(text),
+        input.lexer_config(),
+    ) {
+        return Vec::new();
+    }
     let inventory =
         tcl_compiler::registry_invocation::source_structure::source_procedure_publications(
-            text, &result,
+            text, result,
         );
     let mut procedures = inventory.as_ref().map_or_else(
         || {
@@ -31839,13 +31916,11 @@ fn defined_original_commands(
         },
     );
     if let Some(inventory) =
-        tcl_compiler::registry_invocation::source_structure::source_class_publications(
-            text, &result,
-        )
+        tcl_compiler::registry_invocation::source_structure::source_class_publications(text, result)
     {
         procedures.extend(
             inventory
-                .candidates(&result)
+                .candidates(result)
                 .into_iter()
                 .filter_map(|candidate| candidate.source_name()),
         );
@@ -31887,55 +31962,11 @@ fn defined_original_commands(
 /// there is no lower-confidence channel to downgrade into. Between a silent
 /// miss and a false "unknown command" on working code, the miss is the lesser
 /// error for a hint whose whole purpose is precision.
-fn refine_w123_diagnostics(
-    diags: Vec<tcl_compiler::analyser::Diagnostic>,
-    available: &[String],
-    resolver: &PackageResolver,
-    store: &dyn vfs::SourceStore,
-    dialect: &'static tcl_dialect::DialectProfile,
-) -> Vec<tcl_compiler::analyser::Diagnostic> {
-    // Command names the document's available packages define via their
-    // `pkgIndex` implementation files. Empty in the common no-`package require`
-    // case (where auto-load alone carries the fix), so no file is read then.
-    let target = tcl_dialect::TclVersion::from_dialect(Some(dialect.name));
-    let package_commands = if available.is_empty() {
-        HashSet::new()
-    } else {
-        resolver.package_defined_original_commands(available, target, &|path| {
-            // Shared decoder: a package implementation file with a stray high
-            // byte should still contribute its command names.
-            store
-                .read_source(path)
-                .map(|(text, _)| defined_original_commands(&text, dialect))
-                .unwrap_or_default()
-        })
-    };
-    diags
-        .into_iter()
-        .filter(|d| {
-            if d.code != DiagCode::W123 {
-                return true;
-            }
-            let Some(subject) = d.unresolved_command() else {
-                return true;
-            };
-            !(resolver.auto_loads_original_command(subject.name_input(), subject.invocation())
-                || resolver.package_defines_original_command(
-                    subject.name_input(),
-                    subject.invocation(),
-                    &package_commands,
-                ))
-        })
-        .collect()
-}
-
-/// Package diagnostics consume the same complete requirement advice as
-/// implementation-file navigation. A report label supplies no native key.
 fn refine_original_w123_diagnostics(
     diags: Vec<tcl_compiler::analyser::Diagnostic>,
     available: &[tcl_lsp_core::package_resolver::PackageRequirementAdvice],
     resolver: &PackageResolver,
-    store: &dyn vfs::SourceStore,
+    sources: &provider_source::ProviderSourceAccess<'_>,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Vec<tcl_compiler::analyser::Diagnostic> {
     use tcl_lsp_core::package_resolver::{
@@ -31945,12 +31976,10 @@ fn refine_original_w123_diagnostics(
     let closure =
         resolver.transitive_requirement_advice_with_context(available, target, &|path, parent| {
             let unknown = || Requirement::new(Key::Unknown, Vec::new(), false, parent.prefer());
-            let Ok((source, _)) = store.read_source(path) else {
+            let Ok(inventory) = sources.inventory(path, target, resolver) else {
                 return vec![unknown()];
             };
-            let analysis = Analyser::new()
-                .structure_only()
-                .analyse(&source, dialect.name);
+            let analysis = &inventory.analysis;
             analysis
                 .package_requires
                 .iter()
@@ -31958,7 +31987,7 @@ fn refine_original_w123_diagnostics(
                     Requirement::from_source_requirement(
                         required,
                         tcl_lsp_core::package_resolver::package_prefer_at(
-                            &analysis,
+                            analysis,
                             required.range.start(),
                             parent.prefer(),
                         ),
@@ -31966,14 +31995,22 @@ fn refine_original_w123_diagnostics(
                 })
                 .collect()
         });
+    let incomplete = std::cell::Cell::new(
+        closure
+            .iter()
+            .any(|requirement| requirement.key() == &Key::Unknown),
+    );
     let commands = resolver.requirement_advice_defined_commands(
         &closure.into_iter().collect::<Vec<_>>(),
         target,
-        &|path| {
-            store
-                .read_source(path)
-                .map(|(source, _)| defined_original_commands(&source, dialect))
-                .unwrap_or_default()
+        &|path| match sources.inventory(path, target, resolver) {
+            Ok(inventory) => {
+                defined_original_commands_from_analysis(&inventory.text, &inventory.analysis)
+            }
+            Err(_) => {
+                incomplete.set(true);
+                Vec::new()
+            }
         },
     );
     diags
@@ -31981,6 +32018,9 @@ fn refine_original_w123_diagnostics(
         .filter(|diagnostic| {
             if diagnostic.code != DiagCode::W123 {
                 return true;
+            }
+            if incomplete.get() {
+                return false;
             }
             let Some(subject) = diagnostic.unresolved_command() else {
                 return true;
@@ -32360,7 +32400,7 @@ async fn refine_workspace_w123(
     analysis: &AnalysisResult,
     inheritance: &SourceInheritance,
     package_resolver: &Arc<RwLock<PackageResolver>>,
-    store: &dyn vfs::SourceStore,
+    sources: &provider_source::ProviderSourceAccess<'_>,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Vec<tcl_compiler::analyser::Diagnostic> {
     if !analyser_diags.iter().any(|d| d.code == DiagCode::W123) {
@@ -32399,7 +32439,7 @@ async fn refine_workspace_w123(
             analyser_diags,
             &available,
             &resolver,
-            store,
+            sources,
             dialect,
         );
     }
@@ -32420,7 +32460,16 @@ async fn refine_workspace_w123(
     available.extend(inheritance.ambient.iter().cloned());
     available.extend(inheritance.placed.iter().map(|p| p.name.clone()));
     let resolver = package_resolver.read().await;
-    refine_w123_diagnostics(analyser_diags, &available, &resolver, store, dialect)
+    let roots = available
+        .iter()
+        .map(|name| {
+            tcl_lsp_core::package_resolver::PackageRequirementAdvice::authored_metadata(
+                name,
+                tcl_lsp_core::package_resolver::PackagePrefer::Stable,
+            )
+        })
+        .collect::<Vec<_>>();
+    refine_original_w123_diagnostics(analyser_diags, &roots, &resolver, sources, dialect)
 }
 
 /// The extra `package require` names available to `uri` for the W120
@@ -35162,7 +35211,7 @@ info exists ::N::v\uD800";
             calls.diagnostics.clone(),
             &requirements,
             &resolver,
-            &store,
+            &provider_source::ProviderSourceAccess::Standalone(&store),
             dialect,
         );
         let unresolved = remaining
@@ -35188,7 +35237,7 @@ info exists ::N::v\uD800";
             calls.diagnostics,
             &requirements,
             &resolver,
-            &store,
+            &provider_source::ProviderSourceAccess::Standalone(&store),
             dialect,
         );
         let unresolved = remaining
