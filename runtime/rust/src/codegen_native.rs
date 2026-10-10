@@ -36,7 +36,7 @@
 use core::ptr;
 
 use crate::codegen_abi::{current_interp, TclCompletionAbi, TCL_INVOKE_ABI_HOST_REFUSED};
-use crate::interp::native_operation_currency::NativeOperationCurrency;
+use crate::interp::native_operation_currency::{NativeOperationCurrency, NativeOperationScope};
 use crate::interp::{Code, Interp};
 use crate::obj::{self, TclObj};
 
@@ -72,21 +72,10 @@ unsafe fn write_completion(
     code: Code,
     out: *mut TclCompletionAbi,
 ) -> i32 {
-    if let Err(error) = currency.ensure_current() {
-        interp.refuse_native_execution(error);
-        return TCL_INVOKE_ABI_HOST_REFUSED;
-    }
-    let completion = crate::state_traits::capture_completion(interp, code);
-    if let Err(error) = currency.ensure_current() {
-        interp.refuse_native_execution(error);
-        // SAFETY: capture_completion owns one reference to each non-null
-        // handle. Host refusal may instead have returned null transport slots.
-        unsafe {
-            obj::decr_ref_count(completion.result);
-            obj::decr_ref_count(completion.options);
-        }
-        return TCL_INVOKE_ABI_HOST_REFUSED;
-    }
+    let completion = match crate::state_traits::capture_completion_checked(interp, currency, code) {
+        Ok(completion) => completion,
+        Err(_) => return TCL_INVOKE_ABI_HOST_REFUSED,
+    };
     let code = match completion.code {
         tcl_runtime_api::Code::Ok => 0,
         tcl_runtime_api::Code::Error => 1,
@@ -107,8 +96,8 @@ unsafe fn write_completion(
 }
 
 /// Enter before any getter or callback; retain the first typed Host refusal.
-fn completion_entry(interp: &mut Interp) -> Result<NativeOperationCurrency, i32> {
-    NativeOperationCurrency::issue(interp).map_err(|error| {
+fn completion_entry(interp: &mut Interp) -> Result<NativeOperationScope, i32> {
+    NativeOperationScope::enter(interp).map_err(|error| {
         interp.refuse_native_execution(error);
         TCL_INVOKE_ABI_HOST_REFUSED
     })
@@ -414,9 +403,9 @@ pub unsafe extern "C" fn tcl_codegen_expr_eval(
         Ok(currency) => currency,
         Err(status) => return status,
     };
-    let code = expr_eval_impl(interp, expr, &currency);
+    let code = expr_eval_impl(interp, expr, currency.currency());
     // SAFETY: `out` is writable per the contract.
-    unsafe { write_completion(interp, &currency, code, out) }
+    unsafe { write_completion(interp, currency.currency(), code, out) }
 }
 
 #[cfg(have_tommath)]
@@ -492,7 +481,7 @@ pub unsafe extern "C" fn tcl_codegen_expr_bool(
     let result = expr_bool_eval_impl(interp, expr);
     let code = result.as_ref().map_or_else(|code| *code, |_| Code::Ok);
     // Actual completion getters run before either output is published.
-    let status = unsafe { write_completion(interp, &currency, code, completion_out) };
+    let status = unsafe { write_completion(interp, currency.currency(), code, completion_out) };
     if status == TCL_NATIVE_ABI_OK {
         if let Ok(truth) = result {
             // SAFETY: truth_out is writable aligned caller-owned storage.
@@ -589,7 +578,7 @@ pub unsafe extern "C" fn tcl_codegen_mathop(
     };
     let code = mathop_eval_impl(interp, op, words);
     // SAFETY: `out` is writable per the contract.
-    unsafe { write_completion(interp, &currency, code, out) }
+    unsafe { write_completion(interp, currency.currency(), code, out) }
 }
 
 /// Apply the operator through the runtime's own `::tcl::mathop`.
@@ -681,7 +670,7 @@ pub unsafe extern "C" fn tcl_codegen_mathfunc(
     let code = interp.dispatch(&full);
     drop(borrowed);
     // SAFETY: `out` is writable per the contract.
-    unsafe { write_completion(interp, &currency, code, out) }
+    unsafe { write_completion(interp, currency.currency(), code, out) }
 }
 
 #[cfg(test)]

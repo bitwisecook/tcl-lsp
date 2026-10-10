@@ -306,6 +306,7 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-engine-api",
+ "tcl-host-c-abi",
  "tcl-host-native",
  "tcl-lexer",
  "tcl-platform",

@@ -21,8 +21,9 @@
 use super::{
     Arc, BTreeMap, CfgFunction, CommandRegistry, InvocationFacts, ModuleCommandBindings, Script,
     SourceInvocationBinding, SourceOriginId, SourceOriginKind, SourceVariableEvaluationOwner,
-    Statement, resolve_source_invocation_facts,
+    Statement,
 };
+use crate::registry_invocation::{InvocationMetadataInput, OwnedInvocationMetadataContext};
 
 /// Actual lexical scope whose command allocations are relocated into a body template.
 #[derive(Debug, Clone, Copy)]
@@ -35,6 +36,10 @@ pub struct BodyProofScope<'a> {
     pub original_body_offset: u32,
     /// Actual first byte of executable body source, separately from the IR rebase origin.
     pub executable_body_offset: u32,
+    /// Existing tagged actual metadata ingress. Supplied missing is terminal.
+    pub metadata: InvocationMetadataInput<'a>,
+    /// Exact retained body grammar, independently of native handler receipts.
+    pub config: tcl_lexer::LexerConfig,
 }
 
 /// A closed native body and the injective physical renaming used to construct it.
@@ -373,6 +378,53 @@ impl ModuleCommandBindings {
         scope: BodyProofScope<'_>,
         registry: &CommandRegistry,
     ) -> Option<NativeBodyTemplate> {
+        if self.baseline.unknown_entry
+            || self.baseline.logical_source_input.is_some()
+            || self.baseline.vendor_source_input.is_some()
+        {
+            return None;
+        }
+        let request_owner = scope.metadata.retain();
+        let owner = &self.baseline.metadata_context;
+        match (owner, &request_owner) {
+            (
+                OwnedInvocationMetadataContext::Standalone,
+                OwnedInvocationMetadataContext::Standalone,
+            ) => {
+                owner.metadata_context(registry)?;
+            }
+            (
+                OwnedInvocationMetadataContext::SuppliedSource(original),
+                OwnedInvocationMetadataContext::SuppliedSource(request),
+            ) => {
+                if request.as_ref() != original.as_ref()
+                    && request.as_ref() != &original.for_nested_source()
+                {
+                    return None;
+                }
+                if request.lexer_config().nested().normalized()
+                    != scope.config.nested().normalized()
+                {
+                    return None;
+                }
+                owner.metadata_context_for_source(
+                    registry,
+                    original.lexer_config(),
+                    Some(original.unit_profile()),
+                )?;
+            }
+            _ => return None,
+        }
+        if self.baseline.registry_snapshot.as_ref() != Some(&registry.snapshot().semantic_key()) {
+            return None;
+        }
+        let original_body = body.executed_source.as_ref()?;
+        if original_body.try_text().ok()? != scope.body_source
+            || !matches!(original_body.origin.kind(), SourceOriginKind::Authored(image) if image.bytes() == scope.source.as_bytes())
+            || self.current_source_origin.as_ref() != Some(&original_body.origin)
+        {
+            return None;
+        }
         let executable_start = usize::try_from(scope.executable_body_offset).ok()?;
         let executable_end = executable_start.checked_add(scope.body_source.len())?;
         if scope.source.get(executable_start..executable_end) != Some(scope.body_source) {
@@ -389,14 +441,13 @@ impl ModuleCommandBindings {
             valid &= script.native_compilation_failure.is_none();
             for statement in &script.statements {
                 if let Some(tokens) = statement.tokens() {
-                    valid &= native_tokens_closed(tokens, registry);
+                    valid &= native_tokens_closed(tokens, scope, &self.baseline, registry);
                 } else {
                     valid &= script.command_binding_sites.iter().any(|site| {
                         site.span.start() == statement.span().start()
-                            && site
-                                .source_tokens
-                                .as_ref()
-                                .is_some_and(|tokens| native_tokens_closed(tokens, registry))
+                            && site.source_tokens.as_ref().is_some_and(|tokens| {
+                                native_tokens_closed(tokens, scope, &self.baseline, registry)
+                            })
                     });
                 }
                 collect_body_offset(&mut relocation, scope, statement.span().start());
@@ -547,60 +598,95 @@ fn original_native(proof: &SourceInvocationBinding) -> bool {
     })
 }
 
-fn native_tokens_closed(tokens: &crate::ir::CommandTokens, registry: &CommandRegistry) -> bool {
+fn native_tokens_closed(
+    rebased: &crate::ir::CommandTokens,
+    scope: BodyProofScope<'_>,
+    baseline: &Arc<super::BindingBaseline>,
+    registry: &CommandRegistry,
+) -> bool {
+    // The memo producer relocates lexical spans, while original binding
+    // receipts retain their original source allocation and namespace horizon.
+    let mut tokens = rebased.clone();
+    crate::lattice_rebase::rebase_command_tokens(
+        &mut tokens,
+        i64::from(scope.original_body_offset),
+    );
+    if !original_native_tokens_closed(&tokens, scope.config, baseline, registry) {
+        return false;
+    }
+    let Some(calls) = crate::word_subst::checked_lifted_calls(&tokens, scope.config) else {
+        return false;
+    };
+    // Every lexical child retains its original ordinal proof. Extra reached or
+    // compiler-owned descendants in the original sidecar remain checked too.
+    calls.iter().all(|call| {
+        call.tokens.as_ref().is_some_and(|child| {
+            original_native_tokens_closed(child, scope.config, baseline, registry)
+        })
+    }) && tokens
+        .nested_bindings
+        .iter()
+        .all(|(_, proof)| nested_native_closed(proof, scope.config, baseline, registry))
+}
+
+fn original_native_tokens_closed(
+    tokens: &crate::ir::CommandTokens,
+    config: tcl_lexer::LexerConfig,
+    baseline: &Arc<super::BindingBaseline>,
+    registry: &CommandRegistry,
+) -> bool {
     let Some(proof) = &tokens.source_binding else {
         return false;
     };
-    if tokens
-        .variable_accesses
-        .iter()
-        .any(|access| access.proved_object_instance().is_some())
-        || proof.named_object_instance_at_dispatch().is_some()
-        || tokens.evaluated_body.is_some()
-        || !original_native(proof)
-        || tokens
-            .nested_bindings
-            .iter()
-            .any(|(_, proof)| !nested_native_closed(proof, registry))
+    if proof
+        .lookup_state
+        .as_ref()
+        .is_none_or(|snapshot| !Arc::ptr_eq(&snapshot.state.baseline, baseline))
     {
         return false;
     }
+    let owner = &baseline.metadata_context;
+    let Some(original_config) = proof.original_lexer_config_for_tokens(tokens) else {
+        return false;
+    };
+    if original_config.nested().normalized() != config.nested().normalized()
+        || tokens
+            .variable_accesses
+            .iter()
+            .any(|access| access.proved_object_instance().is_some())
+        || proof.named_object_instance_at_dispatch().is_some()
+        || tokens.evaluated_body.is_some()
+        || !original_native(proof)
+    {
+        return false;
+    }
+    let Ok(metadata) = proof.original_invocation_metadata_for_owner(tokens, owner, registry) else {
+        return false;
+    };
     let Some(invocation) =
-        crate::registry_invocation::resolved_tokens_invocation(registry, None, tokens)
+        crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+            registry, metadata, tokens,
+        )
     else {
         return false;
     };
     native_facts_closed(&invocation.facts, proof)
 }
 
-fn nested_native_closed(proof: &SourceInvocationBinding, registry: &CommandRegistry) -> bool {
-    use tcl_registry::{InvocationWord, InvocationWords};
-    let Some(target) = proof
-        .proved_execution_target()
-        .filter(|_| original_native(proof))
-    else {
+fn nested_native_closed(
+    proof: &SourceInvocationBinding,
+    config: tcl_lexer::LexerConfig,
+    baseline: &Arc<super::BindingBaseline>,
+    registry: &CommandRegistry,
+) -> bool {
+    if !original_native(proof) {
         return false;
-    };
-    let words: Vec<_> = proof
-        .evaluated_argument_values
-        .iter()
-        .map(|word| {
-            word.as_deref()
-                .map_or(InvocationWord::Opaque, InvocationWord::Literal)
-        })
-        .collect();
-    let mut invocation =
-        InvocationWords::structured(InvocationWord::Literal(&target.command), &words);
-    if let Some(dialect) = proof.variable_context.invocation_dialect {
-        invocation = invocation.with_dialect(dialect);
     }
-    let Some(realm) = proof.invocation_realm() else {
+    let Some((_, mut tokens)) = proof.original_recorded_command() else {
         return false;
     };
-    resolve_source_invocation_facts(registry, None, invocation, realm).is_some_and(|mut facts| {
-        super::object_callbacks::refine_facts(&mut facts, invocation.arguments(), Some(proof));
-        native_facts_closed(&facts, proof)
-    })
+    tokens.source_binding = Some(proof.clone());
+    original_native_tokens_closed(&tokens, config, baseline, registry)
 }
 
 fn native_facts_closed(facts: &InvocationFacts, proof: &SourceInvocationBinding) -> bool {
@@ -742,9 +828,226 @@ mod tests {
                 body_source: procedure.body_source.as_deref().unwrap(),
                 original_body_offset: procedure.span.start(),
                 executable_body_offset: procedure.body_offset,
+                metadata: InvocationMetadataInput::Standalone,
+                config: tcl_lexer::LexerConfig::for_profile(registry.profile())
+                    .nested()
+                    .normalized(),
             },
             &registry,
         )
+    }
+
+    #[test]
+    fn original_native_body_template_keeps_tagged_owner_and_original_rebased_vectors() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Existing native closure/alpha proof remains independently required.
+        let source = "proc p {} {set x VALUE; set x}; p";
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = context.commands().profile().unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let (_runtime_owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = super::super::SourceAnalysisEntry {
+            native_entry: Some(Arc::new(captured)),
+            metadata_context: OwnedInvocationMetadataContext::for_source_input(Some(&input)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            &input,
+        );
+        let procedure = &unit.ir_module.procedures["::p"];
+        let bindings = ModuleCommandBindings::analyse(&unit.ir_module, context.commands());
+        let mut body = procedure.body.clone();
+        crate::lattice_rebase::rebase_script(&mut body, -i64::from(procedure.span.start()));
+        let nested_input = input.for_nested_source();
+        let scope = BodyProofScope {
+            source,
+            body_source: procedure.body_source.as_deref().unwrap(),
+            original_body_offset: procedure.span.start(),
+            executable_body_offset: procedure.body_offset,
+            metadata: InvocationMetadataInput::SuppliedSource(Some(&nested_input)),
+            config: config.nested().normalized(),
+        };
+        let positive = bindings
+            .prepare_native_body_template(&body, scope, context.commands())
+            .unwrap();
+        assert!(positive.variable_relocation.inverse().is_some());
+        for metadata in [
+            InvocationMetadataInput::SuppliedSource(None),
+            InvocationMetadataInput::Standalone,
+            InvocationMetadataInput::Supplied(&context),
+        ] {
+            assert!(
+                bindings
+                    .prepare_native_body_template(
+                        &body,
+                        BodyProofScope { metadata, ..scope },
+                        context.commands()
+                    )
+                    .is_none()
+            );
+        }
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(context.commands())),
+        );
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        for context_generation in [older, foreign] {
+            let changed = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                context_generation,
+                nested_input.lexer_config(),
+            );
+            assert!(
+                bindings
+                    .prepare_native_body_template(
+                        &body,
+                        BodyProofScope {
+                            metadata: InvocationMetadataInput::SuppliedSource(Some(&changed)),
+                            ..scope
+                        },
+                        context.commands()
+                    )
+                    .is_none()
+            );
+        }
+        let mut changed_config = scope.config;
+        changed_config.strict_quoting = !changed_config.strict_quoting;
+        assert!(
+            bindings
+                .prepare_native_body_template(
+                    &body,
+                    BodyProofScope {
+                        config: changed_config,
+                        ..scope
+                    },
+                    context.commands()
+                )
+                .is_none()
+        );
+        assert!(
+            bindings
+                .prepare_native_body_template(
+                    &body,
+                    BodyProofScope {
+                        source: "proc p {} {set x OTHER; set x}; p",
+                        ..scope
+                    },
+                    context.commands()
+                )
+                .is_none()
+        );
+        let mut changed = body.clone();
+        let tokens = changed
+            .statements
+            .iter_mut()
+            .find_map(Statement::tokens_mut)
+            .unwrap();
+        tokens.word_exprs.pop();
+        assert!(
+            bindings
+                .prepare_native_body_template(&changed, scope, context.commands())
+                .is_none()
+        );
+        assert!(
+            bindings
+                .prepare_native_body_template(
+                    &body,
+                    BodyProofScope {
+                        original_body_offset: scope.original_body_offset + 1,
+                        ..scope
+                    },
+                    context.commands()
+                )
+                .is_none()
+        );
+        let mut changed_bindings = bindings.clone();
+        Arc::make_mut(&mut changed_bindings.baseline).metadata_context =
+            OwnedInvocationMetadataContext::Unavailable;
+        assert!(
+            changed_bindings
+                .prepare_native_body_template(&body, scope, context.commands())
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_native_template_keeps_standalone_explicit_and_refuses_unowned_nested_commands() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let source = "proc p {} {list [list VALUE]}; p";
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let unit = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
+        let procedure = &unit.ir_module.procedures["::p"];
+        let bindings = ModuleCommandBindings::analyse(&unit.ir_module, &registry);
+        let mut body = procedure.body.clone();
+        crate::lattice_rebase::rebase_script(&mut body, -i64::from(procedure.span.start()));
+        let scope = BodyProofScope {
+            source,
+            body_source: procedure.body_source.as_deref().unwrap(),
+            original_body_offset: procedure.span.start(),
+            executable_body_offset: procedure.body_offset,
+            metadata: InvocationMetadataInput::Standalone,
+            config: tcl_lexer::LexerConfig::for_profile(registry.profile())
+                .nested()
+                .normalized(),
+        };
+        assert!(
+            bindings
+                .prepare_native_body_template(&body, scope, &registry)
+                .is_some()
+        );
+        assert!(
+            bindings
+                .prepare_native_body_template(
+                    &body,
+                    BodyProofScope {
+                        metadata: InvocationMetadataInput::SuppliedSource(None),
+                        ..scope
+                    },
+                    &registry
+                )
+                .is_none()
+        );
+        let mut changed = body.clone();
+        let tokens = changed
+            .statements
+            .iter_mut()
+            .find_map(Statement::tokens_mut)
+            .unwrap();
+        assert!(!tokens.nested_bindings.is_empty());
+        tokens.nested_bindings[0].1.dispatch_site = None;
+        assert!(
+            bindings
+                .prepare_native_body_template(&changed, scope, &registry)
+                .is_none()
+        );
     }
 
     #[test]

@@ -3873,6 +3873,53 @@ mod tests {
         });
     }
 
+    #[test]
+    fn entered_expression_number_updater_stops_before_cache_and_truth_output() {
+        // Software stages: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        leak_free(|| unsafe {
+            for production in [0, 1] {
+                let mut interp = scalar_interpreter("tcl8.6");
+                let original = obj::Owned::fresh(obj::alloc_typed(&SCALAR_CONTEXT_TYPE, 0));
+                let value = original.as_ptr();
+                let context = interp.runtime_context();
+                let references = (*value).ref_count;
+                interp.set_result_bytes(b"PRIOR");
+                let result = interp.get_obj_result();
+                SCALAR_UPDATER_CALLS.with(|calls| calls.set(0));
+                tcl_runtime_set_current_interp(&mut interp);
+                let mut out = -17;
+                assert_eq!(
+                    tcl_value_get_expression_bool(value, production, &mut out),
+                    TCL_VALUE_GET_ERROR
+                );
+                assert_eq!(out, -17);
+                let first = interp.native_execution_refusal().unwrap();
+                assert_eq!(first, tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "stale entered native operation",
+                    ),
+                ));
+                SCALAR_UPDATER_CALLS.with(|calls| assert_eq!(calls.get(), 1));
+                assert_eq!(interp.runtime_context(), context);
+                assert_eq!(obj::bytes_of(value), b"17");
+                assert_eq!(obj::obj_type_ptr(value), &SCALAR_CONTEXT_TYPE as *const _);
+                assert!(obj::native_scalar_cache(value).unwrap().is_none());
+                assert_eq!((*value).ref_count, references);
+                assert_eq!(interp.get_obj_result(), result);
+                assert_eq!(interp.result_bytes(), b"PRIOR");
+                assert_eq!(
+                    tcl_value_get_expression_bool(value, production, &mut out),
+                    TCL_VALUE_GET_ERROR
+                );
+                assert_eq!(out, -17);
+                SCALAR_UPDATER_CALLS.with(|calls| assert_eq!(calls.get(), 1));
+                assert_eq!(interp.native_execution_refusal(), Some(first));
+                tcl_runtime_set_current_interp(ptr::null_mut());
+            }
+        });
+    }
+
     /// A successful typed read caches the parsed rep onto the object — C's
     /// `TclParseNumber` write-back — and keeps the spelling, so a hot loop
     /// parses once and `puts` still prints what the script wrote.

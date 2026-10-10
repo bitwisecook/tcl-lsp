@@ -39,6 +39,9 @@ impl ChildInterpreterCommand {
 impl Interp {
     /// A retained activation keeps storage alive, without permitting further eval.
     pub(super) fn evaluation_is_live(&mut self) -> bool {
+        if self.check_entered_native_operation().is_err() {
+            return false;
+        }
         if !self.pending_delete.get() {
             return true;
         }

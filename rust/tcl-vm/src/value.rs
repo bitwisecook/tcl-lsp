@@ -3413,6 +3413,14 @@ impl Value {
             .native_string_protocol()
             .ok_or(ValueError::ScalarNumericInputUnavailable)?;
         let current = self.native_scalar_cache();
+        if let (Some(environment), Some(cache)) = (environment, current.as_ref()) {
+            tcl_cmd_core::native_numeric::scalar_getter_recipe_abi(
+                protocol,
+                kind,
+                tcl_syntax::scalar_getter::NativeScalarGetterStage::Cached(cache),
+                environment,
+            )?;
+        }
         let target = if protocol.requires_target(kind, current.as_ref()) {
             Some(if let Some(environment) = environment {
                 tcl_cmd_core::native_numeric::scalar_getter_target(environment)?
@@ -3433,6 +3441,16 @@ impl Value {
         let conversion = if let Some(conversion) = cached {
             conversion
         } else {
+            if kind != NativeScalarGetterKind::Boolean {
+                if let Some(environment) = environment {
+                    tcl_cmd_core::native_numeric::scalar_getter_recipe_abi(
+                        protocol,
+                        kind,
+                        tcl_syntax::scalar_getter::NativeScalarGetterStage::Fresh,
+                        environment,
+                    )?;
+                }
+            }
             let original = self
                 .native_string_bytes(string_protocol)
                 .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)?;

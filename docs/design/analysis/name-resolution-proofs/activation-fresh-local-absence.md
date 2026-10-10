@@ -79,7 +79,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 
 ## Consumer bindings
 
-- [rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs), `emit_existence_constant_branch_diagnostics`: Consumes independently retained frame existence facts rather than treating a root name as an unlinked local.
+- [rust/tcl-compiler/src/compiler_checks.rs](../../../../rust/tcl-compiler/src/compiler_checks.rs), `function_nontaint_checks`: Consume the function's retained diagnostic constant-branch facts while excluding Selected branch facts; this source diagnostic query does not issue Native frame existence or absence authority.
 - [rust/tcl-compiler/src/analyser/diagnostics/tests.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/tests.rs), `analyser::diagnostics::tests::info_exists_fresh_activation_absence_does_not_borrow_namespace_contents` (linked): Binds the exact native source and checks I230 for the b predicate in an independently analysed source. This Rust assertion does not reproduce the Params element query or manufacture a native frame.
 
 A named test is a coverage binding, not a claim that it executed.

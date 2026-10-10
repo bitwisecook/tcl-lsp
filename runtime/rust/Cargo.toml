@@ -124,6 +124,11 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tcl-host-native = { path = "../../rust/tcl-host-native" }
 
+# The measured preview-1 guest queries its own compiled libc ABI and errno.
+# This is independent of browser stubs and of host-native numeric state.
+[target.'cfg(all(target_arch = "wasm32", target_os = "wasi", target_env = "p1"))'.dependencies]
+tcl-host-c-abi = { path = "../../rust/tcl-host-c-abi" }
+
 [dev-dependencies]
 tcl-test-support = { path = "../../rust/tcl-test-support" }
 

@@ -14,9 +14,9 @@ How does a Document-only newline projection retain the complete original image a
 
 DocumentLineEndingProjection retains one complete original Document SourceImage and a separate LF presentation. CRLF collapses to one LF; lone CR becomes LF without removing a byte. Bidirectional offsets require valid Unicode byte boundaries and checked u32 arithmetic. The original CR/LF middle boundary is unmappable, so a span using it refuses. Whole original/presentation spans round-trip only through valid endpoints. NativeValue, invalid UTF-8 and unsupported extents have no document projection. The original bytes and channel remain unchanged; this geometric projection supplies no source word, value, grammar, Registry descriptor or execution owner.
 
-Original provider direct/file-channel line-ending observations remain separately recorded in [source-original-crlf-evaluation-channels.md](source-original-crlf-evaluation-channels.md). Actual-analysis layout uses this geometry under the independent [formatting contract](editor-original-source-formatting.md).
-
 The shared Document projection may transfer its derived LF presentation as an owned String through into_text. Consuming that presentation preserves its existing purpose boundary: text alone carries no original image, coordinate receipt, source grammar or Native value authority.
+
+Original provider direct/file-channel line-ending observations remain separately recorded in [source-original-crlf-evaluation-channels.md](source-original-crlf-evaluation-channels.md). Actual-analysis layout uses this geometry under the independent [formatting contract](editor-original-source-formatting.md).
 
 ## Scope
 

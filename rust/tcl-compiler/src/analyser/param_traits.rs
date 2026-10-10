@@ -315,7 +315,12 @@ impl<'p> ScanCtx<'p, '_> {
                     site,
                     spelling,
                     parameters,
-                    registry,
+                    (
+                        registry,
+                        self.identities
+                            .source_bindings_ref()
+                            .source_metadata_owner(),
+                    ),
                 )?;
                 self.param_set.get(name.as_str()).copied()
             })
@@ -335,7 +340,12 @@ impl<'p> ScanCtx<'p, '_> {
                             offset,
                             word,
                             parameters,
-                            registry,
+                            (
+                                registry,
+                                self.identities
+                                    .source_bindings_ref()
+                                    .source_metadata_owner(),
+                            ),
                         )
                         .into_iter()
                         .filter_map(|name| self.param_set.get(name.as_str()).copied())

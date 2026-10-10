@@ -14,6 +14,14 @@ For an actual held original constructor object installed without text serializat
 
 Each of the six original providers completes 216 independent case/route rows and 216 pre-call observations, with a fresh full-init interpreter and held original variable object for every row. All 1296 pre-call variable pointers equal the original object with refcount 2, and all 1296 post-call variable pointers still equal it. Raw primitive Boolean, public expression-Boolean API and the four script routes differ. Jim cached integer 17 returns primitive 17 but expression API 1; cached 4294967296 returns primitive 0 while expression API and all four script routes return true. Fresh Jim String 17 instead fails primitive Boolean but succeeds through expression routes. Cached Double NaN succeeds on C8.4 primitive Boolean, unary-not and ternary routes, while the C8.4 expression-Boolean API/if/while fail. C8.5/C8.6/C9 reject that cached NaN on all six routes, with distinct diagnostics; C9 unary-not creates an input string while its other five rows retain no input string at the measured post-call window. Jim cached NaN primitive Boolean fails, while all five expression/script routes succeed; its expression API can leave the reached integer-conversion diagnostic result despite code 0/output 1, and unary-not retains a stringless original Double while the other successful routes materialise a string. Complete raw tables preserve all 36 constructor cases, counted-NUL inputs, signed/width edges, infinity, numeric/boolean strings, route results/errorCode, cache/residency and ambient errno without projecting one route into another.
 
+The shared ordered truth kernel preserves intermediate primitive failure publication before later successful conversion, and the first Host cause takes precedence at every reached callback boundary.
+
+Current lowering retains actual source ownership and a separately captured software entry before selecting typed truth purposes. Original cells remain objects, and unproved literal/arithmetic caches keep runtime expression evaluation. Direct operand conversion, final logical-instruction operands and inline/public expression-result production remain distinct operations.
+
+The Runtime public expression adapter compares two exact original Jim direct API code/out/result windows while retaining the actual cached integer or NaN object for independently scoped software residency checks. Direct operand conversion and genuine outer result production remain distinct.
+
+The current VM consumer has a bounded two-case Jim public-API comparison and independently checked original operand cache/String state before observation. Its actual selected core and result producer remain distinct from source interpretation or whole expression execution.
+
 The table counts successful rows within each exact route; a successful host process includes all expected route errors.
 
 | Provider | Primitive | Expr Boolean API | Unary-not | Ternary | if | while |
@@ -24,14 +32,6 @@ The table counts successful rows within each exact route; a successful host proc
 | 9.0.4 | 32 / 36 | 32 / 36 | 32 / 36 | 32 / 36 | 32 / 36 | 32 / 36 |
 | 9.1.0 | 32 / 36 | 32 / 36 | 32 / 36 | 32 / 36 | 32 / 36 | 32 / 36 |
 | jim | 19 / 36 | 34 / 36 | 34 / 36 | 34 / 36 | 34 / 36 | 34 / 36 |
-
-The shared ordered truth kernel preserves intermediate primitive failure publication before later successful conversion, and the first Host cause takes precedence at every reached callback boundary.
-
-Current lowering retains actual source ownership and a separately captured software entry before selecting typed truth purposes. Original cells remain objects, and unproved literal/arithmetic caches keep runtime expression evaluation. Direct operand conversion, final logical-instruction operands and inline/public expression-result production remain distinct operations.
-
-The Runtime public expression adapter compares two exact original Jim direct API code/out/result windows while retaining the actual cached integer or NaN object for independently scoped software residency checks. Direct operand conversion and genuine outer result production remain distinct.
-
-The current VM consumer has a bounded two-case Jim public-API comparison and independently checked original operand cache/String state before observation. Its actual selected core and result producer remain distinct from source interpretation or whole expression execution.
 
 ## Scope
 

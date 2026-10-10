@@ -2983,6 +2983,11 @@ fn build_unit_with_keys_and_input<'db>(
                     body_source,
                     original_body_offset: req.original_body_offset,
                     executable_body_offset: req.executable_body_offset,
+                    metadata:
+                        tcl_compiler::registry_invocation::InvocationMetadataInput::SuppliedSource(
+                            req.source_metadata_input,
+                        ),
+                    config: req.lexer_config,
                 },
                 registry,
             )

@@ -14,6 +14,10 @@ For each actual held original x constructor, how do primitive/expression control
 
 Each of six original providers completes 648 independent constructor/site rows with 648 matching pre-call observations: 36 held x constructors across 18 separate primitive, expression API, generic-source and held object-source routes. All 3888 pre/post x variable identities remain the original; each pre-call x has refcount 2. Logical rows independently install actual y Int1 for AND or Int0 for OR, retaining its own binding/cache/residency/refcount fields. On C8.4 fresh String 4294967296, x in the left AND/OR position returns false with Boolean primary, while x in the reached right position returns true with integer primary; both generic and held object-source pairs reproduce this distinction. C8.4 cached Double NaN succeeds at the measured logical sites, but if fails in both generic and object-source routes. On C8.6, generic if on original String on leaves the x primary NULL, while object-source if installs booleanString; C9 object-source if installs boolean. C8.6/C9 cached NaN if reports a domain error through generic evaluation but floating point value is Not a Number through object-source evaluation, with their separately recorded error codes. C8.5 retains its own distinct cache/diagnostic behavior. Jim cached 4294967296 remains raw primitive Boolean 0 while all measured logical/expression sites return true; Jim cached NaN primitive refusal remains separate from successful logical/script routes and their String effects. All 1440 C object-source rows record an initially NULL script primary becoming bytecode; all 288 Jim object-source rows record script instead. These are actual held source-object primary observations, not arbitrary instruction or application admission.
 
+The Runtime C84 operand-stage control preserves the separate WordBoolean and full integer primaries reached by the original left versus final logical instruction purposes for identical fresh source bytes.
+
+The current C84 VM control preserves the bounded distinction between fresh logical-left Boolean conversion and the reached final logical integer conversion without equating their original primaries.
+
 Successful rows within each exact route are counted below; an exit0 host process includes all measured route errors. Object-source entries name actual API calls, with their script primary recorded independently.
 
 | Worker and actual entry | C8.4 | C8.5 | C8.6 | C9.0 | C9.1 | Jim |
@@ -36,10 +40,6 @@ Successful rows within each exact route are counted below; an exit0 host process
 | 15 — AND x right, object source | 31 / 36 | 31 / 36 | 31 / 36 | 32 / 36 | 32 / 36 | 34 / 36 |
 | 16 — OR x left, object source | 34 / 36 | 31 / 36 | 31 / 36 | 32 / 36 | 32 / 36 | 34 / 36 |
 | 17 — OR x right, object source | 31 / 36 | 31 / 36 | 31 / 36 | 32 / 36 | 32 / 36 | 34 / 36 |
-
-The Runtime C84 operand-stage control preserves the separate WordBoolean and full integer primaries reached by the original left versus final logical instruction purposes for identical fresh source bytes.
-
-The current C84 VM control preserves the bounded distinction between fresh logical-left Boolean conversion and the reached final logical integer conversion without equating their original primaries.
 
 ## Scope
 

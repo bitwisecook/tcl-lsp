@@ -9,6 +9,8 @@ use tcl_syntax::naming::{NativeNameProtocol, NativeVariableProjection};
 
 impl Interp {
     pub(crate) fn require_variable_name_protocol(&self) -> Result<NativeNameProtocol, VarError> {
+        self.check_entered_native_operation()
+            .map_err(|_| VarError::NameProtocolUnavailable)?;
         if self.observed_names.borrow().is_some() {
             self.clone().refuse_native_access(
                 tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(

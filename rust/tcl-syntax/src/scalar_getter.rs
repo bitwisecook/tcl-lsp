@@ -70,6 +70,16 @@ pub enum NativeScalarGetterKind {
     Boolean,
 }
 
+/// Reached primitive phase for an independently supplied output ABI.
+/// This vocabulary grants no object, selected worker, or source identity.
+#[derive(Debug, Clone, Copy)]
+pub enum NativeScalarGetterStage<'a> {
+    /// An actual existing cache before any original String conversion.
+    Cached(&'a NativeScalarCache),
+    /// Original cache lookup has declined; fresh conversion is selected.
+    Fresh,
+}
+
 /// Actual original storage before native string materialization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativeScalarStringStorage {
@@ -716,6 +726,95 @@ impl NativeScalarGetterProtocol {
             return Ok(self.cached_long64(cache));
         }
         Ok(self.cached_conversion_known(kind, cache))
+    }
+
+    /// Check original primary-cache geometry against descriptive output ABI.
+    /// This supplies no object issuer or permission to install that cache.
+    ///
+    /// # Errors
+    /// Refuses unsupported layout or a C8.4 native-long primary that cannot
+    /// exist under the supplied long width. A genuine wide cache is separate.
+    pub fn validate_cache_abi(
+        self,
+        cache: &NativeScalarCache,
+        char_bits: u8,
+        int_bytes: u8,
+        long_bytes: u8,
+    ) -> Result<(), NativeScalarGetterTargetUnavailable> {
+        if char_bits != 8 || int_bytes != 4 || !matches!(long_bytes, 4 | 8) {
+            return Err(NativeScalarGetterTargetUnavailable);
+        }
+        if let NativeScalarCache::Tcl84Long(value) = cache {
+            if self.tcl_version() != Some(TclVersion::V8_4) {
+                return Err(NativeScalarGetterTargetUnavailable);
+            }
+            if long_bytes == 4 {
+                i32::try_from(*value).map_err(|_| NativeScalarGetterTargetUnavailable)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Validate this reached primitive under descriptive output-layout facts.
+    /// A 32-bit long is not a Long64 recipe or a C8.4 build-variant receipt.
+    /// Independently retained cached C8.4 longs within signed 32-bit width remain usable;
+    /// their direct-return equation does not need a fresh parser.
+    ///
+    /// # Errors
+    /// Refuses unsupported layout, impossible original long caches, or a
+    /// reached conversion whose target/build recipe is not established.
+    pub fn validate_primitive_abi(
+        self,
+        kind: NativeScalarGetterKind,
+        stage: NativeScalarGetterStage<'_>,
+        char_bits: u8,
+        int_bytes: u8,
+        long_bytes: u8,
+    ) -> Result<(), NativeScalarGetterTargetUnavailable> {
+        if char_bits != 8 || int_bytes != 4 || !matches!(long_bytes, 4 | 8) {
+            return Err(NativeScalarGetterTargetUnavailable);
+        }
+        if let NativeScalarGetterStage::Cached(cache) = stage {
+            self.validate_cache_abi(cache, char_bits, int_bytes, long_bytes)?;
+        }
+        if long_bytes == 8 {
+            return Ok(());
+        }
+        if self.tcl_version() == Some(TclVersion::V8_4) {
+            match stage {
+                NativeScalarGetterStage::Cached(cache) => {
+                    if kind == NativeScalarGetterKind::Long {
+                        let value = match cache {
+                            NativeScalarCache::Tcl84Long(value)
+                            | NativeScalarCache::Number(Number::Int(value)) => *value,
+                            _ => return Err(NativeScalarGetterTargetUnavailable),
+                        };
+                        i32::try_from(value).map_err(|_| NativeScalarGetterTargetUnavailable)?;
+                    }
+                }
+                NativeScalarGetterStage::Fresh => {
+                    // Int/Long use SetIntOrWideFromAny's actual strtoul and
+                    // distinct long/wide cache branch. Wide and numeric Bool
+                    // also depend on the original Tcl build's wide alias.
+                    // The measured guest libc alone supplies no such receipt.
+                    if kind != NativeScalarGetterKind::Double {
+                        return Err(NativeScalarGetterTargetUnavailable);
+                    }
+                }
+            }
+        } else if kind == NativeScalarGetterKind::Long
+            || (self.is_jim084()
+                && kind == NativeScalarGetterKind::Boolean
+                && matches!(
+                    stage,
+                    NativeScalarGetterStage::Cached(NativeScalarCache::Number(Number::Int(_)))
+                ))
+        {
+            // Preserve the independently measured 8/4/8 Long/raw-JimBoolean
+            // capabilities; this output ABI observation cannot widen them.
+            return Err(NativeScalarGetterTargetUnavailable);
+        }
+        Ok(())
     }
 
     /// Whether this reached cache/getter requires independent target fields.
@@ -1492,3 +1591,7 @@ mod tests;
 #[cfg(test)]
 #[path = "scalar_getter/target_tests.rs"]
 mod target_tests;
+
+#[cfg(test)]
+#[path = "scalar_getter/abi_tests.rs"]
+mod abi_tests;

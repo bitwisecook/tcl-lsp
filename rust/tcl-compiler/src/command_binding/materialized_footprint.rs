@@ -134,6 +134,48 @@ impl SourceInvocationBinding {
         )
     }
 
+    /// Check the request's existing tagged owner against this original point.
+    /// `Ok(None)` is possible only when both owners explicitly retain Standalone.
+    /// Missing, availability-only, stale or foreign supplied ownership is an error,
+    /// never a scalar catalogue fallback. Geometry remains independently required.
+    pub(crate) fn original_invocation_metadata_for_owner<'a>(
+        &'a self,
+        tokens: &CommandTokens,
+        owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
+        registry: &CommandRegistry,
+    ) -> Result<
+        Option<InvocationMetadataContext<'a>>,
+        crate::registry_invocation::RegistryInvocationDecline,
+    > {
+        use crate::registry_invocation::{
+            OwnedInvocationMetadataContext, RegistryInvocationDecline,
+        };
+        let refusal = RegistryInvocationDecline::IncompleteResolution;
+        match owner {
+            OwnedInvocationMetadataContext::SuppliedSource(input) => self
+                .original_invocation_metadata_for_input(tokens, input, registry)
+                .map(Some)
+                .ok_or(refusal),
+            OwnedInvocationMetadataContext::Standalone => {
+                self.original_invocation_config(tokens, registry)
+                    .ok_or(refusal)?;
+                let point = &self
+                    .lookup_state
+                    .as_ref()
+                    .ok_or(refusal)?
+                    .state
+                    .baseline
+                    .metadata_context;
+                if !point.is_standalone() {
+                    return Err(refusal);
+                }
+                point.metadata_context(registry).ok_or(refusal)
+            }
+            OwnedInvocationMetadataContext::Supplied(_)
+            | OwnedInvocationMetadataContext::Unavailable => Err(refusal),
+        }
+    }
+
     /// Common original point/vector geometry for actual FU and Module inputs.
     /// Availability and source ancestry are checked by their separate callers.
     fn original_invocation_config(
@@ -564,6 +606,111 @@ mod tests {
             None,
             &input,
         )
+    }
+
+    #[test]
+    fn original_tagged_point_selection_keeps_supplied_refusal_distinct_from_standalone() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        use crate::registry_invocation::OwnedInvocationMetadataContext;
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = unit("eval set ::original VALUE", &context);
+        let script = &unit.ir_module.top_level;
+        let tokens = script
+            .retained_source_tokens_for_statement(&script.statements[0])
+            .unwrap();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let input = unit.ir_module.source_metadata_input.as_ref().unwrap();
+        let owner = OwnedInvocationMetadataContext::for_source_input(Some(input));
+        let metadata = binding
+            .original_invocation_metadata_for_owner(tokens, &owner, context.commands())
+            .unwrap()
+            .unwrap();
+        assert_eq!(metadata.source_analysis_input(), Some(input));
+        assert!(
+            binding
+                .original_invocation_metadata_for_owner(
+                    tokens,
+                    &OwnedInvocationMetadataContext::Standalone,
+                    context.commands()
+                )
+                .is_err()
+        );
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(context.commands())),
+        );
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        for changed_context in [older, foreign] {
+            let changed = ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                changed_context,
+                input.lexer_config(),
+            );
+            assert!(
+                binding
+                    .original_invocation_metadata_for_owner(
+                        tokens,
+                        &OwnedInvocationMetadataContext::for_source_input(Some(&changed)),
+                        context.commands()
+                    )
+                    .is_err()
+            );
+        }
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        let changed = ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            Arc::clone(&context),
+            config,
+        );
+        for owner in [
+            OwnedInvocationMetadataContext::Unavailable,
+            OwnedInvocationMetadataContext::Supplied(Arc::clone(&context)),
+            OwnedInvocationMetadataContext::for_source_input(Some(&changed)),
+        ] {
+            assert!(
+                binding
+                    .original_invocation_metadata_for_owner(tokens, &owner, context.commands())
+                    .is_err()
+            );
+        }
+        let mut changed = tokens.clone();
+        changed.word_exprs.pop();
+        assert!(
+            binding
+                .original_invocation_metadata_for_owner(&changed, &owner, context.commands())
+                .is_err()
+        );
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let standalone =
+            CompilationUnit::build_for("missing_original_command VALUE", &registry, false);
+        let script = &standalone.ir_module.top_level;
+        let tokens = script
+            .retained_source_tokens_for_statement(&script.statements[0])
+            .unwrap();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(matches!(
+            binding.original_invocation_metadata_for_owner(
+                tokens,
+                &OwnedInvocationMetadataContext::Standalone,
+                &registry
+            ),
+            Ok(None)
+        ));
+        assert!(
+            binding
+                .original_invocation_metadata_for_owner(
+                    tokens,
+                    &OwnedInvocationMetadataContext::Unavailable,
+                    &registry
+                )
+                .is_err()
+        );
     }
 
     #[test]

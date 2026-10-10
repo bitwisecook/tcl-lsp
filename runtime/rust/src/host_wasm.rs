@@ -147,6 +147,12 @@ impl Default for WasiHost {
 
 #[cfg(target_os = "wasi")]
 impl Host for WasiHost {
+    #[cfg(target_env = "p1")]
+    fn numeric_environment(&self) -> Option<&dyn tcl_platform::NumericEnvironment> {
+        static ENVIRONMENT: tcl_host_c_abi::NativeNumericEnvironment =
+            tcl_host_c_abi::NativeNumericEnvironment;
+        tcl_host_c_abi::NativeNumericEnvironment::supported().then_some(&ENVIRONMENT)
+    }
     fn capabilities(&self) -> Capabilities {
         // stdio reaches WASI; the VFS provides filesystem under `wasm_stdlib`.
         // Sockets/process stay absent under preview 1.

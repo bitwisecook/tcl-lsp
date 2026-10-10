@@ -3107,6 +3107,23 @@ Direct counted source and original file loading have separate newline channels i
 
 The Runtime `interp/native_operation_currency.rs` owner snapshots the entered interpreter allocation, actual host, full `RuntimeContext`, selected invocation dialect and existing Interpreter guard-domain epoch. It checks currency before and after reached numeric Host calls without holding an engine borrow. A current receipt supplies no command, getter, expression or object authority; those remain with the actual purpose and producer owners. A change followed by restoration still invalidates the receipt.
 
+`NativeOperationScope` retains that original receipt on the actual interpreter
+for synchronous nested work. `NativeOperationCurrency::issue` inherits an
+entered receipt and validates it; it cannot refresh a changed or restored
+world. `Interp::check_entered_native_operation` checks the original operation
+around source, command, variable observer and String getter stages without
+holding a stack borrow across callbacks. Ordinary callers without an entered
+scope retain their explicit purposes and the first Host channel remains
+terminal. Scope and receipt currency grant no native semantic capability.
+
+`state_traits::capture_completion_checked` owns checked Guest completion
+settlement for an explicit interpreter and original currency. It delegates
+result/options production to the actual completion owner, preserves reached
+getter effects and releases captured owned handles on a later Host refusal.
+The full expression and fixed-math ABI exports share this settlement. Mandatory
+cleanup and scope unwinding remain independent of publication permission.
+
+
 The VM `expr/native_boolean_truth.rs` adapter and `value/native_boolean_truth.rs` checked physical helpers delegate to the same CmdCore result and operand workers as Runtime. The VM holds an exclusive operation over its interpreter and verifies actual interpreter identity, host, full context, selected dialect and first Host cause around physical effects. Numeric Host callbacks receive no mutable Vm handle. The poisoned speculative Interpreter guard and wrapping compilation generations provide no operation or lifetime authority.
 
 `InvocationDialect::native_numeric_instruction_result_protocol` selects an actually reached C `TRY_CVT_TO_NUMERIC` instruction. `NativeExpressionResultProducer::NumericInstruction` always performs numeric conversion without a public API copy. It remains distinct from `Boolean(InlineExpression)` and `Boolean(PublicExpressionApi)`, and supplies no additional Boolean ABI tag.

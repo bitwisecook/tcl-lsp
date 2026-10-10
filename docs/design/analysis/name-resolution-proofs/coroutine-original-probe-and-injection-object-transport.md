@@ -277,7 +277,7 @@ InjectHandler(
 
 ## Consumer bindings
 
-- [runtime/rust/src/interp/native_command_names.rs](../../../../runtime/rust/src/interp/native_command_names.rs), `Interp::resolve_original_command_key`: Current selected native original-name token supplies the actual command placement; missing and unavailable remain distinct.
+- [runtime/rust/src/interp/native_command_names.rs](../../../../runtime/rust/src/interp/native_command_names.rs), `Interp::resolve_original_command_generation`: Resolve the original native operand to its actual selected command generation; missing selection and unavailable generation remain distinct typed outcomes.
 - [runtime/rust/src/cmd_coro.rs](../../../../runtime/rust/src/cmd_coro.rs), `original_prefix`: Constructs the native owning List directly from unchanged original prefix objects for the serialised worker handoff.
 - [runtime/rust/src/cmd_coro.rs](../../../../runtime/rust/src/cmd_coro.rs), `imp::eval_words`: Dispatches the retained original element vector and pins its result object before releasing the prefix owner.
 - [runtime/rust/src/cmd_coro.rs](../../../../runtime/rust/src/cmd_coro.rs), `cmd_coro::original_operand_tests::coroutine_probe_and_injection_keep_opaque_names_and_original_objects` (linked): Implementation object transport: opaque original coroutine name/helper head and raw-zero/FF original argument preserve identity across probe, single injection and resumed result; no native execution or header/frame/order equivalence claim.

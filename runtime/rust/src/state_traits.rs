@@ -831,6 +831,29 @@ pub(crate) fn capture_completion(
     Completion::new(api_code(code), result.into_raw(), options.into_raw())
 }
 
+/// Capture a Guest completion from the original entered interpreter only.
+///
+/// Getter effects remain reached. A first Host refusal prevents publication;
+/// any handles retained by the real capture owner are released exactly once.
+pub(crate) fn capture_completion_checked(
+    interp: &mut Interp,
+    currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
+    code: crate::interp::Code,
+) -> Result<Completion<*mut TclObj>, tcl_runtime_api::NativeExecutionError> {
+    currency.ensure_current_or_refuse()?;
+    let completion = capture_completion(interp, code);
+    if let Err(first) = currency.ensure_current_or_refuse() {
+        // SAFETY: the capture owner returns an owned reference for each
+        // non-null slot. Refusal placeholders and release are null-safe.
+        unsafe {
+            obj::decr_ref_count(completion.result);
+            obj::decr_ref_count(completion.options);
+        }
+        return Err(first);
+    }
+    Ok(completion)
+}
+
 /// Run a full, prebuilt command argv through the inherent dispatcher, then
 /// snapshot the resulting [`Completion`].
 ///

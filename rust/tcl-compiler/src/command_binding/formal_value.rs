@@ -11,6 +11,7 @@
 //! address, successful alias, completed store or concrete value.
 
 use super::{SourceCommandBindings, SourceOriginId, SourceVariableAccess};
+use crate::registry_invocation::OwnedInvocationMetadataContext;
 use crate::{
     command_binding::conditional_body::SourceConditionalBodyEntry,
     ir::{CommandTokens, SourceSite},
@@ -144,14 +145,49 @@ fn original_formal_observation_binding(
 }
 
 impl SourceCommandBindings {
+    fn formal_source_owner_matches(
+        &self,
+        owner: &OwnedInvocationMetadataContext,
+        registry: &CommandRegistry,
+    ) -> Option<()> {
+        let actual = self.source_metadata_owner();
+        match (actual, owner) {
+            (
+                OwnedInvocationMetadataContext::Standalone,
+                OwnedInvocationMetadataContext::Standalone,
+            ) => {
+                actual.metadata_context(registry)?;
+            }
+            (
+                OwnedInvocationMetadataContext::SuppliedSource(point),
+                OwnedInvocationMetadataContext::SuppliedSource(input),
+            ) => {
+                if point.as_ref() != input.as_ref() && point.as_ref() != &input.for_nested_source()
+                {
+                    return None;
+                }
+                actual.metadata_context_for_source(
+                    registry,
+                    self.lexer_config?,
+                    Some(point.unit_profile()),
+                )?;
+            }
+            _ => return None,
+        }
+        Some(())
+    }
+
     pub(crate) fn symbolic_formal_value_at(
         &self,
         origin: &Arc<SourceOriginId>,
         source: &SourceSite,
         spelling: &str,
         parameters: &[&str],
-        registry: &CommandRegistry,
+        selection: (&CommandRegistry, &OwnedInvocationMetadataContext),
     ) -> Option<String> {
+        let (registry, owner) = selection;
+        self.formal_source_owner_matches(owner, registry)?;
+
         if self.root_origin.as_ref() != Some(origin) {
             return None;
         }
@@ -160,7 +196,7 @@ impl SourceCommandBindings {
             return None;
         }
         let access = self.variable_access_at(source, spelling)?;
-        self.formal_value_for_access(&entry, access, registry, false)
+        self.formal_value_for_access(&entry, access, (registry, owner), false)
     }
 
     /// Formal input in the immutable declaration's own frame. Entered-call
@@ -171,8 +207,11 @@ impl SourceCommandBindings {
         source: &SourceSite,
         spelling: &str,
         parameters: &[&str],
-        registry: &CommandRegistry,
+        selection: (&CommandRegistry, &OwnedInvocationMetadataContext),
     ) -> Option<String> {
+        let (registry, owner) = selection;
+        self.formal_source_owner_matches(owner, registry)?;
+
         // naming.tcloo.original-declared-receiver-caller-traits
         // docs/design/analysis/name-resolution-proofs/tcloo-original-declared-receiver-caller-traits.md
         trace_formal!(
@@ -197,12 +236,18 @@ impl SourceCommandBindings {
         if let Some(entry) = self.conditional_body_entry_at(origin, source.span.start())
             && entry.matches_parameters(parameters)
             && let Some(access) = self.variable_access_at(source, spelling)
-            && let Some(value) = self.formal_value_for_access(&entry, access, registry, true)
+            && let Some(value) =
+                self.formal_value_for_access(&entry, access, (registry, owner), true)
         {
             return Some(value);
         }
-        let value =
-            self.original_direct_formal_value(origin, source, spelling, parameters, registry);
+        let value = self.original_direct_formal_value(
+            origin,
+            source,
+            spelling,
+            parameters,
+            (registry, owner),
+        );
         trace_formal!(source, "original-direct-result", value.is_some());
         value
     }
@@ -213,8 +258,9 @@ impl SourceCommandBindings {
         source: &SourceSite,
         spelling: &str,
         parameters: &[&str],
-        registry: &CommandRegistry,
+        selection: (&CommandRegistry, &OwnedInvocationMetadataContext),
     ) -> Option<String> {
+        let (registry, owner) = selection;
         let mut agreed = None;
         let mut observed = false;
         for (site, observations) in &self.declaration_layouts {
@@ -260,6 +306,9 @@ impl SourceCommandBindings {
                     registry,
                 )?;
                 let binding = original_formal_observation_binding(site, observation);
+                binding
+                    .original_invocation_metadata_for_owner(&tokens, owner, registry)
+                    .ok()?;
                 trace_formal!(
                     source,
                     "operand-lookup",
@@ -345,10 +394,19 @@ impl SourceCommandBindings {
         invocation: u32,
         word: &crate::ir::WordExpr,
         parameters: &[&str],
-        registry: &CommandRegistry,
+        selection: (&CommandRegistry, &OwnedInvocationMetadataContext),
     ) -> Vec<String> {
+        let (registry, owner) = selection;
+        if self.formal_source_owner_matches(owner, registry).is_none() {
+            return Vec::new();
+        }
+
         self.symbolic_formal_components_in_word_for(
-            origin, invocation, word, parameters, registry, true,
+            origin,
+            invocation,
+            word,
+            parameters,
+            (registry, owner),
         )
     }
 
@@ -358,8 +416,7 @@ impl SourceCommandBindings {
         invocation: u32,
         word: &crate::ir::WordExpr,
         parameters: &[&str],
-        registry: &CommandRegistry,
-        declaration_only: bool,
+        selection: (&CommandRegistry, &OwnedInvocationMetadataContext),
     ) -> Vec<String> {
         fn direct(
             owner: &super::SourceVariableEvaluationOwner,
@@ -389,18 +446,13 @@ impl SourceCommandBindings {
                     && direct(&access.owner, &site)
             })
             .filter_map(|access| {
-                let project = if declaration_only {
-                    Self::symbolic_declaration_formal_value_at
-                } else {
-                    Self::symbolic_formal_value_at
-                };
-                project(
+                Self::symbolic_declaration_formal_value_at(
                     self,
                     origin,
                     &access.source,
                     &access.original_spelling,
                     parameters,
-                    registry,
+                    selection,
                 )
             })
             .collect()
@@ -410,7 +462,7 @@ impl SourceCommandBindings {
         &self,
         entry: &SourceConditionalBodyEntry,
         access: &SourceVariableAccess,
-        registry: &CommandRegistry,
+        selection: (&CommandRegistry, &OwnedInvocationMetadataContext),
         declaration_only: bool,
     ) -> Option<String> {
         let mut work = vec![(access, false)];
@@ -451,7 +503,7 @@ impl SourceCommandBindings {
                     self.original_body_owns_context(entry, context)
                 }
             }) {
-                sources.push(self.formal_value_in_context(entry, read, context, registry)?);
+                sources.push(self.formal_value_in_context(entry, read, context, selection)?);
             }
             trace_formal!(&read.source, "owned-read-context", !sources.is_empty());
             if sources.is_empty() {
@@ -473,8 +525,9 @@ impl SourceCommandBindings {
         entry: &SourceConditionalBodyEntry,
         access: &SourceVariableAccess,
         context: &ResolveContext,
-        registry: &CommandRegistry,
+        selection: (&CommandRegistry, &OwnedInvocationMetadataContext),
     ) -> Option<FormalValueSource<'a>> {
+        let (registry, owner) = selection;
         trace_formal!(
             &access.source,
             "context-static-bindings",
@@ -506,8 +559,15 @@ impl SourceCommandBindings {
             return None;
         }
         let tokens = self.declaration_original_tokens_at(entry, offset)?;
+        let metadata = tokens
+            .source_binding
+            .as_ref()?
+            .original_invocation_metadata_for_owner(&tokens, owner, registry)
+            .ok()?;
         let selected =
-            crate::registry_invocation::resolved_handler_invocation(registry, None, &tokens)?;
+            crate::registry_invocation::resolved_handler_invocation_with_metadata_context(
+                registry, metadata, &tokens,
+            )?;
         if selected.facts.operation
             != tcl_registry::SemanticOperationId::StructuredLowering(
                 tcl_registry::hooks::LoweringHookId::Set,
@@ -636,7 +696,10 @@ impl SourceCommandBindings {
         if tokens.words() != first.words.as_ref() {
             return None;
         }
-        let mut binding = super::SourceInvocationBinding::unknown();
+        // The declaration observation owns metadata and original geometry;
+        // dispatch remains unknown and the body remains unentered.
+        let mut binding = original_formal_observation_binding(&site, first);
+        binding.unknown = true;
         binding.runtime_reachability = super::SourceRuntimeReachability::Conditional;
         binding = self.attach_declaration_operand_layout(binding, Some(&site.source), offset);
         tokens.source_binding = Some(binding);
@@ -685,6 +748,175 @@ fn incoming_formal_value(
 #[cfg(test)]
 mod tests {
     #[test]
+    fn original_formal_copy_query_retains_full_source_metadata_and_explicit_compatibility() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        use crate::registry_invocation::{InvocationMetadataInput, OwnedInvocationMetadataContext};
+        use std::sync::Arc;
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let profile = context.commands().profile().unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let source = "proc p {target} {set saved $target; upvar 1 $saved local}; p VALUE";
+        let (_runtime_owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let inventory = super::SourceCommandBindings::analyse_with_options(
+            source,
+            config,
+            context.commands(),
+            super::super::SourceAnalysisOptions {
+                metadata_context: InvocationMetadataInput::SuppliedSource(Some(&input)),
+                native_entry: Some(&captured),
+                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                ..Default::default()
+            },
+        );
+        let origin = inventory.root_origin.as_ref().unwrap();
+        let offset = u32::try_from(source.find("upvar").unwrap()).unwrap();
+        let entry = inventory.conditional_body_entry_at(origin, offset).unwrap();
+        let tokens = inventory
+            .declaration_original_tokens_at(&entry, offset)
+            .unwrap();
+        let (spelling, site) = tokens.words()[2].sole_variable_substitution().unwrap();
+        let owner = OwnedInvocationMetadataContext::for_source_input(Some(&input));
+        assert_eq!(
+            inventory
+                .symbolic_declaration_formal_value_at(
+                    origin,
+                    site,
+                    spelling,
+                    &["target"],
+                    (context.commands(), &owner)
+                )
+                .as_deref(),
+            Some("target")
+        );
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(context.commands())),
+        );
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        for context in [older, foreign] {
+            let changed =
+                crate::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
+            assert!(
+                inventory
+                    .symbolic_declaration_formal_value_at(
+                        origin,
+                        site,
+                        spelling,
+                        &["target"],
+                        (
+                            input.context_registry().commands(),
+                            &OwnedInvocationMetadataContext::for_source_input(Some(&changed))
+                        )
+                    )
+                    .is_none()
+            );
+        }
+        for owner in [
+            OwnedInvocationMetadataContext::Unavailable,
+            OwnedInvocationMetadataContext::Standalone,
+            OwnedInvocationMetadataContext::Supplied(Arc::clone(&context)),
+        ] {
+            assert!(
+                inventory
+                    .symbolic_declaration_formal_value_at(
+                        origin,
+                        site,
+                        spelling,
+                        &["target"],
+                        (context.commands(), &owner)
+                    )
+                    .is_none()
+            );
+        }
+        let mut changed_config = config;
+        changed_config.strict_quoting = !changed_config.strict_quoting;
+        let changed = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            changed_config,
+        );
+        assert!(
+            inventory
+                .symbolic_declaration_formal_value_at(
+                    origin,
+                    site,
+                    spelling,
+                    &["target"],
+                    (
+                        context.commands(),
+                        &OwnedInvocationMetadataContext::for_source_input(Some(&changed))
+                    )
+                )
+                .is_none()
+        );
+        let other = super::SourceCommandBindings::analyse(
+            "proc p {target} {set saved $target; upvar 1 $saved local}; p OTHER",
+            config,
+            context.commands(),
+        );
+        assert!(
+            other
+                .symbolic_declaration_formal_value_at(
+                    origin,
+                    site,
+                    spelling,
+                    &["target"],
+                    (context.commands(), &owner)
+                )
+                .is_none()
+        );
+        let standalone = super::SourceCommandBindings::analyse(source, config, context.commands());
+        let origin = standalone.root_origin.as_ref().unwrap();
+        let entry = standalone
+            .conditional_body_entry_at(origin, offset)
+            .unwrap();
+        let tokens = standalone
+            .declaration_original_tokens_at(&entry, offset)
+            .unwrap();
+        let (spelling, site) = tokens.words()[2].sole_variable_substitution().unwrap();
+        assert_eq!(
+            standalone
+                .symbolic_declaration_formal_value_at(
+                    origin,
+                    site,
+                    spelling,
+                    &["target"],
+                    (
+                        context.commands(),
+                        &OwnedInvocationMetadataContext::Standalone
+                    )
+                )
+                .as_deref(),
+            Some("target")
+        );
+        assert!(
+            standalone
+                .symbolic_declaration_formal_value_at(
+                    origin,
+                    site,
+                    spelling,
+                    &["target"],
+                    (
+                        context.commands(),
+                        &OwnedInvocationMetadataContext::Unavailable
+                    )
+                )
+                .is_none()
+        );
+    }
+
+    #[test]
     fn original_receiver_formal_value_uses_its_unentered_declaration() {
         // naming.tcloo.original-declared-receiver-caller-traits
         // docs/design/analysis/name-resolution-proofs/tcloo-original-declared-receiver-caller-traits.md
@@ -724,7 +956,7 @@ mod tests {
                         source,
                         spelling,
                         &["input"],
-                        registry,
+                        (registry, inventory.source_metadata_owner())
                     )
                     .as_deref(),
                 Some("input"),
@@ -732,7 +964,13 @@ mod tests {
             );
             assert!(
                 inventory
-                    .symbolic_formal_value_at(&origin, source, spelling, &["input"], registry,)
+                    .symbolic_formal_value_at(
+                        &origin,
+                        source,
+                        spelling,
+                        &["input"],
+                        (registry, inventory.source_metadata_owner())
+                    )
                     .is_none(),
                 "{profile}: no entered receiver value is supplied"
             );
@@ -744,7 +982,7 @@ mod tests {
                             source,
                             changed,
                             &["input"],
-                            registry,
+                            (registry, inventory.source_metadata_owner())
                         )
                         .is_none(),
                     "{profile}: {changed}"
@@ -757,7 +995,7 @@ mod tests {
                         source,
                         spelling,
                         &["different"],
-                        registry,
+                        (registry, inventory.source_metadata_owner())
                     )
                     .is_none()
             );
@@ -801,7 +1039,7 @@ mod tests {
                     source,
                     spelling,
                     &["input"],
-                    registry,
+                    (registry, inventory.source_metadata_owner())
                 )
                 .as_deref(),
             expected,
@@ -809,7 +1047,13 @@ mod tests {
         );
         assert!(
             inventory
-                .symbolic_formal_value_at(&origin, source, spelling, &["input"], registry)
+                .symbolic_formal_value_at(
+                    &origin,
+                    source,
+                    spelling,
+                    &["input"],
+                    (registry, inventory.source_metadata_owner())
+                )
                 .is_none(),
             "{profile}: conditional source input grants no entered receiver value"
         );
@@ -874,7 +1118,7 @@ mod tests {
                         source,
                         spelling,
                         &["target"],
-                        registry,
+                        (registry, inventory.source_metadata_owner())
                     )
                     .as_deref(),
                 Some("target"),
@@ -888,7 +1132,7 @@ mod tests {
                             source,
                             changed,
                             &["target"],
-                            registry,
+                            (registry, inventory.source_metadata_owner())
                         )
                         .is_none(),
                     "{profile}: {changed}"
@@ -901,13 +1145,19 @@ mod tests {
                         source,
                         spelling,
                         &["different"],
-                        registry,
+                        (registry, inventory.source_metadata_owner())
                     )
                     .is_none()
             );
             assert!(
                 inventory
-                    .symbolic_formal_value_at(&origin, source, spelling, &["target"], registry,)
+                    .symbolic_formal_value_at(
+                        &origin,
+                        source,
+                        spelling,
+                        &["target"],
+                        (registry, inventory.source_metadata_owner())
+                    )
                     .is_none()
             );
         }
@@ -951,7 +1201,7 @@ mod tests {
                     source_site,
                     spelling,
                     &["target"],
-                    registry
+                    (registry, inventory.source_metadata_owner())
                 )
                 .as_deref(),
             expected,
@@ -964,13 +1214,19 @@ mod tests {
                     source_site,
                     "$different",
                     &["target"],
-                    registry
+                    (registry, inventory.source_metadata_owner())
                 )
                 .is_none()
         );
         assert!(
             inventory
-                .symbolic_formal_value_at(&origin, source_site, spelling, &["target"], registry)
+                .symbolic_formal_value_at(
+                    &origin,
+                    source_site,
+                    spelling,
+                    &["target"],
+                    (registry, inventory.source_metadata_owner())
+                )
                 .is_none()
         );
         let binding = tokens.source_binding.as_ref().unwrap();

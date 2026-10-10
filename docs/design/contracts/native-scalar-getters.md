@@ -19,6 +19,7 @@ The broader number and expression contract is
 | --- | --- |
 | Selected primitive conversion, cache transition and failure recipe | `tcl_syntax::scalar_getter::NativeScalarGetterProtocol` |
 | Actual host layout and numeric thread state | `tcl_platform::NumericEnvironment`; `tcl_host_c_abi::NativeNumericEnvironment` |
+| Original cache layout and reached primitive eligibility | `NativeScalarGetterProtocol::{validate_cache_abi, validate_primitive_abi}`; `tcl_cmd_core::native_numeric::scalar_getter_recipe_abi` |
 | Reached C84/Jim conversion stages | `tcl_cmd_core::native_numeric::{fresh_c84_conversion, fresh_jim_conversion}` |
 | Original Runtime object probe and failure rendering | `typed_value::{native_scalar_probe_with_environment, native_scalar_failure_presentation}` |
 | Original VM object probe and failure rendering | `Value::{native_scalar_probe_with_environment, native_scalar_failure_presentation}` |
@@ -37,14 +38,19 @@ first cause instead of publishing a guessed Tcl diagnostic.
 actual host owns these facts. Source grammar, a cached integer, the compiler's
 build target and an interpreter name cannot replace this query.
 
-`NativeScalarGetterTarget::from_c_integer_abi(char_bits, int_bytes, long_bytes)`
-checks the supported recipe: eight-bit C characters, four-byte C int and
-eight-byte C long. Other layouts remain unavailable. The checked descriptor
-establishes integer layout only; it does not authenticate an engine, original
-object, source unit or selected handler. Captured LP64 widths make no claim for
-LLP64 or wasm32.
+Runtime object issuance retains its actual engine, Host and queried ABI,
+checks eight-bit C characters, four-byte C int and four- or eight-byte C long,
+and compares the output widths with that Runtime's FFI types. This descriptive
+output identity is independent of the reached getter recipe.
 
-Physical adapters use the shared query:
+`NativeScalarGetterTarget::from_c_integer_abi(char_bits, int_bytes, long_bytes)`
+continues to admit only the selected eight-bit/four-byte/eight-byte recipe
+capability. An admitted output layout with four-byte long does not widen that
+capability. Neither descriptive layout nor the checked recipe target supplies
+an engine, original object, source unit or selected handler. The original LP64
+getter captures make no claim for LLP64 or wasm32.
+
+Physical adapters obtain the recipe target only when selected:
 
 ```rust
 let target = tcl_cmd_core::native_numeric::scalar_getter_target(environment)?;
@@ -54,9 +60,27 @@ Backend owners can pass `Some(target)` to
 `protocol.cached_conversion(kind, original_cache, Some(target))` or
 `protocol.fresh_conversion_with_target(kind, original_bytes, Some(target))`.
 Ordinary consumers use the original-object probe so they retain its header,
-cache and environment checks. `requires_target(kind, original_cache)` describes
-cache/getter obligations; C84 fresh numeric Boolean discovers its additional
-target obligation in the shared fresh-conversion stage.
+cache and environment checks. The probe separately validates the actual
+`NativeScalarGetterStage::Cached(original_cache)` or reached `Fresh` stage via
+`scalar_getter_recipe_abi`. `requires_target(kind, original_cache)` selects an
+additional recipe-target obligation; it is not the complete eligibility check.
+C84 Boolean words and definite-invalid spellings remain before its fresh numeric
+ABI obligation. A failed reached recipe cannot fall through to reparsing.
+
+`validate_cache_abi` checks a retained C84 native-long primary against the actual
+long width. Runtime binding validates an existing cache before publishing its
+issuer; later cache adoption uses that same retained ABI before mutation,
+without a fresh Host query. The engine scalar-carrier producer binds its already
+issued owner before initial cache adoption. Neutral constructors remain
+separately unissued and supply no physical ABI permission.
+
+With four-byte long, genuine cached C84 long or wide integer values in signed
+32-bit range retain the selected Long direct-return equation. Wider wide values
+remain separate; a C84 native-long primary outside that range refuses. Fresh
+C84 Int, Long, Wide and numeric Boolean still require their original build's
+parser/cache or `TCL_WIDE_INT_IS_LONG` recipe and refuse on this layout. Double's
+actual `strtod` stage is independent. Modern C/Jim Long64 and cached Jim raw
+Boolean keep their separately measured eight-byte-long capability.
 
 `c_integer_abi`, `reset`, `unsigned_c84` and `signed_long` default to
 `NumericEnvironmentUnavailable::Target`. Required `state`, `unsigned` and
@@ -67,6 +91,15 @@ cache refusal is terminal. Do not retry it through string conversion.
 The host's numeric environment observes the current thread's errno. Conversion
 receipts retain their before/after state and end pointer; reset is an explicit
 selected operation. An interpreter-local mirror cannot replace that owner.
+
+`WasiHost` supplies an environment only for `wasm32-wasip1`, using that compiled
+guest's libc types, conversion functions and errno cell. Browser and preview-2
+routes remain independently unavailable. The SDK and standalone Rust guest
+observations in
+[numeric-wasi-libc-environment.md](../analysis/name-resolution-proofs/numeric-wasi-libc-environment.md)
+record environment facts. Applying them to a Runtime requires its own selected
+libc/link closure and separate Runtime validation; they establish no original
+Tcl Long32, expression, object or execution recipe.
 
 ## Preserve the selected conversion
 
@@ -167,7 +200,12 @@ supply the necessary host capability and backend adapter. Keep unknown layouts
 unavailable. Do not duplicate integer parsing, infer ABI from a profile, render
 from borrowed context-free bytes, or turn a failed cache query into fresh input.
 
-Discriminating controls are in
+The source controls
+`queried_output_layout_does_not_supply_long64_or_a_c84_build_recipe` and
+`c84_primary_width_and_reached_fresh_recipe_are_independent` in
+[Syntax ABI tests](../../../rust/tcl-syntax/src/scalar_getter/abi_tests.rs)
+check layout/cache/recipe boundaries without an original Tcl32 getter or engine
+claim. Discriminating original-field controls are in
 [Syntax target tests](../../../rust/tcl-syntax/src/scalar_getter/target_tests.rs),
 [CmdCore host-stage tests](../../../rust/tcl-cmd-core/src/native_numeric_float_tests.rs)
 and [VM target tests](../../../rust/tcl-vm/src/value_scalar_target_tests.rs):

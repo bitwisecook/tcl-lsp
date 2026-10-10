@@ -28,6 +28,25 @@ pub fn scalar_getter_target(
     .map_err(|_| ValueError::ScalarNumericInputUnavailable)
 }
 
+/// Check a reached primitive's recipe against the actual environment ABI.
+/// Output-layout identity supplies neither an original cache nor worker entry.
+///
+/// # Errors
+/// Refuses absent ABI facts or an unsupported reached primitive recipe.
+pub fn scalar_getter_recipe_abi(
+    protocol: NativeScalarGetterProtocol,
+    kind: NativeScalarGetterKind,
+    stage: tcl_syntax::scalar_getter::NativeScalarGetterStage<'_>,
+    environment: &dyn NumericEnvironment,
+) -> Result<(), ValueError> {
+    let abi = environment
+        .c_integer_abi()
+        .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
+    protocol
+        .validate_primitive_abi(kind, stage, abi.char_bits, abi.int_bytes, abi.long_bytes)
+        .map_err(|_| ValueError::ScalarNumericInputUnavailable)
+}
+
 /// Observe C8.4's reached nonfinite result without resetting thread state.
 /// Finite values and known NaN domain errors require no environment query;
 /// infinity requires an actual EDOM fact before selecting overflow.
@@ -74,6 +93,12 @@ pub fn fresh_c84_conversion(
         if let Some(conversion) = protocol.c84_boolean_before_numeric(original) {
             return Ok(conversion);
         }
+        scalar_getter_recipe_abi(
+            protocol,
+            kind,
+            tcl_syntax::scalar_getter::NativeScalarGetterStage::Fresh,
+            environment,
+        )?;
         let target = scalar_getter_target(environment)?;
         let integer = environment
             .signed_long(original, 0)
@@ -92,6 +117,12 @@ pub fn fresh_c84_conversion(
             .c84_boolean_from_double_host(original, double.value, double.end)
             .ok_or_else(unavailable);
     }
+    scalar_getter_recipe_abi(
+        protocol,
+        kind,
+        tcl_syntax::scalar_getter::NativeScalarGetterStage::Fresh,
+        environment,
+    )?;
     if kind == NativeScalarGetterKind::Double {
         let executed = environment
             .double(original, true)

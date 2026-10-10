@@ -126,6 +126,16 @@ pub(crate) fn native_scalar_probe_with_environment_and_currency(
         return Err(ValueError::ScalarNumericInputUnavailable);
     }
     let cache = obj::native_scalar_cache(value)?;
+    if let (Some(environment), Some(cache)) = (environment, cache.as_ref()) {
+        let admitted = tcl_cmd_core::native_numeric::scalar_getter_recipe_abi(
+            protocol,
+            kind,
+            tcl_syntax::scalar_getter::NativeScalarGetterStage::Cached(cache),
+            environment,
+        );
+        scalar_stage_current(currency)?;
+        admitted?;
+    }
     let target = if protocol.requires_target(kind, cache.as_ref()) {
         Some(if let Some(environment) = environment {
             tcl_cmd_core::native_numeric::scalar_getter_target(environment)?
@@ -146,6 +156,18 @@ pub(crate) fn native_scalar_probe_with_environment_and_currency(
     let conversion = if let Some(conversion) = cached {
         conversion
     } else {
+        if kind != tcl_syntax::scalar_getter::NativeScalarGetterKind::Boolean {
+            if let Some(environment) = environment {
+                let admitted = tcl_cmd_core::native_numeric::scalar_getter_recipe_abi(
+                    protocol,
+                    kind,
+                    tcl_syntax::scalar_getter::NativeScalarGetterStage::Fresh,
+                    environment,
+                );
+                scalar_stage_current(currency)?;
+                admitted?;
+            }
+        }
         let original = crate::bytearray::scalar_getter_string(value, protocol);
         scalar_stage_current(currency)?;
         let original = original?;
@@ -219,7 +241,22 @@ pub(crate) fn native_number_probe(
     Result<tcl_syntax::number::Number, tcl_syntax::scalar_getter::NativeScalarGetterFailure>,
     tcl_syntax::value::ValueError,
 > {
+    native_number_probe_with_currency(value, dialect, kind, None)
+}
+
+/// Entered Number probes use the same primitive recipe and preserve reached
+/// String effects before refusing later conversion or cache publication.
+pub(crate) fn native_number_probe_with_currency(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    kind: tcl_syntax::scalar_getter::NativeNumberGetterKind,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+) -> Result<
+    Result<tcl_syntax::number::Number, tcl_syntax::scalar_getter::NativeScalarGetterFailure>,
+    tcl_syntax::value::ValueError,
+> {
     use tcl_syntax::value::ValueError;
+    scalar_stage_current(currency)?;
     obj::check_native_liveness(value)?;
     let protocol = dialect
         .native_scalar_getter_protocol()
@@ -245,12 +282,15 @@ pub(crate) fn native_number_probe(
     let conversion = if let Some(conversion) = cached {
         conversion
     } else {
-        let original = crate::bytearray::scalar_getter_string(value, protocol)?;
+        let original = crate::bytearray::scalar_getter_string(value, protocol);
+        scalar_stage_current(currency)?;
+        let original = original?;
         protocol
             .fresh_number_conversion(kind, &original)
             .ok_or(ValueError::ScalarNumericInputUnavailable)?
     };
     let (cache, outcome) = conversion.into_parts();
+    scalar_stage_current(currency)?;
     if let Some(cache) = cache {
         obj::adopt_native_scalar_cache(value, cache, protocol)?;
     }

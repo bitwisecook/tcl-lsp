@@ -534,12 +534,12 @@ pub(crate) fn validate_scalar_object_context(
     value: *mut TclObj,
     incoming: &crate::interp::native_scalar_context::NativeScalarObjectContext,
 ) -> Result<(), tcl_syntax::value::ValueError> {
-    if let Some(retained) = scalar_object_context(value)?
-        && !retained.same_issuer(incoming)
-    {
-        return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-            "foreign or stale native scalar object issuer",
-        ));
+    if let Some(retained) = scalar_object_context(value)? {
+        if !retained.same_issuer(incoming) {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "foreign or stale native scalar object issuer",
+            ));
+        }
     }
     Ok(())
 }
@@ -549,6 +549,9 @@ pub(crate) fn bind_scalar_object_context(
     incoming: Rc<crate::interp::native_scalar_context::NativeScalarObjectContext>,
 ) -> Result<(), tcl_syntax::value::ValueError> {
     validate_scalar_object_context(value, &incoming)?;
+    if let Some(cache) = native_scalar_cache(value)? {
+        incoming.validate_bound_cache(&cache)?;
+    }
     if scalar_object_context(value)?.is_some() {
         return Ok(());
     }
@@ -1872,6 +1875,10 @@ pub(crate) fn adopt_native_scalar_cache(
     protocol: tcl_syntax::scalar_getter::NativeScalarGetterProtocol,
 ) -> Result<(), tcl_syntax::value::ValueError> {
     use tcl_syntax::{number::Number, scalar_getter::NativeScalarCache};
+    check_native_liveness(value)?;
+    if let Some(issuer) = scalar_object_context(value)? {
+        issuer.validate_cache(&cache, protocol)?;
+    }
     match cache {
         NativeScalarCache::Tcl84Long(integer) => {
             if protocol.tcl_version() != Some(tcl_dialect::TclVersion::V8_4) {

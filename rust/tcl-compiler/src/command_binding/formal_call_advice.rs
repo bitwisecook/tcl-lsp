@@ -41,7 +41,13 @@ impl SourceCommandBindings {
         &self,
         invocation: &crate::ir::CommandTokens,
         registry: &tcl_registry::CommandRegistry,
+        owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
     ) -> Option<Vec<String>> {
+        invocation
+            .source_binding
+            .as_ref()?
+            .original_invocation_metadata_for_owner(invocation, owner, registry)
+            .ok()?;
         let advice = self.declaration_call_layout_advice(invocation)?;
         let mut agreed = None;
         for target in advice.targets() {
@@ -100,7 +106,7 @@ impl SourceCommandBindings {
                         &source,
                         &spelling,
                         &names,
-                        registry,
+                        (registry, owner),
                     ) else {
                         continue;
                     };
@@ -134,10 +140,16 @@ impl SourceCommandBindings {
         &self,
         offset: u32,
         registry: &tcl_registry::CommandRegistry,
+        owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
     ) -> Option<Vec<DeclarationFormalCallValue>> {
         let origin = self.root_origin.as_ref()?;
         let entry = self.conditional_body_entry_at(origin, offset)?;
         let tokens = self.declaration_original_tokens_at(&entry, offset)?;
+        tokens
+            .source_binding
+            .as_ref()?
+            .original_invocation_metadata_for_owner(&tokens, owner, registry)
+            .ok()?;
         let head = tokens.words().first()?;
         let crate::ir::WordExpr::Variable {
             spelling, source, ..
@@ -158,7 +170,7 @@ impl SourceCommandBindings {
             source,
             spelling,
             &parameters,
-            registry,
+            (registry, owner),
         )?;
         let parameter = entry
             .parameters()
@@ -265,7 +277,7 @@ mod tests {
         let offset = u32::try_from(source.find(dispatch).unwrap()).unwrap();
         let origin = bindings.root_origin.as_ref().unwrap();
         bindings
-            .declaration_formal_call_values(offset, registry)
+            .declaration_formal_call_values(offset, registry, bindings.source_metadata_owner())
             .unwrap_or_default()
             .iter()
             .filter_map(|candidate| candidate.value_in_source(origin).map(str::to_owned))
@@ -315,7 +327,11 @@ mod tests {
             );
             bindings.stamp_original_tokens(&mut tokens);
             let actual = bindings
-                .declaration_caller_alias_arguments(&tokens, registry)
+                .declaration_caller_alias_arguments(
+                    &tokens,
+                    registry,
+                    bindings.source_metadata_owner(),
+                )
                 .unwrap_or_default();
             assert_eq!(actual, expected, "{source}");
         }

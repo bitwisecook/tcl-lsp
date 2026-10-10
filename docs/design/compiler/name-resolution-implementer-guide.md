@@ -8746,10 +8746,32 @@ these source carriers a Native object, table, MRO, frame or edit capability.
 `declaration` preserves the selected original alias-declaration span and sends
 other Native/hosted navigation to the sealed definition variable/caller-template
 owner. Missing original roots or command realm, copied reports and a changed
-whole image cannot select a fresh nominal scan. Only actual explicit Logical
-input admits the separate compatibility scanner. Call-hierarchy preparation
-likewise treats a retained variable cursor as terminal before selecting a
-genuine independent canonical method declaration. See the [declaration navigation contract](../analysis/name-resolution-proofs/core-original-declaration-navigation.md).
+whole image cannot select a fresh nominal scan. Actual explicit Logical input
+admits a separate lexical navigation projection: the original variable label
+enters the shared scope lookup unchanged, and linked cell/declaration spans join
+global and namespace aliases without confusing a qualified global with a
+same-named local. Each scanned command must retain the current source schema
+and actual availability before declaration geometry applies. These relationships
+supply navigation advice, not a physical variable alias or executed frame.
+Call-hierarchy preparation likewise treats a retained variable cursor as
+terminal before selecting a genuine independent canonical method declaration.
+See the [declaration navigation contract](../analysis/name-resolution-proofs/core-original-declaration-navigation.md).
+
+CLI `diff` retains one complete selected input, including the owned pack-bearing
+command store and file lexer configuration. Each side receives its own current
+source analysis; canonical subcommands come from that source's selected schema,
+including captured prefixes and unavailable/dynamic refusal. AST-only output
+uses the structure tier. Requested IR and CFG views share one compilation unit
+with the same full input. Source canonical metadata does not grant a handler,
+runtime argv or Native compilation entry. See the [actual metadata contract](../analysis/name-resolution-proofs/original-analysis-metadata-context.md).
+
+MCP iRule generation renders static-variable setup labels from the shared
+original source closure. It removes one displayed `static::` prefix and
+preserves any later literal component. A label such as `static::static::hits`
+therefore retains `static::hits` in the generated setup. The scaffold remains
+conditional source advice with independently observed outcome obligations;
+these labels supply no loaded variable, storage identity or event execution.
+See the [iRule source contract](../analysis/name-resolution-proofs/original-irules-source-context.md).
 
 ## Shared original definition vocabulary
 
@@ -9804,6 +9826,25 @@ record through the actual interpreter; message and code projections cannot
 replace it.
 
 An entered Runtime Boolean operation also retains `NativeOperationCurrency`. Check the actual interpreter owner, host, full context and Interpreter guard epoch before and after callbacks and publication. Equal scalar recipes do not establish currency, and changing and restoring the same context cannot revive an old entry. The numeric Host adapter preserves reached conversion effects and the first typed refusal; a refused operation cannot install a later fallback cache or write an ABI output. C8.4 integer-primary preparation separately checks the actual host C integer layout before and after its conversion. Neither check borrows the primitive C API object issuer as expression authority.
+
+`NativeOperationScope` retains the original interpreter receipt for a complete
+ABI operation. Nested getters, command dispatch, source evaluation and
+variable callbacks inherit it through the actual interpreter. Do not issue a
+new receipt after a callback: equal context or profile fields cannot restore
+its original epoch. Check `check_entered_native_operation` after each reached
+callback or getter, retaining its effects and exact first Host cause before
+any Guest rendering, later callback, cache or result publication. These checks
+supply no name, command, cell, getter or native object purpose.
+
+Full expression and fixed-math completion exports use
+`state_traits::capture_completion_checked` with that same explicit interpreter
+and currency. The shared capture owner retains the genuine Guest result and
+options; a refusal during capture releases both owned handles and publishes
+neither. Source and argv ownership remain separate: a borrowed caller object
+must not be adopted as a transferred reference. Retirement, frame restoration,
+trace cleanup and reference release still run after refusal. A scope's drop
+removes its original receipt without clearing the Host cause.
+
 
 VM consumers use `boolean_for_vm` for reached operand instructions, `expression_boolean_for_vm` for a genuine outer expression-result producer, and `normalize_numeric_instruction_for_vm` for an actually reached C numeric-conversion instruction. The last operation always performs its conversion, independently of a Boolean condition's optimiser removal, and performs no public expression API copy. An instruction is selected from `NativeExpressionResultProducer`; absence of a Boolean `production()` describes that explicit numeric-instruction producer, not missing authority.
 

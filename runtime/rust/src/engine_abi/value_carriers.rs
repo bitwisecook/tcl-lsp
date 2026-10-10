@@ -37,10 +37,12 @@ pub(crate) fn scalar(
         .into());
     }
     let original = Owned::fresh(obj::new_obj());
+    // Install this already issued owner before cache adoption, so the common
+    // physical producer checks primary layout without another Host query.
+    obj::bind_scalar_object_context(original.as_ptr(), issuer)?;
     obj::adopt_native_scalar_cache(original.as_ptr(), cache, protocol)?;
     obj::invalidate_string(original.as_ptr());
     interp.associate_native_jim_arguments(&[original.as_ptr()])?;
-    obj::bind_scalar_object_context(original.as_ptr(), issuer)?;
     Ok(original)
 }
 

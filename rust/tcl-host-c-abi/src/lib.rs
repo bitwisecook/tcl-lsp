@@ -10,7 +10,9 @@ use tcl_platform::{
 mod integer_formatter;
 pub use integer_formatter::LoadedNativeIntegerFormatter;
 
-/// Stateless access to the current OS thread's C numeric environment.
+/// Stateless access to this compiled target's current C numeric environment.
+/// WASIp1 uses its own linked guest libc and errno cell, independently of any
+/// SDK capture or host-native library. It supplies no Tcl getter recipe.
 pub struct NativeNumericEnvironment;
 
 impl NativeNumericEnvironment {
@@ -21,7 +23,12 @@ impl NativeNumericEnvironment {
             target_os = "linux",
             target_os = "macos",
             target_os = "ios",
-            target_os = "freebsd"
+            target_os = "freebsd",
+            all(
+                target_arch = "wasm32",
+                target_os = "wasi",
+                target_env = "p1"
+            )
         ))
     }
 }
@@ -30,7 +37,8 @@ impl NativeNumericEnvironment {
     target_os = "linux",
     target_os = "macos",
     target_os = "ios",
-    target_os = "freebsd"
+    target_os = "freebsd",
+    all(target_arch = "wasm32", target_os = "wasi", target_env = "p1")
 ))]
 mod native {
     use super::{
@@ -43,7 +51,10 @@ mod native {
         // SAFETY: these libc accessors return the calling thread's errno cell.
         // No pointer is exported, retained, or used by a different thread.
         unsafe {
-            #[cfg(target_os = "linux")]
+            #[cfg(any(
+                target_os = "linux",
+                all(target_arch = "wasm32", target_os = "wasi", target_env = "p1")
+            ))]
             {
                 libc::__errno_location()
             }
@@ -158,7 +169,9 @@ mod native {
         base: u32,
     ) -> Result<SignedNumericConversion, NumericEnvironmentUnavailable> {
         let original = input(bytes);
-        if !(base == 0 || (2..=36).contains(&base)) || core::mem::size_of::<libc::c_long>() != 8 {
+        if !(base == 0 || (2..=36).contains(&base))
+            || !matches!(core::mem::size_of::<libc::c_long>(), 4 | 8)
+        {
             return Err(NumericEnvironmentUnavailable::Conversion);
         }
         let before = state();
@@ -238,7 +251,8 @@ impl NumericEnvironment for NativeNumericEnvironment {
             target_os = "linux",
             target_os = "macos",
             target_os = "ios",
-            target_os = "freebsd"
+            target_os = "freebsd",
+            all(target_arch = "wasm32", target_os = "wasi", target_env = "p1")
         ))]
         {
             Ok(native::state())
@@ -247,7 +261,8 @@ impl NumericEnvironment for NativeNumericEnvironment {
             target_os = "linux",
             target_os = "macos",
             target_os = "ios",
-            target_os = "freebsd"
+            target_os = "freebsd",
+            all(target_arch = "wasm32", target_os = "wasi", target_env = "p1")
         )))]
         {
             Err(NumericEnvironmentUnavailable::Target)
@@ -259,7 +274,8 @@ impl NumericEnvironment for NativeNumericEnvironment {
             target_os = "linux",
             target_os = "macos",
             target_os = "ios",
-            target_os = "freebsd"
+            target_os = "freebsd",
+            all(target_arch = "wasm32", target_os = "wasi", target_env = "p1")
         ))]
         {
             native::reset();
@@ -269,7 +285,8 @@ impl NumericEnvironment for NativeNumericEnvironment {
             target_os = "linux",
             target_os = "macos",
             target_os = "ios",
-            target_os = "freebsd"
+            target_os = "freebsd",
+            all(target_arch = "wasm32", target_os = "wasi", target_env = "p1")
         )))]
         {
             Err(NumericEnvironmentUnavailable::Target)
@@ -285,7 +302,8 @@ impl NumericEnvironment for NativeNumericEnvironment {
             target_os = "linux",
             target_os = "macos",
             target_os = "ios",
-            target_os = "freebsd"
+            target_os = "freebsd",
+            all(target_arch = "wasm32", target_os = "wasi", target_env = "p1")
         ))]
         {
             native::unsigned_c84(input, offset, long)
@@ -294,7 +312,8 @@ impl NumericEnvironment for NativeNumericEnvironment {
             target_os = "linux",
             target_os = "macos",
             target_os = "ios",
-            target_os = "freebsd"
+            target_os = "freebsd",
+            all(target_arch = "wasm32", target_os = "wasi", target_env = "p1")
         )))]
         {
             let _ = (input, offset, long);
@@ -312,7 +331,8 @@ impl NumericEnvironment for NativeNumericEnvironment {
             target_os = "linux",
             target_os = "macos",
             target_os = "ios",
-            target_os = "freebsd"
+            target_os = "freebsd",
+            all(target_arch = "wasm32", target_os = "wasi", target_env = "p1")
         ))]
         {
             native::unsigned(input, offset, base)
@@ -321,7 +341,8 @@ impl NumericEnvironment for NativeNumericEnvironment {
             target_os = "linux",
             target_os = "macos",
             target_os = "ios",
-            target_os = "freebsd"
+            target_os = "freebsd",
+            all(target_arch = "wasm32", target_os = "wasi", target_env = "p1")
         )))]
         {
             let _ = (input, offset, base);
@@ -338,7 +359,8 @@ impl NumericEnvironment for NativeNumericEnvironment {
             target_os = "linux",
             target_os = "macos",
             target_os = "ios",
-            target_os = "freebsd"
+            target_os = "freebsd",
+            all(target_arch = "wasm32", target_os = "wasi", target_env = "p1")
         ))]
         {
             native::signed_long(input, base)
@@ -347,7 +369,8 @@ impl NumericEnvironment for NativeNumericEnvironment {
             target_os = "linux",
             target_os = "macos",
             target_os = "ios",
-            target_os = "freebsd"
+            target_os = "freebsd",
+            all(target_arch = "wasm32", target_os = "wasi", target_env = "p1")
         )))]
         {
             let _ = (input, base);
@@ -364,7 +387,8 @@ impl NumericEnvironment for NativeNumericEnvironment {
             target_os = "linux",
             target_os = "macos",
             target_os = "ios",
-            target_os = "freebsd"
+            target_os = "freebsd",
+            all(target_arch = "wasm32", target_os = "wasi", target_env = "p1")
         ))]
         {
             native::double(input, reset_errno)
@@ -373,7 +397,8 @@ impl NumericEnvironment for NativeNumericEnvironment {
             target_os = "linux",
             target_os = "macos",
             target_os = "ios",
-            target_os = "freebsd"
+            target_os = "freebsd",
+            all(target_arch = "wasm32", target_os = "wasi", target_env = "p1")
         )))]
         {
             let _ = (input, reset_errno);

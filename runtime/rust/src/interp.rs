@@ -1360,6 +1360,8 @@ pub struct InterpState {
     jim_invocation_borrows: RefCell<Vec<JimBorrowedInvocation>>,
     jim_procedure_level: Cell<u32>,
     native_dispatch_depth: Cell<u32>,
+    /// Original entered ABI operations, inherited by synchronous nested work.
+    entered_native_operations: RefCell<Vec<Rc<native_operation_currency::NativeOperationCurrency>>>,
     deferred_tailcalls: RefCell<Vec<(u32, crate::frame::PendingTailcall)>>,
     /// The `try` exception-chaining link (TIP 329 `-during`): when a `try`
     /// handler or `finally` script throws, the options dict of the *prior*
@@ -1842,6 +1844,7 @@ impl Interp {
             jim_invocation_borrows: RefCell::new(Vec::new()),
             jim_procedure_level: Cell::new(0),
             native_dispatch_depth: Cell::new(0),
+            entered_native_operations: RefCell::new(Vec::new()),
             deferred_tailcalls: RefCell::new(Vec::new()),
             during: Cell::new(None),
             result: Cell::new(result),
@@ -5285,6 +5288,9 @@ impl Interp {
         name: &[u8],
         project: impl FnOnce(&mut Self, Code) -> T,
     ) -> T {
+        if self.check_entered_native_operation().is_err() {
+            return project(self, Code::Error);
+        }
         self.reset_outermost_native_error();
         if let Err(error) = self.record_package_source_file(name) {
             let code = self.report_cmd_error(error.into());
@@ -6837,6 +6843,13 @@ impl Interp {
                         code
                     }
                 };
+                // Every callback is a separate reached stage. Keep mandatory
+                // trace-scope cleanup, but do not render a Guest failure or
+                // run later callbacks after an original Host refusal.
+                if self.check_entered_native_operation().is_err() {
+                    errored = true;
+                    break 'groups;
+                }
                 if propagate && code == Code::Error {
                     // Capture the callback's error message; stop firing (C
                     // aborts the trace chain on the first error).
@@ -8154,8 +8167,14 @@ impl Interp {
         }
         let saved = self.save_native_variable_trace_result(false);
         for (name, elem, cmd, old_style) in victims {
+            if self.check_entered_native_operation().is_err() {
+                break;
+            }
             if let native_variable_observers::Callback::Native(observer) = &cmd {
                 self.call_native_variable_observer(observer.clone(), &name, &elem, "unset");
+                if self.check_entered_native_operation().is_err() {
+                    break;
+                }
                 continue;
             }
             let native_variable_observers::Callback::Script(cmd) = cmd else {
@@ -8180,6 +8199,9 @@ impl Interp {
             let _ = self.eval_str(&line);
             if let Some(saved_script) = saved_script {
                 self.restore_native_variable_trace_result(saved_script);
+            }
+            if self.check_entered_native_operation().is_err() {
+                break;
             }
         }
         if let Some(saved) = saved {
@@ -10217,6 +10239,9 @@ impl Interp {
         src: &[u8],
         project: impl FnOnce(&mut Self, Code) -> T,
     ) -> T {
+        if self.check_entered_native_operation().is_err() {
+            return project(self, Code::Error);
+        }
         self.reset_outermost_native_error();
         if self.eval_depth.get() == 0 {
             self.clear_return_options();
@@ -11207,6 +11232,9 @@ impl Interp {
         prebound: CommandDispatchSelection,
         ordinary: bool,
     ) -> Code {
+        if self.check_entered_native_operation().is_err() {
+            return Code::Error;
+        }
         let previous = self.native_dispatch_depth.get();
         let depth = previous.saturating_add(1);
         // Unknown handlers and other forwarding entries add real recursive
@@ -11225,7 +11253,11 @@ impl Interp {
         }
         self.native_dispatch_depth.set(depth);
         let code = self.dispatch_prebound_inner(argv, prebound, ordinary);
-        let code = self.drain_tailcalls(depth, code);
+        let code = if self.check_entered_native_operation().is_err() {
+            Code::Error
+        } else {
+            self.drain_tailcalls(depth, code)
+        };
         self.native_dispatch_depth.set(previous);
         code
     }
@@ -11740,7 +11772,7 @@ impl Interp {
         generation: Option<u64>,
         argv: &[*mut TclObj],
     ) -> Code {
-        if self.host_refusal_pending() {
+        if self.check_entered_native_operation().is_err() {
             return Code::Error;
         }
         if let Err(error) = self.associate_native_jim_arguments(argv) {
@@ -11775,7 +11807,12 @@ impl Interp {
         }
         let _jim_command = self.retain_active_jim_command(&cmd, generation);
         let code = self.invoke_bound_body(cmd, generation, argv);
+        // Retirement releases reached owners even after a Host refusal.
         self.retire_pending_native_ensemble_roles();
+        // Check the original context before Guest projection or later work.
+        if self.check_entered_native_operation().is_err() {
+            return Code::Error;
+        }
         if code == Code::Error && self.uses_jim_error_stack() {
             self.capture_jim_error_stack();
         }
@@ -11913,6 +11950,9 @@ impl Interp {
             )
         };
         let code = Code::from_int(code);
+        if self.check_entered_native_operation().is_err() {
+            return Code::Error;
+        }
         // C Tcl starts every command with no error in flight, so an error the
         // procedure returned without stating a code through the C API is
         // `NONE`, whatever error came before it.

@@ -635,6 +635,9 @@ impl Interp {
         &self,
         value: *mut TclObj,
     ) -> Result<Rc<[u8]>, ValueError> {
+        self.check_entered_native_operation().map_err(|_| {
+            ValueError::CommandProtocolUnavailable("entered original String getter")
+        })?;
         obj::check_native_liveness(value)?;
         obj::native_frame_level_cache_in(value, self.native_invocation_dialect())?;
         if obj::native_instruction_name::cache(value).is_some_and(|name| {
@@ -673,12 +676,21 @@ impl Interp {
         let recipe = self.native_invocation_dialect().native_string_materialization(Some(
             tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
         )).ok_or(ValueError::CommandProtocolUnavailable("native string materialization"))?;
-        crate::dict::native_object_bytes_with_integer_formatter(
+        let host = self.host();
+        let formatter = host.native_integer_formatter();
+        self.check_entered_native_operation().map_err(|_| {
+            ValueError::CommandProtocolUnavailable("entered original String getter")
+        })?;
+        let result = crate::dict::native_object_bytes_with_integer_formatter(
             value,
             recipe.protocol(),
-            self.host().native_integer_formatter(),
-        )
-        .map(Rc::from)
+            formatter,
+        );
+        // Check the retained result even when the reached updater also failed.
+        self.check_entered_native_operation().map_err(|_| {
+            ValueError::CommandProtocolUnavailable("entered original String getter")
+        })?;
+        result.map(Rc::from)
     }
 }
 

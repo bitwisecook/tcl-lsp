@@ -336,7 +336,7 @@ TclCompileInfoCoroutineCmd(
 
 ## Consumer bindings
 
-- [rust/tcl-registry/src/commands/tcl/info_.rs](../../../../rust/tcl-registry/src/commands/tcl/info_.rs), `SUBCOMMANDS`: Retain the authored coroutine member descriptor independently of actual selected original C ensemble/compiler registration.
+- [rust/tcl-registry/src/commands/tcl/info_.rs](../../../../rust/tcl-registry/src/commands/tcl/info_.rs), `spec`: Publish the authored info SubCommand table through CommandSpec.subcommands, independently of actual selected original C ensemble/compiler registration.
 - [rust/tcl-registry/src/native_compilation.rs](../../../../rust/tcl-registry/src/native_compilation.rs), `NativeCompilationSpec::select_registered_worker_native_words`: Use original effective worker coordinates and the selected zero-argument InfoCoroutine grammar; independent Native token/compiler entry remains required.
 - [rust/tcl-registry/src/native_coroutine_compilation.rs](../../../../rust/tcl-registry/src/native_coroutine_compilation.rs), `compile_native_coroutine`: Retain selected C8.6/C9 zero-worker-operand Name recipe, exact release/arity and expanded-argument decline; no original live holder grant.
 - [rust/tcl-compiler/src/codegen/native_coroutine.rs](../../../../rust/tcl-compiler/src/codegen/native_coroutine.rs), `CodegenCtx::native_coroutine_tasks`: Project the selected Name recipe to the coroutine-name instruction plan without argument work; original compilation/body/execution admission remains independent.

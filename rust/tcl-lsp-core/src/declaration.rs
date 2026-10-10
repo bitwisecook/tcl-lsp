@@ -87,9 +87,16 @@ pub fn declaration(
     else {
         return definition(source, line, character, analysis);
     };
-    // The selected source root is already undecorated. Dollar bytes inside
-    // a braced scalar name are literal and must never be stripped again.
-    let target = var_name.strip_prefix("::").unwrap_or(&var_name);
+    // The original syntax label enters the shared lexical frame/cell
+    // projection unchanged. Qualification cannot turn a global reference
+    // into a same-spelled local alias.
+    let Some(variable) = crate::definition::lookup_var_read_at(analysis, source, cursor, &var_name)
+    else {
+        return definition(source, line, character, analysis);
+    };
+    let mut related =
+        crate::definition::linked_var_reference_spans(&analysis.global_scope, variable);
+    related.push(variable.definition_span);
 
     let visible = scope_body_spans_at(&analysis.global_scope, cursor);
 
@@ -124,7 +131,10 @@ pub fn declaration(
     let scan = DeclScan {
         source,
         config,
-        target,
+        target: DeclTarget::LexicalCell {
+            analysis,
+            spans: &related,
+        },
         visible: &visible,
         registry: actual_registry,
         identities,
@@ -163,12 +173,40 @@ impl DeclSpans {
     }
 }
 
-/// The constant context for a declaration scan, threaded through the
-/// body-recursion so the per-call signature stays small.
+/// The independently selected navigation target for a declaration scan.
+enum DeclTarget<'a> {
+    /// Source-cell relationships from the shared lexical scope owner. These
+    /// remain conditional navigation advice, never a physical alias receipt.
+    LexicalCell {
+        analysis: &'a AnalysisResult,
+        spans: &'a [Span],
+    },
+    /// Independent grammar controls do not claim source-cell resolution.
+    #[cfg(test)]
+    StandaloneName(&'a str),
+}
+
+impl DeclTarget<'_> {
+    fn matches(
+        &self,
+        declaration: &tcl_compiler::registry_invocation::DeclarationArgument,
+        span: Span,
+    ) -> bool {
+        #[cfg(not(test))]
+        let _ = declaration;
+        match self {
+            Self::LexicalCell { spans, .. } => spans.contains(&span),
+            #[cfg(test)]
+            Self::StandaloneName(name) => declaration.name == *name,
+        }
+    }
+}
+
+/// The constant context threaded through declaration body recursion.
 struct DeclScan<'a> {
     source: &'a str,
     config: LexerConfig,
-    target: &'a str,
+    target: DeclTarget<'a>,
     visible: &'a [Span],
     registry: &'a CommandRegistry,
     /// The document's statically proven command-identity facts
@@ -204,7 +242,7 @@ fn collect_declarations_in_region(
     let (source, config, target, visible, registry) = (
         scan.source,
         scan.config,
-        scan.target,
+        &scan.target,
         scan.visible,
         scan.registry,
     );
@@ -236,6 +274,31 @@ fn collect_declarations_in_region(
     for cmd in &commands {
         if cmd.argv.is_empty() {
             continue;
+        }
+        let analysis = match &scan.target {
+            DeclTarget::LexicalCell { analysis, .. } => Some(*analysis),
+            #[cfg(test)]
+            DeclTarget::StandaloneName(_) => None,
+        };
+        if let Some(analysis) = analysis {
+            let Some(input) = analysis.resolved_input.as_ref() else {
+                continue;
+            };
+            let Some(words) =
+                tcl_compiler::registry_invocation::source_structure::source_registry_words(
+                    source, analysis, cmd,
+                )
+            else {
+                continue;
+            };
+            // Current source selection and availability precede the shared
+            // declaration geometry. Standalone grammar controls stay separate.
+            if words
+                .with_source_schema(input.borrowed_context_registry(), |_| ())
+                .is_none()
+            {
+                continue;
+            }
         }
         // The retained original declaration frame selects unanimous grammar
         // and maps effective alias arguments to their written source tokens.
@@ -323,7 +386,7 @@ fn original_lambda_body_at(
 fn record_declaration_tokens(
     declarations: &[tcl_compiler::registry_invocation::DeclarationArgument],
     arg_tokens: &[tcl_lexer::Token],
-    target: &str,
+    target: &DeclTarget<'_>,
     visible: &[Span],
     found: &mut DeclSpans,
 ) {
@@ -331,7 +394,7 @@ fn record_declaration_tokens(
         let Some(tok) = arg_tokens.get(declaration.argument) else {
             continue;
         };
-        if declaration.name != target {
+        if !target.matches(declaration, tok.span) {
             continue;
         }
         if !is_visible(tok.span, visible) {
@@ -455,6 +518,140 @@ mod tests {
         assert_eq!(selected.len(), 1);
         let alias = source.find("global x").unwrap() + "global ".len();
         assert_eq!(selected[0].start_character, u32::try_from(alias).unwrap());
+    }
+
+    fn logical_source_analysis(source: &str) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::resolve_environment("tcl9.0").default_context_registry(),
+            LexerConfig::for_file_grammar(profile.grammar),
+        );
+        Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name)
+    }
+
+    fn declaration_at_read(
+        source: &str,
+        analysis: &AnalysisResult,
+        reference: &str,
+    ) -> Vec<LspRange> {
+        let (line, character) = pos_of(source, reference, 1);
+        declaration(
+            source,
+            line,
+            character + 1,
+            analysis.resolved_profile().unwrap(),
+            analysis,
+            analysis.resolved_registry().unwrap(),
+        )
+    }
+
+    #[test]
+    fn original_logical_declarations_join_global_aliases_without_local_root_stripping() {
+        // naming.core.original-declaration-navigation
+        // docs/design/analysis/name-resolution-proofs/core-original-declaration-navigation.md
+        let source = "set foo 1; proc p {} {global foo; puts $::foo; puts $foo}";
+        let analysis = logical_source_analysis(source);
+        let expected = u32::try_from(source.find("global foo").unwrap() + "global ".len()).unwrap();
+        for reference in ["$::foo", "$foo"] {
+            let selected = declaration_at_read(source, &analysis, reference);
+            assert_eq!(selected.len(), 1, "{reference}: {selected:?}");
+            assert_eq!(selected[0].start_character, expected);
+        }
+        let qualified = "namespace eval ns {variable foo 1}; proc p {} {global ::ns::foo; puts $foo; puts $::ns::foo}";
+        let analysis = logical_source_analysis(qualified);
+        let expected =
+            u32::try_from(qualified.find("global ::ns::foo").unwrap() + "global ".len()).unwrap();
+        for reference in ["$foo", "$::ns::foo"] {
+            let selected = declaration_at_read(qualified, &analysis, reference);
+            assert_eq!(selected.len(), 1, "{reference}: {selected:?}");
+            assert_eq!(selected[0].start_character, expected);
+        }
+        let collision = "set foo 1; proc p {} {set foo local; puts $foo; puts $::foo}";
+        let analysis = logical_source_analysis(collision);
+        let local = declaration_at_read(collision, &analysis, "$foo");
+        let global = declaration_at_read(collision, &analysis, "$::foo");
+        assert_eq!(local.len(), 1);
+        assert_eq!(global.len(), 1);
+        assert_eq!(
+            local[0].start_character,
+            u32::try_from(collision.find("set foo local").unwrap() + "set ".len()).unwrap()
+        );
+        assert_eq!(global[0].start_character, 4);
+    }
+
+    #[test]
+    fn original_logical_declarations_keep_qualified_targets_and_current_source_owners() {
+        // naming.core.original-declaration-navigation
+        // docs/design/analysis/name-resolution-proofs/core-original-declaration-navigation.md
+        let source = "namespace eval ns {variable foo 1; proc p {} {variable foo; puts $::ns::foo; puts $foo}}";
+        let mut analysis = logical_source_analysis(source);
+        let expected = u32::try_from(
+            source.find("proc p {} {variable foo").unwrap() + "proc p {} {variable ".len(),
+        )
+        .unwrap();
+        for reference in ["$::ns::foo", "$foo"] {
+            let selected = declaration_at_read(source, &analysis, reference);
+            assert!(
+                selected
+                    .iter()
+                    .any(|range| range.start_character == expected),
+                "{reference}: {selected:?}"
+            );
+        }
+        let input = analysis.resolved_input.as_ref().unwrap().clone();
+        let (line, character) = pos_of(source, "$foo", 1);
+        let registry = input.borrowed_context_registry().commands();
+        let select = |analysis: &AnalysisResult, source: &str| {
+            declaration(
+                source,
+                line,
+                character + 1,
+                input.analyser_profile(),
+                analysis,
+                registry,
+            )
+        };
+        assert!(select(&analysis, &format!("#{source}")).is_empty());
+        analysis.resolved_input = None;
+        assert!(select(&analysis, source).is_empty());
+        analysis.resolved_input = Some(input.clone());
+        analysis.body_lexer_config.as_mut().unwrap().strict_quoting =
+            !input.lexer_config().strict_quoting;
+        assert!(select(&analysis, source).is_empty());
+        analysis.body_lexer_config = Some(input.lexer_config());
+        let older = tcl_registry::model::resolve_environment("tcl8.4").default_context_registry();
+        analysis.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            std::sync::Arc::new(
+                older.with_command_store(
+                    input
+                        .borrowed_context_registry()
+                        .commands()
+                        .snapshot()
+                        .shared_registry(),
+                ),
+            ),
+            input.lexer_config(),
+        ));
+        assert!(select(&analysis, source).is_empty());
+        analysis.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            older,
+            input.lexer_config(),
+        ));
+        assert!(select(&analysis, source).is_empty());
+        analysis.resolved_input = Some(input.clone());
+        analysis.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+            environment: "tcl9.0".to_owned(),
+            overlay: u64::MAX,
+        });
+        assert!(select(&analysis, source).is_empty());
     }
 
     #[test]
@@ -741,7 +938,7 @@ proc p {} {upvar #0 ::v\uD800 local; puts $local}";
             config: LexerConfig::for_profile(
                 tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             ),
-            target,
+            target: DeclTarget::StandaloneName(target),
             visible: &[],
             registry: &registry,
             identities: &identities,

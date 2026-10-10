@@ -214,8 +214,10 @@ fn extract_variables(commands: &[tcl_irules::IrulesExecutableCommand]) -> Variab
     let mut static_vars: BTreeSet<String> = BTreeSet::new();
     for fact in commands {
         for name in &fact.variable_names {
-            if name.starts_with("static::") {
-                static_vars.insert(name.trim_start_matches("static::").to_owned());
+            // These are presentation labels from the source owner. Remove
+            // the one displayed prefix; later components remain literal.
+            if let Some(tail) = name.strip_prefix("static::") {
+                static_vars.insert(tail.to_owned());
             }
         }
     }
@@ -1152,6 +1154,42 @@ mod tests {
         let refs = object_refs(src);
         assert_eq!(refs.pools, ["selected_pool"]);
         assert_eq!(refs.datagroups, ["expr_dg"]);
+    }
+
+    #[test]
+    fn original_generated_static_setup_preserves_literal_repeated_prefixes() {
+        // naming.consumer.original-irules-source-context
+        // docs/design/analysis/name-resolution-proofs/original-irules-source-context.md
+        // A source scaffold preserves labels; it proves no loaded variable,
+        // event execution, storage identity or observed outcome.
+        let generated = generate_irule_test(&json!({
+            "source": concat!(
+                "when HTTP_REQUEST {\n",
+                " if {$static::static::hits} { pool live }\n",
+                " if {$static::hits} {}\n",
+                " set data {${static::static::inert}}\n",
+                "}\n",
+            ),
+        }));
+        let script = generated["test_script"].as_str().unwrap();
+        assert!(
+            script.contains("::orch::configure_static static::hits \"\""),
+            "{script}"
+        );
+        assert!(
+            script.contains("::orch::configure_static hits \"\""),
+            "{script}"
+        );
+        assert!(
+            !script.contains("::orch::configure_static inert "),
+            "{script}"
+        );
+        assert!(
+            !script.contains("::orch::configure_static static::inert "),
+            "{script}"
+        );
+        assert_eq!(generated["analysis_kind"], "conditional-source");
+        assert_eq!(generated["outcome_assertions_verified"], false);
     }
 
     #[test]

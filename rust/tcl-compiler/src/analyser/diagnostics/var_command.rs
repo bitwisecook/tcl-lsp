@@ -395,7 +395,13 @@ impl Analyser {
         let Some(candidates) = self
             .head_identities
             .source_bindings_ref()
-            .declaration_formal_call_values(offset, registry)
+            .declaration_formal_call_values(
+                offset,
+                registry,
+                &crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(
+                    self.result.resolved_input.as_ref(),
+                ),
+            )
         else {
             return false;
         };

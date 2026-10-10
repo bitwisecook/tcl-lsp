@@ -145,7 +145,10 @@ impl Interp {
     ) -> Code {
         let operation =
             NativeVariableTraceOperation::from_name(op).expect("selected trace operation");
-        match observer.observe(
+        if self.check_entered_native_operation().is_err() {
+            return Code::Error;
+        }
+        let result = observer.observe(
             self,
             NativeVariableTraceAccess {
                 operation,
@@ -153,7 +156,11 @@ impl Interp {
                 name2,
                 destroyed: operation == NativeVariableTraceOperation::Unset,
             },
-        ) {
+        );
+        if self.check_entered_native_operation().is_err() {
+            return Code::Error;
+        }
+        match result {
             Ok(()) => Code::Ok,
             Err(error) => self.report_cmd_error(error),
         }

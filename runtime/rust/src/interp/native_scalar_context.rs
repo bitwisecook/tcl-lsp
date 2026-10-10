@@ -7,7 +7,7 @@ use std::rc::{Rc, Weak};
 use tcl_platform::{Host, NativeCIntegerAbi};
 use tcl_registry::InvocationDialect;
 use tcl_runtime_api::{guard::GuardDomain, NativeExecutionError, RuntimeContext};
-use tcl_syntax::{scalar_getter::NativeScalarGetterTarget, value::ValueError};
+use tcl_syntax::value::ValueError;
 
 /// A checked scalar access preserves an existing engine refusal or the exact
 /// value-owner failure. Neither category is a guest scalar conversion error.
@@ -47,6 +47,38 @@ pub(crate) struct NativeScalarAccess {
 }
 
 impl NativeScalarObjectContext {
+    /// Check cache geometry using the ABI already queried by this actual
+    /// issuer. This observes no Host state and extends no entry capability.
+    pub(crate) fn validate_cache(
+        &self,
+        cache: &tcl_syntax::scalar_getter::NativeScalarCache,
+        protocol: tcl_syntax::scalar_getter::NativeScalarGetterProtocol,
+    ) -> Result<(), ValueError> {
+        if self.dialect.native_scalar_getter_protocol() != Some(protocol) {
+            return Err(ValueError::ScalarNumericInputUnavailable);
+        }
+        protocol
+            .validate_cache_abi(
+                cache,
+                self.abi.char_bits,
+                self.abi.int_bytes,
+                self.abi.long_bytes,
+            )
+            .map_err(|_| ValueError::ScalarNumericInputUnavailable)
+    }
+
+    /// Validate a cache already present when this genuine issuer is bound.
+    pub(crate) fn validate_bound_cache(
+        &self,
+        cache: &tcl_syntax::scalar_getter::NativeScalarCache,
+    ) -> Result<(), ValueError> {
+        let protocol = self
+            .dialect
+            .native_scalar_getter_protocol()
+            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+        self.validate_cache(cache, protocol)
+    }
+
     fn issue(interpreter: &Interp) -> Result<Rc<Self>, NativeScalarObjectAccessError> {
         let currency = NativeOperationCurrency::issue(interpreter)
             .map_err(NativeScalarObjectAccessError::Execution)?;
@@ -151,8 +183,11 @@ fn selected_abi(
         .ensure_current_or_refuse()
         .map_err(NativeScalarObjectAccessError::Execution)?;
     let abi = abi.map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
-    NativeScalarGetterTarget::from_c_integer_abi(abi.char_bits, abi.int_bytes, abi.long_bytes)
-        .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
+    // Issuing an original object checks output-layout identity only. Each
+    // reached getter independently checks its selected primitive recipe.
+    if abi.char_bits != 8 || abi.int_bytes != 4 || !matches!(abi.long_bytes, 4 | 8) {
+        return Err(unavailable("native scalar C output ABI"));
+    }
     // These are output-layout checks after an actual Host ABI observation.
     // They select no parsing, primitive recipe, or interpreter authority.
     if u32::from(abi.int_bytes) * u32::from(abi.char_bits) != core::ffi::c_int::BITS

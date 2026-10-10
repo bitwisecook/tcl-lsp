@@ -604,6 +604,10 @@ mod tests {
                         body_source: procedure.body_source.as_deref().unwrap(),
                         original_body_offset: procedure.span.start(),
                         executable_body_offset: procedure.body_offset,
+                        metadata: crate::registry_invocation::InvocationMetadataInput::Standalone,
+                        config: tcl_lexer::LexerConfig::for_profile(reg.profile())
+                            .nested()
+                            .normalized(),
                     },
                     reg,
                 )
@@ -650,6 +654,11 @@ mod tests {
                             body_source: procedure.body_source.as_deref().unwrap(),
                             original_body_offset: procedure.span.start(),
                             executable_body_offset: procedure.body_offset,
+                            metadata:
+                                crate::registry_invocation::InvocationMetadataInput::Standalone,
+                            config: tcl_lexer::LexerConfig::for_profile(reg.profile())
+                                .nested()
+                                .normalized(),
                         },
                         reg,
                     )

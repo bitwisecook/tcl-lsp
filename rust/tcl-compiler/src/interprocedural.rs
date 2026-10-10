@@ -365,11 +365,29 @@ pub(crate) fn collect_positioned_call_by_name_reads(
         };
         output.extend(
             bindings
-                .declaration_caller_alias_arguments(tokens, registry)
+                .declaration_caller_alias_arguments(
+                    tokens,
+                    registry,
+                    bindings.source_metadata_owner(),
+                )
                 .unwrap_or_default(),
         );
-        let config =
-            tokens.native_lexer_config(tcl_lexer::LexerConfig::for_profile(registry.profile()));
+        let Some(binding) = tokens.source_binding.as_ref() else {
+            continue;
+        };
+        if binding
+            .original_invocation_metadata_for_owner(
+                tokens,
+                bindings.source_metadata_owner(),
+                registry,
+            )
+            .is_err()
+        {
+            continue;
+        }
+        let Some(config) = binding.original_lexer_config_for_tokens(tokens) else {
+            continue;
+        };
         let Some(calls) = crate::word_subst::checked_lifted_calls(tokens, config) else {
             continue;
         };
@@ -377,7 +395,11 @@ pub(crate) fn collect_positioned_call_by_name_reads(
             if let Some(tokens) = call.tokens {
                 output.extend(
                     bindings
-                        .declaration_caller_alias_arguments(&tokens, registry)
+                        .declaration_caller_alias_arguments(
+                            &tokens,
+                            registry,
+                            bindings.source_metadata_owner(),
+                        )
                         .unwrap_or_default(),
                 );
             }

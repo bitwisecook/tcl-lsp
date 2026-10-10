@@ -279,12 +279,14 @@ impl NativeBooleanTruthOps for OriginalOps<'_> {
         protocol: TruthProtocol,
     ) -> Result<Result<Number, Failure>, CmdError> {
         self.checked(*value, protocol)?;
-        super::native_number_probe(
+        let outcome = super::native_number_probe_with_currency(
             *value,
             self.dialect,
             tcl_syntax::scalar_getter::NativeNumberGetterKind::Number,
-        )
-        .map_err(Into::into)
+            self.currency.as_ref(),
+        );
+        self.current()?;
+        outcome.map_err(Into::into)
     }
     fn logical_dictionary_size(
         &mut self,
@@ -349,11 +351,14 @@ impl NativeBooleanExpressionResultOps for OriginalOps<'_> {
         value: &Self::Value,
         _protocol: ResultProtocol,
     ) -> Result<(), CmdError> {
-        let _outcome = super::native_number_probe(
+        let outcome = super::native_number_probe_with_currency(
             *value,
             self.dialect,
             tcl_syntax::scalar_getter::NativeNumberGetterKind::Number,
-        )?;
+            self.currency.as_ref(),
+        );
+        self.current()?;
+        outcome?;
         Ok(())
     }
     fn original_is_shared(&mut self, value: &Self::Value) -> Result<bool, CmdError> {
@@ -574,6 +579,52 @@ mod tests {
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn entered_number_callbacks_keep_actual_cache_and_first_host_identity() {
+        // Software consumers: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for public_result in [false, true] {
+            let mut interp = native("tcl8.6");
+            let original = Owned::fresh(obj::new_string_bytes(b"17"));
+            let value = original.as_ptr();
+            let references = unsafe { (*value).ref_count };
+            let dialect = interp.native_invocation_dialect();
+            {
+                let mut ops = OriginalOps::entered(&mut interp).unwrap();
+                if public_result {
+                    let protocol = dialect
+                        .native_boolean_expression_result_protocol(Production::InlineExpression)
+                        .unwrap();
+                    ops.original_number_probe(&value, protocol).unwrap();
+                } else {
+                    let protocol = dialect
+                        .native_boolean_truth_protocol(Purpose::LogicalAnd)
+                        .unwrap();
+                    assert!(matches!(
+                        ops.logical_number_probe(&value, protocol).unwrap(),
+                        Ok(Number::Int(17))
+                    ));
+                }
+            }
+            assert!(matches!(
+                obj::native_scalar_cache(value).unwrap(),
+                Some(Cache::Number(Number::Int(17)))
+            ));
+            assert_eq!(obj::bytes_of(value), b"17");
+            assert_eq!(unsafe { (*value).ref_count }, references);
+            interp.refuse_host_command("original Number first cause");
+            let first = interp.native_execution_refusal().unwrap();
+            let before = obj::native_object_snapshot(value).unwrap();
+            let error = match OriginalOps::entered(&mut interp) {
+                Ok(_) => panic!("prior Host cannot enter either Number callback"),
+                Err(error) => error,
+            };
+            assert_eq!(error.native_execution_refusal(), Some(&first));
+            assert_eq!(obj::native_object_snapshot(value).unwrap(), before);
+            assert_eq!(interp.native_execution_refusal(), Some(first));
+        }
     }
 
     fn measured_jim_api(case: usize) -> (i32, i32, Vec<u8>) {
