@@ -222,13 +222,10 @@ impl Interp {
             return;
         }
         let name = variable.global_name().as_bytes();
-        let defined = crate::vars::get(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
-            GLOBAL,
-            name,
-        )
-        .is_some();
+        let defined = match self.read_captured_byte_variable(GLOBAL, None, name, None, false) {
+            Ok(value) => value.is_some(),
+            Err(_) => return,
+        };
         let value = {
             let exc = self.exc.borrow();
             let private = match variable {

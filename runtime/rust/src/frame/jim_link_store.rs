@@ -109,6 +109,249 @@ impl CapturedJimLinkRoot {
         Ok(())
     }
 
+    pub(crate) fn check_link(
+        &self,
+        link: &super::Link,
+        currency: &NativeOperationCurrency,
+    ) -> Result<(), JimLinkStoreError> {
+        self.check(currency)?;
+        let valid = self.cell.upgrade().is_some_and(|cell| {
+            matches!(cell.borrow().var.as_ref(), Some(Var::Link(current)) if current == link)
+        });
+        if valid {
+            Ok(())
+        } else {
+            Err(JimLinkStoreError::Command(
+                ValueError::CommandProtocolUnavailable("captured byte variable link").into(),
+            ))
+        }
+    }
+    fn original_scalar(
+        &self,
+        currency: &NativeOperationCurrency,
+    ) -> Result<Option<NativeObjectLifetime>, JimLinkStoreError> {
+        self.check(currency)?;
+        let cell = self
+            .cell
+            .upgrade()
+            .ok_or(VarError::NameProtocolUnavailable)?;
+        let contents = cell.borrow();
+        match contents.var.as_ref() {
+            Some(Var::Scalar(value)) => {
+                obj::check_native_liveness(*value)?;
+                Ok(Some(NativeObjectLifetime::retain(*value)))
+            }
+            None | Some(Var::Link(_)) => Ok(None),
+            Some(Var::Array(_)) => Err(VarError::IsArray.into()),
+        }
+    }
+    fn scalar_stage_check(&self, original: *mut TclObj) -> crate::dict::NativeDictionaryStageCheck {
+        let captured = self.clone();
+        std::rc::Rc::new(move || {
+            captured.check_storage()?;
+            let valid = captured.cell.upgrade().is_some_and(|cell| {
+                matches!(cell.borrow().var.as_ref(), Some(Var::Scalar(value)) if *value == original)
+            });
+            if valid {
+                Ok(())
+            } else {
+                Err(ValueError::CommandProtocolUnavailable(
+                    "captured byte dictionary header",
+                ))
+            }
+        })
+    }
+    fn converted_root(
+        &self,
+        currency: &NativeOperationCurrency,
+    ) -> Result<Option<EnteredNativeDictionary>, JimLinkStoreError> {
+        let Some(original) = self.original_scalar(currency)? else {
+            return Ok(None);
+        };
+        let protocol = self.protocol.ok_or(VarError::NameProtocolUnavailable)?;
+        let reached = EnteredNativeDictionary::borrowed_converted(
+            original.as_ptr(),
+            protocol,
+            currency,
+            self.scalar_stage_check(original.as_ptr()),
+        );
+        self.check(currency)?;
+        reached.map(Some).map_err(Into::into)
+    }
+    pub(crate) fn read(
+        &self,
+        currency: &NativeOperationCurrency,
+        default: bool,
+    ) -> Result<Option<*mut TclObj>, JimLinkStoreError> {
+        self.check(currency)?;
+        let Some(key) = self.element.as_ref() else {
+            return self
+                .original_scalar(currency)
+                .map(|value| value.map(|value| value.as_ptr()));
+        };
+        if self.dictionary {
+            let Some(root) = self.converted_root(currency)? else {
+                return Ok(None);
+            };
+            let reached = root.get_member_bytes(key);
+            self.check(currency)?;
+            let result = reached?;
+            drop(root);
+            self.check(currency)?;
+            return Ok(result);
+        }
+        let cell = self
+            .cell
+            .upgrade()
+            .ok_or(VarError::NameProtocolUnavailable)?;
+        let contents = cell.borrow();
+        let result = match contents.var.as_ref() {
+            Some(Var::Array(values)) => values
+                .get(key)
+                .copied()
+                .or_else(|| default.then_some(contents.array_default).flatten()),
+            _ => None,
+        };
+        drop(contents);
+        drop(cell);
+        self.check(currency)?;
+        Ok(result)
+    }
+    pub(crate) fn exists(
+        &self,
+        currency: &NativeOperationCurrency,
+    ) -> Result<bool, JimLinkStoreError> {
+        if self.element.is_some() {
+            return self.read(currency, false).map(|value| value.is_some());
+        }
+        self.check(currency)?;
+        let cell = self
+            .cell
+            .upgrade()
+            .ok_or(VarError::NameProtocolUnavailable)?;
+        let result = matches!(
+            cell.borrow().var.as_ref(),
+            Some(Var::Scalar(_) | Var::Array(_))
+        );
+        drop(cell);
+        self.check(currency)?;
+        Ok(result)
+    }
+    pub(crate) fn is_array(
+        &self,
+        currency: &NativeOperationCurrency,
+    ) -> Result<bool, JimLinkStoreError> {
+        self.check(currency)?;
+        if self.element.is_some() {
+            return Ok(false);
+        }
+        if self.dictionary {
+            let reached = self.converted_root(currency);
+            self.check(currency)?;
+            let original = reached?;
+            let present = original.is_some();
+            drop(original);
+            self.check(currency)?;
+            return Ok(present);
+        }
+        let cell = self
+            .cell
+            .upgrade()
+            .ok_or(VarError::NameProtocolUnavailable)?;
+        let result = matches!(cell.borrow().var.as_ref(), Some(Var::Array(_)));
+        drop(cell);
+        self.check(currency)?;
+        Ok(result)
+    }
+    pub(crate) fn array_names(
+        &self,
+        currency: &NativeOperationCurrency,
+    ) -> Result<Option<Vec<Vec<u8>>>, JimLinkStoreError> {
+        self.check(currency)?;
+        if self.element.is_some() {
+            return Ok(None);
+        }
+        if self.dictionary {
+            let Some(root) = self.converted_root(currency)? else {
+                return Ok(None);
+            };
+            let reached = root.key_bytes();
+            self.check(currency)?;
+            let result = reached?;
+            drop(root);
+            self.check(currency)?;
+            return Ok(Some(result));
+        }
+        let cell = self
+            .cell
+            .upgrade()
+            .ok_or(VarError::NameProtocolUnavailable)?;
+        let contents = cell.borrow();
+        let result = match contents.var.as_ref() {
+            Some(Var::Array(values)) => Some(match contents.member_order.keys() {
+                Some(keys) => keys
+                    .into_iter()
+                    .filter(|key| values.contains_key(*key))
+                    .map(<[u8]>::to_vec)
+                    .collect(),
+                None => values.keys().cloned().collect(),
+            }),
+            _ => None,
+        };
+        drop(contents);
+        drop(cell);
+        self.check(currency)?;
+        Ok(result)
+    }
+    pub(crate) fn ensure_array(
+        &mut self,
+        currency: &NativeOperationCurrency,
+    ) -> Result<(), JimLinkStoreError> {
+        self.check(currency)?;
+        if self.element.is_some() {
+            return Err(VarError::IsScalar.into());
+        }
+        if self.dictionary {
+            if self.converted_root(currency)?.is_some() {
+                return Ok(());
+            }
+            let protocol = self.protocol.ok_or(VarError::NameProtocolUnavailable)?;
+            let root = Owned::fresh(crate::dict::new_dict_obj_native(&[], None, protocol)?);
+            let reached = self.publish(root.as_ptr(), currency, true);
+            drop(root);
+            self.check(currency)?;
+            return reached;
+        }
+        let cell = self
+            .cell
+            .upgrade()
+            .ok_or(VarError::NameProtocolUnavailable)?;
+        let mut contents = cell.borrow_mut();
+        let retired = if contents.array_materialisation_needed(Some(&self.name))? {
+            let retired = contents.var.replace(Var::Array(Default::default()));
+            contents.undefined_shell = false;
+            contents.undefined_root_home = None;
+            contents.rmw_shell_entry = None;
+            contents.binding_id.get_or_insert_with(super::fresh_var_id);
+            self.binding = contents.binding_id;
+            retired
+        } else {
+            None
+        };
+        drop(contents);
+        drop(cell);
+        let ledger = self
+            .ledger
+            .upgrade()
+            .ok_or(VarError::NameProtocolUnavailable)?;
+        ledger.borrow_mut().insert(&self.name);
+        drop(ledger);
+        if let Some(retired) = retired {
+            retired.release();
+        }
+        self.check(currency)
+    }
+
     pub(crate) fn store(
         &mut self,
         value: *mut TclObj,

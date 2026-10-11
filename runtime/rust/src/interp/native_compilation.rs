@@ -1235,13 +1235,10 @@ impl Interp {
                 }
                 Binding::CallerLink { name, argument, .. } => {
                     let target = obj_bytes(call_args[argument]);
-                    let exists = crate::vars::exists_at(
-                        &self.frames.borrow(),
-                        &self.namespaces(),
-                        &target,
-                        caller_level,
-                    );
-                    if !exists {
+                    let exists = self.var_exists_at(&target, caller_level);
+                    if self.native_execution_refusal().is_some() {
+                        Err(())
+                    } else if !exists {
                         let mut message = b"can't read \"".to_vec();
                         message.extend_from_slice(&target);
                         message.extend_from_slice(b"\": no such variable");

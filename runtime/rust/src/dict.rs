@@ -815,10 +815,35 @@ impl EnteredNativeDictionary {
     }
     pub(crate) fn get_member(&self, key: *mut TclObj) -> Result<Option<*mut TclObj>, ValueError> {
         let bytes = self.member_key(key)?;
-        let result = unsafe { dict_ref(self.as_ptr()) }
-            .position(&bytes)
-            .map(|position| unsafe { dict_ref(self.as_ptr()) }.entries[position].1);
-        self.check()?;
+        self.get_member_bytes(&bytes)
+    }
+    pub(crate) fn get_member_bytes(&self, key: &[u8]) -> Result<Option<*mut TclObj>, ValueError> {
+        self.check_prepared()?;
+        let result = dictionary_value_at_key(self.as_ptr(), key);
+        self.check_prepared()?;
+        Ok(result)
+    }
+    pub(crate) fn key_bytes(&self) -> Result<Vec<Vec<u8>>, ValueError> {
+        self.check_prepared()?;
+        let keys: Vec<_> = unsafe { dict_ref(self.as_ptr()) }
+            .entries
+            .iter()
+            .map(|(key, _)| *key)
+            .collect();
+        let allocations: Vec<_> = keys
+            .iter()
+            .map(|key| obj::NativeObjectLifetime::retain(*key))
+            .collect();
+        let mut result = Vec::with_capacity(keys.len());
+        for key in keys {
+            self.check_prepared()?;
+            let reached = native_object_bytes(key, self.protocol);
+            self.check_prepared()?;
+            obj::check_native_liveness(key)?;
+            result.push(reached?);
+        }
+        drop(allocations);
+        self.check_prepared()?;
         Ok(result)
     }
     pub(crate) fn capture_member(
@@ -842,7 +867,11 @@ impl EnteredNativeDictionary {
     }
     pub(crate) fn remove_member(&mut self, key: *mut TclObj) -> Result<bool, ValueError> {
         let bytes = self.member_key(key)?;
-        dict_unset_using(self.as_ptr(), &bytes, || self.check_prepared())
+        self.remove_member_bytes(&bytes)
+    }
+    pub(crate) fn remove_member_bytes(&mut self, key: &[u8]) -> Result<bool, ValueError> {
+        self.check_prepared()?;
+        dict_unset_using(self.as_ptr(), key, || self.check_prepared())
     }
     fn member_key(&self, key: *mut TclObj) -> Result<Vec<u8>, ValueError> {
         self.check_prepared()?;
@@ -1103,8 +1132,15 @@ pub(crate) fn new_dict_obj_native(
 pub fn dict_get(obj: *mut TclObj, key: &[u8]) -> Result<Option<*mut TclObj>, DictError> {
     ensure_dict(obj)?;
     // SAFETY: dict rep guaranteed.
-    let d = unsafe { dict_ref(obj) };
-    Ok(d.position(key).map(|i| d.entries[i].1))
+    Ok(dictionary_value_at_key(obj, key))
+}
+
+fn dictionary_value_at_key(obj: *mut TclObj, key: &[u8]) -> Option<*mut TclObj> {
+    // Each caller has independently prepared and checked this backing.
+    let dictionary = unsafe { dict_ref(obj) };
+    dictionary
+        .position(key)
+        .map(|index| dictionary.entries[index].1)
 }
 
 /// `Tcl_DictObjPut` — set `key_obj`→`value` in place: update an existing key's

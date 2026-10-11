@@ -2631,6 +2631,35 @@ impl Namespaces {
             .collect()
     }
 
+    pub(crate) fn original_variable_table_at(&self, ns: NsId) -> Option<&VarTable> {
+        if self.namespace_variables_are_deleted(ns) {
+            return None;
+        }
+        Some(&self.arena.get(ns)?.vars)
+    }
+
+    pub(crate) fn capture_container_model_at(
+        &self,
+        ns: NsId,
+    ) -> Option<(
+        std::rc::Weak<std::cell::RefCell<tcl_core_types::NativeEntryLedger>>,
+        Option<crate::frame::CapturedContainerModel>,
+    )> {
+        let namespace = self.arena.get(ns)?;
+        if self.namespace_variables_are_deleted(ns) {
+            return None;
+        }
+        let table = &namespace.vars;
+        table.set_hash_recipe(self.variable_hash_recipe);
+        Some((
+            table.original_table_ledger(),
+            table.capture_container_model(
+                self.variable_container_model,
+                self.variable_string_protocol,
+            ),
+        ))
+    }
+
     /// Namespace `ns`'s variable table (read).
     #[must_use]
     pub(crate) fn var_table(&self, ns: NsId) -> &VarTable {

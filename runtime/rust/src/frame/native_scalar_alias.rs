@@ -50,7 +50,32 @@ impl NativeScalarAliasEntry {
         if let Some(error) = cell.rmw_retirement {
             return Err(error);
         }
-        cell.materialise_selected_array(Some(&self.name))
+        let retired = cell.publish_selected_array(Some(&self.name))?;
+        drop(cell);
+        if let Some(retired) = retired {
+            retired.release();
+        }
+        Ok(())
+    }
+    pub(crate) fn array_names(&self) -> Result<Option<Vec<Vec<u8>>>, super::VarError> {
+        let cell = self.contents.borrow();
+        if cell.binding_id != Some(self.binding) {
+            return Err(super::VarError::DeletedNamespace);
+        }
+        if let Some(error) = cell.rmw_retirement {
+            return Err(error);
+        }
+        Ok(match cell.var.as_ref() {
+            Some(super::Var::Array(values)) => Some(match cell.member_order.keys() {
+                Some(keys) => keys
+                    .into_iter()
+                    .filter(|key| values.contains_key(*key))
+                    .map(<[u8]>::to_vec)
+                    .collect(),
+                None => values.keys().cloned().collect(),
+            }),
+            _ => None,
+        })
     }
     pub(crate) fn prepare_original_element(
         &self,

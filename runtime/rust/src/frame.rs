@@ -425,14 +425,20 @@ impl CellContents {
         }
     }
 
-    fn materialise_selected_array(&mut self, root: Option<&[u8]>) -> Result<(), VarError> {
+    fn publish_selected_array(&mut self, root: Option<&[u8]>) -> Result<Option<Var>, VarError> {
+        let mut retired = None;
         if self.array_materialisation_needed(root)? {
-            if let Some(old) = self.var.replace(Var::Array(Default::default())) {
-                old.release();
-            }
+            retired = self.var.replace(Var::Array(Default::default()));
             self.undefined_shell = false;
             self.undefined_root_home = None;
             self.rmw_shell_entry = None;
+        }
+        Ok(retired)
+    }
+
+    fn materialise_selected_array(&mut self, root: Option<&[u8]>) -> Result<(), VarError> {
+        if let Some(retired) = self.publish_selected_array(root)? {
+            retired.release();
         }
         Ok(())
     }
@@ -508,6 +514,8 @@ pub struct VarTable {
     entry_order: Rc<RefCell<tcl_core_types::NativeEntryLedger>>,
     native_keys: native_variable_names::NativeHashKeys,
     container_model: PolicyCell<tcl_dialect::VariableContainerModel>,
+    container_transition_pending: Rc<PolicyCell<bool>>,
+    container_transition_busy: Rc<PolicyCell<bool>>,
     string_protocol: PolicyCell<Option<tcl_syntax::native_string::NativeStringProtocol>>,
     /// The cells, addressed by a stable slot index. A cell is never moved or
     /// dropped while the table lives, so a slot index stays valid.
@@ -1849,6 +1857,14 @@ impl FrameStack {
         Rc::downgrade(&self.frames[self.current_frame_index()].jim_link_birth)
     }
 
+    /// The actual frame incarnation at a reached logical level. A later frame
+    /// at the same level cannot revive this observation.
+    pub(crate) fn original_activation_owner_at(&self, level: usize) -> Option<std::rc::Weak<()>> {
+        Some(Rc::downgrade(
+            &self.frames[self.index_of_level(level)?].jim_link_birth,
+        ))
+    }
+
     /// The set of stack indices on the active frame's caller chain (C's
     /// `callerVarPtr` walk from `varFramePtr`). Each frame's caller is the topmost
     /// frame *below* it at the level that was active when it was pushed
@@ -2219,6 +2235,29 @@ impl FrameStack {
                     .collect()
             })
             .unwrap_or_default()
+    }
+
+    pub(crate) fn original_variable_table_at(&self, level: usize) -> Option<&VarTable> {
+        Some(&self.frames[self.index_of_level(level)?].table)
+    }
+
+    pub(crate) fn capture_container_model_at(
+        &self,
+        level: usize,
+    ) -> Option<(
+        std::rc::Weak<std::cell::RefCell<tcl_core_types::NativeEntryLedger>>,
+        Option<container::CapturedContainerModel>,
+    )> {
+        let i = self.index_of_level(level)?;
+        let table = &self.frames[i].table;
+        table.set_hash_recipe(self.variable_hash_recipe);
+        Some((
+            table.original_table_ledger(),
+            table.capture_container_model(
+                self.variable_container_model,
+                self.variable_string_protocol,
+            ),
+        ))
     }
 
     /// The variable table at `level` (read).

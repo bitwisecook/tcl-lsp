@@ -18,37 +18,45 @@ impl VarTable {
         model: VariableContainerModel,
         protocol: Option<tcl_syntax::native_string::NativeStringProtocol>,
     ) {
-        self.string_protocol.set(protocol);
-        if self.container_model.replace(model) == model || !self.dictionary_variables() {
-            return;
-        }
-        // An interpreter may change profile with live cells. Convert the root
-        // representation while retaining the raw cell and its captured aliases.
-        for cell in &self.cells {
-            let mut contents = cell.contents.borrow_mut();
-            let Some(Var::Array(map)) = contents.var.as_ref() else {
-                continue;
-            };
-            let Some(protocol) = protocol else {
-                continue;
-            };
-            let pairs: Vec<_> = map
-                .iter()
-                .map(|(key, value)| {
-                    let key = unsafe {
-                        obj::new_string_obj(key.as_ptr().cast(), key.len() as obj::TclSize)
-                    };
-                    (key, *value)
-                })
-                .collect();
-            let root = dict::new_dict_obj_native(&pairs, None, protocol)
+        if let Some(selected) = self.capture_container_model(model, protocol) {
+            selected
+                .finish(|| Ok(()))
                 .expect("resident array keys retain the selected protocol");
-            unsafe { obj::incr_ref_count(root) };
-            contents.native_member_keys.clear();
-            if let Some(old) = contents.var.replace(Var::Scalar(root)) {
-                old.release();
-            }
         }
+    }
+
+    pub(crate) fn capture_container_model(
+        &self,
+        model: VariableContainerModel,
+        protocol: Option<tcl_syntax::native_string::NativeStringProtocol>,
+    ) -> Option<CapturedContainerModel> {
+        self.string_protocol.set(protocol);
+        let changed = self.container_model.replace(model) != model;
+        if changed {
+            self.container_transition_pending
+                .set(model == VariableContainerModel::DictionaryValue);
+        }
+        if !self.container_transition_pending.get() || self.container_transition_busy.replace(true)
+        {
+            return None;
+        }
+        Some(CapturedContainerModel {
+            pending: self.container_transition_pending.clone(),
+            busy: self.container_transition_busy.clone(),
+            ledger: std::rc::Rc::downgrade(&self.entry_order),
+            cells: self
+                .cells
+                .iter()
+                .map(|cell| std::rc::Rc::downgrade(&cell.contents))
+                .collect(),
+            protocol,
+        })
+    }
+
+    pub(crate) fn original_table_ledger(
+        &self,
+    ) -> std::rc::Weak<std::cell::RefCell<tcl_core_types::NativeEntryLedger>> {
+        std::rc::Rc::downgrade(&self.entry_order)
     }
 
     pub(super) fn dictionary_variables(&self) -> bool {
@@ -173,6 +181,174 @@ impl super::CellContents {
         RetiredRootContents {
             previous,
             _member_keys: std::mem::take(&mut self.native_member_keys),
+        }
+    }
+}
+
+/// A reached table transition retains its actual allocation identities, never
+/// a native value hold. Native cell/member ownership transfers at the same
+/// existing construction, retirement and publication stages.
+pub(crate) struct CapturedContainerModel {
+    pending: std::rc::Rc<std::cell::Cell<bool>>,
+    busy: std::rc::Rc<std::cell::Cell<bool>>,
+    ledger: std::rc::Weak<std::cell::RefCell<tcl_core_types::NativeEntryLedger>>,
+    cells: Vec<std::rc::Weak<std::cell::RefCell<super::CellContents>>>,
+    protocol: Option<tcl_syntax::native_string::NativeStringProtocol>,
+}
+impl CapturedContainerModel {
+    pub(crate) fn finish(
+        self,
+        current: impl Fn() -> Result<(), tcl_syntax::value::ValueError>,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        use tcl_syntax::value::ValueError;
+        let table_current = || {
+            current()?;
+            if self.ledger.strong_count() == 0 {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "captured variable container table",
+                ));
+            }
+            Ok(())
+        };
+        table_current()?;
+        let Some(protocol) = self.protocol else {
+            self.pending.set(false);
+            return Ok(());
+        };
+        for original in &self.cells {
+            table_current()?;
+            let Some(cell) = original.upgrade() else {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "captured variable container cell",
+                ));
+            };
+            let captured = {
+                let contents = cell.borrow();
+                match contents.var.as_ref() {
+                    Some(Var::Array(values)) => Some((
+                        contents.binding_id,
+                        contents.rmw_array_epoch,
+                        values.clone(),
+                    )),
+                    _ => None,
+                }
+            };
+            drop(cell);
+            let Some((binding, epoch, values)) = captured else {
+                continue;
+            };
+            let same_root = || {
+                table_current()?;
+                let valid = original.upgrade().is_some_and(|cell| {
+                    let contents = cell.borrow();
+                    contents.binding_id == binding && contents.rmw_array_epoch == epoch
+                        && matches!(contents.var.as_ref(), Some(Var::Array(current)) if *current == values)
+                });
+                if valid {
+                    Ok(())
+                } else {
+                    Err(ValueError::CommandProtocolUnavailable(
+                        "captured variable container root",
+                    ))
+                }
+            };
+            let allocations: Vec<_> = values
+                .values()
+                .map(|value| {
+                    obj::check_native_liveness(*value)?;
+                    Ok(obj::NativeObjectLifetime::retain(*value))
+                })
+                .collect::<Result<_, ValueError>>()?;
+            let pairs: Vec<_> = values
+                .iter()
+                .map(|(key, value)| (obj::new_string_bytes(key), *value))
+                .collect();
+            let reached =
+                dict::new_dict_obj_native(&pairs, None, protocol).map(FreshContainerRoot::new);
+            same_root()?;
+            let root = reached?;
+            // This is the existing transition's cell +1, transferred below.
+            let root = root.adopt_cell_reference();
+            let keys = {
+                let cell = original
+                    .upgrade()
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "captured variable container cell",
+                    ))?;
+                let keys = std::mem::take(&mut cell.borrow_mut().native_member_keys);
+                keys
+            };
+            keys.retire_with_check(&same_root)?;
+            same_root()?;
+            let published = root.as_ptr();
+            let root_allocation = obj::NativeObjectLifetime::retain(published);
+            let retired = {
+                let cell = original
+                    .upgrade()
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "captured variable container cell",
+                    ))?;
+                let retired = cell.borrow_mut().var.replace(Var::Scalar(root.into_raw()));
+                retired
+            };
+            // No cell, frame, namespace or table borrow crosses native release.
+            if let Some(retired) = retired {
+                retired.release();
+            }
+            table_current()?;
+            let same_publication = original.upgrade().is_some_and(|cell| {
+                let contents = cell.borrow();
+                contents.binding_id == binding && contents.rmw_array_epoch == epoch
+                    && matches!(contents.var.as_ref(), Some(Var::Scalar(value)) if *value == published)
+            });
+            if !same_publication {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "retired variable container publication",
+                ));
+            }
+            obj::check_native_liveness(published)?;
+            drop(root_allocation);
+            drop(allocations);
+            table_current()?;
+        }
+        table_current()?;
+        self.pending.set(false);
+        Ok(())
+    }
+}
+impl Drop for CapturedContainerModel {
+    fn drop(&mut self) {
+        self.busy.set(false);
+    }
+}
+
+/// A fresh transition result is still rc0 until the existing cell-reference
+/// stage. An allocation lease permits mandatory cleanup after a refused
+/// continuation without changing the sharing decision or native count.
+struct FreshContainerRoot {
+    original: obj::NativeObjectLifetime,
+    transferred: bool,
+}
+impl FreshContainerRoot {
+    fn new(value: *mut TclObj) -> Self {
+        Self {
+            original: obj::NativeObjectLifetime::retain(value),
+            transferred: false,
+        }
+    }
+    fn adopt_cell_reference(mut self) -> Owned {
+        let value = self.original.as_ptr();
+        unsafe { obj::incr_ref_count(value) };
+        self.transferred = true;
+        unsafe { Owned::from_raw(value) }
+    }
+}
+impl Drop for FreshContainerRoot {
+    fn drop(&mut self) {
+        let value = self.original.as_ptr();
+        if !self.transferred && obj::allocation_is_live(value) && unsafe { (*value).ref_count == 0 }
+        {
+            crate::interp::drop_fresh(value);
         }
     }
 }

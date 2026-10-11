@@ -53,6 +53,8 @@ use crate::obj::{self, TclObj};
 /// (matches the frame model's conservative guard; a real recursion limit lands
 /// with the proc chunk).
 const LINK_LIMIT: usize = 1000;
+mod entered_container;
+pub(crate) use entered_container::{capture_byte_store_entered, EnteredVariablePlace};
 
 /// A concrete place a name resolves to: a table ([`VarHome`]) + simple name +
 /// optional array element. Never itself a link.
@@ -229,6 +231,15 @@ fn unqualified_home(
     name: &[u8],
     protocol: NativeNameProtocol,
 ) -> (VarHome, Vec<u8>) {
+    unqualified_home_using(ns, home, name, protocol, false)
+}
+fn unqualified_home_using(
+    ns: &Namespaces,
+    home: VarHome,
+    name: &[u8],
+    protocol: NativeNameProtocol,
+    original: bool,
+) -> (VarHome, Vec<u8>) {
     if protocol.is_jim084() {
         if let VarHome::Namespace(namespace) = home {
             let (namespace, key) = ns
@@ -237,19 +248,33 @@ fn unqualified_home(
             return (VarHome::Namespace(namespace), key);
         }
     }
-    (ns_scope_fallback(ns, home, name), name.to_vec())
+    (
+        ns_scope_fallback_using(ns, home, name, original),
+        name.to_vec(),
+    )
 }
 
-fn qualified_home(ns: &Namespaces, context: NsId, name: &[u8]) -> Option<(NsId, Vec<u8>)> {
+fn qualified_home_using(
+    ns: &Namespaces,
+    context: NsId,
+    name: &[u8],
+    original: bool,
+) -> Option<(NsId, Vec<u8>)> {
+    let has_cell = |namespace, key: &[u8]| {
+        let table = if original {
+            ns.original_variable_table_at(namespace)
+        } else {
+            Some(ns.var_table(namespace))
+        };
+        table.is_some_and(|table| table.has_native_name_cell(key))
+    };
     let primary = ns.var_home(context, name);
     if ns.ns_var_global_fallback
         && !name.starts_with(b"::")
-        && primary
-            .as_ref()
-            .is_none_or(|(id, key)| !ns.var_table(*id).has_native_name_cell(key))
+        && primary.as_ref().is_none_or(|(id, key)| !has_cell(*id, key))
     {
         if let Some(global) = ns.var_home(GLOBAL, name) {
-            if ns.var_table(global.0).has_native_name_cell(&global.1) {
+            if has_cell(global.0, &global.1) {
                 return Some(global);
             }
         }
@@ -260,6 +285,15 @@ fn qualified_home(ns: &Namespaces, context: NsId, name: &[u8]) -> Option<(NsId, 
 /// Classify `name` to its starting `(home, simple-name)`, or an error if it
 /// is qualified into a namespace that does not exist.
 fn classify(frames: &FrameStack, ns: &Namespaces, current_ns: NsId, name: &[u8]) -> Resolved {
+    classify_using(frames, ns, current_ns, name, false)
+}
+fn classify_using(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    current_ns: NsId,
+    name: &[u8],
+    original: bool,
+) -> Resolved {
     let Some(protocol) = ns.variable_name_protocol else {
         return Resolved::Error(VarError::NameProtocolUnavailable);
     };
@@ -280,12 +314,18 @@ fn classify(frames: &FrameStack, ns: &Namespaces, current_ns: NsId, name: &[u8])
         });
     }
     let (home, key) = if input.qualification() != NativeNameQualification::Unqualified {
-        match qualified_home(ns, current_ns, name) {
+        match qualified_home_using(ns, current_ns, name, original) {
             Some((id, simple)) => (VarHome::Namespace(id), simple),
             None => return Resolved::Error(VarError::NoSuchNamespace),
         }
     } else {
-        unqualified_home(ns, current_home(frames, current_ns), name, protocol)
+        unqualified_home_using(
+            ns,
+            current_home(frames, current_ns),
+            name,
+            protocol,
+            original,
+        )
     };
     Resolved::Place(Place {
         home,
@@ -303,7 +343,7 @@ fn classify(frames: &FrameStack, ns: &Namespaces, current_ns: NsId, name: &[u8])
 /// the default 9.0 semantics (TIP 278) the home is returned unchanged.
 /// tclsh 8.6/9.0-pinned in `cross_version_vars_e2e.rs` (tcl-vm) and the unit
 /// pairs below.
-fn ns_scope_fallback(ns: &Namespaces, home: VarHome, name: &[u8]) -> VarHome {
+fn ns_scope_fallback_using(ns: &Namespaces, home: VarHome, name: &[u8], original: bool) -> VarHome {
     if !ns.ns_var_global_fallback {
         return home;
     }
@@ -313,11 +353,15 @@ fn ns_scope_fallback(ns: &Namespaces, home: VarHome, name: &[u8]) -> VarHome {
     if id == crate::namespace::GLOBAL {
         return home;
     }
-    if !ns.var_table(id).has_native_name_cell(name)
-        && ns
-            .var_table(crate::namespace::GLOBAL)
-            .has_native_name_cell(name)
-    {
+    let has_cell = |namespace| {
+        let table = if original {
+            ns.original_variable_table_at(namespace)
+        } else {
+            Some(ns.var_table(namespace))
+        };
+        table.is_some_and(|table| table.has_native_name_cell(name))
+    };
+    if !has_cell(id) && has_cell(crate::namespace::GLOBAL) {
         return VarHome::Namespace(crate::namespace::GLOBAL);
     }
     home
@@ -338,58 +382,122 @@ fn follow_selected_links(
         if place.array_cell.is_some() || place.scalar_entry.is_some() {
             break;
         }
-        let link = match table(frames, ns, place.home)
-            .and_then(|t| t.cell(&place.name))
-            .as_deref()
-        {
-            Some(Var::Link(l)) => l.clone(),
-            _ => break,
+        let Some(link) = selected_link(frames, ns, &place) else {
+            break;
         };
-        if ns.variable_link_binding == tcl_dialect::VariableLinkBinding::StableCell
-            && matches!(link.home, VarHome::Namespace(namespace) if ns.namespace_variables_are_deleted(namespace))
-        {
-            return Err(VarError::DeletedNamespace);
-        }
-        if link.array_cell.as_ref().is_some_and(|cell| !cell.is_live()) {
-            return Err(VarError::DeletedArray);
-        }
-        if link.native_element_entry.as_ref().is_some_and(|entry| {
-            if trace_registration {
-                !entry.permits_trace_registration()
-            } else {
-                !entry.is_live()
-            }
-        }) {
-            return Err(VarError::DeletedArray);
-        }
-        if link.array_cell.is_none()
-            && link.array_identity.is_some_and(|identity| {
-                table(frames, ns, link.home).and_then(|table| table.binding_id(&link.name))
-                    != Some(identity)
-            })
-        {
-            return Err(VarError::DeletedArray);
-        }
-        // A self-link is the declared-but-undefined marker — stop here; the
-        // cell reads as missing.
-        if link.home == place.home && link.name == place.name && link.elem.is_none() {
+        let self_link = link.home == place.home && link.name == place.name && link.elem.is_none();
+        let next = follow_selected_link(
+            frames,
+            ns,
+            Place {
+                home: place.home,
+                name: place.name.clone(),
+                elem: place.elem.clone(),
+                array_cell: place.array_cell.clone(),
+                scalar_entry: place.scalar_entry.clone(),
+            },
+            link,
+            trace_registration,
+        )?;
+        if self_link {
             break;
         }
-        // An element-on-element chain (`a(b)(c)`) is invalid; keep the outer
-        // element and stop chaining elements (mirrors the frame model).
-        let elem = match (place.elem.take(), link.elem) {
-            (None, e) => e,
-            (outer @ Some(_), _) => outer,
-        };
-        place = Place {
-            home: link.home,
-            name: link.name,
-            elem,
-            array_cell: link.array_cell,
-            scalar_entry: link.native_scalar_entry,
-        };
+        place = next.expect("non-self link advances its original place");
     }
     Ok(place)
+}
+fn selected_link(frames: &FrameStack, ns: &Namespaces, place: &Place) -> Option<Link> {
+    selected_link_using(frames, ns, place, false)
+}
+fn selected_table<'a>(
+    frames: &'a FrameStack,
+    ns: &'a Namespaces,
+    home: VarHome,
+    original: bool,
+) -> Option<&'a VarTable> {
+    if !original {
+        return table(frames, ns, home);
+    }
+    match home {
+        VarHome::Frame(level) => frames.original_variable_table_at(level),
+        VarHome::Namespace(namespace) => ns.original_variable_table_at(namespace),
+    }
+}
+fn selected_link_using(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    place: &Place,
+    original: bool,
+) -> Option<Link> {
+    match selected_table(frames, ns, place.home, original)
+        .and_then(|table| table.cell(&place.name))
+        .as_deref()
+    {
+        Some(Var::Link(link)) => Some(link.clone()),
+        _ => None,
+    }
+}
+fn follow_selected_link(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    place: Place,
+    link: Link,
+    trace_registration: bool,
+) -> Result<Option<Place>, VarError> {
+    follow_selected_link_using(frames, ns, place, link, trace_registration, false)
+}
+fn follow_selected_link_using(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    mut place: Place,
+    link: Link,
+    trace_registration: bool,
+    original: bool,
+) -> Result<Option<Place>, VarError> {
+    if ns.variable_link_binding == tcl_dialect::VariableLinkBinding::StableCell
+        && matches!(link.home, VarHome::Namespace(namespace) if ns.namespace_variables_are_deleted(namespace))
+    {
+        return Err(VarError::DeletedNamespace);
+    }
+    if link.array_cell.as_ref().is_some_and(|cell| !cell.is_live()) {
+        return Err(VarError::DeletedArray);
+    }
+    if link.native_element_entry.as_ref().is_some_and(|entry| {
+        if trace_registration {
+            !entry.permits_trace_registration()
+        } else {
+            !entry.is_live()
+        }
+    }) {
+        return Err(VarError::DeletedArray);
+    }
+    if link.array_cell.is_none()
+        && link.array_identity.is_some_and(|identity| {
+            selected_table(frames, ns, link.home, original)
+                .and_then(|table| table.binding_id(&link.name))
+                != Some(identity)
+        })
+    {
+        return Err(VarError::DeletedArray);
+    }
+    // A self-link is the declared-but-undefined marker — stop here; the
+    // cell reads as missing.
+    if link.home == place.home && link.name == place.name && link.elem.is_none() {
+        return Ok(None);
+    }
+    // An element-on-element chain (`a(b)(c)`) is invalid; keep the outer
+    // element and stop chaining elements (mirrors the frame model).
+    let elem = match (place.elem.take(), link.elem) {
+        (None, e) => e,
+        (outer @ Some(_), _) => outer,
+    };
+    Ok(Some(Place {
+        home: link.home,
+        name: link.name,
+        elem,
+        array_cell: link.array_cell,
+        scalar_entry: link.native_scalar_entry,
+    }))
 }
 
 /// Jim_SetVariableLink inspects the selected local slot before following the
@@ -522,6 +630,15 @@ pub(crate) fn home_at(frames: &FrameStack, level: usize) -> VarHome {
 /// (or, for a non-proc frame, its namespace); a qualified name resolves in that
 /// frame's namespace context.
 fn classify_at(frames: &FrameStack, ns: &Namespaces, name: &[u8], level: usize) -> Resolved {
+    classify_at_using(frames, ns, name, level, false)
+}
+fn classify_at_using(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    name: &[u8],
+    level: usize,
+    original: bool,
+) -> Resolved {
     let Some(protocol) = ns.variable_name_protocol else {
         return Resolved::Error(VarError::NameProtocolUnavailable);
     };
@@ -540,12 +657,12 @@ fn classify_at(frames: &FrameStack, ns: &Namespaces, name: &[u8], level: usize) 
         });
     }
     let (home, key) = if input.qualification() != NativeNameQualification::Unqualified {
-        match qualified_home(ns, frames.frame_ns(level), name) {
+        match qualified_home_using(ns, frames.frame_ns(level), name, original) {
             Some((id, simple)) => (VarHome::Namespace(id), simple),
             None => return Resolved::Error(VarError::NoSuchNamespace),
         }
     } else {
-        unqualified_home(ns, home_at(frames, level), name, protocol)
+        unqualified_home_using(ns, home_at(frames, level), name, protocol, original)
     };
     Resolved::Place(Place {
         home,
@@ -1303,50 +1420,6 @@ impl CapturedByteStore {
         }
     }
 }
-pub(crate) fn capture_byte_store(
-    frames: &mut FrameStack,
-    ns: &mut Namespaces,
-    current: NsId,
-    level: Option<usize>,
-    name: &[u8],
-    element: Option<&[u8]>,
-) -> Result<CapturedByteStore, VarError> {
-    // Keep the explicit element projection before resolving its root, as in set_elem.
-    let key = element
-        .map(|key| separate_element(ns, name, key))
-        .transpose()?;
-    let mut place = match level.map_or_else(
-        || resolve(frames, ns, current, name),
-        |level| resolve_at(frames, ns, name, level),
-    ) {
-        Resolved::Place(place) => place,
-        Resolved::Error(error) => return Err(error),
-    };
-    if let Some(key) = key {
-        if place.elem.is_some() {
-            return Err(VarError::IsScalar);
-        }
-        place.elem = Some(key);
-    }
-    if let (Some(array), Some(element)) = (&place.array_cell, &place.elem) {
-        return Ok(CapturedByteStore::Retained(
-            array.capture_receiver(element.clone()),
-        ));
-    }
-    if let Some(entry) = place.scalar_entry {
-        return Ok(CapturedByteStore::Retained(
-            entry
-                .capture_receiver(place.elem, true)?
-                .ok_or(VarError::NameProtocolUnavailable)?,
-        ));
-    }
-    let root =
-        table_mut(frames, ns, place.home).capture_byte_store_root(&place.name, place.elem)?;
-    Ok(CapturedByteStore::Generic {
-        home: place.home,
-        root,
-    })
-}
 
 /// `set name value` — write through links to wherever `name` resolves. The cell
 /// takes a **+1** on `obj`. A qualified write into a missing namespace errors.
@@ -1405,6 +1478,7 @@ pub(crate) fn set_elem(
 }
 
 /// `set name` — borrowed value, or `None` (unset / missing namespace).
+#[cfg(test)]
 pub(crate) fn get(
     frames: &FrameStack,
     ns: &Namespaces,
@@ -1437,6 +1511,7 @@ pub(crate) fn get(
 // frame keeps the by-name accessors verbatim.
 
 /// Frame-addressed [`get`] — read `name` resolved against frame `level`.
+#[cfg(test)]
 pub(crate) fn get_at(
     frames: &FrameStack,
     ns: &Namespaces,
@@ -1463,6 +1538,7 @@ pub(crate) fn get_at(
 
 /// Frame-addressed array-element read. `name` and `key` stay separate so an
 /// array base containing `(` is never reconstructed and parsed again.
+#[cfg(test)]
 pub(crate) fn get_elem_at(
     frames: &FrameStack,
     ns: &Namespaces,
@@ -1572,35 +1648,9 @@ pub(crate) fn unset_at(
     existed
 }
 
-/// Frame-addressed [`exists`].
-pub(crate) fn exists_at(frames: &FrameStack, ns: &Namespaces, name: &[u8], level: usize) -> bool {
-    match resolve_at(frames, ns, name, level) {
-        Resolved::Place(p) if p.elem.is_none() => {
-            if let Some(defined) = exists_retained(&p) {
-                return defined;
-            }
-            table(frames, ns, p.home).is_some_and(|t| t.is_set(&p.name))
-        }
-        Resolved::Place(p) => {
-            if let Some(defined) = exists_retained(&p) {
-                return defined;
-            }
-            table(frames, ns, p.home)
-                .and_then(|t| {
-                    p.elem.as_ref().map(|e| {
-                        p.array_cell
-                            .as_ref()
-                            .map_or_else(|| t.load_elem(&p.name, e), |cell| cell.read(e))
-                            .is_some()
-                    })
-                })
-                .unwrap_or(false)
-        }
-        Resolved::Error(_) => false,
-    }
-}
 
 /// `set name(key)` — borrowed.
+#[cfg(test)]
 pub(crate) fn get_elem(
     frames: &FrameStack,
     ns: &Namespaces,
@@ -1663,28 +1713,6 @@ pub(crate) fn replace_array_default_classified(
     Ok(Ok(table.replace_array_default(&place.name, obj)))
 }
 
-/// Ensure `name` is an (possibly empty) array, creating an empty one if it is
-/// unset — `array set name {}` with an empty value list still materialises the
-/// array (C's `TclArraySet`). A scalar `name` errors `IsScalar`. Resolves
-/// links/namespaces like the element setters.
-pub(crate) fn ensure_array(
-    frames: &mut FrameStack,
-    ns: &mut Namespaces,
-    current_ns: NsId,
-    name: &[u8],
-) -> Result<(), VarError> {
-    let place = match resolve(frames, ns, current_ns, name) {
-        Resolved::Place(p) if p.elem.is_none() => p,
-        Resolved::Error(error) => return Err(error),
-        _ => return Err(VarError::IsScalar),
-    };
-    if let Some(entry) = &place.scalar_entry {
-        // A creating separate-element lookup establishes an array on this
-        // exact root; preparing no element does not manufacture an entry.
-        return entry.ensure_array();
-    }
-    table_mut(frames, ns, place.home).ensure_array(&place.name)
-}
 
 /// Materialise an unset scalar cell for `trace add variable`.  This uses the
 /// same self-link storage representation as `variable`, with a distinct
@@ -1974,6 +2002,7 @@ pub(crate) fn const_names(frames: &FrameStack, ns: &Namespaces) -> Vec<Vec<u8>> 
 
 /// Whether `name` resolves to an array variable (the `set a` array-vs-scalar
 /// diagnostic; `array exists`).
+#[cfg(test)]
 pub(crate) fn is_array(
     frames: &FrameStack,
     ns: &Namespaces,
@@ -1995,102 +2024,9 @@ pub(crate) fn is_array(
     }
 }
 
-/// Whether the scalar/array `name` is set (`info exists`, scalar form).
-pub(crate) fn exists(frames: &FrameStack, ns: &Namespaces, current_ns: NsId, name: &[u8]) -> bool {
-    match resolve(frames, ns, current_ns, name) {
-        Resolved::Place(p) if p.elem.is_none() => {
-            if let Some(defined) = exists_retained(&p) {
-                return defined;
-            }
-            table(frames, ns, p.home).is_some_and(|t| t.is_set(&p.name))
-        }
-        // A link resolved to an element, or a missing namespace: fall back to the
-        // element check / not-found.
-        Resolved::Place(p) => {
-            if let Some(defined) = exists_retained(&p) {
-                return defined;
-            }
-            table(frames, ns, p.home)
-                .and_then(|t| {
-                    p.elem.as_ref().map(|e| {
-                        p.array_cell
-                            .as_ref()
-                            .map_or_else(|| t.load_elem(&p.name, e), |cell| cell.read(e))
-                            .is_some()
-                    })
-                })
-                .unwrap_or(false)
-        }
-        Resolved::Error(_) => false,
-    }
-}
 
-/// Whether the array element `name(key)` is set (`info exists arr(key)`).
-pub(crate) fn exists_elem(
-    frames: &FrameStack,
-    ns: &Namespaces,
-    current_ns: NsId,
-    name: &[u8],
-    key: &[u8],
-) -> bool {
-    let Ok(key) = separate_element(ns, name, key) else {
-        return false;
-    };
-    // `info exists arr(k)` checks the *actual* element — an array default does
-    // not make a missing element "exist" (TIP 508).
-    match resolve(frames, ns, current_ns, name) {
-        Resolved::Place(p) if p.elem.is_none() => {
-            let p = Place {
-                elem: Some(key.clone()),
-                ..p
-            };
-            if let Some(defined) = exists_retained(&p) {
-                return defined;
-            }
-            table(frames, ns, p.home).is_some_and(|t| t.load_elem(&p.name, &key).is_some())
-        }
-        _ => false,
-    }
-}
 
-/// The element names of array `name` (`array names`/`array get`), or `None` if
-/// `name` isn't an array. Sorted (deterministic).
-pub(crate) fn array_names(
-    frames: &FrameStack,
-    ns: &Namespaces,
-    current_ns: NsId,
-    name: &[u8],
-) -> Option<Vec<Vec<u8>>> {
-    match resolve(frames, ns, current_ns, name) {
-        Resolved::Place(p) if p.elem.is_none() => table(frames, ns, p.home)?.array_names(&p.name),
-        _ => None,
-    }
-}
 
-/// Resolve a variable reference to its string bytes (the `$var`/`$arr(idx)`
-/// subst hook). `None` for an unset/missing variable.
-pub(crate) fn resolve_var_bytes(
-    frames: &FrameStack,
-    ns: &Namespaces,
-    current_ns: NsId,
-    name: &[u8],
-    index: Option<&[u8]>,
-) -> Option<Vec<u8>> {
-    let obj = match index {
-        Some(key) => get_elem(frames, ns, current_ns, name, key)?,
-        None => get(frames, ns, current_ns, name)?,
-    };
-    // SAFETY: `obj` is a live, table-owned object; `get_string` reads/shims its
-    // string rep and returns a borrowed pointer we copy out immediately.
-    unsafe {
-        let mut len: obj::TclSize = 0;
-        let p = obj::get_string(obj, &mut len);
-        if p.is_null() {
-            return Some(Vec::new());
-        }
-        Some(std::slice::from_raw_parts(p as *const u8, len as usize).to_vec())
-    }
-}
 
 // link installation (global / variable / upvar)
 

@@ -39,6 +39,8 @@
 #[cfg(test)]
 mod bootstrap_context_tests;
 #[cfg(test)]
+mod container_access_tests;
+#[cfg(test)]
 mod byte_store_retirement_tests;
 #[cfg(test)]
 mod anonymous_cell_cleanup_tests;
@@ -6600,12 +6602,9 @@ impl Interp {
             return self.observed_variable_get(name, level).ok().flatten();
         }
         self.require_variable_name_protocol().ok()?;
-        crate::vars::get(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
-            self.current_ns.get(),
-            name,
-        )
+        self.read_captured_byte_variable(self.current_ns.get(), None, name, None, false)
+            .ok()
+            .flatten()
     }
 
     /// Read a complete byte-valued variable name, retaining its literal
@@ -6631,6 +6630,9 @@ impl Interp {
             Some(key) => self.var_get_elem(base, key),
             None => self.var_get(base),
         };
+        if self.native_execution_refusal().is_some() {
+            return Err(Code::Error);
+        }
         value.ok_or_else(|| self.no_such_variable(name, None))
     }
 
@@ -6663,12 +6665,9 @@ impl Interp {
             return self.observed_variable_get(name, level).ok().flatten();
         }
         self.require_variable_name_protocol().ok()?;
-        crate::vars::get_at(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
-            name,
-            level,
-        )
+        self.read_captured_byte_variable(self.current_ns.get(), Some(level), name, None, false)
+            .ok()
+            .flatten()
     }
 
     /// Frame-addressed `set name(key)`. The base and element stay separate at
@@ -6680,13 +6679,71 @@ impl Interp {
         level: usize,
     ) -> Option<*mut TclObj> {
         self.require_variable_name_protocol().ok()?;
-        crate::vars::get_elem_at(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
-            name,
-            key,
+        self.read_captured_byte_variable(self.current_ns.get(), Some(level), name, Some(key), false)
+            .ok()
+            .flatten()
+    }
+
+    fn with_captured_byte_variable<T>(
+        &self,
+        current: NsId,
+        level: Option<usize>,
+        name: &[u8],
+        element: Option<&[u8]>,
+        create: bool,
+        worker: impl FnOnce(
+            &mut crate::vars::EnteredVariablePlace,
+            &native_operation_currency::NativeOperationCurrency,
+        ) -> Result<T, crate::frame::JimLinkStoreError>,
+    ) -> Result<T, VarError> {
+        let scope =
+            native_operation_currency::NativeOperationScope::enter(self).map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        self.require_variable_name_protocol()?;
+        let captured = crate::vars::EnteredVariablePlace::capture(
+            self,
+            current,
             level,
-        )
+            name,
+            element,
+            create,
+            scope.currency(),
+        );
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        let mut captured = captured.map_err(|error| self.byte_store_failure(error))?;
+        let reached = worker(&mut captured, scope.currency());
+        let current = captured.check(self, scope.currency());
+        drop(captured);
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        current.map_err(|error| self.byte_store_failure(error))?;
+        reached.map_err(|error| self.byte_store_failure(error))
+    }
+
+    pub(crate) fn read_captured_byte_variable(
+        &self,
+        current: NsId,
+        level: Option<usize>,
+        name: &[u8],
+        element: Option<&[u8]>,
+        default: bool,
+    ) -> Result<Option<*mut TclObj>, VarError> {
+        self.with_captured_byte_variable(current, level, name, element, false, |place, currency| {
+            place.read(self, currency, default)
+        })
     }
 
     fn byte_store_failure(&self, error: crate::frame::JimLinkStoreError) -> VarError {
@@ -6727,19 +6784,22 @@ impl Interp {
                 self.refuse_native_execution(first);
                 VarError::NameProtocolUnavailable
             })?;
-        let captured = {
-            let mut frames = self.frames.borrow_mut();
-            let mut namespaces = self.namespaces.borrow_mut();
-            crate::vars::capture_byte_store(
-                &mut frames,
-                &mut namespaces,
-                current,
-                level,
-                name,
-                element,
-            )
-        };
-        let mut captured = captured?;
+        let captured = crate::vars::capture_byte_store_entered(
+            self,
+            current,
+            level,
+            name,
+            element,
+            scope.currency(),
+        );
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        let mut captured = captured.map_err(|error| self.byte_store_failure(error))?;
         let reached = captured.store(value, scope.currency());
         let current = captured.check(
             &self.frames.borrow(),
@@ -6950,24 +7010,23 @@ impl Interp {
         if self.require_variable_name_protocol().is_err() {
             return false;
         };
-        crate::vars::exists_at(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
+        self.with_captured_byte_variable(
+            self.current_ns.get(),
+            Some(level),
             name,
-            level,
+            None,
+            false,
+            |place, currency| place.exists(self, currency),
         )
+        .unwrap_or(false)
     }
 
     /// `set name(key)` — borrowed.
     pub(crate) fn var_get_elem(&self, name: &[u8], key: &[u8]) -> Option<*mut TclObj> {
         self.require_variable_name_protocol().ok()?;
-        crate::vars::get_elem(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
-            self.current_ns.get(),
-            name,
-            key,
-        )
+        self.read_captured_byte_variable(self.current_ns.get(), None, name, Some(key), true)
+            .ok()
+            .flatten()
     }
 
     /// `set name value` — the cell takes a **+1** on `obj`.
@@ -7324,11 +7383,13 @@ impl Interp {
             return self.observed_ensure_array(name, level);
         }
         self.require_variable_name_protocol()?;
-        crate::vars::ensure_array(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
+        self.with_captured_byte_variable(
             self.current_ns.get(),
+            None,
             name,
+            None,
+            true,
+            |place, currency| place.ensure_array(self, currency),
         )
     }
 
@@ -8922,12 +8983,15 @@ impl Interp {
         if self.require_variable_name_protocol().is_err() {
             return false;
         };
-        crate::vars::is_array(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
+        self.with_captured_byte_variable(
             self.current_ns.get(),
+            None,
             name,
+            None,
+            false,
+            |place, currency| place.is_array(self, currency),
         )
+        .unwrap_or(false)
     }
 
     /// Resolve a `global`/`variable`/`upvar` name argument to its
@@ -9502,32 +9566,30 @@ impl Interp {
             return false;
         };
         let base = input.root().selected();
-        match input.element() {
-            Some(element) => crate::vars::exists_elem(
-                &self.frames.borrow(),
-                &self.namespaces.borrow(),
-                self.current_ns.get(),
-                base,
-                element.selected(),
-            ),
-            None => crate::vars::exists(
-                &self.frames.borrow(),
-                &self.namespaces.borrow(),
-                self.current_ns.get(),
-                base,
-            ),
-        }
+        self.with_captured_byte_variable(
+            self.current_ns.get(),
+            None,
+            base,
+            input.element().map(|element| element.selected()),
+            false,
+            |place, currency| place.exists(self, currency),
+        )
+        .unwrap_or(false)
     }
 
     /// The element names of array `name` (`array names`/`get`), or `None`.
     pub(crate) fn array_names(&self, name: &[u8]) -> Option<Vec<Vec<u8>>> {
         self.require_variable_name_protocol().ok()?;
-        crate::vars::array_names(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
+        self.with_captured_byte_variable(
             self.current_ns.get(),
+            None,
             name,
+            None,
+            false,
+            |place, currency| place.array_names(self, currency),
         )
+        .ok()
+        .flatten()
     }
 
     /// The invoking command words at call `level` (`info level N`), or `None`
@@ -16722,13 +16784,25 @@ impl Interp {
         .ok()?;
         let name = input.root().selected();
         let index = input.element().map(|element| element.selected());
-        crate::vars::resolve_var_bytes(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
+        self.with_captured_byte_variable(
             self.current_ns.get(),
+            None,
             name,
             index,
+            false,
+            |place, currency| {
+                let Some(value) = place.read(self, currency, index.is_some())? else {
+                    return Ok(None);
+                };
+                let reached = self.native_object_string_bytes(value);
+                place.check(self, currency)?;
+                reached
+                    .map(|bytes| Some(bytes.to_vec()))
+                    .map_err(Into::into)
+            },
         )
+        .ok()
+        .flatten()
     }
 
     fn no_such_variable(&mut self, name: &[u8], index: Option<&[u8]>) -> Code {

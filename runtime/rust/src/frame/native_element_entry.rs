@@ -123,13 +123,32 @@ impl NativeElementEntries {
         }
     }
     pub(super) fn clear(&mut self) {
-        for entry in self.0.values() {
+        if self.0.is_empty() {
+            return;
+        }
+        let retired = std::mem::take(self);
+        match retired.retire_with_check(|| Ok::<_, std::convert::Infallible>(())) {
+            Ok(()) => {}
+            Err(never) => match never {},
+        }
+    }
+    pub(super) fn retire_with_check<E>(
+        mut self,
+        current: impl Fn() -> Result<(), E>,
+    ) -> Result<(), E> {
+        let entries = std::mem::take(&mut self.0);
+        let mut first = None;
+        for entry in entries.values() {
             entry.retired.set(true);
             entry.table_owned.set(false);
             let key = entry.original.borrow_mut().take();
             drop(key);
+            // Mandatory ownership release continues after an earlier refusal.
+            if let Err(error) = current() {
+                first.get_or_insert(error);
+            }
         }
-        self.0.clear();
+        first.map_or(Ok(()), Err)
     }
     fn hold(
         &self,
