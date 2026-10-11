@@ -1311,3 +1311,528 @@ fn original_math_classification_boolean_and_big_workers_preserve_selected_guest_
     assert_eq!(failed.code, Code::Error);
     assert!(vm.execution_refusal.is_none());
 }
+
+fn original_read_channel(vm: &mut Vm) -> String {
+    let access =
+        tcl_cmd_core::channel::resolve_open_access_mode(vm.runtime_version(), "r").unwrap();
+    let config = tcl_cmd_core::channel::ChannelConfig::for_open_access(
+        vm.runtime_version(),
+        vm.system_encoding(),
+        access,
+    );
+    vm.add_channel(crate::cmd_chan::Channel::Read {
+        data: b"abcdef".to_vec(),
+        pos: 0,
+        config,
+        path: Some(Rc::from(b"original-owned-channel".as_slice())),
+    })
+}
+
+fn original_channel_cursor(vm: &Vm, name: &str) -> usize {
+    let crate::cmd_chan::Channel::Read { pos, .. } = vm.channel(name).unwrap() else {
+        panic!("actual owned read channel required");
+    };
+    *pos
+}
+
+#[test]
+fn original_io_and_debug_resident_arguments_keep_cursor_flag_and_no_formatter_queries() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Software command adapters only; no public C/Jim default-routing assertion.
+    let (mut vm, formatter, acquisitions) = provided();
+    let channel = original_read_channel(&mut vm);
+    let result = vm
+        .try_invoke_command("read", &[Value::string(&channel), Value::string("2")])
+        .unwrap();
+    assert_eq!(result.code, Code::Ok);
+    assert_eq!(
+        result.result.resident_string_bytes().unwrap().as_ref(),
+        b"ab"
+    );
+    assert_eq!(original_channel_cursor(&vm, &channel), 2);
+    let result = vm
+        .try_invoke_command("seek", &[Value::string(&channel), Value::int(1)])
+        .unwrap();
+    assert_eq!(result.code, Code::Ok);
+    assert_eq!(original_channel_cursor(&vm, &channel), 1);
+    let result = vm
+        .try_invoke_command(
+            "seek",
+            &[
+                Value::string(&channel),
+                Value::int(2),
+                Value::string("current"),
+            ],
+        )
+        .unwrap();
+    assert_eq!(result.code, Code::Ok);
+    assert_eq!(original_channel_cursor(&vm, &channel), 3);
+    let mut debug = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.5"));
+    debug.set_host(Rc::new(FormatterHost {
+        actual: debug.host_rc(),
+        formatter: Rc::clone(&formatter),
+        acquisitions: Rc::clone(&acquisitions),
+    }));
+    let result = debug
+        .debug_apply(
+            &[Value::string("-frame"), Value::bool(true)],
+            b"fixture -frame bool",
+        )
+        .unwrap();
+    assert_eq!(result.integer_representation(), Some(1));
+    assert!(debug.debug_frame);
+    assert!(debug.execution_refusal.is_none());
+    assert_eq!(acquisitions.get(), 0);
+    assert!(formatter.calls.borrow().is_empty());
+    assert!(vm.execution_refusal.is_none());
+
+    let mut modern = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"));
+    let formatter = Rc::new(Formatter::default());
+    let acquisitions = Rc::new(Cell::new(0));
+    modern.set_host(Rc::new(FormatterHost {
+        actual: modern.host_rc(),
+        formatter: Rc::clone(&formatter),
+        acquisitions: Rc::clone(&acquisitions),
+    }));
+    let data = Value::byte_array(b"abc".to_vec());
+    let result = modern
+        .try_invoke_command(
+            "binary",
+            &[
+                Value::string("encode"),
+                Value::string("base64"),
+                Value::string("-maxlen"),
+                Value::int(2),
+                data.native_lifetime_lease().into_value(),
+            ],
+        )
+        .unwrap();
+    assert_eq!(result.code, Code::Ok);
+    assert_eq!(result.result.string_bytes().as_ref(), b"YW\nJj");
+    assert_eq!(acquisitions.get(), 0);
+    assert!(formatter.calls.borrow().is_empty());
+    assert!(modern.execution_refusal.is_none());
+}
+
+#[test]
+fn original_io_formatter_withdrawal_stops_read_and_seek_before_mutation() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // The actual supplied software formatter retires the original borrowed root.
+    for purpose in ["read", "seek", "seek-current"] {
+        let (mut vm, formatter, _) = provided();
+        let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+        let channel = original_read_channel(&mut vm);
+        let root = Value::native_list_constructor(vec![value(&vm, i64::MIN)], protocol());
+        let held = root.native_lifetime_lease();
+        *formatter.retire_owner.borrow_mut() = Some(root);
+        formatter.retire_at.set(Some("format"));
+        let mut arguments = vec![
+            Value::string(&channel),
+            held.value().native_lifetime_lease().into_value(),
+        ];
+        if purpose == "seek-current" {
+            arguments.push(Value::string("current"));
+        }
+        let first = vm
+            .try_invoke_command(if purpose == "read" { "read" } else { "seek" }, &arguments)
+            .unwrap_err();
+        assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
+        assert_eq!(vm.execution_refusal.as_ref(), Some(&first));
+        assert_eq!(original_channel_cursor(&vm, &channel), 0);
+        assert!(!vm.debug_frame);
+        assert!(held.value().resident_string_bytes().is_none());
+        assert!(held.value().native_scalar_cache().is_none());
+        assert_eq!(formatter.calls.borrow().last().unwrap().0, "format");
+        assert!(matches!(
+            first,
+            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(_)
+        ));
+    }
+}
+
+#[test]
+fn original_binary_maxlen_retired_header_refuses_before_guest_line_length_and_data_conversion() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Genuine entered VM/header refusal; no arbitrary binary extension chronology.
+    let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"));
+    let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+    let count = Value::int(2);
+    let held = count.native_lifetime_lease();
+    drop(count);
+    let data = Value::byte_array(b"abc".to_vec());
+    let before = data.native_object_snapshot();
+    let arguments = [
+        Value::string("encode"),
+        Value::string("base64"),
+        Value::string("-maxlen"),
+        held.value().native_lifetime_lease().into_value(),
+        data.native_lifetime_lease().into_value(),
+    ];
+    let first = vm.try_invoke_command("binary", &arguments).unwrap_err();
+    assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
+    assert_eq!(vm.execution_refusal.as_ref(), Some(&first));
+    assert_eq!(data.native_object_snapshot(), before);
+    assert!(held.value().resident_string_bytes().is_none());
+    assert_eq!(
+        first,
+        tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "retired native object header"
+            )
+        )
+    );
+}
+
+#[test]
+fn original_numeric_command_scope_stops_host_aba_before_backend_and_retires_unpublished_result() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Actual set_host changes in the software worker; no Native I/O callback grant.
+    struct ReachedResult(Box<dyn Fn()>);
+    impl Drop for ReachedResult {
+        fn drop(&mut self) {
+            (self.0)();
+        }
+    }
+    let (mut vm, _, _) = provided();
+    let outer = NativeOperationScope::enter_native(&mut vm).unwrap();
+    let initial = vm.host_rc();
+    let independent =
+        crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.4"));
+    let replacement = independent.host_rc();
+    let changed_backend = Rc::new(Cell::new(false));
+    let retired_under_original = Rc::new(Cell::new(false));
+    let owner = Rc::downgrade(&vm.native_operation_context);
+    let failure = crate::expr::with_original_numeric_command(
+        &mut vm,
+        tcl_cmd_core::CmdError::from_execution_refusal,
+        |vm, original| {
+            assert!(original.original.is_some());
+            original.current(vm).unwrap();
+            vm.set_host(Rc::clone(&replacement));
+            vm.set_host(Rc::clone(&initial));
+            assert!(original.current(vm).is_err());
+            if original.current(vm).is_ok() {
+                changed_backend.set(true);
+            }
+            let retired = Rc::clone(&retired_under_original);
+            Ok(ReachedResult(Box::new(move || {
+                retired.set(owner.upgrade().unwrap().has_entered_operation());
+            })))
+        },
+    )
+    .err()
+    .unwrap();
+    let first = failure.native_execution_refusal().unwrap();
+    assert_eq!(outer.check_native(&mut vm).unwrap_err(), *first);
+    assert_eq!(vm.execution_refusal.as_ref(), Some(first));
+    assert!(!changed_backend.get());
+    assert!(retired_under_original.get());
+}
+
+#[test]
+fn original_numeric_command_prior_host_cause_remains_typed_before_guest_defaults() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let (mut vm, formatter, acquisitions) = provided();
+    let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+    let channel = original_read_channel(&mut vm);
+    let prior = vm.refuse_host_command("original command receipt declined".to_owned());
+    let first = vm.execution_refusal.clone().unwrap();
+    for name in ["read", "seek"] {
+        let error = vm
+            .try_invoke_command(name, &[Value::string(&channel), Value::string("bad")])
+            .unwrap_err();
+        assert_eq!(error, first);
+        assert_eq!(original_channel_cursor(&vm, &channel), 0);
+    }
+    let error = vm
+        .debug_apply(
+            &[Value::string("-frame"), Value::string("bad")],
+            b"fixture -frame bool",
+        )
+        .unwrap_err();
+    assert_eq!(error.native_execution_refusal(), Some(&first));
+    assert!(!vm.debug_frame);
+    assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
+    assert_eq!(acquisitions.get(), 0);
+    assert!(formatter.calls.borrow().is_empty());
+    assert_eq!(vm.finish_host_execution(prior).unwrap_err(), first);
+}
+
+#[test]
+fn original_debug_retired_header_stops_supported_boolean_before_flag_or_guest_error() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.5"));
+    let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+    let operand = Value::bool(true);
+    let held = operand.native_lifetime_lease();
+    drop(operand);
+    let error = vm
+        .debug_apply(
+            &[
+                Value::string("-frame"),
+                held.value().native_lifetime_lease().into_value(),
+            ],
+            b"fixture -frame bool",
+        )
+        .unwrap_err();
+    let first = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+        tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+            "retired native object header",
+        ),
+    );
+    assert_eq!(error.native_execution_refusal(), Some(&first));
+    assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
+    assert!(!vm.debug_frame);
+}
+
+fn original_numeric_public_error(completion: crate::Completion<Value>) -> (Rc<[u8]>, Rc<[u8]>) {
+    assert_eq!(completion.code, Code::Error);
+    let error = crate::TclError::from_completion(completion);
+    (
+        error.message_bytes().unwrap(),
+        error.error_code_bytes().unwrap().unwrap(),
+    )
+}
+
+#[test]
+fn original_public_read_counts_preserve_selected_errors_and_untouched_cursor() {
+    // naming.numeric.io-debug-public-conversion-and-side-effect-order
+    // docs/design/analysis/name-resolution-proofs/numeric-io-debug-public-conversion-and-side-effect-order.md
+    // Native628 proves public ASCII results/code/cursor only; these are source/API controls.
+    for (dialect, bad, negative) in [
+        (
+            "tcl8.4",
+            b"bad argument \"bad\": should be \"nonewline\"".as_slice(),
+            b"bad argument \"-1\": should be \"nonewline\"".as_slice(),
+        ),
+        (
+            "tcl8.5",
+            b"expected integer but got \"bad\"".as_slice(),
+            b"expected non-negative integer but got \"-1\"".as_slice(),
+        ),
+        (
+            "tcl8.6",
+            b"expected non-negative integer but got \"bad\"".as_slice(),
+            b"expected non-negative integer but got \"-1\"".as_slice(),
+        ),
+        (
+            "tcl9.0",
+            b"expected non-negative integer but got \"bad\"".as_slice(),
+            b"expected non-negative integer but got \"-1\"".as_slice(),
+        ),
+        (
+            "tcl9.1",
+            b"expected non-negative integer but got \"bad\"".as_slice(),
+            b"expected non-negative integer but got \"-1\"".as_slice(),
+        ),
+    ] {
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(dialect));
+        let channel = original_read_channel(&mut vm);
+        for (count, expected) in [("bad", bad), ("-1", negative)] {
+            let completion = vm
+                .try_invoke_command("read", &[Value::string(&channel), Value::string(count)])
+                .unwrap();
+            let (message, code) = original_numeric_public_error(completion);
+            assert_eq!(message.as_ref(), expected, "{dialect} {count}");
+            assert_eq!(
+                code.as_ref(),
+                if dialect == "tcl8.4" {
+                    b"NONE".as_slice()
+                } else {
+                    b"TCL VALUE NUMBER".as_slice()
+                }
+            );
+            assert_eq!(original_channel_cursor(&vm, &channel), 0);
+            assert!(vm.execution_refusal.is_none());
+        }
+        let result = vm
+            .try_invoke_command("read", &[Value::string(&channel), Value::int(2)])
+            .unwrap();
+        assert_eq!(result.code, Code::Ok);
+        assert_eq!(
+            result.result.resident_string_bytes().unwrap().as_ref(),
+            b"ab"
+        );
+        assert_eq!(original_channel_cursor(&vm, &channel), 2);
+    }
+}
+
+#[test]
+fn original_public_seek_errors_preserve_conversion_order_and_negative_target_position() {
+    // naming.numeric.io-debug-public-conversion-and-side-effect-order
+    // docs/design/analysis/name-resolution-proofs/numeric-io-debug-public-conversion-and-side-effect-order.md
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+        let profile = crate::environment::profile_for_dialect(dialect);
+        let mut vm = crate::native_fixture::core(profile);
+        let channel = original_read_channel(&mut vm);
+        let invalid = vm
+            .try_invoke_command(
+                "seek",
+                &[
+                    Value::string(&channel),
+                    Value::string("bad"),
+                    Value::string("invalid-origin"),
+                ],
+            )
+            .unwrap();
+        let (message, _) = original_numeric_public_error(invalid);
+        assert_eq!(
+            message.as_ref(),
+            if dialect == "jim" {
+                format!("wrong # args: should be \"{channel} seek offset ?start|current|end\"")
+                    .as_bytes()
+                    .to_vec()
+            } else {
+                b"expected integer but got \"bad\"".to_vec()
+            }
+        );
+        assert_eq!(original_channel_cursor(&vm, &channel), 0);
+        let result = vm
+            .try_invoke_command("seek", &[Value::string(&channel), Value::int(3)])
+            .unwrap();
+        assert_eq!(result.code, Code::Ok);
+        let failed = vm
+            .try_invoke_command("seek", &[Value::string(&channel), Value::int(-1)])
+            .unwrap();
+        let (message, code) = original_numeric_public_error(failed);
+        if dialect == "jim" {
+            assert_eq!(
+                message.as_ref(),
+                b"original-owned-channel: Invalid argument"
+            );
+            assert_eq!(code.as_ref(), b"NONE");
+        } else {
+            assert_eq!(
+                message.as_ref(),
+                format!("error during seek on \"{channel}\": invalid argument").as_bytes()
+            );
+            assert_eq!(code.as_ref(), b"POSIX EINVAL {invalid argument}");
+        }
+        assert_eq!(original_channel_cursor(&vm, &channel), 3);
+        let result = vm
+            .try_invoke_command(
+                "seek",
+                &[
+                    Value::string(&channel),
+                    Value::int(-1),
+                    Value::string("current"),
+                ],
+            )
+            .unwrap();
+        assert_eq!(result.code, Code::Ok);
+        assert_eq!(original_channel_cursor(&vm, &channel), 2);
+        assert!(vm.execution_refusal.is_none());
+    }
+}
+
+#[test]
+fn original_public_binary_line_length_uses_actual_primitive_and_negative_code() {
+    // naming.numeric.io-debug-public-conversion-and-side-effect-order
+    // docs/design/analysis/name-resolution-proofs/numeric-io-debug-public-conversion-and-side-effect-order.md
+    for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(dialect));
+        for (input, expected) in [
+            ("bad", b"expected integer but got \"bad\"".as_slice()),
+            ("-1", b"line length out of range".as_slice()),
+        ] {
+            let completion = vm
+                .try_invoke_command(
+                    "binary",
+                    &[
+                        Value::string("encode"),
+                        Value::string("base64"),
+                        Value::string("-maxlen"),
+                        Value::string(input),
+                        Value::byte_array(b"abc".to_vec()),
+                    ],
+                )
+                .unwrap();
+            let (message, code) = original_numeric_public_error(completion);
+            assert_eq!(message.as_ref(), expected);
+            let expected_code = if input == "-1" {
+                b"TCL BINARY ENCODE LINE_LENGTH".as_slice()
+            } else if dialect == "tcl8.6" {
+                b"TCL VALUE INTEGER".as_slice()
+            } else {
+                b"TCL VALUE NUMBER".as_slice()
+            };
+            assert_eq!(code.as_ref(), expected_code);
+            assert!(vm.execution_refusal.is_none());
+        }
+    }
+}
+
+#[test]
+fn original_public_debug_bad_boolean_refuses_before_flag_and_numeric_boolean_succeeds() {
+    // naming.numeric.io-debug-public-conversion-and-side-effect-order
+    // docs/design/analysis/name-resolution-proofs/numeric-io-debug-public-conversion-and-side-effect-order.md
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(dialect));
+        let error = vm
+            .debug_apply(
+                &[Value::string("-frame"), Value::string("bad")],
+                b"fixture -frame bool",
+            )
+            .unwrap_err();
+        let completion = crate::command::completion_from_cmd_error(&mut vm, error);
+        let (message, code) = original_numeric_public_error(completion);
+        assert_eq!(message.as_ref(), b"expected boolean value but got \"bad\"");
+        assert_eq!(code.as_ref(), b"TCL VALUE NUMBER");
+        assert!(!vm.debug_frame);
+        let result = vm
+            .debug_apply(
+                &[Value::string("-frame"), Value::string("1.5")],
+                b"fixture -frame bool",
+            )
+            .unwrap();
+        assert_eq!(result.integer_representation(), Some(1));
+        assert!(vm.debug_frame);
+        assert!(vm.execution_refusal.is_none());
+    }
+}
+
+#[test]
+fn original_open_channel_retains_the_actual_checked_path_for_jim_seek_error() {
+    // naming.numeric.io-debug-public-conversion-and-side-effect-order
+    // docs/design/analysis/name-resolution-proofs/numeric-io-debug-public-conversion-and-side-effect-order.md
+    // Software channel integration with an actual owned file, not opaque I/O callbacks.
+    let path = std::env::temp_dir().join(format!(
+        "tcl-vm-original-open-seek-{}.txt",
+        std::process::id()
+    ));
+    std::fs::write(&path, b"abcdef").unwrap();
+    let written = path.to_str().unwrap();
+    let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
+    let opened = vm
+        .try_invoke_command("open", &[Value::string(written)])
+        .unwrap();
+    assert_eq!(opened.code, Code::Ok);
+    let id = opened.result.try_to_str().unwrap();
+    let crate::cmd_chan::Channel::Read { path: retained, .. } = vm.channel(id.as_ref()).unwrap()
+    else {
+        panic!("actual opened read channel required");
+    };
+    assert_eq!(retained.as_deref(), Some(written.as_bytes()));
+    let failed = vm
+        .try_invoke_command("seek", &[Value::string(id.as_ref()), Value::int(-1)])
+        .unwrap();
+    let (message, code) = original_numeric_public_error(failed);
+    let mut expected = written.as_bytes().to_vec();
+    expected.extend_from_slice(b": Invalid argument");
+    assert_eq!(message.as_ref(), expected.as_slice());
+    assert_eq!(code.as_ref(), b"NONE");
+    assert_eq!(original_channel_cursor(&vm, id.as_ref()), 0);
+    assert_eq!(
+        vm.try_invoke_command("close", &[Value::string(id.as_ref())])
+            .unwrap()
+            .code,
+        Code::Ok
+    );
+    std::fs::remove_file(&path).unwrap();
+}

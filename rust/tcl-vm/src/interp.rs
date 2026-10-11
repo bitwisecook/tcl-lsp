@@ -6921,6 +6921,20 @@ impl Vm {
         args: &[Value],
         usage: impl AsRef<[u8]>,
     ) -> Result<Value, tcl_cmd_core::CmdError> {
+        let usage = usage.as_ref();
+        crate::expr::with_original_numeric_command(
+            self,
+            tcl_cmd_core::CmdError::from_execution_refusal,
+            |vm, context| vm.debug_apply_in_original(args, usage, context),
+        )
+    }
+
+    fn debug_apply_in_original(
+        &mut self,
+        args: &[Value],
+        usage: &[u8],
+        context: crate::expr::OriginalNumericCommandContext<'_>,
+    ) -> Result<Value, tcl_cmd_core::CmdError> {
         let (opt, rest) = match args {
             [] => {
                 return Ok(Value::list(vec![
@@ -6932,10 +6946,34 @@ impl Vm {
             _ => return Err(tcl_cmd_core::CmdError::wrong_args_bytes(usage.as_ref())),
         };
         self.native_static_option_index(opt, DEBUG_OPTIONS.names(), false, "debug option")?;
-        if let [val] = rest
-            && val.as_bool().unwrap_or(false)
-        {
-            self.debug_frame = true;
+        context.current(self)?;
+        if let [value] = rest {
+            let enabled = if let Some(authored) = context.authored {
+                let reached = value.as_bool_with_stages(Some(authored));
+                context.current(self)?;
+                reached.map_err(|error| {
+                    crate::expr::numeric_command_guest_error(self, context, error)
+                })?
+            } else {
+                crate::expr::original_numeric_command_ops(
+                    self,
+                    context,
+                    tcl_registry::native_numeric_error::NativeNumericCommandPurpose::DebugFrame,
+                    |original, selected| match original.getter(value, selected.getter_kind())? {
+                        tcl_syntax::scalar_getter::NativeScalarGetterValue::Boolean(boolean) => {
+                            Ok(boolean.is_true())
+                        }
+                        _ => Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "debug Boolean output",
+                        )
+                        .into()),
+                    },
+                )?
+            };
+            context.current(self)?;
+            if enabled {
+                self.debug_frame = true;
+            }
         }
         Ok(Value::int(i64::from(self.debug_frame)))
     }
@@ -22676,7 +22714,7 @@ impl Vm {
         err("")
     }
 
-    fn retain_tcl_host_failure(
+    pub(crate) fn retain_tcl_host_failure(
         &mut self,
         failure: crate::error::TclHostFailure,
     ) -> tcl_runtime_api::NativeExecutionError {

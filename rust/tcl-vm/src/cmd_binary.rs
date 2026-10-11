@@ -26,8 +26,13 @@
 
 use tcl_runtime_api::Completion;
 
+use crate::error::TclError;
+use crate::expr::{
+    OriginalNumericCommandContext, original_numeric_command_ops, with_original_numeric_command,
+};
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
+use tcl_registry::native_numeric_error::NativeNumericCommandPurpose;
 
 pub(crate) fn register(vm: &mut Vm) {
     if let Some(scripted) = vm.native_invocation_dialect().binary_scripted_ingress() {
@@ -236,6 +241,34 @@ fn resolve_binary_sub(
 }
 
 fn cmd_binary(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    match with_original_numeric_command(vm, TclError::from_execution_failure, |vm, original| {
+        Ok(cmd_binary_in_original(vm, args, original))
+    }) {
+        Ok(completion) => completion,
+        Err(error) => crate::command::completion_from_tcl_error(vm, error),
+    }
+}
+
+fn binary_name_operand(
+    vm: &mut Vm,
+    value: &Value,
+    original: OriginalNumericCommandContext<'_>,
+) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError> {
+    original.current(vm)?;
+    let reached = if original.authored.is_some() {
+        vm.native_name_operand_bytes(value).map_err(Into::into)
+    } else {
+        vm.native_name_operand_bytes_checked(value)
+    };
+    original.current(vm)?;
+    reached
+}
+
+fn cmd_binary_in_original(
+    vm: &mut Vm,
+    args: &[Value],
+    original: OriginalNumericCommandContext<'_>,
+) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
         return crate::command::native_wrong_arguments_message(
             vm,
@@ -257,15 +290,21 @@ fn cmd_binary(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         }
     } else {
-        let bytes = match vm.native_name_operand_bytes(sub) {
+        let bytes = match binary_name_operand(vm, sub, original) {
             Ok(bytes) => bytes,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
         match resolve_binary_sub(subs, &bytes, true, b"::tcl::binary") {
             Ok(name) => name,
             Err(m) => return err(m),
         }
     };
+    if let Err(first) = original.current(vm) {
+        return crate::command::completion_from_cmd_error(
+            vm,
+            tcl_cmd_core::CmdError::from_execution_refusal(first),
+        );
+    }
     match canon {
         "format" => binary_format_with_invocation(vm, rest, BinaryInvocation::Public),
         "scan" => binary_scan_with_invocation(vm, rest, BinaryInvocation::Public),
@@ -279,15 +318,29 @@ fn cmd_binary(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// the shared `tcl_cmd_core::binary`; bytes cross the VM's value boundary via the
 /// byte-array convention (`value_to_bytes`/`bytes_to_value`).
 fn binary_encode(vm: &mut Vm, rest: &[Value], invocation: BinaryInvocation) -> Completion<Value> {
+    match with_original_numeric_command(vm, TclError::from_execution_failure, |vm, original| {
+        Ok(binary_encode_in_original(vm, rest, invocation, original))
+    }) {
+        Ok(completion) => completion,
+        Err(error) => crate::command::completion_from_tcl_error(vm, error),
+    }
+}
+
+fn binary_encode_in_original(
+    vm: &mut Vm,
+    rest: &[Value],
+    invocation: BinaryInvocation,
+    original: OriginalNumericCommandContext<'_>,
+) -> Completion<Value> {
     let Some((fmt, args)) = rest.split_first() else {
         return crate::command::native_wrong_arguments_message(
             vm,
             "wrong # args: should be \"binary encode format ?options? data\"",
         );
     };
-    let bytes = match vm.native_name_operand_bytes(fmt) {
+    let bytes = match binary_name_operand(vm, fmt, original) {
         Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
     let canon = match resolve_binary_sub(BINARY_FORMATS, &bytes, false, b"::tcl::binary::encode") {
         Ok(name) => name,
@@ -325,29 +378,103 @@ fn binary_encode_wrapped(
     invocation: BinaryInvocation,
     codec: &str,
 ) -> Completion<Value> {
+    match with_original_numeric_command(vm, TclError::from_execution_failure, |vm, original| {
+        binary_encode_wrapped_in_original(vm, args, uu, invocation, codec, original)
+    }) {
+        Ok(completion) => completion,
+        Err(error) => crate::command::completion_from_tcl_error(vm, error),
+    }
+}
+
+fn binary_encode_wrapped_in_original(
+    vm: &mut Vm,
+    args: &[Value],
+    uu: bool,
+    invocation: BinaryInvocation,
+    codec: &str,
+    original: OriginalNumericCommandContext<'_>,
+) -> Result<Completion<Value>, TclError> {
     let mut maxlen: usize = if uu { 61 } else { 0 };
     let mut wrapchar: Vec<u8> = b"\n".to_vec();
     let mut string_wrap = false;
     let mut i = 0;
     while i + 1 < args.len() {
-        match &*args[i].to_str() {
-            "-maxlen" => match args[i + 1].as_int() {
-                Ok(n) if n >= 0 => {
-                    maxlen = usize::try_from(n).unwrap_or(usize::MAX);
-                    i += 2;
+        let option = if original.authored.is_none() {
+            match vm.native_name_operand_bytes_checked(&args[i]) {
+                Ok(bytes) => bytes,
+                Err(error) => return Ok(crate::command::completion_from_cmd_error(vm, error)),
+            }
+        } else {
+            args[i].string_bytes()
+        };
+        original
+            .current(vm)
+            .map_err(TclError::from_execution_failure)?;
+        match option.as_ref() {
+            b"-maxlen" => {
+                let n = if let Some(authored) = original.authored {
+                    let reached = args[i + 1].as_int_with_stages(Some(authored));
+                    original
+                        .current(vm)
+                        .map_err(TclError::from_execution_failure)?;
+                    reached?
+                } else {
+                    let purpose = if uu {
+                        NativeNumericCommandPurpose::UuencodeLineLength
+                    } else {
+                        NativeNumericCommandPurpose::Base64LineLength
+                    };
+                    let reached =
+                        original_numeric_command_ops(vm, original, purpose, |ops, selected| {
+                            match ops.getter(&args[i + 1], selected.getter_kind())? {
+                                tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(n)
+                                    if n >= 0 =>
+                                {
+                                    Ok(n)
+                                }
+                                tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(_) => {
+                                    let error = selected.negative_line_length_error().ok_or(
+                                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                            "line length diagnostic",
+                                        ),
+                                    )?;
+                                    Err(tcl_cmd_core::CmdError::with_error_code_bytes(
+                                        error.message,
+                                        error.error_code,
+                                    ))
+                                }
+                                _ => {
+                                    Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                        "line length integer output",
+                                    )
+                                    .into())
+                                }
+                            }
+                        });
+                    original
+                        .current(vm)
+                        .map_err(TclError::from_execution_failure)?;
+                    reached.map_err(|error| crate::command::completion_option_failure(vm, error))?
+                };
+                if n < 0 {
+                    return Ok(err("line length out of range"));
                 }
-                _ => return err("line length out of range"),
-            },
-            "-wrapchar" => {
+                maxlen = usize::try_from(n).unwrap_or(usize::MAX);
+                i += 2;
+            }
+            b"-wrapchar" => {
                 let Some(policy) = vm.native_invocation_dialect().binary_decode_source() else {
-                    return vm.refuse_host_command(
+                    return Ok(vm.refuse_host_command(
                         "native binary wrap conversion is unresolved".to_owned(),
-                    );
+                    ));
                 };
                 let input = match args[i + 1].binary_decode_input(policy) {
                     Ok(input) => input,
-                    Err(error) => return vm.refuse_host_command(error.to_string()),
+                    Err(error) => return Ok(vm.refuse_host_command(error.to_string())),
                 };
+                original
+                    .current(vm)
+                    .map_err(TclError::from_execution_failure)?;
                 string_wrap = matches!(
                     input,
                     tcl_registry::native_binary_value::NativeBinaryDecodeInput::String(_)
@@ -356,49 +483,54 @@ fn binary_encode_wrapped(
                 i += 2;
             }
             _ => {
-                return binary_wrong_args(
+                return Ok(binary_wrong_args(
                     vm,
                     invocation,
                     "encode",
                     Some(codec),
                     tcl_registry::native_binary_usage::NativeBinaryArgumentUsage::EncodeWrapped,
-                );
+                ));
             }
         }
     }
     let [data] = &args[i..] else {
-        return binary_wrong_args(
+        return Ok(binary_wrong_args(
             vm,
             invocation,
             "encode",
             Some(codec),
             tcl_registry::native_binary_usage::NativeBinaryArgumentUsage::EncodeWrapped,
-        );
+        ));
     };
     let bytes = match value_to_bytes(vm, data) {
         Ok(bytes) => bytes,
-        Err(error) => return error,
+        Err(error) => return Ok(error),
     };
+    original
+        .current(vm)
+        .map_err(TclError::from_execution_failure)?;
     let out = if uu {
         tcl_cmd_core::binary::uu_encode(&bytes, maxlen, &wrapchar)
     } else {
         tcl_cmd_core::binary::base64_encode(&bytes, maxlen, &wrapchar)
     };
-    if !uu
-        && string_wrap
-        && maxlen > 0
-        && !wrapchar.is_empty()
-        && tcl_cmd_core::binary::base64_encode(&bytes, 0, &[]).len() > maxlen
-    {
-        match String::from_utf8(out) {
-            Ok(text) => ok(Value::string(text)),
-            Err(_) => vm.refuse_host_command(
-                "native binary string wrapping requires an unrepresentable string".to_owned(),
-            ),
-        }
-    } else {
-        ok(bytes_to_value(vm, &out))
-    }
+    Ok(
+        if !uu
+            && string_wrap
+            && maxlen > 0
+            && !wrapchar.is_empty()
+            && tcl_cmd_core::binary::base64_encode(&bytes, 0, &[]).len() > maxlen
+        {
+            match String::from_utf8(out) {
+                Ok(text) => ok(Value::string(text)),
+                Err(_) => vm.refuse_host_command(
+                    "native binary string wrapping requires an unrepresentable string".to_owned(),
+                ),
+            }
+        } else {
+            ok(bytes_to_value(vm, &out))
+        },
+    )
 }
 
 /// `binary decode hex|base64|uuencode ?-strict? data`.

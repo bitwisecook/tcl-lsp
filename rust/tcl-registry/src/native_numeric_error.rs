@@ -4,6 +4,12 @@
 
 //! Native numeric coercion diagnostics, separate from numeric acceptance.
 
+mod command;
+pub use command::{
+    NativeNumericCommandError, NativeNumericCommandProtocol, NativeNumericCommandPurpose,
+    NativeReadCountProtocol,
+};
+
 /// Actual native presentation of an unparsable integer's original spelling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NativeIntegerErrorPresentation {

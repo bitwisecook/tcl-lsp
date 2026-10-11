@@ -184,3 +184,132 @@ pub(crate) fn with_original_numeric_context<T>(
     OriginalArithmeticStages::current(&original)?;
     reached
 }
+
+/// Authored numeric policy and actual execution currency are separate axes.
+#[derive(Clone, Copy)]
+pub(crate) struct OriginalNumericCommandContext<'a> {
+    pub(crate) original: Option<&'a crate::interp::native_operation_currency::NativeOperationScope>,
+    pub(crate) authored: Option<NumericContext<'static>>,
+}
+
+impl OriginalNumericCommandContext<'_> {
+    pub(crate) fn current(self, vm: &mut Vm) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        self.original.map_or(Ok(()), |scope| scope.check_native(vm))
+    }
+}
+
+pub(crate) fn with_original_numeric_command<T, E>(
+    vm: &mut Vm,
+    failure: fn(tcl_runtime_api::NativeExecutionError) -> E,
+    operation: impl FnOnce(&mut Vm, OriginalNumericCommandContext<'_>) -> Result<T, E>,
+) -> Result<T, E> {
+    let inherited =
+        crate::interp::native_operation_currency::NativeOperationScope::current_entered(vm)
+            .map_err(failure)?;
+    let authored = vm.authored_numeric_context();
+    let original = if authored.is_some() {
+        inherited
+    } else {
+        Some(
+            crate::interp::native_operation_currency::NativeOperationScope::enter_native(vm)
+                .map_err(failure)?,
+        )
+    };
+    let context = OriginalNumericCommandContext {
+        original: original.as_ref(),
+        authored,
+    };
+    let reached = operation(vm, context);
+    if let Err(first) = context.current(vm) {
+        drop(reached);
+        let _ = context.current(vm);
+        return Err(failure(first));
+    }
+    reached
+}
+
+pub(crate) fn original_numeric_command_ops<T>(
+    vm: &mut Vm,
+    context: OriginalNumericCommandContext<'_>,
+    purpose: tcl_registry::native_numeric_error::NativeNumericCommandPurpose,
+    operation: impl FnOnce(
+        &OriginalNumericOps<'_>,
+        tcl_registry::native_numeric_error::NativeNumericCommandProtocol,
+    ) -> Result<T, tcl_cmd_core::CmdError>,
+) -> Result<T, tcl_cmd_core::CmdError> {
+    use tcl_syntax::value::ValueError;
+    context.current(vm)?;
+    if context.authored.is_some() {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "authored route has no primitive command getter",
+        )
+        .into());
+    }
+    let scope = context
+        .original
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "original numeric command entry",
+        ))?;
+    let selected = vm
+        .native_invocation_dialect()
+        .native_numeric_command_protocol(purpose)
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "numeric command argument purpose",
+        ))?;
+    let selected_scalar = vm
+        .native_invocation_dialect()
+        .native_scalar_getter_protocol();
+    let selected_string = vm.native_invocation_dialect().native_string_protocol();
+    let reached = {
+        let original = OriginalNumericOps::in_original_scope(vm, scope)?;
+        if original.dialect().native_numeric_command_protocol(purpose) != Some(selected)
+            || original.dialect().native_scalar_getter_protocol() != selected_scalar
+            || selected_scalar.is_none()
+            || original.dialect().native_string_protocol() != selected_string
+            || selected_string.is_none()
+        {
+            return Err(
+                ValueError::CommandProtocolUnavailable("foreign numeric command purpose").into(),
+            );
+        }
+        let reached = operation(&original, selected);
+        original.current()?;
+        reached
+    };
+    context.current(vm)?;
+    reached
+}
+
+pub(crate) fn numeric_command_guest_error(
+    vm: &mut Vm,
+    context: OriginalNumericCommandContext<'_>,
+    error: TclError,
+) -> tcl_cmd_core::CmdError {
+    if let Err(first) = context.current(vm) {
+        return tcl_cmd_core::CmdError::from_execution_refusal(first);
+    }
+    match error {
+        TclError::Host(first) => {
+            tcl_cmd_core::CmdError::from_execution_refusal(vm.retain_tcl_host_failure(first))
+        }
+        error @ TclError::Guest(_) => {
+            // Only resident authored metadata is projected; no message is parsed
+            // and absent or withdrawn metadata never becomes a default code.
+            let fields = error.message_bytes().and_then(|message| {
+                error.error_code_bytes().and_then(|code| {
+                    code.map(|code| (message, code)).ok_or(crate::error::TclHostFailure::ValueAccess(
+                        tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("authored numeric Guest error metadata"),
+                    ))
+                })
+            });
+            match fields {
+                Ok((message, code)) => {
+                    tcl_cmd_core::CmdError::with_error_code_bytes(message.to_vec(), code.to_vec())
+                }
+                Err(first) => tcl_cmd_core::CmdError::from_execution_refusal(
+                    vm.retain_tcl_host_failure(first),
+                ),
+            }
+        }
+    }
+}

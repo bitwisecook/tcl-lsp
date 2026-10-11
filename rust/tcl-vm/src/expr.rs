@@ -33,7 +33,8 @@ pub(crate) use native_boolean_truth::{
     normalize_numeric_instruction_for_vm, normalize_result_for_vm, unary_for_vm,
 };
 pub(crate) use original_numeric_context::{
-    OriginalArithmeticStages, with_original_numeric_context,
+    OriginalArithmeticStages, OriginalNumericCommandContext, numeric_command_guest_error,
+    original_numeric_command_ops, with_original_numeric_command, with_original_numeric_context,
 };
 
 use std::{cmp::Ordering, rc::Rc};

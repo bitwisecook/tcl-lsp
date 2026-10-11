@@ -495,3 +495,31 @@ before selecting authored arithmetic and after the authored callback on either
 outcome. Authored independent conversion issues no Native receipt. The original
 currency check does not borrow a numeric or grammar policy. Saved metadata,
 parked interpreter records and ended weak records do not establish current entry.
+
+
+Public read-count, seek-offset, encoder line-length and debug-Boolean consumers
+use `expr::with_original_numeric_command`. Its captured command context keeps
+authored numeric policy separate from actual execution currency. A retained
+scope supplies currentness only; it cannot select a Native getter or replace an
+authored policy. The context remains live across Name and index stages, numeric
+success or failure, backend/debug mutation and unpublished-result retirement.
+
+`InvocationDialect::native_numeric_command_protocol` supplies the reached
+command purpose through the Registry numeric-error owner. Its read dispatch,
+primitive width, failed-getter continuation and seek-origin order remain
+independent of conversion success, object lifetime and backend permission.
+Unsupported binary/debug workers supply no recipe. The VM compares the selected
+complete scalar and String protocols with its actual captured numeric facade.
+Only a genuine Guest result can enter the command's documented continuation;
+a full Host cause stops before wrapper diagnostics, defaults or later effects.
+
+`OriginalNumericCommandContext::authored` selects the independent generic Value
+kernels with the captured numeral grammar. An existing actual operation is still checked before and after these
+workers. Resident Guest result and error-code fields can cross the debug
+CmdError boundary; missing fields and Host results cannot become defaults or be
+reconstructed by parsing a message. Channel owners retain the actual opened
+path, so Jim seek diagnostics use that path and negative targets reject before
+cursor mutation. The public conversion and side-effect observations are in
+[numeric-io-debug-public-conversion-and-side-effect-order](../analysis/name-resolution-proofs/numeric-io-debug-public-conversion-and-side-effect-order.md).
+The software callback controls establish continuation and lifetime boundaries
+separately from those public C Tcl/Jim measurements.
