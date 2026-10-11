@@ -100,6 +100,17 @@ impl Interp {
     }
     /// Remove only this still-live direct registration; a reused spelling grants no authority.
     pub fn remove_native_variable_observer(&mut self, token: &NativeVariableTraceToken) -> bool {
+        let saved = super::native_operation_currency::SavedNativeOperationCurrency::capture(self);
+        let cleanup =
+            match super::native_operation_currency::NativeOperationScope::enter_saved_cleanup(
+                &saved, self,
+            ) {
+                Ok(cleanup) => cleanup,
+                Err(first) => {
+                    self.refuse_native_execution(first);
+                    return false;
+                }
+            };
         let removed = {
             let mut traces = self.traces.borrow_mut();
             let Some(index) = traces.traces.iter().position(|t| {
@@ -120,22 +131,43 @@ impl Interp {
                 .map(|(element, identity)| (element.clone(), identity)),
             ns: removed.ns,
             level: removed.frame_level,
-            base: removed.base,
+            base: removed.base.clone(),
             link_elem: removed.elem.clone(),
         };
         let cell = self.variable_trace_scope(&home, removed.elem.as_deref());
-        if !self
-            .traces
-            .borrow()
-            .traces
-            .iter()
-            .any(|trace| cell.owns_registration(trace))
-        {
-            self.cleanup_trace_shell(&home, removed.elem.as_deref());
-        }
+        // Pure policy settlement is mandatory for the reached removal. A
+        // reentrant callback must not reuse the previous trace-list guard.
         self.invalidate_guard_domain(GuardDomain::VariableTrace);
+        let traced = {
+            let traces = self.traces.borrow();
+            traces
+                .traces
+                .iter()
+                .any(|trace| cell.owns_registration(trace))
+        };
+        let reached = if !traced {
+            self.cleanup_trace_shell(&home, removed.elem.as_deref(), || {
+                cleanup
+                    .check()
+                    .map_err(tcl_cmd_core::CmdError::from_execution_refusal)
+            })
+        } else {
+            cleanup
+                .check()
+                .map_err(tcl_cmd_core::CmdError::from_execution_refusal)
+        };
+        // The removed registration's actual callback allocation may have a
+        // destructor. Retire it outside both trace and variable storage borrows.
+        if let Err(error) = &reached {
+            if let Some(first) = error.native_execution_refusal() {
+                self.refuse_native_execution(first.clone());
+            }
+        }
+        drop(removed);
+        let _ = cleanup.check();
         true
     }
+
     pub(super) fn call_native_variable_observer(
         &mut self,
         observer: Observer,

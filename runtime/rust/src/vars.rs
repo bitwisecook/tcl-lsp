@@ -55,6 +55,8 @@ use crate::obj::{self, TclObj};
 const LINK_LIMIT: usize = 1000;
 mod entered_container;
 mod jim_alias_publication;
+mod trace_shell;
+pub(crate) use trace_shell::CapturedTraceShell;
 pub(crate) use entered_container::{capture_byte_store_entered, EnteredVariablePlace};
 pub(crate) use jim_alias_publication::{CapturedJimAliasTarget, PreparedJimAliasLocal};
 
@@ -1852,30 +1854,6 @@ pub(crate) fn ensure_trace_element(
         return entry.prepare_original_element(key, None);
     }
     table_mut(frames, ns, place.home).ensure_element_shell(&place.name, key)
-}
-
-pub(crate) fn cleanup_trace_shell(
-    frames: &mut FrameStack,
-    ns: &mut Namespaces,
-    home: &TraceHome,
-    key: Option<&[u8]>,
-) {
-    let place = match (home.ns, home.level) {
-        (Some(id), _) => VarHome::Namespace(id),
-        (_, Some(level)) if frames.table(level).is_some() => VarHome::Frame(level),
-        _ => return,
-    };
-    let target = table_mut(frames, ns, place);
-    if let (Some(root), Some(key), Some((selected_key, selected))) =
-        (home.binding_id, key, home.selected_member.as_ref())
-    {
-        if selected_key.as_slice() == key
-            && target.native_trace_element_identity(root, key) != Some(*selected)
-        {
-            return;
-        }
-    }
-    target.cleanup_trace_shell(&home.base, key, home.binding_id);
 }
 
 /// `unset name` — remove the variable `name` resolves to (following links).

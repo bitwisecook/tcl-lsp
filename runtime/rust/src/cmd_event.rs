@@ -403,6 +403,9 @@ fn vwait_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
     }
     interp.remove_native_variable_observer(&token);
+    if interp.check_entered_native_operation().is_err() {
+        return Code::Error;
+    }
     if completion == Code::Ok {
         interp.set_result_bytes(b"");
     }

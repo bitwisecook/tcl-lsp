@@ -8069,19 +8069,22 @@ impl Interp {
         )
     }
 
-    pub(crate) fn cleanup_trace_shell(&self, home: &crate::vars::TraceHome, key: Option<&[u8]>) {
+    pub(crate) fn cleanup_trace_shell(
+        &self,
+        home: &crate::vars::TraceHome,
+        key: Option<&[u8]>,
+        current: impl Fn() -> Result<(), tcl_cmd_core::CmdError>,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
         if key.is_none()
             && (self.native_error_variable_at(home).is_some()
                 || self.native_precision_trace_at(home))
         {
-            return;
+            return current();
         }
-        crate::vars::cleanup_trace_shell(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
-            home,
-            key,
-        );
+        match crate::vars::CapturedTraceShell::capture(self, home, key) {
+            Some(original) => original.finish(self, current),
+            None => current(),
+        }
     }
 
     /// The call-frame level a variable trace on `base` should be tied to, so it

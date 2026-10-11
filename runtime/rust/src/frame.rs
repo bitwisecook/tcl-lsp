@@ -75,6 +75,8 @@ mod materialisation_tests;
 #[cfg(test)]
 mod member_materialisation_tests;
 mod retired_variable;
+mod trace_shell;
+pub(crate) use trace_shell::TraceShellState;
 #[cfg(test)]
 mod stored_link_role_tests;
 pub use destruction::{RetainedArrayCell, WeakArraySearchCell};
@@ -861,72 +863,6 @@ impl VarTable {
             .entry(key.to_vec())
             .or_insert_with(fresh_var_id);
         Ok(())
-    }
-
-    pub(crate) fn cleanup_trace_shell(
-        &mut self,
-        name: &[u8],
-        key: Option<&[u8]>,
-        id: Option<VarId>,
-    ) {
-        let Some(contents) = self.contents(name) else {
-            return;
-        };
-        let mut cell = contents.borrow_mut();
-        if cell.binding_id != id {
-            return;
-        }
-        if let Some(key) = key {
-            let defined =
-                matches!(cell.var.as_ref(), Some(Var::Array(map)) if map.contains_key(key));
-            if !defined {
-                if !cell.element_operation_refs.contains_key(key)
-                    && cell.rmw_refs == 0
-                    && !cell.native_member_keys.has_aliases(key)
-                {
-                    cell.member_order.remove(key);
-                    cell.native_member_keys.remove(key);
-                    cell.element_ids.remove(key);
-                } else {
-                    cell.rmw_member_shells.insert(key.to_vec());
-                }
-            }
-        } else if cell.undefined_shell
-            && matches!(cell.var.as_ref(), None | Some(Var::Link(_)))
-            && !cell.namespace_declared
-            && (cell.operation_refs != 0 || cell.rmw_refs != 0 || cell.native_alias_refs != 0)
-        {
-            if let Some(old) = cell.take_value() {
-                old.release();
-            }
-            cell.undefined_shell = false;
-            if let Some(binding) = cell.binding_id {
-                if !self
-                    .lookup_slot(name)
-                    .is_some_and(|slot| self.declared_slots.contains(&slot))
-                {
-                    cell.rmw_shell_entry = Some(rmw::RootShellEntry::new(
-                        &self.entry_order,
-                        &self.native_keys,
-                        name,
-                        binding,
-                    ));
-                }
-            }
-        } else if cell.undefined_shell
-            && matches!(cell.var.as_ref(), None | Some(Var::Link(_)))
-            && !cell.namespace_declared
-            && cell.operation_refs == 0
-            && cell.rmw_refs == 0
-            && Rc::strong_count(contents) == 1
-        {
-            if let Some(old) = cell.take_value() {
-                old.release();
-            }
-            cell.binding_id = None;
-            cell.undefined_shell = false;
-            self.retire_native_entry(name);
-        }
     }
 
     fn visible_cell(&self, slot: usize, include_links: bool) -> bool {

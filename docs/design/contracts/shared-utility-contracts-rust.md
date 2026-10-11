@@ -3633,3 +3633,23 @@ fresh-record purpose. Whole physical cleanup uses `OriginalOoCleanup`; mutation
 owners do not grant lifecycle or Native Class/MethodType authority. Frozen
 configure reports and retained configure name tables preserve their existing
 legal Guest roster mutations and original-table/current-header index roles.
+
+Trace-shell removal consumes the original resolved `TraceHome` and observes the
+actual table ledger, frame birth, root cell and selected member without another
+name lookup or an owning variable reference. The physical withdrawal worker
+transfers existing value, Link and hash-key roles into `RetiredVariableParts`.
+Their retirement occurs after the cell and enclosing frame/namespace borrows
+end; the same original currency and reached cell state are checked before
+continuation. General container conversion is not part of this physical table
+access. A stale trace registration can be removed without withdrawing a reborn
+variable under its spelling.
+
+Direct native-observer removal attaches its saved original target for mandatory
+cleanup, including an entry that already carries a Host refusal. Removed
+observer allocations retire outside trace and variable borrows before that
+cleanup scope ends. Reached trace-guard invalidation remains mandatory pure
+bookkeeping, and the event waiter checks the retained cause before result
+publication. These software controls establish no external Native callback
+chronology. C8.4 string keys and later C object keys retain their separate
+physical source contracts. Trace creation, precision materialisation, detached
+alias-generation cleanup and unset-callback dispatch have separate owners.

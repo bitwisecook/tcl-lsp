@@ -779,6 +779,11 @@ fn var_trace_apply(
     is_add: bool,
     old_style: bool,
 ) -> Code {
+    let operation =
+        match crate::interp::native_operation_currency::NativeOperationScope::enter(interp) {
+            Ok(operation) => operation,
+            Err(first) => return interp.refuse_native_execution(first),
+        };
     let Some(prefix_protocol) = interp
         .native_invocation_dialect()
         .native_variable_trace_protocol()
@@ -882,18 +887,39 @@ fn var_trace_apply(
                     && prefix_protocol.variable_prefix_matches(&t.command, &command)
             });
         if let Some(i) = pos {
-            interp.traces.borrow_mut().traces.remove(i);
+            let removed = interp.traces.borrow_mut().traces.remove(i);
+            interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::VariableTrace);
             let traced = interp
                 .traces
                 .borrow()
                 .traces
                 .iter()
                 .any(|trace| cell.owns_registration(trace));
-            if !traced {
-                interp.cleanup_trace_shell(&query, query.link_elem.as_deref());
+            let reached = if !traced {
+                interp.cleanup_trace_shell(&query, query.link_elem.as_deref(), || {
+                    operation
+                        .currency()
+                        .ensure_current_or_refuse()
+                        .map_err(tcl_cmd_core::CmdError::from_execution_refusal)
+                })
+            } else {
+                operation
+                    .currency()
+                    .ensure_current_or_refuse()
+                    .map_err(tcl_cmd_core::CmdError::from_execution_refusal)
+            };
+            drop(removed);
+            let checked = operation
+                .currency()
+                .ensure_current_or_refuse()
+                .map_err(tcl_cmd_core::CmdError::from_execution_refusal);
+            if let Err(error) = checked.and(reached) {
+                return interp.report_cmd_error(error);
             }
-            interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::VariableTrace);
         }
+    }
+    if let Err(first) = operation.currency().ensure_current_or_refuse() {
+        return interp.refuse_native_execution(first);
     }
     interp.set_result_bytes(b"");
     Code::Ok
