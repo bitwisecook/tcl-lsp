@@ -321885,16 +321885,16 @@
         {
           "id": "sourceperf-current633-667e0cbad76c",
           "path": "runtime/rust/src/native_source.rs",
-          "sha256": "60b7b7d0d15af581d6d17b848e76a36154c4e29bc38a3a705f461719cd8c3bc1",
+          "sha256": "8bf33fb9c9dffecec25a9310041c4459ba887e393b2487002d37ed33bbfcc2e3",
           "role": "implementation",
-          "description": "Current authored source/API owner and its linked control declarations, inspected only for the bounded described stages. This hash supplies no executable admission, passed assertion, Native chronology or provider observation."
+          "description": "The original retained Jim context and Host provide lazy checked ABI, target and conversion queries. Cached or Boolean-word results do not acquire an unreached numeric environment."
         },
         {
           "id": "sourceperf-current633-1ecfc7202179",
           "path": "runtime/rust/src/obj.rs",
-          "sha256": "3c448e5e1f605ee2c9dee2f06429f1b92283f5bf0438ddb1052089ac67e828dd",
+          "sha256": "d32a791c4eb4653308c52cc2e5b63d9f74f64e5980d9ba669374adda77c47f4d",
           "role": "implementation",
-          "description": "Current authored source/API owner and its linked control declarations, inspected only for the bounded described stages. This hash supplies no executable admission, passed assertion, Native chronology or provider observation."
+          "description": "The issued original header and primary publication epoch guard same-slot retirement and incoming adoption. Auxiliary owners retire outside borrows, and a refused adoption leaves incoming ownership with its caller."
         },
         {
           "id": "sourceperf-current633-3734ee4face2",
@@ -321927,9 +321927,9 @@
         {
           "id": "sourceperf-current633-49ca33f00067",
           "path": "rust/tcl-vm/src/interp/native_numeric_ops.rs",
-          "sha256": "1b374ee95b00374927ec34a45f013b7204588a853d215338dc519316fb5a6a21",
+          "sha256": "cc6b590dc91831cdb9221be5e4128f8018ca2e4a7c2357f97ccac98dec3dda39",
           "role": "implementation",
-          "description": "Current authored source/API owner and its linked control declarations, inspected only for the bounded described stages. This hash supplies no executable admission, passed assertion, Native chronology or provider observation."
+          "description": "Canonical original numeric and String adapters check the captured operation and reached headers, retain the full first cause, and share the checked compound List and Dictionary workers."
         },
         {
           "id": "sourceperf-current633-e046ecc1ab0e",
@@ -321948,9 +321948,58 @@
         {
           "id": "sourceperf-current633-0b0f0d3b2680",
           "path": "rust/tcl-vm/src/value.rs",
-          "sha256": "ac66ad83e30bc73b888bff1cbfa4803264eb1fdca86ae640591ba9520031da0e",
+          "sha256": "cf39cb9e07d0dc05abc73093b19e283d888b993964cd7e06d635640b924391c5",
           "role": "implementation",
-          "description": "Current authored source/API owner and its linked control declarations, inspected only for the bounded described stages. This hash supplies no executable admission, passed assertion, Native chronology or provider observation."
+          "description": "Original node-aware List and Dictionary projection, readonly Dictionary cursors and cache mirrors use the existing checked retirement worker. Allocation leases preserve memory without adding Native ownership."
+        },
+        {
+          "id": "sourceperf-original-owner-7e4a57b55500",
+          "path": "rust/tcl-vm/src/exec/native_jim_script.rs",
+          "sha256": "d7d399390106ac6629b80cfa49eacc091d4580cd86aebcda10ffc5ea336f366e",
+          "role": "implementation",
+          "description": "The original Jim tuple callers carry checked Name, root and context ownership through the existing dictionary-substitution and member workers, preserving full Guest and Host completion distinctions."
+        },
+        {
+          "id": "sourceperf-original-owner-52564eb2ba06",
+          "path": "rust/tcl-vm/src/exec/native_jim_script/original_tuple_consumers_tests.rs",
+          "sha256": "777a03ede70d5015eb8d76459b713c03dddf6841a721da332673afb1715d77bf",
+          "role": "implementation",
+          "description": "The registered software controls describe original ownership, getter/cache refusal and Guest/Host settlement. They carry no attached owned assertion outcome, external provider observation or Native private-header/callback chronology."
+        },
+        {
+          "id": "sourceperf-original-owner-92bece2c3b4c",
+          "path": "rust/tcl-vm/src/interp/native_index_lookup.rs",
+          "sha256": "d5293e31ec39188df39b786735bec2c87614037d0b2e7ddf561c6a3cc8cff17e",
+          "role": "implementation",
+          "description": "Original static lookup captures one actual command scope before String or cache work. Selected table identity and failure projection remain separate from physical getter authority."
+        },
+        {
+          "id": "sourceperf-original-owner-932627151fe2",
+          "path": "rust/tcl-vm/src/interp/native_name_consumers.rs",
+          "sha256": "f2c3fb35e8b1c1129feac66875df2dfa8ae0dc6543cd35f5b690a83153b2da5b",
+          "role": "implementation",
+          "description": "Original Name state retains its exact frame, namespace, world and descriptive currency across suspension. Same-target resume checks the saved receipt before attaching entered execution; mandatory cleanup remains distinct."
+        },
+        {
+          "id": "sourceperf-original-owner-672e02c53fec",
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/original_static_lookup_tests.rs",
+          "sha256": "cb1e5a75ce7670ae29545d4f92d75be24e23a6dd470e4541eaed25557fcae882",
+          "role": "implementation",
+          "description": "The registered software controls describe original ownership, getter/cache refusal and Guest/Host settlement. They carry no attached owned assertion outcome, external provider observation or Native private-header/callback chronology."
+        },
+        {
+          "id": "sourceperf-original-owner-078aad72bc60",
+          "path": "rust/tcl-vm/src/native_jim_script.rs",
+          "sha256": "541349a8b635bebea5aadcbb29ff7f6de4634fa098e8ce61cb606600063bda2c",
+          "role": "implementation",
+          "description": "Pending dictionary acceptance resumes its original Name and currency before member access and preserves completion, key cleanup and the first full refusal."
+        },
+        {
+          "id": "sourceperf-original-owner-e891e758d3b3",
+          "path": "rust/tcl-vm/src/value/native_jim_enum.rs",
+          "sha256": "f097b420ed6991640c24d9e34d8156fd485cc3bef53bb41b83eff9918de23167",
+          "role": "implementation",
+          "description": "The Jim Enum cache worker checks original header and resident String around primary retirement and adoption; its neutral entry preserves independent compatibility behaviour."
         }
       ],
       "source_anchors": [],
@@ -322404,6 +322453,51 @@
           "path": "runtime/rust/src/interp/native_body_artifact/native_control.rs",
           "symbol": "Interp::refuse_missing_compiled_expression_backend",
           "purpose": "At actual reached unsupported expression stage retain typed ExpressionEngineUnavailable and same original result/first cause; not(have_tommath) keeps supported non-expression body operations distinct."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_name_consumers.rs",
+          "symbol": "ParkedOriginalNameConsumerScope::resume",
+          "purpose": "Resume SAME captured Currency and authentic full Name state only at the actual continuation; parked metadata creates no entered authority and mandatory same-target cleanup remains distinct."
+        },
+        {
+          "path": "rust/tcl-vm/src/exec/native_jim_script.rs",
+          "symbol": "Vm::original_jim_tuple_children_in_context",
+          "purpose": "Actual tuple children use the existing checked Jim dictionary-substitution kernel under original Name/root/context ownership, with genuine incoming roles and no second parser or protective Native hold."
+        },
+        {
+          "path": "rust/tcl-vm/src/value.rs",
+          "symbol": "Value::original_dictionary_cursor",
+          "purpose": "A readonly weak actual Dictionary/epoch cursor obtains allocation-only original member views under short borrows after key String selection; no eager payload clone, COW/preparation or replacement-table authority."
+        },
+        {
+          "path": "rust/tcl-vm/src/native_jim_script.rs",
+          "symbol": "NativeJimScriptState::accept",
+          "purpose": "Actual pending dictionary record carries original parked Name/Currency/root through same-target resume and mandatory completion/key settlement, retaining first full cause before Guest member classification."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_index_lookup.rs",
+          "symbol": "Vm::with_original_static_lookup",
+          "purpose": "Actual selected static lookup retains one original entered scope and canonical original String/cache owner; same currency and full first cause precede later table stage, Guest projection and unpublished result retirement."
+        },
+        {
+          "path": "rust/tcl-vm/src/value.rs",
+          "symbol": "Value::adopt_native_object_representation_with_string_mutation_checked",
+          "purpose": "The existing mirror worker retains original resident/String storage and donor double_format while checking original and donor headers after reached primary retirement before cache adoption; neutral worker order remains independent."
+        },
+        {
+          "path": "rust/tcl-vm/src/value/native_jim_enum.rs",
+          "symbol": "Value::install_native_jim_option_cache_checked",
+          "purpose": "The existing Jim Enum kernel supplies optional same original stage checks around retirement/adoption without donating a foreign table, grammar or cache producer."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_index_lookup.rs",
+          "symbol": "NativeStaticLookup::option_lookup",
+          "purpose": "Selected option failure String and errorCode projection use the same captured original owner; legacy ValueError transport follows real full-cause retention and currentness checks."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_numeric_ops.rs",
+          "symbol": "OriginalNumericOps::retain_failure",
+          "purpose": "The existing unconditional first-cause latch is shared by genuine same-Vm consumers before mandatory cleanup; refused original currency is not replaced by a new scope or Guest reconstruction."
         }
       ],
       "tests": [
@@ -325760,6 +325854,114 @@
           "selector": "interp::native_numeric_ops::original_compound_stage_tests::original_compound_protocol_refusal_precedes_formatter_or_conversion",
           "status": "linked",
           "assertion": "The formal580 control asserts selected physical compound protocol mismatch refuses before formatter acquisition or conversion. This is a linked source-defined software/API control; no matching current owned assertion outcome is attached here. It grants no external-provider observation, Native callback chronology, physical frame identity or execution permission."
+        },
+        {
+          "path": "rust/tcl-vm/src/exec/native_jim_script/original_tuple_consumers_tests.rs",
+          "selector": "exec::native_script::original_tuple_consumers_tests::original_tuple_children_keep_actual_owned_children_without_an_extra_native_hold",
+          "status": "linked",
+          "assertion": "Actual tuple child projection preserves original child identity and genuine reference roles without a protective Native hold; allocation-only root retirement does not retain original Native ownership. This linked source-defined software/API control carries no current owned assertion outcome, external provider observation, Native callback chronology or new execution grant."
+        },
+        {
+          "path": "rust/tcl-vm/src/exec/native_jim_script/original_tuple_consumers_tests.rs",
+          "selector": "exec::native_script::original_tuple_consumers_tests::original_tuple_consumers_execute_the_actual_script_and_blocking_child_route",
+          "status": "linked",
+          "assertion": "The genuine Jim blocking and actual Script routes resolve the same prepared original dictionary tuple rather than reparsing or reconstructing a source context. This linked source-defined software/API control carries no current owned assertion outcome, external provider observation, Native callback chronology or new execution grant."
+        },
+        {
+          "path": "rust/tcl-vm/src/exec/native_jim_script/original_tuple_consumers_tests.rs",
+          "selector": "exec::native_script::original_tuple_consumers_tests::original_tuple_consumer_refuses_a_retired_root_before_adoption_and_preserves_result",
+          "status": "linked",
+          "assertion": "A retired original root refuses before tuple cache adoption or result publication, preserving the genuine prior result. This linked source-defined software/API control carries no current owned assertion outcome, external provider observation, Native callback chronology or new execution grant."
+        },
+        {
+          "path": "rust/tcl-vm/src/exec/native_jim_script/original_tuple_consumers_tests.rs",
+          "selector": "exec::native_script::original_tuple_consumers_tests::original_tuple_consumer_refuses_a_foreign_original_context_before_child_preparation",
+          "status": "linked",
+          "assertion": "A foreign original Jim context refuses before child preparation; equal spelling supplies no context or Host authority. This linked source-defined software/API control carries no current owned assertion outcome, external provider observation, Native callback chronology or new execution grant."
+        },
+        {
+          "path": "rust/tcl-vm/src/exec/native_jim_script/original_tuple_consumers_tests.rs",
+          "selector": "exec::native_script::original_tuple_consumers_tests::original_tuple_consumer_preserves_prior_host_and_restored_context_refusals",
+          "status": "linked",
+          "assertion": "A prior Host cause and change-and-restored original context remain terminal before tuple child publication or later cache work. This linked source-defined software/API control carries no current owned assertion outcome, external provider observation, Native callback chronology or new execution grant."
+        },
+        {
+          "path": "rust/tcl-vm/src/exec/native_jim_script/original_tuple_consumers_tests.rs",
+          "selector": "exec::native_script::original_tuple_consumers_tests::original_parked_tuple_context_resumes_same_currency_without_an_entered_grant",
+          "status": "linked",
+          "assertion": "Parking retains descriptive same Currency and original Name state while dropping its entered scope; genuine same-target resume checks that exact receipt before work. This linked source-defined software/API control carries no current owned assertion outcome, external provider observation, Native callback chronology or new execution grant."
+        },
+        {
+          "path": "rust/tcl-vm/src/exec/native_jim_script/original_tuple_consumers_tests.rs",
+          "selector": "exec::native_script::original_tuple_consumers_tests::original_parked_tuple_context_refuses_foreign_target_before_entry_or_result_publication",
+          "status": "linked",
+          "assertion": "A foreign physical target is refused before attaching saved entry or publishing result/state; it cannot borrow a retained same-spelling Name receipt. This linked source-defined software/API control carries no current owned assertion outcome, external provider observation, Native callback chronology or new execution grant."
+        },
+        {
+          "path": "rust/tcl-vm/src/exec/native_jim_script/original_tuple_consumers_tests.rs",
+          "selector": "exec::native_script::original_tuple_consumers_tests::original_parked_tuple_context_refuses_restored_host_and_retires_same_target_state",
+          "status": "linked",
+          "assertion": "Host ABA refuses the original saved context and still performs same-target mandatory settlement without a fresh receipt or Native role. This linked source-defined software/API control carries no current owned assertion outcome, external provider observation, Native callback chronology or new execution grant."
+        },
+        {
+          "path": "rust/tcl-vm/src/exec/native_jim_script/original_tuple_consumers_tests.rs",
+          "selector": "exec::native_script::original_tuple_consumers_tests::original_pending_dictionary_accept_uses_saved_context_and_stops_withdrawn_currency",
+          "status": "linked",
+          "assertion": "The actual pending dictionary acceptance path resumes its saved original context before member lookup and stops withdrawn currency before read/publication. This linked source-defined software/API control carries no current owned assertion outcome, external provider observation, Native callback chronology or new execution grant."
+        },
+        {
+          "path": "rust/tcl-vm/src/exec/native_jim_script/original_tuple_consumers_tests.rs",
+          "selector": "exec::native_script::original_tuple_consumers_tests::original_dictionary_cursor_borrows_members_without_native_holds_and_detects_changed_epoch",
+          "status": "linked",
+          "assertion": "The real readonly Dictionary cursor obtains allocation-only member views under short borrows without Native holds and refuses changed backing/epoch instead of silently scanning a replacement table. This linked source-defined software/API control carries no current owned assertion outcome, external provider observation, Native callback chronology or new execution grant."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/original_static_lookup_tests.rs",
+          "selector": "interp::native_numeric_ops::original_string_stage_tests::original_static_lookup_tests::original_static_lookup_keeps_one_formatter_and_cached_absent_string_without_query",
+          "status": "linked",
+          "assertion": "The actual checked static lookup uses one supplied software formatter, preserves its original reference role, and returns a genuine cached Index without a repeated String or Host query. This additional source-defined software control carries no attached current owned assertion result, external provider observation, Native private-header/callback chronology or new execution grant."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/original_static_lookup_tests.rs",
+          "selector": "interp::native_numeric_ops::original_string_stage_tests::original_static_lookup_tests::original_static_lookup_preserves_counted_invalid_bytes_and_does_not_cache_miss",
+          "status": "linked",
+          "assertion": "Counted invalid option bytes preserve selected Guest diagnostic/errorCode bytes and remain uncached; a genuine resident String requires no Host formatter. This additional source-defined software control carries no attached current owned assertion result, external provider observation, Native private-header/callback chronology or new execution grant."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/original_static_lookup_tests.rs",
+          "selector": "interp::native_numeric_ops::original_string_stage_tests::original_static_lookup_tests::original_static_lookup_stops_retired_compound_before_cache_and_guest_projection",
+          "status": "linked",
+          "assertion": "Withdrawal during actual compound formatting retains the original full typed Host cause before later member rendering, cache adoption or Guest error projection. This additional source-defined software control carries no attached current owned assertion result, external provider observation, Native private-header/callback chronology or new execution grant."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/original_static_lookup_tests.rs",
+          "selector": "interp::native_numeric_ops::original_string_stage_tests::original_static_lookup_tests::original_index_mirror_checks_actual_currency_after_retirement_before_adoption",
+          "status": "linked",
+          "assertion": "The real checked mirror replacement checks original currency after old-primary retirement and before adopting donor cache/String, refusing the reached replacement without an alternate cache producer. This additional source-defined software control carries no attached current owned assertion result, external provider observation, Native private-header/callback chronology or new execution grant."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/original_static_lookup_tests.rs",
+          "selector": "interp::native_numeric_ops::original_string_stage_tests::original_static_lookup_tests::original_jim_enum_keeps_cache_hit_without_getter_and_foreign_index_refusal",
+          "status": "linked",
+          "assertion": "A genuine Jim Enum cached hit retains the original no-getter path; foreign C Index cache remains unavailable rather than donating Jim protocol authority. This additional source-defined software control carries no attached current owned assertion result, external provider observation, Native private-header/callback chronology or new execution grant."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/original_static_lookup_tests.rs",
+          "selector": "interp::native_numeric_ops::original_string_stage_tests::original_static_lookup_tests::original_static_usage_keeps_actual_canonical_index_and_retained_typed_host",
+          "status": "linked",
+          "assertion": "The actual usage projection uses checked canonical Index spelling under the original command scope and preserves an earlier typed Host cause. This additional source-defined software control carries no attached current owned assertion result, external provider observation, Native private-header/callback chronology or new execution grant."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/original_static_lookup_tests.rs",
+          "selector": "interp::native_numeric_ops::original_string_stage_tests::original_static_lookup_tests::original_jim_cat_preserves_prior_full_host_before_later_operand_or_materialization",
+          "status": "linked",
+          "assertion": "A prior full Host cause remains terminal before later Jim cat operand formatting or materialization; no result bytes or selected policy replace it. This additional source-defined software control carries no attached current owned assertion result, external provider observation, Native private-header/callback chronology or new execution grant."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/original_static_lookup_tests.rs",
+          "selector": "interp::native_numeric_ops::original_string_stage_tests::original_static_lookup_tests::original_jim_cat_authored_routing_checks_inherited_currency_without_native_issuer",
+          "status": "linked",
+          "assertion": "Authored cat routing checks an actually inherited entered currency before routing while retaining its separate unavailable physical materialization purpose. This additional source-defined software control carries no attached current owned assertion result, external provider observation, Native private-header/callback chronology or new execution grant."
         }
       ],
       "replay": {
@@ -358451,6 +358653,27 @@
           "sha256": "8228eae6950ab50c2ee30c2789e055dc6755ec8fe8f610bff88887b2d8534c19",
           "description": "Unchanged current-Jim request retains the exact source/version recipe; its independent public mathop/helper outputs do not measure zero/unary cat or private ownership.",
           "role": "source-anchor"
+        },
+        {
+          "id": "sourceperf-original-owner-1c948d5e5d07",
+          "path": "rust/tcl-cmd-core/src/native_cat.rs",
+          "sha256": "9c81c48f748a9f77d5e7d631011202ed31df30e97aac34d1a53e754e9eb2319f",
+          "role": "implementation",
+          "description": "The shared Jim cat worker preserves empty, unary and multiple-input ownership and append order. Checked callers supply original String and currentness checks plus full-cause retention."
+        },
+        {
+          "id": "sourceperf-original-owner-672e02c53fec",
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/original_static_lookup_tests.rs",
+          "sha256": "cb1e5a75ce7670ae29545d4f92d75be24e23a6dd470e4541eaed25557fcae882",
+          "role": "implementation",
+          "description": "The registered software controls describe original ownership, getter/cache refusal and Guest/Host settlement. They carry no attached owned assertion outcome, external provider observation or Native private-header/callback chronology."
+        },
+        {
+          "id": "sourceperf-original-owner-0cf3af8ba484",
+          "path": "rust/tcl-vm/src/value_ops.rs",
+          "sha256": "17cfbde2438be9076a11813637da5e16c0cf5447fe355eb44c23cd881d550b0e",
+          "role": "implementation",
+          "description": "Original Jim cat inherits or enters its actual scope before the shared String worker and retains the full first cause before cleanup or legacy error projection; authored materialization stays independently selected."
         }
       ],
       "source_anchors": [
@@ -358540,6 +358763,16 @@
           "path": "rust/tcl-syntax/src/value.rs",
           "symbol": "ValueOps::native_jim_string_cat",
           "purpose": "Distinguish selected unavailable worker error from an adapter that did not select Jim; standalone/authored compatibility is not native execution or original-object authority."
+        },
+        {
+          "path": "rust/tcl-cmd-core/src/native_cat.rs",
+          "symbol": "concatenate_jim_checked",
+          "purpose": "The sole existing Jim concatenate worker accepts optional original source/result checks and full-cause retainer at actual String/append/retirement stages; empty/unary/multiple ownership order and pure None behaviour remain unchanged."
+        },
+        {
+          "path": "rust/tcl-vm/src/value_ops.rs",
+          "symbol": "ValueOps::native_jim_string_cat",
+          "purpose": "Actual Jim cat captures or inherits one authentic scope before its reached String worker, uses canonical String and checks both success and failure before cleanup or legacy error projection; authored materialization remains independently selected."
         }
       ],
       "tests": [
@@ -358566,6 +358799,12 @@
           "selector": "value_ops::native_jim_string_cat_tests::jim_cat_selected_unavailable_logical_purpose_does_not_reach_physical_engine",
           "assertion": "A positively selected unavailable Logical materialization purpose refuses zero/unary cat without reaching the physical Jim engine; the original integer stays stringless and retains its primary. Source fallback cannot replace a positively selected unavailable Logical purpose.",
           "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/original_static_lookup_tests.rs",
+          "selector": "interp::native_numeric_ops::original_string_stage_tests::original_static_lookup_tests::original_jim_cat_keeps_empty_unary_and_compound_source_roles_without_host_query",
+          "status": "linked",
+          "assertion": "The existing Jim cat worker preserves empty fresh ownership, unary same-object/reference role and multiple compound source order without an extra supplied Host query. This additional source-defined software control carries no attached current owned assertion result, external provider observation, Native private-header/callback chronology or new execution grant."
         }
       ],
       "replay": {
