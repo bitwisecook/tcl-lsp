@@ -55,7 +55,7 @@ pub fn extract_variable(
             .ok()??;
     if proposed.index.is_some()
         || proposed.name != var_name.as_bytes()
-        || tcl_syntax::naming::is_qualified(var_name)
+        || tcl_syntax::naming::is_qualified(var_name.as_bytes())
     {
         return None;
     }

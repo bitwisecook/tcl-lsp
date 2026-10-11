@@ -474,3 +474,66 @@ mod indexed_receiver_tests {
         assert_eq!(second.read().unwrap(), Some(two.as_ptr()));
     }
 }
+#[cfg(test)]
+mod original_frame_index_tests {
+    use super::FrameStack;
+    use crate::{
+        namespace::GLOBAL,
+        obj::{self, Owned},
+    };
+
+    #[test]
+    fn indexed_original_argv_keeps_level_selection_and_retained_allocation_roles() {
+        // naming.tcloo.original-call-argv-ownership
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-call-argv-ownership.md
+        // Software indexing and allocation ownership; no native frame admission.
+        let first = Owned::fresh(obj::new_string_bytes(b"first"));
+        let second = Owned::fresh(obj::new_string_bytes(b"second"));
+        let newest = Owned::fresh(obj::new_string_bytes(b"same-level"));
+        let mut frames = FrameStack::new();
+        assert!(frames.original_error_stack_argv_owner_at(0).is_none());
+        frames.push(GLOBAL);
+        frames
+            .install_original_error_stack_argv(&[first.as_ptr()])
+            .unwrap();
+        frames.push(GLOBAL);
+        frames
+            .install_original_error_stack_argv(&[second.as_ptr()])
+            .unwrap();
+        let saved = frames.set_active_level(1);
+        let selected = frames.original_error_stack_argv_owner_at(2).unwrap();
+        assert_eq!(selected[0].as_ptr(), second.as_ptr());
+        assert_eq!(
+            frames.original_error_stack_argv().unwrap(),
+            vec![first.as_ptr()]
+        );
+        assert_eq!(
+            frames.original_error_stack_argv_owner_at(1).unwrap()[0].as_ptr(),
+            first.as_ptr()
+        );
+        assert!(frames.original_error_stack_argv_owner_at(3).is_none());
+        frames.set_active_level(saved);
+        frames.push_same_level(GLOBAL);
+        frames
+            .install_original_error_stack_argv(&[newest.as_ptr()])
+            .unwrap();
+        assert_eq!(
+            frames.original_error_stack_argv_owner_at(2).unwrap()[0].as_ptr(),
+            newest.as_ptr()
+        );
+        frames.pop();
+        assert_eq!(
+            frames.original_error_stack_argv_owner_at(2).unwrap()[0].as_ptr(),
+            second.as_ptr()
+        );
+        frames.pop();
+        assert!(frames.original_error_stack_argv_owner_at(2).is_none());
+        assert_eq!(selected[0].as_ptr(), second.as_ptr());
+        assert_eq!(unsafe { (*second.as_ptr()).ref_count }, 1);
+        let original = second.as_ptr();
+        drop(second);
+        assert_eq!(selected[0].as_ptr(), original);
+        assert!(obj::check_native_liveness(original).is_err());
+        drop(selected);
+    }
+}

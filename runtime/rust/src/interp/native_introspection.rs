@@ -50,14 +50,37 @@ impl NativeInfoLevelObjects for Interp {
         let arguments = self
             .frames
             .borrow()
-            .original_error_stack_argv_at(level)
+            .original_error_stack_argv_owner_at(level)
             .ok_or(ValueError::CommandProtocolUnavailable(
                 "native original frame argv",
             ))?;
-        Ok(Some(self.new_list_object(&arguments)))
+        let pointers = arguments
+            .iter()
+            .map(|original| original.as_ptr())
+            .collect::<Vec<_>>();
+        let originals = super::native_arguments::OriginalArguments::enter(self, &pointers)
+            .map_err(|error| self.native_level_value_error(error))?;
+        let result = self.new_list_object(&pointers);
+        let checked = originals.check();
+        drop(arguments);
+        if let Err(first) = checked.and_then(|()| originals.check()) {
+            super::drop_fresh(result);
+            return Err(self.native_level_value_error(originals.check().err().unwrap_or(first)));
+        }
+        Ok(Some(result))
     }
 }
 impl Interp {
+    fn native_level_value_error(&self, error: tcl_cmd_core::CmdError) -> ValueError {
+        if let Some(first) = error.native_execution_refusal() {
+            self.clone().refuse_native_execution(first.clone());
+        }
+        error.native_access_refusal().map_or(
+            ValueError::CommandProtocolUnavailable("native info level operation"),
+            Into::into,
+        )
+    }
+
     pub(crate) fn native_info_level(
         &mut self,
         original: Option<&*mut TclObj>,
