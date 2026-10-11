@@ -64,7 +64,7 @@ No original bigip process tests this typed execution-error conversion contract. 
 
 ## Exact evidence
 
-- `implementation-source-0` (implementation): [rust/tcl-cmd-core/src/error.rs](../../../../rust/tcl-cmd-core/src/error.rs). SHA-256 `0c87b47833429807e65d4a1bcf95fe628bc6234421b215b227c996a6e30e458c`. Exact current typed conversion or complete diagnostic error record declaration. Source/API inspection supplies no entered interpreter, live frame, authenticated diagnostic origin, Guest completion or provider execution.
+- `implementation-source-0` (implementation): [rust/tcl-cmd-core/src/error.rs](../../../../rust/tcl-cmd-core/src/error.rs). SHA-256 `0ca8a12d18dc6de3b64b91b42186e94ddaf4b172073dc691c11d7d7356845732`. Exact current typed conversion or complete diagnostic error record declaration. Source/API inspection supplies no entered interpreter, live frame, authenticated diagnostic origin, Guest completion or provider execution.
 - `implementation-source-1` (implementation): [rust/tcl-runtime-api/src/native_execution_error.rs](../../../../rust/tcl-runtime-api/src/native_execution_error.rs). SHA-256 `5a49272a36b727372ebfa24fd06283b83f6760030abb334adfc9691af17bf0a0`. Exact current typed conversion or complete diagnostic error record declaration. Source/API inspection supplies no entered interpreter, live frame, authenticated diagnostic origin, Guest completion or provider execution.
 
 ## Source inspection

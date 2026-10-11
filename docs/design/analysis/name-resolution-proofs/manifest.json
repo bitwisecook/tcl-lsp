@@ -209827,6 +209827,20 @@
           "path": "runtime/rust/tests/data/native_property_opaque/capture.py",
           "sha256": "dcd2625f990e870186919efc794031323dcfdacfca83fdddeb182925376e0934",
           "description": "Original fixed-path capture adapter; it overwrites local outputs and is not a read-only verifier."
+        },
+        {
+          "id": "receiver-current642-3130fecefbdfb6d3",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_oo/native_properties.rs",
+          "sha256": "b35eb59faae0a588f0b15b3f1f3969c28b0b57b4473aecb58e6c72407a527fa3",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
+        },
+        {
+          "id": "receiver-current642-8ce69af7c7160e4b",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties.rs",
+          "sha256": "258a825eeb851678c253a4394fb6e939740ef22736e2dd6f165a91953c15b4f1",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
         }
       ],
       "source_anchors": [],
@@ -209842,6 +209856,18 @@
           "selector": "tests::opaque_property_lookup_uses_original_accessor_members",
           "assertion": "Recreates the exact counted xFF/x00tail property/caller management inputs and compares RAW plus absent caller cache. The separate selected-member cache assertion is an implementation obligation, not sampled by this native probe.",
           "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties.rs",
+          "selector": "cmd_oo::native_properties::tests::opaque_property_lookup_uses_original_accessor_members",
+          "status": "linked",
+          "assertion": "Opaque property lookup uses original accessor members. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/native_properties.rs",
+          "selector": "cmd_oo::native_properties::tests::opaque_property_lookup_uses_original_accessor_members",
+          "status": "linked",
+          "assertion": "Opaque property lookup uses original accessor members. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
         }
       ],
       "owners": [
@@ -209966,6 +209992,20 @@
           "path": "runtime/rust/tests/data/native_property_clientdata/native.tsv",
           "sha256": "85b10c7190eb4cfe5303e577a31fee9ccb70d060a2f54c395d90988f5e5bddc5",
           "description": "Exact nine-row stdout, independently equal to the receipt stream."
+        },
+        {
+          "id": "receiver-current642-3130fecefbdfb6d3",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_oo/native_properties.rs",
+          "sha256": "b35eb59faae0a588f0b15b3f1f3969c28b0b57b4473aecb58e6c72407a527fa3",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
+        },
+        {
+          "id": "receiver-current642-8ce69af7c7160e4b",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties.rs",
+          "sha256": "258a825eeb851678c253a4394fb6e939740ef22736e2dd6f165a91953c15b4f1",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
         }
       ],
       "source_anchors": [],
@@ -209981,6 +210021,18 @@
           "selector": "default_property_methods_retain_original_clientdata_and_leave_its_primary",
           "assertion": "Compare accessor client-data identity, original declaration reference count/primary and caller cache separately.",
           "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties.rs",
+          "selector": "cmd_oo::native_properties::tests::default_property_methods_retain_original_clientdata_and_leave_its_primary",
+          "status": "linked",
+          "assertion": "Default property methods retain original clientdata and leave its primary. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/native_properties.rs",
+          "selector": "cmd_oo::native_properties::tests::default_property_methods_retain_original_clientdata_and_leave_its_primary",
+          "status": "linked",
+          "assertion": "Default property methods retain original clientdata and leave its primary. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
         }
       ],
       "owners": [],
@@ -211389,6 +211441,20 @@
             3,
             7
           ]
+        },
+        {
+          "id": "receiver-current642-3130fecefbdfb6d3",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_oo/native_properties.rs",
+          "sha256": "b35eb59faae0a588f0b15b3f1f3969c28b0b57b4473aecb58e6c72407a527fa3",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
+        },
+        {
+          "id": "receiver-current642-8ce69af7c7160e4b",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties.rs",
+          "sha256": "258a825eeb851678c253a4394fb6e939740ef22736e2dd6f165a91953c15b4f1",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
         }
       ],
       "source_anchors": [],
@@ -211410,6 +211476,18 @@
           "selector": "property_epochs_follow_mutations_before_definition_failure",
           "assertion": "Check the same mutation-before-Error boundary.",
           "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties.rs",
+          "selector": "cmd_oo::native_properties::tests::property_epochs_follow_mutations_before_definition_failure",
+          "status": "linked",
+          "assertion": "Property epochs follow mutations before definition failure. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/native_properties.rs",
+          "selector": "cmd_oo::native_properties::tests::property_epochs_follow_mutations_before_definition_failure",
+          "status": "linked",
+          "assertion": "Property epochs follow mutations before definition failure. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
         }
       ],
       "owners": [],
@@ -255728,7 +255806,7 @@
       "owners": [
         {
           "path": "runtime/rust/src/vars.rs",
-          "symbol": "make_variable_mapped_with_origin",
+          "symbol": "publish_variable_mapped",
           "purpose": "Prepare a local alias using the actual selected existing namespace target and retain its software scalar entry/origin before capture, without reconstructing it from the printed local name."
         }
       ],
@@ -322057,6 +322135,104 @@
           "sha256": "f097b420ed6991640c24d9e34d8156fd485cc3bef53bb41b83eff9918de23167",
           "role": "implementation",
           "description": "The Jim Enum cache worker checks original header and resident String around primary retirement and adoption; its neutral entry preserves independent compatibility behaviour."
+        },
+        {
+          "id": "receiver-current642-c1293ba9132ad193",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_oo/native_properties/original_copy_boundary_tests.rs",
+          "sha256": "6eb835d9e5dcbd2592df8e7b8f24c603b910d422b08fa3f29c55bf114e9f64ee",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
+        },
+        {
+          "id": "receiver-current642-a4ef38eb8a236fe1",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_oo/original_active_frame_tests.rs",
+          "sha256": "41219b043757fc614b3cee3cf50a81ecb6a41fcf00c1289adcff41bd2cab1d48",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
+        },
+        {
+          "id": "receiver-current642-702670e5b9ecb31a",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/cmd_oo/lifecycle_tests.rs",
+          "sha256": "6002b943cd7c960f95ca5fd361cc2a11ecb7ec8074e3ae3d1ada9ae2f5e26378",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
+        },
+        {
+          "id": "receiver-current642-5139fb77ce68bf82",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/cmd_oo/native_context/self_frame_tests.rs",
+          "sha256": "81228dea207d43981de52e76ff48be3e52d1cea82e27f0598bb5fb719d345295",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
+        },
+        {
+          "id": "receiver-current642-1cd22d1700ae1d50",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/cmd_oo/native_method_cache/owner_tests.rs",
+          "sha256": "6d5c00d78a0e64e9cf21a6075fba1b1cfdc77ca192707a6fec8100659da0b69e",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
+        },
+        {
+          "id": "receiver-current642-4505dc619b5c0e23",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/cmd_oo/native_method_cache/rename_tests.rs",
+          "sha256": "97b977c1b8a584d15c08dad3019f16d4c98eb52795953aaa9fffe26d9da2bacc",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
+        },
+        {
+          "id": "receiver-current642-13a36cef619ade2d",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/cmd_oo/native_method_cache/string_stage_tests.rs",
+          "sha256": "7ee16de9bf55a093696933cb4d4fee50ba9efd6ccc0b89d257e5e4f8021b683d",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
+        },
+        {
+          "id": "receiver-current642-eec3f7e5d5ffec72",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties/mutation.rs",
+          "sha256": "7abb418fb8542ae8c8e95700e8a42bbce7938ad0e0f7128106e424642fc5a8af",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
+        },
+        {
+          "id": "receiver-current642-b4b158de31358447",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties/mutation/tests.rs",
+          "sha256": "5a12f7092c8e79372975cec6e0a6b988ad0e5636aaff5c32a6bce71a29abc55b",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
+        },
+        {
+          "id": "receiver-current642-2637358fa5ac296a",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties/stage_tests.rs",
+          "sha256": "43c3210ebf3fa7f43ace017068555258edf52aedf292b1e8316bfa57690f754f",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
+        },
+        {
+          "id": "receiver-current642-d5764a2fb9b91f6b",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/cmd_oo/original_method_retirement_tests.rs",
+          "sha256": "0721da583c1856f35e301f78c9d9812c169ec682157253b1b0f9ed4abe035e76",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
+        },
+        {
+          "id": "receiver-current642-b139864509e896df",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/cmd_oo/original_name_operands.rs",
+          "sha256": "aaf6aa385e92839f3c15a6f17a0ca7758d3407902a8b4e7990fe965dc07c0834",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
+        },
+        {
+          "id": "receiver-current642-e74fb9cba7914427",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/cmd_oo/original_name_operands/tests.rs",
+          "sha256": "e7e4b65595c44ff25ae3d8075f2650a42933f5624ba4cf196bb58baed93cd252",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
+        },
+        {
+          "id": "receiver-current642-f20d1e8bacc1908f",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/oo_cleanup.rs",
+          "sha256": "45df292d416218d2540d4377a81ca27fccb432bc9336d66cd159b87543d87b97",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
         }
       ],
       "source_anchors": [],
@@ -325212,9 +325388,9 @@
         },
         {
           "path": "runtime/rust/src/cmd_oo/original_namespace_copy_tests.rs",
-          "selector": "cmd_oo::original_namespace_copy_tests::original_namespace_copy_checks_duplicate_cleanup_before_original_holder_publication",
+          "selector": "cmd_oo::original_namespace_copy_tests::original_namespace_copy_checks_occupied_procedure_retirement_before_original_holder_publication",
           "status": "linked",
-          "assertion": "Namespace copy checks duplicate cleanup before original holder publication. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission."
+          "assertion": "The actual occupied destination procedure retires its last body owner outside the namespace borrow before original holder publication; the duplicate retains the original source body. This is a source-defined software control with no matching current owned assertion outcome. Frozen predecessor observations remain attached to the original selector only; no external Native chronology, reference parity or result is transferred."
         },
         {
           "path": "runtime/rust/src/cmd_oo/original_namespace_copy_tests.rs",
@@ -326181,6 +326357,246 @@
           "selector": "frame::jim_alias_publication::scalar_store_tests::original_jim_cached_static_scalar_store_and_link_recursion_keep_original_shared_cell_roles",
           "assertion": "Cached Jim static fallback and genuine linked storage update the original shared scalar cell without inserting a new local hash entry. The existing recursive worker and same-value store preserve the sole actual cell reference alongside the caller reference. This links a software definition, not a passed assertion or original-provider callback observation.",
           "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_context/self_frame_tests.rs",
+          "selector": "cmd_oo::native_context::self_frame_tests::original_self_report_reacquires_the_same_entered_frame_without_method_payload_holds",
+          "status": "linked",
+          "assertion": "Original self report reacquires the same entered frame without method payload holds. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_context/self_frame_tests.rs",
+          "selector": "cmd_oo::native_context::self_frame_tests::original_self_report_refuses_chain_or_index_withdrawal_and_keeps_the_first_host_cause",
+          "status": "linked",
+          "assertion": "Original self report refuses chain or index withdrawal and keeps the first host cause. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_method_cache/owner_tests.rs",
+          "selector": "cmd_oo::native_method_cache::owner_tests::original_oo_cleanup_epoch_exhaustion_retains_first_cause_and_retires_whole_payload",
+          "status": "linked",
+          "assertion": "Original oo cleanup epoch exhaustion retains first cause and retires whole payload. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_method_cache/owner_tests.rs",
+          "selector": "cmd_oo::native_method_cache::owner_tests::original_method_creation_epoch_refuses_after_actual_same_record_payload_retirement",
+          "status": "linked",
+          "assertion": "Original method creation epoch refuses after actual same record payload retirement. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_method_cache/owner_tests.rs",
+          "selector": "cmd_oo::native_method_cache::owner_tests::original_constructor_and_destructor_replace_actual_slot_roles_before_epoch_continuation",
+          "status": "linked",
+          "assertion": "Original constructor and destructor replace actual slot roles before epoch continuation. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_method_cache/rename_tests.rs",
+          "selector": "cmd_oo::native_method_cache::rename_tests::original_vm_rename_destination_string_failure_keeps_source_and_first_cause",
+          "status": "linked",
+          "assertion": "Original vm rename destination string failure keeps source and first cause. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_method_cache/rename_tests.rs",
+          "selector": "cmd_oo::native_method_cache::rename_tests::original_vm_rename_source_receipt_refuses_deleted_and_reborn_slot",
+          "status": "linked",
+          "assertion": "Original vm rename source receipt refuses deleted and reborn slot. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_method_cache/rename_tests.rs",
+          "selector": "cmd_oo::native_method_cache::rename_tests::original_vm_rename_record_receipt_keeps_context_aba_first_cause",
+          "status": "linked",
+          "assertion": "Original vm rename record receipt keeps context aba first cause. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_method_cache/string_stage_tests.rs",
+          "selector": "cmd_oo::native_method_cache::string_stage_tests::original_method_cache_string_refusal_or_header_withdrawal_precedes_cache_adoption",
+          "status": "linked",
+          "assertion": "Original method cache string refusal or header withdrawal precedes cache adoption. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/original_name_operands/tests.rs",
+          "selector": "cmd_oo::original_name_operands::tests::original_oo_name_target_keeps_rename_and_ordinary_method_mutation_without_reference_roles",
+          "status": "linked",
+          "assertion": "Original oo name target keeps rename and ordinary method mutation without reference roles. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/original_name_operands/tests.rs",
+          "selector": "cmd_oo::original_name_operands::tests::original_oo_name_withdrawal_refuses_recreated_written_object_before_later_getter",
+          "status": "linked",
+          "assertion": "Original oo name withdrawal refuses recreated written object before later getter. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/original_name_operands/tests.rs",
+          "selector": "cmd_oo::original_name_operands::tests::original_oo_name_facet_replacement_keeps_object_and_namespace_guards_independent",
+          "status": "linked",
+          "assertion": "Original oo name facet replacement keeps object and namespace guards independent. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/original_name_operands/tests.rs",
+          "selector": "cmd_oo::original_name_operands::tests::original_oo_method_name_formatter_refusal_preserves_full_first_cause_before_body",
+          "status": "linked",
+          "assertion": "Original oo method name formatter refusal preserves full first cause before body. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/original_name_operands/tests.rs",
+          "selector": "cmd_oo::original_name_operands::tests::original_oo_definition_name_refusal_restores_real_definition_activation_before_return",
+          "status": "linked",
+          "assertion": "Original oo definition name refusal restores real definition activation before return. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/original_name_operands/tests.rs",
+          "selector": "cmd_oo::original_name_operands::tests::original_oo_name_declaring_facet_comes_from_the_genuine_entered_method_chain",
+          "status": "linked",
+          "assertion": "Original oo name declaring facet comes from the genuine entered method chain. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/original_name_operands/tests.rs",
+          "selector": "cmd_oo::original_name_operands::tests::original_oo_name_present_method_requires_its_actual_declaring_step",
+          "status": "linked",
+          "assertion": "Original oo name present method requires its actual declaring step. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties/mutation/tests.rs",
+          "selector": "cmd_oo::native_properties::mutation::tests::original_property_setter_retires_cache_and_members_before_sequential_hash",
+          "status": "linked",
+          "assertion": "Original property setter retires cache and members before sequential hash. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties/mutation/tests.rs",
+          "selector": "cmd_oo::native_properties::mutation::tests::original_property_setter_acquires_all_incoming_roles_and_keeps_first_duplicate_header",
+          "status": "linked",
+          "assertion": "Original property setter acquires all incoming roles and keeps first duplicate header. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties/mutation/tests.rs",
+          "selector": "cmd_oo::native_properties::mutation::tests::original_property_registration_compares_before_acquiring_working_list_member",
+          "status": "linked",
+          "assertion": "Original property registration compares before acquiring working list member. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties/mutation/tests.rs",
+          "selector": "cmd_oo::native_properties::mutation::tests::original_property_slot_composition_keeps_original_headers_and_empty_append_is_noop",
+          "status": "linked",
+          "assertion": "Original property slot composition keeps original headers and empty append is noop. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties/mutation/tests.rs",
+          "selector": "cmd_oo::native_properties::mutation::tests::original_property_facet_and_restored_context_refuse_before_setter_effects",
+          "status": "linked",
+          "assertion": "Original property facet and restored context refuse before setter effects. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties/mutation/tests.rs",
+          "selector": "cmd_oo::native_properties::mutation::tests::original_property_epoch_refusal_stops_later_publishers_with_full_first_cause",
+          "status": "linked",
+          "assertion": "Original property epoch refusal stops later publishers with full first cause. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties/stage_tests.rs",
+          "selector": "cmd_oo::native_properties::stage_tests::original_property_report_sort_uses_canonical_string_and_actual_member_roles",
+          "status": "linked",
+          "assertion": "Original property report sort uses canonical string and actual member roles. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties/stage_tests.rs",
+          "selector": "cmd_oo::native_properties::stage_tests::original_property_derivation_cannot_adopt_a_changed_roster_or_class_facet",
+          "status": "linked",
+          "assertion": "Original property derivation cannot adopt a changed roster or class facet. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties/stage_tests.rs",
+          "selector": "cmd_oo::native_properties::stage_tests::property_output_key_refusal_stops_before_the_next_original_getter",
+          "status": "linked",
+          "assertion": "Property output key refusal stops before the next original getter. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties/stage_tests.rs",
+          "selector": "cmd_oo::native_properties::stage_tests::private_property_inventory_replacement_is_independent_of_method_epochs",
+          "status": "linked",
+          "assertion": "Private property inventory replacement is independent of method epochs. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties/stage_tests.rs",
+          "selector": "cmd_oo::native_properties::stage_tests::original_property_temporary_table_does_not_reread_its_frozen_member_strings",
+          "status": "linked",
+          "assertion": "Original property temporary table does not reread its frozen member strings. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties/stage_tests.rs",
+          "selector": "cmd_oo::native_properties::stage_tests::original_dictionary_constructor_retains_first_key_refusal_before_input_cleanup",
+          "status": "linked",
+          "assertion": "Original dictionary constructor retains first key refusal before input cleanup. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties/stage_tests.rs",
+          "selector": "cmd_oo::native_properties::stage_tests::original_cached_accessor_reaches_success_without_a_property_string_getter",
+          "status": "linked",
+          "assertion": "Original cached accessor reaches success without a property string getter. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/original_method_retirement_tests.rs",
+          "selector": "cmd_oo::original_method_retirement_tests::original_missing_method_role_never_revives_a_present_table_record",
+          "status": "linked",
+          "assertion": "Original missing method role never revives a present table record. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/lifecycle_tests.rs",
+          "selector": "cmd_oo::lifecycle_tests::original_oo_class_cleanup_retires_actual_names_properties_and_whole_records",
+          "status": "linked",
+          "assertion": "Original oo class cleanup retires actual names properties and whole records. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/lifecycle_tests.rs",
+          "selector": "cmd_oo::lifecycle_tests::original_oo_cleanup_after_entry_refusal_skips_destructor_and_completes_owned_retirement",
+          "status": "linked",
+          "assertion": "Original oo cleanup after entry refusal skips destructor and completes owned retirement. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/lifecycle_tests.rs",
+          "selector": "cmd_oo::lifecycle_tests::original_oo_destructor_guest_host_and_restored_context_preserve_cleanup_and_first_cause",
+          "status": "linked",
+          "assertion": "Original oo destructor guest host and restored context preserve cleanup and first cause. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/lifecycle_tests.rs",
+          "selector": "cmd_oo::lifecycle_tests::original_oo_cleanup_uses_parked_original_interpreter_without_retiring_child_records",
+          "status": "linked",
+          "assertion": "Original oo cleanup uses parked original interpreter without retiring child records. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/lifecycle_tests.rs",
+          "selector": "cmd_oo::lifecycle_tests::original_oo_rename_continuation_keeps_record_and_refuses_withdrawn_or_restored_context",
+          "status": "linked",
+          "assertion": "Original oo rename continuation keeps record and refuses withdrawn or restored context. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/lifecycle_tests.rs",
+          "selector": "cmd_oo::lifecycle_tests::original_oo_cascade_keeps_original_records_and_stops_later_destructors_after_host_refusal",
+          "status": "linked",
+          "assertion": "Original oo cascade keeps original records and stops later destructors after host refusal. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/original_active_frame_tests.rs",
+          "selector": "cmd_oo::original_active_frame_tests::active_original_method_frames_retire_all_reached_records_outside_oo_borrow",
+          "status": "linked",
+          "assertion": "Active original method frames retire all reached records outside oo borrow. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/original_active_frame_tests.rs",
+          "selector": "cmd_oo::original_active_frame_tests::active_eval_name_retirement_preserves_mandatory_frame_and_namespace_restoration",
+          "status": "linked",
+          "assertion": "Active eval name retirement preserves mandatory frame and namespace restoration. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/original_active_frame_tests.rs",
+          "selector": "cmd_oo::original_active_frame_tests::method_entry_failure_latches_original_cause_before_incoming_chain_retirement",
+          "status": "linked",
+          "assertion": "Method entry failure latches original cause before incoming chain retirement. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/native_properties/original_copy_boundary_tests.rs",
+          "selector": "cmd_oo::native_properties::original_copy_boundary_tests::original_property_table_copy_checks_retirement_after_member_getter_before_query",
+          "status": "linked",
+          "assertion": "Original property table copy checks retirement after member getter before query. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
         }
       ],
       "replay": {
@@ -458044,6 +458460,24 @@
           "selector": "cmd_oo::native_method_cache::original_ownership_tests::original_missing_cached_record_cannot_adopt_a_recreated_name",
           "status": "linked",
           "assertion": "Finite source-defined control: original missing cached record cannot adopt a recreated name. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_method_cache/string_stage_tests.rs",
+          "selector": "cmd_oo::native_method_cache::string_stage_tests::original_method_cache_string_uses_captured_formatter_before_all_record_upgrade",
+          "status": "linked",
+          "assertion": "Original method cache string uses captured formatter before all record upgrade. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/original_method_retirement_tests.rs",
+          "selector": "cmd_oo::original_method_retirement_tests::original_method_table_replacement_preserves_record_and_retires_original_payload",
+          "status": "linked",
+          "assertion": "Original method table replacement preserves record and retires original payload. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/original_method_retirement_tests.rs",
+          "selector": "cmd_oo::original_method_retirement_tests::original_unnamed_slot_replacement_keeps_only_genuine_entered_original_owner",
+          "status": "linked",
+          "assertion": "Original unnamed slot replacement keeps only genuine entered original owner. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
         }
       ],
       "replay": {
@@ -463622,6 +464056,20 @@
           "sha256": "083355c7628f35e62d9478854d2e486a55fcafe0735306b5e5ddbad7d61a36db",
           "role": "provider",
           "description": "Whole original path/hash/size/mode and independently scoped before/after input joins; no source-to-library or Runtime equivalence."
+        },
+        {
+          "id": "receiver-current642-13a36cef619ade2d",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/cmd_oo/native_method_cache/string_stage_tests.rs",
+          "sha256": "7ee16de9bf55a093696933cb4d4fee50ba9efd6ccc0b89d257e5e4f8021b683d",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
+        },
+        {
+          "id": "receiver-current642-d5764a2fb9b91f6b",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/cmd_oo/original_method_retirement_tests.rs",
+          "sha256": "0721da583c1856f35e301f78c9d9812c169ec682157253b1b0f9ed4abe035e76",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
         }
       ],
       "source_anchors": [
@@ -479806,6 +480254,18 @@
           "selector": "cmd_oo::native_method_rename_tests::original_self_method_report_keeps_current_entered_name_and_unnamed_roles_distinct",
           "status": "linked",
           "assertion": "Finite source-defined control: original self method report keeps current entered name and unnamed roles distinct. Source-selected SELF_METHOD name role; no measured custom MethodType payload/body equivalence. Unnamed slots retain no named-record role. Foundation-owned report headers are a separate consumer purpose, not supplied by this owner. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_method_cache/rename_tests.rs",
+          "selector": "cmd_oo::native_method_cache::rename_tests::original_vm_rename_missing_source_does_not_reach_destination_string",
+          "status": "linked",
+          "assertion": "Original vm rename missing source does not reach destination string. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_method_cache/rename_tests.rs",
+          "selector": "cmd_oo::native_method_cache::rename_tests::original_vm_rename_moves_same_record_and_observes_reached_payload_changes",
+          "status": "linked",
+          "assertion": "Original vm rename moves same record and observes reached payload changes. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
         }
       ],
       "replay": {
@@ -485181,6 +485641,13 @@
           "sha256": "b13502fdd8b82e295d69d9a864bb513503593f0f59105ce602d189f6defcb945",
           "role": "provider",
           "description": "Whole original input/output path/hash/size/mode joins and explicit replay limits; reused canonical payloads remain byte-identical."
+        },
+        {
+          "id": "receiver-current642-4505dc619b5c0e23",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/cmd_oo/native_method_cache/rename_tests.rs",
+          "sha256": "97b977c1b8a584d15c08dad3019f16d4c98eb52795953aaa9fffe26d9da2bacc",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
         }
       ],
       "source_anchors": [
@@ -541234,7 +541701,7 @@
         {
           "id": "runtime-rust-src-cmd_oo.rs",
           "path": "runtime/rust/src/cmd_oo.rs",
-          "sha256": "dcd59fb5b35890c1ccc6e779dbecbf33231a991f802ed4823d21720c77db780c",
+          "sha256": "af9e84d17e45cce142a005a43ff88edc65cd35200cbf64e41cc49ad5f94da2cc",
           "role": "implementation",
           "description": "Current inspected selected role, real Foundation report owner, actual reached-chain producer, parent registration or four unexecuted software control definitions. No physical external execution or Rust assertion outcome."
         },
@@ -541255,14 +541722,14 @@
         {
           "id": "rust-tcl-vm-src-cmd_oo.rs",
           "path": "rust/tcl-vm/src/cmd_oo.rs",
-          "sha256": "94c8d0d8cbd46f8313c09e9bbbbdcee5eecd5f74af2704f6d12f4df5bce44c5a",
+          "sha256": "14de72818bc18b8a772b34dd39b2008f707a883916d1ff05b6f58e8f6a8b43a4",
           "role": "implementation",
           "description": "Current inspected selected role, real Foundation report owner, actual reached-chain producer, parent registration or four unexecuted software control definitions. No physical external execution or Rust assertion outcome."
         },
         {
           "id": "rust-tcl-vm-src-cmd_oo-native_method_cache.rs",
           "path": "rust/tcl-vm/src/cmd_oo/native_method_cache.rs",
-          "sha256": "f12bc10962edf7395f34a276ffb4474657ac7eaba8cf9dae06ac5b717c431859",
+          "sha256": "e00c5513bd0c59bf1850b219218fdb6ffd8e17072329871ebb1344b021419494",
           "role": "implementation",
           "description": "Current inspected selected role, real Foundation report owner, actual reached-chain producer, parent registration or four unexecuted software control definitions. No physical external execution or Rust assertion outcome."
         },
@@ -550129,7 +550596,7 @@
           "id": "current-source-0",
           "role": "implementation",
           "path": "runtime/rust/src/cmd_oo/native_properties.rs",
-          "sha256": "c842e5b8a918739a5f00522b577dd58a4b82033f96addc6e97788fb7704e300e",
+          "sha256": "b35eb59faae0a588f0b15b3f1f3969c28b0b57b4473aecb58e6c72407a527fa3",
           "description": "Current software owner or actual parent module registration. The source definition has no attached matching owned Rust assertion result; the public C9 prints do not establish its physical cache/lifetime behavior."
         },
         {
@@ -550143,8 +550610,15 @@
           "id": "current-source-2",
           "role": "implementation",
           "path": "runtime/rust/src/cmd_oo.rs",
-          "sha256": "dcd59fb5b35890c1ccc6e779dbecbf33231a991f802ed4823d21720c77db780c",
+          "sha256": "af9e84d17e45cce142a005a43ff88edc65cd35200cbf64e41cc49ad5f94da2cc",
           "description": "Current software owner or actual parent module registration. The source definition has no attached matching owned Rust assertion result; the public C9 prints do not establish its physical cache/lifetime behavior."
+        },
+        {
+          "id": "receiver-current642-2637358fa5ac296a",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties/stage_tests.rs",
+          "sha256": "43c3210ebf3fa7f43ace017068555258edf52aedf292b1e8316bfa57690f754f",
+          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
         }
       ],
       "source_anchors": [
@@ -550275,6 +550749,12 @@
           "selector": "cmd_oo::original_property_reporting_tests::materialized_property_reports_preserve_native_snapshot_and_table_index_roles",
           "status": "linked",
           "assertion": "Two exact original configurable scripts and printed results/events/rosters supply a bounded software comparison under the actual C9.1 physical adapter purpose. C9.0 equal public results do not broaden that physical issuer. This body is unrun; independent sort/refusal/private-inventory controls and native pointer/refcount/lifetime equality are not inferred."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_properties/stage_tests.rs",
+          "selector": "cmd_oo::native_properties::stage_tests::materialized_property_reports_preserve_native_snapshot_and_table_index_roles",
+          "status": "linked",
+          "assertion": "Materialized property reports preserve native snapshot and table index roles. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
         }
       ],
       "owners": [
@@ -551472,7 +551952,7 @@
           "id": "implementation-source-0",
           "role": "implementation",
           "path": "runtime/rust/src/cmd_oo.rs",
-          "sha256": "dcd59fb5b35890c1ccc6e779dbecbf33231a991f802ed4823d21720c77db780c",
+          "sha256": "af9e84d17e45cce142a005a43ff88edc65cd35200cbf64e41cc49ad5f94da2cc",
           "description": "Exact current definition-stage owner or finite control. Complete file retention identifies the source; only the explicitly described definition target/getter/effect purpose is bound, without Class-facet lifecycle, introspection, entered frames or Native callback outcome."
         },
         {
@@ -551784,7 +552264,7 @@
           "id": "implementation-source-0",
           "role": "implementation",
           "path": "rust/tcl-cmd-core/src/error.rs",
-          "sha256": "0c87b47833429807e65d4a1bcf95fe628bc6234421b215b227c996a6e30e458c",
+          "sha256": "0ca8a12d18dc6de3b64b91b42186e94ddaf4b172073dc691c11d7d7356845732",
           "description": "Exact current typed conversion or complete diagnostic error record declaration. Source/API inspection supplies no entered interpreter, live frame, authenticated diagnostic origin, Guest completion or provider execution."
         },
         {
@@ -552084,7 +552564,7 @@
           "id": "implementation-source-0",
           "role": "implementation",
           "path": "runtime/rust/src/cmd_oo.rs",
-          "sha256": "dcd59fb5b35890c1ccc6e779dbecbf33231a991f802ed4823d21720c77db780c",
+          "sha256": "af9e84d17e45cce142a005a43ff88edc65cd35200cbf64e41cc49ad5f94da2cc",
           "description": "Exact current Class facet or receiver/report continuation and finite software definitions. Only the described source/API target continuity is bound; physical original C pointers, payload/refcount lifetime and matching owned execution are independent."
         },
         {
@@ -568317,7 +568797,7 @@
           "id": "implementation-source-0",
           "role": "implementation",
           "path": "runtime/rust/src/cmd_oo.rs",
-          "sha256": "dcd59fb5b35890c1ccc6e779dbecbf33231a991f802ed4823d21720c77db780c",
+          "sha256": "af9e84d17e45cce142a005a43ff88edc65cd35200cbf64e41cc49ad5f94da2cc",
           "description": "Exact selected ClassVariable source/API owner or finite software definition. The pinned purpose is actual retained frame, declaring Class facet/namespace, preflight and link continuation only; external frame/variable pointer, callback parity and matching assertion outcomes remain independent."
         },
         {
@@ -568331,7 +568811,7 @@
           "id": "implementation-source-2",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_variable_names.rs",
-          "sha256": "9682ce5c483b5f0fc6f6a011276860604f6e52d19f9cbc91a9e774b70341e80f",
+          "sha256": "3366bc4a8d39ccd8f447488a18f864afb2a8bbc043722553354695bfe57306f8",
           "description": "Exact selected ClassVariable source/API owner or finite software definition. The pinned purpose is actual retained frame, declaring Class facet/namespace, preflight and link continuation only; external frame/variable pointer, callback parity and matching assertion outcomes remain independent."
         },
         {
@@ -568913,7 +569393,7 @@
           "id": "implementation-0",
           "role": "implementation",
           "path": "runtime/rust/src/cmd_oo.rs",
-          "sha256": "dcd59fb5b35890c1ccc6e779dbecbf33231a991f802ed4823d21720c77db780c",
+          "sha256": "af9e84d17e45cce142a005a43ff88edc65cd35200cbf64e41cc49ad5f94da2cc",
           "description": "Exact current entered record/report flags/payload owner or finite software definition; bounded inspection pin only."
         },
         {

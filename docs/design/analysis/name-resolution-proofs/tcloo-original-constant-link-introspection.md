@@ -12,15 +12,11 @@ What public caught values does the original TclOO constant-link introspection so
 
 ## Conclusion
 
-C9.0.4/C9.1.0 return exact original 0 {X 1 1} 0 {{} 1} 0 {formal {}}. C8.4.20/C8.5.19/C8.6.18/Jim return const-or-stock-TclOO-unavailable NOT_APPLICABLE. These finite returned values do not identify private local cells, object headers, Native frame/formal binding or a general constant-link inventory. All six original case processes exit 0 with empty stderr; their complete unchanged counted public VERSION/ORIGINAL rows and six actual driver builds remain retained. No Rust assertion pass or BIG-IP result follows.
-
-A marked direct software frame/cell control binds existing namespace-alias target selection before local capture.
+C9.0.4/C9.1.0 return exact original 0 {X 1 1} 0 {{} 1} 0 {formal {}}. C8.4.20/C8.5.19/C8.6.18/Jim return const-or-stock-TclOO-unavailable NOT_APPLICABLE. These finite returned values do not identify private local cells, object headers, Native frame/formal binding or a general constant-link inventory. All six original case processes exit 0 with empty stderr; their complete unchanged counted public VERSION/ORIGINAL rows and six actual driver builds remain retained. No Rust assertion pass or BIG-IP result follows. A marked direct software frame/cell control binds existing namespace-alias target selection before local capture.
 
 ## Scope
 
-One unchanged original ASCII LF source is passed directly to the native202 counted-source driver in each fresh full Tcl_Init or Jim core/static-extension interpreter. Original source contains its authored availability branch and catches; the external launcher adds no eval/catch/puts envelope. Public returned guest list bytes and caught codes are retained independently of private objects/frames.
-
-This constructed FrameStack/Namespaces fixture does not execute the original TclOO inspect/retarget/formal-shadow source, prove native constant-link identity or grant a physical procedure/object frame. Exact original public caught values remain independent. Source linkage supplies no executable availability or assertion outcome.
+One unchanged original ASCII LF source is passed directly to the native202 counted-source driver in each fresh full Tcl_Init or Jim core/static-extension interpreter. Original source contains its authored availability branch and catches; the external launcher adds no eval/catch/puts envelope. Public returned guest list bytes and caught codes are retained independently of private objects/frames. This constructed FrameStack/Namespaces fixture does not execute the original TclOO inspect/retarget/formal-shadow source, prove native constant-link identity or grant a physical procedure/object frame. Exact original public caught values remain independent. Source linkage supplies no executable availability or assertion outcome.
 
 ## Provider answers
 
@@ -172,6 +168,7 @@ No appliance execution answers this exact question.
 - `native_oo_context296-request.json` (input): [rust/tcl-registry/tests/data/native_oo_context296/request.json](../../../../rust/tcl-registry/tests/data/native_oo_context296/request.json). SHA-256 `a5f345d0336b68208f73b71796796a9f0e903f13fc1df8b836202fccdd2bcafa`. Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
 - `native_oo_context296-self.tcl` (input): [rust/tcl-registry/tests/data/native_oo_context296/self.tcl](../../../../rust/tcl-registry/tests/data/native_oo_context296/self.tcl). SHA-256 `74f84ada9192f8c2153aa7f1522b8335e43fefa63350ddcc6a6be7a2979dd660`. Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
 - `native_oo_context296-superclass.tcl` (input): [rust/tcl-registry/tests/data/native_oo_context296/superclass.tcl](../../../../rust/tcl-registry/tests/data/native_oo_context296/superclass.tcl). SHA-256 `8c9cec1f986adfb206bfe9bf82e944977d8c610c7e4e32852b26c90107931fff`. Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
+- `own-source349-runtime-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json). SHA-256 `bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f`. JSON pointer `/by_question/naming.tcloo.original-constant-link-introspection`. Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.
 
 ## Source inspection
 
@@ -179,27 +176,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 
 ## Consumer bindings
 
+- [runtime/rust/src/vars.rs](../../../../runtime/rust/src/vars.rs), `publish_variable_mapped`: Prepare a local alias using the actual selected existing namespace target and retain its software scalar entry/origin before capture, without reconstructing it from the printed local name.
 - [runtime/rust/src/cmd_info.rs](../../../../runtime/rust/src/cmd_info.rs), `cmd_info::tests::info_consts_includes_only_tcloo_instance_links` (linked): Selected public constant-link enumeration/status values retain independent method/formal/global/upvar relationships; no general cell or native header identity grant.
-
-A named test is a coverage binding, not a claim that it executed.
-
-- [runtime/rust/src/vars.rs](../../../../runtime/rust/src/vars.rs), `make_variable_mapped_with_origin`: Prepare a local alias using the actual selected existing namespace target and retain its software scalar entry/origin before capture, without reconstructing it from the printed local name.
 - [runtime/rust/src/vars.rs](../../../../runtime/rust/src/vars.rs), `vars::tests::stable_alias_preparation_follows_existing_namespace_alias_before_capture` (linked): A direct FrameStack/Namespaces fixture sets G9, makes namespace alias X to G, then prepares local X in a new frame. The retained local link has the actual global home/name G, reads9 and writes10 through the same software cell. No TclOO original process or native link pointer is observed.
 
-No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
+A named test is a coverage binding, not a claim that it executed.
 
 ## Replay
 
 Whole original inputs, actual commands/receipts, counted public outputs, executable/build/source pins and environment overrides are retained. Other inherited environment/compiler version are unrecorded. Absolute external paths are retained; portable replay is not promised. Re-execution yields new observations. Publication runs no native/compiler/Rust process.
-
-
-## Exact original-source349 software outcomes
-
-These finite results belong to the original source349 body/question/document pairs and the owned Runtime executable. Passing, failing, aborted/incomplete and unstarted selections retain their separate meanings. They establish no outcome for another source image or external provider.
-
-| Original selection | Passed | Failed | Aborted or incomplete | Not started |
-| --- | ---: | ---: | ---: | ---: |
-| `grouped` | 1 | 0 | 0 | 0 |
-| `isolated` | 1 | 0 | 0 | 0 |
-
-[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.

@@ -65,11 +65,11 @@ Physical Foundation header/refcount/role identity is unmeasured. The separately 
 ## Exact evidence
 
 - `rust-tcl-registry-src-native_tcloo_method_definition.rs` (implementation): [rust/tcl-registry/src/native_tcloo_method_definition.rs](../../../../rust/tcl-registry/src/native_tcloo_method_definition.rs). SHA-256 `3c0401d4da4d84e6f1c4ed8ff78f1e863be014913bf979141362e3deb932daa5`. Current inspected selected role, real Foundation report owner, actual reached-chain producer, parent registration or four unexecuted software control definitions. No physical external execution or Rust assertion outcome.
-- `runtime-rust-src-cmd_oo.rs` (implementation): [runtime/rust/src/cmd_oo.rs](../../../../runtime/rust/src/cmd_oo.rs). SHA-256 `dcd59fb5b35890c1ccc6e779dbecbf33231a991f802ed4823d21720c77db780c`. Current inspected selected role, real Foundation report owner, actual reached-chain producer, parent registration or four unexecuted software control definitions. No physical external execution or Rust assertion outcome.
+- `runtime-rust-src-cmd_oo.rs` (implementation): [runtime/rust/src/cmd_oo.rs](../../../../runtime/rust/src/cmd_oo.rs). SHA-256 `af9e84d17e45cce142a005a43ff88edc65cd35200cbf64e41cc49ad5f94da2cc`. Current inspected selected role, real Foundation report owner, actual reached-chain producer, parent registration or four unexecuted software control definitions. No physical external execution or Rust assertion outcome.
 - `runtime-rust-src-cmd_oo-native_method_cache.rs` (implementation): [runtime/rust/src/cmd_oo/native_method_cache.rs](../../../../runtime/rust/src/cmd_oo/native_method_cache.rs). SHA-256 `be4c8bdfeab08e118340f08079815497a9b691b2fa4492bb5cb13c93e7ccd3ce`. Current inspected selected role, real Foundation report owner, actual reached-chain producer, parent registration or four unexecuted software control definitions. No physical external execution or Rust assertion outcome.
 - `runtime-rust-src-cmd_oo-native_method_report_tests.rs` (implementation): [runtime/rust/src/cmd_oo/native_method_report_tests.rs](../../../../runtime/rust/src/cmd_oo/native_method_report_tests.rs). SHA-256 `30c89ea1383d302ce2b34a19d0244cc906a27142502bdd2264a9df0c9c3fbbb5`. Current inspected selected role, real Foundation report owner, actual reached-chain producer, parent registration or four unexecuted software control definitions. No physical external execution or Rust assertion outcome.
-- `rust-tcl-vm-src-cmd_oo.rs` (implementation): [rust/tcl-vm/src/cmd_oo.rs](../../../../rust/tcl-vm/src/cmd_oo.rs). SHA-256 `94c8d0d8cbd46f8313c09e9bbbbdcee5eecd5f74af2704f6d12f4df5bce44c5a`. Current inspected selected role, real Foundation report owner, actual reached-chain producer, parent registration or four unexecuted software control definitions. No physical external execution or Rust assertion outcome.
-- `rust-tcl-vm-src-cmd_oo-native_method_cache.rs` (implementation): [rust/tcl-vm/src/cmd_oo/native_method_cache.rs](../../../../rust/tcl-vm/src/cmd_oo/native_method_cache.rs). SHA-256 `f12bc10962edf7395f34a276ffb4474657ac7eaba8cf9dae06ac5b717c431859`. Current inspected selected role, real Foundation report owner, actual reached-chain producer, parent registration or four unexecuted software control definitions. No physical external execution or Rust assertion outcome.
+- `rust-tcl-vm-src-cmd_oo.rs` (implementation): [rust/tcl-vm/src/cmd_oo.rs](../../../../rust/tcl-vm/src/cmd_oo.rs). SHA-256 `14de72818bc18b8a772b34dd39b2008f707a883916d1ff05b6f58e8f6a8b43a4`. Current inspected selected role, real Foundation report owner, actual reached-chain producer, parent registration or four unexecuted software control definitions. No physical external execution or Rust assertion outcome.
+- `rust-tcl-vm-src-cmd_oo-native_method_cache.rs` (implementation): [rust/tcl-vm/src/cmd_oo/native_method_cache.rs](../../../../rust/tcl-vm/src/cmd_oo/native_method_cache.rs). SHA-256 `e00c5513bd0c59bf1850b219218fdb6ffd8e17072329871ebb1344b021419494`. Current inspected selected role, real Foundation report owner, actual reached-chain producer, parent registration or four unexecuted software control definitions. No physical external execution or Rust assertion outcome.
 - `rust-tcl-vm-src-cmd_oo-native_method_report_tests.rs` (implementation): [rust/tcl-vm/src/cmd_oo/native_method_report_tests.rs](../../../../rust/tcl-vm/src/cmd_oo/native_method_report_tests.rs). SHA-256 `c66075d115663693a5ba68f36183eda112f5846a772550e6d87251915d1d7f4a`. Current inspected selected role, real Foundation report owner, actual reached-chain producer, parent registration or four unexecuted software control definitions. No physical external execution or Rust assertion outcome.
 - `docs-design-contracts-tcloo-implementation.md` (implementation): [docs/design/contracts/tcloo-implementation.md](../../../../docs/design/contracts/tcloo-implementation.md). SHA-256 `5b1173ca8dfa50da8b0324d3a2af068148ee8ddf7e89198f29ea86f83bd239ef`. Current inspected selected role, real Foundation report owner, actual reached-chain producer, parent registration or four unexecuted software control definitions. No physical external execution or Rust assertion outcome.
 - `runtime-rust-tests-data-native_selected_method_role_report_source_contract-integrated-source-packet.json` (reconfirmation): [runtime/rust/tests/data/native_selected_method_role_report_source_contract/integrated-source-packet.json](../../../../runtime/rust/tests/data/native_selected_method_role_report_source_contract/integrated-source-packet.json). SHA-256 `fe505dfc41c3ac17f20692edbfb5a23dc9118d90d484a6ea6938120c1a155d2d`. Exact integrated source contract manifest; source-only owner definitions and finite controls.
@@ -658,25 +658,3 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 Use a successful matching own Runtime/VM producer and actual inventory before attaching software assertions. Obtain an independently fixed physical original observation for header/refcount/role identity. Preserve ordinary CLI values, Method record/clientData lifetimes and Foundation source/API inspection as distinct purposes.
-
-## Current report-owner usage
-
-Select the pure report protocol through the actual TclOO availability owner.
-Retain the role issued by the genuine constructor, destructor or named entry
-producer in the reached chain; next inherits that role. A name whose bytes
-are <constructor> or <destructor> remains a named method unless the actual
-entry producer issued a special role.
-
-Bootstrap and retain the actual Foundation report objects independently of
-unnamed Method records. Runtime self method returns the checked original
-physical report object; VM returns its independently retained Value owner.
-Their identities and counts have separate software contracts. A missing
-Foundation report owner or unavailable selection is terminal and preserves
-the exact Host refusal.
-
-The [TclOO interface contract](../../contracts/tcloo-implementation.md)
-describes these roles. The four linked definitions remain unrun. Printed CLI
-bytes cannot authenticate report role, native header identity or refcounts;
-Method cache/clientData lifetime likewise supplies no Foundation owner.
-The [ordinary CLI value question](tcloo-ordinary-cli-method-role-report-values.md)
-retains its separate public printed-value and initialized-availability scope.
