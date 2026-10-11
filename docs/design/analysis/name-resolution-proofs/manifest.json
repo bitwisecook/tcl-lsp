@@ -576314,6 +576314,1628 @@
         "command": [],
         "limitations": "Replay the unchanged original counted-object probe for all 32 indices, including the actual C8.4 unsupported Guest cases. Preserve the explicit observer holds and actual containing List roles, counted NUL lengths, same-child aliases, original Integer constructor and repeated options. Provider receipts retain exact compile/link/launch vectors, environment, stream hashes, source pins and image identities. Rebuilt bytes require a separate experiment. No unmeasured callback, private-field or Rust assertion is admitted."
       }
+    },
+    {
+      "id": "naming.encoding.original-byte-name-lookup-and-source-order",
+      "kind": "native-observation",
+      "document": "docs/design/analysis/name-resolution-proofs/encoding-original-byte-name-lookup-and-source-order.md",
+      "problem_statement": "Encoding catalogue names are original String bytes, not Unicode identifiers. Source gets an explicit encoding String before opening the file but resolves its catalogue name after successful open. A Unicode validator, replacement-character rewrite, early lookup or ignored encoding operand changes the public result and source effects. Empty system reset is a stored platform default, distinct from the current system encoding.",
+      "question": "For the exact counted String names, including literal and modified zero and invalid UTF-8 bytes, what encoding system and explicit source results, errorCode bytes, system changes and file effects occur on each actual initialized provider, and which source stage wins when the file is missing?",
+      "conclusion": "All measured C providers use original byte encoding names with a literal-zero C-string extent: utf-8 followed by raw zero and a tail is accepted, uppercase UTF-8 is rejected, and raw FF/C0AF and modified-zero names produce original byte unknown-encoding diagnostics rather than a Unicode validation error. Empty system names restore the actual stored default: identity on the measured C8.4/C8.5 initialized processes and iso8859-1 on the measured C8.6/C9 processes; these are environment observations, not release-derived defaults. Binary is unknown for encoding system. C8.5/C8.6 explicit source accepts empty/binary channel names; C9 rejects them with its no-longer-supported diagnostic and NONE. Every explicit-source missing-file case on C8.5+ reports POSIX ENOENT before encoding lookup, including invalid and unsupported names. C8.4 rejects the explicit form by arity. Jim has no encoding command and accepts only the source filename grammar. Successful existing-file cases execute the exact script and return SOURCE_OK. Full result/errorCode/system/effect bytes remain in the original streams.",
+      "scope": "Six separately compiled and executed probe processes, each process exit0, contain 41 fresh initialized interpreters: 13 exact public counted String constructor names across system setter, explicit-source existing and explicit-source missing workers, plus two plain-source controls. This is 246 interpreter blocks, not 246 subprocesses. C uses Tcl_CreateInterp/Tcl_Init and Jim uses its recorded initialized provider sequence; each block seeds errorCode and the source effect and observes the current system value separately. Each C block explicitly establishes utf-8 before the tested operation. Exact compiler/link commands, CLI versions, independent same-library versions, original probe ELF and library/header/source bytes and before/after pins are retained. Source excerpts support getter-before-open versus catalogue-after-open stages; public outputs establish file-failure precedence. No callback/updater/free chronology, Native reference-count or protective-hold schedule, complete encoding catalogue, non-ASCII file codec/profile/eof/BOM semantics, Rust build/assertion outcome, universal platform/default or BIG-IP result is established.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "8.4.20",
+          "dialect": "tcl8.4",
+          "status": "observed",
+          "build": "Original compile/link command and compiler bytes, source/header/configuration/archive or shared-library bytes, invoked CLI and probe ELF bytes, CLI and independent same-library version captures, and before/after whole-byte pins are retained. A complete system toolchain and loaded dynamic-library closure is unrecorded.",
+          "input_channel": "One original compiled public object-vector probe process with 41 fresh initialized interpreters. Names come from public counted String constructors over exact C arrays; original literal and modified zero bytes are not source-decoded or rewritten.",
+          "answer": "Original unknown encoding diagnostics retain raw bytes and set NONE. Literal-zero tails truncate; modified zero remains in the name. Empty system reset returns the measured identity default. Binary and uppercase are unknown. All 26 explicit-source calls fail by source fileName arity, with no script effect. Plain source succeeds on the existing file and reports ENOENT on the absent file.",
+          "evidence": [
+            "original-counted-probe",
+            "original-request",
+            "original-counted-names",
+            "original-process-results",
+            "actual-block-projection",
+            "exact-input-map",
+            "exact-input-bytes",
+            "all-original-retention",
+            "original-existing-source",
+            "original-input-manifest",
+            "original-compiler",
+            "same-library-results",
+            "replay-path-adaptation",
+            "source-window-0",
+            "source-window-1",
+            "source-window-2",
+            "source-window-3",
+            "source-window-4",
+            "source-window-30",
+            "tcl8.4-receipt-json",
+            "tcl8.4-execute-stdout",
+            "tcl8.4-execute-stderr",
+            "tcl8.4-observations-json",
+            "tcl8.4-cli-version-stdout",
+            "tcl8.4-same-library-version-receipt-json",
+            "tcl8.4-same-library-version-execute-stdout"
+          ]
+        },
+        {
+          "id": "tcl8.5",
+          "version": "8.5.19",
+          "dialect": "tcl8.5",
+          "status": "observed",
+          "build": "Original compile/link command and compiler bytes, source/header/configuration/archive or shared-library bytes, invoked CLI and probe ELF bytes, CLI and independent same-library version captures, and before/after whole-byte pins are retained. A complete system toolchain and loaded dynamic-library closure is unrecorded.",
+          "input_channel": "One original compiled public object-vector probe process with 41 fresh initialized interpreters. Names come from public counted String constructors over exact C arrays; original literal and modified zero bytes are not source-decoded or rewritten.",
+          "answer": "System empty restores the measured identity default; binary/uppercase/raw invalid/modified-zero names are unknown with TCL LOOKUP ENCODING and exact original bytes. Existing explicit source accepts empty/binary and the supported names and executes the script; absent files always report POSIX ENOENT before lookup. Literal-zero names use the truncated prefix.",
+          "evidence": [
+            "original-counted-probe",
+            "original-request",
+            "original-counted-names",
+            "original-process-results",
+            "actual-block-projection",
+            "exact-input-map",
+            "exact-input-bytes",
+            "all-original-retention",
+            "original-existing-source",
+            "original-input-manifest",
+            "original-compiler",
+            "same-library-results",
+            "replay-path-adaptation",
+            "source-window-5",
+            "source-window-6",
+            "source-window-7",
+            "source-window-8",
+            "source-window-9",
+            "source-window-10",
+            "source-window-31",
+            "tcl8.5-receipt-json",
+            "tcl8.5-execute-stdout",
+            "tcl8.5-execute-stderr",
+            "tcl8.5-observations-json",
+            "tcl8.5-cli-version-stdout",
+            "tcl8.5-same-library-version-receipt-json",
+            "tcl8.5-same-library-version-execute-stdout"
+          ]
+        },
+        {
+          "id": "tcl8.6",
+          "version": "8.6.18",
+          "dialect": "tcl8.6",
+          "status": "observed",
+          "build": "Original compile/link command and compiler bytes, source/header/configuration/archive or shared-library bytes, invoked CLI and probe ELF bytes, CLI and independent same-library version captures, and before/after whole-byte pins are retained. A complete system toolchain and loaded dynamic-library closure is unrecorded.",
+          "input_channel": "One original compiled public object-vector probe process with 41 fresh initialized interpreters. Names come from public counted String constructors over exact C arrays; original literal and modified zero bytes are not source-decoded or rewritten.",
+          "answer": "System empty restores the measured iso8859-1 default. Exact byte unknown names retain TCL LOOKUP ENCODING. Existing explicit source accepts empty/binary; absent files report POSIX ENOENT first. Literal-zero prefixes are selected and modified zero is not a terminator.",
+          "evidence": [
+            "original-counted-probe",
+            "original-request",
+            "original-counted-names",
+            "original-process-results",
+            "actual-block-projection",
+            "exact-input-map",
+            "exact-input-bytes",
+            "all-original-retention",
+            "original-existing-source",
+            "original-input-manifest",
+            "original-compiler",
+            "same-library-results",
+            "replay-path-adaptation",
+            "source-window-11",
+            "source-window-12",
+            "source-window-13",
+            "source-window-14",
+            "source-window-15",
+            "source-window-16",
+            "source-window-32",
+            "tcl8.6-receipt-json",
+            "tcl8.6-execute-stdout",
+            "tcl8.6-execute-stderr",
+            "tcl8.6-observations-json",
+            "tcl8.6-cli-version-stdout",
+            "tcl8.6-same-library-version-receipt-json",
+            "tcl8.6-same-library-version-execute-stdout"
+          ]
+        },
+        {
+          "id": "tcl9.0",
+          "version": "9.0.4",
+          "dialect": "tcl9.0",
+          "status": "observed",
+          "build": "Original compile/link command and compiler bytes, source/header/configuration/archive or shared-library bytes, invoked CLI and probe ELF bytes, CLI and independent same-library version captures, and before/after whole-byte pins are retained. A complete system toolchain and loaded dynamic-library closure is unrecorded.",
+          "input_channel": "One original compiled public object-vector probe process with 41 fresh initialized interpreters. Names come from public counted String constructors over exact C arrays; original literal and modified zero bytes are not source-decoded or rewritten.",
+          "answer": "System empty restores the measured iso8859-1 default. Existing explicit source rejects empty/binary with the exact no-longer-supported diagnostic and NONE. Missing files report POSIX ENOENT before that configuration/lookup failure. Other original unknown names preserve byte diagnostics and TCL LOOKUP ENCODING.",
+          "evidence": [
+            "original-counted-probe",
+            "original-request",
+            "original-counted-names",
+            "original-process-results",
+            "actual-block-projection",
+            "exact-input-map",
+            "exact-input-bytes",
+            "all-original-retention",
+            "original-existing-source",
+            "original-input-manifest",
+            "original-compiler",
+            "same-library-results",
+            "replay-path-adaptation",
+            "source-window-17",
+            "source-window-18",
+            "source-window-19",
+            "source-window-20",
+            "source-window-21",
+            "source-window-22",
+            "source-window-33",
+            "tcl9.0-receipt-json",
+            "tcl9.0-execute-stdout",
+            "tcl9.0-execute-stderr",
+            "tcl9.0-observations-json",
+            "tcl9.0-cli-version-stdout",
+            "tcl9.0-same-library-version-receipt-json",
+            "tcl9.0-same-library-version-execute-stdout"
+          ]
+        },
+        {
+          "id": "tcl9.1",
+          "version": "9.1.0",
+          "dialect": "tcl9.1",
+          "status": "observed",
+          "build": "Original compile/link command and compiler bytes, source/header/configuration/archive or shared-library bytes, invoked CLI and probe ELF bytes, CLI and independent same-library version captures, and before/after whole-byte pins are retained. A complete system toolchain and loaded dynamic-library closure is unrecorded.",
+          "input_channel": "One original compiled public object-vector probe process with 41 fresh initialized interpreters. Names come from public counted String constructors over exact C arrays; original literal and modified zero bytes are not source-decoded or rewritten.",
+          "answer": "System empty restores the measured iso8859-1 default. Existing explicit source rejects empty/binary with the exact no-longer-supported diagnostic and NONE. Missing files report POSIX ENOENT before configuration/lookup failure. Literal-zero prefix and original invalid-byte lookup results match the recorded C9.0 cases.",
+          "evidence": [
+            "original-counted-probe",
+            "original-request",
+            "original-counted-names",
+            "original-process-results",
+            "actual-block-projection",
+            "exact-input-map",
+            "exact-input-bytes",
+            "all-original-retention",
+            "original-existing-source",
+            "original-input-manifest",
+            "original-compiler",
+            "same-library-results",
+            "replay-path-adaptation",
+            "source-window-23",
+            "source-window-24",
+            "source-window-25",
+            "source-window-26",
+            "source-window-27",
+            "source-window-28",
+            "source-window-34",
+            "tcl9.1-receipt-json",
+            "tcl9.1-execute-stdout",
+            "tcl9.1-execute-stderr",
+            "tcl9.1-observations-json",
+            "tcl9.1-cli-version-stdout",
+            "tcl9.1-same-library-version-receipt-json",
+            "tcl9.1-same-library-version-execute-stdout"
+          ]
+        },
+        {
+          "id": "jim",
+          "version": "0.84-9-g5bac7c9",
+          "dialect": "jim",
+          "status": "observed",
+          "build": "Original compile/link command and compiler bytes, source/header/configuration/archive or shared-library bytes, invoked CLI and probe ELF bytes, CLI and independent same-library version captures, and before/after whole-byte pins are retained. A complete system toolchain and loaded dynamic-library closure is unrecorded.",
+          "input_channel": "One original compiled public object-vector probe process with 41 fresh initialized interpreters. Names come from public counted String constructors over exact C arrays; original literal and modified zero bytes are not source-decoded or rewritten.",
+          "answer": "Encoding is unavailable: its original command lookup error is retained for all13 system attempts and each separate before/after system query. All26 explicit source attempts fail the filename-only arity and preserve the seeded errorCode. Plain existing source runs the script and normalizes return to SOURCE_OK; plain missing source uses its measured capitalized No such file or directory and preserves the seeded errorCode.",
+          "evidence": [
+            "original-counted-probe",
+            "original-request",
+            "original-counted-names",
+            "original-process-results",
+            "actual-block-projection",
+            "exact-input-map",
+            "exact-input-bytes",
+            "all-original-retention",
+            "original-existing-source",
+            "original-input-manifest",
+            "original-compiler",
+            "same-library-results",
+            "replay-path-adaptation",
+            "source-window-29",
+            "jim-receipt-json",
+            "jim-execute-stdout",
+            "jim-execute-stderr",
+            "jim-observations-json",
+            "jim-cli-version-stdout",
+            "jim-same-library-version-receipt-json",
+            "jim-same-library-version-execute-stdout"
+          ]
+        },
+        {
+          "id": "bigip",
+          "version": "not tested",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "No original BIG-IP encoding or source worker observation is available.",
+          "evidence": [],
+          "build": "No appliance process, build, library or executable was measured.",
+          "input_channel": "No original BIG-IP input was executed."
+        }
+      ],
+      "tests": [],
+      "owners": [],
+      "replay": {
+        "command": [
+          "python3",
+          "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/run.py",
+          "--output",
+          "<new-absolute-directory>"
+        ],
+        "limitations": "The replay adapter verifies all original pins and requires --output <fresh-absolute-directory>; it redirects only the retained original runner request/output constants. Unchanged original runners remain separately retained. Restore and verify the exact original source, header, archive, probe ELF and required distribution-library bytes and use a distinct fresh output directory. The preserved runner uses the original absolute provider paths and creates one probe process with 41 fresh interpreters per provider. Do not overwrite the original receipts or substitute a new executable while retaining their attribution. The full compiler/runtime dynamic load closure and any new Host callback or Rust chronology remain independent. The canonical adapter verifies all recorded original input paths first and redirects only request/output and the identical retained version-driver source. Original absolute provider paths must be restored and verified separately; this archive supplies whole pinned payloads by digest without automatically installing them. Any successful replay is a new experiment, never a replacement for these original streams."
+      },
+      "evidence": [
+        {
+          "id": "original-counted-probe",
+          "role": "input",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/probe.c",
+          "sha256": "7f7c2c4bc91f2305ff5ad12036a44a078fbcdf6acbf40968a559b5c0ae2e8f39",
+          "description": "Exact public counted String constructor inputs and object-vector schedule, with independent query and tested-command fields."
+        },
+        {
+          "id": "original-request",
+          "role": "input",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/request.json",
+          "sha256": "21cd13c419f677a78feacb7055c844ff68754f4d12da0d711b2bbc762f064704",
+          "description": "Exact original question and provider/case requirements; no golden answer is prescribed."
+        },
+        {
+          "id": "original-counted-names",
+          "role": "input",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/cases.json",
+          "sha256": "9e43554c1e0f8eb516d9ab2360f69ee97dcb60c7fa30af859685526e7de11799",
+          "description": "All thirteen exact counted raw names, three workers and two plain-source controls; existing source script bytes are specified independently."
+        },
+        {
+          "id": "original-process-results",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/results.json",
+          "sha256": "fd84aff2ce623d746f71db1fe041882cdff327034042d77b0bacb407ea573e94",
+          "description": "Six closed original provider processes, each exit 0 and 41 actual interpreter blocks; original receipt hashes unchanged."
+        },
+        {
+          "id": "actual-block-projection",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/interpretation.json",
+          "sha256": "15a2e5008192957642661f8e70ab8f18c827c53b5ecfb3b9436c9ddff1fb97b0",
+          "description": "All 246 exact raw blocks, preserving tested RETURN separately from availability/version/system queries."
+        },
+        {
+          "id": "exact-input-map",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/pinned-input-map.json",
+          "sha256": "a953e193261c1fc75f6caa5f089986834d013826662bddeaaedc451b18f513a3",
+          "description": "Every original input path joins its complete whole-byte archive member; no missing loader/toolchain closure is inferred."
+        },
+        {
+          "id": "exact-input-bytes",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/pinned-input-bytes.tar.gz",
+          "sha256": "6895a900e636f60d0bb604ec7f21766e82e49ee4e98faf4967fc31800825ae14",
+          "description": "Complete measured source/header/configuration/distribution library/compiler/CLI/input bytes, losslessly compressed and round-trip verified."
+        },
+        {
+          "id": "all-original-retention",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/retention.json",
+          "sha256": "2781ce2e0da477979b3acc62902d0140a322a00900f8e06dc254f5811f61d544",
+          "description": "Every original receipt, raw stream and all twelve driver/version ELFs retained and independently round-trip verified."
+        },
+        {
+          "id": "original-existing-source",
+          "role": "input",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-existing.tcl",
+          "sha256": "cdaaef7587b816c22bd7b78ff9c021d288afebf82978477fc698692e20e8b4a6",
+          "description": "Exact runner-owned ASCII file content; guaranteed absent sibling has separate before/after receipt evidence."
+        },
+        {
+          "id": "original-input-manifest",
+          "role": "input",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/input-manifest.json",
+          "sha256": "04d67eb4fef84e0c70967b22be08bd4aa23e0295a8471cf8f5a99f82c5afec97",
+          "description": "Exact original input request manifest bound by all original receipts."
+        },
+        {
+          "id": "original-compiler",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/compiler.json",
+          "sha256": "ce99a334ccb23cd96ed7779ea2313fc175e9f6037afc02df9c5f66eab07fe6d1",
+          "description": "Actual compiler executable fingerprint and version command/stream hashes."
+        },
+        {
+          "id": "same-library-results",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/library-version-results.json",
+          "sha256": "d0d29f047149b6502641d54cfe2776c5d446e3cfe9f3ff52480f46d06af283a2",
+          "description": "Six independent same-library version observations; not inserted into the original tested-command processes."
+        },
+        {
+          "id": "replay-path-adaptation",
+          "role": "input",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/REPLAY-PATH-ADAPTATION.json",
+          "sha256": "0b74954c5bf1cb988488d1265755c5ec7f64f14dacbd175a48469cafcb44b393",
+          "description": "Explicit path-only replay adaptation; unchanged original protocol scripts remain retained."
+        },
+        {
+          "id": "source-window-0",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "Tcl_GetEncoding: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/0/snippet"
+        },
+        {
+          "id": "source-window-1",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "Tcl_SetSystemEncoding: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/1/snippet"
+        },
+        {
+          "id": "source-window-2",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "LoadEncodingFile: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/2/snippet"
+        },
+        {
+          "id": "source-window-3",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "Tcl_EncodingObjCmd: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/3/snippet"
+        },
+        {
+          "id": "source-window-4",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "Tcl_SourceObjCmd: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/4/snippet"
+        },
+        {
+          "id": "source-window-5",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "Tcl_GetEncoding: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/5/snippet"
+        },
+        {
+          "id": "source-window-6",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "Tcl_SetSystemEncoding: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/6/snippet"
+        },
+        {
+          "id": "source-window-7",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "LoadEncodingFile: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/7/snippet"
+        },
+        {
+          "id": "source-window-8",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "Tcl_EncodingObjCmd: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/8/snippet"
+        },
+        {
+          "id": "source-window-9",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "Tcl_SourceObjCmd: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/9/snippet"
+        },
+        {
+          "id": "source-window-10",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "Tcl_FSEvalFileEx: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/10/snippet"
+        },
+        {
+          "id": "source-window-11",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "Tcl_GetEncoding: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/11/snippet"
+        },
+        {
+          "id": "source-window-12",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "Tcl_SetSystemEncoding: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/12/snippet"
+        },
+        {
+          "id": "source-window-13",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "LoadEncodingFile: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/13/snippet"
+        },
+        {
+          "id": "source-window-14",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "EncodingSystemObjCmd: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/14/snippet"
+        },
+        {
+          "id": "source-window-15",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "TclNRSourceObjCmd: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/15/snippet"
+        },
+        {
+          "id": "source-window-16",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "Tcl_FSEvalFileEx: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/16/snippet"
+        },
+        {
+          "id": "source-window-17",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "Tcl_GetEncoding: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/17/snippet"
+        },
+        {
+          "id": "source-window-18",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "Tcl_SetSystemEncoding: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/18/snippet"
+        },
+        {
+          "id": "source-window-19",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "LoadEncodingFile: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/19/snippet"
+        },
+        {
+          "id": "source-window-20",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "EncodingSystemObjCmd: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/20/snippet"
+        },
+        {
+          "id": "source-window-21",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "TclNRSourceObjCmd: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/21/snippet"
+        },
+        {
+          "id": "source-window-22",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "Tcl_FSEvalFileEx: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/22/snippet"
+        },
+        {
+          "id": "source-window-23",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "Tcl_GetEncoding: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/23/snippet"
+        },
+        {
+          "id": "source-window-24",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "Tcl_SetSystemEncoding: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/24/snippet"
+        },
+        {
+          "id": "source-window-25",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "LoadEncodingFile: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/25/snippet"
+        },
+        {
+          "id": "source-window-26",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "EncodingSystemObjCmd: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/26/snippet"
+        },
+        {
+          "id": "source-window-27",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "TclNRSourceObjCmd: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/27/snippet"
+        },
+        {
+          "id": "source-window-28",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "Tcl_FSEvalFileEx: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/28/snippet"
+        },
+        {
+          "id": "source-window-29",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "Jim_SourceCoreCommand: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/29/snippet"
+        },
+        {
+          "id": "source-window-30",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "TclInitEncodingSubsystem stored defaultEncoding initialization: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/30/snippet"
+        },
+        {
+          "id": "source-window-31",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "TclInitEncodingSubsystem stored defaultEncoding initialization: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/31/snippet"
+        },
+        {
+          "id": "source-window-32",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "TclInitEncodingSubsystem stored defaultEncoding initialization: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/32/snippet"
+        },
+        {
+          "id": "source-window-33",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "TclInitEncodingSubsystem stored defaultEncoding initialization: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/33/snippet"
+        },
+        {
+          "id": "source-window-34",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+          "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+          "description": "TclInitEncodingSubsystem stored defaultEncoding initialization: exact decoded snippet, physical-LF lines and whole source/archive join.",
+          "json_pointer": "/anchors/34/snippet"
+        },
+        {
+          "id": "tcl8.4-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/receipt.json",
+          "sha256": "37cc822682c7bbeeadde3b9c886d5973aa54512ed5d2f819abc39ad3bec9410a",
+          "description": "Actual original compile/link/launch recipes, environment, input pins, source file absence checks and executable identity."
+        },
+        {
+          "id": "tcl8.4-execute-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/execute.stdout",
+          "sha256": "3f8550728381dff0a2d1a23f4d176a978529d6389480146ec07f6d932801e24c",
+          "description": "Unchanged original raw pipe-delimited output for all41 fresh interpreters; tested RETURN is separate from observer queries."
+        },
+        {
+          "id": "tcl8.4-execute-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/execute.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Unchanged original probe process stderr."
+        },
+        {
+          "id": "tcl8.4-observations-json",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/observations.json",
+          "sha256": "bcdfa41e210d8e2265e083a0f257b306129948c862e08f3b340c8d5b4c0dafba",
+          "description": "Exact original parser projection of the retained raw output, byte-for-byte record unchanged."
+        },
+        {
+          "id": "tcl8.4-cli-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/cli-version.stdout",
+          "sha256": "c4a268983bec029286482df6caa3aaae81571c33d467c0a13f258e335da5954f",
+          "description": "Actual invoked CLI patchlevel bytes, independently receipt-bound."
+        },
+        {
+          "id": "tcl8.4-same-library-version-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/same-library-version/receipt.json",
+          "sha256": "fcf59c5bfd494b1028df7bae3e6e115a67b997907bd18950129dc5e89f450a0b",
+          "description": "Independent version driver bound to the identical selected static library and original input pins."
+        },
+        {
+          "id": "tcl8.4-same-library-version-execute-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/same-library-version/execute.stdout",
+          "sha256": "ef18d09813e9c05fbd397154e6f786ea0221f2ce8981597665e917a08a5c5d7f",
+          "description": "Actual linked-library patchlevel and C public version fields."
+        },
+        {
+          "id": "tcl8.5-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/receipt.json",
+          "sha256": "5cde5fe66bc2a4333d7a9d95f81f76bb6339e167a84bcbe3828a0569170752e0",
+          "description": "Actual original compile/link/launch recipes, environment, input pins, source file absence checks and executable identity."
+        },
+        {
+          "id": "tcl8.5-execute-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/execute.stdout",
+          "sha256": "6d53603789c40062f4fcdfd52714452b929d48e4e2fc3a35aa1b5c75169f4456",
+          "description": "Unchanged original raw pipe-delimited output for all41 fresh interpreters; tested RETURN is separate from observer queries."
+        },
+        {
+          "id": "tcl8.5-execute-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/execute.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Unchanged original probe process stderr."
+        },
+        {
+          "id": "tcl8.5-observations-json",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/observations.json",
+          "sha256": "2383738009d598066c41b5153ee5e2bc8740e1cdeca7624a3328ca6409faae98",
+          "description": "Exact original parser projection of the retained raw output, byte-for-byte record unchanged."
+        },
+        {
+          "id": "tcl8.5-cli-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/cli-version.stdout",
+          "sha256": "6b58793c92a3db92926bdacbe0a52a520d417fe876aaa7cf8c29fed54a1fea71",
+          "description": "Actual invoked CLI patchlevel bytes, independently receipt-bound."
+        },
+        {
+          "id": "tcl8.5-same-library-version-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/same-library-version/receipt.json",
+          "sha256": "51d00af4c334cc902ddfa7cf214cbeb5f3008ded767f7643db11587c652a0798",
+          "description": "Independent version driver bound to the identical selected static library and original input pins."
+        },
+        {
+          "id": "tcl8.5-same-library-version-execute-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/same-library-version/execute.stdout",
+          "sha256": "1bd253489464d3ed255f286efdc8deb3768100a5b873e0a062f5026291fcf9bb",
+          "description": "Actual linked-library patchlevel and C public version fields."
+        },
+        {
+          "id": "tcl8.6-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/receipt.json",
+          "sha256": "9a70c06f16be9aa5d9ae7aeeb9c14719fccc467efcb7358105f6465d14052ce5",
+          "description": "Actual original compile/link/launch recipes, environment, input pins, source file absence checks and executable identity."
+        },
+        {
+          "id": "tcl8.6-execute-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/execute.stdout",
+          "sha256": "870f84ddd82f83a76dca7cff9154f134b16cd69f882444314130594aa09a96ae",
+          "description": "Unchanged original raw pipe-delimited output for all41 fresh interpreters; tested RETURN is separate from observer queries."
+        },
+        {
+          "id": "tcl8.6-execute-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/execute.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Unchanged original probe process stderr."
+        },
+        {
+          "id": "tcl8.6-observations-json",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/observations.json",
+          "sha256": "431c1a6bb50f5482e4b7e4596c41b553e5c3a39cd5da8fe3e5f96c8c3be1fb6e",
+          "description": "Exact original parser projection of the retained raw output, byte-for-byte record unchanged."
+        },
+        {
+          "id": "tcl8.6-cli-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/cli-version.stdout",
+          "sha256": "7523e113df6c321e18099a10ec22086db746e2fcc31a879e16d961e5d3878d01",
+          "description": "Actual invoked CLI patchlevel bytes, independently receipt-bound."
+        },
+        {
+          "id": "tcl8.6-same-library-version-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/same-library-version/receipt.json",
+          "sha256": "f782223aa90ce4bfcb02623e4174aa96c01a05dbd8a05cd33c8d473d9e1c2aa4",
+          "description": "Independent version driver bound to the identical selected static library and original input pins."
+        },
+        {
+          "id": "tcl8.6-same-library-version-execute-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/same-library-version/execute.stdout",
+          "sha256": "dd12d5dc76bfc80ae3033ac87b1932541f275a888adf9e03dabbcb5878b0df8c",
+          "description": "Actual linked-library patchlevel and C public version fields."
+        },
+        {
+          "id": "tcl9.0-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/receipt.json",
+          "sha256": "a29e93c27e0202806a72291e454bb1312e1685178f4affec266ab8adccf79f06",
+          "description": "Actual original compile/link/launch recipes, environment, input pins, source file absence checks and executable identity."
+        },
+        {
+          "id": "tcl9.0-execute-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/execute.stdout",
+          "sha256": "91b8a78fea58146fda99c491703692b8955b7e360175e83063ef878322a45480",
+          "description": "Unchanged original raw pipe-delimited output for all41 fresh interpreters; tested RETURN is separate from observer queries."
+        },
+        {
+          "id": "tcl9.0-execute-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/execute.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Unchanged original probe process stderr."
+        },
+        {
+          "id": "tcl9.0-observations-json",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/observations.json",
+          "sha256": "c9cde94e128f49210b8112b0ec9cdac97d8fc66dd65c5e44c2a47155ec12043c",
+          "description": "Exact original parser projection of the retained raw output, byte-for-byte record unchanged."
+        },
+        {
+          "id": "tcl9.0-cli-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/cli-version.stdout",
+          "sha256": "b83920bac1b2d47c3840f588f95bee9dc69b85e26117f471541cdf85d7da52a2",
+          "description": "Actual invoked CLI patchlevel bytes, independently receipt-bound."
+        },
+        {
+          "id": "tcl9.0-same-library-version-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/same-library-version/receipt.json",
+          "sha256": "5b1d72369c29734f33e6fe8d64670a4cdcef61b0d4edc1ca3cbb885cb641e89c",
+          "description": "Independent version driver bound to the identical selected static library and original input pins."
+        },
+        {
+          "id": "tcl9.0-same-library-version-execute-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/same-library-version/execute.stdout",
+          "sha256": "d016aed0da5636f83bfe6d76f7c26b06e30ce7951203b5d3543001780eb51a2c",
+          "description": "Actual linked-library patchlevel and C public version fields."
+        },
+        {
+          "id": "tcl9.1-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/receipt.json",
+          "sha256": "2e866e65c0e7048dd19395fa1873cc64340eb7703ef6345136fc125516275b24",
+          "description": "Actual original compile/link/launch recipes, environment, input pins, source file absence checks and executable identity."
+        },
+        {
+          "id": "tcl9.1-execute-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/execute.stdout",
+          "sha256": "32d3f8733028139d981f27e438844e269d94a987491c42188a978428b846db68",
+          "description": "Unchanged original raw pipe-delimited output for all41 fresh interpreters; tested RETURN is separate from observer queries."
+        },
+        {
+          "id": "tcl9.1-execute-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/execute.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Unchanged original probe process stderr."
+        },
+        {
+          "id": "tcl9.1-observations-json",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/observations.json",
+          "sha256": "964f3413265b177745a959b931f108592cc40fd1c08e0009fbb0e55c9f691a2c",
+          "description": "Exact original parser projection of the retained raw output, byte-for-byte record unchanged."
+        },
+        {
+          "id": "tcl9.1-cli-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/cli-version.stdout",
+          "sha256": "077ee5b3a3a7fc2622ceff6466fea0c28f3fb08b24653dcc7f4baab29b9aef36",
+          "description": "Actual invoked CLI patchlevel bytes, independently receipt-bound."
+        },
+        {
+          "id": "tcl9.1-same-library-version-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/same-library-version/receipt.json",
+          "sha256": "3a602fe131aa36d70fb5776d8151ddb68a27ba57b6c0097e93ae9947cb329778",
+          "description": "Independent version driver bound to the identical selected static library and original input pins."
+        },
+        {
+          "id": "tcl9.1-same-library-version-execute-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/same-library-version/execute.stdout",
+          "sha256": "b225f15b75641002abfa4f29d4d1be66051123c85bc897b9a7234b22317ea071",
+          "description": "Actual linked-library patchlevel and C public version fields."
+        },
+        {
+          "id": "jim-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/receipt.json",
+          "sha256": "d723e7ef3c18f6b7af89110bbc17f49652950e296a03d3523439db1fe91abbb7",
+          "description": "Actual original compile/link/launch recipes, environment, input pins, source file absence checks and executable identity."
+        },
+        {
+          "id": "jim-execute-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/execute.stdout",
+          "sha256": "a7c6258a0f7caf511cb26412856cbe91af21cd9eabff79e10edbe32002b84dae",
+          "description": "Unchanged original raw pipe-delimited output for all41 fresh interpreters; tested RETURN is separate from observer queries."
+        },
+        {
+          "id": "jim-execute-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/execute.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Unchanged original probe process stderr."
+        },
+        {
+          "id": "jim-observations-json",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/observations.json",
+          "sha256": "99ad167755299f486b4da0cf44d9908ba97b6799ebec3ff956640d189e4c2153",
+          "description": "Exact original parser projection of the retained raw output, byte-for-byte record unchanged."
+        },
+        {
+          "id": "jim-cli-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/cli-version.stdout",
+          "sha256": "f9752899fa012cf994a528e0250402609067a6f67a144a1172644a9329386803",
+          "description": "Actual invoked CLI patchlevel bytes, independently receipt-bound."
+        },
+        {
+          "id": "jim-same-library-version-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/same-library-version/receipt.json",
+          "sha256": "654052a8eed20369ade32ea3b3fa851d6fd463f8e3152edf9f17be29326b786d",
+          "description": "Independent version driver bound to the identical selected static library and original input pins."
+        },
+        {
+          "id": "jim-same-library-version-execute-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/same-library-version/execute.stdout",
+          "sha256": "d7ce62ac8c979a247ad4edf0a43c9133dc8b547cdfc8e5b540fccd9bbe848166",
+          "description": "Actual linked-library patchlevel and C public version fields."
+        }
+      ],
+      "source_anchors": [
+        {
+          "provider": "tcl8.4",
+          "version": "8.4.20",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclEncoding.c",
+          "function": "Tcl_GetEncoding",
+          "lines": [
+            495,
+            519
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            16151,
+            16877
+          ],
+          "source_sha256": "b52a3a4d8385133479cd25a815f3dbb50f66848df7353be164ac2108556240a6",
+          "snippet": "Tcl_GetEncoding(interp, name)\n    Tcl_Interp *interp;\t\t/* Interp for error reporting, if not NULL. */\n    CONST char *name;\t\t/* The name of the desired encoding. */\n{\n    Tcl_HashEntry *hPtr;\n    Encoding *encodingPtr;\n\n    Tcl_MutexLock(&encodingMutex);\n    if (name == NULL) {\n\tencodingPtr = (Encoding *) systemEncoding;\n\tencodingPtr->refCount++;\n\tTcl_MutexUnlock(&encodingMutex);\n\treturn systemEncoding;\n    }\n\n    hPtr = Tcl_FindHashEntry(&encodingTable, name);\n    if (hPtr != NULL) {\n\tencodingPtr = (Encoding *) Tcl_GetHashValue(hPtr);\n\tencodingPtr->refCount++;\n\tTcl_MutexUnlock(&encodingMutex);\n\treturn (Tcl_Encoding) encodingPtr;\n    }\n    Tcl_MutexUnlock(&encodingMutex);\n    return LoadEncodingFile(interp, name);\n}\n",
+          "snippet_sha256": "9b604f69fa14f45ce33484f29de83022bdc7e517762a429cee35f2e096948adb",
+          "evidence": "source-window-0"
+        },
+        {
+          "provider": "tcl8.4",
+          "version": "8.4.20",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclEncoding.c",
+          "function": "Tcl_SetSystemEncoding",
+          "lines": [
+            765,
+            792
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            23082,
+            23817
+          ],
+          "source_sha256": "b52a3a4d8385133479cd25a815f3dbb50f66848df7353be164ac2108556240a6",
+          "snippet": "Tcl_SetSystemEncoding(interp, name)\n    Tcl_Interp *interp;\t\t/* Interp for error reporting, if not NULL. */\n    CONST char *name;\t\t/* The name of the desired encoding, or NULL/\"\"\n\t\t\t\t * to reset to default encoding. */\n{\n    Tcl_Encoding encoding;\n    Encoding *encodingPtr;\n\n    if (!name || !*name) {\n\tTcl_MutexLock(&encodingMutex);\n\tencoding = defaultEncoding;\n\tencodingPtr = (Encoding *) encoding;\n\tencodingPtr->refCount++;\n\tTcl_MutexUnlock(&encodingMutex);\n    } else {\n\tencoding = Tcl_GetEncoding(interp, name);\n\tif (encoding == NULL) {\n\t    return TCL_ERROR;\n\t}\n    }\n\n    Tcl_MutexLock(&encodingMutex);\n    FreeEncoding(systemEncoding);\n    systemEncoding = encoding;\n    Tcl_MutexUnlock(&encodingMutex);\n\n    return TCL_OK;\n}\n",
+          "snippet_sha256": "c78933322d4ad52d756b53adffd6a81befab2c610d3703fd48bd119a448db9f1",
+          "evidence": "source-window-1"
+        },
+        {
+          "provider": "tcl8.4",
+          "version": "8.4.20",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclEncoding.c",
+          "function": "LoadEncodingFile",
+          "lines": [
+            1291,
+            1371
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            39515,
+            41274
+          ],
+          "source_sha256": "b52a3a4d8385133479cd25a815f3dbb50f66848df7353be164ac2108556240a6",
+          "snippet": "LoadEncodingFile(interp, name)\n    Tcl_Interp *interp;\t\t/* Interp for error reporting, if not NULL. */\n    CONST char *name;\t\t/* The name of the encoding file on disk\n\t\t\t\t * and also the name for new encoding. */\n{\n    int objc, i, ch;\n    Tcl_Obj **objv;\n    Tcl_Obj *pathPtr;\n    Tcl_Channel chan;\n    Tcl_Encoding encoding;\n\n    pathPtr = TclGetLibraryPath();\n    if (pathPtr == NULL) {\n\tgoto unknown;\n    }\n    objc = 0;\n    Tcl_ListObjGetElements(NULL, pathPtr, &objc, &objv);\n\n    chan = NULL;\n    for (i = 0; i < objc; i++) {\n\tchan = OpenEncodingFile(Tcl_GetString(objv[i]), name);\n\tif (chan != NULL) {\n\t    break;\n\t}\n    }\n\n    if (chan == NULL) {\n\tgoto unknown;\n    }\n\n    Tcl_SetChannelOption(NULL, chan, \"-encoding\", \"utf-8\");\n\n    while (1) {\n\tTcl_DString ds;\n\n\tTcl_DStringInit(&ds);\n\tTcl_Gets(chan, &ds);\n\tch = Tcl_DStringValue(&ds)[0];\n\tTcl_DStringFree(&ds);\n\tif (ch != '#') {\n\t    break;\n\t}\n    }\n\n    encoding = NULL;\n    switch (ch) {\n\tcase 'S': {\n\t    encoding = LoadTableEncoding(interp, name, ENCODING_SINGLEBYTE,\n\t\t    chan);\n\t    break;\n\t}\n\tcase 'D': {\n\t    encoding = LoadTableEncoding(interp, name, ENCODING_DOUBLEBYTE,\n\t\t    chan);\n\t    break;\n\t}\n\tcase 'M': {\n\t    encoding = LoadTableEncoding(interp, name, ENCODING_MULTIBYTE,\n\t\t    chan);\n\t    break;\n\t}\n\tcase 'E': {\n\t    encoding = LoadEscapeEncoding(name, chan);\n\t    break;\n\t}\n    }\n    if ((encoding == NULL) && (interp != NULL)) {\n\tTcl_AppendResult(interp, \"invalid encoding file \\\"\", name, \"\\\"\", NULL);\n\tif (ch == 'E') {\n\t    Tcl_AppendResult(interp, \" or missing sub-encoding\", NULL);\n\t}\n    }\n    Tcl_Close(NULL, chan);\n    return encoding;\n\n    unknown:\n    if (interp != NULL) {\n\tTcl_AppendResult(interp, \"unknown encoding \\\"\", name, \"\\\"\", NULL);\n    }\n    return NULL;\n}\n",
+          "snippet_sha256": "7d9f330d72b641f9646fa7f978ba9bbb882a10543581cee4306a3e7cb04a2244",
+          "evidence": "source-window-2"
+        },
+        {
+          "provider": "tcl8.4",
+          "version": "8.4.20",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdAH.c",
+          "function": "Tcl_EncodingObjCmd",
+          "lines": [
+            423,
+            527
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            10292,
+            12896
+          ],
+          "source_sha256": "4119b635cc3677728baa21df8ee8c683c3f37aa87bf9ca80fcab74eec948fd75",
+          "snippet": "Tcl_EncodingObjCmd(dummy, interp, objc, objv)\n    ClientData dummy;\t\t/* Not used. */\n    Tcl_Interp *interp;\t\t/* Current interpreter. */\n    int objc;\t\t\t/* Number of arguments. */\n    Tcl_Obj *CONST objv[];\t/* Argument objects. */\n{\n    int index, length;\n    Tcl_Encoding encoding;\n    char *string;\n    Tcl_DString ds;\n    Tcl_Obj *resultPtr;\n\n    static CONST char *optionStrings[] = {\n\t\"convertfrom\", \"convertto\", \"names\", \"system\",\n\tNULL\n    };\n    enum options {\n\tENC_CONVERTFROM, ENC_CONVERTTO, ENC_NAMES, ENC_SYSTEM\n    };\n\n    if (objc < 2) {\n    \tTcl_WrongNumArgs(interp, 1, objv, \"option ?arg ...?\");\n        return TCL_ERROR;\n    }\n    if (Tcl_GetIndexFromObj(interp, objv[1], optionStrings, \"option\", 0,\n\t    &index) != TCL_OK) {\n\treturn TCL_ERROR;\n    }\n\n    switch ((enum options) index) {\n\tcase ENC_CONVERTTO:\n\tcase ENC_CONVERTFROM: {\n\t    Tcl_Obj *data;\n\t    if (objc == 3) {\n\t\tencoding = Tcl_GetEncoding(interp, NULL);\n\t\tdata = objv[2];\n\t    } else if (objc == 4) {\n\t\tif (TclGetEncodingFromObj(interp, objv[2], &encoding)\n\t\t\t!= TCL_OK) {\n\t\t    return TCL_ERROR;\n\t\t}\n\t\tdata = objv[3];\n\t    } else {\n\t\tTcl_WrongNumArgs(interp, 2, objv, \"?encoding? data\");\n\t\treturn TCL_ERROR;\n\t    }\n\t    \n\t    if ((enum options) index == ENC_CONVERTFROM) {\n\t\t/*\n\t\t * Treat the string as binary data.\n\t\t */\n\n\t\tstring = (char *) Tcl_GetByteArrayFromObj(data, &length);\n\t\tTcl_ExternalToUtfDString(encoding, string, length, &ds);\n\n\t\t/*\n\t\t * Note that we cannot use Tcl_DStringResult here because\n\t\t * it will truncate the string at the first null byte.\n\t\t */\n\n\t\tTcl_SetStringObj(Tcl_GetObjResult(interp),\n\t\t\tTcl_DStringValue(&ds), Tcl_DStringLength(&ds));\n\t\tTcl_DStringFree(&ds);\n\t    } else {\n\t\t/*\n\t\t * Store the result as binary data.\n\t\t */\n\n\t\tstring = Tcl_GetStringFromObj(data, &length);\n\t\tTcl_UtfToExternalDString(encoding, string, length, &ds);\n\t\tresultPtr = Tcl_GetObjResult(interp);\n\t\tTcl_SetByteArrayObj(resultPtr, \n\t\t\t(unsigned char *) Tcl_DStringValue(&ds),\n\t\t\tTcl_DStringLength(&ds));\n\t\tTcl_DStringFree(&ds);\n\t    }\n\n\t    Tcl_FreeEncoding(encoding);\n\t    break;\n\t}\n\tcase ENC_NAMES: {\n\t    if (objc > 2) {\n\t\tTcl_WrongNumArgs(interp, 2, objv, NULL);\n\t\treturn TCL_ERROR;\n\t    }\n\t    Tcl_GetEncodingNames(interp);\n\t    break;\n\t}\n\tcase ENC_SYSTEM: {\n\t    if (objc > 3) {\n\t\tTcl_WrongNumArgs(interp, 2, objv, \"?encoding?\");\n\t\treturn TCL_ERROR;\n\t    }\n\t    if (objc == 2) {\n\t\tTcl_SetStringObj(Tcl_GetObjResult(interp),\n\t\t\tTcl_GetEncodingName(NULL), -1);\n\t    } else {\n\t        return Tcl_SetSystemEncoding(interp,\n\t\t\tTcl_GetStringFromObj(objv[2], NULL));\n\t    }\n\t    break;\n\t}\n    }\n    return TCL_OK;\n}\n",
+          "snippet_sha256": "2199d10f6fa5dbab66299360fc4b966c60dcce589e50384d535bcf3709670489",
+          "evidence": "source-window-3"
+        },
+        {
+          "provider": "tcl8.4",
+          "version": "8.4.20",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdMZ.c",
+          "function": "Tcl_SourceObjCmd",
+          "lines": [
+            1056,
+            1068
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            28791,
+            29163
+          ],
+          "source_sha256": "b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc",
+          "snippet": "Tcl_SourceObjCmd(dummy, interp, objc, objv)\n    ClientData dummy;\t\t/* Not used. */\n    Tcl_Interp *interp;\t\t/* Current interpreter. */\n    int objc;\t\t\t/* Number of arguments. */\n    Tcl_Obj *CONST objv[];\t/* Argument objects. */\n{\n    if (objc != 2) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"fileName\");\n\treturn TCL_ERROR;\n    }\n\n    return Tcl_FSEvalFile(interp, objv[1]);\n}\n",
+          "snippet_sha256": "80de1b70d48625832263c3f6e20b399261beb02b8599d9bcbb595bf6ae7ce8dd",
+          "evidence": "source-window-4"
+        },
+        {
+          "provider": "tcl8.5",
+          "version": "8.5.19",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclEncoding.c",
+          "function": "Tcl_GetEncoding",
+          "lines": [
+            768,
+            793
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            23644,
+            24358
+          ],
+          "source_sha256": "b100161e6fbcdc9b4055b28308071fa123000526abcb51dc1a65eeb83e94b292",
+          "snippet": "Tcl_GetEncoding(\n    Tcl_Interp *interp,\t\t/* Interp for error reporting, if not NULL. */\n    const char *name)\t\t/* The name of the desired encoding. */\n{\n    Tcl_HashEntry *hPtr;\n    Encoding *encodingPtr;\n\n    Tcl_MutexLock(&encodingMutex);\n    if (name == NULL) {\n\tencodingPtr = (Encoding *) systemEncoding;\n\tencodingPtr->refCount++;\n\tTcl_MutexUnlock(&encodingMutex);\n\treturn systemEncoding;\n    }\n\n    hPtr = Tcl_FindHashEntry(&encodingTable, name);\n    if (hPtr != NULL) {\n\tencodingPtr = (Encoding *) Tcl_GetHashValue(hPtr);\n\tencodingPtr->refCount++;\n\tTcl_MutexUnlock(&encodingMutex);\n\treturn (Tcl_Encoding) encodingPtr;\n    }\n    Tcl_MutexUnlock(&encodingMutex);\n\n    return LoadEncodingFile(interp, name);\n}\n",
+          "snippet_sha256": "d4911812488dc4e170490c52250191cbad1bfcecfe0ee3bf8e11a1be8044fa6d",
+          "evidence": "source-window-5"
+        },
+        {
+          "provider": "tcl8.5",
+          "version": "8.5.19",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclEncoding.c",
+          "function": "Tcl_SetSystemEncoding",
+          "lines": [
+            988,
+            1015
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            29334,
+            30056
+          ],
+          "source_sha256": "b100161e6fbcdc9b4055b28308071fa123000526abcb51dc1a65eeb83e94b292",
+          "snippet": "Tcl_SetSystemEncoding(\n    Tcl_Interp *interp,\t\t/* Interp for error reporting, if not NULL. */\n    const char *name)\t\t/* The name of the desired encoding, or NULL/\"\"\n\t\t\t\t * to reset to default encoding. */\n{\n    Tcl_Encoding encoding;\n    Encoding *encodingPtr;\n\n    if (!name || !*name) {\n\tTcl_MutexLock(&encodingMutex);\n\tencoding = defaultEncoding;\n\tencodingPtr = (Encoding *) encoding;\n\tencodingPtr->refCount++;\n\tTcl_MutexUnlock(&encodingMutex);\n    } else {\n\tencoding = Tcl_GetEncoding(interp, name);\n\tif (encoding == NULL) {\n\t    return TCL_ERROR;\n\t}\n    }\n\n    Tcl_MutexLock(&encodingMutex);\n    FreeEncoding(systemEncoding);\n    systemEncoding = encoding;\n    Tcl_MutexUnlock(&encodingMutex);\n\n    return TCL_OK;\n}\n",
+          "snippet_sha256": "896b4dbffba6ad0496f5f82a9a750c19374b956ca385d13bade59cae3f7edeaf",
+          "evidence": "source-window-6"
+        },
+        {
+          "provider": "tcl8.5",
+          "version": "8.5.19",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclEncoding.c",
+          "function": "LoadEncodingFile",
+          "lines": [
+            1584,
+            1632
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            47153,
+            48288
+          ],
+          "source_sha256": "b100161e6fbcdc9b4055b28308071fa123000526abcb51dc1a65eeb83e94b292",
+          "snippet": "LoadEncodingFile(\n    Tcl_Interp *interp,\t\t/* Interp for error reporting, if not NULL. */\n    const char *name)\t\t/* The name of the encoding file on disk and\n\t\t\t\t * also the name for new encoding. */\n{\n    Tcl_Channel chan = NULL;\n    Tcl_Encoding encoding = NULL;\n    int ch;\n\n    chan = OpenEncodingFileChannel(interp, name);\n    if (chan == NULL) {\n\treturn NULL;\n    }\n\n    Tcl_SetChannelOption(NULL, chan, \"-encoding\", \"utf-8\");\n\n    while (1) {\n\tTcl_DString ds;\n\n\tTcl_DStringInit(&ds);\n\tTcl_Gets(chan, &ds);\n\tch = Tcl_DStringValue(&ds)[0];\n\tTcl_DStringFree(&ds);\n\tif (ch != '#') {\n\t    break;\n\t}\n    }\n\n    switch (ch) {\n    case 'S':\n\tencoding = LoadTableEncoding(name, ENCODING_SINGLEBYTE, chan);\n\tbreak;\n    case 'D':\n\tencoding = LoadTableEncoding(name, ENCODING_DOUBLEBYTE, chan);\n\tbreak;\n    case 'M':\n\tencoding = LoadTableEncoding(name, ENCODING_MULTIBYTE, chan);\n\tbreak;\n    case 'E':\n\tencoding = LoadEscapeEncoding(name, chan);\n\tbreak;\n    }\n    if ((encoding == NULL) && (interp != NULL)) {\n\tTcl_AppendResult(interp, \"invalid encoding file \\\"\", name, \"\\\"\", NULL);\n    }\n    Tcl_Close(NULL, chan);\n\n    return encoding;\n}\n",
+          "snippet_sha256": "240dcc946f4585295ae84fd4b84df5e20fd7512935591fad9bc0cf0f78af6f16",
+          "evidence": "source-window-7"
+        },
+        {
+          "provider": "tcl8.5",
+          "version": "8.5.19",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdAH.c",
+          "function": "Tcl_EncodingObjCmd",
+          "lines": [
+            426,
+            528
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            10204,
+            12822
+          ],
+          "source_sha256": "cdd328ee0a0d0c3ec7b67da50c90ae22b40591cc52e9492f19d7b257355fcf43",
+          "snippet": "Tcl_EncodingObjCmd(\n    ClientData dummy,\t\t/* Not used. */\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *const objv[])\t/* Argument objects. */\n{\n    int index;\n\n    static const char *optionStrings[] = {\n\t\"convertfrom\", \"convertto\", \"dirs\", \"names\", \"system\",\n\tNULL\n    };\n    enum options {\n\tENC_CONVERTFROM, ENC_CONVERTTO, ENC_DIRS, ENC_NAMES, ENC_SYSTEM\n    };\n\n    if (objc < 2) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"option ?arg ...?\");\n\treturn TCL_ERROR;\n    }\n    if (Tcl_GetIndexFromObj(interp, objv[1], optionStrings, \"option\", 0,\n\t    &index) != TCL_OK) {\n\treturn TCL_ERROR;\n    }\n\n    switch ((enum options) index) {\n    case ENC_CONVERTTO:\n    case ENC_CONVERTFROM: {\n\tTcl_Obj *data;\n\tTcl_DString ds;\n\tTcl_Encoding encoding;\n\tint length;\n\tchar *stringPtr;\n\n\tif (objc == 3) {\n\t    encoding = Tcl_GetEncoding(interp, NULL);\n\t    data = objv[2];\n\t} else if (objc == 4) {\n\t    if (Tcl_GetEncodingFromObj(interp, objv[2], &encoding) != TCL_OK) {\n\t\treturn TCL_ERROR;\n\t    }\n\t    data = objv[3];\n\t} else {\n\t    Tcl_WrongNumArgs(interp, 2, objv, \"?encoding? data\");\n\t    return TCL_ERROR;\n\t}\n\n\tif ((enum options) index == ENC_CONVERTFROM) {\n\t    /*\n\t     * Treat the string as binary data.\n\t     */\n\n\t    stringPtr = (char *) Tcl_GetByteArrayFromObj(data, &length);\n\t    Tcl_ExternalToUtfDString(encoding, stringPtr, length, &ds);\n\n\t    /*\n\t     * Note that we cannot use Tcl_DStringResult here because it will\n\t     * truncate the string at the first null byte.\n\t     */\n\n\t    Tcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t    Tcl_DStringValue(&ds), Tcl_DStringLength(&ds)));\n\t    Tcl_DStringFree(&ds);\n\t} else {\n\t    /*\n\t     * Store the result as binary data.\n\t     */\n\n\t    stringPtr = TclGetStringFromObj(data, &length);\n\t    Tcl_UtfToExternalDString(encoding, stringPtr, length, &ds);\n\t    Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(\n\t\t    (unsigned char *) Tcl_DStringValue(&ds),\n\t\t    Tcl_DStringLength(&ds)));\n\t    Tcl_DStringFree(&ds);\n\t}\n\n\tTcl_FreeEncoding(encoding);\n\tbreak;\n    }\n    case ENC_DIRS:\n\treturn EncodingDirsObjCmd(dummy, interp, objc, objv);\n    case ENC_NAMES:\n\tif (objc > 2) {\n\t    Tcl_WrongNumArgs(interp, 2, objv, NULL);\n\t    return TCL_ERROR;\n\t}\n\tTcl_GetEncodingNames(interp);\n\tbreak;\n    case ENC_SYSTEM:\n\tif (objc > 3) {\n\t    Tcl_WrongNumArgs(interp, 2, objv, \"?encoding?\");\n\t    return TCL_ERROR;\n\t}\n\tif (objc == 2) {\n\t    Tcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t    Tcl_GetEncodingName(NULL), -1));\n\t} else {\n\t    return Tcl_SetSystemEncoding(interp, TclGetString(objv[2]));\n\t}\n\tbreak;\n    }\n    return TCL_OK;\n}\n",
+          "snippet_sha256": "400fc03cb450abdcd8d861af8f35e3b158847f0b4789698228dc46473a2dca6d",
+          "evidence": "source-window-8"
+        },
+        {
+          "provider": "tcl8.5",
+          "version": "8.5.19",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdMZ.c",
+          "function": "Tcl_SourceObjCmd",
+          "lines": [
+            936,
+            966
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            22991,
+            23739
+          ],
+          "source_sha256": "fe2c67a2097ece2e07d9345a5edf416b5fbc891276349e360f9c25da1cc8f348",
+          "snippet": "Tcl_SourceObjCmd(\n    ClientData dummy,\t\t/* Not used. */\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *const objv[])\t/* Argument objects. */\n{\n    const char *encodingName = NULL;\n    Tcl_Obj *fileName;\n\n    if (objc != 2 && objc !=4) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"?-encoding name? fileName\");\n\treturn TCL_ERROR;\n    }\n\n    fileName = objv[objc-1];\n\n    if (objc == 4) {\n\tstatic const char *options[] = {\n\t    \"-encoding\", NULL\n\t};\n\tint index;\n\n\tif (TCL_ERROR == Tcl_GetIndexFromObj(interp, objv[1], options,\n\t\t\"option\", TCL_EXACT, &index)) {\n\t    return TCL_ERROR;\n\t}\n\tencodingName = TclGetString(objv[2]);\n    }\n\n    return Tcl_FSEvalFileEx(interp, fileName, encodingName);\n}\n",
+          "snippet_sha256": "9043e538bce92348d2adf6272ef579201f852415b8be5381f75edf8d0bae8c1f",
+          "evidence": "source-window-9"
+        },
+        {
+          "provider": "tcl8.5",
+          "version": "8.5.19",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclIOUtil.c",
+          "function": "Tcl_FSEvalFileEx",
+          "lines": [
+            1770,
+            1892
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            50144,
+            53829
+          ],
+          "source_sha256": "24e13e612b8207a7109d6cb6175a8972d4b5233ec1088b7fbfbf632bf47b9b73",
+          "snippet": "Tcl_FSEvalFileEx(\n    Tcl_Interp *interp,\t\t/* Interpreter in which to process file. */\n    Tcl_Obj *pathPtr,\t\t/* Path of file to process. Tilde-substitution\n\t\t\t\t * will be performed on this name. */\n    const char *encodingName)\t/* If non-NULL, then use this encoding for the\n\t\t\t\t * file. NULL means use the system encoding. */\n{\n    int length, result = TCL_ERROR;\n    Tcl_StatBuf statBuf;\n    Tcl_Obj *oldScriptFile;\n    Interp *iPtr;\n    char *string;\n    Tcl_Channel chan;\n    Tcl_Obj *objPtr;\n\n    if (Tcl_FSGetNormalizedPath(interp, pathPtr) == NULL) {\n\treturn result;\n    }\n\n    if (Tcl_FSStat(pathPtr, &statBuf) == -1) {\n\tTcl_SetErrno(errno);\n\tTcl_AppendResult(interp, \"couldn't read file \\\"\",\n\t\tTcl_GetString(pathPtr), \"\\\": \", Tcl_PosixError(interp), NULL);\n\treturn result;\n    }\n    chan = Tcl_FSOpenFileChannel(interp, pathPtr, \"r\", 0644);\n    if (chan == (Tcl_Channel) NULL) {\n\tTcl_ResetResult(interp);\n\tTcl_AppendResult(interp, \"couldn't read file \\\"\",\n\t\tTcl_GetString(pathPtr), \"\\\": \", Tcl_PosixError(interp), NULL);\n\treturn result;\n    }\n\n    /*\n     * The eofchar is \\32 (^Z). This is the usual on Windows, but we effect\n     * this cross-platform to allow for scripted documents. [Bug: 2040]\n     */\n\n    Tcl_SetChannelOption(interp, chan, \"-eofchar\", \"\\32\");\n\n    /*\n     * If the encoding is specified, set it for the channel. Else don't touch\n     * it (and use the system encoding) Report error on unknown encoding.\n     */\n\n    if (encodingName != NULL) {\n\tif (Tcl_SetChannelOption(interp, chan, \"-encoding\", encodingName)\n\t\t!= TCL_OK) {\n\t    Tcl_Close(interp,chan);\n\t    return result;\n\t}\n    }\n\n    objPtr = Tcl_NewObj();\n    Tcl_IncrRefCount(objPtr);\n    /* Try to read first character of stream, so we can\n     * check for utf-8 BOM to be handled especially.\n     */\n    if (Tcl_ReadChars(chan, objPtr, 1, 0) < 0) {\n\tTcl_Close(interp, chan);\n\tTcl_AppendResult(interp, \"couldn't read file \\\"\",\n\t\tTcl_GetString(pathPtr), \"\\\": \", Tcl_PosixError(interp), NULL);\n\tgoto end;\n    }\n    string = Tcl_GetString(objPtr);\n    /*\n     * If first character is not a BOM, append the remaining characters,\n     * otherwise replace them [Bug 3466099].\n     */\n    if (Tcl_ReadChars(chan, objPtr, -1,\n\t    memcmp(string, \"\\xef\\xbb\\xbf\", 3)) < 0) {\n\tTcl_Close(interp, chan);\n\tTcl_AppendResult(interp, \"couldn't read file \\\"\",\n\t\tTcl_GetString(pathPtr), \"\\\": \", Tcl_PosixError(interp), NULL);\n\tgoto end;\n    }\n\n    if (Tcl_Close(interp, chan) != TCL_OK) {\n\tgoto end;\n    }\n\n    iPtr = (Interp *) interp;\n    oldScriptFile = iPtr->scriptFile;\n    iPtr->scriptFile = pathPtr;\n    Tcl_IncrRefCount(iPtr->scriptFile);\n    string = Tcl_GetStringFromObj(objPtr, &length);\n    /* TIP #280 Force the evaluator to open a frame for a sourced\n     * file. */\n    iPtr->evalFlags |= TCL_EVAL_FILE;\n    result = Tcl_EvalEx(interp, string, length, 0);\n\n    /*\n     * Now we have to be careful; the script may have changed the\n     * iPtr->scriptFile value, so we must reset it without assuming it still\n     * points to 'pathPtr'.\n     */\n\n    if (iPtr->scriptFile != NULL) {\n\tTcl_DecrRefCount(iPtr->scriptFile);\n    }\n    iPtr->scriptFile = oldScriptFile;\n\n    if (result == TCL_RETURN) {\n\tresult = TclUpdateReturnInfo(iPtr);\n    } else if (result == TCL_ERROR) {\n\t/*\n\t * Record information telling where the error occurred.\n\t */\n\n\tconst char *pathString = Tcl_GetStringFromObj(pathPtr, &length);\n\tint limit = 150;\n\tint overflow = (length > limit);\n\n\tTcl_AppendObjToErrorInfo(interp, Tcl_ObjPrintf(\n\t\t\"\\n    (file \\\"%.*s%s\\\" line %d)\",\n\t\t(overflow ? limit : length), pathString,\n\t\t(overflow ? \"...\" : \"\"), interp->errorLine));\n    }\n\n  end:\n    Tcl_DecrRefCount(objPtr);\n    return result;\n}\n",
+          "snippet_sha256": "c72fbb10de3ee199a7d63037bc78d1f2419e0ecbdeb854503cbf70d1a8c3e738",
+          "evidence": "source-window-10"
+        },
+        {
+          "provider": "tcl8.6",
+          "version": "8.6.18",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclEncoding.c",
+          "function": "Tcl_GetEncoding",
+          "lines": [
+            755,
+            780
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            22892,
+            23605
+          ],
+          "source_sha256": "359bfa493e7aba998e524978aca4345422e2e265dde93e73f76cb5fc8784e4c6",
+          "snippet": "Tcl_GetEncoding(\n    Tcl_Interp *interp,\t\t/* Interp for error reporting, if not NULL. */\n    const char *name)\t\t/* The name of the desired encoding. */\n{\n    Tcl_HashEntry *hPtr;\n    Encoding *encodingPtr;\n\n    Tcl_MutexLock(&encodingMutex);\n    if (name == NULL) {\n\tencodingPtr = (Encoding *) systemEncoding;\n\tencodingPtr->refCount++;\n\tTcl_MutexUnlock(&encodingMutex);\n\treturn systemEncoding;\n    }\n\n    hPtr = Tcl_FindHashEntry(&encodingTable, name);\n    if (hPtr != NULL) {\n\tencodingPtr = (Encoding *)Tcl_GetHashValue(hPtr);\n\tencodingPtr->refCount++;\n\tTcl_MutexUnlock(&encodingMutex);\n\treturn (Tcl_Encoding) encodingPtr;\n    }\n    Tcl_MutexUnlock(&encodingMutex);\n\n    return LoadEncodingFile(interp, name);\n}\n",
+          "snippet_sha256": "87a2edabb834ba3feaa55988d2f9dad4438d39e287e8b68ad6918fd0f3f8210a",
+          "evidence": "source-window-11"
+        },
+        {
+          "provider": "tcl8.6",
+          "version": "8.6.18",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclEncoding.c",
+          "function": "Tcl_SetSystemEncoding",
+          "lines": [
+            978,
+            1006
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            28602,
+            29355
+          ],
+          "source_sha256": "359bfa493e7aba998e524978aca4345422e2e265dde93e73f76cb5fc8784e4c6",
+          "snippet": "Tcl_SetSystemEncoding(\n    Tcl_Interp *interp,\t\t/* Interp for error reporting, if not NULL. */\n    const char *name)\t\t/* The name of the desired encoding, or NULL/\"\"\n\t\t\t\t * to reset to default encoding. */\n{\n    Tcl_Encoding encoding;\n    Encoding *encodingPtr;\n\n    if (!name || !*name) {\n\tTcl_MutexLock(&encodingMutex);\n\tencoding = defaultEncoding;\n\tencodingPtr = (Encoding *) encoding;\n\tencodingPtr->refCount++;\n\tTcl_MutexUnlock(&encodingMutex);\n    } else {\n\tencoding = Tcl_GetEncoding(interp, name);\n\tif (encoding == NULL) {\n\t    return TCL_ERROR;\n\t}\n    }\n\n    Tcl_MutexLock(&encodingMutex);\n    FreeEncoding(systemEncoding);\n    systemEncoding = encoding;\n    Tcl_MutexUnlock(&encodingMutex);\n    Tcl_FSMountsChanged(NULL);\n\n    return TCL_OK;\n}\n",
+          "snippet_sha256": "41d196054cc62afa3fd8e255d4feddbea6647c7f668527ac7fcd303865fdc2b3",
+          "evidence": "source-window-12"
+        },
+        {
+          "provider": "tcl8.6",
+          "version": "8.6.18",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclEncoding.c",
+          "function": "LoadEncodingFile",
+          "lines": [
+            1611,
+            1661
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            47338,
+            48542
+          ],
+          "source_sha256": "359bfa493e7aba998e524978aca4345422e2e265dde93e73f76cb5fc8784e4c6",
+          "snippet": "LoadEncodingFile(\n    Tcl_Interp *interp,\t\t/* Interp for error reporting, if not NULL. */\n    const char *name)\t\t/* The name of both the encoding file\n\t\t\t\t * and the new encoding. */\n{\n    Tcl_Channel chan = NULL;\n    Tcl_Encoding encoding = NULL;\n    int ch;\n\n    chan = OpenEncodingFileChannel(interp, name);\n    if (chan == NULL) {\n\treturn NULL;\n    }\n\n    Tcl_SetChannelOption(NULL, chan, \"-encoding\", \"utf-8\");\n\n    while (1) {\n\tTcl_DString ds;\n\n\tTcl_DStringInit(&ds);\n\tTcl_Gets(chan, &ds);\n\tch = Tcl_DStringValue(&ds)[0];\n\tTcl_DStringFree(&ds);\n\tif (ch != '#') {\n\t    break;\n\t}\n    }\n\n    switch (ch) {\n    case 'S':\n\tencoding = LoadTableEncoding(name, ENCODING_SINGLEBYTE, chan);\n\tbreak;\n    case 'D':\n\tencoding = LoadTableEncoding(name, ENCODING_DOUBLEBYTE, chan);\n\tbreak;\n    case 'M':\n\tencoding = LoadTableEncoding(name, ENCODING_MULTIBYTE, chan);\n\tbreak;\n    case 'E':\n\tencoding = LoadEscapeEncoding(name, chan);\n\tbreak;\n    }\n    if ((encoding == NULL) && (interp != NULL)) {\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\"invalid encoding file \\\"%s\\\"\", name));\n\tTcl_SetErrorCode(interp, \"TCL\", \"LOOKUP\", \"ENCODING\", name, (char *)NULL);\n    }\n    Tcl_Close(NULL, chan);\n\n    return encoding;\n}\n",
+          "snippet_sha256": "19b943118f80f7c8fd2c0fa8f5d514bb61deb522ceadd24d9d1f75bec9a1d65a",
+          "evidence": "source-window-13"
+        },
+        {
+          "provider": "tcl8.6",
+          "version": "8.6.18",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdAH.c",
+          "function": "EncodingSystemObjCmd",
+          "lines": [
+            849,
+            866
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            22819,
+            23346
+          ],
+          "source_sha256": "752473fb5c05d166602ed00b2afff8e123dafd34f4c585628e941b8c5691ae88",
+          "snippet": "EncodingSystemObjCmd(\n    ClientData dummy,      /* Unused */\n    Tcl_Interp* interp,     /* Tcl interpreter */\n    int objc,\t\t    /* Number of command line args */\n    Tcl_Obj* const objv[])  /* Vector of command line args */\n{\n    if (objc > 2) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"?encoding?\");\n\treturn TCL_ERROR;\n    }\n    if (objc == 1) {\n\tTcl_SetObjResult(interp,\n\t\t\t Tcl_NewStringObj(Tcl_GetEncodingName(NULL), -1));\n    } else {\n\treturn Tcl_SetSystemEncoding(interp, TclGetString(objv[1]));\n    }\n    return TCL_OK;\n}\n",
+          "snippet_sha256": "8b10aa1b064765bc4ffffd1bc000875d2d19b84dd0bb0240ef84502f80c97f33",
+          "evidence": "source-window-14"
+        },
+        {
+          "provider": "tcl8.6",
+          "version": "8.6.18",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdMZ.c",
+          "function": "TclNRSourceObjCmd",
+          "lines": [
+            985,
+            1015
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            24875,
+            25627
+          ],
+          "source_sha256": "c2fe2deb95449c94c2719dca830d4e57ec4a436741199da39122d772888e849e",
+          "snippet": "TclNRSourceObjCmd(\n    ClientData dummy,\t\t/* Not used. */\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *const objv[])\t/* Argument objects. */\n{\n    const char *encodingName = NULL;\n    Tcl_Obj *fileName;\n\n    if (objc != 2 && objc !=4) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"?-encoding name? fileName\");\n\treturn TCL_ERROR;\n    }\n\n    fileName = objv[objc-1];\n\n    if (objc == 4) {\n\tstatic const char *const options[] = {\n\t    \"-encoding\", NULL\n\t};\n\tint index;\n\n\tif (TCL_ERROR == Tcl_GetIndexFromObj(interp, objv[1], options,\n\t\t\"option\", TCL_EXACT, &index)) {\n\t    return TCL_ERROR;\n\t}\n\tencodingName = TclGetString(objv[2]);\n    }\n\n    return TclNREvalFile(interp, fileName, encodingName);\n}\n",
+          "snippet_sha256": "7e90d5fcad7d151b938fba44889b4e0812424f7a8dfb248bc63c2ba1a4658122",
+          "evidence": "source-window-15"
+        },
+        {
+          "provider": "tcl8.6",
+          "version": "8.6.18",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclIOUtil.c",
+          "function": "Tcl_FSEvalFileEx",
+          "lines": [
+            1727,
+            1860
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            48406,
+            52138
+          ],
+          "source_sha256": "efc2579a7e21c6e4490116ddee386d3ea83819a3bcad76215127b480f5934f00",
+          "snippet": "Tcl_FSEvalFileEx(\n    Tcl_Interp *interp,\t\t/* Interpreter in which to process file. */\n    Tcl_Obj *pathPtr,\t\t/* Path of file to process. Tilde-substitution\n\t\t\t\t * will be performed on this name. */\n    const char *encodingName)\t/* If non-NULL, then use this encoding for the\n\t\t\t\t * file. NULL means use the system encoding. */\n{\n    int length, result = TCL_ERROR;\n    Tcl_StatBuf statBuf;\n    Tcl_Obj *oldScriptFile;\n    Interp *iPtr;\n    const char *string;\n    Tcl_Channel chan;\n    Tcl_Obj *objPtr;\n\n    if (Tcl_FSGetNormalizedPath(interp, pathPtr) == NULL) {\n\treturn result;\n    }\n\n    if (Tcl_FSStat(pathPtr, &statBuf) == -1) {\n\tTcl_SetErrno(errno);\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\"couldn't read file \\\"%s\\\": %s\",\n\t\tTclGetString(pathPtr), Tcl_PosixError(interp)));\n\treturn result;\n    }\n    chan = Tcl_FSOpenFileChannel(interp, pathPtr, \"r\", 0644);\n    if (chan == NULL) {\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\"couldn't read file \\\"%s\\\": %s\",\n\t\tTclGetString(pathPtr), Tcl_PosixError(interp)));\n\treturn result;\n    }\n\n    /*\n     * The eofchar is \\32 (^Z). This is the usual on Windows, but we effect\n     * this cross-platform to allow for scripted documents. [Bug: 2040]\n     */\n\n    Tcl_SetChannelOption(interp, chan, \"-eofchar\", \"\\32 {}\");\n\n    /*\n     * If the encoding is specified, set it for the channel. Else don't touch\n     * it (and use the system encoding) Report error on unknown encoding.\n     */\n\n    if (encodingName != NULL) {\n\tif (Tcl_SetChannelOption(interp, chan, \"-encoding\", encodingName)\n\t\t!= TCL_OK) {\n\t    Tcl_Close(interp,chan);\n\t    return result;\n\t}\n    }\n\n    TclNewObj(objPtr);\n    Tcl_IncrRefCount(objPtr);\n\n    /*\n     * Try to read first character of stream, so we can check for utf-8 BOM to\n     * be handled especially.\n     */\n\n    if (Tcl_ReadChars(chan, objPtr, 1, 0) < 0) {\n\tTcl_Close(interp, chan);\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\"couldn't read file \\\"%s\\\": %s\",\n\t\tTclGetString(pathPtr), Tcl_PosixError(interp)));\n\tgoto end;\n    }\n    string = TclGetString(objPtr);\n\n    /*\n     * If first character is not a BOM, append the remaining characters,\n     * otherwise replace them. [Bug 3466099]\n     */\n\n    if (Tcl_ReadChars(chan, objPtr, -1,\n\t    memcmp(string, \"\\xEF\\xBB\\xBF\", 3)) < 0) {\n\tTcl_Close(interp, chan);\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\"couldn't read file \\\"%s\\\": %s\",\n\t\tTclGetString(pathPtr), Tcl_PosixError(interp)));\n\tgoto end;\n    }\n\n    if (Tcl_Close(interp, chan) != TCL_OK) {\n\tgoto end;\n    }\n\n    iPtr = (Interp *) interp;\n    oldScriptFile = iPtr->scriptFile;\n    iPtr->scriptFile = pathPtr;\n    Tcl_IncrRefCount(iPtr->scriptFile);\n    string = TclGetStringFromObj(objPtr, &length);\n\n    /*\n     * TIP #280 Force the evaluator to open a frame for a sourced file.\n     */\n\n    iPtr->evalFlags |= TCL_EVAL_FILE;\n    result = TclEvalEx(interp, string, length, 0, 1, NULL, string);\n\n    /*\n     * Now we have to be careful; the script may have changed the\n     * iPtr->scriptFile value, so we must reset it without assuming it still\n     * points to 'pathPtr'.\n     */\n\n    if (iPtr->scriptFile != NULL) {\n\tTcl_DecrRefCount(iPtr->scriptFile);\n    }\n    iPtr->scriptFile = oldScriptFile;\n\n    if (result == TCL_RETURN) {\n\tresult = TclUpdateReturnInfo(iPtr);\n    } else if (result == TCL_ERROR) {\n\t/*\n\t * Record information telling where the error occurred.\n\t */\n\n\tconst char *pathString = TclGetStringFromObj(pathPtr, &length);\n\tint limit = 150;\n\tint overflow = (length > limit);\n\n\tTcl_AppendObjToErrorInfo(interp, Tcl_ObjPrintf(\n\t\t\"\\n    (file \\\"%.*s%s\\\" line %d)\",\n\t\t(overflow ? limit : length), pathString,\n\t\t(overflow ? \"...\" : \"\"), Tcl_GetErrorLine(interp)));\n    }\n\n  end:\n    Tcl_DecrRefCount(objPtr);\n    return result;\n}\n",
+          "snippet_sha256": "99708366d088e82ca8ec9adf808d926816f676cbfc3a1944439346f19288601a",
+          "evidence": "source-window-16"
+        },
+        {
+          "provider": "tcl9.0",
+          "version": "9.0.4",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclEncoding.c",
+          "function": "Tcl_GetEncoding",
+          "lines": [
+            732,
+            757
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            22767,
+            23480
+          ],
+          "source_sha256": "b2d923ff94e392ddbfcb6daf474e58cff1b880d574d6b70ee3153a196f9f7531",
+          "snippet": "Tcl_GetEncoding(\n    Tcl_Interp *interp,\t\t/* Interp for error reporting, if not NULL. */\n    const char *name)\t\t/* The name of the desired encoding. */\n{\n    Tcl_HashEntry *hPtr;\n    Encoding *encodingPtr;\n\n    Tcl_MutexLock(&encodingMutex);\n    if (name == NULL) {\n\tencodingPtr = (Encoding *) systemEncoding;\n\tencodingPtr->refCount++;\n\tTcl_MutexUnlock(&encodingMutex);\n\treturn systemEncoding;\n    }\n\n    hPtr = Tcl_FindHashEntry(&encodingTable, name);\n    if (hPtr != NULL) {\n\tencodingPtr = (Encoding *)Tcl_GetHashValue(hPtr);\n\tencodingPtr->refCount++;\n\tTcl_MutexUnlock(&encodingMutex);\n\treturn (Tcl_Encoding) encodingPtr;\n    }\n    Tcl_MutexUnlock(&encodingMutex);\n\n    return LoadEncodingFile(interp, name);\n}\n",
+          "snippet_sha256": "87a2edabb834ba3feaa55988d2f9dad4438d39e287e8b68ad6918fd0f3f8210a",
+          "evidence": "source-window-17"
+        },
+        {
+          "provider": "tcl9.0",
+          "version": "9.0.4",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclEncoding.c",
+          "function": "Tcl_SetSystemEncoding",
+          "lines": [
+            981,
+            1023
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            29089,
+            30148
+          ],
+          "source_sha256": "b2d923ff94e392ddbfcb6daf474e58cff1b880d574d6b70ee3153a196f9f7531",
+          "snippet": "Tcl_SetSystemEncoding(\n    Tcl_Interp *interp,\t\t/* Interp for error reporting, if not NULL. */\n    const char *name)\t\t/* The name of the desired encoding, or NULL/\"\"\n\t\t\t\t * to reset to default encoding. */\n{\n    Tcl_Encoding encoding = NULL;\n\n\n    if (name && *name) {\n\tencoding = Tcl_GetEncoding(interp, name); /* this increases refCount */\n\tif (encoding == NULL) {\n\t    return TCL_ERROR;\n\t}\n    }\n\n    /* Don't lock (and change anything, bump epoch) if it remains unchanged. */\n\n    if ((encoding ? encoding : defaultEncoding) == systemEncoding) {\n\tif (encoding) {\n\t    Tcl_FreeEncoding(encoding); /* paired to Tcl_GetEncoding */\n\n\n\t}\n\n\n\treturn TCL_OK;\n    }\n\n    /* Checks above ensure this is only called when system encoding changes */\n    Tcl_MutexLock(&encodingMutex);\n    if (!encoding) {\n\tencoding = defaultEncoding; /* need increase its refCount */\n\t((Encoding *)encoding)->refCount++;\n    }\n\n    FreeEncoding(systemEncoding);\n    systemEncoding = encoding;\n    Tcl_MutexUnlock(&encodingMutex);\n\n    Tcl_FSMountsChanged(NULL);\n\n    return TCL_OK;\n}\n",
+          "snippet_sha256": "ad5352fb15b1ed2323a95b6c27046504150b46c214e3329224b05b9c4b4b1a30",
+          "evidence": "source-window-18"
+        },
+        {
+          "provider": "tcl9.0",
+          "version": "9.0.4",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclEncoding.c",
+          "function": "LoadEncodingFile",
+          "lines": [
+            1878,
+            1928
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            57123,
+            58332
+          ],
+          "source_sha256": "b2d923ff94e392ddbfcb6daf474e58cff1b880d574d6b70ee3153a196f9f7531",
+          "snippet": "LoadEncodingFile(\n    Tcl_Interp *interp,\t\t/* Interp for error reporting, if not NULL. */\n    const char *name)\t\t/* The name of both the encoding file\n\t\t\t\t * and the new encoding. */\n{\n    Tcl_Channel chan = NULL;\n    Tcl_Encoding encoding = NULL;\n    int ch;\n\n    chan = OpenEncodingFileChannel(interp, name);\n    if (chan == NULL) {\n\treturn NULL;\n    }\n\n    Tcl_SetChannelOption(NULL, chan, \"-encoding\", \"utf-8\");\n\n    while (1) {\n\tTcl_DString ds;\n\n\tTcl_DStringInit(&ds);\n\tTcl_Gets(chan, &ds);\n\tch = Tcl_DStringValue(&ds)[0];\n\tTcl_DStringFree(&ds);\n\tif (ch != '#') {\n\t    break;\n\t}\n    }\n\n    switch (ch) {\n    case 'S':\n\tencoding = LoadTableEncoding(name, ENCODING_SINGLEBYTE, chan);\n\tbreak;\n    case 'D':\n\tencoding = LoadTableEncoding(name, ENCODING_DOUBLEBYTE, chan);\n\tbreak;\n    case 'M':\n\tencoding = LoadTableEncoding(name, ENCODING_MULTIBYTE, chan);\n\tbreak;\n    case 'E':\n\tencoding = LoadEscapeEncoding(name, chan);\n\tbreak;\n    }\n    if ((encoding == NULL) && (interp != NULL)) {\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\"invalid encoding file \\\"%s\\\"\", name));\n\tTcl_SetErrorCode(interp, \"TCL\", \"LOOKUP\", \"ENCODING\", name, (char *)NULL);\n    }\n    Tcl_CloseEx(NULL, chan, 0);\n\n    return encoding;\n}\n",
+          "snippet_sha256": "7a86210ebc3cabc74903d59cffcc1e3754551237092cea0b44b9fe26f18fc4bd",
+          "evidence": "source-window-19"
+        },
+        {
+          "provider": "tcl9.0",
+          "version": "9.0.4",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdAH.c",
+          "function": "EncodingSystemObjCmd",
+          "lines": [
+            820,
+            837
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            23019,
+            23528
+          ],
+          "source_sha256": "b1fd4aec514b23bbca0a43d99e25a613ec570752e50fadf1caf5c499b1a54ec1",
+          "snippet": "EncodingSystemObjCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp* interp,     /* Tcl interpreter */\n    int objc,\t\t    /* Number of command line args */\n    Tcl_Obj* const objv[])  /* Vector of command line args */\n{\n    if (objc > 2) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"?encoding?\");\n\treturn TCL_ERROR;\n    }\n    if (objc == 1) {\n\tTcl_SetObjResult(interp,\n\t\tTcl_NewStringObj(Tcl_GetEncodingName(NULL), -1));\n    } else {\n\treturn Tcl_SetSystemEncoding(interp, TclGetString(objv[1]));\n    }\n    return TCL_OK;\n}\n",
+          "snippet_sha256": "a3520d93f7c6c81c13f5a3395fe8b3915e31c747534de653019bca8a5fa27aaf",
+          "evidence": "source-window-20"
+        },
+        {
+          "provider": "tcl9.0",
+          "version": "9.0.4",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdMZ.c",
+          "function": "TclNRSourceObjCmd",
+          "lines": [
+            1104,
+            1158
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            28601,
+            30131
+          ],
+          "source_sha256": "080e201d1a09760aad4fedd9835e2091fd663d405d32d034f32dd0918d9006cc",
+          "snippet": "TclNRSourceObjCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *const objv[])\t/* Argument objects. */\n{\n    const char *encodingName = NULL;\n    Tcl_Obj *fileName;\n    int result;\n    void **pkgFiles = NULL;\n    void *names = NULL;\n\n    if (objc < 2 || objc > 4) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"?-encoding encoding? fileName\");\n\treturn TCL_ERROR;\n    }\n\n    fileName = objv[objc-1];\n\n    if (objc == 4) {\n\tstatic const char *const options[] = {\n\t    \"-encoding\", NULL\n\t};\n\tint index;\n\n\tif (TCL_ERROR == Tcl_GetIndexFromObj(interp, objv[1], options,\n\t\t\"option\", TCL_EXACT, &index)) {\n\t    return TCL_ERROR;\n\t}\n\tencodingName = TclGetString(objv[2]);\n    } else if (objc == 3) {\n\t/* Handle undocumented -nopkg option. This should only be\n\t * used by the internal ::tcl::Pkg::source utility function. */\n\tstatic const char *const nopkgoptions[] = {\n\t    \"-nopkg\", NULL\n\t};\n\tint index;\n\n\tif (TCL_ERROR == Tcl_GetIndexFromObj(interp, objv[1], nopkgoptions,\n\t\t\"option\", TCL_EXACT, &index)) {\n\t    return TCL_ERROR;\n\t}\n\tpkgFiles = (void **)Tcl_GetAssocData(interp, \"tclPkgFiles\", NULL);\n\t/* Make sure that during the following TclNREvalFile no filenames\n\t * are recorded for inclusion in the \"package files\" command */\n\tnames = *pkgFiles;\n\t*pkgFiles = NULL;\n    }\n    result = TclNREvalFile(interp, fileName, encodingName);\n    if (pkgFiles) {\n\t/* restore \"tclPkgFiles\" assocdata to how it was. */\n\t*pkgFiles = names;\n    }\n    return result;\n}\n",
+          "snippet_sha256": "0a690aa7c36dc4393d6eae55827a952cf5f4197178d5c4679a6ec0b2f4f993f2",
+          "evidence": "source-window-21"
+        },
+        {
+          "provider": "tcl9.0",
+          "version": "9.0.4",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclIOUtil.c",
+          "function": "Tcl_FSEvalFileEx",
+          "lines": [
+            1691,
+            1826
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            44401,
+            48127
+          ],
+          "source_sha256": "a92cd056226140169ef4789870156962b7219d99cb72218a999ca5b8d9ce8770",
+          "snippet": "Tcl_FSEvalFileEx(\n    Tcl_Interp *interp,\t\t/* Interpreter that evaluates the script. */\n    Tcl_Obj *pathPtr,\t\t/* Pathname of the file to process.\n\t\t\t\t * Tilde-substitution is performed on this\n\t\t\t\t * pathname. */\n    const char *encodingName)\t/* Either the name of an encoding or NULL to\n\t\t\t\t * use the utf-8 encoding. */\n{\n    Tcl_Size length;\n    int result = TCL_ERROR;\n    Tcl_StatBuf statBuf;\n    Tcl_Obj *oldScriptFile;\n    Interp *iPtr;\n    const char *string;\n    Tcl_Channel chan;\n    Tcl_Obj *objPtr;\n\n    if (Tcl_FSGetNormalizedPath(interp, pathPtr) == NULL) {\n\treturn result;\n    }\n\n    if (Tcl_FSStat(pathPtr, &statBuf) == -1) {\n\tTcl_SetErrno(errno);\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\"couldn't read file \\\"%s\\\": %s\",\n\t\tTclGetString(pathPtr), Tcl_PosixError(interp)));\n\treturn result;\n    }\n    chan = Tcl_FSOpenFileChannel(interp, pathPtr, \"r\", 0644);\n    if (chan == NULL) {\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\"couldn't read file \\\"%s\\\": %s\",\n\t\tTclGetString(pathPtr), Tcl_PosixError(interp)));\n\treturn result;\n    }\n\n    /*\n     * The eof character is \\x1A (^Z). Tcl uses it on every platform to allow\n     * for scripted documents. [Bug: 2040]\n     */\n\n    Tcl_SetChannelOption(interp, chan, \"-eofchar\", \"\\x1A\");\n\n    /*\n     * If the encoding is specified, set the channel to that encoding.\n     * Otherwise use utf-8.  If the encoding is unknown report an error.\n     */\n\n    if (encodingName == NULL) {\n\tencodingName = \"utf-8\";\n    }\n    if (Tcl_SetChannelOption(interp, chan, \"-encoding\", encodingName)\n\t    != TCL_OK) {\n\tTcl_CloseEx(interp,chan,0);\n\treturn result;\n    }\n\n    TclNewObj(objPtr);\n    Tcl_IncrRefCount(objPtr);\n\n    /*\n     * Read first character of stream to check for utf-8 BOM\n     */\n\n    if (Tcl_ReadChars(chan, objPtr, 1, 0) == TCL_IO_FAILURE) {\n\tTcl_CloseEx(interp, chan, 0);\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\"couldn't read file \\\"%s\\\": %s\",\n\t\tTclGetString(pathPtr), Tcl_PosixError(interp)));\n\tgoto end;\n    }\n    string = TclGetString(objPtr);\n\n    /*\n     * If first character is not a BOM, append the remaining characters.\n     * Otherwise, replace them. [Bug 3466099]\n     */\n\n    if (Tcl_ReadChars(chan, objPtr, TCL_INDEX_NONE,\n\t    memcmp(string, \"\\xEF\\xBB\\xBF\", 3)) == TCL_IO_FAILURE) {\n\tTcl_CloseEx(interp, chan, 0);\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\"couldn't read file \\\"%s\\\": %s\",\n\t\tTclGetString(pathPtr), Tcl_PosixError(interp)));\n\tgoto end;\n    }\n\n    if (Tcl_CloseEx(interp, chan, 0) != TCL_OK) {\n\tgoto end;\n    }\n\n    iPtr = (Interp *) interp;\n    oldScriptFile = iPtr->scriptFile;\n    iPtr->scriptFile = pathPtr;\n    Tcl_IncrRefCount(iPtr->scriptFile);\n    string = TclGetStringFromObj(objPtr, &length);\n\n    /*\n     * TIP #280:  Open a frame for the evaluated script.\n     */\n\n    iPtr->evalFlags |= TCL_EVAL_FILE;\n    result = TclEvalEx(interp, string, length, 0, 1, NULL, string);\n\n    /*\n     * Restore the original iPtr->scriptFile value, but because the value may\n     * have hanged during evaluation, don't assume it currently points to\n     * pathPtr.\n     */\n\n    if (iPtr->scriptFile != NULL) {\n\tTcl_DecrRefCount(iPtr->scriptFile);\n    }\n    iPtr->scriptFile = oldScriptFile;\n\n    if (result == TCL_RETURN) {\n\tresult = TclUpdateReturnInfo(iPtr);\n    } else if (result == TCL_ERROR) {\n\t/*\n\t * Record information about where the error occurred.\n\t */\n\n\tconst char *pathString = TclGetStringFromObj(pathPtr, &length);\n\tint limit = 150;\n\tint overflow = (length > limit);\n\n\tTcl_AppendObjToErrorInfo(interp, Tcl_ObjPrintf(\n\t\t\"\\n    (file \\\"%.*s%s\\\" line %d)\",\n\t\t(overflow ? limit : (int)length), pathString,\n\t\t(overflow ? \"...\" : \"\"), Tcl_GetErrorLine(interp)));\n    }\n\n  end:\n    Tcl_DecrRefCount(objPtr);\n    return result;\n}\n",
+          "snippet_sha256": "ad8317f27808f6fc0469edab8bcbed953f0982e409c93f4b70aa9d731778e93d",
+          "evidence": "source-window-22"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclEncoding.c",
+          "function": "Tcl_GetEncoding",
+          "lines": [
+            740,
+            765
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            23064,
+            23777
+          ],
+          "source_sha256": "a8e40415c4e984eb2d8b888f79a3fc09fe1074233f8ee3d6b6bdb0b270d8b770",
+          "snippet": "Tcl_GetEncoding(\n    Tcl_Interp *interp,\t\t/* Interp for error reporting, if not NULL. */\n    const char *name)\t\t/* The name of the desired encoding. */\n{\n    Tcl_HashEntry *hPtr;\n    Encoding *encodingPtr;\n\n    Tcl_MutexLock(&encodingMutex);\n    if (name == NULL) {\n\tencodingPtr = (Encoding *) systemEncoding;\n\tencodingPtr->refCount++;\n\tTcl_MutexUnlock(&encodingMutex);\n\treturn systemEncoding;\n    }\n\n    hPtr = Tcl_FindHashEntry(&encodingTable, name);\n    if (hPtr != NULL) {\n\tencodingPtr = (Encoding *)Tcl_GetHashValue(hPtr);\n\tencodingPtr->refCount++;\n\tTcl_MutexUnlock(&encodingMutex);\n\treturn (Tcl_Encoding) encodingPtr;\n    }\n    Tcl_MutexUnlock(&encodingMutex);\n\n    return LoadEncodingFile(interp, name);\n}\n",
+          "snippet_sha256": "87a2edabb834ba3feaa55988d2f9dad4438d39e287e8b68ad6918fd0f3f8210a",
+          "evidence": "source-window-23"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclEncoding.c",
+          "function": "Tcl_SetSystemEncoding",
+          "lines": [
+            989,
+            1026
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            29375,
+            30429
+          ],
+          "source_sha256": "a8e40415c4e984eb2d8b888f79a3fc09fe1074233f8ee3d6b6bdb0b270d8b770",
+          "snippet": "Tcl_SetSystemEncoding(\n    Tcl_Interp *interp,\t\t/* Interp for error reporting, if not NULL. */\n    const char *name)\t\t/* The name of the desired encoding, or NULL/\"\"\n\t\t\t\t * to reset to default encoding. */\n{\n    Tcl_Encoding encoding = NULL;\n\n    if (name && *name) {\n\tencoding = Tcl_GetEncoding(interp, name); /* this increases refCount */\n\tif (encoding == NULL) {\n\t    return TCL_ERROR;\n\t}\n    }\n\n    /* Don't lock (and change anything, bump epoch) if it remains unchanged. */\n\n    if ((encoding ? encoding : defaultEncoding) == systemEncoding) {\n\tif (encoding) {\n\t    Tcl_FreeEncoding(encoding); /* paired to Tcl_GetEncoding */\n\t}\n\treturn TCL_OK;\n    }\n\n    /* Checks above ensure this is only called when system encoding changes */\n    Tcl_MutexLock(&encodingMutex);\n    if (!encoding) {\n\tencoding = defaultEncoding; /* need increase its refCount */\n\t((Encoding *)encoding)->refCount++;\n    }\n\n    FreeEncoding(systemEncoding);\n    systemEncoding = encoding;\n    Tcl_MutexUnlock(&encodingMutex);\n\n    Tcl_FSMountsChanged(NULL);\n\n    return TCL_OK;\n}\n",
+          "snippet_sha256": "4defff683f856608ffe2088a108e9c43d67b79eb6231f6733366bb09c7a6d5df",
+          "evidence": "source-window-24"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclEncoding.c",
+          "function": "LoadEncodingFile",
+          "lines": [
+            2420,
+            2470
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            76100,
+            77309
+          ],
+          "source_sha256": "a8e40415c4e984eb2d8b888f79a3fc09fe1074233f8ee3d6b6bdb0b270d8b770",
+          "snippet": "LoadEncodingFile(\n    Tcl_Interp *interp,\t\t/* Interp for error reporting, if not NULL. */\n    const char *name)\t\t/* The name of both the encoding file\n\t\t\t\t * and the new encoding. */\n{\n    Tcl_Channel chan = NULL;\n    Tcl_Encoding encoding = NULL;\n    int ch;\n\n    chan = OpenEncodingFileChannel(interp, name);\n    if (chan == NULL) {\n\treturn NULL;\n    }\n\n    Tcl_SetChannelOption(NULL, chan, \"-encoding\", \"utf-8\");\n\n    while (1) {\n\tTcl_DString ds;\n\n\tTcl_DStringInit(&ds);\n\tTcl_Gets(chan, &ds);\n\tch = Tcl_DStringValue(&ds)[0];\n\tTcl_DStringFree(&ds);\n\tif (ch != '#') {\n\t    break;\n\t}\n    }\n\n    switch (ch) {\n    case 'S':\n\tencoding = LoadTableEncoding(name, ENCODING_SINGLEBYTE, chan);\n\tbreak;\n    case 'D':\n\tencoding = LoadTableEncoding(name, ENCODING_DOUBLEBYTE, chan);\n\tbreak;\n    case 'M':\n\tencoding = LoadTableEncoding(name, ENCODING_MULTIBYTE, chan);\n\tbreak;\n    case 'E':\n\tencoding = LoadEscapeEncoding(name, chan);\n\tbreak;\n    }\n    if ((encoding == NULL) && (interp != NULL)) {\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\"invalid encoding file \\\"%s\\\"\", name));\n\tTcl_SetErrorCode(interp, \"TCL\", \"LOOKUP\", \"ENCODING\", name, (char *)NULL);\n    }\n    Tcl_CloseEx(NULL, chan, 0);\n\n    return encoding;\n}\n",
+          "snippet_sha256": "7a86210ebc3cabc74903d59cffcc1e3754551237092cea0b44b9fe26f18fc4bd",
+          "evidence": "source-window-25"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdAH.c",
+          "function": "EncodingSystemObjCmd",
+          "lines": [
+            841,
+            858
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            25580,
+            26085
+          ],
+          "source_sha256": "56db5fdd8c4bd688cb0beda3b91ad60111adb802fd63c28821055140b582fe04",
+          "snippet": "EncodingSystemObjCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\t\t/* Tcl interpreter */\n    Tcl_Size objc,\t\t/* Number of command line args */\n    Tcl_Obj *const *objv)\t/* Vector of command line args */\n{\n    if (objc > 2) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"?encoding?\");\n\treturn TCL_ERROR;\n    }\n    if (objc == 1) {\n\tTcl_SetObjResult(interp,\n\t\tTcl_NewStringObj(Tcl_GetEncodingName(NULL), -1));\n    } else {\n\treturn Tcl_SetSystemEncoding(interp, TclGetString(objv[1]));\n    }\n    return TCL_OK;\n}\n",
+          "snippet_sha256": "ed9e2cfa7a2e1767b8587a1793d30f883b584c2d9030038c0905382662ebbd1d",
+          "evidence": "source-window-26"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdMZ.c",
+          "function": "TclNRSourceObjCmd",
+          "lines": [
+            1169,
+            1223
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            31813,
+            33346
+          ],
+          "source_sha256": "62be408d1faa29a35d3e30eacc4986fd9f1a973f7efcd474b3a2a9082ded512f",
+          "snippet": "TclNRSourceObjCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    Tcl_Size objc,\t\t/* Number of arguments. */\n    Tcl_Obj *const *objv)\t/* Argument objects. */\n{\n    const char *encodingName = NULL;\n    Tcl_Obj *fileName;\n    int result;\n    void **pkgFiles = NULL;\n    void *names = NULL;\n\n    if (objc < 2 || objc > 4) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"?-encoding encoding? fileName\");\n\treturn TCL_ERROR;\n    }\n\n    fileName = objv[objc-1];\n\n    if (objc == 4) {\n\tstatic const char *const options[] = {\n\t    \"-encoding\", NULL\n\t};\n\tint index;\n\n\tif (TCL_ERROR == Tcl_GetIndexFromObj(interp, objv[1], options,\n\t\t\"option\", TCL_EXACT, &index)) {\n\t    return TCL_ERROR;\n\t}\n\tencodingName = TclGetString(objv[2]);\n    } else if (objc == 3) {\n\t/* Handle undocumented -nopkg option. This should only be\n\t * used by the internal ::tcl::Pkg::source utility function. */\n\tstatic const char *const nopkgoptions[] = {\n\t    \"-nopkg\", NULL\n\t};\n\tint index;\n\n\tif (TCL_ERROR == Tcl_GetIndexFromObj(interp, objv[1], nopkgoptions,\n\t\t\"option\", TCL_EXACT, &index)) {\n\t    return TCL_ERROR;\n\t}\n\tpkgFiles = (void **)Tcl_GetAssocData(interp, \"tclPkgFiles\", NULL);\n\t/* Make sure that during the following TclNREvalFile no filenames\n\t * are recorded for inclusion in the \"package files\" command */\n\tnames = *pkgFiles;\n\t*pkgFiles = NULL;\n    }\n    result = TclNREvalFile(interp, fileName, encodingName);\n    if (pkgFiles) {\n\t/* restore \"tclPkgFiles\" assocdata to how it was. */\n\t*pkgFiles = names;\n    }\n    return result;\n}\n",
+          "snippet_sha256": "f17dd80b646a218b4a9e91bd3a6909741b527ebd3096290e6f1de7ba2dd5bda4",
+          "evidence": "source-window-27"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclIOUtil.c",
+          "function": "Tcl_FSEvalFileEx",
+          "lines": [
+            1690,
+            1825
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            44472,
+            48198
+          ],
+          "source_sha256": "0e7e89671b5840ab90267b9ef5a4a9cac35b702c1a5b62a8a42de066dff514fd",
+          "snippet": "Tcl_FSEvalFileEx(\n    Tcl_Interp *interp,\t\t/* Interpreter that evaluates the script. */\n    Tcl_Obj *pathPtr,\t\t/* Pathname of the file to process.\n\t\t\t\t * Tilde-substitution is performed on this\n\t\t\t\t * pathname. */\n    const char *encodingName)\t/* Either the name of an encoding or NULL to\n\t\t\t\t * use the utf-8 encoding. */\n{\n    Tcl_Size length;\n    int result = TCL_ERROR;\n    Tcl_StatBuf statBuf;\n    Tcl_Obj *oldScriptFile;\n    Interp *iPtr;\n    const char *string;\n    Tcl_Channel chan;\n    Tcl_Obj *objPtr;\n\n    if (Tcl_FSGetNormalizedPath(interp, pathPtr) == NULL) {\n\treturn result;\n    }\n\n    if (Tcl_FSStat(pathPtr, &statBuf) == -1) {\n\tTcl_SetErrno(errno);\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\"couldn't read file \\\"%s\\\": %s\",\n\t\tTclGetString(pathPtr), Tcl_PosixError(interp)));\n\treturn result;\n    }\n    chan = Tcl_FSOpenFileChannel(interp, pathPtr, \"r\", 0644);\n    if (chan == NULL) {\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\"couldn't read file \\\"%s\\\": %s\",\n\t\tTclGetString(pathPtr), Tcl_PosixError(interp)));\n\treturn result;\n    }\n\n    /*\n     * The eof character is \\x1A (^Z). Tcl uses it on every platform to allow\n     * for scripted documents. [Bug: 2040]\n     */\n\n    Tcl_SetChannelOption(interp, chan, \"-eofchar\", \"\\x1A\");\n\n    /*\n     * If the encoding is specified, set the channel to that encoding.\n     * Otherwise use utf-8.  If the encoding is unknown report an error.\n     */\n\n    if (encodingName == NULL) {\n\tencodingName = \"utf-8\";\n    }\n    if (Tcl_SetChannelOption(interp, chan, \"-encoding\", encodingName)\n\t    != TCL_OK) {\n\tTcl_CloseEx(interp,chan,0);\n\treturn result;\n    }\n\n    TclNewObj(objPtr);\n    Tcl_IncrRefCount(objPtr);\n\n    /*\n     * Read first character of stream to check for utf-8 BOM\n     */\n\n    if (Tcl_ReadChars(chan, objPtr, 1, 0) == TCL_IO_FAILURE) {\n\tTcl_CloseEx(interp, chan, 0);\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\"couldn't read file \\\"%s\\\": %s\",\n\t\tTclGetString(pathPtr), Tcl_PosixError(interp)));\n\tgoto end;\n    }\n    string = TclGetString(objPtr);\n\n    /*\n     * If first character is not a BOM, append the remaining characters.\n     * Otherwise, replace them. [Bug 3466099]\n     */\n\n    if (Tcl_ReadChars(chan, objPtr, TCL_INDEX_NONE,\n\t    memcmp(string, \"\\xEF\\xBB\\xBF\", 3)) == TCL_IO_FAILURE) {\n\tTcl_CloseEx(interp, chan, 0);\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\"couldn't read file \\\"%s\\\": %s\",\n\t\tTclGetString(pathPtr), Tcl_PosixError(interp)));\n\tgoto end;\n    }\n\n    if (Tcl_CloseEx(interp, chan, 0) != TCL_OK) {\n\tgoto end;\n    }\n\n    iPtr = (Interp *) interp;\n    oldScriptFile = iPtr->scriptFile;\n    iPtr->scriptFile = pathPtr;\n    Tcl_IncrRefCount(iPtr->scriptFile);\n    string = TclGetStringFromObj(objPtr, &length);\n\n    /*\n     * TIP #280:  Open a frame for the evaluated script.\n     */\n\n    iPtr->evalFlags |= TCL_EVAL_FILE;\n    result = TclEvalEx(interp, string, length, 0, 1, NULL, string);\n\n    /*\n     * Restore the original iPtr->scriptFile value, but because the value may\n     * have hanged during evaluation, don't assume it currently points to\n     * pathPtr.\n     */\n\n    if (iPtr->scriptFile != NULL) {\n\tTcl_DecrRefCount(iPtr->scriptFile);\n    }\n    iPtr->scriptFile = oldScriptFile;\n\n    if (result == TCL_RETURN) {\n\tresult = TclUpdateReturnInfo(iPtr);\n    } else if (result == TCL_ERROR) {\n\t/*\n\t * Record information about where the error occurred.\n\t */\n\n\tconst char *pathString = TclGetStringFromObj(pathPtr, &length);\n\tint limit = 150;\n\tint overflow = (length > limit);\n\n\tTcl_AppendObjToErrorInfo(interp, Tcl_ObjPrintf(\n\t\t\"\\n    (file \\\"%.*s%s\\\" line %d)\",\n\t\t(overflow ? limit : (int)length), pathString,\n\t\t(overflow ? \"...\" : \"\"), Tcl_GetErrorLine(interp)));\n    }\n\n  end:\n    Tcl_DecrRefCount(objPtr);\n    return result;\n}\n",
+          "snippet_sha256": "ad8317f27808f6fc0469edab8bcbed953f0982e409c93f4b70aa9d731778e93d",
+          "evidence": "source-window-28"
+        },
+        {
+          "provider": "jim",
+          "version": "0.84-9-g5bac7c9",
+          "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+          "original_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+          "function": "Jim_SourceCoreCommand",
+          "lines": [
+            16711,
+            16716
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            529211,
+            529412
+          ],
+          "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+          "snippet": "static int Jim_SourceCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)\n{\n    int retval = Jim_EvalFile(interp, Jim_String(argv[1]));\n\n    return retval == JIM_RETURN ? JIM_OK : retval;\n}\n",
+          "snippet_sha256": "06f50ddd7d96c6cf52b7de221ead820052a94493441f3e1f3d016bb7708981b5",
+          "evidence": "source-window-29"
+        },
+        {
+          "provider": "tcl8.4",
+          "version": "8.4.20",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclEncoding.c",
+          "function": "TclInitEncodingSubsystem stored defaultEncoding initialization",
+          "lines": [
+            347,
+            386
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            12281,
+            13438
+          ],
+          "source_sha256": "b52a3a4d8385133479cd25a815f3dbb50f66848df7353be164ac2108556240a6",
+          "snippet": "TclInitEncodingSubsystem()\n{\n    Tcl_EncodingType type;\n\n    Tcl_MutexLock(&encodingMutex);\n    Tcl_InitHashTable(&encodingTable, TCL_STRING_KEYS);\n    Tcl_MutexUnlock(&encodingMutex);\n    \n    /*\n     * Create a few initial encodings.  Note that the UTF-8 to UTF-8 \n     * translation is not a no-op, because it will turn a stream of\n     * improperly formed UTF-8 into a properly formed stream.\n     */\n\n    type.encodingName\t= \"identity\";\n    type.toUtfProc\t= BinaryProc;\n    type.fromUtfProc\t= BinaryProc;\n    type.freeProc\t= NULL;\n    type.nullSize\t= 1;\n    type.clientData\t= NULL;\n\n    defaultEncoding\t= Tcl_CreateEncoding(&type);\n    systemEncoding\t= Tcl_GetEncoding(NULL, type.encodingName);\n\n    type.encodingName\t= \"utf-8\";\n    type.toUtfProc\t= UtfExtToUtfIntProc;\n    type.fromUtfProc\t= UtfIntToUtfExtProc;\n    type.freeProc\t= NULL;\n    type.nullSize\t= 1;\n    type.clientData\t= NULL;\n    Tcl_CreateEncoding(&type);\n\n    type.encodingName   = \"unicode\";\n    type.toUtfProc\t= UnicodeToUtfProc;\n    type.fromUtfProc    = UtfToUnicodeProc;\n    type.freeProc\t= NULL;\n    type.nullSize\t= 2;\n    type.clientData\t= NULL;\n    Tcl_CreateEncoding(&type);\n}\n",
+          "snippet_sha256": "71280c0e7de662d0a14a7b87c521c6968392e317ad42cb59c9afac5b17fff141",
+          "evidence": "source-window-30"
+        },
+        {
+          "provider": "tcl8.5",
+          "version": "8.5.19",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclEncoding.c",
+          "function": "TclInitEncodingSubsystem stored defaultEncoding initialization",
+          "lines": [
+            544,
+            634
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            17524,
+            20200
+          ],
+          "source_sha256": "b100161e6fbcdc9b4055b28308071fa123000526abcb51dc1a65eeb83e94b292",
+          "snippet": "TclInitEncodingSubsystem(void)\n{\n    Tcl_EncodingType type;\n\n    if (encodingsInitialized) {\n\treturn;\n    }\n\n    Tcl_MutexLock(&encodingMutex);\n    Tcl_InitHashTable(&encodingTable, TCL_STRING_KEYS);\n    Tcl_MutexUnlock(&encodingMutex);\n\n    /*\n     * Create a few initial encodings. Note that the UTF-8 to UTF-8\n     * translation is not a no-op, because it will turn a stream of improperly\n     * formed UTF-8 into a properly formed stream.\n     */\n\n    type.encodingName\t= \"identity\";\n    type.toUtfProc\t= BinaryProc;\n    type.fromUtfProc\t= BinaryProc;\n    type.freeProc\t= NULL;\n    type.nullSize\t= 1;\n    type.clientData\t= NULL;\n\n    defaultEncoding\t= Tcl_CreateEncoding(&type);\n    tclIdentityEncoding = Tcl_GetEncoding(NULL, type.encodingName);\n    systemEncoding\t= Tcl_GetEncoding(NULL, type.encodingName);\n\n    type.encodingName\t= \"utf-8\";\n    type.toUtfProc\t= UtfExtToUtfIntProc;\n    type.fromUtfProc\t= UtfIntToUtfExtProc;\n    type.freeProc\t= NULL;\n    type.nullSize\t= 1;\n    type.clientData\t= NULL;\n    Tcl_CreateEncoding(&type);\n\n    type.encodingName   = \"unicode\";\n    type.toUtfProc\t= UnicodeToUtfProc;\n    type.fromUtfProc    = UtfToUnicodeProc;\n    type.freeProc\t= NULL;\n    type.nullSize\t= 2;\n    type.clientData\t= NULL;\n    Tcl_CreateEncoding(&type);\n\n    /*\n     * Need the iso8859-1 encoding in order to process binary data, so force\n     * it to always be embedded. Note that this encoding *must* be a proper\n     * table encoding or some of the escape encodings crash! Hence the ugly\n     * code to duplicate the structure of a table encoding here.\n     */\n\n    {\n\tTableEncodingData *dataPtr = (TableEncodingData *)\n\t\tckalloc(sizeof(TableEncodingData));\n\tunsigned size;\n\tunsigned short i;\n\n\tmemset(dataPtr, 0, sizeof(TableEncodingData));\n\tdataPtr->fallback = '?';\n\n\tsize = 256*(sizeof(unsigned short *) + sizeof(unsigned short));\n\tdataPtr->toUnicode = (unsigned short **) ckalloc(size);\n\tmemset(dataPtr->toUnicode, 0, size);\n\tdataPtr->fromUnicode = (unsigned short **) ckalloc(size);\n\tmemset(dataPtr->fromUnicode, 0, size);\n\n\tdataPtr->toUnicode[0] = (unsigned short *) (dataPtr->toUnicode + 256);\n\tdataPtr->fromUnicode[0] = (unsigned short *)\n\t\t(dataPtr->fromUnicode + 256);\n\tfor (i=1 ; i<256 ; i++) {\n\t    dataPtr->toUnicode[i] = emptyPage;\n\t    dataPtr->fromUnicode[i] = emptyPage;\n\t}\n\n\tfor (i=0 ; i<256 ; i++) {\n\t    dataPtr->toUnicode[0][i] = i;\n\t    dataPtr->fromUnicode[0][i] = i;\n\t}\n\n\ttype.encodingName\t= \"iso8859-1\";\n\ttype.toUtfProc\t\t= Iso88591ToUtfProc;\n\ttype.fromUtfProc\t= Iso88591FromUtfProc;\n\ttype.freeProc\t\t= TableFreeProc;\n\ttype.nullSize\t\t= 1;\n\ttype.clientData\t\t= dataPtr;\n\tTcl_CreateEncoding(&type);\n    }\n\n    encodingsInitialized = 1;\n}\n",
+          "snippet_sha256": "9f0bc429e72d2c6b03610163742c90a86516004fd4437e6f7d0764354e26da4d",
+          "evidence": "source-window-31"
+        },
+        {
+          "provider": "tcl8.6",
+          "version": "8.6.18",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclEncoding.c",
+          "function": "TclInitEncodingSubsystem stored defaultEncoding initialization",
+          "lines": [
+            533,
+            622
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            16889,
+            19612
+          ],
+          "source_sha256": "359bfa493e7aba998e524978aca4345422e2e265dde93e73f76cb5fc8784e4c6",
+          "snippet": "TclInitEncodingSubsystem(void)\n{\n    Tcl_EncodingType type;\n    TableEncodingData *dataPtr;\n    unsigned size;\n    unsigned short i;\n    union {\n\tchar c;\n\tshort s;\n    } isLe;\n\n    if (encodingsInitialized) {\n\treturn;\n    }\n\n    isLe.s = 1;\n    Tcl_MutexLock(&encodingMutex);\n    Tcl_InitHashTable(&encodingTable, TCL_STRING_KEYS);\n    Tcl_MutexUnlock(&encodingMutex);\n\n    /*\n     * Create a few initial encodings.  UTF-8 to UTF-8 translation is not a\n     * no-op because it turns a stream of improperly formed UTF-8 into a\n     * properly formed stream.\n     */\n\n    type.encodingName\t= \"identity\";\n    type.toUtfProc\t= BinaryProc;\n    type.fromUtfProc\t= BinaryProc;\n    type.freeProc\t= NULL;\n    type.nullSize\t= 1;\n    type.clientData\t= NULL;\n    tclIdentityEncoding = Tcl_CreateEncoding(&type);\n\n    type.encodingName\t= \"utf-8\";\n    type.toUtfProc\t= UtfExtToUtfIntProc;\n    type.fromUtfProc\t= UtfIntToUtfExtProc;\n    type.freeProc\t= NULL;\n    type.nullSize\t= 1;\n    type.clientData\t= NULL;\n    Tcl_CreateEncoding(&type);\n\n    type.encodingName   = \"unicode\";\n    type.toUtfProc\t= UnicodeToUtfProc;\n    type.fromUtfProc    = UtfToUnicodeProc;\n    type.freeProc\t= NULL;\n    type.nullSize\t= 2;\n    type.clientData\t= INT2PTR(isLe.c);\n    Tcl_CreateEncoding(&type);\n\n    /*\n     * Need the iso8859-1 encoding in order to process binary data, so force\n     * it to always be embedded. Note that this encoding *must* be a proper\n     * table encoding or some of the escape encodings crash! Hence the ugly\n     * code to duplicate the structure of a table encoding here.\n     */\n\n    dataPtr = (TableEncodingData *)ckalloc(sizeof(TableEncodingData));\n    memset(dataPtr, 0, sizeof(TableEncodingData));\n    dataPtr->fallback = '?';\n\n    size = 256*(sizeof(unsigned short *) + sizeof(unsigned short));\n    dataPtr->toUnicode = (unsigned short **)ckalloc(size);\n    memset(dataPtr->toUnicode, 0, size);\n    dataPtr->fromUnicode = (unsigned short **)ckalloc(size);\n    memset(dataPtr->fromUnicode, 0, size);\n\n    dataPtr->toUnicode[0] = (unsigned short *) (dataPtr->toUnicode + 256);\n    dataPtr->fromUnicode[0] = (unsigned short *) (dataPtr->fromUnicode + 256);\n    for (i=1 ; i<256 ; i++) {\n\tdataPtr->toUnicode[i] = emptyPage;\n\tdataPtr->fromUnicode[i] = emptyPage;\n    }\n\n    for (i=0 ; i<256 ; i++) {\n\tdataPtr->toUnicode[0][i] = i;\n\tdataPtr->fromUnicode[0][i] = i;\n    }\n\n    type.encodingName\t= \"iso8859-1\";\n    type.toUtfProc\t= Iso88591ToUtfProc;\n    type.fromUtfProc\t= Iso88591FromUtfProc;\n    type.freeProc\t= TableFreeProc;\n    type.nullSize\t= 1;\n    type.clientData\t= dataPtr;\n    defaultEncoding\t= Tcl_CreateEncoding(&type);\n    systemEncoding\t= Tcl_GetEncoding(NULL, type.encodingName);\n\n    encodingsInitialized = 1;\n}\n",
+          "snippet_sha256": "e1c1e1dbab49b645edc795fe9cec4d5be895d59c1382cb7aa99f207cbf48cec0",
+          "evidence": "source-window-32"
+        },
+        {
+          "provider": "tcl9.0",
+          "version": "9.0.4",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclEncoding.c",
+          "function": "TclInitEncodingSubsystem stored defaultEncoding initialization",
+          "lines": [
+            524,
+            659
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            16679,
+            20842
+          ],
+          "source_sha256": "b2d923ff94e392ddbfcb6daf474e58cff1b880d574d6b70ee3153a196f9f7531",
+          "snippet": "TclInitEncodingSubsystem(void)\n{\n    Tcl_EncodingType type;\n    TableEncodingData *dataPtr;\n    unsigned size;\n    unsigned short i;\n    union {\n\tchar c;\n\tshort s;\n    } isLe;\n    int leFlags;\n\n    if (encodingsInitialized) {\n\treturn;\n    }\n\n    /* Note: This DEPENDS on TCL_ENCODING_LE being defined in least sig byte */\n    isLe.s = 1;\n    leFlags = isLe.c ? TCL_ENCODING_LE : 0;\n\n    Tcl_MutexLock(&encodingMutex);\n    Tcl_InitHashTable(&encodingTable, TCL_STRING_KEYS);\n    Tcl_MutexUnlock(&encodingMutex);\n\n    /*\n     * Create a few initial encodings.  UTF-8 to UTF-8 translation is not a\n     * no-op because it turns a stream of improperly formed UTF-8 into a\n     * properly formed stream.\n     */\n\n    type.encodingName\t= NULL;\n    type.toUtfProc\t= BinaryProc;\n    type.fromUtfProc\t= BinaryProc;\n    type.freeProc\t= NULL;\n    type.nullSize\t= 1;\n    type.clientData\t= NULL;\n    tclIdentityEncoding = Tcl_CreateEncoding(&type);\n\n    type.encodingName\t= \"utf-8\";\n    type.toUtfProc\t= UtfToUtfProc;\n    type.fromUtfProc\t= UtfToUtfProc;\n    type.freeProc\t= NULL;\n    type.nullSize\t= 1;\n    type.clientData\t= INT2PTR(ENCODING_UTF);\n    tclUtf8Encoding = Tcl_CreateEncoding(&type);\n    type.clientData\t= NULL;\n    type.encodingName\t= \"cesu-8\";\n    Tcl_CreateEncoding(&type);\n\n    type.toUtfProc\t= Utf16ToUtfProc;\n    type.fromUtfProc\t= UtfToUcs2Proc;\n    type.freeProc\t= NULL;\n    type.nullSize\t= 2;\n    type.encodingName\t= \"ucs-2le\";\n    type.clientData\t= INT2PTR(TCL_ENCODING_LE);\n    Tcl_CreateEncoding(&type);\n    type.encodingName\t= \"ucs-2be\";\n    type.clientData\t= NULL;\n    Tcl_CreateEncoding(&type);\n    type.encodingName\t= \"ucs-2\";\n    type.clientData\t= INT2PTR(leFlags);\n    Tcl_CreateEncoding(&type);\n\n    type.toUtfProc\t= Utf32ToUtfProc;\n    type.fromUtfProc\t= UtfToUtf32Proc;\n    type.freeProc\t= NULL;\n    type.nullSize\t= 4;\n    type.encodingName\t= \"utf-32le\";\n    type.clientData\t= INT2PTR(TCL_ENCODING_LE);\n    Tcl_CreateEncoding(&type);\n    type.encodingName\t= \"utf-32be\";\n    type.clientData\t= NULL;\n    Tcl_CreateEncoding(&type);\n    type.encodingName\t= \"utf-32\";\n    type.clientData\t= INT2PTR(leFlags);\n    Tcl_CreateEncoding(&type);\n\n    type.toUtfProc\t= Utf16ToUtfProc;\n    type.fromUtfProc    = UtfToUtf16Proc;\n    type.freeProc\t= NULL;\n    type.nullSize\t= 2;\n    type.encodingName\t= \"utf-16le\";\n    type.clientData\t= INT2PTR(TCL_ENCODING_LE);\n    Tcl_CreateEncoding(&type);\n    type.encodingName\t= \"utf-16be\";\n    type.clientData\t= NULL;\n    Tcl_CreateEncoding(&type);\n    type.encodingName\t= \"utf-16\";\n    type.clientData\t= INT2PTR(leFlags);\n    Tcl_CreateEncoding(&type);\n\n#ifndef TCL_NO_DEPRECATED\n    type.encodingName\t= \"unicode\";\n    Tcl_CreateEncoding(&type);\n#endif\n\n    /*\n     * Need the iso8859-1 encoding in order to process binary data, so force\n     * it to always be embedded. Note that this encoding *must* be a proper\n     * table encoding or some of the escape encodings crash! Hence the ugly\n     * code to duplicate the structure of a table encoding here.\n     */\n\n    dataPtr = (TableEncodingData *)Tcl_Alloc(sizeof(TableEncodingData));\n    memset(dataPtr, 0, sizeof(TableEncodingData));\n    dataPtr->fallback = '?';\n\n    size = 256*(sizeof(unsigned short *) + sizeof(unsigned short));\n    dataPtr->toUnicode = (unsigned short **)Tcl_Alloc(size);\n    memset(dataPtr->toUnicode, 0, size);\n    dataPtr->fromUnicode = (unsigned short **)Tcl_Alloc(size);\n    memset(dataPtr->fromUnicode, 0, size);\n\n    dataPtr->toUnicode[0] = (unsigned short *) (dataPtr->toUnicode + 256);\n    dataPtr->fromUnicode[0] = (unsigned short *) (dataPtr->fromUnicode + 256);\n    for (i=1 ; i<256 ; i++) {\n\tdataPtr->toUnicode[i] = emptyPage;\n\tdataPtr->fromUnicode[i] = emptyPage;\n    }\n\n    for (i=0 ; i<256 ; i++) {\n\tdataPtr->toUnicode[0][i] = i;\n\tdataPtr->fromUnicode[0][i] = i;\n    }\n\n    type.encodingName\t= \"iso8859-1\";\n    type.toUtfProc\t= Iso88591ToUtfProc;\n    type.fromUtfProc\t= Iso88591FromUtfProc;\n    type.freeProc\t= TableFreeProc;\n    type.nullSize\t= 1;\n    type.clientData\t= dataPtr;\n    defaultEncoding\t= Tcl_CreateEncoding(&type);\n    systemEncoding\t= Tcl_GetEncoding(NULL, type.encodingName);\n\n    encodingsInitialized = 1;\n}\n",
+          "snippet_sha256": "33cb6bccddf1b69b6e04eb93f12d3c8a8bdbe733f368aba3558cf05a0ffbfe56",
+          "evidence": "source-window-33"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclEncoding.c",
+          "function": "TclInitEncodingSubsystem stored defaultEncoding initialization",
+          "lines": [
+            527,
+            667
+          ],
+          "line_unit": "physical LF only",
+          "byte_range": [
+            16867,
+            21139
+          ],
+          "source_sha256": "a8e40415c4e984eb2d8b888f79a3fc09fe1074233f8ee3d6b6bdb0b270d8b770",
+          "snippet": "TclInitEncodingSubsystem(void)\n{\n    Tcl_EncodingType type;\n    TableEncodingData *dataPtr;\n    unsigned size;\n    unsigned short i;\n    union {\n\tchar c;\n\tshort s;\n    } isLe;\n    int leFlags;\n\n    if (encodingsInitialized) {\n\treturn;\n    }\n\n    /* Note: This DEPENDS on TCL_ENCODING_LE being defined in least sig byte */\n    isLe.s = 1;\n    leFlags = isLe.c ? TCL_ENCODING_LE : 0;\n\n    Tcl_MutexLock(&encodingMutex);\n    Tcl_InitHashTable(&encodingTable, TCL_STRING_KEYS);\n    Tcl_MutexUnlock(&encodingMutex);\n\n    /*\n     * Create a few initial encodings.  UTF-8 to UTF-8 translation is not a\n     * no-op because it turns a stream of improperly formed UTF-8 into a\n     * properly formed stream.\n     */\n\n    type.encodingName\t= NULL;\n    type.toUtfProc\t= BinaryProc;\n    type.fromUtfProc\t= BinaryProc;\n    type.freeProc\t= NULL;\n    type.nullSize\t= 1;\n    type.clientData\t= NULL;\n    tclIdentityEncoding = Tcl_CreateEncoding(&type);\n\n    type.encodingName\t= \"utf-8\";\n    type.toUtfProc\t= UtfToUtfProc;\n    type.fromUtfProc\t= UtfToUtfProc;\n    type.freeProc\t= NULL;\n    type.nullSize\t= 1;\n    type.clientData\t= NULL;\n    tclUtf8Encoding = Tcl_CreateEncoding(&type);\n\n    type.encodingName\t= \"cesu-8\";\n    type.toUtfProc\t= Cesu8ToUtfProc;\n    type.fromUtfProc\t= UtfToCesu8Proc;\n    type.freeProc\t= NULL;\n    type.nullSize\t= 1;\n    type.clientData\t= NULL;\n    Tcl_CreateEncoding(&type);\n\n    type.toUtfProc\t= Utf16ToUtfProc;\n    type.fromUtfProc\t= UtfToUcs2Proc;\n    type.freeProc\t= NULL;\n    type.nullSize\t= 2;\n    type.encodingName\t= \"ucs-2le\";\n    type.clientData\t= INT2PTR(TCL_ENCODING_LE);\n    Tcl_CreateEncoding(&type);\n    type.encodingName\t= \"ucs-2be\";\n    type.clientData\t= NULL;\n    Tcl_CreateEncoding(&type);\n    type.encodingName\t= \"ucs-2\";\n    type.clientData\t= INT2PTR(leFlags);\n    Tcl_CreateEncoding(&type);\n\n    type.toUtfProc\t= Utf32ToUtfProc;\n    type.fromUtfProc\t= UtfToUtf32Proc;\n    type.freeProc\t= NULL;\n    type.nullSize\t= 4;\n    type.encodingName\t= \"utf-32le\";\n    type.clientData\t= INT2PTR(TCL_ENCODING_LE);\n    Tcl_CreateEncoding(&type);\n    type.encodingName\t= \"utf-32be\";\n    type.clientData\t= NULL;\n    Tcl_CreateEncoding(&type);\n    type.encodingName\t= \"utf-32\";\n    type.clientData\t= INT2PTR(leFlags);\n    Tcl_CreateEncoding(&type);\n\n    type.toUtfProc\t= Utf16ToUtfProc;\n    type.fromUtfProc    = UtfToUtf16Proc;\n    type.freeProc\t= NULL;\n    type.nullSize\t= 2;\n    type.encodingName\t= \"utf-16le\";\n    type.clientData\t= INT2PTR(TCL_ENCODING_LE);\n    Tcl_CreateEncoding(&type);\n    type.encodingName\t= \"utf-16be\";\n    type.clientData\t= NULL;\n    Tcl_CreateEncoding(&type);\n    type.encodingName\t= \"utf-16\";\n    type.clientData\t= INT2PTR(leFlags);\n    Tcl_CreateEncoding(&type);\n\n#ifndef TCL_NO_DEPRECATED\n    type.encodingName\t= \"unicode\";\n    Tcl_CreateEncoding(&type);\n#endif\n\n    /*\n     * Need the iso8859-1 encoding in order to process binary data, so force\n     * it to always be embedded. Note that this encoding *must* be a proper\n     * table encoding or some of the escape encodings crash! Hence the ugly\n     * code to duplicate the structure of a table encoding here.\n     */\n\n    dataPtr = (TableEncodingData *)Tcl_Alloc(sizeof(TableEncodingData));\n    memset(dataPtr, 0, sizeof(TableEncodingData));\n    dataPtr->fallback = '?';\n\n    size = 256*(sizeof(unsigned short *) + sizeof(unsigned short));\n    dataPtr->toUnicode = (unsigned short **)Tcl_Alloc(size);\n    memset(dataPtr->toUnicode, 0, size);\n    dataPtr->fromUnicode = (unsigned short **)Tcl_Alloc(size);\n    memset(dataPtr->fromUnicode, 0, size);\n\n    dataPtr->toUnicode[0] = (unsigned short *) (dataPtr->toUnicode + 256);\n    dataPtr->fromUnicode[0] = (unsigned short *) (dataPtr->fromUnicode + 256);\n    for (i=1 ; i<256 ; i++) {\n\tdataPtr->toUnicode[i] = emptyPage;\n\tdataPtr->fromUnicode[i] = emptyPage;\n    }\n\n    for (i=0 ; i<256 ; i++) {\n\tdataPtr->toUnicode[0][i] = i;\n\tdataPtr->fromUnicode[0][i] = i;\n    }\n\n    type.encodingName\t= \"iso8859-1\";\n    type.toUtfProc\t= Iso88591ToUtfProc;\n    type.fromUtfProc\t= Iso88591FromUtfProc;\n    type.freeProc\t= TableFreeProc;\n    type.nullSize\t= 1;\n    type.clientData\t= dataPtr;\n    defaultEncoding\t= Tcl_CreateEncoding(&type);\n    systemEncoding\t= Tcl_GetEncoding(NULL, type.encodingName);\n\n    encodingsInitialized = 1;\n}\n",
+          "snippet_sha256": "40343d9fe0e425117590396175455024e31f95d625b7ad0a3e1874d4b4f838c5",
+          "evidence": "source-window-34"
+        }
+      ]
     }
   ]
 }

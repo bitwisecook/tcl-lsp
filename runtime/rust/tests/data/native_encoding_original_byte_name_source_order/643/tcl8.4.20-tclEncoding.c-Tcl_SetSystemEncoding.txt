@@ -1,0 +1,28 @@
+Tcl_SetSystemEncoding(interp, name)
+    Tcl_Interp *interp;		/* Interp for error reporting, if not NULL. */
+    CONST char *name;		/* The name of the desired encoding, or NULL/""
+				 * to reset to default encoding. */
+{
+    Tcl_Encoding encoding;
+    Encoding *encodingPtr;
+
+    if (!name || !*name) {
+	Tcl_MutexLock(&encodingMutex);
+	encoding = defaultEncoding;
+	encodingPtr = (Encoding *) encoding;
+	encodingPtr->refCount++;
+	Tcl_MutexUnlock(&encodingMutex);
+    } else {
+	encoding = Tcl_GetEncoding(interp, name);
+	if (encoding == NULL) {
+	    return TCL_ERROR;
+	}
+    }
+
+    Tcl_MutexLock(&encodingMutex);
+    FreeEncoding(systemEncoding);
+    systemEncoding = encoding;
+    Tcl_MutexUnlock(&encodingMutex);
+
+    return TCL_OK;
+}

@@ -1,0 +1,93 @@
+{
+  "names": [
+    {
+      "label": "utf8",
+      "producer": "public counted String constructor",
+      "bytes_hex": "7574662d38",
+      "length": 5
+    },
+    {
+      "label": "ascii",
+      "producer": "public counted String constructor",
+      "bytes_hex": "6173636969",
+      "length": 5
+    },
+    {
+      "label": "latin1",
+      "producer": "public counted String constructor",
+      "bytes_hex": "69736f383835392d31",
+      "length": 9
+    },
+    {
+      "label": "empty",
+      "producer": "public counted String constructor",
+      "bytes_hex": "",
+      "length": 0
+    },
+    {
+      "label": "binary",
+      "producer": "public counted String constructor",
+      "bytes_hex": "62696e617279",
+      "length": 6
+    },
+    {
+      "label": "upper-utf8",
+      "producer": "public counted String constructor",
+      "bytes_hex": "5554462d38",
+      "length": 5
+    },
+    {
+      "label": "unknown-ascii",
+      "producer": "public counted String constructor",
+      "bytes_hex": "52323238365f6d697373696e675f656e636f64696e67",
+      "length": 22
+    },
+    {
+      "label": "utf8-raw-zero-tail",
+      "producer": "public counted String constructor",
+      "bytes_hex": "7574662d38005441494c",
+      "length": 10
+    },
+    {
+      "label": "empty-raw-zero-tail",
+      "producer": "public counted String constructor",
+      "bytes_hex": "005441494c",
+      "length": 5
+    },
+    {
+      "label": "unknown-raw-zero-tail",
+      "producer": "public counted String constructor",
+      "bytes_hex": "52323238365f6d697373696e675f656e636f64696e67005441494c",
+      "length": 27
+    },
+    {
+      "label": "raw-invalid-ff",
+      "producer": "public counted String constructor",
+      "bytes_hex": "ff",
+      "length": 1
+    },
+    {
+      "label": "raw-invalid-c0af",
+      "producer": "public counted String constructor",
+      "bytes_hex": "c0af",
+      "length": 2
+    },
+    {
+      "label": "native-modified-zero",
+      "producer": "public counted String constructor",
+      "bytes_hex": "7574662d38c0805441494c",
+      "length": 11
+    }
+  ],
+  "workers": [
+    "encoding-system",
+    "source-explicit-existing",
+    "source-explicit-missing"
+  ],
+  "plain_source_controls": [
+    "plain-existing",
+    "plain-missing"
+  ],
+  "source_content_ascii": "set ::R2286_ENCODING_LOADED YES; return SOURCE_OK\n",
+  "path_arguments": "Runner-owned existing and guaranteed absent absolute ASCII paths; never guessed native file state."
+}

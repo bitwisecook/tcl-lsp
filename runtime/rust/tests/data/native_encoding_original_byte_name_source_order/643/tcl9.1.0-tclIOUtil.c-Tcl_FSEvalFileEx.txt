@@ -1,0 +1,136 @@
+Tcl_FSEvalFileEx(
+    Tcl_Interp *interp,		/* Interpreter that evaluates the script. */
+    Tcl_Obj *pathPtr,		/* Pathname of the file to process.
+				 * Tilde-substitution is performed on this
+				 * pathname. */
+    const char *encodingName)	/* Either the name of an encoding or NULL to
+				 * use the utf-8 encoding. */
+{
+    Tcl_Size length;
+    int result = TCL_ERROR;
+    Tcl_StatBuf statBuf;
+    Tcl_Obj *oldScriptFile;
+    Interp *iPtr;
+    const char *string;
+    Tcl_Channel chan;
+    Tcl_Obj *objPtr;
+
+    if (Tcl_FSGetNormalizedPath(interp, pathPtr) == NULL) {
+	return result;
+    }
+
+    if (Tcl_FSStat(pathPtr, &statBuf) == -1) {
+	Tcl_SetErrno(errno);
+	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		"couldn't read file \"%s\": %s",
+		TclGetString(pathPtr), Tcl_PosixError(interp)));
+	return result;
+    }
+    chan = Tcl_FSOpenFileChannel(interp, pathPtr, "r", 0644);
+    if (chan == NULL) {
+	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		"couldn't read file \"%s\": %s",
+		TclGetString(pathPtr), Tcl_PosixError(interp)));
+	return result;
+    }
+
+    /*
+     * The eof character is \x1A (^Z). Tcl uses it on every platform to allow
+     * for scripted documents. [Bug: 2040]
+     */
+
+    Tcl_SetChannelOption(interp, chan, "-eofchar", "\x1A");
+
+    /*
+     * If the encoding is specified, set the channel to that encoding.
+     * Otherwise use utf-8.  If the encoding is unknown report an error.
+     */
+
+    if (encodingName == NULL) {
+	encodingName = "utf-8";
+    }
+    if (Tcl_SetChannelOption(interp, chan, "-encoding", encodingName)
+	    != TCL_OK) {
+	Tcl_CloseEx(interp,chan,0);
+	return result;
+    }
+
+    TclNewObj(objPtr);
+    Tcl_IncrRefCount(objPtr);
+
+    /*
+     * Read first character of stream to check for utf-8 BOM
+     */
+
+    if (Tcl_ReadChars(chan, objPtr, 1, 0) == TCL_IO_FAILURE) {
+	Tcl_CloseEx(interp, chan, 0);
+	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		"couldn't read file \"%s\": %s",
+		TclGetString(pathPtr), Tcl_PosixError(interp)));
+	goto end;
+    }
+    string = TclGetString(objPtr);
+
+    /*
+     * If first character is not a BOM, append the remaining characters.
+     * Otherwise, replace them. [Bug 3466099]
+     */
+
+    if (Tcl_ReadChars(chan, objPtr, TCL_INDEX_NONE,
+	    memcmp(string, "\xEF\xBB\xBF", 3)) == TCL_IO_FAILURE) {
+	Tcl_CloseEx(interp, chan, 0);
+	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		"couldn't read file \"%s\": %s",
+		TclGetString(pathPtr), Tcl_PosixError(interp)));
+	goto end;
+    }
+
+    if (Tcl_CloseEx(interp, chan, 0) != TCL_OK) {
+	goto end;
+    }
+
+    iPtr = (Interp *) interp;
+    oldScriptFile = iPtr->scriptFile;
+    iPtr->scriptFile = pathPtr;
+    Tcl_IncrRefCount(iPtr->scriptFile);
+    string = TclGetStringFromObj(objPtr, &length);
+
+    /*
+     * TIP #280:  Open a frame for the evaluated script.
+     */
+
+    iPtr->evalFlags |= TCL_EVAL_FILE;
+    result = TclEvalEx(interp, string, length, 0, 1, NULL, string);
+
+    /*
+     * Restore the original iPtr->scriptFile value, but because the value may
+     * have hanged during evaluation, don't assume it currently points to
+     * pathPtr.
+     */
+
+    if (iPtr->scriptFile != NULL) {
+	Tcl_DecrRefCount(iPtr->scriptFile);
+    }
+    iPtr->scriptFile = oldScriptFile;
+
+    if (result == TCL_RETURN) {
+	result = TclUpdateReturnInfo(iPtr);
+    } else if (result == TCL_ERROR) {
+	/*
+	 * Record information about where the error occurred.
+	 */
+
+	const char *pathString = TclGetStringFromObj(pathPtr, &length);
+	int limit = 150;
+	int overflow = (length > limit);
+
+	Tcl_AppendObjToErrorInfo(interp, Tcl_ObjPrintf(
+		"\n    (file \"%.*s%s\" line %d)",
+		(overflow ? limit : (int)length), pathString,
+		(overflow ? "..." : ""), Tcl_GetErrorLine(interp)));
+    }
+
+  end:
+    Tcl_DecrRefCount(objPtr);
+    return result;
+}

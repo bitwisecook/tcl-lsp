@@ -1,0 +1,49 @@
+{
+  "proposed_question_id": "naming.encoding.original-byte-name-lookup-and-source-order",
+  "question": "For original counted String encoding names (accepted ASCII, empty reset, literal zero suffix, modified zero and invalid UTF octets), what command completion/result/errorCode, system-encoding mutation and sourced-script effect follow encoding system and source -encoding on each exact initialized C8.4\u2013C9.1/Jim image, and does failed file open precede invalid encoding lookup?",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "Jim5bac7c99"
+  ],
+  "cases_per_provider": 41,
+  "command_channel": "Actual retained Tcl_NewStringObj/Jim_NewStringObj counted raw String and public object-vector evaluation; no binary-format/source Unicode producer rewriting. ASCII initialization/query scripts remain separate.",
+  "root_execution_request": [
+    "Compile the exact probe.c separately against each pinned C header/library and Jim header/library with JIM_PROBE, retaining full compile arguments, stdout/stderr, provider/header/library/source/executable fingerprints and linked version output.",
+    "Create a runner-owned existing ASCII file with exactly cases.json source_content_ascii and a guaranteed absent sibling; record paths/file bytes before any process. Run with two exact path arguments and the pinned provider library/environment.",
+    "Retain complete41 per-provider case blocks. Jim absent encoding and C8.4 unsupported source -encoding completions are availability/grammar outcomes; do not convert them into successful measured encoding-worker claims.",
+    "No golden output/assertion is prescribed. Native results determine selected lookup/error extent and order before shared production migration."
+  ],
+  "source_findings": [
+    "All inspected C system setters reach TclGetString/C-string encoding table keys; raw counted invalid UTF is not rejected by a Unicode-required adapter before lookup.",
+    "C source opens the file channel before setting its selected encoding; current VM resolves encoding first. Runtime currently selects but omits encoding_at.",
+    "Runtime system currently uses from_utf8_lossy; VM system currently uses to_str; shared resolver currently accepts &str.",
+    "Jim core source takes Jim_String filename and normalizes reached Return; an encoding worker is not assumed available."
+  ],
+  "current_consumer_joins": [
+    {
+      "path": "rust/tcl-vm/src/command.rs",
+      "sha256": "f6352db5f4cd5ebb2f368ff6c9461d00d3b910ff63f2d2bb1e2947f2736f8757"
+    },
+    {
+      "path": "runtime/rust/src/cmd_fs.rs",
+      "sha256": "f62a17d759fe57f41c601712cac31baf42ef533c41a7008d1f03f2da6b963239"
+    },
+    {
+      "path": "runtime/rust/src/cmd_misc.rs",
+      "sha256": "446b8581028731f34339ad4f3d92877a7e28992ba457bb1acc52b3d6ce5eb9f7"
+    },
+    {
+      "path": "rust/tcl-cmd-core/src/channel.rs",
+      "sha256": "9ea3753cff6d1e081bcc29282b0d356365f0a64792ff5d0f3e0d58442cb11513"
+    },
+    {
+      "path": "rust/tcl-registry/src/source_file.rs",
+      "sha256": "3ed1fb2be48d09654d342becd30ed83c4998242bfb18a2c7dbbb994f38476fde"
+    }
+  ],
+  "limits": "Request/input/source inspection only; no process, Cargo, Native, Rust assertion or provider observation performed."
+}

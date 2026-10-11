@@ -1,0 +1,33 @@
+{
+  "scripts": [
+    {
+      "path": "protocol/run-native-encoding-source643.py",
+      "original_sha256": "c595b47bc044d021d318ee8b6fd99358d3211400c9eeb357dd0937c7c24b2c9e",
+      "literal_replacements": [
+        {
+          "old": "request = Path('/tmp/sourceperf-encoding-source-request643')",
+          "new": "request = Path(__replay_request)"
+        },
+        {
+          "old": "output = Path('/workspace/.proofs/root-native-encoding-source643')",
+          "new": "output = Path(__replay_output)"
+        }
+      ]
+    },
+    {
+      "path": "protocol/run-encoding-library-version643.py",
+      "original_sha256": "a94b425d183b75c81ce6c26d525d04136bf10c1d0772599c776d829d26221ef7",
+      "literal_replacements": [
+        {
+          "old": "root = Path('/workspace/.proofs/root-native-encoding-source643')",
+          "new": "root = Path(__replay_output)"
+        },
+        {
+          "old": "source = Path('/workspace/.proofs/native-string-replacement-library-version629.c')",
+          "new": "source = Path(__replay_version_source)"
+        }
+      ]
+    }
+  ],
+  "scope": "Only request/output and identical retained version source paths redirect. Original launch/compiler/provider/library/environment/case/probe algorithms remain unchanged. No replay has been launched by publication."
+}

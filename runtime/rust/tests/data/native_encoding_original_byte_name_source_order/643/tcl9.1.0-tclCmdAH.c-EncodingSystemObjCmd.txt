@@ -1,0 +1,18 @@
+EncodingSystemObjCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,		/* Tcl interpreter */
+    Tcl_Size objc,		/* Number of command line args */
+    Tcl_Obj *const *objv)	/* Vector of command line args */
+{
+    if (objc > 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "?encoding?");
+	return TCL_ERROR;
+    }
+    if (objc == 1) {
+	Tcl_SetObjResult(interp,
+		Tcl_NewStringObj(Tcl_GetEncodingName(NULL), -1));
+    } else {
+	return Tcl_SetSystemEncoding(interp, TclGetString(objv[1]));
+    }
+    return TCL_OK;
+}
