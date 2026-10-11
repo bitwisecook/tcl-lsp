@@ -661,6 +661,36 @@ impl NativeNameProtocol {
             .then(|| c_string_extent(original).is_empty())
     }
 
+    /// Every C child-handle alias reads the target before capture. This
+    /// selected entry is separate from the `interp alias` ensemble split.
+    #[must_use]
+    pub const fn child_alias_target_string_precedes_capture(self) -> bool {
+        matches!(self, Self::C(_))
+    }
+
+    /// The child-handle empty-target check consumes the selected C String
+    /// extent. Jim's child alias has no such pretest.
+    #[must_use]
+    pub fn child_alias_pretested_target_is_empty(self, original: &[u8]) -> Option<bool> {
+        self.child_alias_target_string_precedes_capture()
+            .then(|| c_string_extent(original).is_empty())
+    }
+
+    /// C child-handle aliases return the original registration name. The
+    /// Jim child extension leaves its empty result in place.
+    #[must_use]
+    pub const fn child_alias_returns_original_registration_name(self) -> bool {
+        matches!(self, Self::C(_))
+    }
+
+    /// C alias records own the original registration name. Jim owns its
+    /// command-table key separately, and its child String-name constructor
+    /// does not retain the original caller name.
+    #[must_use]
+    pub const fn alias_record_retains_original_registration_name(self) -> bool {
+        matches!(self, Self::C(_))
+    }
+
     /// C reaches the original target after publication to reject alias loops;
     /// Jim admits loops and leaves all target/prefix Strings lazy until use.
     #[must_use]

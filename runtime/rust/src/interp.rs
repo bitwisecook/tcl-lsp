@@ -830,8 +830,8 @@ pub enum Command {
         /// Original member ownership; command-token clones do not duplicate
         /// the native List or its member references.
         original_prefix: Rc<obj::Owned>,
-        /// C retains the original registration name independently of its slot.
-        registration_name: Rc<obj::Owned>,
+        /// Only C retains the original registration name in the alias record.
+        registration_name: Option<Rc<obj::Owned>>,
         /// Selected child registration spelling, independent of command lookup.
         publication_name: Vec<u8>,
         /// Per-instance identity — see [`Command::is_same_binding`].
@@ -3708,9 +3708,9 @@ impl Interp {
         })
     }
 
-    /// Install a cross-interp alias in child `child`: `name` (in the child)
-    /// delegates to `target ?prefix...?` run in this (the parent) interp.
-    /// Returns whether the child exists.
+    /// Explicit generated test inputs create fresh original prefix objects.
+    /// Actual child commands use the original-object publication owner.
+    #[cfg(test)]
     pub(crate) fn install_parent_alias(
         &mut self,
         child: &[u8],
@@ -3718,7 +3718,14 @@ impl Interp {
         target: Vec<u8>,
         prefix: Vec<Vec<u8>>,
     ) -> bool {
-        match self.install_parent_alias_with_original(child, name, target, prefix, None) {
+        let original_prefix = Rc::new(self.generated_alias_prefix(&target, &prefix));
+        let registration_name = Rc::new(obj::Owned::fresh(new_string(name)));
+        match self.install_parent_alias_objects(
+            child,
+            name,
+            Some(registration_name),
+            original_prefix,
+        ) {
             Ok(installed) => installed,
             Err(error) => {
                 self.report_cmd_error(error.into());
@@ -3727,25 +3734,11 @@ impl Interp {
         }
     }
 
-    fn install_parent_alias_with_original(
-        &mut self,
-        child: &[u8],
-        name: &[u8],
-        target: Vec<u8>,
-        prefix: Vec<Vec<u8>>,
-        original: Option<obj::Owned>,
-    ) -> Result<bool, tcl_syntax::value::ValueError> {
-        let original_prefix =
-            original.unwrap_or_else(|| self.generated_alias_prefix(&target, &prefix));
-        let registration_name = Rc::new(obj::Owned::fresh(new_string(name)));
-        self.install_parent_alias_objects(child, name, registration_name, Rc::new(original_prefix))
-    }
-
     pub(crate) fn install_parent_alias_objects(
         &mut self,
         child: &[u8],
         name: &[u8],
-        registration_name: Rc<obj::Owned>,
+        registration_name: Option<Rc<obj::Owned>>,
         original_prefix: Rc<obj::Owned>,
     ) -> Result<bool, tcl_syntax::value::ValueError> {
         use tcl_syntax::value::ValueError;
@@ -3789,6 +3782,21 @@ impl Interp {
                 .ok_or(ValueError::CommandProtocolUnavailable(
                     "child alias publication holder",
                 ))?;
+            let registration_name = if receiver
+                .recipe()
+                .alias_record_retains_original_registration_name()
+            {
+                Some(
+                    registration_name.ok_or(ValueError::CommandProtocolUnavailable(
+                        "original C child alias registration name",
+                    ))?,
+                )
+            } else {
+                // Jim_RegisterCmd creates its own String-name table key.
+                // It does not retain the original child caller name.
+                drop(registration_name);
+                None
+            };
             c.bind_command_replacement_with_jim_key(
                 namespace,
                 &simple,
@@ -3943,19 +3951,22 @@ impl Interp {
             .borrow()
             .resolve(self.current_ns.get(), name);
         let original_prefix = match command {
-            Some(
-                Command::Alias {
-                    original_prefix,
-                    registration_name,
-                    ..
-                }
-                | Command::ParentAlias {
-                    original_prefix,
-                    registration_name,
-                    ..
-                },
-            ) => {
+            Some(Command::Alias {
+                original_prefix,
+                registration_name,
+                ..
+            }) => {
                 obj::check_native_liveness(registration_name.as_ptr())?;
+                original_prefix
+            }
+            Some(Command::ParentAlias {
+                original_prefix,
+                registration_name,
+                ..
+            }) => {
+                if let Some(registration_name) = registration_name {
+                    obj::check_native_liveness(registration_name.as_ptr())?;
+                }
                 original_prefix
             }
             _ => return Ok(None),
@@ -12649,6 +12660,20 @@ impl Interp {
     /// `ChildInvokeHidden` the same way. Only the arity check and its noun
     /// differ between the two entry points.
     fn dispatch_child(&mut self, name: &[u8], argv: &[*mut TclObj]) -> Code {
+        let arguments = match native_arguments::OriginalArguments::enter(self, argv) {
+            Ok(arguments) => arguments,
+            Err(error) => return self.report_cmd_error(error),
+        };
+        let code = self.dispatch_child_original(name, argv, &arguments);
+        arguments.finish(code)
+    }
+
+    fn dispatch_child_original(
+        &mut self,
+        name: &[u8],
+        argv: &[*mut TclObj],
+        arguments: &native_arguments::OriginalArguments,
+    ) -> Code {
         if argv.len() < 2 {
             return self.child_wrong_args(argv, b" cmd ?arg ...?");
         }
@@ -12658,7 +12683,10 @@ impl Interp {
             .is_some()
         {
             const CHOICES: &[&[u8]] = &[b"eval", b"delete", b"alias"];
-            let word = obj_bytes(argv[1]);
+            let word = match arguments.bytes(1) {
+                Ok(word) => word,
+                Err(error) => return self.report_cmd_error(error),
+            };
             let sub = match crate::cmd_alias::resolve_interp_option(CHOICES, CHOICES, &word) {
                 Ok(sub) => sub,
                 Err(message) => return self.error(&message),
@@ -12671,20 +12699,16 @@ impl Interp {
                     Code::Ok
                 }
                 b"alias" if argv.len() >= 4 => {
-                    let alias = obj_bytes(argv[2]);
-                    match self.install_original_jim_parent_alias(name, &alias, &argv[3..]) {
-                        Ok(true) => {
-                            self.set_result_bytes(b"");
-                            Code::Ok
-                        }
-                        Ok(false) => self.error(b"could not find interpreter"),
-                        Err(error) => self.report_cmd_error(error.into()),
-                    }
+                    crate::cmd_alias::child_alias_handle_original(self, name, argv, arguments)
                 }
                 _ => self.child_wrong_args(argv, b" subcommand ?arg ...?"),
             };
         }
-        let sub = match self.native_interpreter_option_from_original(argv[1], true) {
+        let selected = self.native_interpreter_option_from_original(argv[1], true);
+        if let Err(error) = arguments.check() {
+            return self.report_cmd_error(error);
+        }
+        let sub = match selected {
             Ok(name) => name.as_bytes(),
             Err(error) => return self.report_cmd_error(error),
         };
@@ -12776,22 +12800,7 @@ impl Interp {
             // `$child alias srcCmd targetCmd ?arg ...?` — a cross-interp alias in
             // the child delegating to `targetCmd` in this (parent) interp. (The
             // target is implicitly the parent, so there is no target-path arg.)
-            b"alias" => {
-                if argv.len() < 4 {
-                    return self.child_wrong_args(argv, b" alias aliasName ?targetName? ?arg ...?");
-                }
-                let alias = obj_bytes(argv[2]);
-                let target = obj_bytes(argv[3]);
-                let prefix: Vec<Vec<u8>> = argv[4..].iter().map(|&a| obj_bytes(a)).collect();
-                if !self.install_parent_alias(name, &alias, target, prefix) {
-                    if self.host_refusal_pending() {
-                        return Code::Error;
-                    }
-                    return self.error(b"could not find interpreter");
-                }
-                self.set_result(obj::new_string_bytes(&alias));
-                Code::Ok
-            }
+            b"alias" => crate::cmd_alias::child_alias_handle_original(self, name, argv, arguments),
             // `$child recursionlimit ?newlimit?` — the path-less child form.
             b"recursionlimit" => {
                 if argv.len() > 3 {
@@ -13569,7 +13578,7 @@ impl Interp {
             b"clock",
             Command::ParentAlias {
                 original_prefix: Rc::new(self.generated_alias_prefix(b"clock", &[])),
-                registration_name: Rc::new(obj::Owned::fresh(new_string(b"clock"))),
+                registration_name: Some(Rc::new(obj::Owned::fresh(new_string(b"clock")))),
                 publication_name: b"clock".to_vec(),
                 identity: Rc::new(()),
             },

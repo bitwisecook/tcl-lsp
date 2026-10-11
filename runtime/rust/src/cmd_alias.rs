@@ -1427,7 +1427,7 @@ fn interp_alias_original(
         let installed = interp.install_parent_alias_objects(
             child,
             &original_name,
-            registration_name,
+            Some(registration_name),
             std::rc::Rc::clone(&original_prefix),
         );
         if let Err(first) = scope.currency().ensure_current_or_refuse() {
@@ -1471,6 +1471,163 @@ fn interp_alias_original(
         }
     }
     interp.set_result(argv[3]);
+    Code::Ok
+}
+
+/// The actual child-handle alias operation. C's target pretest precedes
+/// capture on every supported release; Jim captures its parent List before
+/// the name and keeps the original target/prefix Strings lazy.
+pub(crate) fn child_alias_handle_original(
+    interp: &mut Interp,
+    child: &[u8],
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
+    use crate::interp::native_operation_currency::NativeOperationScope;
+    use std::rc::Rc;
+    use tcl_syntax::value::ValueError;
+    let Some(recipe) = interp
+        .name_policy_protocol()
+        .map(|protocol| protocol.recipe())
+    else {
+        return interp.report_cmd_error(
+            ValueError::CommandProtocolUnavailable("original child alias recipe").into(),
+        );
+    };
+    let usage = b"alias aliasName ?targetName? ?arg ...?";
+    if argv.len() < 3 || (!recipe.child_alias_target_string_precedes_capture() && argv.len() < 4) {
+        return interp.wrong_args_for_invocation(argv, usage);
+    }
+    let delete = if argv.len() >= 4 && recipe.child_alias_target_string_precedes_capture() {
+        let target = match arguments.bytes(3) {
+            Ok(target) => target,
+            Err(error) => return interp.report_cmd_error(error),
+        };
+        if recipe.child_alias_pretested_target_is_empty(&target) == Some(true) {
+            if argv.len() != 4 {
+                return interp.wrong_args_for_invocation(argv, usage);
+            }
+            true
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+    let captured = if argv.len() >= 4 && !delete {
+        let prefix = if recipe.child_alias_target_string_precedes_capture() {
+            Rc::new(obj::Owned::fresh(interp.new_list_object(&argv[3..])))
+        } else {
+            match interp.original_jim_parent_alias_prefix(&argv[3..]) {
+                Ok(prefix) => prefix,
+                Err(error) => return interp.report_cmd_error(error.into()),
+            }
+        };
+        let registration_name = recipe
+            .alias_record_retains_original_registration_name()
+            .then(|| Rc::new(obj::Owned::retain(argv[2])));
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
+        Some((registration_name, prefix))
+    } else {
+        None
+    };
+    let name = match arguments.bytes(2) {
+        Ok(name) => name,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let Some(mut owner) = interp.with_child(child, |owner| owner.clone()) else {
+        return interp.error(b"could not find interpreter");
+    };
+    let scope = match NativeOperationScope::enter(&owner) {
+        Ok(scope) => scope,
+        Err(first) => {
+            owner.refuse_native_execution(first);
+            return interp.transport_host_refusal_from(&owner);
+        }
+    };
+    if delete {
+        owner.delete_command(&name);
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            owner.refuse_native_execution(first);
+        }
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
+        if owner.host_refusal_pending() {
+            return interp.transport_host_refusal_from(&owner);
+        }
+        interp.set_result_bytes(b"");
+        return Code::Ok;
+    }
+    if argv.len() == 3 {
+        let query = owner.alias_query_object(&name);
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            owner.refuse_native_execution(first);
+        }
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
+        if owner.host_refusal_pending() {
+            return interp.transport_host_refusal_from(&owner);
+        }
+        return match query {
+            Ok(Some(query)) => {
+                interp.set_result(query.as_ptr());
+                Code::Ok
+            }
+            Ok(None) => {
+                let mut message = b"alias \"".to_vec();
+                message.extend_from_slice(&name);
+                message.extend_from_slice(b"\" not found");
+                interp.set_error(&message)
+            }
+            Err(error) => {
+                owner.refuse_completion_value_access(error);
+                interp.transport_host_refusal_from(&owner)
+            }
+        };
+    }
+    let (registration_name, prefix) = captured.expect("actual child alias capture");
+    let installed =
+        interp.install_parent_alias_objects(child, &name, registration_name, Rc::clone(&prefix));
+    if let Err(first) = scope.currency().ensure_current_or_refuse() {
+        owner.refuse_native_execution(first);
+    }
+    if let Err(error) = arguments.check() {
+        owner.retire_original_parent_alias(&name, &prefix);
+        return interp.report_cmd_error(error);
+    }
+    if owner.host_refusal_pending() {
+        owner.retire_original_parent_alias(&name, &prefix);
+        return interp.transport_host_refusal_from(&owner);
+    }
+    match installed {
+        Ok(true) => {}
+        Ok(false) => return interp.error(b"could not find interpreter"),
+        Err(error) => return interp.report_cmd_error(error.into()),
+    }
+    if recipe.alias_publication_checks_original_target() {
+        if let Err(error) = arguments.bytes(3) {
+            owner.retire_original_parent_alias(&name, &prefix);
+            return interp.report_cmd_error(error);
+        }
+    }
+    if let Err(first) = scope.currency().ensure_current_or_refuse() {
+        owner.refuse_native_execution(first);
+        owner.retire_original_parent_alias(&name, &prefix);
+        return interp.transport_host_refusal_from(&owner);
+    }
+    if let Err(error) = arguments.check() {
+        owner.retire_original_parent_alias(&name, &prefix);
+        return interp.report_cmd_error(error);
+    }
+    if recipe.child_alias_returns_original_registration_name() {
+        interp.set_result(argv[2]);
+    } else {
+        interp.set_result_bytes(b"");
+    }
     Code::Ok
 }
 
@@ -3345,6 +3502,61 @@ pub(crate) mod original_operand_tests {
             }
         }
     }
+
+    #[test]
+    fn original_child_handle_alias_reads_the_selected_operand_before_publication() {
+        // naming.alias.original-object-prefix-capture-query-invocation-lifetime
+        // docs/design/analysis/name-resolution-proofs/alias-original-object-prefix-capture-query-invocation-lifetime.md
+        // This actual worker control distinguishes the C target pretest from
+        // Jim's List-first capture. It does not equate child and core name roles.
+        for version in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            for mode in [Update::Host, Update::Restore] {
+                let mut interp = native(version);
+                let jim = version == "jim";
+                let child = if jim {
+                    interp.create_jim_child()
+                } else {
+                    interp.create_child(Some(b"child".to_vec()))
+                };
+                let _updater = UpdaterOwner::enter(&interp, mode);
+                let failed = first();
+                let unread = later();
+                let owned = words(&[&child, b"alias", b"original_child_alias", b"list"]);
+                let mut argv = owned.iter().map(Owned::as_ptr).collect::<Vec<_>>();
+                argv[if jim { 2 } else { 3 }] = failed.as_ptr();
+                argv.push(unread.as_ptr());
+                let count = unsafe { (*failed.as_ptr()).ref_count };
+                let before = interp
+                    .with_child(&child, |owner| {
+                        owner.namespaces().native_command_generations()
+                    })
+                    .unwrap();
+                let prior = seed(&mut interp);
+                let code = {
+                    let arguments = OriginalArguments::enter(&interp, &argv).unwrap();
+                    let code =
+                        super::child_alias_handle_original(&mut interp, &child, &argv, &arguments);
+                    arguments.finish(code)
+                };
+                assert_eq!(code, Code::Error);
+                unchanged(&interp, &prior, mode);
+                assert_eq!(unsafe { (*failed.as_ptr()).ref_count }, count);
+                assert_eq!(obj::bytes_of(failed.as_ptr()), b"reached\0\xff");
+                assert!(!obj::has_string_rep(unread.as_ptr()));
+                interp
+                    .with_child(&child, |owner| {
+                        assert_eq!(owner.namespaces().native_command_generations(), before);
+                        assert!(owner.resolve_cmd_token(b"original_child_alias").is_none());
+                        assert!(owner.native_execution_refusal().is_none());
+                    })
+                    .unwrap();
+                assert_eq!(
+                    obj::bytes_of(interp.var_get(b"original_argument_effect").unwrap()),
+                    b"REACHED",
+                );
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -3899,6 +4111,131 @@ mod original_alias_storage_tests {
             drop(second);
             assert_eq!(FREES.with(|v| v.borrow()[2..].to_vec()), vec![1, 1]);
             assert_eq!(UPDATES.with(|v| v.borrow()[2..].to_vec()), vec![0, 0]);
+        }
+    }
+
+    #[test]
+    fn original_child_handle_alias_retains_lazy_parent_members_and_selected_name_role() {
+        // naming.alias.original-object-prefix-capture-query-invocation-lifetime
+        // docs/design/analysis/name-resolution-proofs/alias-original-object-prefix-capture-query-invocation-lifetime.md
+        // C aliases own the supplied name; Jim_RegisterCmd owns a fresh child
+        // key. These are software role controls, not unmeasured native counts.
+        for version in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            reset();
+            let jim = version == "jim";
+            let mut interp = super::original_operand_tests::native(version);
+            interp
+                .create_obj_command(
+                    b"capture",
+                    ObjCommand::new(capture, std::ptr::null_mut(), None),
+                )
+                .expect("actual parent object command");
+            let child = if jim {
+                interp.create_jim_child()
+            } else {
+                interp.create_child(Some(b"child".to_vec()))
+            };
+            let originals = (0..4)
+                .map(|role| Owned::fresh(obj::alloc_typed(&TYPE, role)))
+                .collect::<Vec<_>>();
+            MEMBERS.with(|members| {
+                *members.borrow_mut() = originals[1..].iter().map(Owned::as_ptr).collect();
+            });
+            let words = super::original_operand_tests::words(&[&child, b"alias"]);
+            let mut argv = words.iter().map(Owned::as_ptr).collect::<Vec<_>>();
+            argv.extend(originals.iter().map(Owned::as_ptr));
+            assert_eq!(interp.dispatch(&argv), Code::Ok);
+            if jim {
+                assert_eq!(interp.result_bytes(), b"");
+            } else {
+                assert_eq!(interp.get_obj_result(), originals[0].as_ptr());
+            }
+            assert_eq!(
+                UPDATES.with(|counts| *counts.borrow()),
+                if jim { [1, 0, 0, 0] } else { [1, 1, 0, 0] }
+            );
+            assert_eq!(
+                GETTERS.with(|rows| rows.borrow().iter().map(|row| row.0).collect::<Vec<_>>()),
+                if jim { vec![0] } else { vec![1, 0] }
+            );
+            interp.set_result_bytes(b"");
+            assert_eq!(
+                unsafe { (*originals[0].as_ptr()).ref_count },
+                if jim { 1 } else { 2 }
+            );
+            let prefix = interp
+                .with_child(&child, |owner| {
+                    let Some(crate::interp::Command::ParentAlias {
+                        original_prefix,
+                        registration_name,
+                        ..
+                    }) = owner
+                        .namespaces()
+                        .command_in(crate::namespace::GLOBAL, b"aliasProbe")
+                    else {
+                        panic!("actual original child alias record");
+                    };
+                    assert_eq!(registration_name.is_some(), !jim);
+                    original_prefix
+                })
+                .unwrap();
+            assert_eq!(
+                ValueOps::list_elements(&mut interp, &prefix.as_ptr()).unwrap(),
+                originals[1..].iter().map(Owned::as_ptr).collect::<Vec<_>>()
+            );
+            for member in &originals[1..] {
+                assert_eq!(unsafe { (*member.as_ptr()).ref_count }, 2);
+            }
+            assert!(!obj::has_string_rep(originals[2].as_ptr()));
+            assert!(!obj::has_string_rep(originals[3].as_ptr()));
+            if !jim {
+                let first = interp
+                    .with_child(&child, |owner| {
+                        owner.alias_query_object(b"aliasProbe").unwrap().unwrap()
+                    })
+                    .unwrap();
+                let second = interp
+                    .with_child(&child, |owner| {
+                        owner.alias_query_object(b"aliasProbe").unwrap().unwrap()
+                    })
+                    .unwrap();
+                assert_ne!(first.as_ptr(), second.as_ptr());
+                assert_ne!(first.as_ptr(), prefix.as_ptr());
+                assert_eq!(
+                    ValueOps::list_elements(&mut interp, &first.as_ptr()).unwrap(),
+                    originals[1..].iter().map(Owned::as_ptr).collect::<Vec<_>>()
+                );
+                drop(first);
+                drop(second);
+            }
+            let call = super::original_operand_tests::words(&[b"aliasProbe", b"TAIL"]);
+            let call_argv = call.iter().map(Owned::as_ptr).collect::<Vec<_>>();
+            assert_eq!(
+                interp
+                    .with_child(&child, |owner| owner.dispatch(&call_argv))
+                    .unwrap(),
+                Code::Ok
+            );
+            assert_eq!(CALLS.with(Cell::get), 1);
+            assert_eq!(UPDATES.with(|counts| *counts.borrow()), [1, 1, 1, 1]);
+            let getter_roles =
+                GETTERS.with(|rows| rows.borrow().iter().map(|row| row.0).collect::<Vec<_>>());
+            assert_eq!(&getter_roles[getter_roles.len() - 2..], &[3, 2]);
+            assert_eq!(
+                MEMBERS.with(|members| members.borrow().clone()),
+                originals[1..].iter().map(Owned::as_ptr).collect::<Vec<_>>()
+            );
+            interp
+                .with_child(&child, |owner| {
+                    assert_eq!(owner.result_bytes(), b"SEEN");
+                    owner.delete_command(b"aliasProbe");
+                })
+                .unwrap();
+            drop(prefix);
+            assert_eq!(unsafe { (*originals[0].as_ptr()).ref_count }, 1);
+            for member in &originals[1..] {
+                assert_eq!(unsafe { (*member.as_ptr()).ref_count }, 1);
+            }
         }
     }
 }

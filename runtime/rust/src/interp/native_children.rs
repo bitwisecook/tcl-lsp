@@ -255,34 +255,17 @@ impl Interp {
         }
     }
 
-    /// The child holds the parent's original alias prefix List. Its elements
-    /// keep their producing interpreter until the alias command retires.
-    pub(super) fn install_original_jim_parent_alias(
+    /// Capture the parent's original List before the child name getter.
+    /// Its members retain their actual producing interpreter until retirement.
+    pub(crate) fn original_jim_parent_alias_prefix(
         &mut self,
-        child: &[u8],
-        name: &[u8],
         arguments: &[*mut TclObj],
-    ) -> Result<bool, tcl_syntax::value::ValueError> {
+    ) -> Result<std::rc::Rc<obj::Owned>, tcl_syntax::value::ValueError> {
         self.associate_native_jim_arguments(arguments)?;
         let context = self.native_jim_object_context()?;
         let original = obj::Owned::fresh(self.new_list_object(arguments));
         crate::native_source::bind_context(original.as_ptr(), &context)?;
-        let strings = arguments
-            .iter()
-            .map(|&word| self.native_object_string_bytes(word))
-            .collect::<Result<Vec<_>, _>>()?;
-        let Some((target, prefix)) = strings.split_first() else {
-            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "Jim original parent alias prefix",
-            ));
-        };
-        self.install_parent_alias_with_original(
-            child,
-            name,
-            target.to_vec(),
-            prefix.iter().map(|word| word.to_vec()).collect(),
-            Some(original),
-        )
+        Ok(std::rc::Rc::new(original))
     }
 
     pub(super) fn dispatch_original_jim_parent_alias(
