@@ -254,7 +254,7 @@ impl Analyser {
         let commands = crate::segmenter::segment_commands_with_offset_and_config(
             source,
             body.start(),
-            word.config(),
+            tcl_lexer::SourceSegmentationPurpose::NestedScript.config(word.config()),
         );
         let [command] = commands.as_slice() else {
             return false;
@@ -978,5 +978,54 @@ mod original_capture_edit_tests {
                 .iter()
                 .any(|finding| finding.code == DiagCode::W106)
         );
+    }
+}
+
+#[cfg(test)]
+mod original_quoting_child_purpose_tests {
+    use super::*;
+    use crate::analyser::ResolvedAnalysisInput;
+
+    #[test]
+    fn original_quoting_child_keeps_bom_alias_and_complete_pattern_word() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        // Authored quoting idiom metadata only; no native helper implementation or sanitised value is proved.
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let input = ResolvedAnalysisInput::new(profile, profile, context, config);
+        assert!(input.has_logical_source_name_context());
+        let source = "\u{feff}interp alias {} \u{feff}quote {} regex::quote\nregexp [\u{feff}quote ${a{b}] VALUE";
+        let mut analyser = Analyser::new().with_resolved_input(input.clone());
+        analyser.result = analyser.analyse(source, "presentation");
+        let image = tcl_lexer::SourceImage::document(source);
+        let plan = tcl_lexer::native_script_words_in(
+            image.clone(),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let word = &plan.commands.last().unwrap().words[1];
+        assert_eq!(word.try_text().unwrap(), "[\u{feff}quote ${a{b}]");
+        assert_eq!(word.config(), config);
+        assert_eq!(word.image(), &image);
+        assert!(analyser.original_regex_quoting_substitution(word));
+        assert_eq!(analyser.result.resolved_input.as_ref(), Some(&input));
+        let retained = analyser.result.clone();
+        analyser.result.body_lexer_config = Some(config.nested());
+        assert!(!analyser.original_regex_quoting_substitution(word));
+        analyser.result = retained.clone();
+        analyser.result.resolved_input = None;
+        assert!(!analyser.original_regex_quoting_substitution(word));
+        analyser.result = retained;
+        analyser.source = source.replace(" VALUE", " OTHER");
+        assert!(!analyser.original_regex_quoting_substitution(word));
     }
 }
