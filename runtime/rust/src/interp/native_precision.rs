@@ -77,12 +77,7 @@ impl Interp {
         }
         // TclPrecTraceProc reinstalls with GLOBAL_ONLY and the original
         // callback name. A proc-local upvar spelling can relocate this trace.
-        let home = crate::vars::ensure_undefined_at(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
-            name,
-            0,
-        );
+        let home = self.prepare_trace_registration(name, None, Some(0));
         currency.ensure_current_or_refuse()?;
         // The original callback ignores a Guest trace-registration failure.
         // Operational refusal and reached retirement remain checked separately.

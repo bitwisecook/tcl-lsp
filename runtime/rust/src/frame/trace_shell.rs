@@ -57,6 +57,42 @@ impl TraceShellState {
 }
 
 impl VarTable {
+    /// The existing undefined-root algorithm returns every displaced owner.
+    /// Only its actual new root receipt is used after the caller releases its
+    /// enclosing frame/namespace borrow and retires those owners.
+    pub(crate) fn prepare_trace_undefined(
+        &mut self,
+        name: &[u8],
+        home: super::VarHome,
+    ) -> Result<(super::CapturedJimLinkRoot, RetiredVariableParts), super::JimLinkStoreError> {
+        if let Some(contents) = self.contents(name) {
+            contents.borrow().check_owned_value_role()?;
+        }
+        let old = if self.cell(name).is_none() {
+            self.publish_link_with_origin(
+                name,
+                super::Link {
+                    original_jim_target: None,
+                    native_scalar_entry: None,
+                    native_element_entry: None,
+                    array_identity: None,
+                    array_cell: None,
+                    home,
+                    name: name.to_vec(),
+                    elem: None,
+                },
+                super::FrameLinkOrigin::Ordinary,
+            )
+        } else {
+            RetiredVariableParts::default()
+        };
+        self.mark_trace_shell(name, home);
+        let root = self
+            .capture_jim_link_root(name, None)
+            .expect("reached undefined trace root has its original cell");
+        Ok((root, old))
+    }
+
     pub(crate) fn observe_trace_shell(
         &self,
         name: &[u8],
@@ -157,6 +193,11 @@ impl VarTable {
 }
 
 impl FrameStack {
+    pub(crate) fn original_variable_table_at_mut(&mut self, level: usize) -> Option<&mut VarTable> {
+        let index = self.index_of_level(level)?;
+        Some(&mut self.frames[index].table)
+    }
+
     /// Withdraw from the already selected physical frame without selecting a
     /// container model or reaching conversion while its outer borrow is held.
     pub(crate) fn prepare_original_trace_shell_cleanup_at(

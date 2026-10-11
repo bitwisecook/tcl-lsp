@@ -28,6 +28,29 @@ impl Interp {
         operations: &[NativeVariableTraceOperation],
         observer: Rc<dyn NativeVariableObserver<Interp, Error = tcl_cmd_core::CmdError>>,
     ) -> Result<NativeVariableTraceToken, Code> {
+        let arguments = match super::native_arguments::OriginalArguments::enter(self, &[original]) {
+            Ok(arguments) => arguments,
+            Err(error) => {
+                let code = self.report_cmd_error(error);
+                drop(observer);
+                return Err(code);
+            }
+        };
+        let reached = self.add_original_native_variable_observer(operations, observer, &arguments);
+        arguments
+            .check_for(self)
+            .map_err(|error| self.report_cmd_error(error))?;
+        reached
+    }
+    fn add_original_native_variable_observer(
+        &mut self,
+        operations: &[NativeVariableTraceOperation],
+        observer: Rc<dyn NativeVariableObserver<Interp, Error = tcl_cmd_core::CmdError>>,
+        arguments: &super::native_arguments::OriginalArguments,
+    ) -> Result<NativeVariableTraceToken, Code> {
+        arguments
+            .check_for(self)
+            .map_err(|error| self.report_cmd_error(error))?;
         if self
             .native_invocation_dialect()
             .native_variable_trace_protocol()
@@ -40,8 +63,12 @@ impl Interp {
                 .into(),
             ));
         }
-        let name = tcl_syntax::value::ValueOps::native_string_bytes(self, &original)
-            .map_err(|error| self.report_cmd_error(error.into()))?;
+        let name = arguments
+            .bytes(0)
+            .map_err(|error| self.report_cmd_error(error))?;
+        arguments
+            .check_for(self)
+            .map_err(|error| self.report_cmd_error(error))?;
         let policy = self.name_policy_protocol().ok_or_else(|| {
             self.report_cmd_error(
                 tcl_syntax::value::ValueError::CommandProtocolUnavailable(
@@ -64,14 +91,13 @@ impl Interp {
         let (base, spelled) = self
             .variable_name_parts(projection.selected())
             .map_err(|error| crate::cmd_trace::trace_var_error(self, &name, error))?;
-        let linked = self.trace_identity(&base).link_elem;
-        let elem = spelled.or(linked);
-        match elem.as_deref() {
-            Some(key) => self.ensure_trace_element(&base, key),
-            None => self.ensure_trace_variable(&base),
-        }
-        .map_err(|error| crate::cmd_trace::trace_var_error(self, &name, error))?;
-        let home = self.trace_identity(&base);
+        let home = self
+            .prepare_trace_registration(&base, spelled.as_deref(), None)
+            .map_err(|error| crate::cmd_trace::trace_var_error(self, &name, error))?;
+        arguments
+            .check_for(self)
+            .map_err(|error| self.report_cmd_error(error))?;
+        let elem = home.link_elem.clone();
         let cell = self.variable_trace_scope(&home, elem.as_deref());
         let token = NativeVariableTraceToken::new();
         let mut table = self.traces.borrow_mut();

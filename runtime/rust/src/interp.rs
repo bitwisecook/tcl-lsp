@@ -8054,24 +8054,47 @@ impl Interp {
     /// Materialise an unset variable cell for `trace add variable` without
     /// firing write traces or making `info exists` true.
     pub(crate) fn ensure_trace_variable(&self, name: &[u8]) -> Result<(), VarError> {
-        self.require_variable_name_protocol()?;
-        crate::vars::ensure_undefined(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
-            self.current_ns.get(),
-            name,
-        )
+        self.prepare_trace_registration(name, None, None)
+            .map(|_| ())
     }
 
-    pub(crate) fn ensure_trace_element(&self, name: &[u8], key: &[u8]) -> Result<(), VarError> {
+    pub(crate) fn prepare_trace_registration(
+        &self,
+        name: &[u8],
+        element: Option<&[u8]>,
+        level: Option<usize>,
+    ) -> Result<crate::vars::TraceHome, VarError> {
+        let operation =
+            native_operation_currency::NativeOperationScope::enter(self).map_err(|first| {
+                self.clone().refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
         self.require_variable_name_protocol()?;
-        crate::vars::ensure_trace_element(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
+        let captured = crate::vars::EnteredVariablePlace::capture_trace(
+            self,
             self.current_ns.get(),
+            level,
             name,
-            key,
-        )
+            operation.currency(),
+        );
+        operation
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|_| VarError::NameProtocolUnavailable)?;
+        let mut captured = captured.map_err(|error| self.byte_store_failure(error))?;
+        let reached = captured.prepare_trace_registration(self, element, operation.currency());
+        // Retain the complete intrinsic refusal before selected metadata drops.
+        let reached = reached.map_err(|error| self.byte_store_failure(error));
+        let current = captured
+            .check(self, operation.currency())
+            .map_err(|error| self.byte_store_failure(error));
+        drop(captured);
+        operation
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|_| VarError::NameProtocolUnavailable)?;
+        current?;
+        reached
     }
 
     pub(crate) fn cleanup_trace_shell(

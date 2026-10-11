@@ -142,6 +142,7 @@ struct EnteredLink {
     table: TableObservation,
     root: CapturedJimLinkRoot,
     link: Link,
+    source_name: Vec<u8>,
 }
 impl EnteredLink {
     fn check(
@@ -160,6 +161,7 @@ pub(crate) struct EnteredVariablePlace {
     table: TableObservation,
     links: Vec<EnteredLink>,
     root: Option<CapturedJimLinkRoot>,
+    trace_registration: bool,
 }
 impl EnteredVariablePlace {
     pub(crate) fn capture(
@@ -169,6 +171,45 @@ impl EnteredVariablePlace {
         name: &[u8],
         element: Option<&[u8]>,
         create: bool,
+        currency: &NativeOperationCurrency,
+    ) -> Result<Self, JimLinkStoreError> {
+        Self::capture_using(
+            interpreter,
+            current_ns,
+            level,
+            name,
+            element,
+            create,
+            false,
+            currency,
+        )
+    }
+    pub(crate) fn capture_trace(
+        interpreter: &Interp,
+        current_ns: NsId,
+        level: Option<usize>,
+        name: &[u8],
+        currency: &NativeOperationCurrency,
+    ) -> Result<Self, JimLinkStoreError> {
+        Self::capture_using(
+            interpreter,
+            current_ns,
+            level,
+            name,
+            None,
+            false,
+            true,
+            currency,
+        )
+    }
+    fn capture_using(
+        interpreter: &Interp,
+        current_ns: NsId,
+        level: Option<usize>,
+        name: &[u8],
+        element: Option<&[u8]>,
+        create: bool,
+        trace_registration: bool,
         currency: &NativeOperationCurrency,
     ) -> Result<Self, JimLinkStoreError> {
         current(currency)?;
@@ -213,6 +254,7 @@ impl EnteredVariablePlace {
                 table: selected.clone(),
                 root,
                 link: link.clone(),
+                source_name: place.name.clone(),
             };
             if link.array_cell.is_none() && link.array_identity.is_some() {
                 prepare_table(interpreter, link.home, currency)?;
@@ -234,7 +276,7 @@ impl EnteredVariablePlace {
                         scalar_entry: place.scalar_entry.clone(),
                     },
                     link,
-                    false,
+                    trace_registration,
                     true,
                 )?
             };
@@ -270,6 +312,7 @@ impl EnteredVariablePlace {
             table: selected,
             links,
             root,
+            trace_registration,
         };
         result.check(interpreter, currency)?;
         Ok(result)
@@ -279,13 +322,51 @@ impl EnteredVariablePlace {
         interpreter: &Interp,
         currency: &NativeOperationCurrency,
     ) -> Result<(), JimLinkStoreError> {
+        let reached = self.check_current(interpreter, currency);
+        if self.trace_registration {
+            if let Err(JimLinkStoreError::Command(error)) = &reached {
+                if let Some(first) = error.native_execution_refusal() {
+                    interpreter.clone().refuse_native_execution(first.clone());
+                }
+            }
+        }
+        reached
+    }
+    fn check_current(
+        &self,
+        interpreter: &Interp,
+        currency: &NativeOperationCurrency,
+    ) -> Result<(), JimLinkStoreError> {
         current(currency)?;
         same_table(interpreter, self.place.home, &self.table)?;
         for link in &self.links {
             link.check(interpreter, currency)?;
+            if self.trace_registration {
+                // Recheck this retained link with the same existing trace
+                // permission worker; no name is classified or looked up anew.
+                let frames = interpreter.frames.borrow();
+                let namespaces = interpreter.namespaces();
+                follow_selected_link_using(
+                    &frames,
+                    &namespaces,
+                    Place {
+                        home: link.home,
+                        name: link.source_name.clone(),
+                        elem: None,
+                        array_cell: None,
+                        scalar_entry: None,
+                    },
+                    link.link.clone(),
+                    true,
+                    true,
+                )?;
+            }
         }
         if let Some(root) = &self.root {
             root.check(currency)?;
+        }
+        if self.trace_registration {
+            self.check_retained_value_role()?;
         }
         Ok(())
     }
@@ -355,6 +436,83 @@ impl EnteredVariablePlace {
             base: self.place.name.clone(),
             link_elem: self.place.elem.clone(),
         }
+    }
+    /// Materialise the selected registration shell, then return its actual
+    /// home. The retained selection never resolves the name after retirement.
+    pub(crate) fn prepare_trace_registration(
+        &mut self,
+        interpreter: &Interp,
+        element: Option<&[u8]>,
+        currency: &NativeOperationCurrency,
+    ) -> Result<TraceHome, JimLinkStoreError> {
+        self.check(interpreter, currency)?;
+        self.check_retained_value_role()?;
+        let element = self.place.elem.as_deref().or(element).map(<[u8]>::to_vec);
+        if let Some(array) = &self.place.array_cell {
+            let element = element.as_ref().ok_or(VarError::IsScalar)?;
+            array
+                .trace_member_identity(element)
+                .ok_or(VarError::DeletedArray)?;
+        } else if let Some(element) = &element {
+            let prepared = if let Some(entry) = &self.place.scalar_entry {
+                entry.prepare_original_array_member(Some(element), None)?
+            } else {
+                let mut frames = interpreter.frames.borrow_mut();
+                let mut namespaces = interpreter.namespaces_mut();
+                let table = match self.place.home {
+                    VarHome::Frame(level) => frames
+                        .original_variable_table_at_mut(level)
+                        .ok_or(VarError::NameProtocolUnavailable)?,
+                    VarHome::Namespace(namespace) => namespaces
+                        .original_variable_table_at_mut(namespace)
+                        .ok_or(VarError::NameProtocolUnavailable)?,
+                };
+                let prepared =
+                    table.prepare_original_array_member(&self.place.name, Some(element), None)?;
+                // This is the actual worker's publication before callbacks,
+                // not a lookup that accepts a callback's replacement.
+                self.root =
+                    Some(table.capture_jim_link_root(&self.place.name, self.place.elem.clone())?);
+                prepared
+            };
+            let observation = prepared.observation();
+            let epoch = prepared.array_epoch();
+            let refuse = |error| {
+                JimLinkStoreError::Command(CmdError::from_execution_refusal(
+                    interpreter.clone().refuse_completion_value_access(error),
+                ))
+            };
+            prepared.finish(|| self.check(interpreter, currency), refuse)?;
+            self.check(interpreter, currency)?;
+            observation
+                .mark_trace_member(epoch, element)
+                .map_err(refuse)?;
+        } else {
+            if self.place.elem.is_some() {
+                return Err(VarError::IsScalar.into());
+            }
+            let (root, old) = {
+                let mut frames = interpreter.frames.borrow_mut();
+                let mut namespaces = interpreter.namespaces_mut();
+                let table = match self.place.home {
+                    VarHome::Frame(level) => frames
+                        .original_variable_table_at_mut(level)
+                        .ok_or(VarError::NameProtocolUnavailable)?,
+                    VarHome::Namespace(namespace) => namespaces
+                        .original_variable_table_at_mut(namespace)
+                        .ok_or(VarError::NameProtocolUnavailable)?,
+                };
+                if let Some(entry) = &self.place.scalar_entry {
+                    entry.check_trace_root(table, &self.place.name)?;
+                }
+                table.prepare_trace_undefined(&self.place.name, self.place.home)?
+            };
+            self.root = Some(root);
+            old.finish(|| self.check(interpreter, currency))?;
+        }
+        self.place.elem = element;
+        self.check(interpreter, currency)?;
+        Ok(self.trace_home(interpreter))
     }
     pub(crate) fn begin_array_destruction(
         &mut self,

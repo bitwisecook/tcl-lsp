@@ -814,36 +814,11 @@ fn var_trace_apply(
         // `trace add variable a(k) …` install one and the same trace and each
         // spelling's `trace info` reports it. The element is invisible in the
         // spelling, so it comes from the resolution.
-        let linked_elem = interp.trace_identity(&base).link_elem;
-        let elem = spelled_elem.or_else(|| linked_elem.clone());
-        // Tracing an array element vivifies the array as an (undefined) array, so
-        // a later read of a missing element reports "no such element in array"
-        // rather than "no such variable", and whole-array semantics apply
-        // (trace-1.4/1.8/5.x). Tracing an element of an existing *scalar* errors.
-        // An alias already names a live element cell, so there is nothing to
-        // create — and vivifying `e` as a scalar or an array would both be
-        // wrong.
-        let vivify = if let Some(key) = elem.as_deref() {
-            interp.ensure_trace_element(&base, key)
-        } else {
-            interp.ensure_trace_variable(&base)
+        let home = match interp.prepare_trace_registration(&base, spelled_elem.as_deref(), None) {
+            Ok(home) => home,
+            Err(error) => return trace_var_error(interp, &name, error),
         };
-        if let Err(e) = vivify {
-            return trace_var_error(interp, &name, e);
-        }
-        // Key the trace by the variable it *resolves to*, not by the spelling
-        // used to register it, so `trace add variable ::v write …` fires for a
-        // later `set v X` in the same namespace — and, under the 8.x
-        // namespace-scope fallback, for a write from inside `namespace eval`
-        // that reaches that same global.  C hangs the trace off
-        // the `Var` struct, so every spelling resolving to it fires — including
-        // an `upvar` alias, whose home frame is only visible on the resolved
-        // place.
-        //
-        // `name` keeps the original spelling for diagnostics only; the
-        // `trace info` / `trace remove` match is the same resolved identity,
-        // because C looks the variable up and walks *that* `Var`'s list.
-        let home = interp.trace_identity(&base);
+        let elem = home.link_elem.clone();
         let cell = interp.variable_trace_scope(&home, elem.as_deref());
         let mut table = interp.traces.borrow_mut();
         let id = table.next_var_trace_id;

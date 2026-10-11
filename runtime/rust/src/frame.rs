@@ -79,6 +79,8 @@ mod trace_shell;
 pub(crate) use trace_shell::TraceShellState;
 #[cfg(test)]
 mod stored_link_role_tests;
+#[cfg(test)]
+mod trace_creation_tests;
 pub use destruction::{RetainedArrayCell, WeakArraySearchCell};
 pub(crate) use materialisation::{
     OriginalVariableLinkObservation, PreparedArrayMember, PreparedVariableReplacement,
@@ -851,6 +853,7 @@ impl VarTable {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn ensure_element_shell(&mut self, name: &[u8], key: &[u8]) -> Result<(), VarError> {
         self.ensure_array(name)?;
         let Some(contents) = self.contents(name) else {

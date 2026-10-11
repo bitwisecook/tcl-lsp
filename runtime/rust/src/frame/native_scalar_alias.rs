@@ -39,6 +39,23 @@ impl NativeScalarAliasEntry {
         }
         cell.check_owned_value_role()
     }
+    pub(crate) fn check_trace_root(
+        &self,
+        table: &VarTable,
+        name: &[u8],
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        self.check_owned_value_role()?;
+        if table
+            .contents(name)
+            .is_some_and(|contents| Rc::ptr_eq(contents, &self.contents))
+        {
+            Ok(())
+        } else {
+            Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original scalar trace root table",
+            ))
+        }
+    }
     pub(crate) fn identity(&self) -> VarId {
         self.binding
     }
@@ -218,6 +235,7 @@ impl NativeScalarAliasEntry {
         super::PreparedArrayMember::selected(&self.contents, Some(&self.name), element, original)
     }
 
+    #[cfg(test)]
     pub(crate) fn prepare_original_element(
         &self,
         key: &[u8],

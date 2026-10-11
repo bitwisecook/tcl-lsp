@@ -121,6 +121,21 @@ impl VariablePublicationObservation {
             .then(|| cell.element_ids.get(element).copied())
             .flatten()
     }
+    pub(crate) fn mark_trace_member(&self, epoch: u64, element: &[u8]) -> Result<(), ValueError> {
+        self.check_array_current(epoch)?;
+        let member =
+            self.member_identity(element)
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original trace member preparation",
+                ))?;
+        self.check_member_current(element, member)?;
+        let contents = self
+            .contents
+            .upgrade()
+            .expect("checked original trace member");
+        contents.borrow_mut().rmw_member_shells.remove(element);
+        Ok(())
+    }
     pub(crate) fn check_member_current(
         &self,
         element: &[u8],

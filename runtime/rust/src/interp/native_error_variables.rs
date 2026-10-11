@@ -200,14 +200,13 @@ impl Interp {
         let scope = super::native_operation_currency::NativeOperationScope::enter(self)
             .map_err(|first| self.refuse_native_execution(first))?;
         let name = variable.global_name().as_bytes();
-        let allocated = self.ensure_trace_variable(name);
+        let allocated = self.prepare_trace_registration(name, None, None);
         scope
             .currency()
             .ensure_current_or_refuse()
             .map_err(|first| self.refuse_native_execution(first))?;
         let allocated = allocated.map_err(|error| crate::builtins::var_error(self, name, error));
-        self.checked_bootstrap_outcome(scope.currency(), allocated)?;
-        let home = self.trace_identity(name);
+        let home = self.checked_bootstrap_outcome(scope.currency(), allocated)?;
         scope
             .currency()
             .ensure_current_or_refuse()

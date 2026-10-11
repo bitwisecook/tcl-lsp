@@ -3690,3 +3690,19 @@ private mapping additionally requires its genuine C9 provider. Authored neutral
 slot publication remains a separate worker. Inspected C source stages and
 software role/formatter controls establish no external callback chronology,
 Native Class/Method lifetime or whole-object cleanup equivalence.
+
+
+Trace registration materialises its selected shell through
+`EnteredVariablePlace::prepare_trace_registration`. The trace lane uses the
+existing classifier and retained-link permission worker, and retains actual
+frame, table, link, root and member receipts through search/key retirement.
+Existing stored roles retire outside cell and enclosing frame/namespace access
+before the same original currency and selected births permit registration.
+The returned `TraceHome` is the original reached home; command/direct observer,
+error bootstrap and addressed precision adapters consume it without resolving
+the spelling again. Native observer entry keeps the original argument Scope
+through its String getter and actual incoming observer cleanup. Precision
+preserves its ignored Guest registration result and terminal operational cause.
+C8.4 string-key and later object-key source schedules remain independent;
+software callbacks establish no external Native chronology. Detached-generation
+destruction and unset callback dispatch are separate current owners.
