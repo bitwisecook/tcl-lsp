@@ -295,3 +295,105 @@ fn source_lookup_snapshot_join_invalidates_only_the_detached_point() {
     assert_eq!(lookup_snapshot_hash(joined), lookup_snapshot_hash(&fresh));
     assert_ne!(original_snapshot, joined);
 }
+
+#[test]
+fn original_snapshot_equality_shares_world_without_initialising_full_hash() {
+    let source = "proc one {x} {return $x}; proc two {} {return TWO}; set value THREE";
+    let bindings = original_snapshot_source(source);
+    let state = &bindings
+        .points
+        .iter()
+        .find(|point| point.dispatch)
+        .unwrap()
+        .state;
+    let original = super::SourceLookupSnapshot::new(state.clone());
+    let retained = super::SourceLookupSnapshot::new(state.clone());
+    assert!(Arc::ptr_eq(
+        &original.state.original_command_world,
+        &retained.state.original_command_world
+    ));
+    assert!(Arc::ptr_eq(
+        &original.state.bindings,
+        &retained.state.bindings
+    ));
+    assert_eq!(original, retained);
+    assert!(original.fingerprint.get().is_none());
+    assert!(retained.fingerprint.get().is_none());
+    let mut independent = super::SourceLookupSnapshot::new(state.clone());
+    independent.state.original_command_world =
+        Arc::new(state.original_command_world.as_ref().clone());
+    independent.state.bindings = Arc::new(state.bindings.as_ref().clone());
+    assert!(!Arc::ptr_eq(
+        &original.state.original_command_world,
+        &independent.state.original_command_world
+    ));
+    assert!(!Arc::ptr_eq(
+        &original.state.bindings,
+        &independent.state.bindings
+    ));
+    assert_eq!(original, independent);
+    assert_eq!(
+        lookup_snapshot_hash(&original),
+        lookup_snapshot_hash(&independent)
+    );
+    assert!(retained.fingerprint.get().is_none());
+}
+
+#[test]
+fn original_snapshot_equality_retains_source_frame_alias_epoch_and_native_context() {
+    let bindings = original_snapshot_source("proc p {x} {return $x}; set result YES");
+    let state = &bindings
+        .points
+        .iter()
+        .find(|point| point.dispatch)
+        .unwrap()
+        .state;
+    let original = super::SourceLookupSnapshot::new(state.clone());
+    let mut alias = state.clone();
+    Arc::make_mut(&mut alias.source_variables)
+        .upvar_aliases
+        .insert("x".into(), "::other".into());
+    assert!(state.source_variables.original_contents_epoch.is_some());
+    let mut epoch = state.clone();
+    Arc::make_mut(&mut epoch.source_variables).original_contents_epoch = None;
+    let mut frame = state.clone();
+    frame.variable_frame = crate::var_resolve::VariableExecutionFrame::Procedure {
+        namespace: "::other".into(),
+        identity: "other-activation".into(),
+    };
+    let mut source = state.clone();
+    source.current_source_origin = Some(Arc::new(super::SourceOriginId::authored(&Arc::from(
+        "set result NO",
+    ))));
+    let mut native = state.clone();
+    let baseline = Arc::make_mut(&mut native.baseline);
+    baseline.native_compilation.loop_depth += 1;
+    baseline.refresh_fingerprint();
+    for changed in [alias, epoch, frame, source, native] {
+        let changed = super::SourceLookupSnapshot::new(changed);
+        assert_ne!(original, changed);
+        assert!(changed.fingerprint.get().is_none());
+    }
+    let foreign_realm = super::SourceLookupSnapshot::in_realm(
+        state.clone(),
+        tcl_dialect::model::InvocationRealm::InterpreterRuntime,
+    );
+    assert_ne!(original, foreign_realm);
+    assert!(original.fingerprint.get().is_none());
+    assert!(foreign_realm.fingerprint.get().is_none());
+}
+
+fn original_snapshot_source(source: &str) -> SourceCommandBindings {
+    SourceCommandBindings::analyse_with_options(
+        source,
+        tcl_lexer::LexerConfig::default(),
+        &tcl_registry::CommandRegistry::build_default(),
+        super::SourceAnalysisOptions {
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+                tcl_dialect::TclVersion::V8_6,
+            )),
+            ..Default::default()
+        },
+    )
+}

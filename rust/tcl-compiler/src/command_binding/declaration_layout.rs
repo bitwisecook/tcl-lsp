@@ -1444,6 +1444,8 @@ impl SourceCommandBindings {
         offset: u32,
         words: &crate::ir::CommandTokens,
     ) {
+        #[cfg(any(test, debug_assertions))]
+        let _timing = super::root_owner_work::Timing::at(super::root_owner_work::Query::Layout);
         if state.source_variables.invocation_dialect.is_none() {
             return;
         }

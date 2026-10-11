@@ -981,6 +981,8 @@ enum ImportQueryPurpose {
     Introspection,
     /// Namespace origin projects the original command-table binding.
     Origin,
+    /// OO object lookup follows the same retained imported-command tokens.
+    OriginalObject,
 }
 
 /// A query result retains the actual binding generation and its current name.
@@ -5158,8 +5160,8 @@ impl Interp {
         false
     }
 
-    /// Select an exact source generation before the deliberate retired-token
-    /// replacement fallback. A surface-gated live token never uses that fallback.
+    /// Select the captured source token. Original origin/object purposes never
+    /// replace a retired source using its reported spelling.
     fn import_source_binding(
         &self,
         source: &[u8],
@@ -5174,10 +5176,10 @@ impl Interp {
                 CommandGenerationLookup::Unavailable => return None,
                 CommandGenerationLookup::Missing => {}
             },
-            ImportQueryPurpose::Origin => {
-                if let Some((fqn, command)) = self.raw_command_location_by_generation(generation) {
-                    return Some((fqn, generation, command));
-                }
+            ImportQueryPurpose::Origin | ImportQueryPurpose::OriginalObject => {
+                return self
+                    .raw_command_location_by_generation(generation)
+                    .map(|(fqn, command)| (fqn, generation, command));
             }
         }
         match purpose {
@@ -5188,14 +5190,7 @@ impl Interp {
                 let (fqn, _) = self.raw_command_location_by_generation(generation)?;
                 Some((fqn, generation, command))
             }
-            ImportQueryPurpose::Origin => {
-                let namespaces = self.namespaces.borrow();
-                Some((
-                    namespaces.resolve_fqn(GLOBAL, source)?,
-                    namespaces.resolve_generation(GLOBAL, source)?,
-                    namespaces.resolve(GLOBAL, source)?,
-                ))
-            }
+            ImportQueryPurpose::Origin | ImportQueryPurpose::OriginalObject => None,
         }
     }
 

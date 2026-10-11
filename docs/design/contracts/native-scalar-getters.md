@@ -221,9 +221,12 @@ failure, while compatibility installers retain the first typed cause.
 
 `number::parse_double_precision` remains an explicit pure text utility. It does
 not observe the original cell, libc errno, getter cache or interpreter currency.
-The VM precision consumer is a separate adapter; the Runtime contract does not
-establish that it has adopted these checked stages. Neither the decimal worker
-nor a descriptive ABI receipt supplies an original Tcl32 getter recipe.
+The VM precision adapter uses the same selected C84 decimal worker and
+C85/C86 neutral Int policy through its original entered operation scope. Its
+safe-mode check precedes access; read publication and C84 restoration retire
+displaced values before checking currency. Its authored math simulation remains
+a separate text policy. Neither the decimal worker nor a descriptive ABI receipt
+supplies an original Tcl32 getter recipe.
 
 The source controls in
 [Runtime precision stage tests](../../../runtime/rust/src/interp/native_precision/original_stage_tests.rs)
@@ -235,6 +238,48 @@ The independent six-provider
 [precision unset observations](../analysis/name-resolution-proofs/variable-original-precision-unset-publication.md)
 retain their public unset purpose; they do not establish precision-write getter
 or callback chronology.
+
+## Checked numeric stages
+
+`tcl_platform::CheckedNumericEnvironment` forwards the independently supplied
+environment under one before/after checker and the caller's ABI observation
+cell. It selects no parser, conversion recipe or errno reset. A changed observed
+ABI refuses before continuation. Runtime's checked environment delegates this
+forwarding and retains its actual operation receipt and full first cause.
+
+The VM `Value` conversion and cache owner accepts an optional stage checker.
+Public pure probe/getter APIs pass no checker and keep their primitive purpose.
+Original execution uses `interp::native_numeric_ops::OriginalNumericOps` with
+the genuine existing `NativeOperationScope`. Checked scalar/number and Boolean
+children share the same conversion kernel. They check after reached getters,
+Host numeric stages and old-primary retirement before later cache or precision
+publication. Primary retirement runs outside the representation borrow; the
+checker adds no native object reference.
+
+A checked Jim fresh conversion retains the object context's actual Host. The
+same worker receives checked forwarding at each numeric stage; an original
+stage error remains typed independently of the neutral availability result.
+An outer supplied environment cannot replace that retained worker. The pure
+Jim context entry points retain their explicit primitive purpose.
+
+The precision observer borrows the selected cell's original header with an
+allocation-only lifetime lease. It adds no native object reference before the
+C8.4 String getter or C8.5/C8.6 neutral integer getter, and retires that lease
+before the final original-currency check and ambient precision publication.
+Safe-interpreter refusal precedes both getters. A C8.4 NULL read still reaches
+the independently selected decimal unsigned-long stage with empty input.
+
+The Platform checker returns only `NumericEnvironmentUnavailable`. Runtime and
+VM retain their full typed execution cause in their actual operation owner and
+check that owner after the forwarding stage, before using a result or presenting
+a guest error. Do not construct a Host cause from the neutral enum or diagnostic
+text. Missing numeric capability remains independent of a retained Host refusal.
+
+VM `Value` does not expose Runtime's extension object-type updater/free issuer.
+Its software controls exercise actual Host numeric forwarding, original header
+and cache transport, and the stage checker after primary retirement. They do
+not establish an extension callback chronology or a new physical object issuer.
+The existing provider comparisons retain their own narrower measured purposes.
 
 ## Add or migrate a consumer
 

@@ -55,6 +55,7 @@ use tcl_registry::{
 };
 
 mod default_manufacture_advice;
+mod deferred_body_index;
 mod deferred_namespace_index;
 mod executed_expression_source;
 mod executed_script_source;
@@ -69,6 +70,8 @@ mod original_callback_lookup;
 mod original_compiler_effects;
 mod original_source_projection;
 mod pre_handler_failure;
+#[cfg(any(test, debug_assertions))]
+mod root_owner_work;
 mod source_arguments;
 mod source_name_lookup;
 mod source_unavailability_advice;
@@ -1541,8 +1544,9 @@ impl OriginalCompilationLookupAdvice {
 }
 
 /// Immutable semantic point. Ordinary lookup retains the original full world
-/// without hashing it. Hashing and equality initialize a derived fingerprint
-/// once; equality still checks the full state and realm after that fingerprint.
+/// without hashing it. Hashing initializes a derived fingerprint once;
+/// equality compares the complete retained state and realm directly, allowing
+/// immutable shared fields to use their existing structural equality.
 /// A reached state join invalidates the memo on its detached snapshot only.
 #[derive(Debug, Clone)]
 pub(crate) struct SourceLookupSnapshot {
@@ -1569,6 +1573,8 @@ impl SourceLookupSnapshot {
 
     fn fingerprint(&self) -> u64 {
         *self.fingerprint.get_or_init(|| {
+            #[cfg(any(test, debug_assertions))]
+            let _timing = root_owner_work::Timing::at(root_owner_work::Query::Fingerprint);
             let mut hasher = std::collections::hash_map::DefaultHasher::new();
             self.state.hash(&mut hasher);
             self.realm.hash(&mut hasher);
@@ -1579,9 +1585,9 @@ impl SourceLookupSnapshot {
 
 impl PartialEq for SourceLookupSnapshot {
     fn eq(&self, other: &Self) -> bool {
-        self.fingerprint() == other.fingerprint()
-            && self.realm == other.realm
-            && self.state == other.state
+        #[cfg(any(test, debug_assertions))]
+        let _timing = root_owner_work::Timing::at(root_owner_work::Query::Equality);
+        self.realm == other.realm && self.state == other.state
     }
 }
 
@@ -3010,6 +3016,7 @@ pub struct SourceCommandBindings {
     unpositioned_projections: SourceHeadProjectionCache,
     declaration_flow_cache: declaration_flow::SourceDeclarationFlowCache,
     deferred_namespace_index: deferred_namespace_index::DeferredNamespaceIndexCache,
+    deferred_body_index: deferred_body_index::DeferredBodyIndexCache,
     root_origin: Option<Arc<SourceOriginId>>,
     origin_points: SharedSourceInventory<BTreeMap<Arc<SourceOriginId>, Vec<SourceBindingPoint>>>,
     implicit_math_invocations: SharedSourceInventory<ImplicitMathInvocations>,
@@ -3193,6 +3200,8 @@ fn seed_deferred_inputs(
     frame: &crate::var_resolve::VariableExecutionFrame,
     registry: &CommandRegistry,
 ) {
+    #[cfg(any(test, debug_assertions))]
+    let _timing = root_owner_work::Timing::at(root_owner_work::Query::Frame);
     if root.event.is_none() {
         branch.source_variables = Arc::new(branch.source_variables.in_frame(frame));
         branch.variable_frame = frame.clone();
@@ -3240,6 +3249,8 @@ fn seed_deferred_inputs(
 /// Clone a binding branch outside recursive frames, retaining it on the heap.
 #[inline(never)]
 fn boxed_source_branch(state: &ModuleCommandBindings) -> Box<ModuleCommandBindings> {
+    #[cfg(any(test, debug_assertions))]
+    let _timing = root_owner_work::Timing::at(root_owner_work::Query::Branch);
     Box::new(state.clone())
 }
 
@@ -5969,6 +5980,7 @@ fn trace_source_analysis(
     bindings: &SourceCommandBindings,
 ) {
     if let Some(start) = start {
+        root_owner_work::report(stage);
         eprintln!(
             "SOURCE_PHASE bytes={} stage={} ms={} points={} layouts={}",
             source_len,
@@ -6344,6 +6356,7 @@ impl SourceCommandBindings {
                         self.deferred_outcomes.len(),
                         self.declaration_layouts.len()
                     );
+                    root_owner_work::report("deferred-entry");
                     last_report = Some(std::time::Instant::now());
                 }
                 if self
@@ -7708,7 +7721,11 @@ impl SourceCommandBindings {
         let Some(snapshot) = &mut prepared.snapshot else {
             return;
         };
+        #[cfg(any(test, debug_assertions))]
+        let preflight_timing = root_owner_work::Timing::at(root_owner_work::Query::Preflight);
         let assessment = compiled_preflight::preflight_image(image, base, state, context, snapshot);
+        #[cfg(any(test, debug_assertions))]
+        drop(preflight_timing);
         // A declaration template interprets possible compilation locally. It
         // never publishes an actual compiler visit or chunk-entry obligation.
         if self.declaration_preview_depth == 0 {
@@ -7814,6 +7831,7 @@ impl SourceCommandBindings {
             context,
             segment.span.start(),
         );
+
         #[cfg(test)]
         trace_original_selection(
             words.words(),

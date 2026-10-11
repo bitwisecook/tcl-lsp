@@ -105,6 +105,7 @@ mod native_name_world;
 mod native_namespace_names;
 #[cfg(test)]
 mod native_namespace_root_tests;
+pub(crate) mod native_numeric_ops;
 pub(crate) mod native_operation_currency;
 mod native_package_files;
 #[cfg(test)]
@@ -13524,9 +13525,19 @@ impl Vm {
     }
 
     fn install_native_precision_trace_at(&mut self, name: &[u8]) {
+        let _ = self.install_original_precision_trace_at(name);
+    }
+
+    fn install_original_precision_trace_at(
+        &mut self,
+        name: &[u8],
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter_native(self)?;
         self.variable_observers.precision_cell = None;
-        self.variable_observers.precision_cell =
-            self.ensure_base_var_from_bytes(name, 0).map(|(_, id)| id);
+        let selected = self.ensure_base_var_from_bytes(name, 0).map(|(_, id)| id);
+        scope.check_native(self)?;
+        self.variable_observers.precision_cell = selected;
+        scope.check_native(self)
     }
 
     fn fire_native_precision_trace_bytes(
@@ -13534,15 +13545,17 @@ impl Vm {
         name: &[u8],
         op: &str,
         cell: &VarTraceCell,
-    ) -> Result<(), Completion<Value>> {
+        scope: &native_operation_currency::NativeOperationScope,
+    ) -> VariableTraceOutcome {
+        scope.check_native(self)?;
         let Some(registered) = self.variable_observers.precision_cell else {
-            return Ok(());
+            return Ok(Ok(()));
         };
         if cell.array_id() != Some(registered) && cell.id != Some(registered) {
-            return Ok(());
+            return Ok(Ok(()));
         }
         let Some(id) = cell.id else {
-            return Ok(());
+            return Ok(Ok(()));
         };
         let dialect = self.native_invocation_dialect();
         if self.authored_math_provider().is_none()
@@ -13550,19 +13563,20 @@ impl Vm {
                 .name_in(dialect)
                 .is_none()
         {
-            return Ok(());
+            return Ok(Ok(()));
         }
         let Some(context) = self
             .authored_math_format()
             .or_else(|| crate::value::DoubleFormatContext::for_dialect(dialect))
         else {
-            return Ok(());
+            return Ok(Ok(()));
         };
-        let policy = if self.authored_math_provider().is_some() {
+        let authored = self.authored_math_provider().is_some();
+        let policy = if authored {
             tcl_dialect::DoubleStringPolicy::Tcl84Precision
         } else {
             let Some(policy) = dialect.double_string_policy() else {
-                return Ok(());
+                return Ok(Ok(()));
             };
             policy
         };
@@ -13571,35 +13585,108 @@ impl Vm {
                 self.var_arena.get(id).map(crate::vars::VarCell::state),
                 Some(Local::Array(_))
             ) {
-                return Ok(());
+                return Ok(Ok(()));
             }
-            let _ = self.var_arena.replace_state(
+            let retired = self.var_arena.replace_state(
                 id,
                 Local::Scalar(Value::int(i64::from(context.precision()))),
             );
-            return Ok(());
+            drop(retired);
+            scope.check_native(self)?;
+            return Ok(Ok(()));
         }
         if op != "write" {
-            return Ok(());
+            return Ok(Ok(()));
         }
-        let precision = self
-            .read_resolved_cell(id)
-            .and_then(|value| tcl_syntax::number::parse_double_precision(policy, &value.to_str()));
+        // Safe mode is selected before any original getter or Host conversion.
         let error = if self.is_safe {
             Some("can't modify precision from a safe interpreter")
-        } else if let Some(precision) = precision {
-            context.set_precision(precision);
-            None
         } else {
-            Some("improper value for precision")
+            let original = self
+                .initial_value_at_cell(id, cell.array)
+                .map(|value| value.map(Value::native_lifetime_lease));
+            scope.check_native(self)?;
+            let original = match original {
+                Ok(original) => original,
+                Err(error) => return Ok(Err(self.variable_trace_command_error(error.into())?)),
+            };
+            let reached = if authored {
+                original.as_ref().map_or(Ok(None), |lease| {
+                    let value = lease.value();
+                    Ok(tcl_syntax::number::parse_double_precision(
+                        policy,
+                        &value.to_str(),
+                    ))
+                })
+            } else if policy == tcl_dialect::DoubleStringPolicy::Tcl84Precision {
+                let bytes = original
+                    .as_ref()
+                    .map(|lease| {
+                        lease
+                            .value()
+                            .native_string_bytes(
+                                tcl_syntax::native_string::NativeStringProtocol::C(
+                                    tcl_dialect::TclVersion::V8_4,
+                                ),
+                            )
+                            .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
+                            .map_err(tcl_syntax::value::ValueError::from)
+                    })
+                    .transpose();
+                scope.check_native(self)?;
+                match bytes {
+                    Ok(bytes) => {
+                        native_numeric_ops::OriginalNumericOps::in_original_scope(self, scope)
+                            .and_then(|ops| ops.c84_precision(bytes.as_deref().unwrap_or(&[])))
+                    }
+                    Err(error) => Err(error.into()),
+                }
+            } else {
+                match original.as_ref() {
+                    Some(lease) => {
+                        let value = lease.value();
+                        native_numeric_ops::OriginalNumericOps::in_original_scope(self, scope)
+                            .and_then(|ops| {
+                                ops.probe(
+                                    value,
+                                    tcl_syntax::scalar_getter::NativeScalarGetterKind::Int,
+                                )
+                            })
+                            .map(|outcome| match outcome {
+                                Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(
+                                    integer,
+                                )) => tcl_syntax::number::double_precision_from_native_integer(
+                                    policy, integer,
+                                ),
+                                _ => None,
+                            })
+                    }
+                    None => Ok(None),
+                }
+            };
+            drop(original);
+            scope.check_native(self)?;
+            let precision = match reached {
+                Ok(precision) => precision,
+                Err(error) => return Ok(Err(self.variable_trace_command_error(error)?)),
+            };
+            if let Some(precision) = precision {
+                context.set_precision(precision);
+                None
+            } else {
+                Some("improper value for precision")
+            }
         };
         if let Some(error) = error {
             if policy == tcl_dialect::DoubleStringPolicy::Tcl84Precision {
-                let _ = self.var_arena.replace_state(
+                let retired = self.var_arena.replace_state(
                     id,
                     Local::Scalar(Value::int(i64::from(context.precision()))),
                 );
+                drop(retired);
+                scope.check_native(self)?;
             }
+            scope.check_native(self)?;
             let mut message = b"can't set \"".to_vec();
             message.extend_from_slice(name);
             message.extend_from_slice(b"\": ");
@@ -13610,9 +13697,10 @@ impl Vm {
                 Value::string("VARNAME"),
                 Value::from_string_bytes(name),
             ]);
-            return Err(err_with_code(message, code.string_bytes()));
+            return Ok(Err(err_with_code(message, code.string_bytes())));
         }
-        Ok(())
+        scope.check_native(self)?;
+        Ok(Ok(()))
     }
 
     /// Register a `trace add variable` callback. `old_style` marks the
@@ -15570,7 +15658,8 @@ impl Vm {
                     scope.check_native(self)?;
                 }
                 if live_key.is_some() && live_key == self.variable_observers.precision_cell {
-                    let precision = self.fire_native_precision_trace_bytes(name, op, cell);
+                    let precision =
+                        self.fire_native_precision_trace_bytes(name, op, cell, scope)?;
                     scope.check_native(self)?;
                     if let Err(guest) = precision {
                         return Ok(Err(guest));

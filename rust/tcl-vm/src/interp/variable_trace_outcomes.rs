@@ -62,7 +62,7 @@ impl Vm {
         }
     }
 
-    fn variable_trace_guest_or_unwind(
+    pub(super) fn variable_trace_guest_or_unwind(
         &mut self,
         fire: impl FnOnce(&mut Self) -> VariableTraceOutcome,
     ) -> Result<(), Completion<Value>> {
@@ -75,7 +75,7 @@ impl Vm {
         }
     }
 
-    fn variable_trace_command_error(
+    pub(super) fn variable_trace_command_error(
         &mut self,
         error: tcl_cmd_core::CmdError,
     ) -> Result<Completion<Value>, NativeExecutionError> {
@@ -91,7 +91,7 @@ impl Vm {
         Ok(crate::command::completion_from_cmd_error(self, error))
     }
 
-    fn retain_variable_trace_value_error(
+    pub(super) fn retain_variable_trace_value_error(
         &mut self,
         error: tcl_syntax::value::ValueError,
     ) -> NativeExecutionError {
@@ -103,7 +103,7 @@ impl Vm {
         }
     }
 
-    fn restore_original_trace_state(
+    pub(super) fn restore_original_trace_state(
         &mut self,
         state: NativeTraceResultState,
     ) -> Result<(), NativeExecutionError> {

@@ -736,15 +736,16 @@ impl SourceCommandBindings {
         offset: u32,
     ) -> Option<Arc<SourceConditionalBodyEntry>> {
         let mut selected: Option<SourceConditionalBodyEntry> = None;
-        let candidates = || {
-            self.deferred.values().filter(|body| {
-                body.source_origin.as_ref() == Some(origin)
-                    && body.offset <= offset
-                    && u64::from(offset) < u64::from(body.offset) + body.source.len() as u64
-            })
-        };
-        let length = candidates().map(|body| body.source.len()).min()?;
-        for body in candidates().filter(|body| body.source.len() == length) {
+        #[cfg(any(test, debug_assertions))]
+        let _timing = super::root_owner_work::Timing::at(super::root_owner_work::Query::Body);
+        let inventory = self.deferred.shared();
+        let index = self.deferred_body_index.for_inventory(&inventory);
+        let candidates = index.innermost(&inventory, origin, offset);
+        let length = candidates.first()?.source.len();
+        for body in candidates
+            .into_iter()
+            .filter(|body| body.source.len() == length)
+        {
             if body.event.is_some() || body.future_frame.is_some() {
                 return None;
             }
@@ -793,16 +794,18 @@ impl SourceCommandBindings {
         origin: &Arc<super::SourceOriginId>,
         offset: u32,
     ) -> Option<Arc<SourceDeclaredReceiverBodyEntry>> {
-        let candidates = || {
-            self.deferred.values().filter(|body| {
-                body.source_origin.as_ref() == Some(origin)
-                    && body.offset <= offset
-                    && u64::from(offset) < u64::from(body.offset) + body.source.len() as u64
-            })
-        };
-        let length = candidates().map(|body| body.source.len()).min()?;
+        #[cfg(any(test, debug_assertions))]
+        let _timing =
+            super::root_owner_work::Timing::at(super::root_owner_work::Query::ReceiverBody);
+        let inventory = self.deferred.shared();
+        let index = self.deferred_body_index.for_inventory(&inventory);
+        let candidates = index.innermost(&inventory, origin, offset);
+        let length = candidates.first()?.source.len();
         let mut agreed = None;
-        for body in candidates().filter(|body| body.source.len() == length) {
+        for body in candidates
+            .into_iter()
+            .filter(|body| body.source.len() == length)
+        {
             if !body.receiver_method || body.event.is_some() || body.future_frame.is_some() {
                 return None;
             }

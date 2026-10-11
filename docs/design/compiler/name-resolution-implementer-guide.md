@@ -1053,7 +1053,9 @@ The driver supplies the entry; the example does not reconstruct it from a
 dialect name. Use the same retained entry when creating a cross-file scan or
 an incremental cache key.
 
-`SourceCommandBindings` and `CommandBindingRealm` compare retained semantic state, including source origins, deferred/future bodies, compiler visits, variable continuations and runtime coverage. Only the derived unpositioned projection cache and per-point `OnceLock` lookup cache are excluded. Consumers may retain the exact realm across analysis results without reconstructing a dialect or treating a pointer as semantic equality. Immutable `SourceLookupSnapshot` carriers retain the complete original state and realm without computing a fingerprint during ordinary lookup. Hashing or equality initializes its derived memo on demand; a fingerprint match still requires full semantic equality. Joining a retained point invalidates the detached snapshot's memo and preserves the predecessor snapshot. The memo grants no command, compiler, frame or object authority.
+`SourceCommandBindings` and `CommandBindingRealm` compare retained semantic state, including source origins, deferred/future bodies, compiler visits, variable continuations and runtime coverage. Only the derived unpositioned projection cache and per-point `OnceLock` lookup cache are excluded. Consumers may retain the exact realm across analysis results without reconstructing a dialect or treating a pointer as semantic equality. Immutable `SourceLookupSnapshot` carriers retain the complete original state and realm without computing a fingerprint during ordinary lookup. Hashing initializes its derived memo on demand. Equality compares the complete state and realm directly, allowing unchanged immutable fields to share their existing storage without hashing the whole world. Equal independently allocated states still hash equally; neither allocation identity nor a derived fingerprint replaces semantic equality. Joining a retained point invalidates the detached snapshot's memo and preserves the predecessor snapshot. The memo grants no command, compiler, frame or object authority.
+
+The conditional procedure and declared receiver-body workers select innermost source intervals through `DeferredBodyIndexCache`. Reuse requires the exact live retained deferred inventory; a copy-on-write change replaces that derived index. Its weak inventory observation retains no earlier body-table payloads. All equal-span candidates still reach the existing conflict, original source, execution frame, event, future, formal and namespace checks. Collector clones begin with an empty derived cache. Optional `TCL_LSP_TRACE_SOURCE_PHASES` timings measure reached owner work only and participate in no semantic equality, source proof or admission.
 
 A package catalogue and a loaded implementation are different evidence. A
 Tcllib factory's authored successful object return describes a selected known
@@ -10203,3 +10205,72 @@ ensure a later operand or lexical getter is not reached. Keep genuine nonnumeric
 acceptance separate from operational failures. Software adapter tests establish
 that contract; external Tcl and Jim observations require their own closed
 provider evidence.
+
+## Original runtime arguments and receiver continuations
+
+`OriginalArguments` retains the actual interpreter, inherited
+`NativeOperationScope` and allocation-only leases for the borrowed argv. Enter
+it before the first effectful operand getter. Read each original through
+`bytes(index)` at the selected command stage; do not convert all arguments on
+entry. Keep the reached `Result`, check the original currency and header
+liveness, then propagate the result before reading another operand or
+publishing an effect. `finish` preserves the Guest code when current and the
+exact first Host cause on refusal. Allocation leases do not add Native object
+references or grant a getter, name, frame or command purpose.
+
+Use these existing owners for their separate joins:
+
+| Consumer | Shared owner and retained facts |
+|---|---|
+| OO dispatch, definition commands and `info object`/`info class` | `native_context::with_original_arguments` and `OriginalOoTarget`: actual object creation, non-torn-down lifecycle, and the original class-facet birth where a class is required. An instance namespace additionally joins its actual `NsId` and namespace ledger token. |
+| Original command lookup, rename, import and alias hops | `resolve_original_command_at`: actual original header, explicit lookup namespace, selected name/cache protocol and command generation. Alias capture and invocation retain the existing Native List; C fresh query Lists and Jim stored-header queries keep their distinct roles. |
+| `classvariable`, namespace upvar, `global`, `upvar` and compiled upvar | `prepare_original_c_namespace_link_target`, `prepare_original_c_link_target` and `bind_original_c_alias_local`: actual target frame, namespace, cell and selected Link/local-name purpose. The selected C9 classvariable protocol validates all names before linking; other entry purposes keep their own reached order. Jim link authority comes from its original tuple/cell issuer. |
+| Method rename, deletion, cache reuse and invocation | `MethodTable` and `NativeMethodRecord`: independent record-name and table-key owners; Weak idle cache observations; ALL exact records retained by a reached chain. A missing record cannot be recovered by looking up its displayed name. |
+| `info ... methodtype`, `info ... call` and `self call` | The retained record's current mutable payload descriptor and actual chain flags. Filter, unknown, private, object/class and constructor/destructor roles come from their producers. Literal selector spelling does not determine a method type or role. Reports use original record-name or Foundation headers in the returned List. |
+| Forward prefixes and `info level` | The existing Native List/`Owned` prefix and allocation-only original frame tape. Definition and invocation preserve original members; presentation reaches their Strings only when the reporting purpose requests it. |
+| Property derivation, reporting and configure operations | `native_all_property_header` and the retained report/table owners: original target, derivation world and member lifetimes while building a report; an authentic frozen List/table once materialised. Legal accessor mutations do not invalidate an already materialised snapshot or its source-defined old-table/current-header index mapping. |
+| Variable copies and indexed stores | Captured receiver and frame owners: actual binding/root identity, original value allocation and inherited currency. Retire old values outside frame, cell and namespace borrows, then settle the reached store result before continuing. |
+
+Operation currency and receiver identity answer different questions. Legal
+Guest method, property or command-table mutations need not retire the operation
+context. Check the original object, class facet, namespace holder, cell binding
+or cache stamp whenever that stage still derives from it. Once a source-defined
+report is frozen, retain that report's actual lifetime and operation currency
+rather than requiring an unrelated mutable roster to remain unchanged. A fresh
+same-spelled object, namespace, cell or method entry cannot satisfy an old join.
+
+Extract callback-bearing method, property, declaration, object and class owners
+under short borrows and retire them after releasing those borrows. Keep reached
+adoption and deletion effects. Mandatory teardown, frame restoration and owner
+release continue after refusal; later optional getters, constructor work,
+diagnostics and result publication stop. Retain the first typed execution error
+before cleanup can reach another callback, and propagate it through the existing
+`CmdError::from_execution_refusal` transport. Rendered bytes and placeholder
+Guest errors cannot replace that cause.
+
+`oo_resolve_original_object` resolves the actual original argv header through
+`resolve_original_command_at` and the existing imported-generation projection.
+C object lookup and namespace origin follow captured import tokens; a retired
+source is not recovered by looking up its former report spelling. The explicit
+`oo_resolve_object_bytes` adapter creates a fresh original for an API that
+already supplies bytes. It does not confer an existing header's cache role.
+Jim's authored OO compatibility hop retains the alias's actual stored List and
+checks each reached getter; absent Source context stays terminal. This port
+relationship does not establish native Jim TclOO availability.
+
+Container queries and physical model transitions use `EnteredVariablePlace`
+and `CapturedContainerModel` to retain the actual table, frame and root through
+selected Dict getter, backing and retirement checks. Named/member/whole-table
+retirement and occupied `Namespace::bind` paths require their own callback
+settlement. In
+`oo_clone_namespace`, procedure binding reaches that occupied publication path,
+and scalar/element copies discard ordinary captured-store errors. These paths
+remain distinct from the checked OO facade owners above.
+
+Original C source inspections, closed provider observations and software
+callback controls retain their individual scopes. Method-record versus mutable
+client-data lifetime, Class pointer retention, payload-specific delete callbacks
+and VM value semantics require their own evidence; shared checked transport
+does not establish aggregate Native parity. The
+[shared utility contract](../contracts/shared-utility-contracts-rust.md) records
+the owner boundaries.

@@ -7,7 +7,6 @@
 //! The poisoned speculative Interpreter guard supplies no operation authority.
 
 use crate::{error::TclError, interp::Vm, value::Value};
-use std::rc::Rc;
 use tcl_cmd_core::{
     CmdError,
     native_boolean_truth::{
@@ -36,7 +35,6 @@ use tcl_syntax::{
 struct OriginalOps<'a> {
     vm: &'a mut Vm,
     dialect: InvocationDialect,
-    host: Rc<dyn tcl_platform::Host>,
     scope: crate::interp::native_operation_currency::NativeOperationScope,
 }
 
@@ -52,7 +50,6 @@ impl<'a> OriginalOps<'a> {
         let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(vm)?;
         Ok(Self {
             dialect: vm.actual_native_invocation_dialect(),
-            host: vm.host_rc(),
             scope,
             vm,
         })
@@ -90,13 +87,11 @@ impl<'a> OriginalOps<'a> {
         kind: Getter,
     ) -> Result<Result<GetterValue, Failure>, CmdError> {
         self.current()?;
-        let result = value.native_scalar_probe_with_environment(
-            self.dialect,
-            kind,
-            self.host.numeric_environment(),
-        );
-        self.current()?;
-        result.map_err(Into::into)
+        crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(
+            self.vm,
+            &self.scope,
+        )?
+        .probe(value, kind)
     }
 }
 
@@ -130,15 +125,16 @@ impl NativeBooleanTruthOps for OriginalOps<'_> {
         protocol: TruthProtocol,
     ) -> Result<Vec<u8>, CmdError> {
         self.checked(value, protocol)?;
-        Ok(value
+        let reached = value
             .native_string_bytes(
                 self.dialect
                     .native_string_protocol()
                     .ok_or_else(unavailable)?,
             )
             .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
-            .map_err(ValueError::from)?
-            .to_vec())
+            .map_err(ValueError::from);
+        self.current()?;
+        Ok(reached?.to_vec())
     }
     fn probe(
         &mut self,
@@ -150,28 +146,20 @@ impl NativeBooleanTruthOps for OriginalOps<'_> {
         match stage {
             Probe::Scalar { kind, .. } => self.scalar_probe(value, kind),
             Probe::ExpressionInteger84 => {
-                let host = Rc::clone(&self.host);
-                let environment = host.numeric_environment();
-                let before = environment
-                    .map(|environment| environment.c_integer_abi())
-                    .transpose()
-                    .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
-                self.current()?;
-                let result = value.original_expression_integer84(self.dialect, environment);
-                self.current()?;
-                let after = environment
-                    .map(|environment| environment.c_integer_abi())
-                    .transpose()
-                    .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
-                if before != after {
-                    return Err(unavailable());
-                }
-                result.map_err(Into::into)
+                crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(
+                    self.vm,
+                    &self.scope,
+                )?
+                .expression_integer84(value)
             }
-            Probe::ExpressionWordBoolean84(boolean) => value
-                .original_expression_word_boolean84(self.dialect, boolean)
+            Probe::ExpressionWordBoolean84(boolean) => {
+                crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(
+                    self.vm,
+                    &self.scope,
+                )?
+                .word_boolean84(value, boolean)
                 .map(Ok)
-                .map_err(Into::into),
+            }
         }
     }
     fn getter_failure(
@@ -182,14 +170,14 @@ impl NativeBooleanTruthOps for OriginalOps<'_> {
         failure: Failure,
     ) -> Result<CmdError, CmdError> {
         self.checked(value, protocol)?;
-        Ok(
-            ValueError::NativeScalarGetter(Box::new(value.native_scalar_failure_presentation(
-                self.dialect,
-                kind,
-                failure,
-            )?))
-            .into(),
-        )
+        Ok(ValueError::NativeScalarGetter(Box::new(
+            crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(
+                self.vm,
+                &self.scope,
+            )?
+            .failure(value, kind, failure)?,
+        ))
+        .into())
     }
     fn publish_intermediate_failure(&mut self, error: CmdError) -> Result<(), CmdError> {
         self.current()?;
@@ -203,12 +191,14 @@ impl NativeBooleanTruthOps for OriginalOps<'_> {
         protocol: TruthProtocol,
     ) -> Result<Result<Number, Failure>, CmdError> {
         self.checked(value, protocol)?;
-        value
-            .native_number_probe(
-                self.dialect,
-                tcl_syntax::scalar_getter::NativeNumberGetterKind::Number,
-            )
-            .map_err(Into::into)
+        crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(
+            self.vm,
+            &self.scope,
+        )?
+        .number(
+            value,
+            tcl_syntax::scalar_getter::NativeNumberGetterKind::Number,
+        )
     }
     fn logical_dictionary_size(
         &mut self,
@@ -216,14 +206,16 @@ impl NativeBooleanTruthOps for OriginalOps<'_> {
         protocol: TruthProtocol,
     ) -> Result<Option<usize>, CmdError> {
         self.checked(value, protocol)?;
-        value
+        let reached = value
             .original_expression_cached_lengths(
                 self.dialect
                     .native_string_protocol()
                     .ok_or_else(unavailable)?,
             )
             .map(|(_, dictionary)| dictionary)
-            .map_err(Into::into)
+            .map_err(CmdError::from);
+        self.current()?;
+        reached
     }
     fn logical_length_hook(
         &mut self,
@@ -231,14 +223,16 @@ impl NativeBooleanTruthOps for OriginalOps<'_> {
         protocol: TruthProtocol,
     ) -> Result<Option<usize>, CmdError> {
         self.checked(value, protocol)?;
-        value
+        let reached = value
             .original_expression_cached_lengths(
                 self.dialect
                     .native_string_protocol()
                     .ok_or_else(unavailable)?,
             )
             .map(|(list, _)| list)
-            .map_err(Into::into)
+            .map_err(CmdError::from);
+        self.current()?;
+        reached
     }
     fn logical_list_probe(
         &mut self,
@@ -246,11 +240,13 @@ impl NativeBooleanTruthOps for OriginalOps<'_> {
         protocol: TruthProtocol,
     ) -> Result<bool, CmdError> {
         self.checked(value, protocol)?;
-        match value.native_object_list_elements(
+        let reached = value.native_object_list_elements(
             self.dialect
                 .native_string_protocol()
                 .ok_or_else(unavailable)?,
-        ) {
+        );
+        self.current()?;
+        match reached {
             Ok(_) => Ok(true),
             Err(ValueError::NativeListParse { .. }) => Ok(false),
             Err(error) => Err(error.into()),
@@ -276,8 +272,12 @@ impl NativeBooleanExpressionResultOps for OriginalOps<'_> {
         _protocol: ResultProtocol,
     ) -> Result<(), CmdError> {
         self.current()?;
-        let _outcome = value.native_number_probe(
-            self.dialect,
+        let _outcome = crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(
+            self.vm,
+            &self.scope,
+        )?
+        .number(
+            value,
             tcl_syntax::scalar_getter::NativeNumberGetterKind::Number,
         )?;
         Ok(())
@@ -336,11 +336,11 @@ impl NativeBooleanExpressionResultOps for OriginalOps<'_> {
         self.current()?;
         let failure =
             if protocol.scalar_protocol().tcl_version() == Some(tcl_dialect::TclVersion::V8_4) {
-                tcl_cmd_core::native_numeric::c84_nonfinite_error(
-                    protocol.scalar_protocol(),
-                    value,
-                    self.host.numeric_environment(),
+                crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(
+                    self.vm,
+                    &self.scope,
                 )?
+                .nonfinite84(protocol.scalar_protocol(), value)?
             } else if value.is_nan() {
                 Some(tcl_syntax::expr::errors::NativeFloatError::Domain)
             } else {

@@ -349,6 +349,7 @@ entry point, or gate moves without this contract being updated.
 | original declared argument read bridge | `rust/tcl-compiler/src/var_escape/original_slots.rs`; `rust/tcl-compiler/src/common_aot_plan/declared_arguments.rs`; `rust/tcl-compiler/src/common_aot_plan.rs` | `OriginalDeclaredProcedureArgumentSlots::incoming_source_read`; `DeclaredArgumentIdentity`; `DeclaredArgumentEvidence`; `CommonAotProofPlan::declared_arguments`; `CommonAotProofPlan::declared_argument_for_incoming_read` | authentic original declaration/topology/image, fixed counted argument owner and complete reached source-read/cell alternatives; proposed convention ordinals stay separate from physical SSA and materialisable-slot identity, while observer/content/caller-type/source-metadata/runtime-guard/body-admission premises remain independent; missing owners, changed source/read receipts and unproved callers refuse | none |
 | supplied original SSA definition mapping | `rust/tcl-compiler/src/ssa.rs`; `rust/tcl-compiler/src/registry_invocation.rs` | `SsaSourceView::original_definition_name_with_metadata_context`; `normal_transfer_invocation_with_metadata_context` | complete actual availability/source grammar and independent original SSA definition cell/phase/effective receiver; actual AnalysisResult/Module/FunctionUnit consumers withdraw missing, foreign or incompatible metadata; explicitly standalone sibling is separate; no read completion, contents, native cache or edit grant | none |
 | diagnostic policy | `rust/tcl-lsp-core/src/diagnostic_policy.rs`; `rust/tcl-lsp-core/src/diagnostic_report.rs`; `rust/tcl-lsp-core/src/config_ini.rs` | `apply`; `Policy`; `PolicyBuilder`; `Report`; `Finding`; `Directives`; `dialect_overlaps`; `document_report`; `standalone_findings`; `optimise_under_policy`; `settings_from_ini`; `merge_settings`; `global_layer`; `project_layer_for` | the dialect's overlap table; the document's configuration layers, resolved per code; the step order is release-invariant | none |
+| checked original numeric stages | `rust/tcl-platform/src/numeric_environment.rs`; `runtime/rust/src/interp/native_operation_currency.rs`; `rust/tcl-vm/src/value.rs`; `rust/tcl-vm/src/interp/native_numeric_ops.rs` | `CheckedNumericEnvironment`; `native_scalar_probe_checked`; `native_number_probe_checked`; `OriginalNumericOps` | independently supplied actual numeric environment, callback-neutral before/after checker and ABI observation cell; conversion kernels retain selected recipe; original Runtime/VM operation owner preserves the full typed first cause, while neutral availability grants no interpreter, object, frame or handler authority; primary retirement is checked outside its representation borrow | `xtask-owner-resolution` |
 <!-- end-owner-resolution-manifest -->
 
 ### Compiler evaluated substitutions
@@ -3138,6 +3139,16 @@ or query unrelated state; infinity refuses when the required host facts are
 absent. C8.4 minimum
 integer output requires its separate independently authenticated native
 formatter provider; this numeric environment grants no formatter permission.
+
+`CheckedNumericEnvironment` is the shared callback-neutral forwarding owner.
+It checks before and after each supplied numeric operation and compares ABI
+observations in the supplied cell. Runtime and VM original adapters retain their
+actual operation receipts and full typed first causes independently of that
+neutral availability result. VM scalar, Number and original Boolean conversion
+children share one optional-checker Value kernel; pure Value entry points select
+no checker. The [scalar getter contract](native-scalar-getters.md) describes
+checked cache publication and precision policies, including software proof
+limits for the VM's original headers.
 
 `Host::native_integer_formatter` supplies that separate capability only after
 explicit installation. `LoadedNativeIntegerFormatter` verifies a supplied

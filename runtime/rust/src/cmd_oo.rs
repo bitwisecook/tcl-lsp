@@ -51,6 +51,8 @@ mod original_call_report_tests;
 #[cfg(test)]
 mod original_classvariable_tests;
 #[cfg(test)]
+mod original_object_resolution_tests;
+#[cfg(test)]
 mod original_property_reporting_tests;
 #[cfg(test)]
 mod original_property_retirement_tests;
@@ -127,6 +129,13 @@ macro_rules! oo_checked {
             Err(error) => return $interp.report_cmd_error(error.into()),
         }
     };
+}
+
+macro_rules! oo_original_object {
+    ($interp:expr, $originals:expr, $index:expr) => {{
+        let original = oo_checked!($interp, $originals.original($index));
+        oo_checked!($interp, $interp.oo_resolve_original_object(original))
+    }};
 }
 
 macro_rules! oo_original_check {
@@ -780,13 +789,22 @@ pub fn install(interp: &mut Interp) {
     let _ = interp.eval_str(b"namespace eval ::oo::define {}; namespace eval ::oo::objdefine {}");
     register_define_ns_commands(interp);
     install_slot_class(interp);
+    if interp.native_execution_refusal().is_some() {
+        return;
+    }
     let _ = interp.eval_str(b"namespace eval ::oo::configuresupport {}");
     // The seven definition slots and the four TIP 558 property slots are real
     // `::oo::Slot` instances (C's `TclOODefineSlots`), invoked e.g. as
     // `oo::define c ::oo::configuresupport::readableproperties -set …`. Their
     // per-instance `Get`/`Set` read/write the active definition target's lists.
     install_slot_instances(interp);
+    if interp.native_execution_refusal().is_some() {
+        return;
+    }
     install_configurable(interp);
+    if interp.native_execution_refusal().is_some() {
+        return;
+    }
     native_context::install_unknown(interp);
 }
 
@@ -925,7 +943,14 @@ fn install_configurable(interp: &mut Interp) {
     );
     // The mixin that gives configurable objects their `configure` method.
     let _ = interp.eval_str(b"oo::class create ::oo::configuresupport::configurable {}");
-    let configurable_support = interp.oo_resolve_object(b"::oo::configuresupport::configurable");
+    let configurable_support =
+        match interp.oo_resolve_object_bytes(b"::oo::configuresupport::configurable") {
+            Ok(object) => object,
+            Err(error) => {
+                interp.report_cmd_error(error);
+                return;
+            }
+        };
     if let Some(c) = interp
         .oo
         .borrow_mut()
@@ -950,7 +975,13 @@ fn install_configurable(interp: &mut Interp) {
         b"oo::class create ::oo::configurable { superclass ::oo::class }\n\
           oo::define ::oo::configurable definitionnamespace ::oo::configuresupport::configurableclass",
     );
-    let configurable_root = interp.oo_resolve_object(b"::oo::configurable");
+    let configurable_root = match interp.oo_resolve_object_bytes(b"::oo::configurable") {
+        Ok(object) => object,
+        Err(error) => {
+            interp.report_cmd_error(error);
+            return;
+        }
+    };
     interp.oo.borrow_mut().configurable_root = Some(configurable_root);
     install_abstract_singleton(interp);
     // The 9.0 metaclasses are engine-installed on the registry's behalf too,
@@ -961,7 +992,13 @@ fn install_configurable(interp: &mut Interp) {
         b"::oo::singleton",
         b"::oo::abstract",
     ] {
-        let owner = interp.oo_resolve_object(root);
+        let owner = match interp.oo_resolve_object_bytes(root) {
+            Ok(object) => object,
+            Err(error) => {
+                interp.report_cmd_error(error);
+                return;
+            }
+        };
         interp.declare_registry_object_root(owner, root);
     }
     // NOTE: `::oo::Slot` and `::oo::SingletonInstance` are engine-installed
@@ -1511,7 +1548,13 @@ fn install_slot_class(interp: &mut Interp) {
         ("-clear", slot_m_clear),
         ("unknown", slot_m_unknown),
     ];
-    let slot_class = interp.oo_resolve_object(b"::oo::Slot");
+    let slot_class = match interp.oo_resolve_object_bytes(b"::oo::Slot") {
+        Ok(object) => object,
+        Err(error) => {
+            interp.report_cmd_error(error);
+            return;
+        }
+    };
     if let Some(cl) = interp.oo.borrow_mut().classes.get_mut(&slot_class) {
         for name in ["Get", "Set", "Resolve"] {
             if let Some(owner) = cl.methods.owner(name.as_bytes()) {
@@ -1571,7 +1614,13 @@ fn install_slot_instances(interp: &mut Interp) {
         let mut script = b"::oo::Slot create ".to_vec();
         script.extend_from_slice(name);
         let _ = interp.eval_str(&script);
-        let slot = interp.oo_resolve_object(name);
+        let slot = match interp.oo_resolve_object_bytes(name) {
+            Ok(object) => object,
+            Err(error) => {
+                interp.report_cmd_error(error);
+                return;
+            }
+        };
         if let Some(o) = interp.oo.borrow_mut().objects.get_mut(&slot) {
             drop(o.methods.insert_generated(
                 b"Get".to_vec(),
@@ -1701,9 +1750,10 @@ fn slot_field_write(
     )
     .then(|| {
         list.iter()
-            .map(|name| interp.oo_resolve_object(name))
-            .collect::<Vec<_>>()
-    });
+            .map(|name| interp.oo_resolve_object_bytes(name))
+            .collect::<Result<Vec<_>, _>>()
+    })
+    .transpose()?;
     let mut oo = interp.oo.borrow_mut();
     let object_root = oo.object_root;
     match (slot, target) {
@@ -2030,7 +2080,9 @@ fn validate_slot_class_references(
         _ => return Ok(()),
     };
     for name in names {
-        let object = interp.oo_resolve_object(name);
+        let object = interp
+            .oo_resolve_object_bytes(name)
+            .map_err(|error| interp.report_cmd_error(error))?;
         let state = interp.oo.borrow();
         let exists = state.objects.contains_key(&object);
         let is_class = state.classes.contains_key(&object);
@@ -2056,15 +2108,19 @@ fn validate_slot_class_references(
 /// global), returning it unchanged if it does not name a class.
 fn slot_inst_resolve(interp: &mut Interp, _slot: OoId, args: &[*mut TclObj]) -> Code {
     native_context::with_original_arguments(interp, args, |interp, originals| {
-        let raw = if args.is_empty() {
-            Vec::new()
+        let resolved = if args.is_empty() {
+            oo_checked!(interp, interp.oo_resolve_object_bytes(b""))
         } else {
-            oo_original_bytes!(interp, originals, 0)
+            oo_original_object!(interp, originals, 0)
         };
-        let resolved = interp.oo_resolve_object(&raw);
         if interp.oo.borrow().classes.contains_key(&resolved) {
             interp.set_result(obj::new_string_bytes(&interp.oo_name(resolved)));
         } else {
+            let raw = if args.is_empty() {
+                Vec::new()
+            } else {
+                oo_original_bytes!(interp, originals, 0)
+            };
             interp.set_result(obj::new_string_bytes(&raw));
         }
         Code::Ok
@@ -2247,11 +2303,12 @@ fn oo_define_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         if argv.len() < 3 {
             return wrong_args(interp, b"oo::define target ?arg ...?");
         }
-        let fqn = interp.oo_resolve_object(&oo_original_bytes!(interp, originals, 1));
+        let fqn = oo_original_object!(interp, originals, 1);
         // C resolves the object first (`Tcl_GetObjectFromObj`): a name that is not
         // an object at all reports differently from an object that is not a class.
         if !interp.oo.borrow().objects.contains_key(&fqn) {
-            return not_object(interp, &oo_original_bytes!(interp, originals, 1));
+            let name = oo_original_bytes!(interp, originals, 1);
+            return not_object(interp, &name);
         }
         if !interp.oo.borrow().classes.contains_key(&fqn) {
             let mut m = oo_original_bytes!(interp, originals, 1);
@@ -2268,9 +2325,10 @@ fn oo_objdefine_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         if argv.len() < 3 {
             return wrong_args(interp, b"oo::objdefine target ?arg ...?");
         }
-        let fqn = interp.oo_resolve_object(&oo_original_bytes!(interp, originals, 1));
+        let fqn = oo_original_object!(interp, originals, 1);
         if !interp.oo.borrow().objects.contains_key(&fqn) {
-            return not_object(interp, &oo_original_bytes!(interp, originals, 1));
+            let name = oo_original_bytes!(interp, originals, 1);
+            return not_object(interp, &name);
         }
         interp.oo_run_def(DefTarget::Object(fqn), argv)
     })
@@ -2285,7 +2343,7 @@ fn oo_object_cloned(interp: &mut Interp, obj: OoId, args: &[*mut TclObj]) -> Cod
         if args.len() != 1 {
             return wrong_args(interp, b"my <cloned> originObject");
         }
-        let src = interp.oo_resolve_object(&oo_original_bytes!(interp, originals, 0));
+        let src = oo_original_object!(interp, originals, 0);
         let pair = {
             let oo = interp.oo.borrow();
             match (oo.objects.get(&src), oo.objects.get(&obj)) {
@@ -2315,7 +2373,7 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         // The source resolves like a command (current namespace then global), so a
         // copy from inside a namespace still finds a global object (oo-15.1).
-        let src = interp.oo_resolve_object(&oo_original_bytes!(interp, originals, 1));
+        let src = oo_original_object!(interp, originals, 1);
         let Some(mut src_obj) = interp.oo.borrow().objects.get(&src).cloned() else {
             let mut m = b"\"".to_vec();
             m.extend_from_slice(&oo_original_bytes!(interp, originals, 1));
@@ -2914,14 +2972,14 @@ fn def_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         if Some(obj) == interp.oo.borrow().class_root {
             return err(interp, b"may not modify the class of the class of classes");
         }
-        let name = oo_original_bytes!(interp, originals, 1);
+        let new_cls = oo_original_object!(interp, originals, 1);
         oo_checked!(interp, target_owner.check(interp));
-        let new_cls = interp.oo_resolve_object(&name);
         if !interp.oo.borrow().objects.contains_key(&new_cls) {
+            let name = oo_original_bytes!(interp, originals, 1);
             return not_object(interp, &name);
         }
         if !interp.oo.borrow().classes.contains_key(&new_cls) {
-            let mut m = name;
+            let mut m = oo_original_bytes!(interp, originals, 1);
             m.extend_from_slice(b" does not refer to a class");
             return err(interp, &m);
         }
@@ -3970,15 +4028,16 @@ fn nextto_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         if argv.len() < 2 {
             return wrong_args(interp, b"nextto class ?arg...?");
         }
-        let raw = oo_original_bytes!(interp, originals, 1);
         // The class argument resolves like a command: current namespace then the
         // global fallback (C's Tcl_GetObjectFromObj), not relative to the object's
         // instance namespace that the method runs in.
-        let class = interp.oo_resolve_object(&raw);
+        let class = oo_original_object!(interp, originals, 1);
         if !interp.oo.borrow().objects.contains_key(&class) {
-            return not_object(interp, &raw);
+            let name = oo_original_bytes!(interp, originals, 1);
+            return not_object(interp, &name);
         }
         if !interp.oo.borrow().classes.contains_key(&class) {
+            let raw = oo_original_bytes!(interp, originals, 1);
             let mut m = b"\"".to_vec();
             m.extend_from_slice(&raw);
             m.extend_from_slice(b"\" is not a class");
@@ -4317,7 +4376,7 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         if let Some(code) = native_object_info::selected_object_info_handler(interp, sub, argv) {
             return code;
         }
-        let obj = interp.oo_resolve_object(&oo_original_bytes!(interp, originals, 3));
+        let obj = oo_original_object!(interp, originals, 3);
         match sub {
             b"class" => {
                 let class = interp.oo.borrow().objects.get(&obj).map(|o| o.class);
@@ -4332,9 +4391,8 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                         interp,
                         native_context::OriginalOoTarget::capture(interp, obj, false)
                     );
-                    let wanted_name = oo_original_bytes!(interp, originals, 4);
+                    let want = oo_original_object!(interp, originals, 4);
                     oo_checked!(interp, target_owner.check(interp));
-                    let want = interp.oo_resolve_object(&wanted_name);
                     let yes = interp.method_chain(obj).iter().skip(1).any(|p| *p == want);
                     interp.set_result_bytes(if yes { b"1" } else { b"0" });
                     return Code::Ok;
@@ -4380,7 +4438,7 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 }
                 // Resolve the object name following import aliases to the origin
                 // command, so an imported object command is recognised (oo-1.10).
-                let target = interp.oo_resolve_object(&oo_original_bytes!(interp, originals, 4));
+                let target = oo_original_object!(interp, originals, 4);
                 let target_owner = if interp.oo.borrow().objects.contains_key(&target) {
                     Some(oo_checked!(
                         interp,
@@ -4411,9 +4469,8 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     // `mixin`: `mixinClass` is mixed into the object directly or via
                     // its class.
                     b"mixin" => {
-                        let relation = oo_original_bytes!(interp, originals, 5);
+                        let mixin = oo_original_object!(interp, originals, 5);
                         oo_checked!(interp, target_owner.check(interp));
-                        let mixin = interp.oo_resolve_object(&relation);
                         let oo = interp.oo.borrow();
                         oo.objects.get(&target).is_some_and(|o| {
                             o.mixins.contains(&mixin)
@@ -4427,9 +4484,8 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                         // The object's full precedence list (mixins included), not
                         // just its class's superclass MRO (oo-16.9). The chain leads
                         // with the object itself, so drop it before matching classes.
-                        let relation = oo_original_bytes!(interp, originals, 5);
+                        let want = oo_original_object!(interp, originals, 5);
                         oo_checked!(interp, target_owner.check(interp));
-                        let want = interp.oo_resolve_object(&relation);
                         interp.oo.borrow().objects.contains_key(&target)
                             && interp
                                 .method_chain(target)
@@ -5209,7 +5265,7 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
             return wrong_args(interp, b"info class subcommand className ?arg ...?");
         }
-        let cls = interp.oo_resolve_object(&oo_original_bytes!(interp, originals, 3));
+        let cls = oo_original_object!(interp, originals, 3);
         // C (`TclOOGetClassFromObj`) resolves the object first: a non-object name
         // reports `X does not refer to an object` (no quotes); an object that is
         // not a class reports `"X" is not a class`.
@@ -6258,8 +6314,10 @@ impl Interp {
             let configurable = mro
                 .iter()
                 .any(|c| Some(*c) == self.oo.borrow().configurable_root);
-            let configurable_support =
-                self.oo_resolve_object(b"::oo::configuresupport::configurable");
+            let configurable_support = oo_checked!(
+                self,
+                self.oo_resolve_object_bytes(b"::oo::configuresupport::configurable")
+            );
             let object_root = self.oo.borrow().object_root.into_iter().collect();
             self.oo.borrow_mut().classes.insert(
                 object,
@@ -7211,26 +7269,6 @@ impl Interp {
             .ensure_current_or_refuse()
             .map_err(|first| self.refuse_native_execution(first))?;
         Ok(())
-    }
-
-    /// Resolve an object command to its stable TclOO identity. The namespace
-    /// command table is authoritative, so a retained old namespace and a fresh
-    /// same-spelled namespace naturally resolve to different object tokens.
-    fn oo_resolve_object(&self, name: &[u8]) -> OoId {
-        if let Some(Command::OoObject(id)) =
-            self.resolve_dispatchable(self.oo_outer_namespace(), name)
-        {
-            return id;
-        }
-        if let Some(origin) = tcl_cmd_core::namespace::origin_bytes(self, name) {
-            if let Some(Command::OoObject(id)) = self.resolve_dispatchable(GLOBAL, &origin) {
-                return id;
-            }
-        }
-        // Standalone allocation starts at one, so zero is this interpreter's
-        // local miss sentinel. `OoId` itself deliberately has no `Default` or
-        // process-wide invalid value: other consumers may allocate zero.
-        OoId(0)
     }
 
     /// Tcl-facing command spelling for one stable TclOO identity.

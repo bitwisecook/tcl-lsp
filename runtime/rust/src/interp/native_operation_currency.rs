@@ -373,14 +373,20 @@ impl<'a> CheckedNumericEnvironment<'a> {
         }
     }
 
-    fn call<T>(
+    fn forwarded<T>(
         &self,
-        operation: impl FnOnce() -> Result<T, tcl_platform::NumericEnvironmentUnavailable>,
+        operation: impl FnOnce(
+            &dyn tcl_platform::NumericEnvironment,
+        ) -> Result<T, tcl_platform::NumericEnvironmentUnavailable>,
     ) -> Result<T, tcl_platform::NumericEnvironmentUnavailable> {
-        match self.currency {
-            Some(currency) => currency.host_call(operation),
-            None => operation(),
-        }
+        let check = || match self.currency {
+            Some(currency) => currency
+                .ensure_current_or_refuse()
+                .map_err(|_| tcl_platform::NumericEnvironmentUnavailable::Target),
+            None => Ok(()),
+        };
+        let checked = tcl_platform::CheckedNumericEnvironment::new(self.actual, &check, self.abi);
+        operation(&checked)
     }
 }
 
@@ -388,20 +394,15 @@ impl tcl_platform::NumericEnvironment for CheckedNumericEnvironment<'_> {
     fn c_integer_abi(
         &self,
     ) -> Result<tcl_platform::NativeCIntegerAbi, tcl_platform::NumericEnvironmentUnavailable> {
-        let actual = self.call(|| self.actual.c_integer_abi())?;
-        if self.abi.get().is_some_and(|before| before != actual) {
-            return Err(tcl_platform::NumericEnvironmentUnavailable::Target);
-        }
-        self.abi.set(Some(actual));
-        Ok(actual)
+        self.forwarded(|actual| actual.c_integer_abi())
     }
     fn state(
         &self,
     ) -> Result<tcl_platform::NumericErrorState, tcl_platform::NumericEnvironmentUnavailable> {
-        self.call(|| self.actual.state())
+        self.forwarded(|actual| actual.state())
     }
     fn reset(&self) -> Result<(), tcl_platform::NumericEnvironmentUnavailable> {
-        self.call(|| self.actual.reset())
+        self.forwarded(|actual| actual.reset())
     }
     fn unsigned_c84(
         &self,
@@ -410,7 +411,7 @@ impl tcl_platform::NumericEnvironment for CheckedNumericEnvironment<'_> {
         long: bool,
     ) -> Result<tcl_platform::UnsignedNumericConversion, tcl_platform::NumericEnvironmentUnavailable>
     {
-        self.call(|| self.actual.unsigned_c84(input, offset, long))
+        self.forwarded(|actual| actual.unsigned_c84(input, offset, long))
     }
     fn unsigned(
         &self,
@@ -419,7 +420,7 @@ impl tcl_platform::NumericEnvironment for CheckedNumericEnvironment<'_> {
         base: u32,
     ) -> Result<tcl_platform::UnsignedNumericConversion, tcl_platform::NumericEnvironmentUnavailable>
     {
-        self.call(|| self.actual.unsigned(input, offset, base))
+        self.forwarded(|actual| actual.unsigned(input, offset, base))
     }
     fn unsigned_long(
         &self,
@@ -428,7 +429,7 @@ impl tcl_platform::NumericEnvironment for CheckedNumericEnvironment<'_> {
         base: u32,
     ) -> Result<tcl_platform::UnsignedNumericConversion, tcl_platform::NumericEnvironmentUnavailable>
     {
-        self.call(|| self.actual.unsigned_long(input, offset, base))
+        self.forwarded(|actual| actual.unsigned_long(input, offset, base))
     }
     fn signed_long(
         &self,
@@ -436,7 +437,7 @@ impl tcl_platform::NumericEnvironment for CheckedNumericEnvironment<'_> {
         base: u32,
     ) -> Result<tcl_platform::SignedNumericConversion, tcl_platform::NumericEnvironmentUnavailable>
     {
-        self.call(|| self.actual.signed_long(input, base))
+        self.forwarded(|actual| actual.signed_long(input, base))
     }
     fn double(
         &self,
@@ -444,7 +445,7 @@ impl tcl_platform::NumericEnvironment for CheckedNumericEnvironment<'_> {
         reset: bool,
     ) -> Result<tcl_platform::DoubleNumericConversion, tcl_platform::NumericEnvironmentUnavailable>
     {
-        self.call(|| self.actual.double(input, reset))
+        self.forwarded(|actual| actual.double(input, reset))
     }
 }
 

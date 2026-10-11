@@ -13,11 +13,22 @@ use tcl_syntax::{
 };
 
 impl Value {
-    pub(crate) fn original_expression_integer84(
+    pub(crate) fn original_expression_integer84_checked<E: From<ValueError>>(
         &self,
         dialect: InvocationDialect,
         environment: Option<&dyn tcl_platform::NumericEnvironment>,
-    ) -> Result<Result<GetterValue, Failure>, ValueError> {
+        check: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<Result<GetterValue, Failure>, E> {
+        self.original_expression_integer84_using(dialect, environment, &mut Some(check))
+    }
+
+    fn original_expression_integer84_using<E: From<ValueError>>(
+        &self,
+        dialect: InvocationDialect,
+        environment: Option<&dyn tcl_platform::NumericEnvironment>,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+    ) -> Result<Result<GetterValue, Failure>, E> {
+        Self::native_stage_check(check)?;
         self.check_native_header()?;
         let scalar = dialect
             .native_scalar_getter_protocol()
@@ -27,53 +38,72 @@ impl Value {
             .native_string_protocol()
             .ok_or(ValueError::ScalarNumericInputUnavailable)?;
         let current = self.native_scalar_cache();
-        let original = self
+        let reached = self
             .native_string_bytes(string)
             .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
-            .map_err(ValueError::from)?;
+            .map_err(ValueError::from);
+        let original = Self::native_stage_result(reached, check)?;
         if let Some(environment) = environment {
-            let before = environment
+            let reached = environment
                 .c_integer_abi()
-                .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
-            tcl_cmd_core::native_numeric::scalar_getter_target(environment)?;
-            tcl_cmd_core::native_numeric::fresh_c84_conversion(
+                .map_err(|_| ValueError::ScalarNumericInputUnavailable);
+            let before = Self::native_stage_result(reached, check)?;
+            let reached = tcl_cmd_core::native_numeric::scalar_getter_target(environment);
+            Self::native_stage_result(reached, check)?;
+            let reached = tcl_cmd_core::native_numeric::fresh_c84_conversion(
                 scalar,
                 Getter::Wide,
                 &original,
                 environment,
-            )?;
-            let after = environment
+            );
+            Self::native_stage_result(reached, check)?;
+            let reached = environment
                 .c_integer_abi()
-                .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
+                .map_err(|_| ValueError::ScalarNumericInputUnavailable);
+            let after = Self::native_stage_result(reached, check)?;
             if before != after {
-                return Err(ValueError::ScalarNumericInputUnavailable);
+                return Err(ValueError::ScalarNumericInputUnavailable.into());
             }
         } else if !matches!(
             current,
             Some(Cache::Tcl84Long(_) | Cache::Number(Number::Int(_)))
         ) {
-            return Err(ValueError::ScalarNumericInputUnavailable);
+            return Err(ValueError::ScalarNumericInputUnavailable.into());
         }
         let conversion = scalar
             .expression_integer_conversion84(current.as_ref(), &original)
             .ok_or(ValueError::ScalarNumericInputUnavailable)?;
         let (materialize, cache, outcome) = conversion.into_parts();
         if materialize {
-            self.native_string_bytes(string)
+            let reached = self
+                .native_string_bytes(string)
                 .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
-                .map_err(ValueError::from)?;
+                .map_err(ValueError::from);
+            Self::native_stage_result(reached, check)?;
         }
         if let Some(cache) = cache {
-            self.adopt_native_scalar_cache(cache, scalar, dialect)?;
+            self.adopt_native_scalar_cache_using(cache, scalar, dialect, check)?;
         }
+        Self::native_stage_check(check)?;
         Ok(outcome)
     }
 
-    pub(crate) fn original_expression_word_boolean84(
+    pub(crate) fn original_expression_word_boolean84_checked<E: From<ValueError>>(
         &self,
         dialect: InvocationDialect,
         boolean: bool,
-    ) -> Result<GetterValue, ValueError> {
+        check: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<GetterValue, E> {
+        self.original_expression_word_boolean84_using(dialect, boolean, &mut Some(check))
+    }
+
+    fn original_expression_word_boolean84_using<E: From<ValueError>>(
+        &self,
+        dialect: InvocationDialect,
+        boolean: bool,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+    ) -> Result<GetterValue, E> {
+        Self::native_stage_check(check)?;
         self.check_native_header()?;
         let scalar = dialect
             .native_scalar_getter_protocol()
@@ -82,9 +112,15 @@ impl Value {
         if self.resident_string_bytes().is_some()
             || self.native_scalar_cache() != Some(Cache::WordBoolean(boolean))
         {
-            return Err(ValueError::ScalarNumericInputUnavailable);
+            return Err(ValueError::ScalarNumericInputUnavailable.into());
         }
-        self.adopt_native_scalar_cache(Cache::Tcl84Long(i64::from(boolean)), scalar, dialect)?;
+        self.adopt_native_scalar_cache_using(
+            Cache::Tcl84Long(i64::from(boolean)),
+            scalar,
+            dialect,
+            check,
+        )?;
+        Self::native_stage_check(check)?;
         Ok(GetterValue::Wide(i64::from(boolean)))
     }
 

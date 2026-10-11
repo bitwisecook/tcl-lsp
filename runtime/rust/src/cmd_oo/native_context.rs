@@ -1656,3 +1656,101 @@ mod residual_original_argument_tests {
         assert_eq!(interpreter.entered_native_operation_count(), 0);
     }
 }
+
+impl Interp {
+    /// Resolve an actual original object-name operand through the existing
+    /// command-name and imported-token owners. Jim's alias compatibility path
+    /// retains the stored List; it does not reconstruct member spellings.
+    pub(super) fn oo_resolve_original_object(
+        &mut self,
+        original: *mut TclObj,
+    ) -> Result<OoId, tcl_cmd_core::CmdError> {
+        let originals = OriginalArguments::enter(self, &[original])?;
+        let lookup = self.oo_outer_namespace();
+        let source_names = self.dialect_profile().namespace_import_binding()
+            == Some(tcl_dialect::NamespaceImportBinding::SourceName);
+        let mut prefix_owners = Vec::new();
+        let mut visited = std::collections::BTreeSet::new();
+        let mut operand = original;
+        let mut namespace = lookup;
+        let result: Result<OoId, tcl_cmd_core::CmdError> = (|| loop {
+            let reached = self.resolve_original_command_at(namespace, operand);
+            originals.check()?;
+            let Some((command, generation)) = reached? else {
+                return Ok(OoId(0));
+            };
+            match command {
+                Command::OoObject(object) => return Ok(object),
+                Command::Alias {
+                    original_prefix, ..
+                } if source_names => {
+                    let generation = generation.ok_or(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "original OO alias command generation",
+                        ),
+                    )?;
+                    if !visited.insert(generation) {
+                        return Ok(OoId(0));
+                    }
+                    obj::check_native_liveness(original_prefix.as_ptr())?;
+                    operand = original_prefix.as_ptr();
+                    prefix_owners.push(original_prefix);
+                    namespace = GLOBAL;
+                }
+                Command::Imported { .. } => {
+                    let generation = generation.ok_or(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "original OO imported command generation",
+                        ),
+                    )?;
+                    let origin = self.original_import_origin_command(generation);
+                    originals.check()?;
+                    return Ok(match origin {
+                        Some(Command::OoObject(object)) => object,
+                        _ => OoId(0),
+                    });
+                }
+                _ => return Ok(OoId(0)),
+            }
+        })();
+        if let Err(error) = &result {
+            if let Some(first) = error.native_execution_refusal() {
+                self.refuse_native_execution(first.clone());
+            }
+        }
+        // Any final stored-prefix retirement is outside namespace/OO borrows.
+        drop(prefix_owners);
+        originals.check()?;
+        result
+    }
+
+    /// Explicit provided-byte naming APIs create a fresh operand and delegate
+    /// the same resolver. They convey no pre-existing original-header cache.
+    pub(super) fn oo_resolve_object_bytes(
+        &mut self,
+        name: &[u8],
+    ) -> Result<OoId, tcl_cmd_core::CmdError> {
+        let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self)?;
+        let original = obj::Owned::fresh(obj::new_string_bytes(name));
+        let result = self.oo_resolve_original_object(original.as_ptr());
+        if let Err(error) = &result {
+            if let Some(first) = error.native_execution_refusal() {
+                self.refuse_native_execution(first.clone());
+            }
+        }
+        drop(original);
+        scope.currency().ensure_current_or_refuse()?;
+        result
+    }
+}
+
+#[cfg(test)]
+impl Interp {
+    /// Existing positive fixture convenience, delegating actual checked lookup.
+    /// A failed lookup remains an assertion failure, never a production miss.
+    pub(super) fn oo_resolve_object(&self, name: &[u8]) -> OoId {
+        let mut original = self.clone();
+        original.oo_resolve_object_bytes(name)
+            .expect("supported original OO fixture lookup")
+    }
+}

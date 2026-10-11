@@ -392,6 +392,17 @@ impl Interp {
         Ok(())
     }
 
+    /// Project an already selected imported token through the existing origin
+    /// traversal. No command-name lookup or String production participates.
+    pub(crate) fn original_import_origin_command(&self, generation: u64) -> Option<Command> {
+        let (name, command) = self.raw_command_location_by_generation(generation)?;
+        self.resolve_import_query(
+            (name, generation, command),
+            super::ImportQueryPurpose::OriginalObject,
+        )
+        .map(|target| target.command)
+    }
+
     /// Resolve the original object, checking native cache state before lookup.
     /// Failed lookup retains the C9 primary or applies C8's null descriptor.
     pub(crate) fn resolve_original_command(

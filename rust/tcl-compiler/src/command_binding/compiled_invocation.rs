@@ -550,6 +550,8 @@ impl ModuleCommandBindings {
         &self,
         realm: tcl_dialect::model::InvocationRealm,
     ) -> NativeCompilationSnapshot {
+        #[cfg(any(test, debug_assertions))]
+        let _timing = super::root_owner_work::Timing::at(super::root_owner_work::Query::Snapshot);
         NativeCompilationSnapshot {
             table: Arc::new(SourceLookupSnapshot::in_realm(self.clone(), realm)),
             generic_fallbacks: BTreeSet::new(),
