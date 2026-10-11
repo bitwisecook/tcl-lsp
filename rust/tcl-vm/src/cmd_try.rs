@@ -309,6 +309,8 @@ fn original_handler_code(
     jim: bool,
     body_code: Option<Code>,
 ) -> Result<i64, Completion<Value>> {
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
     let selected = if is_trap {
         if let Err(error) = ValueOps::list_elements(vm, original) {
             if error.native_access_refusal().is_some() {
@@ -327,7 +329,7 @@ fn original_handler_code(
         }
         1
     } else {
-        let (mut ops, protocol) = crate::return_options::NativeReturnOps::selected(vm)
+        let (mut ops, protocol) = crate::return_options::selected_in_original_scope(vm, &scope)
             .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
         if jim {
             let requested = ValueOps::list_elements(vm, original)
@@ -337,8 +339,15 @@ fn original_handler_code(
             };
             let mut matched = false;
             for original in requested {
-                match tcl_cmd_core::return_options::parse_completion_code(
-                    &mut ops, protocol, &original,
+                match crate::return_options::with_original_return_ops(
+                    vm,
+                    &scope,
+                    &mut ops,
+                    |checked| {
+                        tcl_cmd_core::return_options::parse_completion_code(
+                            checked, protocol, &original,
+                        )
+                    },
                 ) {
                     Ok(code) if i64::from(code) == body_code.as_int() => {
                         matched = true;
@@ -363,11 +372,16 @@ fn original_handler_code(
             }
         } else {
             i64::from(
-                tcl_cmd_core::return_options::parse_completion_code(&mut ops, protocol, original)
-                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?,
+                crate::return_options::with_original_return_ops(vm, &scope, &mut ops, |checked| {
+                    tcl_cmd_core::return_options::parse_completion_code(checked, protocol, original)
+                })
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?,
             )
         }
     };
+    scope
+        .check(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
     Ok(selected)
 }
 

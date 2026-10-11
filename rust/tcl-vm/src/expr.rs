@@ -1961,7 +1961,7 @@ impl ExprOps for ExprEval<'_> {
     }
 
     fn bool_value(&mut self, b: bool) -> Value {
-        native_boolean_result(self.vm.numeric_context(), b)
+        native_boolean_result(self.vm.numeric_policy_context(), b)
     }
 
     fn binary_other(&mut self, op: BinOp, left: Value, right: Value) -> Result<Value, TclError> {

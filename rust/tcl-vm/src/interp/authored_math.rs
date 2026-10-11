@@ -100,7 +100,10 @@ impl Vm {
             return self.refuse_host_command("authored random provider is unavailable".into());
         }
         let next_seed = if let Some(value) = seed {
-            let Some(simulation) = self.numeric_context().simulation else {
+            let Some(simulation) = self
+                .authored_numeric_context()
+                .and_then(|context| context.simulation)
+            else {
                 return self
                     .refuse_host_command("authored random numeric policy is unavailable".into());
             };

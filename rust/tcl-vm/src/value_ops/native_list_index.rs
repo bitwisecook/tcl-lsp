@@ -74,18 +74,15 @@ impl NativeListIndexOps for Vm {
         ))
     }
     fn index_number(&mut self, original: &Value) -> Result<Option<Number>, ValueError> {
-        let dialect = self.actual_native_invocation_dialect();
-        if self.index_version()? >= TclVersion::V9_0 {
-            return original
-                .native_number_probe(dialect, NativeNumberGetterKind::Number)
+        let version = self.index_version()?;
+        let ops = crate::interp::native_numeric_ops::OriginalNumericOps::entered_value(self)?;
+        if version >= TclVersion::V9_0 {
+            return ops
+                .number_value(original, NativeNumberGetterKind::Number)
                 .map(Result::ok);
         }
         Ok(
-            match original.native_scalar_probe_with_environment(
-                dialect,
-                NativeScalarGetterKind::Int,
-                self.host().numeric_environment(),
-            )? {
+            match ops.probe_value(original, NativeScalarGetterKind::Int)? {
                 Ok(NativeScalarGetterValue::Wide(integer)) => Some(Number::Int(integer)),
                 _ => None,
             },

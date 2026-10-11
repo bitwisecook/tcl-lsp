@@ -45,24 +45,27 @@ fn script(vm: &mut Vm, p: NativeEventProtocol, args: &[Value]) -> Result<Value, 
         .map_err(|e| crate::command::completion_from_cmd_error(vm, e))
 }
 fn numeric(vm: &mut Vm, p: NativeEventProtocol, original: &Value) -> Result<Duration, ValueError> {
+    let ops = crate::interp::native_numeric_ops::OriginalNumericOps::entered_value(vm)?;
     if let Some(ms) = p.cached_number_ms(&original.native_object_snapshot()) {
+        ops.current_value()?;
         return Ok(Duration::from_millis(ms));
     }
+    let value = ops.getter_value(original, p.number_kind())?;
     if p.number_kind() == tcl_syntax::scalar_getter::NativeScalarGetterKind::Double {
-        let value = vm.as_double(original)?;
+        let tcl_syntax::scalar_getter::NativeScalarGetterValue::Double(value) = value else {
+            return Err(ValueError::ScalarNumericInputUnavailable);
+        };
+        ops.current_value()?;
         return Duration::try_from_secs_f64(value.max(0.0) / 1000.0)
             .map_err(|_| ValueError::CommandProtocolUnavailable("host timer capacity"));
     }
-    let value = original.native_scalar_getter_with_environment(
-        vm.actual_native_invocation_dialect(),
-        p.number_kind(),
-        vm.host().numeric_environment(),
-    )?;
     let tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(ms) = value else {
         return Err(ValueError::ScalarNumericInputUnavailable);
     };
+    ops.current_value()?;
     Ok(Duration::from_millis(u64::try_from(ms).unwrap_or(0)))
 }
+
 fn option(vm: &mut Vm, p: NativeEventProtocol, first: &Value) -> Result<Option<usize>, ValueError> {
     let table = tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
         p.after_options(),
@@ -590,3 +593,55 @@ fn report_bg_error(vm: &mut Vm, message: Value, options: Value, p: NativeEventPr
 
 #[cfg(test)]
 mod native_original_tests;
+
+#[cfg(test)]
+mod original_numeric_consumer_tests {
+    use super::*;
+    use tcl_syntax::{number::Number, scalar_getter::NativeScalarCache};
+
+    #[test]
+    fn original_event_cached_duration_refuses_withdrawn_owner_before_scheduling() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"));
+        let dialect = vm.actual_native_invocation_dialect();
+        let original = Value::from_native_scalar_cache(
+            NativeScalarCache::Number(Number::Int(6)),
+            None,
+            dialect,
+        )
+        .unwrap();
+        let protocol = selected(&mut vm).unwrap();
+        assert_eq!(
+            numeric(&mut vm, protocol, &original).unwrap(),
+            Duration::from_millis(6)
+        );
+        assert!(original.resident_string_bytes().is_none());
+        let script = Value::new_native_string_bytes(b"set original_event_body REACHED");
+        assert_eq!(
+            cmd_after(&mut vm, &[original.clone(), script.clone()]).code,
+            tcl_runtime_api::Code::Ok
+        );
+        let ids = vm.events.ids(false);
+        assert_eq!(ids.len(), 1);
+        let scope =
+            crate::interp::native_operation_currency::NativeOperationScope::enter(&mut vm).unwrap();
+        let original_host = vm.host_rc();
+        vm.set_host(Rc::new(crate::host_native::NativeHost::new()));
+        vm.set_host(original_host);
+        let error = numeric(&mut vm, protocol, &original).unwrap_err();
+        let first = vm.execution_refusal.clone().unwrap();
+        assert!(error.native_access_refusal().is_some());
+        let completion = cmd_after(&mut vm, &[original.clone(), script]);
+        assert_eq!(vm.events.ids(false), ids);
+        assert_eq!(completion.code, tcl_runtime_api::Code::Error);
+        assert_eq!(vm.execution_refusal.as_ref(), Some(&first));
+        assert_eq!(vm.try_invoke_command("set", &[]).unwrap_err(), first);
+        assert_eq!(vm.execution_refusal.as_ref(), Some(&first));
+        assert_eq!(
+            scope.check(&mut vm).unwrap_err().native_execution_refusal(),
+            Some(&first)
+        );
+        assert!(original.resident_string_bytes().is_none());
+    }
+}

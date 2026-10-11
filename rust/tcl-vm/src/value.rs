@@ -4032,6 +4032,16 @@ impl Value {
         self.native_scalar_getter_using(dialect, kind, environment, &mut None)
     }
 
+    pub(crate) fn native_scalar_getter_checked<E: From<ValueError>>(
+        &self,
+        dialect: tcl_registry::InvocationDialect,
+        kind: NativeScalarGetterKind,
+        environment: Option<&dyn tcl_platform::NumericEnvironment>,
+        check: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<NativeScalarGetterValue, E> {
+        self.native_scalar_getter_using(dialect, kind, environment, &mut Some(check))
+    }
+
     fn native_scalar_getter_using<E: From<ValueError>>(
         &self,
         dialect: tcl_registry::InvocationDialect,

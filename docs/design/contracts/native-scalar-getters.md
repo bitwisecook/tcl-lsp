@@ -281,6 +281,31 @@ and cache transport, and the stage checker after primary retirement. They do
 not establish an extension callback chronology or a new physical object issuer.
 The existing provider comparisons retain their own narrower measured purposes.
 
+## VM consumer interfaces
+
+`Vm::authored_numeric_context` selects the actual configured Logical simulation
+without querying a native Host. `numeric_policy_context` is callback-free
+policy data and supplies no environment or execution receipt. Use these for
+routing; a native branch enters `OriginalNumericOps` before any Host query.
+The explicit pure `numeric_context` route still queries its supplied environment
+and cannot replace the checked execution facade.
+
+`OriginalNumericOps::entered` captures or inherits the actual operation scope.
+`getter`, `probe`, `number` and `failure` retain the same original object,
+selected physical dialect, Host and ABI observation. Jim getter/probe ingress
+binds the actual retained interpreter context centrally. `dialect` exposes the
+captured policy for an independent consumer protocol join; `with_vm` checks
+the same receipt before and after a caller's actual VM operation.
+
+The legacy ValueOps, ListIndex, duration and info integer seams return
+`ValueError`. Their shared facade uses a constant unavailable-operation token
+only to unwind a retained Host cause. That token is not a reconstructed cause.
+Consumers must propagate it before Guest rendering or later work; the real
+VM completion boundary checks `native_access_refusal` and the public checked
+execution boundary returns the full retained first cause. Genuine primitive
+Guest scalar records keep their existing typed fields. Quiet ListIndex misses
+and Event option fallback may swallow only genuine Guest failure.
+
 ## Add or migrate a consumer
 
 Retain the original object and selected physical getter context through the

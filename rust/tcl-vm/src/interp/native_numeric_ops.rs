@@ -27,6 +27,35 @@ pub(crate) struct OriginalNumericOps<'a> {
 }
 
 impl<'a> OriginalNumericOps<'a> {
+    pub(crate) fn entered(vm: &'a mut Vm) -> Result<Self, CmdError> {
+        let scope = NativeOperationScope::enter(vm)?;
+        Self::in_original_scope(vm, &scope)
+    }
+
+    pub(crate) fn entered_value(vm: &'a mut Vm) -> Result<Self, ValueError> {
+        Self::entered(vm).map_err(|_| Self::value_unwind())
+    }
+
+    // This is only an unwind token for a legacy ValueError seam. The full
+    // original cause stays in the Vm and must be checked at its real boundary.
+    fn value_unwind() -> ValueError {
+        ValueError::CommandProtocolUnavailable("original VM numeric operation")
+    }
+
+    pub(crate) fn dialect(&self) -> InvocationDialect {
+        self.dialect
+    }
+
+    pub(crate) fn with_vm<T>(
+        &self,
+        operation: impl FnOnce(&mut Vm) -> Result<T, CmdError>,
+    ) -> Result<T, CmdError> {
+        self.current()?;
+        let reached = operation(&mut self.vm.borrow_mut());
+        self.current()?;
+        reached
+    }
+
     pub(crate) fn in_original_scope(
         vm: &'a mut Vm,
         scope: &NativeOperationScope,
@@ -45,6 +74,10 @@ impl<'a> OriginalNumericOps<'a> {
         self.scope.check(&mut self.vm.borrow_mut())
     }
 
+    pub(crate) fn current_value(&self) -> Result<(), ValueError> {
+        self.current().map_err(|_| Self::value_unwind())
+    }
+
     pub(crate) fn with_environment<T>(
         &self,
         operation: impl FnOnce(
@@ -52,24 +85,106 @@ impl<'a> OriginalNumericOps<'a> {
             &mut dyn FnMut() -> Result<(), CmdError>,
         ) -> Result<T, CmdError>,
     ) -> Result<T, CmdError> {
-        self.current()?;
+        self.with_environment_using(operation, || self.current())
+    }
+
+    fn with_environment_value<T>(
+        &self,
+        operation: impl FnOnce(
+            Option<&dyn tcl_platform::NumericEnvironment>,
+            &mut dyn FnMut() -> Result<(), ValueError>,
+        ) -> Result<T, ValueError>,
+    ) -> Result<T, ValueError> {
+        self.with_environment_using(operation, || self.current_value())
+    }
+
+    fn with_environment_using<T, E>(
+        &self,
+        operation: impl FnOnce(
+            Option<&dyn tcl_platform::NumericEnvironment>,
+            &mut dyn FnMut() -> Result<(), E>,
+        ) -> Result<T, E>,
+        current: impl Fn() -> Result<(), E>,
+    ) -> Result<T, E> {
+        current()?;
         let actual = self.host.numeric_environment();
-        self.current()?;
-        let mut stage = || self.current();
+        current()?;
+        let mut stage = || current();
         let outcome = if let Some(actual) = actual {
             // The neutral numeric facade never carries or reconstructs a Host
             // cause. The original scope retains it and the outer check returns it.
-            let check = || {
-                self.current()
-                    .map_err(|_| tcl_platform::NumericEnvironmentUnavailable::Target)
-            };
+            let check =
+                || current().map_err(|_| tcl_platform::NumericEnvironmentUnavailable::Target);
             let checked = tcl_platform::CheckedNumericEnvironment::new(actual, &check, &self.abi);
             operation(Some(&checked), &mut stage)
         } else {
             operation(None, &mut stage)
         };
-        self.current()?;
+        current()?;
         outcome
+    }
+
+    fn bind_jim_using<E: From<ValueError>>(
+        &self,
+        value: &Value,
+        current: impl Fn() -> Result<(), E>,
+    ) -> Result<(), E> {
+        current()?;
+        if self.dialect.native_string_protocol()
+            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            let context = self.vm.borrow().native_jim_object_context();
+            current()?;
+            let reached = value.bind_native_jim_context(&context?);
+            current()?;
+            reached?;
+        }
+        current()
+    }
+
+    pub(crate) fn getter(
+        &self,
+        value: &Value,
+        kind: NativeScalarGetterKind,
+    ) -> Result<NativeScalarGetterValue, CmdError> {
+        self.bind_jim_using(value, || self.current())?;
+        self.with_environment(|environment, check| {
+            value.native_scalar_getter_checked(self.dialect, kind, environment, check)
+        })
+    }
+
+    pub(crate) fn getter_value(
+        &self,
+        value: &Value,
+        kind: NativeScalarGetterKind,
+    ) -> Result<NativeScalarGetterValue, ValueError> {
+        self.bind_jim_using(value, || self.current_value())?;
+        self.with_environment_value(|environment, check| {
+            value.native_scalar_getter_checked(self.dialect, kind, environment, check)
+        })
+    }
+
+    pub(crate) fn probe_value(
+        &self,
+        value: &Value,
+        kind: NativeScalarGetterKind,
+    ) -> Result<Result<NativeScalarGetterValue, NativeScalarGetterFailure>, ValueError> {
+        self.bind_jim_using(value, || self.current_value())?;
+        self.with_environment_value(|environment, check| {
+            value.native_scalar_probe_checked(self.dialect, kind, environment, check)
+        })
+    }
+
+    pub(crate) fn number_value(
+        &self,
+        value: &Value,
+        kind: NativeNumberGetterKind,
+    ) -> Result<Result<Number, NativeScalarGetterFailure>, ValueError> {
+        self.current_value()?;
+        let reached =
+            value.native_number_probe_checked(self.dialect, kind, &mut || self.current_value());
+        self.current_value()?;
+        reached
     }
 
     pub(crate) fn probe(
@@ -77,6 +192,7 @@ impl<'a> OriginalNumericOps<'a> {
         value: &Value,
         kind: NativeScalarGetterKind,
     ) -> Result<Result<NativeScalarGetterValue, NativeScalarGetterFailure>, CmdError> {
+        self.bind_jim_using(value, || self.current())?;
         self.with_environment(|environment, check| {
             value.native_scalar_probe_checked(self.dialect, kind, environment, check)
         })
@@ -671,5 +787,203 @@ mod tests {
         assert!(value.native_scalar_cache().is_none());
         assert!(vm.execution_refusal.is_none());
         scope.check(&mut vm).unwrap();
+    }
+
+    #[test]
+    fn original_value_ops_scalar_consumers_keep_cached_headers_and_jim_context() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        use tcl_syntax::value::ValueOps;
+        let (mut vm, numeric) = provided("tcl8.6");
+        let dialect = vm.actual_native_invocation_dialect();
+        let value = Value::from_native_scalar_cache(
+            NativeScalarCache::Number(Number::Int(6)),
+            None,
+            dialect,
+        )
+        .unwrap();
+        let references = value.native_object_reference_count();
+        assert_eq!(vm.as_int(&value).unwrap(), 6);
+        assert_eq!(vm.as_double(&value).unwrap().to_bits(), 6.0_f64.to_bits());
+        assert!(vm.as_bool(&value).unwrap());
+        assert_eq!(value.native_object_reference_count(), references);
+        assert!(value.resident_string_bytes().is_none());
+        assert!(numeric.calls.borrow().iter().all(|call| call.0 == "abi"));
+
+        let (mut jim, numeric) = provided("jim");
+        let value = Value::new_native_string_bytes(b"6");
+        assert_eq!(jim.as_int(&value).unwrap(), 6);
+        assert!(
+            numeric
+                .calls
+                .borrow()
+                .iter()
+                .any(|call| call.0 == "unsigned")
+        );
+        assert_eq!(value.integer_representation(), Some(6));
+        assert!(jim.native_jim_object_context().unwrap().is_live());
+    }
+
+    #[test]
+    fn original_value_error_numeric_seam_returns_the_retained_host_cause_at_completion() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        use tcl_syntax::value::ValueOps;
+        let (mut vm, numeric) = provided("tcl8.6");
+        let value = Value::new_native_string_bytes(b"6");
+        let before = value.native_object_snapshot();
+        let scope = NativeOperationScope::enter(&mut vm).unwrap();
+        let original = vm.host_rc();
+        vm.set_host(Rc::new(crate::host_native::NativeHost::new()));
+        vm.set_host(original);
+        let error = vm.as_int(&value).unwrap_err();
+        let first = vm.execution_refusal.clone().unwrap();
+        assert!(error.native_access_refusal().is_some());
+        assert_eq!(numeric.host_queries.get(), 0);
+        assert!(numeric.calls.borrow().is_empty());
+        assert_eq!(value.native_object_snapshot(), before);
+        let completion = crate::command::completion_from_cmd_error(&mut vm, error.into());
+        assert_eq!(completion.code, tcl_runtime_api::Code::Error);
+        assert_eq!(vm.execution_refusal.as_ref(), Some(&first));
+        assert_eq!(vm.try_invoke_command("set", &[]).unwrap_err(), first);
+        assert_eq!(vm.execution_refusal.as_ref(), Some(&first));
+        assert_eq!(
+            scope.check(&mut vm).unwrap_err().native_execution_refusal(),
+            Some(&first)
+        );
+    }
+
+    #[test]
+    fn original_list_index_and_info_numeric_consumers_keep_their_selected_purposes() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        use tcl_cmd_core::{
+            native_info_level::NativeInfoLevelObjects, native_list_index::NativeListIndexOps,
+        };
+        for version in ["tcl8.6", "tcl9.0"] {
+            let (mut vm, _) = provided(version);
+            let dialect = vm.actual_native_invocation_dialect();
+            let value = Value::from_native_scalar_cache(
+                NativeScalarCache::Number(Number::Int(6)),
+                None,
+                dialect,
+            )
+            .unwrap();
+            let references = value.native_object_reference_count();
+            assert_eq!(vm.index_number(&value).unwrap(), Some(Number::Int(6)));
+            assert_eq!(vm.native_level_integer(&value, Kind::Int).unwrap(), 6);
+            assert_eq!(value.native_object_reference_count(), references);
+            assert!(value.resident_string_bytes().is_none());
+            let scope = NativeOperationScope::enter(&mut vm).unwrap();
+            let original = vm.host_rc();
+            vm.set_host(Rc::new(crate::host_native::NativeHost::new()));
+            vm.set_host(original);
+            let first_index = vm.index_number(&value).unwrap_err();
+            let first = vm.execution_refusal.clone().unwrap();
+            assert!(first_index.native_access_refusal().is_some());
+            assert!(
+                vm.native_level_integer(&value, Kind::Int)
+                    .unwrap_err()
+                    .native_access_refusal()
+                    .is_some()
+            );
+            assert_eq!(
+                scope.check(&mut vm).unwrap_err().native_execution_refusal(),
+                Some(&first)
+            );
+            assert!(value.resident_string_bytes().is_none());
+        }
+    }
+
+    #[test]
+    fn original_numeric_value_seam_keeps_genuine_guest_scalar_receipts() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        use tcl_syntax::value::ValueOps;
+        let (mut vm, _) = provided("tcl8.6");
+        let original = Value::new_native_string_bytes(b"not_an_integer");
+        let before = original.native_object_snapshot();
+        let error = vm.as_int(&original).unwrap_err();
+        assert!(matches!(error, ValueError::NativeScalarGetter(_)));
+        assert!(error.native_access_refusal().is_none());
+        assert!(vm.execution_refusal.is_none());
+        assert_eq!(original.native_object_snapshot(), before);
+        let guest = crate::command::completion_from_cmd_error(&mut vm, error.into());
+        assert_eq!(guest.code, tcl_runtime_api::Code::Error);
+        assert!(vm.execution_refusal.is_none());
+    }
+
+    #[test]
+    fn original_authored_numeric_selection_does_not_query_the_native_host() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        use tcl_syntax::value::ValueOps;
+        let (mut vm, numeric) = provided("tcl9.0");
+        vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
+        assert!(vm.set_logical_numeric_provider(
+            tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core
+        ));
+        numeric.calls.borrow_mut().clear();
+        numeric.host_queries.set(0);
+        let context = vm.authored_numeric_context().unwrap();
+        assert!(context.environment.is_none());
+        assert_eq!(context.dialect, vm.native_invocation_dialect());
+        assert!(vm.numeric_policy_context().environment.is_none());
+        let original = Value::new_native_string_bytes(b"077");
+        assert_eq!(vm.as_int(&original).unwrap(), 63);
+        assert!(original.native_scalar_cache().is_none());
+        assert_eq!(
+            vm.as_double(&Value::new_native_string_bytes(b"1.25"))
+                .unwrap()
+                .to_bits(),
+            1.25_f64.to_bits()
+        );
+        assert!(vm.as_bool(&Value::new_native_string_bytes(b"2")).unwrap());
+        assert!(
+            crate::expr::boolean_for_vm(
+                &mut vm,
+                &Value::new_native_string_bytes(b"2"),
+                tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::LogicalNot
+            )
+            .unwrap()
+        );
+        assert_eq!(numeric.host_queries.get(), 0);
+        assert!(numeric.calls.borrow().is_empty());
+        assert!(vm.execution_refusal.is_none());
+    }
+    #[test]
+    fn original_authored_expression_increment_and_boolean_policies_do_not_query_host() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // These assertions reach the actual routing adapters, not just the selector.
+        let (mut vm, numeric) = provided("tcl9.0");
+        vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
+        assert!(vm.set_logical_expression_parse_provider(
+            tcl_registry::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation
+        ));
+        assert!(vm.set_logical_numeric_provider(
+            tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core
+        ));
+        numeric.calls.borrow_mut().clear();
+        numeric.host_queries.set(0);
+        let policy = vm.expression_evaluation_policy().unwrap();
+        assert_eq!(
+            policy.origin,
+            tcl_runtime_api::expression_policy::ExpressionEvaluationOrigin::AuthoredTcl84Parser
+        );
+        assert!(policy.numeric_simulation.is_some());
+        vm.prepare_increment_amount(&Value::new_native_string_bytes(b"6"))
+            .unwrap();
+        let value = crate::expr::logical_value_for_vm(
+            &mut vm,
+            Value::new_native_string_bytes(b"2"),
+            &Value::new_native_string_bytes(b"3"),
+            true,
+        )
+        .unwrap();
+        assert_eq!(value.string_bytes().as_ref(), b"1");
+        assert_eq!(numeric.host_queries.get(), 0);
+        assert!(numeric.calls.borrow().is_empty());
+        assert!(vm.execution_refusal.is_none());
     }
 }

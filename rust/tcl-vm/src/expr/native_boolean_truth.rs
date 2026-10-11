@@ -393,8 +393,8 @@ pub(crate) fn boolean_for_vm(
     if let Some(first) = vm.execution_refusal.clone() {
         return Err(TclError::from_execution_failure(first));
     }
-    if vm.numeric_context().simulation.is_some() {
-        return super::authored_boolean(vm.numeric_context(), value);
+    if let Some(context) = vm.authored_numeric_context() {
+        return super::authored_boolean(context, value);
     }
     let result = (|| {
         let mut ops = OriginalOps::entered(vm)?;
@@ -416,8 +416,8 @@ pub(crate) fn expression_boolean_for_vm(
     production: Production,
 ) -> Result<bool, TclError> {
     pending(vm)?;
-    if vm.numeric_context().simulation.is_some() {
-        return super::authored_boolean(vm.numeric_context(), value);
+    if let Some(context) = vm.authored_numeric_context() {
+        return super::authored_boolean(context, value);
     }
     let result = (|| {
         let mut ops = OriginalOps::entered(vm)?;
@@ -442,8 +442,8 @@ pub(crate) fn logical_right_for_vm(
     conjunction: bool,
 ) -> Result<bool, TclError> {
     pending(vm)?;
-    if vm.numeric_context().simulation.is_some() {
-        return super::authored_boolean(vm.numeric_context(), right);
+    if let Some(context) = vm.authored_numeric_context() {
+        return super::authored_boolean(context, right);
     }
     let result = (|| {
         let mut ops = OriginalOps::entered(vm)?;
@@ -481,7 +481,7 @@ pub(crate) fn normalize_result_for_vm(
     production: Production,
 ) -> Result<Value, TclError> {
     pending(vm)?;
-    if vm.numeric_context().simulation.is_some() {
+    if vm.authored_numeric_context().is_some() {
         return Ok(value.clone());
     }
     let result = (|| {
@@ -500,7 +500,7 @@ pub(crate) fn normalize_numeric_instruction_for_vm(
     value: &Value,
 ) -> Result<Value, TclError> {
     pending(vm)?;
-    if vm.numeric_context().simulation.is_some() {
+    if vm.authored_numeric_context().is_some() {
         return Ok(value.clone());
     }
     let result = (|| {
@@ -525,7 +525,10 @@ pub(crate) fn unary_for_vm(
         tcl_syntax::expr::UnaryOp::Not | tcl_syntax::expr::UnaryOp::WordNot
     ) {
         let boolean = boolean_for_vm(vm, value, Purpose::LogicalNot)?;
-        return Ok(super::native_boolean_result(vm.numeric_context(), !boolean));
+        return Ok(super::native_boolean_result(
+            vm.numeric_policy_context(),
+            !boolean,
+        ));
     }
     super::unary_in(vm.numeric_context(), op, value)
 }
@@ -540,7 +543,7 @@ pub(crate) fn logical_value_for_vm(
 ) -> Result<Value, TclError> {
     pending(vm)?;
     let truth = logical_right_for_vm(vm, &left, right, conjunction)?;
-    let context = vm.numeric_context();
+    let context = vm.numeric_policy_context();
     if context.simulation.is_none()
         && context
             .dialect

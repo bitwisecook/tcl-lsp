@@ -2428,15 +2428,31 @@ impl Vm {
         true
     }
 
-    pub(crate) fn numeric_context(&self) -> crate::expr::NumericContext<'_> {
+    /// Callback-free selected policy; it supplies no native environment or entry.
+    pub(crate) fn numeric_policy_context(&self) -> crate::expr::NumericContext<'static> {
         let dialect = self.native_invocation_dialect();
         crate::expr::NumericContext {
-            environment: self.host.numeric_environment(),
+            environment: None,
             dialect,
             simulation: self
                 .logical_providers
                 .numeric
                 .and_then(|provider| dialect.authored_logical_numeric_simulation(provider)),
+        }
+    }
+
+    /// The actual selected authored simulation, without querying a native Host.
+    pub(crate) fn authored_numeric_context(&self) -> Option<crate::expr::NumericContext<'static>> {
+        let context = self.numeric_policy_context();
+        context.simulation.map(|_| context)
+    }
+
+    pub(crate) fn numeric_context(&self) -> crate::expr::NumericContext<'_> {
+        let policy = self.numeric_policy_context();
+        crate::expr::NumericContext {
+            environment: self.host.numeric_environment(),
+            dialect: policy.dialect,
+            simulation: policy.simulation,
         }
     }
 
@@ -2466,7 +2482,7 @@ impl Vm {
             && let Some(mut policy) = authored_expression_evaluation_policy(
                 profile,
                 parser,
-                self.numeric_context().simulation,
+                self.numeric_policy_context().simulation,
             )
         {
             policy.authored_functions = self.logical_providers.math_functions;
@@ -19977,7 +19993,7 @@ impl Vm {
             .map(PreparedIncrementAmount::Native)
             .map_err(|error| crate::command::completion_from_cmd_error(self, error));
         }
-        if self.numeric_context().simulation.is_none() {
+        if self.authored_numeric_context().is_none() {
             return Err(self
                 .refuse_host_command("native increment amount conversion is not selected".into()));
         }

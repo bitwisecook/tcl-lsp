@@ -49,6 +49,35 @@ impl NativeReturnMergeObjects for NativeReturnOps {
         root.into_value()
     }
 }
+impl NativeReturnMergeObjects for crate::return_options::CheckedNativeReturnOps<'_, '_> {
+    type Dictionary = PreparedNativeDictionary;
+    fn fresh_dictionary(&mut self) -> Result<Self::Dictionary, CmdError> {
+        self.with_objects(NativeReturnMergeObjects::fresh_dictionary)
+    }
+    fn put(
+        &mut self,
+        root: &mut Self::Dictionary,
+        key: &Value,
+        value: &Value,
+    ) -> Result<(), CmdError> {
+        self.with_objects(|objects| objects.put(root, key, value))
+    }
+    fn get(&mut self, root: &Self::Dictionary, key: &[u8]) -> Result<Option<Value>, CmdError> {
+        self.with_objects(|objects| objects.get(root, key))
+    }
+    fn remove(&mut self, root: &mut Self::Dictionary, key: &[u8]) -> Result<(), CmdError> {
+        self.with_objects(|objects| objects.remove(root, key))
+    }
+    fn dictionary_pairs(&mut self, value: &Value) -> Result<Vec<(Value, Value)>, CmdError> {
+        self.with_objects(|objects| objects.dictionary_pairs(value))
+    }
+    fn size(&mut self, root: &Self::Dictionary) -> Result<usize, CmdError> {
+        self.with_objects(|objects| objects.size(root))
+    }
+    fn finish(&mut self, root: Self::Dictionary) -> Value {
+        self.finish_dictionary(root)
+    }
+}
 fn known_word(ops: &NativeReturnOps, word: &NativeKnownWordLiteral) -> Result<Value, CmdError> {
     let append = ops
         .dialect
@@ -112,6 +141,10 @@ pub(crate) fn process(
     result: Value,
 ) -> tcl_core_types::Completion<Value> {
     use tcl_core_types::{Code, Completion, CompletionOptionOrigin};
+    let scope = match crate::interp::native_operation_currency::NativeOperationScope::enter(vm) {
+        Ok(scope) => scope,
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    };
     let Some(application) = vm
         .native_invocation_dialect()
         .native_return_options_application(purpose)
@@ -122,11 +155,15 @@ pub(crate) fn process(
             ValueError::CommandProtocolUnavailable("original merged return instruction").into(),
         );
     };
-    if let Err(error) = options.native_object_dict_pairs(application.strings()) {
+    let dictionary = options.native_object_dict_pairs(application.strings());
+    if let Err(error) = scope.check(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    if let Err(error) = dictionary {
         return crate::command::completion_from_cmd_error(vm, error.into());
     }
     vm.retain_native_return_options(options);
-    let mut ops = match crate::return_options::NativeReturnOps::selected(vm) {
+    let mut ops = match crate::return_options::selected_in_original_scope(vm, &scope) {
         Ok((ops, _)) => ops,
         Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
@@ -150,7 +187,13 @@ pub(crate) fn process(
                         })?;
                     match name.as_ref() {
                         b"-errorinfo" => {
-                            let bytes = ops.bytes(value).map_err(|error| {
+                            let bytes = crate::return_options::with_original_return_ops(
+                                vm,
+                                &scope,
+                                &mut ops,
+                                |checked| checked.bytes(value),
+                            )
+                            .map_err(|error| {
                                 crate::command::completion_option_failure(vm, error)
                             })?;
                             if !bytes.is_empty() {
@@ -163,10 +206,13 @@ pub(crate) fn process(
                             }
                         }
                         b"-errorline" => {
-                            if let Some(line) =
-                                ops.integer_probe(value, false).map_err(|error| {
-                                    crate::command::completion_option_failure(vm, error)
-                                })?
+                            if let Some(line) = crate::return_options::with_original_return_ops(
+                                vm,
+                                &scope,
+                                &mut ops,
+                                |checked| checked.integer_probe(value, false),
+                            )
+                            .map_err(|error| crate::command::completion_option_failure(vm, error))?
                             {
                                 vm.set_error_line(u32::from_le_bytes(
                                     line.to_le_bytes()[..4]
@@ -208,6 +254,9 @@ pub(crate) fn process(
         transport,
     );
     completion.option_origin = CompletionOptionOrigin::MergedReturnOptions { code, level };
+    if let Err(error) = scope.check(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
     completion
 }
 
@@ -216,14 +265,21 @@ pub(crate) fn process_stack(
     original: &Value,
     result: Value,
 ) -> tcl_core_types::Completion<Value> {
-    let (mut ops, protocol) = match crate::return_options::NativeReturnOps::selected(vm) {
+    let scope = match crate::interp::native_operation_currency::NativeOperationScope::enter(vm) {
+        Ok(scope) => scope,
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    };
+    let (mut ops, protocol) = match crate::return_options::selected_in_original_scope(vm, &scope) {
         Ok(selected) => selected,
         Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
-    let merged = match native_return_merge::merge_stack(&mut ops, protocol, original) {
-        Ok(merged) => merged,
-        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-    };
+    let merged =
+        match crate::return_options::with_original_return_ops(vm, &scope, &mut ops, |checked| {
+            native_return_merge::merge_stack(checked, protocol, original)
+        }) {
+            Ok(merged) => merged,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
     process(
         vm,
         tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,

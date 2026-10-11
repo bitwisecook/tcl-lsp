@@ -797,23 +797,19 @@ impl ValueOps for Vm {
     }
 
     fn as_int(&mut self, v: &Value) -> Result<i64, ValueError> {
-        let context = self.numeric_context();
-        if let Some(simulation) = context.simulation {
+        if let Some(context) = self.authored_numeric_context() {
+            let simulation = context
+                .simulation
+                .ok_or(ValueError::ScalarNumericInputUnavailable)?;
             return logical_integer(context, simulation, v);
         }
-        let dialect = context.dialect;
-        if dialect.native_string_protocol()
-            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        let selected = self.native_invocation_dialect();
+        let ops = crate::interp::native_numeric_ops::OriginalNumericOps::entered_value(self)?;
+        if selected.native_scalar_getter_protocol() != ops.dialect().native_scalar_getter_protocol()
         {
-            v.bind_native_jim_context(&crate::interp::InterpState::native_jim_object_context(
-                self,
-            )?)?;
+            return Err(ValueError::ScalarNumericInputUnavailable);
         }
-        match v.native_scalar_getter_with_environment(
-            dialect,
-            tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide,
-            self.host().numeric_environment(),
-        )? {
+        match ops.getter_value(v, tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide)? {
             tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(value) => Ok(value),
             _ => Err(ValueError::ScalarNumericInputUnavailable),
         }
@@ -878,8 +874,10 @@ impl ValueOps for Vm {
     }
 
     fn as_double(&mut self, v: &Value) -> Result<f64, ValueError> {
-        let context = self.numeric_context();
-        if let Some(simulation) = context.simulation {
+        if let Some(context) = self.authored_numeric_context() {
+            let simulation = context
+                .simulation
+                .ok_or(ValueError::ScalarNumericInputUnavailable)?;
             let number = simulation
                 .parse_number(
                     &v.string_bytes(),
@@ -904,27 +902,23 @@ impl ValueOps for Vm {
                 }
             };
         }
-        let dialect = context.dialect;
-        if dialect.native_string_protocol()
-            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        let selected = self.native_invocation_dialect();
+        let ops = crate::interp::native_numeric_ops::OriginalNumericOps::entered_value(self)?;
+        if selected.native_scalar_getter_protocol() != ops.dialect().native_scalar_getter_protocol()
         {
-            v.bind_native_jim_context(&crate::interp::InterpState::native_jim_object_context(
-                self,
-            )?)?;
+            return Err(ValueError::ScalarNumericInputUnavailable);
         }
-        match v.native_scalar_getter_with_environment(
-            dialect,
-            tcl_syntax::scalar_getter::NativeScalarGetterKind::Double,
-            self.host().numeric_environment(),
-        )? {
+        match ops.getter_value(v, tcl_syntax::scalar_getter::NativeScalarGetterKind::Double)? {
             tcl_syntax::scalar_getter::NativeScalarGetterValue::Double(value) => Ok(value),
             _ => Err(ValueError::ScalarNumericInputUnavailable),
         }
     }
 
     fn as_bool(&mut self, v: &Value) -> Result<bool, ValueError> {
-        let context = self.numeric_context();
-        if let Some(simulation) = context.simulation {
+        if let Some(context) = self.authored_numeric_context() {
+            let simulation = context
+                .simulation
+                .ok_or(ValueError::ScalarNumericInputUnavailable)?;
             let stage =
                 tcl_syntax::logical_numeric_simulation::LogicalBooleanInputStage::BooleanValue;
             if let Some(integer) = v.integer_representation() {
@@ -942,10 +936,15 @@ impl ValueOps for Vm {
                 .map(|value| value.value())
                 .map_err(|_| ValueError::NotBooleanBytes(v.string_bytes().to_vec()));
         }
-        match v.native_scalar_getter_with_environment(
-            context.dialect,
+        let selected = self.native_invocation_dialect();
+        let ops = crate::interp::native_numeric_ops::OriginalNumericOps::entered_value(self)?;
+        if selected.native_scalar_getter_protocol() != ops.dialect().native_scalar_getter_protocol()
+        {
+            return Err(ValueError::ScalarNumericInputUnavailable);
+        }
+        match ops.getter_value(
+            v,
             tcl_syntax::scalar_getter::NativeScalarGetterKind::Boolean,
-            self.host().numeric_environment(),
         )? {
             tcl_syntax::scalar_getter::NativeScalarGetterValue::Boolean(value) => {
                 Ok(value.is_true())

@@ -234,16 +234,14 @@ fn m_mathfunc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let name = identity.rsplit("::").next().unwrap_or(identity).to_owned();
     let int_width = IntWidth::for_tcl_version(vm.runtime_version());
     let dialect = vm.native_invocation_dialect();
-    if dialect.scalar_numeric_input_policy().is_none() && vm.numeric_context().simulation.is_none()
-    {
+    if dialect.scalar_numeric_input_policy().is_none() && vm.authored_numeric_context().is_none() {
         return vm.refuse_host_command(
             "logical math evaluation requires an explicit numeric simulation provider".into(),
         );
     }
     let protocol = tcl_registry::mathfunc::native_math_protocol(dialect)
         .expect("native math handler dispatch must retain its selected protocol");
-    let context = vm.numeric_context();
-    let mut completion = if context.simulation.is_some() {
+    let mut completion = if vm.authored_numeric_context().is_some() {
         logical_mathfunc(vm, &name, args, int_width, protocol)
     } else if protocol == NativeMathProtocol::Jim084 && !matches!(name.as_str(), "rand" | "srand") {
         shared_math(&name, args, int_width, protocol, dialect.numbers)
@@ -280,7 +278,9 @@ fn logical_mathfunc(
     if name == "bool" {
         return m_bool(vm, args);
     }
-    let context = vm.numeric_context();
+    let Some(context) = vm.authored_numeric_context() else {
+        return vm.refuse_host_command("selected authored numeric policy is unavailable".into());
+    };
     let mut prepared = Vec::with_capacity(args.len());
     for argument in args {
         match crate::expr::numeric_value_in(context, argument) {
@@ -504,7 +504,7 @@ fn m_bool(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(v) => v,
         Err(c) => return c,
     };
-    let boolean = if vm.numeric_context().simulation.is_some() {
+    let boolean = if vm.authored_numeric_context().is_some() {
         tcl_syntax::value::ValueOps::as_bool(vm, x).map_err(crate::TclError::from)
     } else {
         x.as_bool()
@@ -535,20 +535,26 @@ fn m_srand(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // because C passes a NULL interp to the conversion there. Both engines
     // use 8.6's wording so they agree with each other; 9.0's
     // empty-message quirk is not reproduced here.
-    let seed = if vm.numeric_context().simulation.is_some() {
+    let seed = if vm.authored_numeric_context().is_some() {
         tcl_syntax::value::ValueOps::as_int(vm, x).map_err(crate::TclError::from)
     } else {
         x.as_wide()
     };
-    let Ok(seed) = seed else {
-        return err_with_code(
-            format!("expected integer but got \"{}\"", x.to_str()),
-            if x.as_double().is_ok() {
-                "TCL VALUE INTEGER"
-            } else {
-                "TCL VALUE NUMBER"
-            },
-        );
+    let seed = match seed {
+        Ok(seed) => seed,
+        Err(error @ crate::TclError::Host(_)) => {
+            return crate::command::completion_from_tcl_error(vm, error);
+        }
+        Err(_) => {
+            return err_with_code(
+                format!("expected integer but got \"{}\"", x.to_str()),
+                if x.as_double().is_ok() {
+                    "TCL VALUE INTEGER"
+                } else {
+                    "TCL VALUE NUMBER"
+                },
+            );
+        }
     };
     vm.rand_seed_set(seed);
     ok(Value::native_double(

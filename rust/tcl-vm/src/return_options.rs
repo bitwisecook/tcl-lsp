@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Native return preparation over original VM object storage.
 
+use crate::interp::{
+    native_numeric_ops::OriginalNumericOps, native_operation_currency::NativeOperationScope,
+};
 use crate::{Value, Vm};
 use tcl_cmd_core::{
     CmdError,
@@ -74,6 +77,126 @@ impl NativeReturnOps {
             },
             protocol,
         ))
+    }
+}
+
+/// Actual return operations checked under the original entered currency.
+/// The detached compiler-literal adapter below retains its separate purpose.
+pub(crate) struct CheckedNativeReturnOps<'a, 'o> {
+    objects: &'o mut NativeReturnOps,
+    numeric: OriginalNumericOps<'a>,
+}
+
+pub(crate) fn selected_in_original_scope(
+    vm: &mut Vm,
+    scope: &NativeOperationScope,
+) -> Result<(NativeReturnOps, ReturnOptionsProtocol), CmdError> {
+    scope.check(vm)?;
+    let selected = NativeReturnOps::selected(vm);
+    scope.check(vm)?;
+    selected
+}
+
+pub(crate) fn with_original_return_ops<T>(
+    vm: &mut Vm,
+    scope: &NativeOperationScope,
+    objects: &mut NativeReturnOps,
+    operation: impl FnOnce(&mut CheckedNativeReturnOps<'_, '_>) -> Result<T, CmdError>,
+) -> Result<T, CmdError> {
+    scope.check(vm)?;
+    let reached = {
+        let numeric = OriginalNumericOps::in_original_scope(vm, scope)?;
+        let mut checked = CheckedNativeReturnOps { objects, numeric };
+        operation(&mut checked)
+    };
+    scope.check(vm)?;
+    reached
+}
+
+impl CheckedNativeReturnOps<'_, '_> {
+    pub(crate) fn with_objects<T>(
+        &mut self,
+        operation: impl FnOnce(&mut NativeReturnOps) -> Result<T, CmdError>,
+    ) -> Result<T, CmdError> {
+        self.numeric.current()?;
+        let reached = operation(self.objects);
+        self.numeric.current()?;
+        reached
+    }
+
+    pub(crate) fn finish_dictionary(
+        &mut self,
+        root: crate::value::PreparedNativeDictionary,
+    ) -> Value {
+        tcl_cmd_core::native_return_merge::NativeReturnMergeObjects::finish(self.objects, root)
+    }
+}
+
+impl ReturnOptionsOps for CheckedNativeReturnOps<'_, '_> {
+    type Value = Value;
+
+    fn bytes(&mut self, value: &Value) -> Result<Vec<u8>, CmdError> {
+        self.numeric.current()?;
+        let reached = self.objects.bytes(value);
+        self.numeric.current()?;
+        reached
+    }
+
+    fn list(&mut self, value: &Value) -> Result<Vec<Value>, CmdError> {
+        self.numeric.current()?;
+        let reached = self.objects.list(value);
+        self.numeric.current()?;
+        reached
+    }
+
+    fn new_string(&mut self, bytes: &[u8]) -> Value {
+        self.objects.new_string(bytes)
+    }
+
+    fn integer_probe(&mut self, value: &Value, wide: bool) -> Result<Option<i64>, CmdError> {
+        self.numeric.current()?;
+        if self
+            .objects
+            .dialect
+            .native_scalar_getter_protocol()
+            .is_none()
+        {
+            let reached = self.objects.integer_probe(value, wide);
+            self.numeric.current()?;
+            return reached;
+        }
+        if self.objects.dialect.native_scalar_getter_protocol()
+            != self.numeric.dialect().native_scalar_getter_protocol()
+        {
+            return Err(ValueError::ScalarNumericInputUnavailable.into());
+        }
+        let selected = if self.objects.string.is_jim084() {
+            NativeScalarGetterKind::Long
+        } else if wide {
+            NativeScalarGetterKind::Wide
+        } else {
+            NativeScalarGetterKind::Int
+        };
+        match self.numeric.probe(value, selected)? {
+            Ok(NativeScalarGetterValue::Wide(integer)) => Ok(Some(integer)),
+            Ok(_) => Err(ValueError::ScalarNumericInputUnavailable.into()),
+            Err(_) => Ok(None),
+        }
+    }
+
+    fn completion_code_cache(&self, value: &Value) -> Option<i32> {
+        self.objects.completion_code_cache(value)
+    }
+
+    fn adopt_completion_code_cache(
+        &mut self,
+        value: &Value,
+        cache: return_options::CompletionCodeCache,
+    ) -> Result<(), CmdError> {
+        self.numeric.current()?;
+        let reached = self.objects.adopt_completion_code_cache(value, cache);
+        self.numeric.current()?;
+        reached
     }
 }
 
@@ -182,11 +305,17 @@ pub(crate) fn apply(
     args: &[Value],
     purpose: ReturnOptionsPurpose,
 ) -> Completion<Value> {
-    let (mut ops, protocol) = match NativeReturnOps::selected(vm) {
+    let scope = match NativeOperationScope::enter(vm) {
+        Ok(scope) => scope,
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    };
+    let (mut ops, protocol) = match selected_in_original_scope(vm, &scope) {
         Ok(selected) => selected,
         Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
-    let prepared = match return_options::prepare_return(&mut ops, protocol, args, purpose) {
+    let prepared = match with_original_return_ops(vm, &scope, &mut ops, |checked| {
+        return_options::prepare_return(checked, protocol, args, purpose)
+    }) {
         Ok(prepared) => prepared,
         Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
@@ -198,6 +327,10 @@ pub(crate) fn publish(
     ops: &mut NativeReturnOps,
     prepared: return_options::PreparedReturn<Value>,
 ) -> Completion<Value> {
+    let scope = match NativeOperationScope::enter(vm) {
+        Ok(scope) => scope,
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    };
     let code = Code::from_int(prepared.code);
     if code == Code::Error
         && let Some(original) = prepared.result.as_ref()
@@ -220,17 +353,23 @@ pub(crate) fn publish(
     } else if code == Code::Error {
         for pair in &prepared.options {
             match pair.name_in(ops.protocol) {
-                b"-errorinfo" => match ops.bytes(&pair.value) {
+                b"-errorinfo" => match with_original_return_ops(vm, &scope, ops, |checked| {
+                    checked.bytes(&pair.value)
+                }) {
                     Ok(bytes) if !bytes.is_empty() => {
                         vm.seed_error_info_original(&pair.value, &bytes);
                     }
                     Ok(_) => {}
                     Err(error) => return crate::command::completion_from_cmd_error(vm, error),
                 },
-                b"-errorstack" if vm.supports_error_stack() => match ops.list(&pair.value) {
-                    Ok(parts) => vm.seed_error_stack_parts(&parts),
-                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-                },
+                b"-errorstack" if vm.supports_error_stack() => {
+                    match with_original_return_ops(vm, &scope, ops, |checked| {
+                        checked.list(&pair.value)
+                    }) {
+                        Ok(parts) => vm.seed_error_stack_parts(&parts),
+                        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                    }
+                }
                 _ => {}
             }
         }
@@ -278,6 +417,9 @@ pub(crate) fn publish(
     }
     let options = Value::list(options);
     vm.retain_native_return_options(&options);
+    if let Err(error) = scope.check(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
     Completion::new(
         if prepared.level == 0 {
             code
@@ -382,5 +524,167 @@ mod tests {
                 .as_ref(),
             b"TCL RESULT ILLEGAL_OPTIONS"
         );
+    }
+}
+
+#[cfg(all(test, unix, not(target_arch = "wasm32")))]
+mod original_checked_return_tests {
+    use super::*;
+    use std::{cell::Cell, rc::Rc};
+    use tcl_platform::{Host, NumericEnvironment};
+    use tcl_test_support::numeric_environment::{
+        NativeNumericEnvironment, RecordedNumericEnvironment,
+    };
+
+    struct RecordedHost {
+        actual: Rc<dyn Host>,
+        numeric: Rc<RecordedNumericEnvironment>,
+        acquisitions: Rc<Cell<usize>>,
+    }
+    impl Host for RecordedHost {
+        fn capabilities(&self) -> tcl_platform::Capabilities {
+            self.actual.capabilities()
+        }
+        fn clock(&self) -> &dyn tcl_platform::Clock {
+            self.actual.clock()
+        }
+        fn stdio(&self) -> &dyn tcl_platform::StdIo {
+            self.actual.stdio()
+        }
+        fn env(&self) -> &dyn tcl_platform::Env {
+            self.actual.env()
+        }
+        fn numeric_environment(&self) -> Option<&dyn NumericEnvironment> {
+            self.acquisitions.set(self.acquisitions.get() + 1);
+            Some(&*self.numeric)
+        }
+    }
+    fn provided(available: bool) -> (Vm, Rc<RecordedNumericEnvironment>, Rc<Cell<usize>>) {
+        let actual = NativeNumericEnvironment;
+        let state = actual.state();
+        let numeric = Rc::new(if available {
+            RecordedNumericEnvironment::with_c_integer_abi(state, actual.c_integer_abi().unwrap())
+        } else {
+            RecordedNumericEnvironment::new(state)
+        });
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"));
+        let acquisitions = Rc::new(Cell::new(0));
+        vm.set_host(Rc::new(RecordedHost {
+            actual: vm.host_rc(),
+            numeric: Rc::clone(&numeric),
+            acquisitions: Rc::clone(&acquisitions),
+        }));
+        acquisitions.set(0);
+        (vm, numeric, acquisitions)
+    }
+    #[test]
+    fn original_return_numeric_probe_keeps_cached_object_and_neutral_thread_role() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Software transport uses an actual queried native Host ABI; no getter-provider run or extension callback is claimed.
+        let (mut vm, numeric, acquisitions) = provided(true);
+        let value = Value::int(6);
+        let alias = value.clone();
+        let snapshot = value.native_object_snapshot();
+        let references = value.native_object_reference_count();
+        let scope = NativeOperationScope::enter(&mut vm).unwrap();
+        let (mut objects, protocol) = selected_in_original_scope(&mut vm, &scope).unwrap();
+        let code = with_original_return_ops(&mut vm, &scope, &mut objects, |checked| {
+            return_options::parse_completion_code(checked, protocol, &value)
+        })
+        .unwrap();
+        assert_eq!(code, 6);
+        assert!(acquisitions.get() > 0);
+        assert_eq!(numeric.queries(), 0);
+        assert!(value.resident_string_bytes().is_none());
+        assert!(value.is_same_object(&alias));
+        assert_eq!(value.native_object_snapshot(), snapshot);
+        assert_eq!(value.native_object_reference_count(), references);
+        scope.check(&mut vm).unwrap();
+    }
+    #[test]
+    fn original_return_numeric_unavailable_stays_outside_keyword_guest_fallback() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let (mut vm, numeric, _) = provided(false);
+        let value = Value::int(6);
+        let before = value.native_object_snapshot();
+        let scope = NativeOperationScope::enter(&mut vm).unwrap();
+        let (mut objects, protocol) = selected_in_original_scope(&mut vm, &scope).unwrap();
+        let error = with_original_return_ops(&mut vm, &scope, &mut objects, |checked| {
+            return_options::parse_completion_code(checked, protocol, &value)
+        })
+        .unwrap_err();
+        assert_eq!(
+            error.native_execution_refusal(),
+            Some(&tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable,
+            ))
+        );
+        assert_eq!(value.native_object_snapshot(), before);
+        assert!(value.resident_string_bytes().is_none());
+        assert_eq!(numeric.queries(), 0);
+    }
+    #[test]
+    fn original_return_numeric_probe_refuses_a_foreign_selected_scalar_protocol() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let (mut vm, numeric, acquisitions) = provided(true);
+        let value = Value::int(6);
+        let before = value.native_object_snapshot();
+        let references = value.native_object_reference_count();
+        let scope = NativeOperationScope::enter(&mut vm).unwrap();
+        let mut objects = NativeReturnOps::for_c(tcl_dialect::TclVersion::V8_4).unwrap();
+        let error = with_original_return_ops(&mut vm, &scope, &mut objects, |checked| {
+            checked.integer_probe(&value, false)
+        })
+        .unwrap_err();
+        assert_eq!(
+            error.native_access_refusal(),
+            Some(tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable,)
+        );
+        assert_eq!(acquisitions.get(), 0);
+        assert_eq!(numeric.queries(), 0);
+        assert_eq!(value.native_object_snapshot(), before);
+        assert_eq!(value.native_object_reference_count(), references);
+        assert!(value.resident_string_bytes().is_none());
+        scope.check(&mut vm).unwrap();
+    }
+
+    #[test]
+    fn original_return_numeric_scope_stops_callback_change_before_continuation() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // The checked closure enters an actual software Vm callback; VM closed IntRep supplies no extension updater/free issuer.
+        let (mut vm, _, acquisitions) = provided(true);
+        let value = Value::int(6);
+        let scope = NativeOperationScope::enter(&mut vm).unwrap();
+        let (mut objects, protocol) = selected_in_original_scope(&mut vm, &scope).unwrap();
+        let continued = Cell::new(false);
+        let error = with_original_return_ops(&mut vm, &scope, &mut objects, |checked| {
+            assert_eq!(
+                return_options::parse_completion_code(checked, protocol, &value)?,
+                6
+            );
+            checked.numeric.with_vm(|vm| {
+                vm.set_host(Rc::new(crate::host_native::NativeHost::new()));
+                Ok(())
+            })?;
+            continued.set(true);
+            Ok(())
+        })
+        .unwrap_err();
+        let first = vm.execution_refusal.clone().unwrap();
+        assert_eq!(error.native_execution_refusal(), Some(&first));
+        assert!(!continued.get());
+        assert!(acquisitions.get() > 0);
+        assert!(value.resident_string_bytes().is_none());
+        let queries = acquisitions.get();
+        let error = with_original_return_ops(&mut vm, &scope, &mut objects, |checked| {
+            checked.integer_probe(&value, false)
+        })
+        .unwrap_err();
+        assert_eq!(error.native_execution_refusal(), Some(&first));
+        assert_eq!(acquisitions.get(), queries);
     }
 }

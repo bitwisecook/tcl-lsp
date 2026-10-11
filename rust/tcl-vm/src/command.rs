@@ -2549,11 +2549,33 @@ pub(crate) fn option_integer_checked(
     key: &[u8],
     absent: i64,
 ) -> Result<i64, TclError> {
-    match opt_get_checked(vm, options, key)? {
-        Some(original) => tcl_syntax::value::ValueOps::as_int(vm, &original)
-            .map_err(|error| completion_option_failure(vm, error)),
-        None => Ok(absent),
-    }
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(vm)
+        .map_err(|error| completion_option_failure(vm, error))?;
+    let Some(original) = opt_get_checked(vm, options, key)? else {
+        scope
+            .check(vm)
+            .map_err(|error| completion_option_failure(vm, error))?;
+        return Ok(absent);
+    };
+    let reached = if vm.authored_numeric_context().is_some() {
+        tcl_syntax::value::ValueOps::as_int(vm, &original).map_err(tcl_cmd_core::CmdError::from)
+    } else {
+        crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(vm, &scope)
+            .and_then(|ops| {
+                ops.getter(
+                    &original,
+                    tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide,
+                )
+            })
+            .and_then(|value| match value {
+                tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(integer) => Ok(integer),
+                _ => Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable.into()),
+            })
+    };
+    scope
+        .check(vm)
+        .map_err(|error| completion_option_failure(vm, error))?;
+    reached.map_err(|error| completion_option_failure(vm, error))
 }
 
 /// Use the shared original completion-code grammar and cache producer.
@@ -2562,14 +2584,21 @@ pub(crate) fn option_code_checked(
     options: &Value,
     absent: Code,
 ) -> Result<Code, TclError> {
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(vm)
+        .map_err(|error| completion_option_failure(vm, error))?;
     let Some(original) = opt_get_checked(vm, options, b"-code")? else {
+        scope
+            .check(vm)
+            .map_err(|error| completion_option_failure(vm, error))?;
         return Ok(absent);
     };
-    let (mut ops, protocol) = crate::return_options::NativeReturnOps::selected(vm)
+    let (mut ops, protocol) = crate::return_options::selected_in_original_scope(vm, &scope)
         .map_err(|error| completion_option_failure(vm, error))?;
-    tcl_cmd_core::return_options::parse_completion_code(&mut ops, protocol, &original)
-        .map(Code::from_int)
-        .map_err(|error| completion_option_failure(vm, error))
+    crate::return_options::with_original_return_ops(vm, &scope, &mut ops, |checked| {
+        tcl_cmd_core::return_options::parse_completion_code(checked, protocol, &original)
+    })
+    .map(Code::from_int)
+    .map_err(|error| completion_option_failure(vm, error))
 }
 
 /// Carried options or the ordinary standard options when genuinely empty.
@@ -2619,12 +2648,14 @@ pub(crate) fn with_return_option(
     key: &str,
     value: Value,
 ) -> Result<Value, TclError> {
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(vm)
+        .map_err(|error| completion_option_failure(vm, error))?;
     let pairs = completion_option_rows_checked(vm, options)?;
     if options
         .with_cached_dictionary_representation(|_, _| ())
         .is_some()
     {
-        let (ops, _) = crate::return_options::NativeReturnOps::selected(vm)
+        let (ops, _) = crate::return_options::selected_in_original_scope(vm, &scope)
             .map_err(|error| completion_option_failure(vm, error))?;
         let original = options.duplicate_native_object_in(ops.string);
         let mut prepared = original
@@ -2634,7 +2665,11 @@ pub(crate) fn with_return_option(
         prepared
             .set_member(Value::new_native_string_bytes(key.as_bytes()), value)
             .map_err(|error| completion_option_failure(vm, error))?;
-        return Ok(prepared.into_value());
+        let value = prepared.into_value();
+        scope
+            .check(vm)
+            .map_err(|error| completion_option_failure(vm, error))?;
+        return Ok(value);
     }
     let mut items = Vec::with_capacity(pairs.len() * 2 + 2);
     let mut replaced = false;
@@ -2653,7 +2688,11 @@ pub(crate) fn with_return_option(
     if !replaced {
         items.extend([Value::string(key), value]);
     }
-    Ok(Value::list(items))
+    let value = Value::list(items);
+    scope
+        .check(vm)
+        .map_err(|error| completion_option_failure(vm, error))?;
+    Ok(value)
 }
 
 /// Procedure-boundary level replacement uses the same checked option owner.

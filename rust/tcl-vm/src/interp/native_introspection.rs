@@ -37,7 +37,9 @@ impl NativeInfoLevelObjects for Vm {
                 "native info level issuer",
             ));
         }
-        match original.native_scalar_getter(dialect, kind)? {
+        match super::native_numeric_ops::OriginalNumericOps::entered_value(self)?
+            .getter_value(original, kind)?
+        {
             NativeScalarGetterValue::Wide(integer) => Ok(integer),
             _ => Err(ValueError::ScalarNumericInputUnavailable),
         }

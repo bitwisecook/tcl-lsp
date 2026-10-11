@@ -24,7 +24,6 @@
 
 use std::rc::Rc;
 
-use crate::return_options::NativeReturnOps;
 use tcl_cmd_core::prefix::{NativePrefixProtocol, Resolution};
 use tcl_cmd_core::return_options::{
     self, PreparedOptionPairs, ReturnOptionPair, ReturnOptionsOps, ReturnOptionsPurpose,
@@ -157,7 +156,9 @@ fn prepare_match(vm: &mut Vm, rest: &[Value]) -> Result<Completion<Value>, tcl_c
             "native prefix",
         ))?;
     let jim = selected.policy().recipe().is_jim084();
-    let (mut return_ops, return_protocol) = NativeReturnOps::selected(vm)?;
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(vm)?;
+    let (mut return_ops, return_protocol) =
+        crate::return_options::selected_in_original_scope(vm, &scope)?;
     let options: Vec<Rc<[u8]>> = [b"-error".as_slice(), b"-exact", b"-message"]
         .into_iter()
         .map(Rc::from)
@@ -191,10 +192,13 @@ fn prepare_match(vm: &mut Vm, rest: &[Value]) -> Result<Completion<Value>, tcl_c
             .get(cursor + 1)
             .ok_or_else(|| selected.missing_value(index == 0))?;
         if index == 0 {
-            error_options = Some(return_options::prepare_prefix_error_options(
+            error_options = Some(crate::return_options::with_original_return_ops(
+                vm,
+                &scope,
                 &mut return_ops,
-                return_protocol,
-                value,
+                |checked| {
+                    return_options::prepare_prefix_error_options(checked, return_protocol, value)
+                },
             )?);
         } else {
             noun = ValueOps::native_string_bytes(vm, value)?;
@@ -232,7 +236,9 @@ fn prepare_match(vm: &mut Vm, rest: &[Value]) -> Result<Completion<Value>, tcl_c
         ambiguous,
     ));
     let prepared =
-        prepare_prefix_miss_return(&mut return_ops, return_protocol, options, message, jim)?;
+        crate::return_options::with_original_return_ops(vm, &scope, &mut return_ops, |checked| {
+            prepare_prefix_miss_return(checked, return_protocol, options, message, jim)
+        })?;
     Ok(crate::return_options::publish(
         vm,
         &mut return_ops,
@@ -240,8 +246,8 @@ fn prepare_match(vm: &mut Vm, rest: &[Value]) -> Result<Completion<Value>, tcl_c
     ))
 }
 
-fn prepare_prefix_miss_return(
-    return_ops: &mut NativeReturnOps,
+fn prepare_prefix_miss_return<O: ReturnOptionsOps<Value = Value>>(
+    return_ops: &mut O,
     return_protocol: tcl_cmd_core::return_options::ReturnOptionsProtocol,
     options: tcl_cmd_core::return_options::PreparedPrefixErrorOptions<Value>,
     message: Value,
