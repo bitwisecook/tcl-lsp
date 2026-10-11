@@ -89,10 +89,13 @@ C Tcl and Jim original-header results do not establish BIG-IP or TMM behaviour.
 - `jim-receipt-json` (provider): [runtime/rust/tests/data/native_original_string_replacement629/Jim/receipt.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/Jim/receipt.json). SHA-256 `26f4e6a5460e3efe983507af9191e66e8e88ea608ca1e5b0aa8804e0cedaaf9d`. Actual original compile, earlier CLI version,21 case-member source pins and per-process bindings.
 - `jim-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_string_replacement629/Jim/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/Jim/same-library-version/receipt.json). SHA-256 `12235f46c4d933c9a652d00a755455a92b70a2bd75badb0c25146473047f7b06`. Independent diagnostic compiled against identical actual static library; executes after original cases and changes none of their receipts.
 - `jim-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_string_replacement629/Jim/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_string_replacement629/Jim/same-library-version/execute.stdout). SHA-256 `d7ce62ac8c979a247ad4edf0a43c9133dc8b547cdfc8e5b540fccd9bbe848166`. Actual linked library patchlevel query output, independently joined through unchanged static library bytes.
+- `exact-source-snippet-0` (source-anchor): [runtime/rust/tests/data/native_original_string_replacement629/source-windows.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/source-windows.json). SHA-256 `c45e1d25d5133f372968fe8b2f8515056f0d3657c306b2989809a0a0e442e461`. JSON pointer `/anchors/0/snippet`. Exact original physical-LF source snippet selected as decoded JSON text, joined to the retained whole source hash.
+- `exact-source-snippet-1` (source-anchor): [runtime/rust/tests/data/native_original_string_replacement629/source-windows.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/source-windows.json). SHA-256 `c45e1d25d5133f372968fe8b2f8515056f0d3657c306b2989809a0a0e442e461`. JSON pointer `/anchors/1/snippet`. Exact original physical-LF source snippet selected as decoded JSON text, joined to the retained whole source hash.
+- `exact-source-snippet-2` (source-anchor): [runtime/rust/tests/data/native_original_string_replacement629/source-windows.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/source-windows.json). SHA-256 `c45e1d25d5133f372968fe8b2f8515056f0d3657c306b2989809a0a0e442e461`. JSON pointer `/anchors/2/snippet`. Exact original physical-LF source snippet selected as decoded JSON text, joined to the retained whole source hash.
 
 ## Source inspection
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `JimStringReplaceObj`, lines 2770–2803. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `9a09f9e3a77eb997558eda8f39b18f428ed0700c8205945fe2c374adc66e8b2b`; retained evidence `exact-source-windows`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `JimStringReplaceObj`, lines 2770–2803. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `9a09f9e3a77eb997558eda8f39b18f428ed0700c8205945fe2c374adc66e8b2b`; retained evidence `exact-source-snippet-0`.
 
 ```text
 Jim_Obj *JimStringReplaceObj(Jim_Interp *interp,
@@ -132,7 +135,7 @@ Jim_Obj *JimStringReplaceObj(Jim_Interp *interp,
 
 ```
 
-tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h`, function `TclUtfToUniChar macro`, lines 2593–2612. Full-source SHA-256 `f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a`; snippet SHA-256 `53ced9beda30f5e22afc28d2e88c66088d004f0d81cbd1c2047c331b4273fef1`; retained evidence `exact-source-windows`.
+tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h`, function `TclUtfToUniChar macro`, lines 2593–2612. Full-source SHA-256 `f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a`; snippet SHA-256 `53ced9beda30f5e22afc28d2e88c66088d004f0d81cbd1c2047c331b4273fef1`; retained evidence `exact-source-snippet-1`.
 
 ```text
  * It checks to see if we have a one-byte utf char before calling
@@ -158,7 +161,7 @@ tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tm
 
 ```
 
-tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h`, function `TclUtfToUniChar macro`, lines 3670–3675. Full-source SHA-256 `72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa`; snippet SHA-256 `0dc12159aed2bbede178c2a157ee8f5076f180f60b21e11a3c4ae79444215483`; retained evidence `exact-source-windows`.
+tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h`, function `TclUtfToUniChar macro`, lines 3670–3675. Full-source SHA-256 `72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa`; snippet SHA-256 `0dc12159aed2bbede178c2a157ee8f5076f180f60b21e11a3c4ae79444215483`; retained evidence `exact-source-snippet-2`.
 
 ```text
 #define TclUtfToUniChar(str, chPtr) \

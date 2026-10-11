@@ -570577,6 +570577,30 @@
           "path": "runtime/rust/tests/data/native_original_string_replacement629/Jim/same-library-version/execute.stdout",
           "sha256": "d7ce62ac8c979a247ad4edf0a43c9133dc8b547cdfc8e5b540fccd9bbe848166",
           "description": "Actual linked library patchlevel query output, independently joined through unchanged static library bytes."
+        },
+        {
+          "id": "exact-source-snippet-0",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_original_string_replacement629/source-windows.json",
+          "sha256": "c45e1d25d5133f372968fe8b2f8515056f0d3657c306b2989809a0a0e442e461",
+          "json_pointer": "/anchors/0/snippet",
+          "description": "Exact original physical-LF source snippet selected as decoded JSON text, joined to the retained whole source hash."
+        },
+        {
+          "id": "exact-source-snippet-1",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_original_string_replacement629/source-windows.json",
+          "sha256": "c45e1d25d5133f372968fe8b2f8515056f0d3657c306b2989809a0a0e442e461",
+          "json_pointer": "/anchors/1/snippet",
+          "description": "Exact original physical-LF source snippet selected as decoded JSON text, joined to the retained whole source hash."
+        },
+        {
+          "id": "exact-source-snippet-2",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_original_string_replacement629/source-windows.json",
+          "sha256": "c45e1d25d5133f372968fe8b2f8515056f0d3657c306b2989809a0a0e442e461",
+          "json_pointer": "/anchors/2/snippet",
+          "description": "Exact original physical-LF source snippet selected as decoded JSON text, joined to the retained whole source hash."
         }
       ],
       "source_anchors": [
@@ -570593,7 +570617,7 @@
           "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
           "snippet": "Jim_Obj *JimStringReplaceObj(Jim_Interp *interp,\n    Jim_Obj *strObjPtr, Jim_Obj *firstObjPtr, Jim_Obj *lastObjPtr, Jim_Obj *newStrObj)\n{\n    int first, last;\n    const char *str;\n    int len, rangeLen;\n    Jim_Obj *objPtr;\n\n    len = Jim_Utf8Length(interp, strObjPtr);\n\n    if (JimStringGetRange(interp, firstObjPtr, lastObjPtr, len, &first, &last, &rangeLen) != JIM_OK) {\n        return NULL;\n    }\n\n    if (last < first) {\n        return strObjPtr;\n    }\n\n    str = Jim_String(strObjPtr);\n\n    /* Before part */\n    objPtr = Jim_NewStringObjUtf8(interp, str, first);\n\n    /* Replacement */\n    if (newStrObj) {\n        Jim_AppendObj(interp, objPtr, newStrObj);\n    }\n\n    /* After part */\n    Jim_AppendString(interp, objPtr, str + utf8_index(str, last + 1), len - last - 1);\n\n    return objPtr;\n}\n\n",
           "snippet_sha256": "9a09f9e3a77eb997558eda8f39b18f428ed0700c8205945fe2c374adc66e8b2b",
-          "evidence": "exact-source-windows"
+          "evidence": "exact-source-snippet-0"
         },
         {
           "provider": "tcl8.4",
@@ -570608,7 +570632,7 @@
           "source_sha256": "f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a",
           "snippet": " * It checks to see if we have a one-byte utf char before calling\n * the real Tcl_UtfToUniChar, as this will save a lot of time for\n * primarily ascii string handling. The macro's expression result\n * is 1 for the 1-byte case or the result of Tcl_UtfToUniChar.\n * The ANSI C \"prototype\" for this macro is:\n *\n * EXTERN int TclUtfToUniChar _ANSI_ARGS_((CONST char *string,\n *\t\t\t\t\t   Tcl_UniChar *ch));\n *----------------------------------------------------------------\n */\n\n#define TclUtfToUniChar(str, chPtr) \\\n\t((((unsigned char) *(str)) < 0xC0) ? \\\n\t    ((*(chPtr) = (Tcl_UniChar) *(str)), 1) \\\n\t    : Tcl_UtfToUniChar(str, chPtr))\n\n/*\n *----------------------------------------------------------------\n * Macro used by the Tcl core to compare Unicode strings.  On\n * big-endian systems we can use the more efficient memcmp, but\n",
           "snippet_sha256": "53ced9beda30f5e22afc28d2e88c66088d004f0d81cbd1c2047c331b4273fef1",
-          "evidence": "exact-source-windows"
+          "evidence": "exact-source-snippet-1"
         },
         {
           "provider": "tcl8.5",
@@ -570623,7 +570647,7 @@
           "source_sha256": "72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa",
           "snippet": "#define TclUtfToUniChar(str, chPtr) \\\n\t((((unsigned char) *(str)) < 0xC0) ?\t\t\\\n\t    ((*(chPtr) = (Tcl_UniChar) *(str)), 1)\t\\\n\t    : Tcl_UtfToUniChar(str, chPtr))\n\n/*\n",
           "snippet_sha256": "0dc12159aed2bbede178c2a157ee8f5076f180f60b21e11a3c4ae79444215483",
-          "evidence": "exact-source-windows"
+          "evidence": "exact-source-snippet-2"
         }
       ],
       "tests": [],
