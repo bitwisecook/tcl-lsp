@@ -1,0 +1,142 @@
+{
+  "request_sha256": "b4c7c7e8c2278dee8faa2384a6989c0c85033e392e37de24147d827515777917",
+  "records": [
+    {
+      "provider": "compiler",
+      "channel": "compiler-version",
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/compiler-version.receipt.json",
+      "sha256": "e3107486600dac2fd990d9c3fedef5581ffac758341547cf3036df89d03aa7ee",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "compile",
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/providers/8.4.20/compile.receipt.json",
+      "sha256": "0c96523aaa6cb830c9d2ed9e92c3cf7dcc3e015e69eba7c8ead6d307093b46c4",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/providers/8.4.20/dependencies.receipt.json",
+      "sha256": "124af1ab5e53ad2ab8b86bbfc5e9fea52ff623a102406b88661796145bf01951",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "execute",
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/providers/8.4.20/execute.receipt.json",
+      "sha256": "9ea4cc160655daac063fc4ea5ffc1aa34ad0a2b0126b0cd2612e620cbc0b277b",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "compile",
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/providers/8.5.19/compile.receipt.json",
+      "sha256": "628d85b16788e214575a6faf0658f93fb3aba41b5bfee62f7b90ddc7e014f120",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/providers/8.5.19/dependencies.receipt.json",
+      "sha256": "41e569fa91f8f1fd6c07296ecac043fdee0cf43f79aab0a5284d55b8faf98a9b",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "execute",
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/providers/8.5.19/execute.receipt.json",
+      "sha256": "b35d8ad0e468e585224cf7719ace3c8aae71eb077eb65133110d6707528cf52d",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "compile",
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/providers/8.6.18/compile.receipt.json",
+      "sha256": "1c95fbac7faa0e9bcbb3d6e31a99406f669c6375a921588682116923257bf509",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/providers/8.6.18/dependencies.receipt.json",
+      "sha256": "9310d1f8d61dc25a082b4055ae905511e308ff3bb2d6862c3fd50aac6b277c1c",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "execute",
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/providers/8.6.18/execute.receipt.json",
+      "sha256": "53d0f030aa730cb205258cc8ce8c8a204dba4781202ca1bb5fac824a858d746f",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "compile",
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/providers/9.0.4/compile.receipt.json",
+      "sha256": "e42b13fecd12bca191b6d5b0d2833e7b22dddf4f2e70d61a3a67ded60da28011",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/providers/9.0.4/dependencies.receipt.json",
+      "sha256": "03d4d7858104adba1d289284c9dfe799ee0c8135e586d5ad3ab9b96c3dde768d",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "execute",
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/providers/9.0.4/execute.receipt.json",
+      "sha256": "04dd8d4930a6857e4c8785a6675725fbb63fe931188539297cb9464930739f43",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "compile",
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/providers/9.1.0/compile.receipt.json",
+      "sha256": "ab5993ef1d96746461bb3996e8bc2fbdda60dec0a34a814900b98261c7f22e83",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/providers/9.1.0/dependencies.receipt.json",
+      "sha256": "997dfb69f1b4a17bc67d1df39f14d704a1149ee195f059cf5b20610831e9be18",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "execute",
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/providers/9.1.0/execute.receipt.json",
+      "sha256": "dd204c6f55f81c49336c5542843a0d4dedebbf72328cd43bbc5379ab69b32802",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "compile",
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/providers/jim/compile.receipt.json",
+      "sha256": "fdc8106ed3185f9608313af70e4495059d88c12dad635800f1068abeeff1defb",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/providers/jim/dependencies.receipt.json",
+      "sha256": "9ad7a272f578a03627733e6adac0306526ffedfc22a40b284c7b9ffd944a0a9d",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "execute",
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/providers/jim/execute.receipt.json",
+      "sha256": "8d70a049e68ab904d51114319881f7fb82dc79f0a3a50cd2556e4391433f6351",
+      "status": "closed"
+    }
+  ],
+  "required_inputs_unchanged": true,
+  "fresh_output_root": "/workspace/.proofs/consumer-native-alias-objects415/providers",
+  "all_capture_processes_closed": true,
+  "scope": "Original process/source/link/runtime closure only; individual Guest failures and Jim unsupported observer/namespace purposes stay explicit."
+}

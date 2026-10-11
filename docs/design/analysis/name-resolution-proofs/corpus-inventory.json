@@ -55,6 +55,1065 @@
       "candidate": false
     },
     {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/README.md",
+      "sha256": "6111bbee4d080d9f3026d7eaff091c5603d186756f3ec8a224a51a5cc0f18217",
+      "bytes": 2125,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/closure.json",
+      "sha256": "0fb029c028925013ad0c3b2993de42a6f3e7347aebab9a570081a3ba063d06aa",
+      "bytes": 5877,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/compiler-version.receipt.json",
+      "sha256": "e3107486600dac2fd990d9c3fedef5581ffac758341547cf3036df89d03aa7ee",
+      "bytes": 940,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/compiler-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/compiler-version.stdout",
+      "sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+      "bytes": 252,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/launch.py",
+      "sha256": "1224e36c1c3d29248907475b71a4a3fbb3b2a3851c2624f62425202d702e2772",
+      "bytes": 8491,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/manifest.json",
+      "sha256": "3ef4def826a1eac21e5ea1de2cc8b6244c00b26c335d2302aa318971eab9cc36",
+      "bytes": 8072,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/outer-launch.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/outer-launch.stdout",
+      "sha256": "02485e6804e551563bbe6eb814a9f2c29cc49fbaa6327542960224ab1ad017b5",
+      "bytes": 56,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/probe.c",
+      "sha256": "b9eec062b29a84769f9953cf9ee8cc27c3a4da69a86c747d68e0b6558221cd7e",
+      "bytes": 12490,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.4.20/compile.receipt.json",
+      "sha256": "0c96523aaa6cb830c9d2ed9e92c3cf7dcc3e015e69eba7c8ead6d307093b46c4",
+      "bytes": 13069,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.4.20/compile.stderr",
+      "sha256": "8b37c6a26fcc29d045ea878745123faf591183d82f72049411d43d3566fdb896",
+      "bytes": 362,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.4.20/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.4.20/dependencies.receipt.json",
+      "sha256": "124af1ab5e53ad2ab8b86bbfc5e9fea52ff623a102406b88661796145bf01951",
+      "bytes": 3000,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.4.20/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.4.20/dependencies.stdout",
+      "sha256": "1c971319a65a5f798a7798a2e579938bcd06c4d1755e1eedd538e45c0ccce9cb",
+      "bytes": 222,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.4.20/execute.receipt.json",
+      "sha256": "9ea4cc160655daac063fc4ea5ffc1aa34ad0a2b0126b0cd2612e620cbc0b277b",
+      "bytes": 5050,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.4.20/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.4.20/execute.stdout",
+      "sha256": "f7a20027291bcea739671ea7e8ab5c57d3b1098008d01f92a11a0d28e703100c",
+      "bytes": 46586,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.4.20/link.map",
+      "sha256": "dc14d5416d204c2cd53beb9a96d8b409b5e68d080b6b7f2c3f95281793932301",
+      "bytes": 195609,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.4.20/probe.elf.gz",
+      "sha256": "df8a25f2701d67ffb0f26cb4dd91135b0ce82285a0dc508c5a0ca986dba591b1",
+      "bytes": 389763,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.5.19/compile.receipt.json",
+      "sha256": "628d85b16788e214575a6faf0658f93fb3aba41b5bfee62f7b90ddc7e014f120",
+      "bytes": 13070,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.5.19/compile.stderr",
+      "sha256": "8b37c6a26fcc29d045ea878745123faf591183d82f72049411d43d3566fdb896",
+      "bytes": 362,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.5.19/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.5.19/dependencies.receipt.json",
+      "sha256": "41e569fa91f8f1fd6c07296ecac043fdee0cf43f79aab0a5284d55b8faf98a9b",
+      "bytes": 3002,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.5.19/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.5.19/dependencies.stdout",
+      "sha256": "ad62d54e5efff295285771437cf5605f0e96c92523fbdbcd76603cc03d77fa60",
+      "bytes": 222,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.5.19/execute.receipt.json",
+      "sha256": "b35d8ad0e468e585224cf7719ace3c8aae71eb077eb65133110d6707528cf52d",
+      "bytes": 5053,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.5.19/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.5.19/execute.stdout",
+      "sha256": "15023528ffb76188ab11319ddcd64d9962fe9c6b47cff8692a4eabec018ccce5",
+      "bytes": 46586,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.5.19/link.map",
+      "sha256": "111f9aacba6a3a1d0af6d7ba44537522fb4fc8d5252bf3faeee6d1f361b98b11",
+      "bytes": 296981,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.5.19/probe.elf.gz",
+      "sha256": "14e5fc7daf536c5846c5377d7ff8c61b9122b4a4aff5bdbd9e09edd19901e7e1",
+      "bytes": 569737,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.6.18/compile.receipt.json",
+      "sha256": "1c95fbac7faa0e9bcbb3d6e31a99406f669c6375a921588682116923257bf509",
+      "bytes": 13072,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.6.18/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.6.18/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.6.18/dependencies.receipt.json",
+      "sha256": "9310d1f8d61dc25a082b4055ae905511e308ff3bb2d6862c3fd50aac6b277c1c",
+      "bytes": 3370,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.6.18/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.6.18/dependencies.stdout",
+      "sha256": "7288156369f76bde603fc21eb2d8fb834971c853a084d25414588186bf95dbc7",
+      "bytes": 289,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.6.18/execute.receipt.json",
+      "sha256": "53d0f030aa730cb205258cc8ce8c8a204dba4781202ca1bb5fac824a858d746f",
+      "bytes": 5790,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.6.18/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.6.18/execute.stdout",
+      "sha256": "403cd86b4fba692c942d56b9f9af9a8fe83b7c7445e16eccc6c59ed35bc1ddfa",
+      "bytes": 46586,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.6.18/link.map",
+      "sha256": "272fe466dfaa671f391a434cfc6fce9e5aecd5abecb9721474d31044b791f49b",
+      "bytes": 343332,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.6.18/probe.elf.gz",
+      "sha256": "1f6fa0556140dcb85f5c2fa21e68a026b23dfe8a246e83362831b81f68cf21f6",
+      "bytes": 811989,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.0.4/compile.receipt.json",
+      "sha256": "e42b13fecd12bca191b6d5b0d2833e7b22dddf4f2e70d61a3a67ded60da28011",
+      "bytes": 13058,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.0.4/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.0.4/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.0.4/dependencies.receipt.json",
+      "sha256": "03d4d7858104adba1d289284c9dfe799ee0c8135e586d5ad3ab9b96c3dde768d",
+      "bytes": 3365,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.0.4/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.0.4/dependencies.stdout",
+      "sha256": "cbd6623c36d77788b8293086a870b6226422fe13bab53d0c374568590dbec5f4",
+      "bytes": 289,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.0.4/execute.receipt.json",
+      "sha256": "04dd8d4930a6857e4c8785a6675725fbb63fe931188539297cb9464930739f43",
+      "bytes": 5777,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.0.4/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.0.4/execute.stdout",
+      "sha256": "d2826d802857d046017e3b8c8b6c38cef216f1c3d58f93fd83da6bb253e3c952",
+      "bytes": 46582,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.0.4/link.map",
+      "sha256": "639ccfb3c1312438a66256960e21d918730d70b14cdf25c5bf736f54e458801c",
+      "bytes": 369382,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.0.4/probe.elf.gz",
+      "sha256": "934869a9dcadd5f6393593aa68f0010f8f90d68d1a3567c665ef2b6ae19b70e5",
+      "bytes": 960991,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.1.0/compile.receipt.json",
+      "sha256": "ab5993ef1d96746461bb3996e8bc2fbdda60dec0a34a814900b98261c7f22e83",
+      "bytes": 13059,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.1.0/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.1.0/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.1.0/dependencies.receipt.json",
+      "sha256": "997dfb69f1b4a17bc67d1df39f14d704a1149ee195f059cf5b20610831e9be18",
+      "bytes": 3365,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.1.0/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.1.0/dependencies.stdout",
+      "sha256": "38b30640d8c45b4390112626fdcc4fefb433343016a123170d58622ed97f54ca",
+      "bytes": 289,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.1.0/execute.receipt.json",
+      "sha256": "dd204c6f55f81c49336c5542843a0d4dedebbf72328cd43bbc5379ab69b32802",
+      "bytes": 5777,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.1.0/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.1.0/execute.stdout",
+      "sha256": "08b781c15bf5b80b7ba61722998a718daa291767f535f81cb8b88f4e6ee6f221",
+      "bytes": 46582,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.1.0/link.map",
+      "sha256": "8581bab01f5a06f25325b93aefb7bc556e7610e94afe20ea8b87ec1249e6e40f",
+      "bytes": 380536,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.1.0/probe.elf.gz",
+      "sha256": "aa7161adda101674a7b7d668e14fbbc519ba21b37caf8b88c2c278c93db2855e",
+      "bytes": 1030315,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/jim/compile.receipt.json",
+      "sha256": "fdc8106ed3185f9608313af70e4495059d88c12dad635800f1068abeeff1defb",
+      "bytes": 13443,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/jim/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/jim/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/jim/dependencies.receipt.json",
+      "sha256": "9ad7a272f578a03627733e6adac0306526ffedfc22a40b284c7b9ffd944a0a9d",
+      "bytes": 4465,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/jim/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/jim/dependencies.stdout",
+      "sha256": "fcb489b4f04078033028292675485c27cdbff17982397b30fc0db8ad00c8b5af",
+      "bytes": 510,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/jim/execute.receipt.json",
+      "sha256": "8d70a049e68ab904d51114319881f7fb82dc79f0a3a50cd2556e4391433f6351",
+      "bytes": 8195,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/jim/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/jim/execute.stdout",
+      "sha256": "aec5609017d65951e081e66db80cdfb489d98711002200f3c120800a1952579c",
+      "bytes": 36818,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/jim/link.map",
+      "sha256": "1daf099b38a9a5beacb1f8369dc493af1b5242060c464d8f470d0ff4d39b68bb",
+      "bytes": 103326,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/jim/probe.elf.gz",
+      "sha256": "6c930df190f7561c300a7cb409e157bb501f2fe92ee14fbf949f603b7ce38b67",
+      "bytes": 190029,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/request.json",
+      "sha256": "b4c7c7e8c2278dee8faa2384a6989c0c85033e392e37de24147d827515777917",
+      "bytes": 1062483,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/seal.py",
+      "sha256": "3f451d2e53c44d61a6e8fe50aa9de4634a1813ed22cd2e5515e8e6962ed98312",
+      "bytes": 5766,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/8.4.20/AliasCreate.txt",
+      "sha256": "0919fbfb008e0b08e9e6870da7866f1b7448b17b37117410ecafe5a257eb34ab",
+      "bytes": 5240,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/8.4.20/AliasDescribe.txt",
+      "sha256": "10a8b369b5ceea4a068ddee4e3749412fb610770b183076b8369ca9a56f56796",
+      "bytes": 5384,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/8.4.20/AliasObjCmd.txt",
+      "sha256": "9dc62604a5ddade2ba2a8abb2594c3ed37c42bb2ee82c4dcec564a3f3069b974",
+      "bytes": 5210,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/8.4.20/AliasObjCmdDeleteProc.txt",
+      "sha256": "c15b7f9a0cb771bba80b8c0ceda504974514a1adf70e3d0f1c61aabc83918259",
+      "bytes": 5187,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/8.4.20/TclPreventAliasLoop.txt",
+      "sha256": "ca016d0a2ee5764abd877eca27d400837682a4ab53301f0bb74ba0526fb54c11",
+      "bytes": 5690,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/8.5.19/AliasCreate.txt",
+      "sha256": "c22640cb0e5008780546537af5bfab9d3bdc50f95a731d868e8992cbcd1c2ed9",
+      "bytes": 5425,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/8.5.19/AliasDescribe.txt",
+      "sha256": "214d5c69649226aed0a00b9f04641a4ec827ddc7b232fc944a7ca830b3787b85",
+      "bytes": 5406,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/8.5.19/AliasObjCmd.txt",
+      "sha256": "b4a641db6918ca9dac39aac3f8f9717f36a4a41baa72432e653c6a2e997b8936",
+      "bytes": 5049,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/8.5.19/AliasObjCmdDeleteProc.txt",
+      "sha256": "0a50cf89c7ba80e386da7433abf16e42e856b9fd8c241243150f840cd4e1916b",
+      "bytes": 4952,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/8.5.19/TclPreventAliasLoop.txt",
+      "sha256": "152e2cfa666c1443fa359d26b15bcfb56b4e65bf8abdf68a276e4373072950cb",
+      "bytes": 5256,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/8.6.18/AliasCreate.txt",
+      "sha256": "d00cda440060d0b2a28950e3e2e8c1e05af0f9158447b5bbfb88c9748faf6e37",
+      "bytes": 5497,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/8.6.18/AliasDescribe.txt",
+      "sha256": "e050cc127a14113c11447d8bb5aa3df08c1110614d97520c1c17b4d19261d412",
+      "bytes": 5395,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/8.6.18/AliasObjCmd.txt",
+      "sha256": "fffe63e25febf831f11ea45828e5d8c04d9b92eccd3684ca2666d576a49c7c5b",
+      "bytes": 4889,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/8.6.18/AliasObjCmdDeleteProc.txt",
+      "sha256": "b3e202e6887f4f3dcad88e5fc86360e1dce606e153b8b64e7fbde89a48a9e526",
+      "bytes": 4835,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/8.6.18/TclPreventAliasLoop.txt",
+      "sha256": "4c46435f4f7ba4f430fa9ad9f3cba8ed6074dc2d7ca762e682664181b83bec12",
+      "bytes": 5468,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/9.0.4/AliasDescribe.txt",
+      "sha256": "c4ac0cd67408535050d0176c5c6ed6943fb26b748e08da21d4a6a2fb1ffb8f1b",
+      "bytes": 5403,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/9.0.4/AliasObjCmdDeleteProc.txt",
+      "sha256": "43047a6339a018dfbcf2a8597558653fd9b1b104e7437457de7f9cbfc7a1af69",
+      "bytes": 4784,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/9.0.4/TclAliasCreate.txt",
+      "sha256": "7f214eee3188f7d43d0cc25c71eff3f74fc9d157274c06c23c936aa8aca2a14e",
+      "bytes": 5391,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/9.0.4/TclAliasObjCmd.txt",
+      "sha256": "3399384e1f95157ff6182e59626440170f6c2bea9eac493ba1b4292b96b76024",
+      "bytes": 4969,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/9.0.4/TclLocalAliasObjCmd.txt",
+      "sha256": "4e0c44d5ab3a1c07198457bcde7dea396555559e0a586e3d61829caaea453936",
+      "bytes": 4999,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/9.0.4/TclPreventAliasLoop.txt",
+      "sha256": "891be4bdd876f6da46a239166ae54c30fb8809d828aeff545d4ed59a61ff8231",
+      "bytes": 5380,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/9.1.0/AliasDescribe.txt",
+      "sha256": "397f879ddba4eb57f6ead526d5e3a0d27c45cdaa04d2d8af1972743b5f8fe604",
+      "bytes": 5406,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/9.1.0/AliasObjCmdDeleteProc.txt",
+      "sha256": "e9bf5db0ddf0c8c3dc1f6bc662f5299735d18ec23c1882604637e0e28c5c501b",
+      "bytes": 4784,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/9.1.0/TclAliasCreate.txt",
+      "sha256": "e64b13ef4c791d46a2b3f0cbbd6ec28908663a38cecf7e48bbbdaae0b905b115",
+      "bytes": 5392,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/9.1.0/TclAliasObjCmd.txt",
+      "sha256": "8ba8333e2bf140c363204aac2cbd690104e186acb3e0c23972937cd93e3cc9e8",
+      "bytes": 4975,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/9.1.0/TclLocalAliasObjCmd.txt",
+      "sha256": "5c64bce6cfef3098e570bfdd9fb4e694ea8ee855a6c4caaa7ee31910681f07e3",
+      "bytes": 5002,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/9.1.0/TclPreventAliasLoop.txt",
+      "sha256": "4305b1b2bf34c62f127e603dac03c081264ed45c3d9a09eb7d022db292b971aa",
+      "bytes": 5385,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/jim/JimAliasCmd.txt",
+      "sha256": "cfadc60975d173ceb358d44e7dc56760b36b51bf47b3db4c8325121f7b4c6224",
+      "bytes": 5861,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/jim/JimAliasCmdDelete.txt",
+      "sha256": "3c1be996aa856d6eeac268f2e763fa111f9877c0748ac5fd545c6f85d0df1a2b",
+      "bytes": 5998,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/source-windows/jim/Jim_AliasCoreCommand.txt",
+      "sha256": "d51107481ffca971326fe3730ef278686f5291719156faaaf0f2c6ee47c0bacd",
+      "bytes": 5935,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/closed-original-review.json",
+      "sha256": "1f76ca8ee238f96d8b9923f7495306fb42bdea63c2944052d7d3fd14bef4bf60",
+      "bytes": 18029,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/independent-interpretation/interpret.py",
+      "sha256": "643359f96ecf0a0e0ed6608e3f40adadca9e4c1807cf0c6eaf92d48ad8adf62c",
+      "bytes": 8648,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/independent-interpretation/interpretation.json",
+      "sha256": "2f3a60d87c50e876747948a3fafd7aa121ef36c04d776f57b54f1ece7e014adc",
+      "bytes": 1081739,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/independent-interpretation/manifest.json",
+      "sha256": "3f97685b7c5641062d0b4b965472f62b928142b8302310ad2c381f295590195b",
+      "bytes": 2902,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/independent-interpretation/public-alias-pretest-8.4.20.txt",
+      "sha256": "7cfa97c0ea0c075cabb6c194557180f52b17e0e48cbedf07859579bc47eed87f",
+      "bytes": 1140,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/independent-interpretation/public-alias-pretest-8.5.19.txt",
+      "sha256": "6cc9a359cd63974cdfd876d9d98c14df0f097bda3344e60cd722a83559a0bae7",
+      "bytes": 1080,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/independent-interpretation/public-alias-pretest-8.6.18.txt",
+      "sha256": "6685dbd87d90e9349bfbf2d9fe3a4995372ab176694d31bebcf5f306a1bc48af",
+      "bytes": 903,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/independent-interpretation/public-alias-pretest-9.0.4.txt",
+      "sha256": "277e37d9a081b35ed3f9284f055bcfcb2c7d06093251345651e75ba350d2fcc6",
+      "bytes": 907,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/independent-interpretation/public-alias-pretest-9.1.0.txt",
+      "sha256": "451be90840652aba6ae88c494de794f4687bdbef926187cdc5d31c642b08d2d6",
+      "bytes": 926,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/8.4.20/0-AliasCreate.txt",
+      "sha256": "bf9c449706c93bae5e97f2b7dddf43772410339c634bde4b9f7b8f97f2e41d3f",
+      "bytes": 4304,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/8.4.20/1-AliasDescribe.txt",
+      "sha256": "8e25fb722874d7d1f45d0b14e0320856c02012caaf29852cecf35de3f01bb674",
+      "bytes": 4448,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/8.4.20/2-AliasObjCmd.txt",
+      "sha256": "e77e294aa8397cd9645170170b5708f00a19e838ab39c13a10794085c395efee",
+      "bytes": 4274,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/8.4.20/3-AliasObjCmdDeleteProc.txt",
+      "sha256": "022beb542756aca470677dca67830b213a6066dfae65665ada1673432b9ba106",
+      "bytes": 4251,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/8.4.20/4-TclPreventAliasLoop.txt",
+      "sha256": "a5bb410c2ca6affc52d0e5a4e2113b8027ac9ab84ed4acae3ea069ec26f88619",
+      "bytes": 4754,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/8.4.20/public-alias-pretest.txt",
+      "sha256": "c0fd9be7a8e9aff6a15ae37afbde7081df9510f23021f5dfd6aac7164b9593b4",
+      "bytes": 965,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/8.5.19/5-AliasCreate.txt",
+      "sha256": "164303a628837e4cdb8f8c9b5e34f887e063097d7548166bda50e33dcf4a94c3",
+      "bytes": 4489,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/8.5.19/6-AliasDescribe.txt",
+      "sha256": "239e9f91aed971cf06967b870b1e8a2178596d9690f8451a8adb72b31440f244",
+      "bytes": 4470,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/8.5.19/7-AliasObjCmd.txt",
+      "sha256": "0141619fc070bf14234f2684587122f327370c6906edfc6a1f2543283ccfe22a",
+      "bytes": 4113,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/8.5.19/8-AliasObjCmdDeleteProc.txt",
+      "sha256": "2b41352f0540c086f682e4903b77e786c59a26d8b3adff55765f42b518f4b66f",
+      "bytes": 4016,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/8.5.19/9-TclPreventAliasLoop.txt",
+      "sha256": "bbf06fdb0455b3f9a0d7ac5629d16418bf3b05dff903fcc3d309b4d3e4a09a00",
+      "bytes": 4320,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/8.5.19/public-alias-pretest.txt",
+      "sha256": "9e628404f926272c373f925f3f28e3b55c1d4b8736e64217c3f640417753f777",
+      "bytes": 905,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/8.6.18/10-AliasCreate.txt",
+      "sha256": "38633dbf55ab11c6f2ad0c808ff093f2b3449b579c0b26140e91465bfd7642e3",
+      "bytes": 4561,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/8.6.18/11-AliasDescribe.txt",
+      "sha256": "8a71dbb0a96313c685ce470e1009d274a903149227686150321ac28d8e3bc4c4",
+      "bytes": 4459,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/8.6.18/12-AliasObjCmd.txt",
+      "sha256": "c7b7bfb5f96c427102da9923bd2e70ac45b2c2e27c8b997a4b0be38ec687bc76",
+      "bytes": 3953,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/8.6.18/13-AliasObjCmdDeleteProc.txt",
+      "sha256": "31e7196384c003067122c0bab386d8e40a2ee3aec599ae6a2cb9d591f38f9a50",
+      "bytes": 3899,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/8.6.18/14-TclPreventAliasLoop.txt",
+      "sha256": "83d84476e8a6acbcb0ded32a5f00e77722eb6d93e2dea2f86d7aadac901deac1",
+      "bytes": 4532,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/8.6.18/public-alias-pretest.txt",
+      "sha256": "8c6f386acb14d1918d42d44fa9f2a05bb49feb8dbdb98f88042738ae9760775c",
+      "bytes": 753,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/9.0.4/15-TclAliasCreate.txt",
+      "sha256": "550a9ac68cf0f3901f5bf35c203d96faa95a10ae051acbc10d4dae02aa750272",
+      "bytes": 4455,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/9.0.4/16-AliasDescribe.txt",
+      "sha256": "d514a4867cf9971e4029085d516c296c0648d5b677083efef97d6b8e104ec712",
+      "bytes": 4467,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/9.0.4/17-TclAliasObjCmd.txt",
+      "sha256": "44fc93d573c944ff588014941b3ffa4b683cbaed61620013c8b78347885edea0",
+      "bytes": 4033,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/9.0.4/18-TclLocalAliasObjCmd.txt",
+      "sha256": "2ff606b00adb1e53f1725a5587eed9c3ff63e5eb1bb34963326ac891147f25e7",
+      "bytes": 4063,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/9.0.4/19-AliasObjCmdDeleteProc.txt",
+      "sha256": "ec8304629217d0de11c56f15312a56abfbb5aa851dd5a48986ba42a71c67b39f",
+      "bytes": 3848,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/9.0.4/20-TclPreventAliasLoop.txt",
+      "sha256": "df61a4f75eb453cf214db1d805a4060f3bfe84310c89dd20a1452535ec11ca5f",
+      "bytes": 4444,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/9.0.4/public-alias-pretest.txt",
+      "sha256": "1e62d0b682514583b3c31b6363d644281fd35ba842927aa54493a9e22f9f7d06",
+      "bytes": 752,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/9.1.0/21-TclAliasCreate.txt",
+      "sha256": "a70d2f3d502586b63d4aa099301e5abbc234795aafb1255b5014fe0796294ea1",
+      "bytes": 4456,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/9.1.0/22-AliasDescribe.txt",
+      "sha256": "d8497b5776d1776e0caf9b41f89e4d933a63cb6234278c644408b8e4fb3e5602",
+      "bytes": 4470,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/9.1.0/23-TclAliasObjCmd.txt",
+      "sha256": "6e41d22f5ec190e5195735dc1124155039d150b0eb7038c573193a3163e4f6b2",
+      "bytes": 4039,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/9.1.0/24-TclLocalAliasObjCmd.txt",
+      "sha256": "2c9bea55205c7ecbc9f7b742a70274c9b25d4b01fd623fecc144d5e75a2fc323",
+      "bytes": 4066,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/9.1.0/25-AliasObjCmdDeleteProc.txt",
+      "sha256": "ec8304629217d0de11c56f15312a56abfbb5aa851dd5a48986ba42a71c67b39f",
+      "bytes": 3848,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/9.1.0/26-TclPreventAliasLoop.txt",
+      "sha256": "5d493ebd94984c5e919fcb940068ad78f60adc0275445613d18106f3b000ed61",
+      "bytes": 4449,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/9.1.0/public-alias-pretest.txt",
+      "sha256": "91c7e26a7cb5c71759490ff9865f48f85b67d1b77c032452a4e93b33c75018ae",
+      "bytes": 740,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/jim/27-JimAliasCmd.txt",
+      "sha256": "7923af53343f07cb65e33069fe3ab82d2f8f85fe3036740c0fc4f39ae5df2d76",
+      "bytes": 4769,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/jim/28-JimAliasCmdDelete.txt",
+      "sha256": "6c3aba2248ec9f66953eed005fa86a1f3cd3a8bc0fe27301cf08810d2b3c0645",
+      "bytes": 4906,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-anchors/jim/29-Jim_AliasCoreCommand.txt",
+      "sha256": "2d82fbdb114af7c15bd74105bfcc0765be6869bc2f81023b05c04ec24e81d253",
+      "bytes": 4843,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/physical-source-joins.json",
+      "sha256": "13df5dbe0a2ea0810c470001ee76733af1179ed929f4a035cef818efaf2f4928",
+      "bytes": 14137,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/recorded-path-map.json",
+      "sha256": "de4ae23708e995412d7063ede25c938e0a7fb15104b42f0d1ba3e186fa8f0adf",
+      "bytes": 2154949,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.alias.original-object-prefix-capture-query-invocation-lifetime"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
       "path": "runtime/rust/tests/data/native_alias_simple/8.4.20.txt",
       "sha256": "5401dc32778ae8571e0214543ff14f749a1b52765311003e310f0adc98d64201",
       "bytes": 108,

@@ -1,0 +1,165 @@
+{
+  "packet": "ConsumerOriginalAliasObjectProbe415",
+  "status": "Launch-ready request only; not compiled, executed or interpreted as provider PASS.",
+  "request": {
+    "path": "/workspace/.proofs/consumer-native-alias-objects415/request.json",
+    "sha256": "b4c7c7e8c2278dee8faa2384a6989c0c85033e392e37de24147d827515777917"
+  },
+  "artifacts": [
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/probe.c",
+      "sha256": "b9eec062b29a84769f9953cf9ee8cc27c3a4da69a86c747d68e0b6558221cd7e"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/launch.py",
+      "sha256": "1224e36c1c3d29248907475b71a4a3fbb3b2a3851c2624f62425202d702e2772"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/request.json",
+      "sha256": "b4c7c7e8c2278dee8faa2384a6989c0c85033e392e37de24147d827515777917"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/README.md",
+      "sha256": "6111bbee4d080d9f3026d7eaff091c5603d186756f3ec8a224a51a5cc0f18217"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/seal.py",
+      "sha256": "3f451d2e53c44d61a6e8fe50aa9de4634a1813ed22cd2e5515e8e6962ed98312"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/8.4.20/AliasCreate.txt",
+      "sha256": "0919fbfb008e0b08e9e6870da7866f1b7448b17b37117410ecafe5a257eb34ab"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/8.4.20/AliasDescribe.txt",
+      "sha256": "10a8b369b5ceea4a068ddee4e3749412fb610770b183076b8369ca9a56f56796"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/8.4.20/AliasObjCmd.txt",
+      "sha256": "9dc62604a5ddade2ba2a8abb2594c3ed37c42bb2ee82c4dcec564a3f3069b974"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/8.4.20/AliasObjCmdDeleteProc.txt",
+      "sha256": "c15b7f9a0cb771bba80b8c0ceda504974514a1adf70e3d0f1c61aabc83918259"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/8.4.20/TclPreventAliasLoop.txt",
+      "sha256": "ca016d0a2ee5764abd877eca27d400837682a4ab53301f0bb74ba0526fb54c11"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/8.5.19/AliasCreate.txt",
+      "sha256": "c22640cb0e5008780546537af5bfab9d3bdc50f95a731d868e8992cbcd1c2ed9"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/8.5.19/AliasDescribe.txt",
+      "sha256": "214d5c69649226aed0a00b9f04641a4ec827ddc7b232fc944a7ca830b3787b85"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/8.5.19/AliasObjCmd.txt",
+      "sha256": "b4a641db6918ca9dac39aac3f8f9717f36a4a41baa72432e653c6a2e997b8936"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/8.5.19/AliasObjCmdDeleteProc.txt",
+      "sha256": "0a50cf89c7ba80e386da7433abf16e42e856b9fd8c241243150f840cd4e1916b"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/8.5.19/TclPreventAliasLoop.txt",
+      "sha256": "152e2cfa666c1443fa359d26b15bcfb56b4e65bf8abdf68a276e4373072950cb"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/8.6.18/AliasCreate.txt",
+      "sha256": "d00cda440060d0b2a28950e3e2e8c1e05af0f9158447b5bbfb88c9748faf6e37"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/8.6.18/AliasDescribe.txt",
+      "sha256": "e050cc127a14113c11447d8bb5aa3df08c1110614d97520c1c17b4d19261d412"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/8.6.18/AliasObjCmd.txt",
+      "sha256": "fffe63e25febf831f11ea45828e5d8c04d9b92eccd3684ca2666d576a49c7c5b"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/8.6.18/AliasObjCmdDeleteProc.txt",
+      "sha256": "b3e202e6887f4f3dcad88e5fc86360e1dce606e153b8b64e7fbde89a48a9e526"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/8.6.18/TclPreventAliasLoop.txt",
+      "sha256": "4c46435f4f7ba4f430fa9ad9f3cba8ed6074dc2d7ca762e682664181b83bec12"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/9.0.4/TclAliasCreate.txt",
+      "sha256": "7f214eee3188f7d43d0cc25c71eff3f74fc9d157274c06c23c936aa8aca2a14e"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/9.0.4/AliasDescribe.txt",
+      "sha256": "c4ac0cd67408535050d0176c5c6ed6943fb26b748e08da21d4a6a2fb1ffb8f1b"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/9.0.4/TclAliasObjCmd.txt",
+      "sha256": "3399384e1f95157ff6182e59626440170f6c2bea9eac493ba1b4292b96b76024"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/9.0.4/TclLocalAliasObjCmd.txt",
+      "sha256": "4e0c44d5ab3a1c07198457bcde7dea396555559e0a586e3d61829caaea453936"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/9.0.4/AliasObjCmdDeleteProc.txt",
+      "sha256": "43047a6339a018dfbcf2a8597558653fd9b1b104e7437457de7f9cbfc7a1af69"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/9.0.4/TclPreventAliasLoop.txt",
+      "sha256": "891be4bdd876f6da46a239166ae54c30fb8809d828aeff545d4ed59a61ff8231"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/9.1.0/TclAliasCreate.txt",
+      "sha256": "e64b13ef4c791d46a2b3f0cbbd6ec28908663a38cecf7e48bbbdaae0b905b115"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/9.1.0/AliasDescribe.txt",
+      "sha256": "397f879ddba4eb57f6ead526d5e3a0d27c45cdaa04d2d8af1972743b5f8fe604"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/9.1.0/TclAliasObjCmd.txt",
+      "sha256": "8ba8333e2bf140c363204aac2cbd690104e186acb3e0c23972937cd93e3cc9e8"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/9.1.0/TclLocalAliasObjCmd.txt",
+      "sha256": "5c64bce6cfef3098e570bfdd9fb4e694ea8ee855a6c4caaa7ee31910681f07e3"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/9.1.0/AliasObjCmdDeleteProc.txt",
+      "sha256": "e9bf5db0ddf0c8c3dc1f6bc662f5299735d18ec23c1882604637e0e28c5c501b"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/9.1.0/TclPreventAliasLoop.txt",
+      "sha256": "4305b1b2bf34c62f127e603dac03c081264ed45c3d9a09eb7d022db292b971aa"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/jim/JimAliasCmd.txt",
+      "sha256": "cfadc60975d173ceb358d44e7dc56760b36b51bf47b3db4c8325121f7b4c6224"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/jim/JimAliasCmdDelete.txt",
+      "sha256": "3c1be996aa856d6eeac268f2e763fa111f9877c0748ac5fd545c6f85d0df1a2b"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-objects415/source-windows/jim/Jim_AliasCoreCommand.txt",
+      "sha256": "d51107481ffca971326fe3730ef278686f5291719156faaaf0f2c6ee47c0bacd"
+    }
+  ],
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "pinned_input_count": 3889,
+  "scope": "Original capture/query List header/member identity, selected invocation getter order/cache and deletion reference ownership. C and Jim purpose separated.",
+  "static_review": {
+    "reviewer": "/root/receiver_finish",
+    "scope": "Original live references/query member access/count ABI/independent Jim purpose; no concrete blocker. Metadata receipt filter corrected to retain actual VERSION/BUILD/API lines.",
+    "status": "Bounded read-only source review; not compiled or executed"
+  }
+}

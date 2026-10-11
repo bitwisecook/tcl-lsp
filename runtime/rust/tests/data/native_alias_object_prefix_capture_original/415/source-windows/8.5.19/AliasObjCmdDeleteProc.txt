@@ -1,0 +1,156 @@
+1851:  *	interpreter.
+1852:  *
+1853:  *----------------------------------------------------------------------
+1854:  */
+1855: 
+1856: static void
+1857: AliasObjCmdDeleteProc(
+1858:     ClientData clientData)	/* The alias record for this alias. */
+1859: {
+1860:     Alias *aliasPtr = clientData;
+1861:     Target *targetPtr;
+1862:     int i;
+1863:     Tcl_Obj **objv;
+1864: 
+1865:     Tcl_DecrRefCount(aliasPtr->token);
+1866:     objv = &aliasPtr->objPtr;
+1867:     for (i = 0; i < aliasPtr->objc; i++) {
+1868: 	Tcl_DecrRefCount(objv[i]);
+1869:     }
+1870:     Tcl_DeleteHashEntry(aliasPtr->aliasEntryPtr);
+1871: 
+1872:     /*
+1873:      * Splice the target record out of the target interpreter's master list.
+1874:      */
+1875: 
+1876:     targetPtr = aliasPtr->targetPtr;
+1877:     if (targetPtr->prevPtr != NULL) {
+1878: 	targetPtr->prevPtr->nextPtr = targetPtr->nextPtr;
+1879:     } else {
+1880: 	Master *masterPtr = &((InterpInfo *) ((Interp *)
+1881: 		aliasPtr->targetInterp)->interpInfo)->master;
+1882: 
+1883: 	masterPtr->targetsPtr = targetPtr->nextPtr;
+1884:     }
+1885:     if (targetPtr->nextPtr != NULL) {
+1886: 	targetPtr->nextPtr->prevPtr = targetPtr->prevPtr;
+1887:     }
+1888: 
+1889:     ckfree((char *) targetPtr);
+1890:     ckfree((char *) aliasPtr);
+1891: }
+1892: 
+1893: 
+1894: /*
+1895:  *----------------------------------------------------------------------
+1896:  *
+1897:  * Tcl_CreateSlave --
+1898:  *
+1899:  *	Creates a slave interpreter. The slavePath argument denotes the name
+1900:  *	of the new slave relative to the current interpreter; the slave is a
+1901:  *	direct descendant of the one-before-last component of the path,
+1902:  *	e.g. it is a descendant of the current interpreter if the slavePath
+1903:  *	argument contains only one component. Optionally makes the slave
+1904:  *	interpreter safe.
+1905:  *
+1906:  * Results:
+1907:  *	Returns the interpreter structure created, or NULL if an error
+1908:  *	occurred.
+1909:  *
+1910:  * Side effects:
+1911:  *	Creates a new interpreter and a new interpreter object command in the
+1912:  *	interpreter indicated by the slavePath argument.
+1913:  *
+1914:  *----------------------------------------------------------------------
+1915:  */
+1916: 
+1917: Tcl_Interp *
+1918: Tcl_CreateSlave(
+1919:     Tcl_Interp *interp,		/* Interpreter to start search at. */
+1920:     const char *slavePath,	/* Name of slave to create. */
+1921:     int isSafe)			/* Should new slave be "safe" ? */
+1922: {
+1923:     Tcl_Obj *pathPtr;
+1924:     Tcl_Interp *slaveInterp;
+1925: 
+1926:     pathPtr = Tcl_NewStringObj(slavePath, -1);
+1927:     slaveInterp = SlaveCreate(interp, pathPtr, isSafe);
+1928:     Tcl_DecrRefCount(pathPtr);
+1929: 
+1930:     return slaveInterp;
+1931: }
+1932: 
+1933: 
+1934: /*
+1935:  *----------------------------------------------------------------------
+1936:  *
+1937:  * Tcl_GetSlave --
+1938:  *
+1939:  *	Finds a slave interpreter by its path name.
+1940:  *
+1941:  * Results:
+1942:  *	Returns a Tcl_Interp * for the named interpreter or NULL if not found.
+1943:  *
+1944:  * Side effects:
+1945:  *	None.
+1946:  *
+1947:  *----------------------------------------------------------------------
+1948:  */
+1949: 
+1950: Tcl_Interp *
+1951: Tcl_GetSlave(
+1952:     Tcl_Interp *interp,		/* Interpreter to start search from. */
+1953:     const char *slavePath)	/* Path of slave to find. */
+1954: {
+1955:     Tcl_Obj *pathPtr;
+1956:     Tcl_Interp *slaveInterp;
+1957: 
+1958:     pathPtr = Tcl_NewStringObj(slavePath, -1);
+1959:     slaveInterp = GetInterp(interp, pathPtr);
+1960:     Tcl_DecrRefCount(pathPtr);
+1961: 
+1962:     return slaveInterp;
+1963: }
+1964: 
+1965: 
+1966: /*
+1967:  *----------------------------------------------------------------------
+1968:  *
+1969:  * Tcl_GetMaster --
+1970:  *
+1971:  *	Finds the master interpreter of a slave interpreter.
+1972:  *
+1973:  * Results:
+1974:  *	Returns a Tcl_Interp * for the master interpreter or NULL if none.
+1975:  *
+1976:  * Side effects:
+1977:  *	None.
+1978:  *
+1979:  *----------------------------------------------------------------------
+1980:  */
+1981: 
+1982: Tcl_Interp *
+1983: Tcl_GetMaster(
+1984:     Tcl_Interp *interp)		/* Get the master of this interpreter. */
+1985: {
+1986:     Slave *slavePtr;		/* Slave record of this interpreter. */
+1987: 
+1988:     if (interp == NULL) {
+1989: 	return NULL;
+1990:     }
+1991:     slavePtr = &((InterpInfo *) ((Interp *) interp)->interpInfo)->slave;
+1992:     return slavePtr->masterInterp;
+1993: }
+1994: 
+1995: 
+1996: /*
+1997:  *----------------------------------------------------------------------
+1998:  *
+1999:  * Tcl_GetInterpPath --
+2000:  *
+2001:  *	Sets the result of the asking interpreter to a proper Tcl list
+2002:  *	containing the names of interpreters between the asking and target
+2003:  *	interpreters. The target interpreter must be either the same as the
+2004:  *	asking interpreter or one of its slaves (including recursively).
+2005:  *
+2006:  * Results:

@@ -1,0 +1,156 @@
+14412:         return JIM_EVAL;
+14413:     }
+14414:     return JIM_OK;
+14415: }
+14416: 
+14417: /* Invoke an alias by prepending its stored command prefix. */
+14418: static int JimAliasCmd(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+14419: {
+14420:     Jim_Obj *cmdList;
+14421:     Jim_Obj *prefixListObj = Jim_CmdPrivData(interp);
+14422: 
+14423:     /* prefixListObj is a list to which the args need to be appended */
+14424:     cmdList = Jim_DuplicateObj(interp, prefixListObj);
+14425:     Jim_ListInsertElements(interp, cmdList, Jim_ListLength(interp, cmdList), argc - 1, argv + 1);
+14426: 
+14427:     return JimEvalObjList(interp, cmdList);
+14428: }
+14429: 
+14430: /* Release the command prefix stored for an alias. */
+14431: static void JimAliasCmdDelete(Jim_Interp *interp, void *privData)
+14432: {
+14433:     Jim_Obj *prefixListObj = privData;
+14434:     Jim_DecrRefCount(interp, prefixListObj);
+14435: }
+14436: 
+14437: /* Implement the alias command that creates command-prefix aliases. */
+14438: static int Jim_AliasCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+14439: {
+14440:     Jim_Obj *prefixListObj = Jim_NewListObj(interp, argv + 2, argc - 2);
+14441:     Jim_IncrRefCount(prefixListObj);
+14442:     Jim_SetResult(interp, argv[1]);
+14443: 
+14444:     Jim_RegisterCommand(interp, argv[1], JimAliasCmd, JimAliasCmdDelete, NULL, NULL, 0, -1, JIM_CMD_ISALIAS, prefixListObj);
+14445:     return JIM_OK;
+14446: }
+14447: 
+14448: /* [proc] */
+14449: static int Jim_ProcCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+14450: {
+14451:     Jim_Cmd *cmd;
+14452: 
+14453:     if (argc == 4) {
+14454:         cmd = JimCreateProcedureCmd(interp, argv[2], NULL, argv[3], NULL);
+14455:     }
+14456:     else {
+14457:         cmd = JimCreateProcedureCmd(interp, argv[2], argv[3], argv[4], NULL);
+14458:     }
+14459: 
+14460:     if (cmd) {
+14461:         /* Add the new command */
+14462:         Jim_Obj *nameObjPtr = JimQualifyName(interp, argv[1]);
+14463:         JimCreateCommand(interp, nameObjPtr, cmd);
+14464: 
+14465:         /* Calculate and set the namespace for this proc */
+14466:         JimUpdateProcNamespace(interp, cmd, nameObjPtr);
+14467:         Jim_DecrRefCount(interp, nameObjPtr);
+14468: 
+14469:         /* Unlike Tcl, set the name of the proc as the result */
+14470:         Jim_SetResult(interp, argv[1]);
+14471:         return JIM_OK;
+14472:     }
+14473:     return JIM_ERR;
+14474: }
+14475: 
+14476: /* [xtrace] */
+14477: static int Jim_XtraceCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+14478: {
+14479:     if (interp->traceCmdObj) {
+14480:         Jim_DecrRefCount(interp, interp->traceCmdObj);
+14481:         interp->traceCmdObj = NULL;
+14482:     }
+14483: 
+14484:     if (Jim_Length(argv[1])) {
+14485:         /* Install the new execution trace callback */
+14486:         interp->traceCmdObj = argv[1];
+14487:         Jim_IncrRefCount(interp->traceCmdObj);
+14488:     }
+14489:     return JIM_OK;
+14490: }
+14491: 
+14492: /* [local] */
+14493: static int Jim_LocalCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+14494: {
+14495:     int retcode;
+14496: 
+14497:     /* Evaluate the arguments with 'local' in force */
+14498:     interp->local++;
+14499:     retcode = Jim_EvalObjVector(interp, argc - 1, argv + 1);
+14500:     interp->local--;
+14501: 
+14502: 
+14503:     /* If OK, and the result is a proc, add it to the list of local procs */
+14504:     if (retcode == 0) {
+14505:         Jim_Obj *cmdNameObj = Jim_GetResult(interp);
+14506: 
+14507:         if (Jim_GetCommand(interp, cmdNameObj, JIM_ERRMSG) == NULL) {
+14508:             return JIM_ERR;
+14509:         }
+14510:         if (interp->framePtr->localCommands == NULL) {
+14511:             interp->framePtr->localCommands = Jim_Alloc(sizeof(*interp->framePtr->localCommands));
+14512:             Jim_StackInit(interp->framePtr->localCommands, NULL);
+14513:         }
+14514:         Jim_IncrRefCount(cmdNameObj);
+14515:         Jim_StackPush(interp->framePtr->localCommands, cmdNameObj);
+14516:     }
+14517: 
+14518:     return retcode;
+14519: }
+14520: 
+14521: /* [upcall] */
+14522: static int Jim_UpcallCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+14523: {
+14524:     int retcode;
+14525: 
+14526:     Jim_Cmd *cmdPtr = Jim_GetCommand(interp, argv[1], JIM_ERRMSG);
+14527:     if (cmdPtr == NULL || !(cmdPtr->flags & JIM_CMD_ISPROC) || !cmdPtr->prevCmd) {
+14528:         Jim_SetResultFormatted(interp, "no previous command: \"%#s\"", argv[1]);
+14529:         return JIM_ERR;
+14530:     }
+14531:     /* OK. Mark this command as being in an upcall */
+14532:     cmdPtr->u.proc.upcall++;
+14533:     JimIncrCmdRefCount(cmdPtr);
+14534: 
+14535:     /* Invoke the command as normal */
+14536:     retcode = Jim_EvalObjVector(interp, argc - 1, argv + 1);
+14537: 
+14538:     /* No longer in an upcall */
+14539:     cmdPtr->u.proc.upcall--;
+14540:     JimDecrCmdRefCount(interp, cmdPtr);
+14541: 
+14542:     return retcode;
+14543: }
+14544: 
+14545: /* [apply] */
+14546: static int Jim_ApplyCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+14547: {
+14548:     int ret;
+14549:     Jim_Cmd *cmd;
+14550:     Jim_Obj *argListObjPtr;
+14551:     Jim_Obj *bodyObjPtr;
+14552:     Jim_Obj *nsObj = NULL;
+14553:     Jim_Obj **nargv;
+14554: 
+14555:     int len = Jim_ListLength(interp, argv[1]);
+14556:     if (len != 2 && len != 3) {
+14557:         Jim_SetResultFormatted(interp, "can't interpret \"%#s\" as a lambda expression", argv[1]);
+14558:         return JIM_ERR;
+14559:     }
+14560: 
+14561:     if (len == 3) {
+14562: #ifdef jim_ext_namespace
+14563:         /* Note that the namespace is always treated as global */
+14564:         nsObj = Jim_ListGetIndex(interp, argv[1], 2);
+14565: #else
+14566:         Jim_SetResultString(interp, "namespaces not enabled", -1);
+14567:         return JIM_ERR;

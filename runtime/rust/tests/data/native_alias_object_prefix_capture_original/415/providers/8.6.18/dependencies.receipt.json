@@ -1,0 +1,93 @@
+{
+  "provider": "8.6.18",
+  "channel": "dependencies",
+  "status": "closed",
+  "command": [
+    "/usr/bin/ldd",
+    "/workspace/.proofs/consumer-native-alias-objects415/providers/8.6.18/probe.elf"
+  ],
+  "cwd": "/workspace/.proofs/consumer-native-alias-objects415",
+  "selected_environment": {
+    "PATH": "/usr/bin:/bin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "removed_inherited_lookup_variables": [
+      "COMPILER_PATH",
+      "LIBRARY_PATH",
+      "GCC_EXEC_PREFIX",
+      "LD_PRELOAD",
+      "LD_LIBRARY_PATH",
+      "BASH_ENV",
+      "ENV"
+    ]
+  },
+  "request_sha256": "b4c7c7e8c2278dee8faa2384a6989c0c85033e392e37de24147d827515777917",
+  "source_sha256": "b9eec062b29a84769f9953cf9ee8cc27c3a4da69a86c747d68e0b6558221cd7e",
+  "returncode": 0,
+  "timeout": false,
+  "seconds": 0.00947842001914978,
+  "stdout_sha256": "7288156369f76bde603fc21eb2d8fb834971c853a084d25414588186bf95dbc7",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "actual_dynamic_dependencies": [
+    {
+      "path": "/lib/x86_64-linux-gnu/libm.so.6",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+      "sha256": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+      "size": 977112,
+      "device": 27,
+      "inode": 9223372036855342425,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libz.so.1",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1",
+      "sha256": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+      "size": 125376,
+      "device": 27,
+      "inode": 9223372036855338875,
+      "mtime_ns": 1730197958000000000,
+      "ctime_ns": 1730197958000000000
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "size": 1995216,
+      "device": 27,
+      "inode": 9223372036855341329,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672,
+      "device": 27,
+      "inode": 9223372036855339413,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    }
+  ],
+  "executable_before": {
+    "path": "/workspace/.proofs/consumer-native-alias-objects415/providers/8.6.18/probe.elf",
+    "resolved_path": "/workspace/.proofs/consumer-native-alias-objects415/providers/8.6.18/probe.elf",
+    "sha256": "120e715f8ae5457242005d7fd7d7130436b715dc5850eb68c53abca8b8263892",
+    "size": 1871312,
+    "device": 27,
+    "inode": 1041163,
+    "mtime_ns": 1791683783661553266,
+    "ctime_ns": 1791683783662853568
+  },
+  "executable_after": {
+    "path": "/workspace/.proofs/consumer-native-alias-objects415/providers/8.6.18/probe.elf",
+    "resolved_path": "/workspace/.proofs/consumer-native-alias-objects415/providers/8.6.18/probe.elf",
+    "sha256": "120e715f8ae5457242005d7fd7d7130436b715dc5850eb68c53abca8b8263892",
+    "size": 1871312,
+    "device": 27,
+    "inode": 1041163,
+    "mtime_ns": 1791683783661553266,
+    "ctime_ns": 1791683783662853568
+  }
+}
