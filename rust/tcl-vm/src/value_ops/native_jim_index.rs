@@ -1088,7 +1088,7 @@ mod indexed_binary_native_projections633 {
     }
 }
 
-#[cfg(all(test, have_tommath))]
+#[cfg(test)]
 mod parsed_empty_duplicate_control {
     use super::*;
     #[test]
@@ -1108,7 +1108,7 @@ mod parsed_empty_duplicate_control {
     }
 }
 
-#[cfg(all(test, have_tommath))]
+#[cfg(test)]
 mod original_index_range_native_rows635 {
     use super::*;
     include!(
