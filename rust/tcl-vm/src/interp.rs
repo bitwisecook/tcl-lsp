@@ -13267,9 +13267,13 @@ impl Vm {
         }
     }
 
-    /// The libraries loaded into this interpreter, `(file name, prefix)`.
-    pub(crate) fn loaded_libraries(&self) -> &[(String, String)] {
-        &self.package_state.loaded_libraries
+    /// Borrow the inventory of the actual interpreter selected by original path resolution.
+    pub(crate) fn loaded_libraries_in(&self, selected: InterpId) -> Option<&[(String, String)]> {
+        if !self.interp_alive(selected) {
+            return None;
+        }
+        self.st_of(selected)
+            .map(|state| state.package_state.loaded_libraries.as_slice())
     }
 
     #[cfg(test)]

@@ -490,16 +490,31 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                         );
                     }
                 };
-                if let Some(path) = path {
-                    let selected = match vm.resolve_interp_path_original(path) {
+                let selected = if let Some(path) = path {
+                    match vm.resolve_interp_path_original(path) {
                         Ok(selected) => selected,
                         Err(error) => return error,
-                    };
-                    if !vm.interp_is_current(selected) {
-                        return vm.refuse_host_command("foreign loaded-library inventory".into());
                     }
+                } else {
+                    vm.cur
+                };
+                let Some(libraries) = vm.loaded_libraries_in(selected) else {
+                    return vm.refuse_host_command("selected loaded-library inventory".into());
+                };
+                // C84/85 retain the reset result when empty; C86+ construct TclNewObj
+                // before any row append. The existing C empty constructor has that storage.
+                if prefix.is_none() && libraries.is_empty() {
+                    let Some(protocol) = vm
+                        .actual_native_invocation_dialect()
+                        .native_string_protocol()
+                        .filter(|protocol| protocol.tcl_version().is_some())
+                    else {
+                        return vm.refuse_host_command(
+                            "original loaded-library result constructor".into(),
+                        );
+                    };
+                    return ok(Value::native_list_constructor(Vec::new(), protocol));
                 }
-                let libraries = vm.loaded_libraries();
                 match prefix {
                     Some(prefix) => ok(libraries
                         .iter()
@@ -1026,6 +1041,100 @@ mod tests {
                 .names_directly_in("tcl::mathfunc", false)
                 .iter()
                 .all(|name| name != "sin")
+        );
+    }
+
+    #[test]
+    fn original_info_loaded_empty_result_uses_actual_c_constructor_without_list_cache() {
+        // naming.info.loaded-original-interpreter-path
+        // docs/design/analysis/name-resolution-proofs/info-loaded-original-interpreter-path.md
+        // Software snapshots of actual selected core recipes; no external C header measurement.
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut vm =
+                crate::native_fixture::core(crate::environment::profile_for_dialect(engine));
+            let result = vm
+                .try_invoke_command("info", &[Value::string("loaded"), Value::string("")])
+                .unwrap();
+            assert_eq!(result.code, Code::Ok, "{engine}");
+            let original = result.result.native_object_snapshot();
+            assert_eq!(original.resident.unwrap().as_ref(), b"", "{engine}");
+            assert_eq!(
+                original.cache,
+                tcl_syntax::native_object::NativeObjectCacheSnapshot::None,
+                "{engine}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_info_loaded_inventory_follows_selected_child_and_refuses_retired_id() {
+        // naming.info.loaded-original-interpreter-path
+        // docs/design/analysis/name-resolution-proofs/info-loaded-original-interpreter-path.md
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
+        vm.note_library_loaded("ROOT539", "Root539");
+        vm.create_child(Some("Child539".into()), false);
+        let selected = vm
+            .resolve_interp_path_original(&Value::string("Child539"))
+            .unwrap();
+        vm.in_interp(selected, |child| {
+            child.note_library_loaded("CHILD539", "Child539")
+        });
+        assert_eq!(
+            vm.loaded_libraries_in(vm.cur).unwrap(),
+            &[("ROOT539".to_owned(), "Root539".to_owned())]
+        );
+        assert_eq!(
+            vm.loaded_libraries_in(selected).unwrap(),
+            &[("CHILD539".to_owned(), "Child539".to_owned())]
+        );
+        assert!(vm.delete_interp(selected));
+        assert!(vm.loaded_libraries_in(selected).is_none());
+        assert_eq!(
+            vm.loaded_libraries_in(vm.cur).unwrap(),
+            &[("ROOT539".to_owned(), "Root539".to_owned())]
+        );
+        let completion = vm
+            .try_invoke_command(
+                "info",
+                &[Value::string("loaded"), Value::string("Child539")],
+            )
+            .unwrap();
+        assert_eq!(completion.code, Code::Error);
+    }
+
+    #[test]
+    fn original_info_loaded_keeps_physical_result_owner_separate_from_source_labels() {
+        // naming.info.loaded-original-interpreter-path
+        // docs/design/analysis/name-resolution-proofs/info-loaded-original-interpreter-path.md
+        let actual = crate::environment::profile_for_dialect("tcl9.0");
+        let source = crate::environment::profile_for_dialect("tcl8.4");
+        let mut vm = crate::native_fixture::core(actual);
+        vm.set_dialect_profile(source);
+        let completion = vm
+            .try_invoke_command("info", &[Value::string("loaded"), Value::string("")])
+            .unwrap();
+        assert_eq!(completion.code, Code::Ok);
+        assert_eq!(
+            completion.result.resident_string_bytes().unwrap().as_ref(),
+            b""
+        );
+        assert_eq!(vm.source_profile().cache_key(), source.cache_key());
+        assert_eq!(
+            vm.actual_native_execution_profile().cache_key(),
+            actual.cache_key()
+        );
+        let mut unavailable = Vm::new();
+        unavailable.set_dialect_profile(actual);
+        assert!(
+            unavailable
+                .actual_native_invocation_dialect()
+                .native_string_protocol()
+                .is_none()
+        );
+        assert!(
+            unavailable
+                .try_invoke_command("info", &[Value::string("loaded"), Value::string("")])
+                .is_err()
         );
     }
 }
