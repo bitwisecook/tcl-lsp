@@ -229,6 +229,7 @@ struct Step {
 /// resolved chain of providers for the invoked method, the current index into
 /// it, the public method name, and whether it was an external (`$obj m`) call.
 pub(crate) struct OoFrame {
+    pub(crate) context_birth: Rc<()>,
     name_owner: Rc<RefCell<Option<Value>>>,
     /// Issued identity of the actual method variable activation, never an ancestor.
     pub(crate) activation: Option<u64>,
@@ -1924,11 +1925,14 @@ fn run_step(
     usage_prefix: Vec<Value>,
     call_identity: Vec<Value>,
 ) -> Completion<Value> {
-    let original_scope =
-        match crate::interp::native_operation_currency::NativeOperationScope::enter(vm) {
-            Ok(scope) => scope,
-            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-        };
+    let cleanup = crate::interp::oo_cleanup::OriginalOoCleanup::enter(vm);
+    if let Err(error) = cleanup.check(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    let prior_depth = match cleanup.capture_dispatch_depth(vm) {
+        Ok(depth) => depth,
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    };
     if let Err(c) = vm.enter_oo_dispatch() {
         return c;
     }
@@ -1944,12 +1948,10 @@ fn run_step(
         usage_prefix,
         call_identity,
     );
-    vm.exit_oo_dispatch();
-    if let Err(error) = original_scope.check(vm) {
-        drop(result);
-        return crate::command::completion_from_cmd_error(vm, error);
+    if let Err(error) = cleanup.restore_dispatch_depth(vm, prior_depth) {
+        crate::interp::oo_cleanup::retain_error(vm, &error);
     }
-    result
+    cleanup.finish_completion(vm, result)
 }
 
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)] // A method activation genuinely carries this context and persistence seam.
@@ -2022,7 +2024,9 @@ fn run_step_inner(
     }
 
     if let Some(property) = &m.property {
+        let mut active = crate::interp::oo_cleanup::OriginalOoActivation::enter(vm);
         let frame = OoFrame {
+            context_birth: Rc::new(()),
             name_owner: Rc::clone(&vm.oo.objects[&obj_key].cached_name),
             activation: None,
             object: obj_key,
@@ -2033,10 +2037,12 @@ fn run_step_inner(
             invoked,
             usage_prefix,
         };
-        vm.oo.call_stack.push(frame);
+        if let Err(error) = active.push_method(vm, frame) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
         let result = native_properties::invoke_default(vm, obj_key, property, args, &call_identity);
-        vm.oo.call_stack.pop();
-        return result;
+        active.retire_method(vm);
+        return active.finish(vm, result);
     }
 
     // A forward: evaluate `prefix args…` with the OBJECT's namespace current,
@@ -2045,10 +2051,12 @@ fn run_step_inner(
     // `$obj fw` called from a namespace that has its own same-named proc
     // still dispatches the global target).
     if let Some(prefix) = &m.forward {
+        let mut active = crate::interp::oo_cleanup::OriginalOoActivation::enter(vm);
         let mut words: Vec<Value> = prefix.clone();
         words.extend_from_slice(args);
         let ns = vm.oo.objects.get(&obj_key).map(|o| o.ns.clone());
         let frame = OoFrame {
+            context_birth: Rc::new(()),
             name_owner: Rc::clone(&vm.oo.objects[&obj_key].cached_name),
             activation: None,
             object: obj_key,
@@ -2059,8 +2067,17 @@ fn run_step_inner(
             invoked: invoked.clone(),
             usage_prefix: usage_prefix.clone(),
         };
-        vm.oo.call_stack.push(frame);
+        if let Err(error) = active.push_method(vm, frame) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
         vm.push_ns(ns.unwrap_or_default());
+        if let Err(error) = active.capture_namespace(vm) {
+            crate::interp::oo_cleanup::retain_error(vm, &error);
+            active.retire_namespace(vm, false);
+            active.retire_method(vm);
+            let result = crate::command::completion_from_cmd_error(vm, error);
+            return active.finish(vm, result);
+        }
         let context = vm.current_ns_id();
         let res = vm.invoke_command_value_at(
             context,
@@ -2069,9 +2086,9 @@ fn run_step_inner(
             &[],
             tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
         );
-        vm.pop_ns();
-        vm.oo.call_stack.pop();
-        return res;
+        active.retire_namespace(vm, false);
+        active.retire_method(vm);
+        return active.finish(vm, res);
     }
 
     let preparation =
@@ -2090,7 +2107,9 @@ fn run_step_inner(
     // class-defined method sees that class's declarations.
     let mut decl: Vec<DeclaredVariable> = Vec::new();
     let mut private_decl: Vec<DeclaredVariable> = Vec::new();
-    let selected_mapping = vm.name_policy_protocol().is_some_and(variable_mapping::selected);
+    let selected_mapping = vm
+        .name_policy_protocol()
+        .is_some_and(variable_mapping::selected);
     let staging = |entry: &DeclaredVariable| {
         if selected_mapping {
             variable_mapping::observation(entry)
@@ -2196,6 +2215,7 @@ fn run_step_inner(
         return crate::command::completion_from_cmd_error(vm, error);
     }
     let frame = OoFrame {
+        context_birth: Rc::new(()),
         name_owner: Rc::clone(&vm.oo.objects[&obj_key].cached_name),
         activation: None,
         object: obj_key,
@@ -2282,8 +2302,17 @@ fn builtin_method(
                 let namespace = vm.definition_namespace_token(&ns);
                 let invocation =
                     original_call_words([invoked, original_method].into_iter().chain(args.iter()));
+                let mut active = crate::interp::oo_cleanup::OriginalOoActivation::enter(vm);
                 vm.push_ns_eval_token_frame(namespace, invocation);
+                if let Err(error) = active.capture_call_and_namespace(vm) {
+                    crate::interp::oo_cleanup::retain_error(vm, &error);
+                    active.retire_call(vm, false);
+                    active.retire_namespace(vm, false);
+                    let result = crate::command::completion_from_cmd_error(vm, error);
+                    return active.finish(vm, result);
+                }
                 let frame = OoFrame {
+                    context_birth: Rc::new(()),
                     name_owner: Rc::clone(&vm.oo.objects[&obj_key].cached_name),
                     activation: Some(vm.native_oo_variable_activation()),
                     object: obj_key,
@@ -2298,7 +2327,13 @@ fn builtin_method(
                     invoked: invoked.clone(),
                     usage_prefix: original_call_words([invoked, original_method]),
                 };
-                vm.oo.call_stack.push(frame);
+                if let Err(error) = active.push_method(vm, frame) {
+                    crate::interp::oo_cleanup::retain_error(vm, &error);
+                    active.retire_call(vm, false);
+                    active.retire_namespace(vm, false);
+                    let result = crate::command::completion_from_cmd_error(vm, error);
+                    return active.finish(vm, result);
+                }
                 let res = match vm.eval_original_script_value(
                     &script,
                     tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
@@ -2309,10 +2344,10 @@ fn builtin_method(
                     Ok(c) => c,
                     Err(e) => crate::command::completion_from_tcl_error(vm, e),
                 };
-                vm.oo.call_stack.pop();
-                vm.pop_call_frame();
-                vm.pop_ns();
-                res
+                active.retire_method(vm);
+                active.retire_call(vm, false);
+                active.retire_namespace(vm, false);
+                active.finish(vm, res)
             }
             _ => unreachable!("builtin_method called with {method}"),
         }

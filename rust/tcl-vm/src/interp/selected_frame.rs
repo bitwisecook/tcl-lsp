@@ -12,8 +12,7 @@ use super::{CallFrame, NsId, Vm};
 pub(crate) struct SelectedFrameRestore {
     target_len: usize,
     frames: Vec<CallFrame>,
-    namespaces: Vec<tcl_core_types::NameBytes>,
-    namespace_ids: Vec<NsId>,
+    namespaces: super::NamespaceResolutionTail,
     namespace_scripts: Vec<usize>,
     recursion_depth: usize,
     shifted: bool,
@@ -22,7 +21,7 @@ pub(crate) struct SelectedFrameRestore {
 impl SelectedFrameRestore {
     /// Namespace of the execution frame hidden by this exact selection.
     pub(crate) fn original_namespace(&self) -> Option<NsId> {
-        self.namespace_ids.last().copied()
+        self.namespaces.current_namespace()
     }
 }
 
@@ -57,8 +56,7 @@ impl Vm {
             tcl_runtime_api::error_stack::ShiftedErrorStackFrame::Unreported
         };
         let namespace_cut = target_len.min(self.resolution_stacks.ns_stack.len());
-        let namespaces = self.resolution_stacks.ns_stack.split_off(namespace_cut);
-        let namespace_ids = self.resolution_stacks.ns_id_stack.split_off(namespace_cut);
+        let namespaces = self.resolution_stacks.take_tail(namespace_cut);
         let script_cut = self
             .ns_script_frames
             .partition_point(|depth| *depth <= target_len);
@@ -70,7 +68,6 @@ impl Vm {
             target_len,
             frames,
             namespaces,
-            namespace_ids,
             namespace_scripts,
             recursion_depth: self.recursion_depth,
             shifted: true,
@@ -89,16 +86,8 @@ impl Vm {
         // children left above the selected frame by an abrupt completion.
         self.drain_call_frames_to(selected.target_len);
         self.frames.extend(selected.frames);
-        self.resolution_stacks
-            .ns_stack
-            .truncate(selected.target_len);
-        self.resolution_stacks.ns_stack.extend(selected.namespaces);
-        self.resolution_stacks
-            .ns_id_stack
-            .truncate(selected.target_len);
-        self.resolution_stacks
-            .ns_id_stack
-            .extend(selected.namespace_ids);
+        self.resolution_stacks.truncate_tail(selected.target_len);
+        self.resolution_stacks.append_tail(selected.namespaces);
         self.ns_script_frames
             .retain(|depth| *depth <= selected.target_len);
         self.ns_script_frames.extend(selected.namespace_scripts);

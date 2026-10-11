@@ -252,6 +252,8 @@ pub(crate) struct Frame {
     /// Whether this activation owns a `Vm` call-frame (a proc body) that must be
     /// popped, and whose boundary absorbs `Return`.
     is_proc: bool,
+    /// Authentic OO procedure exit keeps readonly original cleanup observations.
+    oo_call_exit: Option<crate::interp::oo_cleanup::OriginalOoCallExit>,
     /// A *transparent* script activation (`eval`/`uplevel`/`catch`/`subst` body
     /// run on the explicit stack so a `yield` inside it stays yieldable). It owns
     /// no `Vm` call-frame; on completion its result is delivered to the parent
@@ -656,6 +658,7 @@ impl Frame {
             deferred_dispatch: None,
             last_options: Value::empty(),
             is_proc,
+            oo_call_exit: None,
             is_script: false,
             replay_namespace_restore: None,
             selected_frame_restore: None,
@@ -1623,6 +1626,8 @@ impl Vm {
     /// counter `yield` consults to reject a suspend across a `catch`/`uplevel`/
     /// `eval`/OO-method boundary (`cannot yield: C stack busy`).
     fn drive(&mut self, acts: &mut Vec<Frame>, mode: DriveMode) -> RunExit {
+        let original = crate::interp::oo_cleanup::OriginalOoCleanup::enter(self);
+        let previous_depth = self.activation_depth;
         let current_evaluations = self
             .jim_errors
             .frames
@@ -1632,14 +1637,29 @@ impl Vm {
         let previous_outer = std::mem::replace(&mut self.jim_errors.outer, current_evaluations);
         self.activation_depth += 1;
         let exit = self.drive_loop(acts, mode);
-        let errors = &mut self.jim_errors;
-        errors.frames = errors
-            .outer
-            .iter()
-            .map(Self::borrow_jim_evaluation_frame)
-            .collect();
-        self.jim_errors.outer = previous_outer;
-        self.activation_depth -= 1;
+        let restored = original.in_original(self, |vm| {
+            let errors = &mut vm.jim_errors;
+            errors.frames = errors
+                .outer
+                .iter()
+                .map(Self::borrow_jim_evaluation_frame)
+                .collect();
+            vm.jim_errors.outer = previous_outer;
+            vm.activation_depth = previous_depth;
+        });
+        if let Err(error) = restored {
+            crate::interp::oo_cleanup::retain_error(self, &error);
+        }
+        if let Err(first) = original.check(self) {
+            crate::interp::oo_cleanup::retain_error(self, &first);
+            drop(exit);
+            if !acts.is_empty() {
+                let retired = original.in_original(self, |vm| vm.abort_refused_activations(acts));
+                drop(retired);
+            }
+            let first = original.check(self).err().unwrap_or(first);
+            return RunExit::Done(crate::command::completion_from_cmd_error(self, first));
+        }
         exit
     }
 
@@ -2177,9 +2197,17 @@ impl Vm {
         while let Some(mut activation) = acts.pop() {
             activation.close_native_script();
             if activation.is_proc {
-                self.release_native_procedure_execution();
-                self.pop_call_frame();
-                self.pop_ns();
+                if let Some(exit) = &activation.oo_call_exit {
+                    if let Err(error) =
+                        exit.in_original(self, |vm, original| exit.retire(vm, original))
+                    {
+                        crate::interp::oo_cleanup::retain_error(self, &error);
+                    }
+                } else {
+                    self.release_native_procedure_execution();
+                    self.pop_call_frame();
+                    self.pop_ns();
+                }
             } else if let Some(previous) = activation.replay_namespace_restore.take() {
                 self.leave_replay_namespace(previous);
             }
@@ -2688,7 +2716,47 @@ impl Vm {
         acts: &[Frame],
         c: &mut Completion<Value>,
     ) -> Option<TailcallReq> {
+        if let Some(exit) = act.oo_call_exit.clone() {
+            let reached = exit.in_original(self, |vm, original| {
+                if let Err(error) = exit.check_running(vm, original) {
+                    crate::interp::oo_cleanup::retain_error(vm, &error);
+                    exit.retire(vm, original);
+                    return None;
+                }
+                vm.unwind_activation_state_in_original(act, acts, c, Some((&exit, original)))
+            });
+            return match reached {
+                Ok(tailcall) => tailcall,
+                Err(error) => {
+                    crate::interp::oo_cleanup::retain_error(self, &error);
+                    let replacement = crate::command::completion_from_cmd_error(self, error);
+                    let prior = std::mem::replace(c, replacement);
+                    drop(prior);
+                    None
+                }
+            };
+        }
+        self.unwind_activation_state_in_original(act, acts, c, None)
+    }
+
+    fn unwind_activation_state_in_original(
+        &mut self,
+        act: &mut Frame,
+        acts: &[Frame],
+        c: &mut Completion<Value>,
+        oo_exit: Option<(
+            &crate::interp::oo_cleanup::OriginalOoCallExit,
+            &crate::interp::oo_cleanup::OriginalOoCleanup,
+        )>,
+    ) -> Option<TailcallReq> {
         self.settle_activation_parse_tail(act, c);
+        if let Some((exit, original)) = oo_exit {
+            if let Err(error) = exit.check_running(self, original) {
+                crate::interp::oo_cleanup::retain_error(self, &error);
+                exit.retire(self, original);
+                return None;
+            }
+        }
         // An error unwinding through an inlined command body (`eval {…}`)
         // adds the body frames the uncompiled command would, before this
         // activation's own proc frame (innermost first) — the compiled
@@ -2696,9 +2764,16 @@ impl Vm {
         if c.code == Code::Error {
             self.apply_activation_error_context(act, acts);
         }
+        if let Some((exit, original)) = oo_exit {
+            if let Err(error) = exit.check_running(self, original) {
+                crate::interp::oo_cleanup::retain_error(self, &error);
+                exit.retire(self, original);
+                return None;
+            }
+        }
         let tailcall = act.is_proc.then(|| self.take_frame_tailcall()).flatten();
         if act.is_proc {
-            self.unwind_proc_frame(act, acts, c);
+            self.unwind_proc_frame(act, acts, c, oo_exit);
         } else if let Some(previous) = act.replay_namespace_restore.take() {
             self.leave_replay_namespace(previous);
         }
@@ -3035,8 +3110,20 @@ impl Vm {
     /// `TclUpdateReturnInfo` (a proc boundary decrements a carried `-code`/`-level`
     /// return), and on error log the caller's `invoked from
     /// within "…"` frame. Mutates `c` in place. Split out of [`Vm::unwind`].
-    fn unwind_proc_frame(&mut self, act: &Frame, acts: &[Frame], c: &mut Completion<Value>) {
+    fn unwind_proc_frame(
+        &mut self,
+        act: &Frame,
+        acts: &[Frame],
+        c: &mut Completion<Value>,
+        oo_exit: Option<(
+            &crate::interp::oo_cleanup::OriginalOoCallExit,
+            &crate::interp::oo_cleanup::OriginalOoCleanup,
+        )>,
+    ) {
         self.release_native_procedure_execution();
+        if !self.check_oo_proc_exit(oo_exit) {
+            return;
+        }
         // C's `InterpProcNR2` proc epilogue (`tclProc.c:1864`): a proc body that
         // reaches its boundary with a bare `break`/`continue` — i.e. a
         // `break`/`continue` or `return -level 0 -code break` that produced
@@ -3070,6 +3157,9 @@ impl Vm {
             );
             self.seed_error_info(format!("invoked \"{word}\" outside of a loop"));
         }
+        if !self.check_oo_proc_exit(oo_exit) {
+            return;
+        }
         // The `(procedure … line N)` frame reports the body-relative line of the
         // failing command. A runtime-compiled proc body (the common case) carries
         // body-relative instruction lines with `body_base_line == 0`, so the line
@@ -3089,8 +3179,19 @@ impl Vm {
             };
             self.append_proc_frame(&name, n);
         }
-        self.pop_call_frame();
-        self.pop_ns();
+        if !self.check_oo_proc_exit(oo_exit) {
+            return;
+        }
+        if let Some((exit, original)) = oo_exit {
+            exit.retire(self, original);
+            if let Err(error) = original.check(self) {
+                crate::interp::oo_cleanup::retain_error(self, &error);
+                return;
+            }
+        } else {
+            self.pop_call_frame();
+            self.pop_ns();
+        }
         if c.code == Code::Return && self.uses_jim_error_stack() {
             c.code = self.jim_errors.pending_return.settle_procedure(c.code);
             c.options = self.jim_return_options(c.code);
@@ -3163,9 +3264,21 @@ impl Vm {
                 }
             }
         }
+        if let Some((_, original)) = oo_exit {
+            if let Err(error) = original.check(self) {
+                crate::interp::oo_cleanup::retain_error(self, &error);
+                return;
+            }
+        }
         if c.code == Code::Error && self.uses_jim_error_stack() {
             self.refresh_jim_evaluation_frames(acts);
             self.capture_jim_error_stack();
+        }
+        if let Some((_, original)) = oo_exit {
+            if let Err(error) = original.check(self) {
+                crate::interp::oo_cleanup::retain_error(self, &error);
+                return;
+            }
         }
         if c.code == Code::Error
             && let Some((cmd, line)) = acts.last().and_then(|parent| {
@@ -3178,6 +3291,23 @@ impl Vm {
         {
             self.log_command_info(&cmd, "", line);
         }
+    }
+
+    fn check_oo_proc_exit(
+        &mut self,
+        selected: Option<(
+            &crate::interp::oo_cleanup::OriginalOoCallExit,
+            &crate::interp::oo_cleanup::OriginalOoCleanup,
+        )>,
+    ) -> bool {
+        if let Some((exit, original)) = selected {
+            if let Err(error) = exit.check_running(self, original) {
+                crate::interp::oo_cleanup::retain_error(self, &error);
+                exit.retire(self, original);
+                return false;
+            }
+        }
+        true
     }
 
     /// Fold a subst `[…]` bracket body's completion into the parent subst frame's
@@ -9577,11 +9707,19 @@ impl Vm {
         link_vars: &[(tcl_core_types::NameBytes, tcl_core_types::NameBytes)],
         frame: crate::cmd_oo::OoFrame,
     ) -> Completion<Value> {
+        let mut active = crate::interp::oo_cleanup::OriginalOoActivation::enter(self);
         let proc = &activation.proc;
         let invoked =
             Value::from_native_string_bytes(proc.actual_command_slot().simple.as_bytes().to_vec());
         if let Err(c) = self.enter_proc(proc, &activation.body, &invoked, argv) {
-            return c;
+            return active.finish(self, c);
+        }
+        if let Err(error) = active.capture_call_and_namespace(self) {
+            crate::interp::oo_cleanup::retain_error(self, &error);
+            active.retire_call(self, false);
+            active.retire_namespace(self, false);
+            let result = crate::command::completion_from_cmd_error(self, error);
+            return active.finish(self, result);
         }
         if let Some(layout) = &activation.body.compiled_local_layout {
             let protocol = self
@@ -9601,11 +9739,12 @@ impl Vm {
                         Ok(false) => continue,
                         Ok(true) => {}
                         Err(error) => {
-                            self.pop_call_frame();
-                            self.pop_ns();
-                            return self.refuse_host_command(format!(
+                            let result = self.refuse_host_command(format!(
                                 "TclOO compiled variable resolver: {error:?}"
                             ));
+                            active.retire_call(self, false);
+                            active.retire_namespace(self, false);
+                            return active.finish(self, result);
                         }
                     }
                     if let Err(error) = self.add_tcloo_compiled_instance_link(
@@ -9613,13 +9752,14 @@ impl Vm {
                         proc.actual_namespace_id(),
                         storage.as_bytes(),
                     ) {
-                        self.pop_call_frame();
-                        self.pop_ns();
-                        return crate::command::upvar_link_error_bytes(
+                        let result = crate::command::upvar_link_error_bytes(
                             error,
                             storage.as_bytes(),
                             primary.as_bytes(),
                         );
+                        active.retire_call(self, false);
+                        active.retire_namespace(self, false);
+                        return active.finish(self, result);
                     }
                     break;
                 }
@@ -9628,10 +9768,20 @@ impl Vm {
         self.install_native_procedure_binding(activation.declaration_binding);
         let mut frame = frame;
         frame.activation = Some(self.native_oo_variable_activation());
-        self.oo.call_stack.push(frame);
-        let result = self.run_activation(Frame::new(activation.body, true));
-        self.oo.call_stack.pop();
-        result
+        if let Err(error) = active.push_method(self, frame) {
+            crate::interp::oo_cleanup::retain_error(self, &error);
+            active.retire_call(self, false);
+            active.retire_namespace(self, false);
+            let result = crate::command::completion_from_cmd_error(self, error);
+            return active.finish(self, result);
+        }
+        let mut body = Frame::new(activation.body, true);
+        body.oo_call_exit = active.saved_call_exit();
+        let result = self.run_activation(body);
+        active.retire_call(self, true);
+        active.retire_namespace(self, true);
+        active.retire_method(self);
+        active.finish(self, result)
     }
 
     fn tick_original_invocation(&mut self, frame: &mut Frame, original: Value) -> Tick {

@@ -126,6 +126,8 @@ pub(crate) mod oo_cleanup;
 #[cfg(test)]
 mod original_name_residual_tests;
 mod selected_frame;
+mod namespace_stack;
+use namespace_stack::NamespaceResolutionTail;
 mod variable_container;
 mod variable_trace_outcomes;
 
@@ -1173,6 +1175,7 @@ impl Default for NativeCompilationEpochs {
 struct NamespaceResolutionStacks {
     ns_stack: Vec<NameBytes>,
     ns_id_stack: Vec<NsId>,
+    activation_births: Vec<Rc<()>>,
 }
 
 impl Default for NamespaceResolutionStacks {
@@ -1180,6 +1183,7 @@ impl Default for NamespaceResolutionStacks {
         Self {
             ns_stack: vec![NameBytes::default()],
             ns_id_stack: vec![ROOT_NS],
+            activation_births: vec![Rc::new(())],
         }
     }
 }
@@ -1663,8 +1667,7 @@ pub(crate) struct JimEvaluationState {
 pub(crate) struct ParkedFlow {
     timer_anchor: Option<crate::retained_activation::RetainedActivation>,
     frames: Vec<CallFrame>,
-    ns_stack: Vec<NameBytes>,
-    ns_id_stack: Vec<NsId>,
+    namespaces: NamespaceResolutionTail,
     ns_script_frames: Vec<usize>,
     recursion_depth: usize,
     error_info: Option<Vec<u8>>,
@@ -1703,7 +1706,7 @@ impl ParkedFlow {
     /// Constructed namespace of the parked flow's current Tcl frame.  The
     /// saved stack omits the shared global root, so an empty tail is global.
     pub(crate) fn current_namespace_token(&self) -> NsId {
-        self.ns_id_stack.last().copied().unwrap_or(ROOT_NS)
+        self.namespaces.current_namespace().unwrap_or(ROOT_NS)
     }
 }
 
@@ -11279,8 +11282,7 @@ impl Vm {
             .counts
             .entry(id)
             .or_insert(0) += 1;
-        self.resolution_stacks.ns_stack.push(name.into());
-        self.resolution_stacks.ns_id_stack.push(id);
+        self.resolution_stacks.push_activation(name.into(), id);
     }
 
     /// Enter a transparent stale-command replay's resolution namespace without
@@ -11343,6 +11345,10 @@ impl Vm {
         let Some(id) = self.pop_ns_token() else {
             return;
         };
+        self.retire_namespace_activation_role(id);
+    }
+
+    fn retire_namespace_activation_role(&mut self, id: NsId) {
         let settle = {
             let mut world = self.name_world.borrow_mut();
             let count = world.ns_deferral.counts.entry(id).or_insert(0);
@@ -11359,11 +11365,9 @@ impl Vm {
     /// deleted coroutine's parked stack, whose namespace C therefore never
     /// tears down at all.
     pub(crate) fn pop_ns_token(&mut self) -> Option<NsId> {
-        if self.resolution_stacks.ns_stack.len() > 1 {
-            self.resolution_stacks.ns_stack.pop();
-            return self.resolution_stacks.ns_id_stack.pop();
-        }
-        None
+        self.resolution_stacks
+            .pop_activation()
+            .map(|entry| entry.namespace)
     }
 
     /// Whether namespace `ns` (canonical, unrooted; `""` is the always-present
@@ -17044,27 +17048,9 @@ impl Vm {
     }
 
     pub(crate) fn pop_call_frame(&mut self) {
-        if self.frames.len() > 1 {
-            self.release_native_procedure_execution();
-            let frame = self.frames.pop().expect("non-global frame exists");
-            self.recursion_depth = self.recursion_depth.saturating_sub(1);
-            // Tcl switches to the caller before firing a departing frame's
-            // unset callbacks. The namespace stacks are retired separately by
-            // the activation owner, so hide their top entry only for this walk.
-            let has_departing_ns = self.resolution_stacks.ns_stack.len() > self.frames.len();
-            let departing_ns = has_departing_ns
-                .then(|| self.resolution_stacks.ns_stack.pop())
-                .flatten();
-            let departing_ns_id = has_departing_ns
-                .then(|| self.resolution_stacks.ns_id_stack.pop())
-                .flatten();
-            self.destroy_call_frame(frame);
-            if let Some(ns) = departing_ns {
-                self.resolution_stacks.ns_stack.push(ns);
-            }
-            if let Some(ns_id) = departing_ns_id {
-                self.resolution_stacks.ns_id_stack.push(ns_id);
-            }
+        let cleanup = oo_cleanup::OriginalOoCleanup::enter(self);
+        if let Err(error) = cleanup.pop_call_frame(self) {
+            let _ = crate::command::completion_from_cmd_error(self, error);
         }
     }
 
@@ -17121,36 +17107,48 @@ impl Vm {
     /// owned by another frame, whose trace fires when *that* frame goes. The
     /// fired traces are then dropped, since their variables no longer exist.
     /// Guarded on `var_traces` being non-empty, so it is free in the common case.
-    fn destroy_call_frame(&mut self, mut frame: CallFrame) {
+    fn destroy_call_frame(
+        &mut self,
+        mut frame: CallFrame,
+        original: &oo_cleanup::OriginalOoCleanup,
+    ) {
         let operation = native_operation_currency::NativeOperationScope::enter(self);
         if let Err(error) = &operation {
             let _ = crate::command::completion_from_cmd_error(self, error.clone());
         }
         let storage = frame.jim_storage.clone();
-        if let Err(error) =
-            self.clean_jim_local_commands(std::mem::take(&mut frame.jim_local_commands))
-        {
+        let locals = std::mem::take(&mut frame.jim_local_commands);
+        let cleaned = original.in_original(self, |vm| vm.clean_jim_local_commands(locals));
+        if let Err(error) = cleaned.and_then(std::convert::identity) {
             let _ = crate::command::completion_from_cmd_error(self, error);
         }
         frame.release_native_jim_owners();
         for (name, raw) in frame.into_local_bindings() {
-            if self.var_arena.has_static_refs(raw) {
-                self.var_arena.unbind(raw);
-                continue;
+            let retired = original.in_original(self, |vm| {
+                if vm.var_arena.has_static_refs(raw) {
+                    vm.var_arena.unbind(raw);
+                } else if matches!(
+                    vm.var_arena.get(raw).map(crate::vars::VarCell::state),
+                    Some(Local::Link(_) | Local::NameLink(_))
+                ) {
+                    vm.purge_variable_cell(raw);
+                    vm.var_arena.unbind(raw);
+                } else {
+                    vm.destroy_owned_variable(&name, raw, None);
+                }
+            });
+            if let Err(error) = retired {
+                let _ = crate::command::completion_from_cmd_error(self, error);
             }
-            if matches!(
-                self.var_arena.get(raw).map(crate::vars::VarCell::state),
-                Some(Local::Link(_) | Local::NameLink(_))
-            ) {
-                self.purge_variable_cell(raw);
-                self.var_arena.unbind(raw);
-                continue;
-            }
-            self.destroy_owned_variable(&name, raw, None);
         }
-        self.retire_released_native_alias_entries();
-        if self.uses_native_jim_lookup() {
-            self.jim_storage.recycle(storage);
+        let retired = original.in_original(self, |vm| {
+            vm.retire_released_native_alias_entries();
+            if vm.uses_native_jim_lookup() {
+                vm.jim_storage.recycle(storage);
+            }
+        });
+        if let Err(error) = retired {
+            let _ = crate::command::completion_from_cmd_error(self, error);
         }
         let checked = operation.and_then(|scope| scope.check(self));
         if let Err(error) = checked {
@@ -17233,8 +17231,8 @@ impl Vm {
 
     /// Enter one level of `TclOO` method-dispatch recursion — see
     /// [`OO_DISPATCH_DEPTH_LIMIT`]'s doc comment. Checked
-    /// before incrementing; pair with [`Self::exit_oo_dispatch`] (even on
-    /// an early-error return) to keep the counter balanced.
+    /// before incrementing. The original OO cleanup owner restores the captured
+    /// physical interpreter's depth after the method and mandatory retirement.
     pub(crate) fn enter_oo_dispatch(&mut self) -> Result<(), Completion<Value>> {
         if OO_DISPATCH_DEPTH_LIMIT
             .exceeded(u32::try_from(self.oo_dispatch_depth + 1).unwrap_or(u32::MAX))
@@ -17243,12 +17241,6 @@ impl Vm {
         }
         self.oo_dispatch_depth += 1;
         Ok(())
-    }
-
-    /// Leave one level of `TclOO` method-dispatch recursion — see
-    /// [`Self::enter_oo_dispatch`].
-    pub(crate) fn exit_oo_dispatch(&mut self) {
-        self.oo_dispatch_depth = self.oo_dispatch_depth.saturating_sub(1);
     }
 
     /// This interp's recursion bound (`interp recursionlimit`).
@@ -17338,12 +17330,9 @@ impl Vm {
         std::mem::swap(&mut ftail, &mut p.frames);
         self.frames.append(&mut ftail);
         let ns_cut = 1.min(self.resolution_stacks.ns_stack.len());
-        let mut nstail = self.resolution_stacks.ns_stack.split_off(ns_cut);
-        std::mem::swap(&mut nstail, &mut p.ns_stack);
-        self.resolution_stacks.ns_stack.append(&mut nstail);
-        let mut ns_id_tail = self.resolution_stacks.ns_id_stack.split_off(ns_cut);
-        std::mem::swap(&mut ns_id_tail, &mut p.ns_id_stack);
-        self.resolution_stacks.ns_id_stack.append(&mut ns_id_tail);
+        let mut namespaces = self.resolution_stacks.take_tail(ns_cut);
+        std::mem::swap(&mut namespaces, &mut p.namespaces);
+        self.resolution_stacks.append_tail(namespaces);
         std::mem::swap(&mut self.timer_anchor, &mut p.timer_anchor);
         // Scalars / stacks: plain exchange.
         std::mem::swap(&mut self.ns_script_frames, &mut p.ns_script_frames);
@@ -26230,8 +26219,7 @@ impl Frames for Vm {
     fn push(&mut self, ns: NsId) -> FrameId {
         let name = self.ns_name_bytes(ns);
         let level = self.push_call_frame(None, Vec::new());
-        self.resolution_stacks.ns_stack.push(name);
-        self.resolution_stacks.ns_id_stack.push(ns);
+        self.resolution_stacks.push_activation(name, ns);
         FrameId(level)
     }
 

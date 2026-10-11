@@ -67,10 +67,59 @@ pub(super) fn current_method(vm: &Vm) -> Option<&OoFrame> {
         .find(|frame| frame.activation == Some(activation))
 }
 
+/// Readonly cleanup observation of the exact pushed OO frame, including synthetic eval.
+/// This does not issue method-context, provider, callable or Native reference authority.
+#[derive(Clone)]
+pub(crate) struct OriginalOoCleanupFrame {
+    position: usize,
+    birth: std::rc::Weak<()>,
+    activation: Option<u64>,
+    object: OoId,
+    name: std::rc::Weak<std::cell::RefCell<Option<Value>>>,
+    steps: std::rc::Weak<Vec<super::Step>>,
+    index: usize,
+    method: String,
+    role: tcl_registry::native_tcloo_method_definition::NativeTclooMethodReportRole,
+}
+impl OriginalOoCleanupFrame {
+    pub(crate) fn capture(position: usize, frame: &OoFrame) -> Self {
+        Self {
+            position,
+            birth: std::rc::Rc::downgrade(&frame.context_birth),
+            activation: frame.activation,
+            object: frame.object,
+            name: std::rc::Rc::downgrade(&frame.name_owner),
+            steps: frame.chain.original_steps(),
+            index: frame.index,
+            method: frame.method.clone(),
+            role: frame.chain.report_role(),
+        }
+    }
+    pub(crate) fn position(&self) -> usize {
+        self.position
+    }
+    pub(crate) fn matches_birth(&self, frame: &OoFrame) -> bool {
+        std::rc::Weak::ptr_eq(&self.birth, &std::rc::Rc::downgrade(&frame.context_birth))
+    }
+    pub(crate) fn matches_description(&self, frame: &OoFrame) -> bool {
+        self.matches_birth(frame)
+            && frame.activation == self.activation
+            && frame.object == self.object
+            && frame.index == self.index
+            && frame.method == self.method
+            && frame.chain.report_role() == self.role
+            && self.name.strong_count() != 0
+            && std::rc::Weak::ptr_eq(&self.name, &std::rc::Rc::downgrade(&frame.name_owner))
+            && self.steps.strong_count() != 0
+            && std::rc::Weak::ptr_eq(&self.steps, &frame.chain.original_steps())
+    }
+}
+
 /// Descriptive observation of the selected physical method activation and chain.
 /// It grants no object lookup, callable Method, or additional native reference.
 pub(super) struct OriginalMethodFrame {
     position: usize,
+    birth: std::rc::Weak<()>,
     activation: u64,
     object: OoId,
     name: std::rc::Weak<std::cell::RefCell<Option<Value>>>,
@@ -90,6 +139,7 @@ impl OriginalMethodFrame {
         let frame = &vm.oo.call_stack[position];
         Some(Self {
             position,
+            birth: std::rc::Rc::downgrade(&frame.context_birth),
             activation,
             object: frame.object,
             name: std::rc::Rc::downgrade(&frame.name_owner),
@@ -107,7 +157,8 @@ impl OriginalMethodFrame {
             .rposition(|frame| frame.activation == Some(vm.native_oo_variable_activation()));
         selected == Some(self.position)
             && vm.oo.call_stack.get(self.position).is_some_and(|frame| {
-                frame.activation == Some(self.activation)
+                std::rc::Weak::ptr_eq(&self.birth, &std::rc::Rc::downgrade(&frame.context_birth))
+                    && frame.activation == Some(self.activation)
                     && frame.object == self.object
                     && frame.index == self.index
                     && frame.chain.get(frame.index).is_some()
