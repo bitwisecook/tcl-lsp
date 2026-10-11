@@ -2397,7 +2397,7 @@ fn cmd_self(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return crate::command::native_wrong_args(vm, "self subcommand");
     }
     let sub = match args.first() {
-        Some(original) => match vm.native_static_option_index(
+        Some(original) => match vm.native_static_option_index_checked(
             original,
             tcl_registry::native_tcloo_compilation::SELF_SUBCOMMANDS,
             false,
@@ -3261,7 +3261,7 @@ fn def_method(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Comp
             return definition_wrong_args(vm, protocol.usage());
         };
         let explicit = if let Some(index) = layout.option {
-            let selected = match vm.native_static_option_index(
+            let selected = match vm.native_static_option_index_checked(
                 &args[index],
                 protocol.export_modes().unwrap(),
                 false,
@@ -3918,8 +3918,12 @@ fn info_object_isa(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let (Some(kind), Some(obj_arg)) = (rest.first(), rest.get(1)) else {
         return crate::command::native_wrong_args(vm, "info object isa category objName ?arg ...?");
     };
-    let kind = match vm.native_static_option_index(kind, ISA_CATEGORIES.names(), false, "category")
-    {
+    let kind = match vm.native_static_option_index_checked(
+        kind,
+        ISA_CATEGORIES.names(),
+        false,
+        "category",
+    ) {
         Ok(i) => ISA_CATEGORIES.names()[i],
         Err(e) => return crate::command::completion_from_cmd_error(vm, e),
     };

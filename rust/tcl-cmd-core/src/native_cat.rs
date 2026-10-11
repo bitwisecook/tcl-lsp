@@ -56,31 +56,102 @@ pub fn concatenate_jim<O: NativeAppendObjects>(
     inputs: &[O::Value],
     mut original_string: impl FnMut(&O::Value) -> Result<Rc<[u8]>, ValueError>,
 ) -> Result<O::Value, ValueError> {
+    concatenate_jim_using::<O, ValueError>(
+        ops,
+        protocol,
+        inputs,
+        &mut original_string,
+        &mut None,
+        &mut |_| {},
+    )
+}
+
+/// The same Jim cat worker under an original getter, header and operation guard.
+/// Reached errors are retained before the fresh result is retired.
+///
+/// # Errors
+/// Preserves checked original refusal or the selected worker's allocation error.
+pub fn concatenate_jim_checked<O: NativeAppendObjects, E: From<ValueError>>(
+    ops: &O,
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+    inputs: &[O::Value],
+    original_string: &mut impl FnMut(&O::Value) -> Result<Rc<[u8]>, E>,
+    check: &mut dyn FnMut(&O::Value) -> Result<(), E>,
+    retain: &mut dyn FnMut(&E),
+) -> Result<O::Value, E> {
+    concatenate_jim_using(
+        ops,
+        protocol,
+        inputs,
+        original_string,
+        &mut Some(check),
+        retain,
+    )
+}
+
+fn jim_cat_stage<V, E>(
+    check: &mut Option<&mut dyn FnMut(&V) -> Result<(), E>>,
+    original: &V,
+) -> Result<(), E> {
+    check.as_mut().map_or(Ok(()), |check| check(original))
+}
+
+fn concatenate_jim_using<O: NativeAppendObjects, E: From<ValueError>>(
+    ops: &O,
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+    inputs: &[O::Value],
+    original_string: &mut impl FnMut(&O::Value) -> Result<Rc<[u8]>, E>,
+    check: &mut Option<&mut dyn FnMut(&O::Value) -> Result<(), E>>,
+    retain: &mut dyn FnMut(&E),
+) -> Result<O::Value, E> {
     if !protocol.is_jim084() {
-        return Err(ValueError::CommandProtocolUnavailable(
-            "Jim string cat worker",
-        ));
+        return Err(ValueError::CommandProtocolUnavailable("Jim string cat worker").into());
     }
     if let [only] = inputs {
+        jim_cat_stage(check, only)?;
         return Ok(only.clone());
     }
     let result = ops.new_string(Rc::from(&b""[..]));
+    jim_cat_stage(check, &result)?;
     let mut bytes = Vec::new();
     for input in inputs {
-        let original = original_string(input)?;
+        jim_cat_stage(check, input)?;
+        let reached = original_string(input);
+        if let Err(error) = &reached {
+            retain(error);
+        }
+        let checked = jim_cat_stage(check, input);
+        if let Err(error) = &checked {
+            retain(error);
+        }
+        checked?;
+        let original = reached?;
         checked_size(bytes.len(), original.len(), false)?;
         bytes.extend_from_slice(&original);
-        ops.set_string(
-            &result,
-            protocol,
-            Some((
-                Rc::from(bytes.as_slice()),
-                tcl_syntax::native_string::NativeStringStorageIdentity::Allocated,
-            )),
-            None,
-            None,
-        )?;
+        jim_cat_stage(check, &result)?;
+        let reached = ops
+            .set_string(
+                &result,
+                protocol,
+                Some((
+                    Rc::from(bytes.as_slice()),
+                    tcl_syntax::native_string::NativeStringStorageIdentity::Allocated,
+                )),
+                None,
+                None,
+            )
+            .map_err(Into::into);
+        if let Err(error) = &reached {
+            retain(error);
+        }
+        let checked = jim_cat_stage(check, &result);
+        if let Err(error) = &checked {
+            retain(error);
+        }
+        checked?;
+        reached?;
     }
+    jim_cat_stage(check, &result)?;
     Ok(result)
 }
 

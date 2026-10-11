@@ -275,7 +275,7 @@ fn original_handler_type(
             JIM_HANDLERS,
         );
         let index = vm
-            .native_jim_enum_from_original(
+            .native_jim_enum_from_original_checked(
                 original,
                 &table,
                 tcl_registry::native_jim_enum::NativeJimEnumFlags(1),
@@ -295,7 +295,12 @@ fn original_handler_type(
         JIM_HANDLERS[index]
     } else {
         let index = vm
-            .native_static_option_index(original, HANDLER_TYPES.names(), false, "handler type")
+            .native_static_option_index_checked(
+                original,
+                HANDLER_TYPES.names(),
+                false,
+                "handler type",
+            )
             .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
         HANDLER_TYPES.names()[index]
     };

@@ -563,7 +563,8 @@ fn cmd_glob(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         if !word.starts_with(b"-") {
             break;
         }
-        match vm.native_static_option_index(&args[i], GLOB_OPTIONS.names(), false, "option") {
+        match vm.native_static_option_index_checked(&args[i], GLOB_OPTIONS.names(), false, "option")
+        {
             // `-directory dir` and `-path prefix` are distinct in C; this
             // engine models both as the search root.
             Ok(0 | 3) => {

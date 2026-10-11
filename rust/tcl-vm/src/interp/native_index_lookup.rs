@@ -6,19 +6,295 @@ use crate::Value;
 use tcl_registry::native_index_lookup::NativeStaticIndexTable;
 use tcl_syntax::value::ValueError;
 
+struct NativeStaticLookup<'a, 'vm> {
+    dialect: tcl_registry::InvocationDialect,
+    original: Option<&'a super::native_numeric_ops::OriginalNumericOps<'vm>>,
+}
+
+impl NativeStaticLookup<'_, '_> {
+    fn current(&self, original: &Value) -> Result<(), ValueError> {
+        self.original
+            .map_or(Ok(()), |ops| ops.current_value_for_value(original))
+    }
+
+    fn finish<T>(&self, original: &Value, reached: Result<T, ValueError>) -> Result<T, ValueError> {
+        if let Some(ops) = self.original {
+            if let Err(error) = &reached {
+                ops.retain_failure(&tcl_cmd_core::CmdError::from(error.clone()));
+            }
+            if let Err(first) = ops.current_value_for_value(original) {
+                drop(reached);
+                let _ = ops.current_value_for_value(original);
+                return Err(first);
+            }
+        }
+        reached
+    }
+
+    fn string(
+        &self,
+        original: &Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+    ) -> Result<std::rc::Rc<[u8]>, ValueError> {
+        self.current(original)?;
+        let reached = match self.original {
+            Some(ops) => ops.string_value(original, protocol),
+            None => original
+                .native_string_bytes(protocol)
+                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
+                .map_err(Into::into),
+        };
+        self.finish(original, reached)
+    }
+
+    fn install_jim(
+        &self,
+        original: &Value,
+        cache: tcl_core_types::NativeJimOptionCache,
+        dialect: tcl_registry::InvocationDialect,
+    ) -> Result<(), ValueError> {
+        let reached = match self.original {
+            Some(ops) => {
+                original.install_native_jim_option_cache_checked(cache, dialect, &mut || {
+                    ops.current_value_for_value(original)
+                })
+            }
+            None => original.install_native_jim_option_cache(cache, dialect),
+        };
+        self.finish(original, reached)
+    }
+
+    fn adopt_index(
+        &self,
+        original: &Value,
+        donor: &Value,
+        dialect: tcl_registry::InvocationDialect,
+    ) -> Result<(), ValueError> {
+        let reached = match self.original {
+            Some(ops) => original.adopt_native_object_representation_with_string_mutation_checked(
+                donor,
+                dialect,
+                tcl_core_types::ResidentStringMutation::Preserve,
+                &mut || {
+                    ops.current_value_for_value(original)?;
+                    ops.current_value_for_value(donor)
+                },
+            ),
+            None => original.adopt_native_object_representation_with_string_mutation(
+                donor,
+                dialect,
+                tcl_core_types::ResidentStringMutation::Preserve,
+            ),
+        };
+        self.finish(original, reached)
+    }
+
+    fn option_lookup(
+        &self,
+        original: &Value,
+        words: &'static [&'static str],
+        exact: bool,
+        noun: &'static str,
+    ) -> Result<tcl_syntax::value::OriginalOptionLookup, ValueError> {
+        use tcl_syntax::value::OriginalOptionLookup;
+        self.current(original)?;
+        let dialect = self.dialect;
+        let table = NativeStaticIndexTable::supported_backend(words);
+        if dialect.native_jim_enum_protocol().is_some() {
+            return Ok(
+                match self.native_jim_enum_from_original(
+                    original,
+                    &table,
+                    tcl_registry::native_jim_enum::NativeJimEnumFlags::options(exact),
+                    Some(noun.as_bytes()),
+                )? {
+                    Ok(index) => OriginalOptionLookup::Index(index),
+                    Err(message) => OriginalOptionLookup::Failure {
+                        message: message.unwrap_or_default(),
+                        error_code: b"NONE".to_vec(),
+                        string_result: None,
+                    },
+                },
+            );
+        }
+        let protocol = dialect.native_index_lookup_protocol().ok_or(
+            ValueError::CommandProtocolUnavailable("original static option lookup"),
+        )?;
+        Ok(
+            match self.native_index_from_original(original, &table, exact, noun)? {
+                Ok(index) => OriginalOptionLookup::Index(index),
+                Err(message) => {
+                    let bytes = self.string(
+                        original,
+                        dialect.native_string_protocol().ok_or(
+                            ValueError::CommandProtocolUnavailable("original option string getter"),
+                        )?,
+                    )?;
+                    OriginalOptionLookup::Failure {
+                        message,
+                        error_code: protocol.error_code(noun.as_bytes(), &bytes),
+                        string_result: Some(tcl_syntax::native_string::NativeStringProtocol::C(
+                            protocol.version(),
+                        )),
+                    }
+                }
+            },
+        )
+    }
+}
+
 impl Vm {
+    fn with_original_static_lookup<T>(
+        &mut self,
+        original: &Value,
+        operation: impl FnOnce(&NativeStaticLookup<'_, '_>) -> Result<T, tcl_cmd_core::CmdError>,
+    ) -> Result<T, tcl_cmd_core::CmdError> {
+        let scope = super::native_operation_currency::NativeOperationScope::enter(self)?;
+        let ops = super::native_numeric_ops::OriginalNumericOps::in_original_scope(self, &scope)?;
+        ops.current_for_value(original)?;
+        let lookup = NativeStaticLookup {
+            dialect: ops.dialect(),
+            original: Some(&ops),
+        };
+        let reached = operation(&lookup);
+        if let Err(error) = &reached {
+            ops.retain_failure(error);
+        }
+        if let Err(first) = ops.current_for_value(original) {
+            drop(reached);
+            let _ = ops.current_for_value(original);
+            return Err(first);
+        }
+        reached
+    }
+
+    pub(crate) fn original_static_option_lookup(
+        &mut self,
+        original: &Value,
+        words: &'static [&'static str],
+        exact: bool,
+        noun: &'static str,
+    ) -> Result<tcl_syntax::value::OriginalOptionLookup, ValueError> {
+        self.with_original_static_lookup(original, |lookup| {
+            lookup
+                .option_lookup(original, words, exact, noun)
+                .map_err(Into::into)
+        })
+        .map_err(original_static_value_error)
+    }
+
+    pub(crate) fn native_interpreter_option_from_original_checked(
+        &mut self,
+        original: &Value,
+        child: bool,
+    ) -> Result<&'static str, tcl_cmd_core::CmdError> {
+        self.with_original_static_lookup(original, |lookup| {
+            lookup.native_interpreter_option_from_original(original, child)
+        })
+    }
+
+    pub(crate) fn native_jim_enum_from_original_checked(
+        &mut self,
+        original: &Value,
+        table: &NativeStaticIndexTable,
+        flags: tcl_registry::native_jim_enum::NativeJimEnumFlags,
+        noun: Option<&[u8]>,
+    ) -> Result<Result<usize, Option<Vec<u8>>>, ValueError> {
+        self.with_original_static_lookup(original, |lookup| {
+            lookup
+                .native_jim_enum_from_original(original, table, flags, noun)
+                .map_err(Into::into)
+        })
+        .map_err(original_static_value_error)
+    }
+
+    pub(crate) fn native_jim_compare_immediate_checked(
+        &mut self,
+        original: &Value,
+        table: &NativeStaticIndexTable,
+        index: usize,
+    ) -> Result<bool, ValueError> {
+        self.with_original_static_lookup(original, |lookup| {
+            lookup
+                .native_jim_compare_immediate(original, table, index)
+                .map_err(Into::into)
+        })
+        .map_err(original_static_value_error)
+    }
+
+    pub(crate) fn native_index_usage_bytes_checked(
+        &mut self,
+        original: &Value,
+    ) -> Result<(std::rc::Rc<[u8]>, bool), ValueError> {
+        self.with_original_static_lookup(original, |lookup| {
+            lookup
+                .native_index_usage_bytes(original)
+                .map_err(Into::into)
+        })
+        .map_err(original_static_value_error)
+    }
+
+    pub(crate) fn native_static_option_index_checked(
+        &mut self,
+        original: &Value,
+        words: &'static [&'static str],
+        exact: bool,
+        noun: &'static str,
+    ) -> Result<usize, tcl_cmd_core::CmdError> {
+        self.with_original_static_lookup(original, |lookup| {
+            lookup.native_static_option_index(original, words, exact, noun)
+        })
+    }
+
+    pub(crate) fn native_index_operand_checked(
+        &mut self,
+        original: &Value,
+        table: &NativeStaticIndexTable,
+        exact: bool,
+        noun: &'static str,
+    ) -> Result<usize, tcl_cmd_core::CmdError> {
+        self.with_original_static_lookup(original, |lookup| {
+            lookup.native_index_operand(original, table, exact, noun)
+        })
+    }
+
+    pub(crate) fn native_index_from_original_checked(
+        &mut self,
+        original: &Value,
+        table: &NativeStaticIndexTable,
+        exact: bool,
+        noun: &'static str,
+    ) -> Result<Result<usize, Vec<u8>>, ValueError> {
+        self.with_original_static_lookup(original, |lookup| {
+            lookup
+                .native_index_from_original(original, table, exact, noun)
+                .map_err(Into::into)
+        })
+        .map_err(original_static_value_error)
+    }
+}
+
+// Compatibility errors carry no replacement cause. The full actual Host refusal
+// was already retained while the original entry was held; its real consumer
+// checks that cause before any Guest presentation.
+fn original_static_value_error(error: tcl_cmd_core::CmdError) -> ValueError {
+    error.native_access_refusal().map_or_else(
+        super::native_numeric_ops::OriginalNumericOps::value_unwind,
+        Into::into,
+    )
+}
+
+impl NativeStaticLookup<'_, '_> {
     /// Actual root/child `GetIndex` purpose, preserving the C9 silent first miss.
-    pub(crate) fn native_interpreter_option_from_original(
+    fn native_interpreter_option_from_original(
         &self,
         original: &Value,
         child: bool,
     ) -> Result<&'static str, tcl_cmd_core::CmdError> {
-        let recipe = self
-            .actual_native_invocation_dialect()
-            .native_interpreter_option_protocol()
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "native interp options",
-            ))?;
+        self.current(original)?;
+        let recipe = self.dialect.native_interpreter_option_protocol().ok_or(
+            ValueError::CommandProtocolUnavailable("native interp options"),
+        )?;
         let words = if child { recipe.child() } else { recipe.root() };
         let table = NativeStaticIndexTable::supported_backend(words);
         if child || recipe.root_miss().is_none() {
@@ -42,14 +318,15 @@ impl Vm {
         }
     }
 
-    pub(crate) fn native_jim_enum_from_original(
+    fn native_jim_enum_from_original(
         &self,
         original: &Value,
         table: &NativeStaticIndexTable,
         flags: tcl_registry::native_jim_enum::NativeJimEnumFlags,
         noun: Option<&[u8]>,
     ) -> Result<Result<usize, Option<Vec<u8>>>, ValueError> {
-        let dialect = self.actual_native_invocation_dialect();
+        self.current(original)?;
+        let dialect = self.dialect;
         let protocol = dialect
             .native_jim_enum_protocol()
             .ok_or(ValueError::CommandProtocolUnavailable("Jim Enum lookup"))?;
@@ -63,9 +340,10 @@ impl Vm {
         {
             return Ok(Ok(index));
         }
-        let bytes = original
-            .native_string_bytes(tcl_syntax::native_string::NativeStringProtocol::Jim084)
-            .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)?;
+        let bytes = self.string(
+            original,
+            tcl_syntax::native_string::NativeStringProtocol::Jim084,
+        )?;
         match protocol.lookup(&bytes, table, flags, noun) {
             Ok(cache) => {
                 let index = match &cache {
@@ -74,20 +352,21 @@ impl Vm {
                         unreachable!("Enum lookup")
                     }
                 };
-                original.install_native_jim_option_cache(cache, dialect)?;
+                self.install_jim(original, cache, dialect)?;
                 Ok(Ok(index))
             }
             Err(message) => Ok(Err(message)),
         }
     }
 
-    pub(crate) fn native_jim_compare_immediate(
+    fn native_jim_compare_immediate(
         &self,
         original: &Value,
         table: &NativeStaticIndexTable,
         index: usize,
     ) -> Result<bool, ValueError> {
-        let dialect = self.actual_native_invocation_dialect();
+        self.current(original)?;
+        let dialect = self.dialect;
         let protocol =
             dialect
                 .native_jim_enum_protocol()
@@ -102,22 +381,24 @@ impl Vm {
         if protocol.compared_hit(original.native_jim_option_cache().as_ref(), table, index) {
             return Ok(true);
         }
-        let bytes = original
-            .native_string_bytes(tcl_syntax::native_string::NativeStringProtocol::Jim084)
-            .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)?;
+        let bytes = self.string(
+            original,
+            tcl_syntax::native_string::NativeStringProtocol::Jim084,
+        )?;
         if let Some(cache) = protocol.compare(&bytes, table, index) {
-            original.install_native_jim_option_cache(cache, dialect)?;
+            self.install_jim(original, cache, dialect)?;
             Ok(true)
         } else {
             Ok(false)
         }
     }
 
-    pub(crate) fn native_index_usage_bytes(
+    fn native_index_usage_bytes(
         &self,
         original: &Value,
     ) -> Result<(std::rc::Rc<[u8]>, bool), ValueError> {
-        let dialect = self.actual_native_invocation_dialect();
+        self.current(original)?;
+        let dialect = self.dialect;
         if let Some((cache, origin)) = original.native_index_cache() {
             if dialect
                 .native_index_lookup_protocol()
@@ -134,23 +415,27 @@ impl Vm {
             return Ok((bytes, true));
         }
         Ok((
-            original
-                .native_string_bytes(dialect.native_string_protocol().ok_or(
-                    ValueError::CommandProtocolUnavailable("usage string getter"),
-                )?)
-                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)?,
+            self.string(
+                original,
+                dialect
+                    .native_string_protocol()
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "usage string getter",
+                    ))?,
+            )?,
             false,
         ))
     }
 
-    pub(crate) fn native_static_option_index(
+    fn native_static_option_index(
         &self,
         original: &Value,
         words: &'static [&'static str],
         exact: bool,
         noun: &'static str,
     ) -> Result<usize, tcl_cmd_core::CmdError> {
-        let dialect = self.actual_native_invocation_dialect();
+        self.current(original)?;
+        let dialect = self.dialect;
         if dialect.native_jim_enum_protocol().is_some() {
             return self
                 .native_jim_enum_from_original(
@@ -174,24 +459,26 @@ impl Vm {
         )
     }
 
-    pub(crate) fn native_index_operand(
+    fn native_index_operand(
         &self,
         original: &Value,
         table: &NativeStaticIndexTable,
         exact: bool,
         noun: &'static str,
     ) -> Result<usize, tcl_cmd_core::CmdError> {
+        self.current(original)?;
         match self.native_index_from_original(original, table, exact, noun)? {
             Ok(index) => Ok(index),
             Err(message) => {
-                let dialect = self.actual_native_invocation_dialect();
-                let bytes = original
-                    .native_string_bytes(dialect.native_string_protocol().ok_or(
+                let dialect = self.dialect;
+                let bytes = self.string(
+                    original,
+                    dialect.native_string_protocol().ok_or(
                         ValueError::CommandProtocolUnavailable("native Index string getter"),
-                    )?)
-                    .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)?;
+                    )?,
+                )?;
                 let protocol = self
-                    .actual_native_invocation_dialect()
+                    .dialect
                     .native_index_lookup_protocol()
                     .expect("selected native Index protocol");
                 Err(tcl_cmd_core::CmdError::with_error_code_bytes(
@@ -205,13 +492,14 @@ impl Vm {
         }
     }
 
-    pub(crate) fn native_index_from_original(
+    fn native_index_from_original(
         &self,
         original: &Value,
         table: &NativeStaticIndexTable,
         exact: bool,
         noun: &'static str,
     ) -> Result<Result<usize, Vec<u8>>, ValueError> {
+        self.current(original)?;
         self.native_index_from_original_with_flags(
             original,
             table,
@@ -224,14 +512,15 @@ impl Vm {
         .map(|outcome| outcome.map(|index| index.expect("Index lookup without NULL_OK")))
     }
 
-    pub(crate) fn native_index_from_original_with_flags(
+    fn native_index_from_original_with_flags(
         &self,
         original: &Value,
         table: &NativeStaticIndexTable,
         flags: tcl_core_types::NativeIndexLookupFlags,
         noun: &'static str,
     ) -> Result<Result<Option<usize>, Vec<u8>>, ValueError> {
-        let dialect = self.actual_native_invocation_dialect();
+        self.current(original)?;
+        let dialect = self.dialect;
         let protocol = dialect.native_index_lookup_protocol().ok_or(
             ValueError::CommandProtocolUnavailable("native original Index lookup"),
         )?;
@@ -245,11 +534,14 @@ impl Vm {
         {
             return Ok(Ok(Some(index)));
         }
-        let bytes = original
-            .native_string_bytes(dialect.native_string_protocol().ok_or(
-                ValueError::CommandProtocolUnavailable("native Index string getter"),
-            )?)
-            .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)?;
+        let bytes = self.string(
+            original,
+            dialect
+                .native_string_protocol()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "native Index string getter",
+                ))?,
+        )?;
         let (index, cache) = match protocol.lookup_with_flags(Some(&bytes), table, flags, noun)? {
             Ok(outcome) => outcome,
             Err(message) => return Ok(Err(message)),
@@ -263,13 +555,93 @@ impl Vm {
                     .resident_string_bytes()
                     .zip(original.resident_string_storage_identity()),
             )?;
-            original.adopt_native_object_representation_with_string_mutation(
-                &donor,
-                dialect,
-                tcl_core_types::ResidentStringMutation::Preserve,
-            )?;
+            self.adopt_index(original, &donor, dialect)?;
         }
         Ok(Ok(index))
+    }
+}
+
+#[cfg(test)]
+impl Vm {
+    pub(crate) fn native_interpreter_option_from_original(
+        &self,
+        original: &Value,
+        child: bool,
+    ) -> Result<&'static str, tcl_cmd_core::CmdError> {
+        NativeStaticLookup {
+            dialect: self.actual_native_invocation_dialect(),
+            original: None,
+        }
+        .native_interpreter_option_from_original(original, child)
+    }
+
+    pub(crate) fn native_jim_enum_from_original(
+        &self,
+        original: &Value,
+        table: &NativeStaticIndexTable,
+        flags: tcl_registry::native_jim_enum::NativeJimEnumFlags,
+        noun: Option<&[u8]>,
+    ) -> Result<Result<usize, Option<Vec<u8>>>, ValueError> {
+        NativeStaticLookup {
+            dialect: self.actual_native_invocation_dialect(),
+            original: None,
+        }
+        .native_jim_enum_from_original(original, table, flags, noun)
+    }
+
+    pub(crate) fn native_jim_compare_immediate(
+        &self,
+        original: &Value,
+        table: &NativeStaticIndexTable,
+        index: usize,
+    ) -> Result<bool, ValueError> {
+        NativeStaticLookup {
+            dialect: self.actual_native_invocation_dialect(),
+            original: None,
+        }
+        .native_jim_compare_immediate(original, table, index)
+    }
+
+    pub(crate) fn native_static_option_index(
+        &self,
+        original: &Value,
+        words: &'static [&'static str],
+        exact: bool,
+        noun: &'static str,
+    ) -> Result<usize, tcl_cmd_core::CmdError> {
+        NativeStaticLookup {
+            dialect: self.actual_native_invocation_dialect(),
+            original: None,
+        }
+        .native_static_option_index(original, words, exact, noun)
+    }
+
+    pub(crate) fn native_index_from_original(
+        &self,
+        original: &Value,
+        table: &NativeStaticIndexTable,
+        exact: bool,
+        noun: &'static str,
+    ) -> Result<Result<usize, Vec<u8>>, ValueError> {
+        NativeStaticLookup {
+            dialect: self.actual_native_invocation_dialect(),
+            original: None,
+        }
+        .native_index_from_original(original, table, exact, noun)
+    }
+
+    pub(crate) fn native_index_from_original_with_flags(
+        &self,
+        original: &Value,
+        table: &NativeStaticIndexTable,
+        flags: tcl_core_types::NativeIndexLookupFlags,
+        noun: &'static str,
+    ) -> Result<Result<Option<usize>, Vec<u8>>, ValueError> {
+        NativeStaticLookup {
+            dialect: self.actual_native_invocation_dialect(),
+            original: None,
+        }
+        .native_index_from_original_with_flags(original, table, flags, noun)
     }
 }
 

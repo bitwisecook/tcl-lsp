@@ -407,7 +407,7 @@ fn read_count_operand(
                         ),
                     )?;
                     let index = original.with_vm_for_value(value, |vm| {
-                        vm.native_static_option_index(value, options, true, "option")
+                        vm.native_static_option_index_checked(value, options, true, "option")
                     })?;
                     return Ok((
                         None,
@@ -698,7 +698,7 @@ fn seek_origin_operand(
             )),
         }
     } else {
-        vm.native_index_operand(
+        vm.native_index_operand_checked(
             value,
             &tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
                 SEEK_ORIGINS.names(),

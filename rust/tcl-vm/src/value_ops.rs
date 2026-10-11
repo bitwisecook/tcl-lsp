@@ -407,53 +407,8 @@ impl ValueOps for Vm {
         exact: bool,
         noun: &'static str,
     ) -> Result<Option<tcl_syntax::value::OriginalOptionLookup>, ValueError> {
-        use tcl_syntax::value::OriginalOptionLookup;
-        original.check_native_header()?;
-        let dialect = self.actual_native_invocation_dialect();
-        if dialect.native_jim_enum_protocol().is_some() {
-            let table =
-                tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(words);
-            let flags = tcl_registry::native_jim_enum::NativeJimEnumFlags::options(exact);
-            return Ok(Some(
-                match self.native_jim_enum_from_original(
-                    original,
-                    &table,
-                    flags,
-                    Some(noun.as_bytes()),
-                )? {
-                    Ok(index) => OriginalOptionLookup::Index(index),
-                    Err(message) => OriginalOptionLookup::Failure {
-                        message: message.unwrap_or_default(),
-                        error_code: b"NONE".to_vec(),
-                        string_result: None,
-                    },
-                },
-            ));
-        }
-        let protocol = dialect.native_index_lookup_protocol().ok_or(
-            ValueError::CommandProtocolUnavailable("original static option lookup"),
-        )?;
-        let table =
-            tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(words);
-        Ok(Some(
-            match self.native_index_from_original(original, &table, exact, noun)? {
-                Ok(index) => OriginalOptionLookup::Index(index),
-                Err(message) => {
-                    let bytes = original
-                        .native_string_bytes(dialect.native_string_protocol().ok_or(
-                            ValueError::CommandProtocolUnavailable("original option string getter"),
-                        )?)
-                        .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)?;
-                    OriginalOptionLookup::Failure {
-                        message,
-                        error_code: protocol.error_code(noun.as_bytes(), &bytes),
-                        string_result: Some(tcl_syntax::native_string::NativeStringProtocol::C(
-                            protocol.version(),
-                        )),
-                    }
-                }
-            },
-        ))
+        self.original_static_option_lookup(original, words, exact, noun)
+            .map(Some)
     }
 
     fn same_object(&self, left: &Value, right: &Value) -> Option<bool> {
@@ -553,6 +508,16 @@ impl ValueOps for Vm {
     }
 
     fn native_jim_string_cat(&mut self, args: &[Value]) -> Result<Option<Value>, ValueError> {
+        use crate::interp::{
+            native_numeric_ops::OriginalNumericOps, native_operation_currency::NativeOperationScope,
+        };
+        let inherited = NativeOperationScope::current_entered(self).map_err(|error| {
+            match error {
+                tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(refusal) => Some(refusal),
+                _ => None,
+            }
+            .map_or_else(OriginalNumericOps::value_unwind, Into::into)
+        })?;
         let protocol = self
             .object_materialization()
             .ok_or(ValueError::CommandProtocolUnavailable(
@@ -562,21 +527,50 @@ impl ValueOps for Vm {
         if !protocol.is_jim084() {
             return Ok(None);
         }
-        if let [only] = args {
-            only.check_native_header()?;
-        }
-        tcl_cmd_core::native_cat::concatenate_jim(
+        let scope = match inherited {
+            Some(scope) => scope,
+            None => NativeOperationScope::enter(self).map_err(|error| {
+                error
+                    .native_access_refusal()
+                    .map_or_else(OriginalNumericOps::value_unwind, Into::into)
+            })?,
+        };
+        let ops = OriginalNumericOps::in_original_scope(self, &scope).map_err(|error| {
+            error
+                .native_access_refusal()
+                .map_or_else(OriginalNumericOps::value_unwind, Into::into)
+        })?;
+        let reached = tcl_cmd_core::native_cat::concatenate_jim_checked(
             &crate::value::VmAppendObjects,
             protocol,
             args,
-            |original| {
-                original.check_native_header()?;
-                original.native_string_bytes(protocol).map_err(|error| {
-                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error).into()
-                })
+            &mut |original| {
+                let reached = ops.string(original, protocol);
+                if let Err(error) = &reached {
+                    ops.retain_failure(error);
+                }
+                reached
             },
-        )
-        .map(|result| Some(result.into_native_reference()))
+            &mut |original| ops.current_for_value(original),
+            &mut |error| ops.retain_failure(error),
+        );
+        if let Err(error) = &reached {
+            ops.retain_failure(error);
+        }
+        if let Err(first) = ops.current() {
+            drop(reached);
+            let _ = ops.current();
+            return Err(first
+                .native_access_refusal()
+                .map_or_else(OriginalNumericOps::value_unwind, Into::into));
+        }
+        reached
+            .map(|result| Some(result.into_native_reference()))
+            .map_err(|error| {
+                error
+                    .native_access_refusal()
+                    .map_or_else(OriginalNumericOps::value_unwind, Into::into)
+            })
     }
 
     fn index_syntax(&self) -> Option<tcl_dialect::IndexSyntax> {

@@ -6213,30 +6213,49 @@ impl Vm {
             // ones the `string toupper`/`tolower`/`totitle` commands use.
             Op::STR_LOWER if instr.native_switch_version.is_some() => {
                 let original = pop(f);
+                let scope = try_core!(NativeOperationScope::enter(self));
+                let dialect = self.native_invocation_dialect();
                 let version = instr.native_switch_version.unwrap();
                 let bytes = try_core!(tcl_syntax::value::ValueOps::native_string_bytes(
                     self, &original
                 ));
+                try_core!(scope.check(self));
                 let lowered = tcl_syntax::native_glob::lower_c_string_bytes(version, &bytes);
                 let value = Value::new_native_string_bytes(lowered);
                 if original.native_object_is_shared() {
-                    let materialization = self
-                        .native_invocation_dialect()
-                        .native_string_materialization(None)
-                        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    let materialization = dialect.native_string_materialization(None).ok_or(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                             "compiled string lower issuer",
-                        ));
+                        ),
+                    );
                     let materialization = try_core!(materialization);
                     try_core!(value.retain_native_string_representation(materialization));
                     f.stack.push(value);
                 } else {
-                    try_core!(
-                        original.adopt_native_object_representation_with_string_mutation(
-                            &value,
-                            self.native_invocation_dialect(),
-                            tcl_core_types::ResidentStringMutation::Replace
-                        )
-                    );
+                    let reached = {
+                        let ops = try_core!(crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(self, &scope));
+                        let reached = original
+                            .adopt_native_object_representation_with_string_mutation_checked(
+                                &value,
+                                dialect,
+                                tcl_core_types::ResidentStringMutation::Replace,
+                                &mut || {
+                                    ops.current_for_value(&original)?;
+                                    ops.current_for_value(&value)
+                                },
+                            );
+                        if let Err(error) = &reached {
+                            ops.retain_failure(error);
+                        }
+                        if let Err(first) = ops.current() {
+                            drop(reached);
+                            let _ = ops.current();
+                            Err(first)
+                        } else {
+                            reached
+                        }
+                    };
+                    try_core!(reached);
                     f.stack.push(original);
                 }
             }

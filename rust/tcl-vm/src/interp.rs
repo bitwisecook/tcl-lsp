@@ -7088,7 +7088,7 @@ impl Vm {
             [opt, rest @ ..] if rest.len() <= 1 => (opt, rest),
             _ => return Err(tcl_cmd_core::CmdError::wrong_args_bytes(usage.as_ref())),
         };
-        self.native_static_option_index(opt, DEBUG_OPTIONS.names(), false, "debug option")?;
+        self.native_static_option_index_checked(opt, DEBUG_OPTIONS.names(), false, "debug option")?;
         context.current(self)?;
         if let [value] = rest {
             let enabled = if let Some(authored) = context.authored {
@@ -9160,7 +9160,7 @@ impl Vm {
             return crate::command::completion_from_cmd_error(self, error);
         }
 
-        let sub = match self.native_interpreter_option_from_original(sub, true) {
+        let sub = match self.native_interpreter_option_from_original_checked(sub, true) {
             Ok(name) => name,
             Err(error) => return crate::command::completion_from_cmd_error(self, error),
         };
@@ -9825,14 +9825,19 @@ impl Vm {
         &mut self,
         words: &[Value],
     ) -> Result<Vec<u8>, Completion<Value>> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
         let protocol = self.native_invocation_dialect().usage_protocol(Some(
             tcl_registry::native_usage::LogicalUsageProvider::Tcl84CoreSimulation,
         ));
         let bytes = words
             .iter()
-            .map(|word| self.native_index_usage_bytes(word))
+            .map(|word| self.native_index_usage_bytes_checked(word))
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|error| self.refuse_host_command(error.to_string()))?;
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
+        scope
+            .check(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
         let operands = bytes
             .iter()
             .map(|(bytes, index)| {
@@ -9843,11 +9848,21 @@ impl Vm {
                 }
             })
             .collect::<Vec<_>>();
-        protocol
+        let reached = protocol
             .and_then(|protocol| protocol.render_header(&operands))
             .ok_or_else(|| {
-                self.refuse_host_command("native argument usage protocol is unavailable".into())
-            })
+                crate::command::completion_from_cmd_error(
+                    self,
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "native argument usage protocol",
+                    )
+                    .into(),
+                )
+            });
+        scope
+            .check(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
 
     pub(crate) fn namespace_object_bytes(&self, namespace: NsId) -> NameBytes {

@@ -1600,7 +1600,7 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             "wrong # args: should be \"interp cmd ?arg ...?\"",
         );
     };
-    let sub = match vm.native_interpreter_option_from_original(sub, false) {
+    let sub = match vm.native_interpreter_option_from_original_checked(sub, false) {
         Ok(name) => name,
         Err(error) => return completion_from_cmd_error(vm, error),
     };
@@ -1830,7 +1830,7 @@ fn cmd_puts(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             const FLAG: &[&str] = &["-nonewline"];
             let table =
                 tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(FLAG);
-            match vm.native_jim_compare_immediate(first, &table, 0) {
+            match vm.native_jim_compare_immediate_checked(first, &table, 0) {
                 Ok(matched) => matched,
                 Err(error) => return completion_from_cmd_error(vm, error.into()),
             }

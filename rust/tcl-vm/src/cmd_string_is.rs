@@ -41,7 +41,7 @@ pub(crate) fn string_is(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     if rest.len() < 2 {
         return err(WRONG);
     }
-    let class = match vm.native_static_option_index(&rest[0], CLASSES, false, "class") {
+    let class = match vm.native_static_option_index_checked(&rest[0], CLASSES, false, "class") {
         Ok(index) => CLASSES[index],
         Err(e) => return crate::command::completion_from_cmd_error(vm, e),
     };
@@ -52,7 +52,7 @@ pub(crate) fn string_is(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         // The loop only visits non-final arguments (the last is the string),
         // so an unrecognised token here is in option position: a bad option,
         // not a wrong count (`string is alpha a b` → `bad option "a"`).
-        match vm.native_static_option_index(&rest[i], OPTIONS.names(), false, "option") {
+        match vm.native_static_option_index_checked(&rest[i], OPTIONS.names(), false, "option") {
             Ok(0) => {
                 strict = true;
                 i += 1;

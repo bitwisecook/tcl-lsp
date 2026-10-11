@@ -226,7 +226,7 @@ fn package_subcommand(
             &bytes, options,
         ))
     } else {
-        vm.native_index_from_original(original, &table, false, "option")
+        vm.native_index_from_original_checked(original, &table, false, "option")
     };
     match selection {
         Ok(Ok(index)) => Ok(options[index]),
@@ -711,13 +711,17 @@ fn pkg_prefer(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
                 tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
                     protocol.preference_members().expect("C preference table"),
                 );
-            let selected =
-                match vm.native_index_from_original(preference, &table, false, "preference") {
-                    Ok(result) => result,
-                    Err(error) => {
-                        return crate::command::completion_from_cmd_error(vm, error.into());
-                    }
-                };
+            let selected = match vm.native_index_from_original_checked(
+                preference,
+                &table,
+                false,
+                "preference",
+            ) {
+                Ok(result) => result,
+                Err(error) => {
+                    return crate::command::completion_from_cmd_error(vm, error.into());
+                }
+            };
             match selected {
                 Ok(0) => {
                     vm.prefer_latest_packages();

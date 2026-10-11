@@ -1236,7 +1236,8 @@ pub(super) fn define_original_properties(
                 if bytes.first() != Some(&b'-') {
                     break;
                 }
-                let reached = vm.native_index_operand(&args[cursor], &options, false, "option");
+                let reached =
+                    vm.native_index_operand_checked(&args[cursor], &options, false, "option");
                 if let Err(error) = original_names.check_target(vm) {
                     return crate::command::completion_from_cmd_error(vm, error);
                 }
@@ -1266,7 +1267,7 @@ pub(super) fn define_original_properties(
                     0 => getter = Some(value.clone()),
                     2 => setter = Some(value.clone()),
                     1 => {
-                        let reached = vm.native_index_operand(value, &kinds, false, "kind");
+                        let reached = vm.native_index_operand_checked(value, &kinds, false, "kind");
                         if let Err(error) = original_names.check_target(vm) {
                             return crate::command::completion_from_cmd_error(vm, error);
                         }

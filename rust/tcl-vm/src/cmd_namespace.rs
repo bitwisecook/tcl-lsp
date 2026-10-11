@@ -517,7 +517,8 @@ fn cmd_namespace_in(
                         tcl_cmd_core::namespace::which_variable_bytes_checked(
                             vm,
                             &words[name_index],
-                        ).map_err(tcl_cmd_core::CmdError::from)
+                        )
+                        .map_err(tcl_cmd_core::CmdError::from)
                     }
                     tcl_cmd_core::namespace::WhichKind::Command => {
                         vm.native_namespace_command_name(&rest[name_index], false)
@@ -665,7 +666,9 @@ fn cmd_namespace_in(
                                 };
                                 return vm.namespace_lookup_error_bytes(&written);
                             }
-                            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                            Err(error) => {
+                                return crate::command::completion_from_cmd_error(vm, error);
+                            }
                         }
                     }
                     vm.ns_path_set(path);
@@ -1045,7 +1048,7 @@ fn ns_ensemble(vm: &mut Vm, selector: &Value, rest: &[Value]) -> Completion<Valu
                 "wrong # args: should be \"namespace ensemble subcommand ?arg ...?\"",
             );
         };
-        let index = match vm.native_static_option_index(
+        let index = match vm.native_static_option_index_checked(
             op,
             tcl_cmd_core::ensemble::SUBCOMMANDS.names(),
             false,
@@ -1380,7 +1383,7 @@ fn ns_ensemble_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             unknown: None,
         };
         for pair in args.as_chunks::<2>().0 {
-            let resolved = match vm.native_static_option_index(
+            let resolved = match vm.native_static_option_index_checked(
                 &pair[0],
                 options.create_options(),
                 false,
@@ -1539,7 +1542,7 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             return ensemble_configuration_snapshot(vm, &def, options);
         }
         if let [only] = rest {
-            return match vm.native_static_option_index(
+            return match vm.native_static_option_index_checked(
                 only,
                 options.configure_options(),
                 false,
@@ -1573,7 +1576,7 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // configuring an ensemble from outside its namespace resolves relative
         // targets against the caller.
         for pair in rest.as_chunks::<2>().0 {
-            let resolved = match vm.native_static_option_index(
+            let resolved = match vm.native_static_option_index_checked(
                 &pair[0],
                 options.configure_options(),
                 false,

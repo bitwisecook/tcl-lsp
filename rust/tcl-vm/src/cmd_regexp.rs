@@ -165,7 +165,7 @@ impl core_re::NativeRegexSource for Vm {
     ) -> Result<usize, tcl_cmd_core::CmdError> {
         let table =
             tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(words);
-        match self.native_jim_enum_from_original(
+        match self.native_jim_enum_from_original_checked(
             original,
             &table,
             tcl_registry::native_jim_enum::NativeJimEnumFlags::options(false),

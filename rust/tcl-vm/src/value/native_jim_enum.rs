@@ -15,6 +15,23 @@ impl Value {
         cache: NativeJimOptionCache,
         dialect: tcl_registry::InvocationDialect,
     ) -> Result<(), ValueError> {
+        self.install_native_jim_option_cache_using::<ValueError>(cache, dialect, &mut None)
+    }
+    pub(crate) fn install_native_jim_option_cache_checked<E: From<ValueError>>(
+        &self,
+        cache: NativeJimOptionCache,
+        dialect: tcl_registry::InvocationDialect,
+        check: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.install_native_jim_option_cache_using(cache, dialect, &mut Some(check))
+    }
+    fn install_native_jim_option_cache_using<E: From<ValueError>>(
+        &self,
+        cache: NativeJimOptionCache,
+        dialect: tcl_registry::InvocationDialect,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+    ) -> Result<(), E> {
+        Self::native_stage_check(check)?;
         self.check_native_header()?;
         dialect
             .native_jim_enum_protocol()
@@ -22,11 +39,25 @@ impl Value {
                 "Jim Enum primary issuer",
             ))?;
         if self.resident_string_bytes().is_none() {
-            return Err(ValueError::CommandProtocolUnavailable(
-                "Jim Enum resident spelling",
-            ));
+            return Err(
+                ValueError::CommandProtocolUnavailable("Jim Enum resident spelling").into(),
+            );
         }
-        self.replace_primary(IntRep::JimOption(cache));
-        Ok(())
+        if check.is_none() {
+            self.replace_primary(IntRep::JimOption(cache));
+            return Ok(());
+        }
+        self.replace_primary_using_with(
+            || {
+                if self.resident_string_bytes().is_none() {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "Jim Enum resident spelling",
+                    )
+                    .into());
+                }
+                Ok(IntRep::JimOption(cache))
+            },
+            check,
+        )
     }
 }

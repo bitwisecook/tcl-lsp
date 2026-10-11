@@ -71,7 +71,7 @@ fn option(vm: &mut Vm, p: NativeEventProtocol, first: &Value) -> Result<Option<u
         p.after_options(),
     );
     if p.after_options_exact() {
-        vm.native_jim_enum_from_original(
+        vm.native_jim_enum_from_original_checked(
             first,
             &table,
             tcl_registry::native_jim_enum::NativeJimEnumFlags::options(true),
@@ -79,13 +79,18 @@ fn option(vm: &mut Vm, p: NativeEventProtocol, first: &Value) -> Result<Option<u
         )
         .map(Result::ok)
     } else {
-        vm.native_index_from_original(first, &table, false, "argument")
+        vm.native_index_from_original_checked(first, &table, false, "argument")
             .map(Result::ok)
     }
 }
 fn after_miss(vm: &mut Vm, p: NativeEventProtocol, first: &Value) -> Completion<Value> {
     if p.after_options_exact() {
-        return match vm.native_static_option_index(first, p.after_options(), true, "argument") {
+        return match vm.native_static_option_index_checked(
+            first,
+            p.after_options(),
+            true,
+            "argument",
+        ) {
             Err(e) => crate::command::completion_from_cmd_error(vm, e),
             Ok(_) => unreachable!("prior enum miss"),
         };
@@ -436,7 +441,7 @@ fn cmd_update(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(&[
                     "idletasks",
                 ]);
-            match vm.native_jim_enum_from_original(
+            match vm.native_jim_enum_from_original_checked(
                 option,
                 &table,
                 tcl_registry::native_jim_enum::NativeJimEnumFlags(
@@ -449,10 +454,12 @@ fn cmd_update(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 Err(error) => return failure(vm, error),
             }
         }
-        [option] => match vm.native_static_option_index(option, &["idletasks"], false, "option") {
-            Ok(_) => true,
-            Err(e) => return crate::command::completion_from_cmd_error(vm, e),
-        },
+        [option] => {
+            match vm.native_static_option_index_checked(option, &["idletasks"], false, "option") {
+                Ok(_) => true,
+                Err(e) => return crate::command::completion_from_cmd_error(vm, e),
+            }
+        }
         _ => return wrong(vm, "wrong # args: should be \"update ?idletasks?\""),
     };
     while service_ready(vm, idle && !p.idle_update_runs_timers()) {

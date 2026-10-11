@@ -285,7 +285,7 @@ fn cmd_binary_in_original(
     let canon = if vm.native_invocation_dialect().binary_root_dispatch()
         == Some(tcl_registry::native_binary_usage::NativeBinaryRootDispatch::Indexed)
     {
-        match vm.native_static_option_index(sub, subs, false, "option") {
+        match vm.native_static_option_index_checked(sub, subs, false, "option") {
             Ok(index) => subs[index],
             Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         }

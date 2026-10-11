@@ -47,7 +47,7 @@ impl NativeJimSwitchObjects for Vm {
         let table = tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
             IMMEDIATES,
         );
-        self.native_jim_compare_immediate(
+        self.native_jim_compare_immediate_checked(
             value,
             &table,
             match immediate {

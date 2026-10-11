@@ -369,7 +369,7 @@ impl tcl_cmd_core::native_jim_lsearch::NativeJimLsearchObjects for Vm {
         let table = tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
             &tcl_cmd_core::native_jim_lsearch::OPTIONS,
         );
-        match self.native_jim_enum_from_original(
+        match self.native_jim_enum_from_original_checked(
             original,
             &table,
             tcl_registry::native_jim_enum::NativeJimEnumFlags::options(true),

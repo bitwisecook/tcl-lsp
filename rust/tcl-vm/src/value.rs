@@ -1337,6 +1337,39 @@ impl Value {
         dialect: tcl_registry::InvocationDialect,
         string_mutation: tcl_core_types::ResidentStringMutation,
     ) -> Result<(), tcl_syntax::value::ValueError> {
+        self.adopt_native_object_representation_with_string_mutation_using::<ValueError>(
+            donor,
+            dialect,
+            string_mutation,
+            &mut None,
+        )
+    }
+
+    pub(crate) fn adopt_native_object_representation_with_string_mutation_checked<
+        E: From<ValueError>,
+    >(
+        &self,
+        donor: &Value,
+        dialect: tcl_registry::InvocationDialect,
+        string_mutation: tcl_core_types::ResidentStringMutation,
+        check: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.adopt_native_object_representation_with_string_mutation_using(
+            donor,
+            dialect,
+            string_mutation,
+            &mut Some(check),
+        )
+    }
+
+    fn adopt_native_object_representation_with_string_mutation_using<E: From<ValueError>>(
+        &self,
+        donor: &Value,
+        dialect: tcl_registry::InvocationDialect,
+        string_mutation: tcl_core_types::ResidentStringMutation,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+    ) -> Result<(), E> {
+        Self::native_stage_check(check)?;
         self.check_native_header()?;
         donor.check_native_header()?;
         let protocol =
@@ -1353,7 +1386,8 @@ impl Value {
                 {
                     return Err(ValueError::CommandProtocolUnavailable(
                         "native object mirror preserved string receipt",
-                    ));
+                    )
+                    .into());
                 }
                 self.0.string.borrow().clone()
             }
@@ -1362,18 +1396,44 @@ impl Value {
                 if donor.0.string.borrow().is_some() {
                     return Err(ValueError::CommandProtocolUnavailable(
                         "native object mirror discarded string receipt",
-                    ));
+                    )
+                    .into());
                 }
                 None
             }
         };
         let cache = donor.0.intrep.borrow().clone();
         let format = donor.0.double_format.borrow().clone();
-        *self.0.string.borrow_mut() = string;
-        self.0.string_storage.set(donor.0.string_storage.get());
-        *self.0.intrep.borrow_mut() = cache;
-        *self.0.double_format.borrow_mut() = format;
-        Ok(())
+        if check.is_none() {
+            *self.0.string.borrow_mut() = string;
+            self.0.string_storage.set(donor.0.string_storage.get());
+            *self.0.intrep.borrow_mut() = cache;
+            *self.0.double_format.borrow_mut() = format;
+            return Ok(());
+        }
+        let storage = donor.0.string_storage.get();
+        self.replace_primary_using_with(
+            || {
+                donor.check_native_header()?;
+                donor.validate_native_mirror_primary(protocol)?;
+                if string_mutation == tcl_core_types::ResidentStringMutation::Preserve
+                    && (self.resident_string_bytes() != donor.resident_string_bytes()
+                        || self.0.string_storage.get() != storage)
+                {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "native object mirror preserved string receipt",
+                    )
+                    .into());
+                }
+                *self.0.string.borrow_mut() = string;
+                self.0.string_storage.set(storage);
+                Ok(cache)
+            },
+            check,
+        )?;
+        let retired_format = self.0.double_format.replace(format);
+        drop(retired_format);
+        Self::native_stage_check(check)
     }
 
     fn validate_native_mirror_primary(
