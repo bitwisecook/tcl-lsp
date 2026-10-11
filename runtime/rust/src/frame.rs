@@ -59,8 +59,10 @@ use tcl_runtime_api::{FrameLinkOrigin, VarId};
 use crate::namespace::NsId;
 use crate::obj::{self, TclObj};
 
+mod jim_alias_publication;
 mod jim_link_store;
 mod jim_lookup;
+pub(crate) use jim_alias_publication::PreparedJimAliasCell;
 pub(crate) use jim_link_store::{CapturedJimLinkRoot, JimLinkStoreError};
 pub(crate) use jim_lookup::{CapturedJimDictionaryCell, JimVariableRead, WeakJimVariableCell};
 mod container;
@@ -192,6 +194,15 @@ impl OriginalJimLinkTarget {
         }
         crate::obj::check_native_liveness(self.original.as_ptr())?;
         Ok(self.original.as_ptr())
+    }
+    pub(super) fn take_stored_name(
+        &self,
+    ) -> Result<crate::obj::Owned, tcl_syntax::value::ValueError> {
+        self.stored_name.borrow_mut().take().ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "withdrawn original Jim alias role",
+            ),
+        )
     }
     pub(crate) fn withdraw_stored_role(&self) -> RetiredVariableParts {
         let name = self.stored_name.borrow_mut().take();
@@ -410,6 +421,8 @@ struct CellContents {
     array_searches: tcl_core_types::NativeArraySearchChain<crate::obj::Owned>,
     /// Owner destruction differs from resetting contents of a retained shell.
     rmw_retirement: Option<VarError>,
+    /// Non-owning old scalar pointer during the selected Jim decrement.
+    jim_scalar_retirement: Option<Rc<jim_alias_publication::JimScalarRetirement>>,
     var: Option<Var>,
     namespace_declared: bool,
     undefined_shell: bool,
@@ -502,6 +515,9 @@ impl StaticVariables {
     pub(crate) fn insert_copy(&mut self, name: &[u8], source: RetainedVariableCell) -> bool {
         let mut table = VarTable::default();
         let source = source.0.borrow();
+        if source.check_owned_value_role().is_err() {
+            return false;
+        }
         match source.var.as_ref() {
             Some(Var::Scalar(value)) => {
                 table.store_scalar(name, *value).expect("fresh scalar");
@@ -540,6 +556,7 @@ impl Cell {
                 array_searches: tcl_core_types::NativeArraySearchChain::default(),
                 detached_arrays: std::collections::HashMap::new(),
                 rmw_retirement: None,
+                jim_scalar_retirement: None,
                 var: None,
                 namespace_declared: false,
                 undefined_shell: false,
@@ -565,6 +582,11 @@ impl Cell {
 
 impl CellContents {
     fn check_owned_value_role(&self) -> Result<(), tcl_syntax::value::ValueError> {
+        if self.jim_scalar_retirement.is_some() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "retiring Jim scalar stored role",
+            ));
+        }
         if matches!(self.var.as_ref(), Some(Var::PendingScalar(_))) {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "unsettled scalar native reference role",
@@ -574,16 +596,21 @@ impl CellContents {
     }
     fn take_value(&mut self) -> Option<Var> {
         let previous = self.var.take();
+        if self
+            .jim_scalar_retirement
+            .take()
+            .is_some_and(|ticket| ticket.displace(&previous))
+        {
+            return None;
+        }
         if let Some(Var::PendingScalar(pending)) = &previous {
             pending.mark_displaced();
         }
         previous
     }
     fn replace_value(&mut self, incoming: Var) -> Option<Var> {
-        let previous = self.var.replace(incoming);
-        if let Some(Var::PendingScalar(pending)) = &previous {
-            pending.mark_displaced();
-        }
+        let previous = self.take_value();
+        self.var = Some(incoming);
         previous
     }
     /// A selected undefined self-link is a physical root, not a scalar value.
@@ -970,7 +997,11 @@ impl VarTable {
 
     pub(crate) fn capture_cell(&self, name: &[u8]) -> Option<RetainedVariableCell> {
         let contents = self.contents(name)?;
-        contents.borrow().var.as_ref()?;
+        {
+            let cell = contents.borrow();
+            cell.check_owned_value_role().ok()?;
+            cell.var.as_ref()?;
+        }
         Some(RetainedVariableCell(contents.clone()))
     }
 
@@ -981,7 +1012,11 @@ impl VarTable {
     /// Borrow one cell for a synchronous read. Callers release the guard before
     /// dispatching callbacks, so native reentry never retains a cell borrow.
     pub(crate) fn cell_at(&self, slot: usize) -> Option<Ref<'_, Var>> {
-        Ref::filter_map(self.cells.get(slot)?.contents.borrow(), |c| c.var.as_ref()).ok()
+        Ref::filter_map(self.cells.get(slot)?.contents.borrow(), |c| {
+            c.check_owned_value_role().ok()?;
+            c.var.as_ref()
+        })
+        .ok()
     }
 
     pub(crate) fn slot_name(&self, slot: usize) -> Option<&[u8]> {
@@ -1003,7 +1038,11 @@ impl VarTable {
     }
 
     fn get(&self, name: &[u8]) -> Option<Ref<'_, Var>> {
-        Ref::filter_map(self.contents(name)?.borrow(), |c| c.var.as_ref()).ok()
+        Ref::filter_map(self.contents(name)?.borrow(), |c| {
+            c.jim_scalar_retirement.is_none().then_some(())?;
+            c.var.as_ref()
+        })
+        .ok()
     }
 
     fn put(&mut self, name: &[u8], var: Var) -> Option<Var> {
@@ -1179,11 +1218,11 @@ impl VarTable {
         let mut cell = contents.borrow_mut();
         match cell.var.as_mut() {
             Some(Var::Array(_)) => Err(VarError::IsArray),
-            Some(Var::Scalar(old)) => {
+            Some(Var::Scalar(_)) => {
                 unsafe { obj::incr_ref_count(obj) };
-                let previous = std::mem::replace(old, obj);
+                let previous = cell.replace_value(Var::Scalar(obj));
                 drop(cell);
-                Ok(RetiredVariableContents::Value(Some(Var::Scalar(previous))))
+                Ok(RetiredVariableContents::Value(previous))
             }
             Some(Var::PendingScalar(_)) => {
                 unsafe { obj::incr_ref_count(obj) };
@@ -1213,7 +1252,8 @@ impl VarTable {
     /// This cannot issue a scalar reference or allow a checked semantic read.
     #[cfg(test)]
     pub(crate) fn published_scalar_header(&self, name: &[u8]) -> Option<*mut TclObj> {
-        match self.get(name).as_deref() {
+        let contents = self.contents(name)?.borrow();
+        match contents.var.as_ref() {
             Some(Var::Scalar(original)) => Some(*original),
             Some(Var::PendingScalar(pending)) => Some(pending.raw_header()),
             _ => None,

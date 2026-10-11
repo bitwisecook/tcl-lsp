@@ -2,152 +2,15 @@
 //! Recursive Jim alias access retains the original target-name getter.
 
 use super::Interp;
+mod publication;
 use crate::frame::{Link, OriginalJimLinkTarget};
 use crate::interp::Code;
-use crate::obj::{self, Owned, TclObj};
+use crate::obj::{self, TclObj};
 use std::rc::Rc;
 use tcl_syntax::native_jim_lookup::NativeJimLinkTargetInput;
 use tcl_syntax::value::ValueOps;
 
 impl Interp {
-    pub(crate) fn bind_original_jim_alias_local(
-        &mut self,
-        original: Option<*mut TclObj>,
-        local: &[u8],
-        local_key: &[u8],
-        link: Link,
-    ) -> Code {
-        use tcl_syntax::native_jim_lookup::NativeJimAliasFailure as Failure;
-        let protocol = self
-            .native_invocation_dialect()
-            .native_jim_lookup_protocol()
-            .expect("actual Jim alias binder");
-        let reject = |interp: &mut Interp, failure| {
-            interp.report_cmd_error(tcl_cmd_core::var::native_jim_alias_error(
-                protocol, failure, local,
-            ))
-        };
-        let Some(names) = self.name_policy_protocol() else {
-            return self.report_cmd_error(
-                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                    "actual Jim local alias names",
-                )
-                .into(),
-            );
-        };
-        if names
-            .recipe()
-            .combined_variable_input(local)
-            .element()
-            .is_some()
-        {
-            return reject(self, Failure::LocalElement);
-        }
-        let defined = crate::vars::jim_alias_local_is_defined(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
-            self.current_ns.get(),
-            local,
-        );
-        match defined {
-            Ok(true) => return reject(self, Failure::Exists),
-            Ok(false) => (),
-            Err(_) => {
-                return self.report_cmd_error(
-                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "actual Jim local alias slot",
-                    )
-                    .into(),
-                );
-            }
-        }
-        if self.upvar_would_invert(&link, local) {
-            return reject(self, Failure::Inverted);
-        }
-        if self.variable_is_qualified(local) {
-            let Some((namespace, tail)) = self.resolve_var_target(self.current_ns(), local) else {
-                return self.report_cmd_error(
-                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "actual Jim local alias frame",
-                    )
-                    .into(),
-                );
-            };
-            let code = self.make_upvar_in(namespace, &tail, link);
-            if code != Code::Ok {
-                return code;
-            }
-        } else {
-            let code = self.make_upvar(link, local_key);
-            if code != Code::Ok {
-                return code;
-            }
-        }
-        if let Some(original) = original {
-            if let Err(error) = self.retain_original_jim_link_local(original, local) {
-                return self.report_cmd_error(error.into());
-            }
-        }
-        Code::Ok
-    }
-
-    pub(crate) fn retain_original_jim_link_target(
-        &self,
-        link: &mut Link,
-        original: *mut TclObj,
-        target_level: usize,
-    ) -> Result<(), tcl_syntax::value::ValueError> {
-        let Some(protocol) = self
-            .native_invocation_dialect()
-            .native_jim_lookup_protocol()
-        else {
-            return Ok(());
-        };
-        let bytes = self.native_object_string_bytes(original)?;
-        let (level, name) = match protocol.link_target_input(&bytes) {
-            NativeJimLinkTargetInput::Original => (target_level, Owned::retain(original)),
-            NativeJimLinkTargetInput::StrippedGlobal(tail) => {
-                (0, Owned::fresh(obj::new_string_bytes(tail)))
-            }
-        };
-        let frame = self.frames.borrow().jim_link_storage(level).ok_or(
-            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "actual Jim alias target frame",
-            ),
-        )?;
-        link.original_jim_target = Some(Rc::new(OriginalJimLinkTarget::new(name, frame)));
-        Ok(())
-    }
-    pub(crate) fn retain_original_jim_link_local(
-        &self,
-        original: *mut TclObj,
-        bytes: &[u8],
-    ) -> Result<(), tcl_syntax::value::ValueError> {
-        if self
-            .native_invocation_dialect()
-            .native_jim_lookup_protocol()
-            .is_none()
-        {
-            return Ok(());
-        }
-        let key = if bytes.starts_with(b"::") {
-            let offset = bytes
-                .iter()
-                .position(|byte| *byte != b':')
-                .unwrap_or(bytes.len());
-            Owned::fresh(obj::new_string_bytes(&bytes[offset..]))
-        } else {
-            Owned::retain(original)
-        };
-        crate::vars::retain_original_jim_variable_key(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
-            self.current_ns.get(),
-            bytes,
-            key.as_ptr(),
-        );
-        self.install_original_jim_variable(original, bytes)
-    }
     pub(crate) fn unset_original_jim_variable(
         &mut self,
         original: *mut TclObj,
@@ -174,8 +37,12 @@ impl Interp {
         let target = self
             .current_jim_variable_cache(original)
             .map_err(|error| self.report_cmd_error(error.into()))?
-            .and_then(|cache| match cache.cell.read() {
-                Some(crate::frame::JimVariableRead::Link(link)) => link.original_jim_target,
+            .map(|cache| cache.cell.read_checked())
+            .transpose()
+            .map_err(|error| self.report_cmd_error(error.into()))?
+            .flatten()
+            .and_then(|value| match value {
+                crate::frame::JimVariableRead::Link(link) => link.original_jim_target,
                 _ => None,
             });
         if let Some(target) = target {

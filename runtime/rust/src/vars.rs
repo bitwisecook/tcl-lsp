@@ -54,7 +54,9 @@ use crate::obj::{self, TclObj};
 /// with the proc chunk).
 const LINK_LIMIT: usize = 1000;
 mod entered_container;
+mod jim_alias_publication;
 pub(crate) use entered_container::{capture_byte_store_entered, EnteredVariablePlace};
+pub(crate) use jim_alias_publication::{CapturedJimAliasTarget, PreparedJimAliasLocal};
 
 /// A concrete place a name resolves to: a table ([`VarHome`]) + simple name +
 /// optional array element. Never itself a link.
@@ -522,29 +524,6 @@ fn follow_selected_link_using(
         array_cell: link.array_cell,
         scalar_entry: link.native_scalar_entry,
     }))
-}
-
-/// Jim_SetVariableLink inspects the selected local slot before following the
-/// target or replacing an existing link. Undefined shells provide no value.
-pub(crate) fn jim_alias_local_is_defined(
-    frames: &FrameStack,
-    ns: &Namespaces,
-    current_ns: NsId,
-    local: &[u8],
-) -> Result<bool, VarError> {
-    if !ns
-        .variable_name_protocol
-        .is_some_and(tcl_syntax::naming::NativeNameProtocol::is_jim084)
-    {
-        return Err(VarError::NameProtocolUnavailable);
-    }
-    let place = match classify(frames, ns, current_ns, local) {
-        Resolved::Place(place) => place,
-        Resolved::Error(error) => return Err(error),
-    };
-    Ok(table(frames, ns, place.home)
-        .and_then(|table| table.cell(&place.name))
-        .is_some_and(|cell| matches!(*cell, Var::Scalar(_) | Var::Array(_))))
 }
 
 /// Whether installing `local` in the current context would make a namespace
@@ -2702,7 +2681,9 @@ pub(crate) fn original_jim_variable_cell(
     if place.elem.is_some() {
         return None;
     }
-    table(frames, ns, place.home)?.weak_jim_cell(&place.name)
+    table(frames, ns, place.home)?
+        .weak_jim_cell(&place.name)
+        .map(|cell| cell.with_home(place.home))
 }
 /// Explicit namespace-only lookup does not consult procedure locals or the
 /// namespace-scope global fallback. Ordinary lookup retains its own policy.

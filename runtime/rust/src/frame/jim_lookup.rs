@@ -11,7 +11,12 @@ use tcl_syntax::value::ValueError;
 
 /// Original VarVal identity without a cell, value, table or activation owner.
 #[derive(Clone)]
-pub(crate) struct WeakJimVariableCell(Weak<RefCell<CellContents>>);
+pub(crate) struct WeakJimVariableCell {
+    contents: Weak<RefCell<CellContents>>,
+    ledger: Weak<RefCell<tcl_core_types::NativeEntryLedger>>,
+    name: Vec<u8>,
+    home: Option<VarHome>,
+}
 
 pub(crate) enum JimVariableRead {
     Scalar(*mut TclObj),
@@ -34,6 +39,7 @@ impl CapturedJimDictionaryCell {
             let cell = cell.borrow();
             cell.binding_id == self.binding && cell.rmw_array_epoch == self.epoch
                 && cell.rmw_retirement.is_none()
+                && cell.check_owned_value_role().is_ok()
                 && matches!(cell.var.as_ref(), Some(Var::Scalar(value)) if *value == self.root.get())
         });
         if !valid {
@@ -71,21 +77,54 @@ impl CapturedJimDictionaryCell {
 }
 
 impl WeakJimVariableCell {
+    pub(super) fn selected(
+        contents: Weak<RefCell<CellContents>>,
+        ledger: Weak<RefCell<tcl_core_types::NativeEntryLedger>>,
+        name: Vec<u8>,
+        home: VarHome,
+    ) -> Self {
+        Self {
+            contents,
+            ledger,
+            name,
+            home: Some(home),
+        }
+    }
+    pub(crate) fn with_home(mut self, home: VarHome) -> Self {
+        self.home = Some(home);
+        self
+    }
+    pub(crate) fn home(&self) -> Option<VarHome> {
+        self.home
+    }
+    pub(crate) fn prepare_alias_local(
+        &self,
+    ) -> Result<Option<super::PreparedJimAliasCell>, ValueError> {
+        let cell = self
+            .contents
+            .upgrade()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original Jim alias local cell",
+            ))?;
+        super::PreparedJimAliasCell::capture(&cell, self.ledger.clone(), self.name.clone())
+    }
+
     pub(crate) fn capture_dictionary_cell(&self) -> Result<CapturedJimDictionaryCell, ValueError> {
         let owner = self
-            .0
+            .contents
             .upgrade()
             .ok_or(ValueError::CommandProtocolUnavailable(
                 "retired original Jim dictionary binding",
             ))?;
         let contents = owner.borrow();
+        contents.check_owned_value_role()?;
         let Some(Var::Scalar(root)) = contents.var.as_ref() else {
             return Err(ValueError::CommandProtocolUnavailable(
                 "original Jim dictionary scalar binding",
             ));
         };
         let captured = CapturedJimDictionaryCell {
-            cell: self.0.clone(),
+            cell: self.contents.clone(),
             binding: contents.binding_id,
             epoch: contents.rmw_array_epoch,
             root: Rc::new(Cell::new(*root)),
@@ -100,12 +139,13 @@ impl WeakJimVariableCell {
         &self,
     ) -> Result<crate::dict::NativeDictionaryStageCheck, ValueError> {
         let owner = self
-            .0
+            .contents
             .upgrade()
             .ok_or(ValueError::CommandProtocolUnavailable(
                 "retired original Jim variable binding",
             ))?;
         let contents = owner.borrow();
+        contents.check_owned_value_role()?;
         let binding = contents.binding_id;
         let epoch = contents.rmw_array_epoch;
         let scalar = match contents.var.as_ref() {
@@ -128,7 +168,7 @@ impl WeakJimVariableCell {
                 "original Jim retained variable target",
             ));
         }
-        let cell = self.0.clone();
+        let cell = self.contents.clone();
         drop(contents);
         Ok(Rc::new(move || {
             let valid = cell.upgrade().is_some_and(|cell| {
@@ -136,6 +176,7 @@ impl WeakJimVariableCell {
                 if contents.binding_id != binding
                     || contents.rmw_array_epoch != epoch
                     || contents.rmw_retirement.is_some()
+                    || contents.check_owned_value_role().is_err()
                 {
                     return false;
                 }
@@ -164,9 +205,19 @@ impl WeakJimVariableCell {
         }))
     }
 
-    pub(crate) fn read(&self) -> Option<JimVariableRead> {
-        let cell = self.0.upgrade()?;
+    pub(crate) fn read_checked(&self) -> Result<Option<JimVariableRead>, ValueError> {
+        let Some(cell) = self.contents.upgrade() else {
+            return Ok(None);
+        };
+        cell.borrow().check_owned_value_role()?;
+        Ok(self.read())
+    }
+    fn read(&self) -> Option<JimVariableRead> {
+        let cell = self.contents.upgrade()?;
         let cell = cell.borrow();
+        if cell.check_owned_value_role().is_err() {
+            return None;
+        }
         match cell.var.as_ref()? {
             Var::Scalar(value) => Some(JimVariableRead::Scalar(*value)),
             Var::Link(link) => Some(JimVariableRead::Link(link.clone())),
@@ -174,16 +225,21 @@ impl WeakJimVariableCell {
         }
     }
     pub(crate) fn store(&self, value: *mut TclObj) -> Result<Option<Link>, VarError> {
-        let cell = self.0.upgrade().ok_or(VarError::NameProtocolUnavailable)?;
+        let cell = self
+            .contents
+            .upgrade()
+            .ok_or(VarError::NameProtocolUnavailable)?;
         let mut cell = cell.borrow_mut();
         match cell.var.as_mut() {
-            Some(Var::Scalar(old)) => {
+            Some(Var::Scalar(_)) => {
                 // SAFETY: the actual VarVal takes its new owning reference first.
                 unsafe { obj::incr_ref_count(value) };
-                let retired = std::mem::replace(old, value);
+                let retired = cell.replace_value(Var::Scalar(value));
                 drop(cell);
                 // SAFETY: the replaced hold retires outside the selected cell borrow.
-                unsafe { obj::decr_ref_count(retired) };
+                if let Some(retired) = retired {
+                    retired.release();
+                }
                 Ok(None)
             }
             Some(Var::PendingScalar(_)) => Err(VarError::NameProtocolUnavailable),
@@ -202,7 +258,12 @@ impl VarTable {
     pub(crate) fn weak_jim_cell(&self, name: &[u8]) -> Option<WeakJimVariableCell> {
         let cell = self.contents(name)?;
         cell.borrow().var.as_ref()?;
-        Some(WeakJimVariableCell(std::rc::Rc::downgrade(cell)))
+        Some(WeakJimVariableCell {
+            contents: Rc::downgrade(cell),
+            ledger: self.original_table_ledger(),
+            name: name.to_vec(),
+            home: None,
+        })
     }
     /// The native table owns the actual original key object on its first birth.
     pub(crate) fn retain_jim_key(&self, name: &[u8], original: *mut TclObj) {

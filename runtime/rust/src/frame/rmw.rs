@@ -321,6 +321,9 @@ impl VariableReceiver {
             return Ok(array.read(self.element.as_deref().expect("array element receiver")));
         }
         let contents = self.contents.borrow();
+        contents
+            .check_owned_value_role()
+            .map_err(|_| VarError::NameProtocolUnavailable)?;
         if let Some(error) = contents.rmw_retirement {
             return Err(error);
         }

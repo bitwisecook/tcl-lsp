@@ -331,7 +331,7 @@ impl Interp {
             .frames
             .borrow()
             .original_jim_frame_incarnation(cached.global);
-        match cached.cell.read() {
+        match cached.cell.read_checked()? {
             Some(JimVariableRead::Scalar(_)) => {
                 let cell = cached.cell.capture_dictionary_cell()?;
                 let owner = OriginalJimDictionaryRoot {
@@ -550,7 +550,11 @@ impl Interp {
             .current_jim_variable_cache(original)
             .map_err(|error| self.report_cmd_error(error.into()))?
         {
-            match cache.cell.read() {
+            match cache
+                .cell
+                .read_checked()
+                .map_err(|error| self.report_cmd_error(error.into()))?
+            {
                 Some(JimVariableRead::Scalar(value)) => return Ok(Some(value)),
                 Some(JimVariableRead::Link(link)) => {
                     if let Some(result) = self.read_original_jim_link_for_update(&link) {
@@ -578,7 +582,11 @@ impl Interp {
             .current_jim_variable_cache(original)
             .map_err(|error| self.report_cmd_error(error.into()))?
         {
-            if let Some(JimVariableRead::Link(link)) = cache.cell.read() {
+            if let Some(JimVariableRead::Link(link)) = cache
+                .cell
+                .read_checked()
+                .map_err(|error| self.report_cmd_error(error.into()))?
+            {
                 if let Some(result) = self.read_original_jim_link_for_update(&link) {
                     return result;
                 }

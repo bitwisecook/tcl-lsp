@@ -148,6 +148,7 @@ impl CapturedJimLinkRoot {
             .upgrade()
             .ok_or(VarError::NameProtocolUnavailable)?;
         let contents = cell.borrow();
+        contents.check_owned_value_role()?;
         match contents.var.as_ref() {
             Some(Var::Scalar(value)) => {
                 obj::check_native_liveness(*value)?;
@@ -166,7 +167,11 @@ impl CapturedJimLinkRoot {
         std::rc::Rc::new(move || {
             captured.check_storage()?;
             let valid = captured.cell.upgrade().is_some_and(|cell| {
-                matches!(cell.borrow().var.as_ref(), Some(Var::Scalar(value)) if *value == original)
+                {
+                    let contents = cell.borrow();
+                    contents.check_owned_value_role().is_ok()
+                        && matches!(contents.var.as_ref(), Some(Var::Scalar(value)) if *value == original)
+                }
             });
             if valid {
                 Ok(())
@@ -447,6 +452,7 @@ impl CapturedJimLinkRoot {
                 .upgrade()
                 .ok_or(VarError::NameProtocolUnavailable)?;
             let contents = cell.borrow();
+            contents.check_owned_value_role()?;
             if contents.constant {
                 return Err(VarError::IsConstant.into());
             }

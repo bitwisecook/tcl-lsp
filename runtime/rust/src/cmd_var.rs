@@ -149,6 +149,34 @@ fn global(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(protocol) => protocol,
         Err(error) => return crate::builtins::var_error(interp, b"", error),
     };
+    if protocol.is_jim084() {
+        if interp.current_level() == 0 {
+            return Code::Ok;
+        }
+        let arguments =
+            match crate::interp::native_arguments::OriginalArguments::enter(interp, argv) {
+                Ok(arguments) => arguments,
+                Err(error) => return interp.report_cmd_error(error),
+            };
+        for index in 1..argv.len() {
+            let name = match arguments.bytes(index) {
+                Ok(name) => name,
+                Err(error) => return interp.report_cmd_error(error),
+            };
+            if name.starts_with(b"::") {
+                continue;
+            }
+            let code = interp.link_original_jim_upvar_objects(argv[index], 0, argv[index]);
+            if code != Code::Ok {
+                return arguments.finish(code);
+            }
+        }
+        let code = arguments.finish(Code::Ok);
+        if code == Code::Ok {
+            interp.set_result_bytes(b"");
+        }
+        return arguments.finish(code);
+    }
     // `global` with no names is a no-op (TIP 323).
     for &a in &argv[1..] {
         let name = match interp.native_string_bytes(&a) {
@@ -177,6 +205,22 @@ fn global(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `variable ?name value ...? name ?value?` — declare/link namespace variables,
 /// initialising those given a value. The trailing name may omit its value.
 pub(crate) fn variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if interp
+        .native_invocation_dialect()
+        .native_jim_lookup_protocol()
+        .is_none()
+    {
+        return variable_entered(interp, argv);
+    }
+    let arguments = match crate::interp::native_arguments::OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let reached = variable_entered(interp, argv);
+    arguments.finish(reached)
+}
+
+fn variable_entered(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if interp.native_c_variable_name_protocol().is_some() {
         for pair in argv[1..].chunks(2) {
             let code = interp.define_original_c_namespace_variable(pair[0], pair.get(1).copied());
@@ -296,6 +340,18 @@ fn upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             i += 2;
             continue;
         }
+        if interp
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_some()
+        {
+            let code = interp.link_original_jim_upvar_objects(argv[i], target_level, argv[i + 1]);
+            if code != Code::Ok {
+                return code;
+            }
+            i += 2;
+            continue;
+        }
         let other = match interp.native_string_bytes(&argv[i]) {
             Ok(bytes) => bytes,
             Err(error) => return interp.report_cmd_error(error.into()),
@@ -340,6 +396,42 @@ fn bind_upvar_at_original(
     original: Option<*mut TclObj>,
     local_original: Option<*mut TclObj>,
 ) -> Code {
+    if interp
+        .native_invocation_dialect()
+        .native_jim_lookup_protocol()
+        .is_some()
+    {
+        let scope =
+            match crate::interp::native_operation_currency::NativeOperationScope::enter(interp) {
+                Ok(scope) => scope,
+                Err(first) => return interp.refuse_native_execution(first),
+            };
+        let fresh_target = original
+            .is_none()
+            .then(|| crate::obj::Owned::fresh(crate::obj::new_string_bytes(other)));
+        let fresh_local = local_original
+            .is_none()
+            .then(|| crate::obj::Owned::fresh(crate::obj::new_string_bytes(local)));
+        let target = original.unwrap_or_else(|| {
+            fresh_target
+                .as_ref()
+                .expect("fresh compatibility target")
+                .as_ptr()
+        });
+        let local = local_original.unwrap_or_else(|| {
+            fresh_local
+                .as_ref()
+                .expect("fresh compatibility local")
+                .as_ptr()
+        });
+        let reached = interp.link_original_jim_upvar_objects(target, target_level, local);
+        drop(fresh_local);
+        drop(fresh_target);
+        return match scope.currency().ensure_current_or_refuse() {
+            Ok(()) => reached,
+            Err(first) => interp.refuse_native_execution(first),
+        };
+    }
     let protocol = match interp.require_variable_name_protocol() {
         Ok(protocol) => protocol,
         Err(error) => return crate::builtins::var_error(interp, local, error),
@@ -389,9 +481,6 @@ fn bind_upvar_at_original(
     let Some(mut link) = target else {
         return no_namespace(interp, b"access", other);
     };
-    if let Err(error) = interp.retain_original_jim_link_target(&mut link, original, target_level) {
-        return interp.report_cmd_error(error.into());
-    }
     if let Err(error) = interp.prepare_upvar_target(&mut link) {
         let reason = match error {
             crate::frame::VarError::IsScalar => b"variable isn't array".as_slice(),
@@ -405,13 +494,6 @@ fn bind_upvar_at_original(
         message.extend_from_slice(b"\": ");
         message.extend_from_slice(reason);
         return interp.set_error(&message);
-    }
-    if interp
-        .native_invocation_dialect()
-        .native_jim_lookup_protocol()
-        .is_some()
-    {
-        return interp.bind_original_jim_alias_local(local_original, local, local_key, link);
     }
     // C resolves the other-variable first, then rejects a namespace alias
     // to a procedure cell before inspecting the alias's element shape or
@@ -448,11 +530,6 @@ fn bind_upvar_at_original(
         let code = interp.make_upvar(link, local_key);
         if code != Code::Ok {
             return code;
-        }
-    }
-    if let Some(original) = local_original {
-        if let Err(error) = interp.retain_original_jim_link_local(original, local) {
-            return interp.report_cmd_error(error.into());
         }
     }
     Code::Ok

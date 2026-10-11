@@ -348,6 +348,9 @@ impl FrameStack {
             return Err(super::VarError::NameProtocolUnavailable);
         }
         let contents = table.cells[cell].contents.borrow();
+        contents
+            .check_owned_value_role()
+            .map_err(|_| super::VarError::NameProtocolUnavailable)?;
         match contents.var.as_ref() {
             Some(super::Var::Scalar(value)) => Ok(Some(*value)),
             None => Ok(None),

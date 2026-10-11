@@ -234,32 +234,62 @@ impl Interp {
                 })
         };
         if let Some((cache, frame)) = captured {
-            let cell_check = cache.cell.original_stage_check()?;
-            let check = || {
-                self.check_entered_native_operation().map_err(|_| {
-                    ValueError::CommandProtocolUnavailable("entered original Jim variable cache")
-                })?;
-                if !self
-                    .frames
-                    .borrow()
-                    .owns_original_jim_frame_incarnation(&frame)
-                {
-                    return Err(ValueError::CommandProtocolUnavailable(
-                        "captured original Jim cache frame",
-                    ));
-                }
-                cell_check()
-            };
-            let reached = obj::install_jim_variable_cache_with_stage_check(
-                original,
-                cache,
-                self.native_invocation_dialect(),
-                Some(&check),
-            );
-            check()?;
-            reached?;
+            self.install_captured_original_jim_variable(original, cache, frame, None)?;
         }
         Ok(())
+    }
+    pub(super) fn install_original_jim_variable_at(
+        &self,
+        original: *mut TclObj,
+        cell: crate::frame::WeakJimVariableCell,
+        global: bool,
+        additional: &dyn Fn() -> Result<(), ValueError>,
+    ) -> Result<(), ValueError> {
+        let frames = self.frames.borrow();
+        let cache = obj::JimVariableCache {
+            interpreter: self.native_command_interpreter,
+            frame: frames.native_jim_frame_id(global),
+            global,
+            cell,
+        };
+        let frame = frames.original_jim_frame_incarnation(global);
+        drop(frames);
+        self.install_captured_original_jim_variable(original, cache, frame, Some(additional))
+    }
+    fn install_captured_original_jim_variable(
+        &self,
+        original: *mut TclObj,
+        cache: obj::JimVariableCache,
+        frame: std::rc::Weak<()>,
+        additional: Option<&dyn Fn() -> Result<(), ValueError>>,
+    ) -> Result<(), ValueError> {
+        let cell_check = cache.cell.original_stage_check()?;
+        let check = || {
+            self.check_entered_native_operation().map_err(|_| {
+                ValueError::CommandProtocolUnavailable("entered original Jim variable cache")
+            })?;
+            if let Some(additional) = additional {
+                additional()?;
+            }
+            if !self
+                .frames
+                .borrow()
+                .owns_original_jim_frame_incarnation(&frame)
+            {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "captured original Jim cache frame",
+                ));
+            }
+            cell_check()
+        };
+        let reached = obj::install_jim_variable_cache_with_stage_check(
+            original,
+            cache,
+            self.native_invocation_dialect(),
+            Some(&check),
+        );
+        check()?;
+        reached
     }
     /// Native original-name read; successful conversion updates this same object.
     /// The returned value remains borrowed from its actual VarVal.
@@ -285,7 +315,11 @@ impl Interp {
             .current_jim_variable_cache(original)
             .map_err(|error| self.report_cmd_error(error.into()))?;
         if let Some(cache) = cache {
-            let value = match cache.cell.read() {
+            let value = match cache
+                .cell
+                .read_checked()
+                .map_err(|error| self.report_cmd_error(error.into()))?
+            {
                 Some(JimVariableRead::Scalar(value)) => Some(value),
                 Some(JimVariableRead::Link(link)) => {
                     if let Some(result) = self.read_original_jim_link(original, &link) {
@@ -319,7 +353,11 @@ impl Interp {
             .current_jim_variable_cache(original)
             .map_err(|error| self.report_cmd_error(error.into()))?
         {
-            if let Some(JimVariableRead::Link(link)) = cache.cell.read() {
+            if let Some(JimVariableRead::Link(link)) = cache
+                .cell
+                .read_checked()
+                .map_err(|error| self.report_cmd_error(error.into()))?
+            {
                 if let Some(result) = self.read_original_jim_link(original, &link) {
                     return result;
                 }
