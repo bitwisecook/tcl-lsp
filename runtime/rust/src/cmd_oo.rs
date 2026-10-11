@@ -1692,7 +1692,7 @@ fn slot_inst_set_original(
             oo_original_check!(interp, originals);
             oo_checked!(interp, target_owner.check(interp));
             if let Err(error) = result {
-                return interp.report_cmd_error(error.into());
+                return interp.report_cmd_error(error);
             }
             interp.set_result_bytes(b"");
             return Code::Ok;

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Real C9.1 property metadata owners and native List cache headers.
 use super::*;
+use crate::interp::native_arguments::OriginalArguments;
+use tcl_cmd_core::CmdError;
 use tcl_registry::native_property_lookup::{
     NativePropertyGraphDependents, NativePropertyInvalidation,
 };
@@ -155,22 +157,36 @@ impl Interp {
         target: OoId,
         class: bool,
         writable: bool,
-        members: Vec<(Vec<u8>, obj::Owned)>,
-    ) {
-        let mut originals = BTreeMap::new();
-        for (name, original) in members {
-            originals.entry(name).or_insert(original);
-        }
-        let mut oo = self.oo.borrow_mut();
-        oo.property_members
-            .insert((target, class, writable), originals);
-        if let Some(cache) = oo.property_caches.get_mut(&(target, class)) {
-            if writable {
-                cache.writable = None;
-            } else {
-                cache.readable = None;
-            }
-        }
+        members: BTreeMap<Vec<u8>, obj::Owned>,
+        originals: &OriginalArguments,
+        owner: &native_context::OriginalOoTarget,
+    ) -> Result<(), CmdError> {
+        originals.check()?;
+        owner.check(self)?;
+        let retired = self
+            .oo
+            .borrow_mut()
+            .property_members
+            .insert((target, class, writable), members);
+        drop(retired);
+        originals.check()?;
+        owner.check(self)?;
+
+        let retired = self
+            .oo
+            .borrow_mut()
+            .property_caches
+            .get_mut(&(target, class))
+            .and_then(|cache| {
+                if writable {
+                    cache.writable.take()
+                } else {
+                    cache.readable.take()
+                }
+            });
+        drop(retired);
+        originals.check()?;
+        owner.check(self)
     }
     pub(super) fn native_all_property_header(
         &mut self,
@@ -489,57 +505,75 @@ pub(super) fn set_property_slot(
     class: bool,
     writable: bool,
     original: *mut TclObj,
-) -> Result<(), ValueError> {
+) -> Result<(), CmdError> {
+    let originals = OriginalArguments::enter(interp, &[original])?;
+    let owner = native_context::OriginalOoTarget::capture(interp, target, class)?;
     let recipe = interp
         .native_invocation_dialect()
         .native_property_lookup_protocol()
         .ok_or(ValueError::CommandProtocolUnavailable(
             "property metadata slot issuer",
         ))?;
-    let members = crate::list::list_elements_native_checked(original, recipe.strings())?;
-    let mut names = Vec::new();
-    let mut originals = BTreeMap::new();
-    for original in members {
-        let name = interp.native_object_string_bytes(original)?.to_vec();
-        if let std::collections::btree_map::Entry::Vacant(entry) = originals.entry(name) {
-            names.push(entry.key().clone());
-            entry.insert(obj::Owned::retain(original));
+    let result: Result<(), CmdError> = (|| {
+        let members = crate::list::list_elements_native_with_currency(
+            original,
+            recipe.strings(),
+            Some(originals.currency()),
+        );
+        originals.check()?;
+        owner.check(interp)?;
+        let members = members?;
+        let member_arguments = OriginalArguments::enter(interp, &members)?;
+        let mut names = Vec::new();
+        let mut retained = BTreeMap::new();
+        for index in 0..members.len() {
+            let name = member_arguments.bytes(index)?.to_vec();
+            owner.check(interp)?;
+            if let std::collections::btree_map::Entry::Vacant(entry) = retained.entry(name) {
+                names.push(entry.key().clone());
+                entry.insert(obj::Owned::retain(member_arguments.original(index)?));
+            }
         }
-    }
-    {
-        let mut oo = interp.oo.borrow_mut();
-        let list = if class {
-            oo.classes.get_mut(&target).map(|c| {
-                if writable {
-                    &mut c.writable_properties
-                } else {
-                    &mut c.readable_properties
-                }
-            })
-        } else {
-            oo.objects.get_mut(&target).map(|o| {
-                if writable {
-                    &mut o.writable_properties
-                } else {
-                    &mut o.readable_properties
-                }
-            })
-        };
-        let list = list.ok_or(ValueError::CommandProtocolUnavailable(
-            "native property slot target",
-        ))?;
-        *list = names;
-    }
-    interp.install_original_property_members(
-        target,
-        class,
-        writable,
-        originals.into_iter().collect(),
-    );
-    if class {
-        interp.native_property_structure_changed(target, true);
-    }
-    Ok(())
+        originals.check()?;
+        owner.check(interp)?;
+        {
+            let mut oo = interp.oo.borrow_mut();
+            let list = if class {
+                oo.classes.get_mut(&target).map(|c| {
+                    if writable {
+                        &mut c.writable_properties
+                    } else {
+                        &mut c.readable_properties
+                    }
+                })
+            } else {
+                oo.objects.get_mut(&target).map(|o| {
+                    if writable {
+                        &mut o.writable_properties
+                    } else {
+                        &mut o.readable_properties
+                    }
+                })
+            };
+            let list = list.ok_or(ValueError::CommandProtocolUnavailable(
+                "native property slot target",
+            ))?;
+            *list = names;
+        }
+        // Preserve the current map-then-cache retirement order. This checked
+        // transport does not model C9.1's earlier incoming-reference stages.
+        interp.install_original_property_members(
+            target, class, writable, retained, &originals, &owner,
+        )?;
+        if class {
+            interp.native_property_structure_changed(target, true);
+        }
+        Ok(())
+    })();
+    // Retained members and reached cleanup retire before this final check.
+    originals.check()?;
+    owner.check(interp)?;
+    result
 }
 
 fn compare_original_members(
@@ -1084,5 +1118,297 @@ mod tests {
         let epoch = interp.oo.borrow().property_foundation_epoch;
         interp.native_property_structure_changed(class, true);
         assert_eq!(interp.oo.borrow().property_foundation_epoch, epoch + 1);
+    }
+}
+
+#[cfg(test)]
+mod original_slot_boundary_tests {
+    use super::*;
+    use std::cell::Cell;
+    use tcl_syntax::native_object::NativeObjectCacheSnapshot;
+
+    thread_local! {
+        static OWNER: RefCell<Option<crate::interp::WeakInterp>> = const { RefCell::new(None) };
+        static MODE: Cell<u8> = const { Cell::new(0) };
+        static UPDATES: Cell<usize> = const { Cell::new(0) };
+        static FREES: Cell<usize> = const { Cell::new(0) };
+        static RETIREMENT_OUTSIDE_BORROW: Cell<bool> = const { Cell::new(false) };
+        static RETIREMENT_EPOCH: Cell<u64> = const { Cell::new(0) };
+    }
+
+    fn native() -> (Interp, OoId) {
+        let mut interpreter = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("tcl9.1"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            interpreter.eval_str(
+                b"oo::class create PropertyBoundaryClass; PropertyBoundaryClass create PropertyBoundaryObject",
+            ),
+            Code::Ok,
+        );
+        let target = interpreter.oo_resolve_object(b"PropertyBoundaryClass");
+        OWNER.with(|owner| *owner.borrow_mut() = Some(interpreter.downgrade()));
+        UPDATES.with(|count| count.set(0));
+        FREES.with(|count| count.set(0));
+        (interpreter, target)
+    }
+
+    fn reached_callback(interpreter: &mut Interp) {
+        match MODE.with(Cell::get) {
+            1 => {
+                interpreter.refuse_host_command("first original property slot callback");
+            }
+            2 => {
+                let original = interpreter.runtime_context();
+                let mut changed = original.clone();
+                changed
+                    .packages
+                    .push(("original-property-slot".to_owned(), "1.0".to_owned()));
+                interpreter.pin_context(&changed).unwrap();
+                interpreter.pin_context(&original).unwrap();
+            }
+            3 => {
+                assert_eq!(
+                    interpreter.eval_str(b"PropertyBoundaryClass destroy"),
+                    Code::Ok,
+                );
+            }
+            _ => {}
+        }
+    }
+
+    extern "C" fn update(original: *mut TclObj) {
+        UPDATES.with(|count| count.set(count.get() + 1));
+        let mut interpreter =
+            OWNER.with(|owner| owner.borrow().as_ref().unwrap().upgrade().unwrap());
+        reached_callback(&mut interpreter);
+        unsafe { obj::set_native_updater_string_rep(original, b"p", false) };
+    }
+
+    extern "C" fn free(_: *mut TclObj) {
+        FREES.with(|count| count.set(count.get() + 1));
+        let mut interpreter =
+            OWNER.with(|owner| owner.borrow().as_ref().unwrap().upgrade().unwrap());
+        RETIREMENT_OUTSIDE_BORROW.with(|free| {
+            free.set(interpreter.oo.try_borrow_mut().is_ok());
+        });
+        reached_callback(&mut interpreter);
+        RETIREMENT_EPOCH.with(|epoch| epoch.set(interpreter.oo.borrow().property_foundation_epoch));
+    }
+
+    static UPDATER: obj::TclObjType = obj::TclObjType {
+        name: c"originalPropertySlotUpdater".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(update),
+        set_from_any_proc: None,
+    };
+    static RETIRING: obj::TclObjType = obj::TclObjType {
+        name: c"originalPropertySlotRetirement".as_ptr(),
+        free_int_rep_proc: Some(free),
+        dup_int_rep_proc: None,
+        update_string_proc: None,
+        set_from_any_proc: None,
+    };
+
+    fn strings(interpreter: &Interp) -> tcl_syntax::native_string::NativeStringProtocol {
+        interpreter
+            .native_invocation_dialect()
+            .native_property_lookup_protocol()
+            .unwrap()
+            .strings()
+    }
+
+    #[test]
+    fn original_property_slot_list_callback_stops_before_cache_and_storage() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Software checked transport; no C9.1 property storage-order equivalence.
+        for mode in [1, 2] {
+            let (mut interpreter, target) = native();
+            MODE.with(|selected| selected.set(mode));
+            let original = obj::Owned::fresh(obj::alloc_typed(&UPDATER, 0));
+            interpreter.set_result_bytes(b"PRIOR");
+            let prior = interpreter.get_obj_result();
+            let epoch = interpreter.oo.borrow().property_foundation_epoch;
+            let failure =
+                set_property_slot(&mut interpreter, target, true, false, original.as_ptr())
+                    .err()
+                    .expect("reached original getter refuses");
+            let first_cause = interpreter
+                .native_execution_refusal()
+                .expect("actual callback retains its typed first cause");
+            assert_eq!(failure.native_execution_refusal(), Some(&first_cause));
+            assert_eq!(UPDATES.with(Cell::get), 1);
+            assert_eq!(obj::bytes_of(original.as_ptr()), b"p");
+            assert!(core::ptr::eq(
+                obj::obj_type_ptr(original.as_ptr()),
+                &UPDATER
+            ));
+            assert!(matches!(
+                obj::native_object_snapshot(original.as_ptr())
+                    .unwrap()
+                    .cache,
+                NativeObjectCacheSnapshot::None,
+            ));
+            let state = interpreter.oo.borrow();
+            assert!(state.classes[&target].readable_properties.is_empty());
+            assert!(!state.property_members.contains_key(&(target, true, false)));
+            assert_eq!(state.property_foundation_epoch, epoch);
+            drop(state);
+            assert_eq!(interpreter.get_obj_result(), prior);
+            assert_eq!(unsafe { (*original.as_ptr()).ref_count }, 1);
+            assert_eq!(interpreter.entered_native_operation_count(), 0);
+        }
+    }
+
+    #[test]
+    fn original_property_slot_member_callback_stops_later_member_and_reference_stages() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Allocation leases do not eagerly read or retain native member references.
+        for mode in [1, 2] {
+            let (mut interpreter, target) = native();
+            MODE.with(|selected| selected.set(mode));
+            let first = obj::Owned::fresh(obj::alloc_typed(&UPDATER, 0));
+            let later = obj::Owned::fresh(obj::alloc_typed(&UPDATER, 0));
+            let original = obj::Owned::fresh(crate::list::new_list_obj_native(
+                &[first.as_ptr(), later.as_ptr()],
+                strings(&interpreter),
+            ));
+            interpreter.set_result_bytes(b"PRIOR");
+            let prior = interpreter.get_obj_result();
+            let failure =
+                set_property_slot(&mut interpreter, target, true, false, original.as_ptr())
+                    .err()
+                    .expect("first member getter refuses");
+            let first_cause = interpreter
+                .native_execution_refusal()
+                .expect("actual callback retains its typed first cause");
+            assert_eq!(failure.native_execution_refusal(), Some(&first_cause));
+            assert_eq!(UPDATES.with(Cell::get), 1);
+            assert_eq!(obj::bytes_of(first.as_ptr()), b"p");
+            assert!(!obj::has_string_rep(later.as_ptr()));
+            assert_eq!(unsafe { (*first.as_ptr()).ref_count }, 2);
+            assert_eq!(unsafe { (*later.as_ptr()).ref_count }, 2);
+            assert!(interpreter.oo.borrow().classes[&target]
+                .readable_properties
+                .is_empty());
+            assert_eq!(interpreter.get_obj_result(), prior);
+            assert_eq!(interpreter.entered_native_operation_count(), 0);
+        }
+    }
+
+    #[test]
+    fn original_property_slot_retirement_runs_outside_borrow_and_checks_before_epoch() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Current map-then-cache retirement transport; original native order stays separate.
+        for mode in [0, 1, 2, 3] {
+            let (mut interpreter, target) = native();
+            MODE.with(|selected| selected.set(0));
+            let old = obj::Owned::fresh(obj::alloc_typed(&RETIRING, 0));
+            unsafe { obj::set_native_updater_string_rep(old.as_ptr(), b"old", false) };
+            let pointer = old.as_ptr();
+            let memory = obj::NativeObjectLifetime::retain(pointer);
+            let input = obj::Owned::fresh(crate::list::new_list_obj_native(
+                &[pointer],
+                strings(&interpreter),
+            ));
+            assert!(
+                set_property_slot(&mut interpreter, target, true, false, input.as_ptr(),).is_ok()
+            );
+            drop(input);
+            drop(old);
+            let cached = interpreter
+                .native_all_property_header(target, true, false)
+                .unwrap();
+            assert_eq!(unsafe { (*pointer).ref_count }, 2);
+            let new = obj::Owned::fresh(obj::new_string_bytes(b"new"));
+            let input = obj::Owned::fresh(crate::list::new_list_obj_native(
+                &[new.as_ptr()],
+                strings(&interpreter),
+            ));
+            interpreter.set_result_bytes(b"PRIOR");
+            let prior = interpreter.get_obj_result();
+            let epoch = interpreter.oo.borrow().property_foundation_epoch;
+            MODE.with(|selected| selected.set(mode));
+            let result = set_property_slot(&mut interpreter, target, true, false, input.as_ptr());
+            assert_eq!(FREES.with(Cell::get), 1);
+            assert!(RETIREMENT_OUTSIDE_BORROW.with(Cell::get));
+            assert!(!obj::allocation_is_live(pointer));
+            assert!(!obj::allocation_is_live(cached.header));
+            assert_eq!(interpreter.entered_native_operation_count(), 0);
+            if mode == 0 {
+                assert!(result.is_ok());
+                assert_eq!(interpreter.oo.borrow().property_foundation_epoch, epoch + 1);
+            } else if mode == 3 {
+                let failure = result.err().expect("original target was deleted");
+                assert!(failure.native_execution_refusal().is_none());
+                assert!(!interpreter.oo.borrow().objects.contains_key(&target));
+                assert_eq!(
+                    interpreter.oo.borrow().property_foundation_epoch,
+                    RETIREMENT_EPOCH.with(Cell::get),
+                );
+            } else {
+                let failure = result.err().expect("reached original retirement refuses");
+                let first_cause = interpreter
+                    .native_execution_refusal()
+                    .expect("actual retirement retains its typed first cause");
+                assert_eq!(failure.native_execution_refusal(), Some(&first_cause));
+                let state = interpreter.oo.borrow();
+                assert_eq!(
+                    state.classes[&target].readable_properties,
+                    [b"new".to_vec()]
+                );
+                assert_eq!(state.property_foundation_epoch, epoch);
+                assert!(state.property_caches[&(target, true)].readable.is_none());
+                assert_eq!(
+                    state.property_members[&(target, true, false)][b"new".as_slice()].as_ptr(),
+                    new.as_ptr(),
+                );
+                drop(state);
+                assert_eq!(interpreter.get_obj_result(), prior);
+            }
+            drop(cached);
+            drop(memory);
+        }
+    }
+
+    #[test]
+    fn original_property_slot_selected_list_keeps_member_identity_and_counted_names() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Existing selected List and first-win storage roles; no native phase comparison.
+        let (mut interpreter, target) = native();
+        MODE.with(|selected| selected.set(0));
+        let first = obj::Owned::fresh(obj::new_string_bytes(b"p\0tail"));
+        let second = obj::Owned::fresh(obj::new_string_bytes(b"p\0tail"));
+        let original = obj::Owned::fresh(crate::list::new_list_obj_native(
+            &[first.as_ptr(), second.as_ptr()],
+            strings(&interpreter),
+        ));
+        assert!(!obj::has_string_rep(original.as_ptr()));
+        assert!(
+            set_property_slot(&mut interpreter, target, true, false, original.as_ptr(),).is_ok()
+        );
+        assert!(!obj::has_string_rep(original.as_ptr()));
+        assert_eq!(UPDATES.with(Cell::get), 0);
+        let state = interpreter.oo.borrow();
+        assert_eq!(
+            state.classes[&target].readable_properties,
+            [b"p\0tail".to_vec()]
+        );
+        assert_eq!(
+            state.property_members[&(target, true, false)][b"p\0tail".as_slice()].as_ptr(),
+            first.as_ptr(),
+        );
+        drop(state);
+        assert_eq!(unsafe { (*first.as_ptr()).ref_count }, 3);
+        assert_eq!(unsafe { (*second.as_ptr()).ref_count }, 2);
+        assert_eq!(interpreter.entered_native_operation_count(), 0);
     }
 }
