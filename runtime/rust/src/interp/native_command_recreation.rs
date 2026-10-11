@@ -127,6 +127,18 @@ mod tests {
         let record = unsafe { &*data.cast::<Record>() };
         let owner = unsafe { &*record.owner };
         owner.deletes[record.role].set(owner.deletes[record.role].get() + 1);
+        if record.role == 0 && owner.case == 2 {
+            let mut interpreter = owner.interpreter.upgrade().unwrap();
+            if owner.mode == 6 {
+                interpreter.refuse_host_command("original public constructor delete refusal");
+            } else if owner.mode == 7 {
+                let original = interpreter.runtime_context();
+                let mut changed = original.clone();
+                changed.packages = vec![("constructor-delete".into(), "1.0".into())];
+                interpreter.pin_context(&changed).unwrap();
+                interpreter.pin_context(&original).unwrap();
+            }
+        }
         if record.role == 0 && owner.case == 1 {
             let mut interpreter = owner.interpreter.upgrade().unwrap();
             if owner.mode == 2 {
@@ -233,6 +245,168 @@ mod tests {
             field("final_call="),
             field("recreated="),
         ]
+    }
+
+    #[test]
+    fn original_jim_public_constructor_owns_root_cstring_key_and_retains_occupied_key() {
+        // naming.embedding.original-command-recreation-discard
+        // docs/design/analysis/name-resolution-proofs/embedding-original-command-recreation-discard.md
+        // Actual software CString/key/client-data roles, independent of the
+        // native recreation probe's finite callback-count comparison.
+        let mut interpreter = actual_interpreter("jim");
+        let namespace = crate::cmd_namespace::original_argument_tests::jim_fixture_namespace(
+            &mut interpreter,
+            b"constructor_scope",
+        );
+        interpreter.set_current_ns(namespace.token);
+        let (owner, mut records) = records(&interpreter, 0, 0);
+        let original = interpreter
+            .create_obj_command(
+                b"::rootEntry\0ignored",
+                ObjCommand::new(
+                    invoke_record,
+                    std::ptr::from_mut(&mut records[0]).cast(),
+                    Some(delete_record),
+                ),
+            )
+            .expect("genuine Jim_CreateCommand root CString producer");
+        let key = interpreter
+            .namespaces()
+            .original_jim_command_key(GLOBAL, b"rootEntry")
+            .unwrap();
+        assert_eq!(obj::bytes_of(key), b"::rootEntry");
+        // SAFETY: the live original table owns this borrowed key header.
+        assert_eq!(
+            unsafe { (*key).ref_count },
+            1,
+            "only the actual table owns the key"
+        );
+        assert_eq!(
+            interpreter
+                .namespaces()
+                .command_table_report_name(GLOBAL, b"rootEntry"),
+            b"::rootEntry"
+        );
+        assert!(interpreter
+            .namespaces()
+            .command_in(namespace.token, b"rootEntry")
+            .is_none());
+        assert!(interpreter
+            .namespaces()
+            .command_in(GLOBAL, b"rootEntry\0ignored")
+            .is_none());
+        let replacement = interpreter
+            .create_obj_command(
+                b"rootEntry\0other",
+                ObjCommand::new(
+                    invoke_record,
+                    std::ptr::from_mut(&mut records[2]).cast(),
+                    Some(delete_record),
+                ),
+            )
+            .unwrap();
+        assert_ne!(original, replacement);
+        assert_eq!(owner.deletes[0].get(), 1);
+        assert_eq!(
+            interpreter
+                .namespaces()
+                .original_jim_command_key(GLOBAL, b"rootEntry"),
+            Some(key),
+            "replacement preserves the occupied original hash key"
+        );
+        // SAFETY: replacement retained the same live occupied table key.
+        assert_eq!(unsafe { (*key).ref_count }, 1);
+        assert_eq!(obj::bytes_of(key), b"::rootEntry");
+        assert_eq!(interpreter.eval_str(b"::rootEntry"), Code::Ok);
+        assert_eq!(interpreter.result_bytes(), b"FINAL");
+        assert_eq!(owner.calls[0].get(), 0);
+        assert_eq!(owner.calls[2].get(), 1);
+        assert!(interpreter.delete_command(b"::rootEntry"));
+        assert_eq!(owner.deletes[2].get(), 1);
+        assert!(interpreter
+            .namespaces()
+            .original_jim_command_key(GLOBAL, b"rootEntry")
+            .is_none());
+        assert!(interpreter.native_execution_refusal().is_none());
+        interpreter.set_current_ns(GLOBAL);
+        drop(namespace);
+        drop(interpreter);
+        assert_eq!(owner.deletes[0].get(), 1);
+        assert_eq!(owner.deletes[2].get(), 1);
+        assert!(owner.interpreter.upgrade().is_none());
+    }
+
+    #[test]
+    fn original_public_constructor_stops_after_delete_host_or_restored_context_refusal() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Reached genuine delete callback and first cause are software controls;
+        // this does not infer provider callback chronology or active ownership.
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            for mode in [6, 7] {
+                let mut interpreter = actual_interpreter(environment);
+                let (owner, mut records) = records(&interpreter, 2, mode);
+                interpreter
+                    .create_obj_command(
+                        b"retiring",
+                        ObjCommand::new(
+                            invoke_record,
+                            std::ptr::from_mut(&mut records[0]).cast(),
+                            Some(delete_record),
+                        ),
+                    )
+                    .unwrap();
+                interpreter.set_result_bytes(b"CONSTRUCTOR PRIOR");
+                let context = interpreter.runtime_context();
+                assert!(interpreter
+                    .create_obj_command(
+                        b"retiring",
+                        ObjCommand::new(
+                            invoke_record,
+                            std::ptr::from_mut(&mut records[2]).cast(),
+                            Some(delete_record),
+                        ),
+                    )
+                    .is_none());
+                assert_eq!(owner.deletes[0].get(), 1);
+                assert_eq!(owner.calls[2].get(), 0);
+                assert_eq!(
+                    owner.deletes[2].get(),
+                    1,
+                    "unpublished client data retires once"
+                );
+                assert_eq!(
+                    obj::bytes_of(interpreter.get_obj_result()),
+                    b"CONSTRUCTOR PRIOR"
+                );
+                assert_eq!(interpreter.runtime_context(), context);
+                assert!(interpreter
+                    .namespaces()
+                    .command_in(GLOBAL, b"retiring")
+                    .is_none());
+                if mode == 6 {
+                    let Some(tcl_runtime_api::NativeExecutionError::HostCommandRefusal(first)) =
+                        interpreter.native_execution_refusal()
+                    else {
+                        panic!("original delete Host cause was lost");
+                    };
+                    assert_eq!(first.reason, "original public constructor delete refusal");
+                } else {
+                    assert_eq!(
+                        interpreter.native_execution_refusal(),
+                        Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                                "stale entered native operation"
+                            )
+                        ))
+                    );
+                }
+                drop(interpreter);
+                assert!(owner.interpreter.upgrade().is_none());
+                assert_eq!(owner.deletes[0].get(), 1);
+                assert_eq!(owner.deletes[2].get(), 1);
+            }
+        }
     }
 
     #[test]

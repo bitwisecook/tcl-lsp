@@ -542633,6 +542633,372 @@
         "command": [],
         "limitations": "Executed software assertions require a matching independently successful owned Compiler producer, actual executable inventory and separately closed exact selector receipts. No such assertion outcome is attached to these eleven controls. The conditional source factory, model profiles and event-table labels do not establish any C/Jim/BIG-IP worker, physical frame/class/cell lifetime, dynamic-definer completeness or measured scanning/performance result."
       }
+    },
+    {
+      "id": "naming.namespace.procedure-call-level-context",
+      "kind": "native-observation",
+      "document": "docs/design/analysis/name-resolution-proofs/namespace-procedure-call-level-context.md",
+      "problem_statement": "A namespace-qualified procedure can be called while namespace eval remains active or after it returns. Using the namespace spelling alone to choose a procedure call-level expectation confuses these two actual script contexts; printed levels must remain separate from physical frame and Host metadata claims.",
+      "question": "For the exact original script, what public info level does the same procedure report when called inside namespace eval and when called directly by its namespace-qualified name after namespace eval returns?",
+      "conclusion": "All five measured Tcl releases and the measured Jim build close the original script exit0 with empty stderr and print NESTED|2 then DIRECT|1. The namespace-eval call context therefore changes this script-visible procedure level by one in these six finite observations. These printed values establish neither native frame memory/layout, Host callback/refusal metadata nor a Rust test outcome. BIG-IP is not tested. Two source-bound software controls remain unrun.",
+      "scope": "Exact three-line ordinary stdin script and two integer observations per recorded CLI process: Tcl8.4.20,8.5.19,8.6.18,9.0.4,9.1.0 and Jim0.84-9-g5bac7c9. VERSION, stdout, empty stderr, original exit/duration and invocation-file pins are retained independently. Five C pins identify shell wrappers; downstream C ELF/library closure is unrecorded. Jim invocation ELF bytes round-trip exactly, but shared dependencies and full environment/build replay are unrecorded. No physical frame/header/pointer layout, interpreter/Scope ownership, Host metadata ABI, exceptional completion/catch behavior, worker admission, TMM or implementation equivalence is measured. The two current Rust controls supply source coverage only.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "8.4.20",
+          "build": "The original receipt pins the invoked 124-byte shell wrapper, retained exactly. It selects TCL_LIBRARY and a configured local Tcl executable; VERSION is independently printed as 8.4.20. The downstream ELF/library closure and configure/build replay are not captured by this experiment.",
+          "input_channel": "Original ordinary script supplied on standard input to the recorded CLI invocation; printed info patchlevel and script-visible info level, with exact raw stdout/stderr.",
+          "dialect": "tcl8.4",
+          "status": "observed",
+          "answer": "This original 8.4.20 process closes exit0 with empty stderr and reports NESTED|2 for the procedure called inside namespace eval, then DIRECT|1 for the same namespace-qualified procedure called after namespace eval returns. These two values do not measure physical frame layout, Host failure metadata or a Rust implementation outcome.",
+          "evidence": [
+            "original-probe",
+            "tcl8.4-receipt",
+            "tcl8.4-stdout",
+            "tcl8.4-stderr",
+            "tcl8.4-recorded-invocation-file"
+          ]
+        },
+        {
+          "id": "tcl8.5",
+          "version": "8.5.19",
+          "build": "The original receipt pins the invoked 124-byte shell wrapper, retained exactly. It selects TCL_LIBRARY and a configured local Tcl executable; VERSION is independently printed as 8.5.19. The downstream ELF/library closure and configure/build replay are not captured by this experiment.",
+          "input_channel": "Original ordinary script supplied on standard input to the recorded CLI invocation; printed info patchlevel and script-visible info level, with exact raw stdout/stderr.",
+          "dialect": "tcl8.5",
+          "status": "observed",
+          "answer": "This original 8.5.19 process closes exit0 with empty stderr and reports NESTED|2 for the procedure called inside namespace eval, then DIRECT|1 for the same namespace-qualified procedure called after namespace eval returns. These two values do not measure physical frame layout, Host failure metadata or a Rust implementation outcome.",
+          "evidence": [
+            "original-probe",
+            "tcl8.5-receipt",
+            "tcl8.5-stdout",
+            "tcl8.5-stderr",
+            "tcl8.5-recorded-invocation-file"
+          ]
+        },
+        {
+          "id": "tcl8.6",
+          "version": "8.6.18",
+          "build": "The original receipt pins the invoked 124-byte shell wrapper, retained exactly. It selects TCL_LIBRARY and a configured local Tcl executable; VERSION is independently printed as 8.6.18. The downstream ELF/library closure and configure/build replay are not captured by this experiment.",
+          "input_channel": "Original ordinary script supplied on standard input to the recorded CLI invocation; printed info patchlevel and script-visible info level, with exact raw stdout/stderr.",
+          "dialect": "tcl8.6",
+          "status": "observed",
+          "answer": "This original 8.6.18 process closes exit0 with empty stderr and reports NESTED|2 for the procedure called inside namespace eval, then DIRECT|1 for the same namespace-qualified procedure called after namespace eval returns. These two values do not measure physical frame layout, Host failure metadata or a Rust implementation outcome.",
+          "evidence": [
+            "original-probe",
+            "tcl8.6-receipt",
+            "tcl8.6-stdout",
+            "tcl8.6-stderr",
+            "tcl8.6-recorded-invocation-file"
+          ]
+        },
+        {
+          "id": "tcl9.0",
+          "version": "9.0.4",
+          "build": "The original receipt pins the invoked 122-byte shell wrapper, retained exactly. It selects TCL_LIBRARY and a configured local Tcl executable; VERSION is independently printed as 9.0.4. The downstream ELF/library closure and configure/build replay are not captured by this experiment.",
+          "input_channel": "Original ordinary script supplied on standard input to the recorded CLI invocation; printed info patchlevel and script-visible info level, with exact raw stdout/stderr.",
+          "dialect": "tcl9.0",
+          "status": "observed",
+          "answer": "This original 9.0.4 process closes exit0 with empty stderr and reports NESTED|2 for the procedure called inside namespace eval, then DIRECT|1 for the same namespace-qualified procedure called after namespace eval returns. These two values do not measure physical frame layout, Host failure metadata or a Rust implementation outcome.",
+          "evidence": [
+            "original-probe",
+            "tcl9.0-receipt",
+            "tcl9.0-stdout",
+            "tcl9.0-stderr",
+            "tcl9.0-recorded-invocation-file"
+          ]
+        },
+        {
+          "id": "tcl9.1",
+          "version": "9.1.0",
+          "build": "The original receipt pins the invoked 122-byte shell wrapper, retained exactly. It selects TCL_LIBRARY and a configured local Tcl executable; VERSION is independently printed as 9.1.0. The downstream ELF/library closure and configure/build replay are not captured by this experiment.",
+          "input_channel": "Original ordinary script supplied on standard input to the recorded CLI invocation; printed info patchlevel and script-visible info level, with exact raw stdout/stderr.",
+          "dialect": "tcl9.1",
+          "status": "observed",
+          "answer": "This original 9.1.0 process closes exit0 with empty stderr and reports NESTED|2 for the procedure called inside namespace eval, then DIRECT|1 for the same namespace-qualified procedure called after namespace eval returns. These two values do not measure physical frame layout, Host failure metadata or a Rust implementation outcome.",
+          "evidence": [
+            "original-probe",
+            "tcl9.1-receipt",
+            "tcl9.1-stdout",
+            "tcl9.1-stderr",
+            "tcl9.1-recorded-invocation-file"
+          ]
+        },
+        {
+          "id": "jim",
+          "version": "0.84-9-g5bac7c9",
+          "build": "The original receipt pins the actual 438632-byte invoked Jim ELF; its whole bytes are retained as verified lossless gzip. VERSION is independently printed as 0.84-9-g5bac7c9. Shared runtime dependencies, compiler/configure/build processes and full environment are not captured by this experiment.",
+          "input_channel": "Original ordinary script supplied on standard input to the recorded CLI invocation; printed info patchlevel and script-visible info level, with exact raw stdout/stderr.",
+          "dialect": "jim",
+          "status": "observed",
+          "answer": "This original 0.84-9-g5bac7c9 process closes exit0 with empty stderr and reports NESTED|2 for the procedure called inside namespace eval, then DIRECT|1 for the same namespace-qualified procedure called after namespace eval returns. These two values do not measure physical frame layout, Host failure metadata or a Rust implementation outcome.",
+          "evidence": [
+            "original-probe",
+            "jim-receipt",
+            "jim-stdout",
+            "jim-stderr",
+            "jim-recorded-invocation-file"
+          ]
+        },
+        {
+          "id": "bigip",
+          "version": "not tested",
+          "build": "No original BIG-IP process for this namespace/procedure script question",
+          "input_channel": "No BIG-IP script-visible info-level capture",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "No original BIG-IP response to this exact namespace/procedure call-context script is attached. Authored Runtime profiles and the six local CLI results do not establish BIG-IP/TMM frame or worker behavior.",
+          "evidence": []
+        }
+      ],
+      "evidence": [
+        {
+          "id": "original-probe",
+          "role": "input",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/probe.tcl",
+          "sha256": "53223d6fdc8dd5c273307c9c420a073797c8aee6a15de2e0ff4ea7214bd98fa7",
+          "description": "Exact original three-line script provided to each original process on standard input. It prints patchlevel and the two public info-level values; ordinary script namespace/procedure calls do not inspect physical frame memory."
+        },
+        {
+          "id": "original-closed-six-receipt",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/receipt.json",
+          "sha256": "6ad46b5f4e9d8ab7b6e852c51fe468eeef4e527761f4496bdc87d6e08579c072",
+          "description": "Original Root receipt records six actual commands, invocation-file hashes/lengths, original stdin-script SHA, closed exit0, durations and exact stdout/stderr hashes. C binary hashes identify the shell wrappers, not the downstream Tcl ELF or SDK/library dependency closure. The receipt contains no full environment or before/after input inventory."
+        },
+        {
+          "id": "tcl8.4-receipt",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/receipt.json",
+          "sha256": "6ad46b5f4e9d8ab7b6e852c51fe468eeef4e527761f4496bdc87d6e08579c072",
+          "json_pointer": "/records/0",
+          "description": "Exact own original provider process record; exit0/duration, recorded stdin and invoked-file identity, stdout/stderr hashes. This observed script result supplies no physical frame/Host metadata or full SDK build provenance."
+        },
+        {
+          "id": "tcl8.4-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/8.4.20/stdout",
+          "sha256": "dff7c14e0383416a31ed505955302e545a9af5c70c6a2756f6be0b1d91266b42",
+          "description": "Whole original stdout, including measured VERSION and exact NESTED|2/DIRECT|1 rows. These integers are public script-visible values, not native memory/header/caller-layout observations."
+        },
+        {
+          "id": "tcl8.4-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/8.4.20/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Whole original empty stderr, retained exactly; absence of error bytes does not establish unrelated runtime behavior."
+        },
+        {
+          "id": "tcl8.4-recorded-invocation-file",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/recorded-launch-files/8.4.20/wrapper.sh",
+          "sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+          "description": "Exact original recorded shell-wrapper bytes, matching the launch receipt SHA and length. Its exec target and TCL_LIBRARY are readable invocation settings, not captured downstream ELF/library identities or build-replay receipts."
+        },
+        {
+          "id": "tcl8.5-receipt",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/receipt.json",
+          "sha256": "6ad46b5f4e9d8ab7b6e852c51fe468eeef4e527761f4496bdc87d6e08579c072",
+          "json_pointer": "/records/1",
+          "description": "Exact own original provider process record; exit0/duration, recorded stdin and invoked-file identity, stdout/stderr hashes. This observed script result supplies no physical frame/Host metadata or full SDK build provenance."
+        },
+        {
+          "id": "tcl8.5-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/8.5.19/stdout",
+          "sha256": "9a9519b74117bf8d0bc6dc2084157f8ccd9b8e8fa1ff658dfaac1b807c72ff0f",
+          "description": "Whole original stdout, including measured VERSION and exact NESTED|2/DIRECT|1 rows. These integers are public script-visible values, not native memory/header/caller-layout observations."
+        },
+        {
+          "id": "tcl8.5-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/8.5.19/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Whole original empty stderr, retained exactly; absence of error bytes does not establish unrelated runtime behavior."
+        },
+        {
+          "id": "tcl8.5-recorded-invocation-file",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/recorded-launch-files/8.5.19/wrapper.sh",
+          "sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+          "description": "Exact original recorded shell-wrapper bytes, matching the launch receipt SHA and length. Its exec target and TCL_LIBRARY are readable invocation settings, not captured downstream ELF/library identities or build-replay receipts."
+        },
+        {
+          "id": "tcl8.6-receipt",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/receipt.json",
+          "sha256": "6ad46b5f4e9d8ab7b6e852c51fe468eeef4e527761f4496bdc87d6e08579c072",
+          "json_pointer": "/records/2",
+          "description": "Exact own original provider process record; exit0/duration, recorded stdin and invoked-file identity, stdout/stderr hashes. This observed script result supplies no physical frame/Host metadata or full SDK build provenance."
+        },
+        {
+          "id": "tcl8.6-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/8.6.18/stdout",
+          "sha256": "fd9fe4b8863e3313bf2ad445e50708709dbf1b9ce1e56560552b378752a3f95b",
+          "description": "Whole original stdout, including measured VERSION and exact NESTED|2/DIRECT|1 rows. These integers are public script-visible values, not native memory/header/caller-layout observations."
+        },
+        {
+          "id": "tcl8.6-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/8.6.18/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Whole original empty stderr, retained exactly; absence of error bytes does not establish unrelated runtime behavior."
+        },
+        {
+          "id": "tcl8.6-recorded-invocation-file",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/recorded-launch-files/8.6.18/wrapper.sh",
+          "sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+          "description": "Exact original recorded shell-wrapper bytes, matching the launch receipt SHA and length. Its exec target and TCL_LIBRARY are readable invocation settings, not captured downstream ELF/library identities or build-replay receipts."
+        },
+        {
+          "id": "tcl9.0-receipt",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/receipt.json",
+          "sha256": "6ad46b5f4e9d8ab7b6e852c51fe468eeef4e527761f4496bdc87d6e08579c072",
+          "json_pointer": "/records/3",
+          "description": "Exact own original provider process record; exit0/duration, recorded stdin and invoked-file identity, stdout/stderr hashes. This observed script result supplies no physical frame/Host metadata or full SDK build provenance."
+        },
+        {
+          "id": "tcl9.0-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/9.0.4/stdout",
+          "sha256": "99c709b6223a7dcb78be3e5460ded3646d806fa954bd88af717bccecfe70853f",
+          "description": "Whole original stdout, including measured VERSION and exact NESTED|2/DIRECT|1 rows. These integers are public script-visible values, not native memory/header/caller-layout observations."
+        },
+        {
+          "id": "tcl9.0-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/9.0.4/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Whole original empty stderr, retained exactly; absence of error bytes does not establish unrelated runtime behavior."
+        },
+        {
+          "id": "tcl9.0-recorded-invocation-file",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/recorded-launch-files/9.0.4/wrapper.sh",
+          "sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+          "description": "Exact original recorded shell-wrapper bytes, matching the launch receipt SHA and length. Its exec target and TCL_LIBRARY are readable invocation settings, not captured downstream ELF/library identities or build-replay receipts."
+        },
+        {
+          "id": "tcl9.1-receipt",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/receipt.json",
+          "sha256": "6ad46b5f4e9d8ab7b6e852c51fe468eeef4e527761f4496bdc87d6e08579c072",
+          "json_pointer": "/records/4",
+          "description": "Exact own original provider process record; exit0/duration, recorded stdin and invoked-file identity, stdout/stderr hashes. This observed script result supplies no physical frame/Host metadata or full SDK build provenance."
+        },
+        {
+          "id": "tcl9.1-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/9.1.0/stdout",
+          "sha256": "12fc71750f37f5f65b57322fcdef8713924aedbfed09dbb61bbd383e5479dc10",
+          "description": "Whole original stdout, including measured VERSION and exact NESTED|2/DIRECT|1 rows. These integers are public script-visible values, not native memory/header/caller-layout observations."
+        },
+        {
+          "id": "tcl9.1-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/9.1.0/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Whole original empty stderr, retained exactly; absence of error bytes does not establish unrelated runtime behavior."
+        },
+        {
+          "id": "tcl9.1-recorded-invocation-file",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/recorded-launch-files/9.1.0/wrapper.sh",
+          "sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+          "description": "Exact original recorded shell-wrapper bytes, matching the launch receipt SHA and length. Its exec target and TCL_LIBRARY are readable invocation settings, not captured downstream ELF/library identities or build-replay receipts."
+        },
+        {
+          "id": "jim-receipt",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/receipt.json",
+          "sha256": "6ad46b5f4e9d8ab7b6e852c51fe468eeef4e527761f4496bdc87d6e08579c072",
+          "json_pointer": "/records/5",
+          "description": "Exact own original provider process record; exit0/duration, recorded stdin and invoked-file identity, stdout/stderr hashes. This observed script result supplies no physical frame/Host metadata or full SDK build provenance."
+        },
+        {
+          "id": "jim-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/jim/stdout",
+          "sha256": "16273d47ee5d32fe8c846468f282b29d413c047edea888fb26ac71fb1373b3bc",
+          "description": "Whole original stdout, including measured VERSION and exact NESTED|2/DIRECT|1 rows. These integers are public script-visible values, not native memory/header/caller-layout observations."
+        },
+        {
+          "id": "jim-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/jim/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Whole original empty stderr, retained exactly; absence of error bytes does not establish unrelated runtime behavior."
+        },
+        {
+          "id": "jim-recorded-invocation-file",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/recorded-launch-files/jim/invoked-jimsh.elf.gz",
+          "sha256": "1a6a367de6dd5d1b0f918870a62880f27d3934b292e33c640aac9674d4c6c611",
+          "description": "Lossless complete invoked Jim ELF matching the original receipt binary SHA and byte count. Whole gzip roundtrip verified. This retains the recorded invocation file only; it does not certify shared-library closure, compiler/build provenance or a Runtime Rust artifact."
+        },
+        {
+          "id": "recorded-invocation-retention",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_namespace_call_levels/recorded-launch-files/retention.json",
+          "sha256": "95399b303eaee64512e272d86da240af9c6fa8d419f887e376855ead798a3523",
+          "description": "Explicit whole original invocation-file byte/hash joins and lossless Jim gzip restoration fields. Inspected current mode is not asserted as launch-time mode; no downstream/shared dependency closure is fabricated."
+        },
+        {
+          "id": "current-runtime-source-0",
+          "role": "implementation",
+          "path": "runtime/rust/src/completion.rs",
+          "sha256": "d4d6ee2bbbb910c2de429601b8170e21e8941c98b7d9d4e5eb1183003a1f75ed",
+          "description": "Current source/API or authentic parent module registration for two finite software controls. No matching own Rust executable/assertion receipt is attached to these controls; native printed values do not certify Host metadata or physical ABI correspondence."
+        },
+        {
+          "id": "current-runtime-source-1",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp.rs",
+          "sha256": "c9db505f96630fab364b90da4fb23faba412f6ed604332b1765a6e3b7ed9377f",
+          "description": "Current source/API or authentic parent module registration for two finite software controls. No matching own Rust executable/assertion receipt is attached to these controls; native printed values do not certify Host metadata or physical ABI correspondence."
+        },
+        {
+          "id": "current-runtime-source-2",
+          "role": "implementation",
+          "path": "runtime/rust/src/lib.rs",
+          "sha256": "ff62416863f9dd4a7a90afe41893c33bfdaaa6590866fa5b8090901ba5c44b67",
+          "description": "Current source/API or authentic parent module registration for two finite software controls. No matching own Rust executable/assertion receipt is attached to these controls; native printed values do not certify Host metadata or physical ABI correspondence."
+        }
+      ],
+      "source_anchors": [],
+      "tests": [
+        {
+          "path": "runtime/rust/src/completion.rs",
+          "selector": "completion::tests::namespace_eval_and_direct_procedure_calls_preserve_native_level_distinction",
+          "status": "linked",
+          "assertion": "The authored software loop selects six actual engine profiles and expects the script-visible nested/direct values 2 1. The two integers are bounded native observations; this test definition has no attached Rust assertion outcome and does not assert native frame structures or Host metadata ABI."
+        },
+        {
+          "path": "runtime/rust/src/completion.rs",
+          "selector": "completion::tests::public_completion_returns_original_reached_host_metadata_outside_catch",
+          "status": "linked",
+          "assertion": "A namespace-qualified software procedure is invoked after namespace eval returns. Its actual first Host cause, authored frame1/namespace/profile metadata and reached-before/unreached-after effects remain an independent software contract. The original CLI probe observes no Host callback, Rust metadata, catch bypass or physical frame layout; this control is unrun."
+        }
+      ],
+      "owners": [
+        {
+          "path": "runtime/rust/src/interp.rs",
+          "symbol": "Interp::eval_completion",
+          "purpose": "Current software completion entry used by the authored namespace-qualified call. Its owning Host/Guest transport and metadata have an independent software scope; two native printed integers supply no physical frame/Host metadata correspondence."
+        },
+        {
+          "path": "runtime/rust/src/completion.rs",
+          "symbol": "capture_bytes",
+          "purpose": "Current checked owning completion capture preserves the actual first typed software refusal. The native script contains no Host callback and grants no capture/layout/metadata equivalence."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "Each original receipt records a CLI argv consuming the exact retained probe on standard input. The five C invocation pins are shell wrappers; their downstream executable/library identities and the inherited full environment are not closed replay inputs here. The Jim ELF is retained losslessly, while shared dependency/build replay remains absent. Source-level Native explanations, physical frame/Host metadata equivalence and Rust assertions require independent evidence. No native or Rust replay is performed by this publication."
+      }
     }
   ]
 }

@@ -100,28 +100,58 @@ impl Interp {
     }
 
     pub(super) fn install_native_error_variable_traces(&mut self) {
+        let _ = self.install_native_error_variable_traces_checked();
+    }
+
+    pub(super) fn install_native_error_variable_traces_checked(
+        &mut self,
+    ) -> Result<(), super::Code> {
         if self
             .native_invocation_dialect()
             .native_error_variable_protocol()
             .is_none()
         {
-            return;
+            return Ok(());
         }
         for variable in [Variable::ErrorInfo, Variable::ErrorCode] {
-            self.install_native_error_variable_trace(variable);
+            self.install_native_error_variable_trace_checked(variable)?;
         }
+        Ok(())
     }
 
     pub(super) fn install_native_error_variable_trace(&mut self, variable: Variable) {
+        let _ = self.install_native_error_variable_trace_checked(variable);
+    }
+
+    fn install_native_error_variable_trace_checked(
+        &mut self,
+        variable: Variable,
+    ) -> Result<(), super::Code> {
+        let scope = super::native_operation_currency::NativeOperationScope::enter(self)
+            .map_err(|first| self.refuse_native_execution(first))?;
         let name = variable.global_name().as_bytes();
-        self.ensure_trace_variable(name)
-            .expect("native hidden error shell");
+        let allocated = self.ensure_trace_variable(name);
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| self.refuse_native_execution(first))?;
+        let allocated = allocated.map_err(|error| crate::builtins::var_error(self, name, error));
+        self.checked_bootstrap_outcome(scope.currency(), allocated)?;
         let home = self.trace_identity(name);
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| self.refuse_native_execution(first))?;
         if let Some(id) = home.binding_id {
             let mut cells = self.native_error_cells.borrow_mut();
             cells.retain(|(kind, _)| *kind != variable);
             cells.push((variable, id));
         }
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| self.refuse_native_execution(first))?;
+        Ok(())
     }
 
     pub(super) fn native_error_variable_at(

@@ -520,7 +520,7 @@ fn build_facts_gated(
             .into_iter()
             .map(|(k, v)| (k.to_owned(), v.clone()))
             .collect();
-        retain_normal_procedure_result_types(cu, &mut facts);
+        retain_normal_procedure_result_types(cu, registry, &mut facts);
         facts.collections = object_collection_classes(cu);
         facts.global_object_cells = facts
             .any_scope
@@ -833,18 +833,20 @@ impl FactSink<'_> {
 
 /// Callee proc qualified name → the class of the object it returns (the
 /// factory-proc signal behind `set c [makeThing]`).
-fn retain_normal_procedure_result_types(cu: &CompilationUnit, facts: &mut ObjectHandleFacts) {
+fn retain_normal_procedure_result_types(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    facts: &mut ObjectHandleFacts,
+) {
+    let Some(known_classes) = cu.retained_source_class_names(registry) else {
+        facts.normal_procedure_results.clear();
+        return;
+    };
     let units = procedure_implementation_units(cu);
     let mut results = crate::type_infer::NormalProcedureResultTypes::new();
     for (allocation, unit) in &units {
         join_procedure_result(&mut results, allocation, unit.return_type.clone());
     }
-    let known_classes = cu
-        .ir_module
-        .methods
-        .values()
-        .map(|method| method.class_name.clone())
-        .collect::<HashSet<_>>();
     // Every round propagates an already inferred normal callee result through
     // one more body. Cycles without an independent result remain overdefined.
     for _ in 0..=units.len() {
@@ -862,7 +864,7 @@ fn retain_normal_procedure_result_types(cu: &CompilationUnit, facts: &mut Object
                 &unit.sccp,
                 &unit.types,
                 metadata,
-                &known_classes,
+                known_classes,
                 &unit.ssa,
                 Some(&results),
             );
@@ -3142,5 +3144,63 @@ mod tests {
             assert!(returning_proc_candidates(&unit, registry).is_empty());
             assert_eq!(unit.ir_module.procedures["::make"].body, original);
         }
+    }
+
+    #[test]
+    fn normal_result_query_uses_the_shared_roster_and_withdraws_missing_source_ownership() {
+        // naming.source.original-collection-body-owner
+        // docs/design/analysis/name-resolution-proofs/original-collection-body-owner.md
+        // Conditional result types under existing allocation guards, not runtime execution.
+        let source = "proc make {} {return 1}\nmake\n";
+        let (registry, unit) = provided_unit(source, &[]);
+        assert!(
+            unit.retained_source_class_names(&registry)
+                .unwrap()
+                .is_empty()
+        );
+        let target = unit
+            .ir_module
+            .top_level
+            .statements
+            .last()
+            .and_then(|statement| {
+                unit.ir_module
+                    .top_level
+                    .retained_source_tokens_for_statement(statement)
+            })
+            .and_then(|tokens| tokens.source_binding.as_ref())
+            .and_then(crate::command_binding::SourceInvocationBinding::proved_execution_target)
+            .expect("original selected procedure allocation");
+        let mut baseline = ObjectHandleFacts::default();
+        retain_normal_procedure_result_types(&unit, &registry, &mut baseline);
+        assert_eq!(
+            baseline
+                .normal_procedure_result(target)
+                .and_then(crate::types::TypeLattice::tcl_type),
+            Some(tcl_registry::TclType::Int)
+        );
+        for axis in 0..5 {
+            let mut changed = unit.clone();
+            match axis {
+                0 => changed.source_class_facts = None,
+                1 => changed.ir_module.retained_source_bindings = None,
+                2 => changed.ir_module.source_metadata_input = None,
+                3 => changed.ir_module.lexer_config.strict_quoting ^= true,
+                _ => changed.source = "proc other {} {return 1}\nother\n".to_owned(),
+            }
+            let mut stale = baseline.clone();
+            retain_normal_procedure_result_types(&changed, &registry, &mut stale);
+            assert!(stale.normal_procedure_results.is_empty(), "axis {axis}");
+            assert!(stale.normal_procedure_result(target).is_none());
+        }
+        let mut changed_store = registry;
+        changed_store.insert(tcl_registry::CommandSpec {
+            name: "unrelated_selected_command",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let mut stale = baseline;
+        retain_normal_procedure_result_types(&unit, &changed_store, &mut stale);
+        assert!(stale.normal_procedure_results.is_empty());
+        assert!(stale.normal_procedure_result(target).is_none());
     }
 }

@@ -4131,3 +4131,23 @@ This archive reuses those exact retained objects and creates no image or
 source-catalogue duplicate. The isolated outcomes do not replace the grouped
 abort and establish no whole 1,620-test Runtime suite result, later-source
 acceptance, performance outcome or new external Native provider observation.
+
+## Source333 own Compiler compilation failure
+
+The exact `tcl-compiler --lib --no-run` producer closes exit `101`
+after 45.97509224098758 seconds with uniform source `true`.
+Its [whole original log](frozen333/integration-compiler-own-test-build333/build.log)
+retains one `E0603` error diagnostic: the `source_analysis_entry` module is
+private at original `compilation_unit.rs:4231`. This is a compilation
+diagnostic, not a failed assertion.
+
+This operation has no executable creation event, admitted own Compiler image,
+executable inventory or assertion summary. Ordinary dependency/library events
+establish no own Compiler executable or behavior.
+
+The [whole closed receipt](frozen333/integration-compiler-own-test-build333/receipt.json.gz)
+and [37,828-leaf Source333 snapshot](frozen333/source-snapshot.json.gz)
+round-trip to their exact original bytes and retain complete command, source,
+HEAD and actual compile-root identities. The source object equals the original
+immutable snapshot. Other producer, image, inventory or assertion receipts and
+external Native observations establish no outcome for this failed run.

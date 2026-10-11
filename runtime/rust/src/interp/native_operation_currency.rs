@@ -199,6 +199,13 @@ impl Interp {
         );
     }
 
+    /// Exhaust the actual checked epoch owner without entering a new operation.
+    #[cfg(test)]
+    pub(crate) fn exhaust_native_operation_context_for_test(&self) {
+        self.0.native_operation_context_epoch.set(Some(u64::MAX));
+        self.invalidate_native_operation_context();
+    }
+
     /// Observe the real operation stack for ownership tests without exposing
     /// the mutable stack or granting a new operation.
     #[cfg(test)]
@@ -670,7 +677,7 @@ mod tests {
             b"interp recursionlimit {} 2048; interp limit {} commands -value 100000; interp bgerror {} list; set marker GUEST_OK".as_slice(),
         ] {
             let compiler_epoch = interpreter.guards.borrow().domain_epoch(GuardDomain::Interpreter);
-            assert_eq!(interpreter.eval_str(source), Code::Ok);
+            assert_eq!(interpreter.eval_str(source), Code::Ok, "source {:?}, first cause {:?}, result {:?}", String::from_utf8_lossy(source), interpreter.native_execution_refusal(), interpreter.result_bytes());
             assert_eq!(interpreter.result_bytes(), b"GUEST_OK");
             assert_ne!(interpreter.guards.borrow().domain_epoch(GuardDomain::Interpreter), compiler_epoch);
             assert_eq!(interpreter.native_operation_context_epoch(), context_epoch);

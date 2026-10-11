@@ -47,6 +47,8 @@ pub(crate) mod native_method_cache;
 mod native_object_info;
 #[cfg(test)]
 mod original_publication_tests;
+#[cfg(test)]
+mod original_property_retirement_tests;
 pub(crate) mod native_variables;
 
 use tcl_registry::native_tcloo_method_definition::{
@@ -434,6 +436,8 @@ pub struct OoState {
     property_my_name: Option<obj::Owned>,
     property_members: BTreeMap<(OoId, bool, bool), BTreeMap<Vec<u8>, obj::Owned>>,
     property_caches: BTreeMap<(OoId, bool), native_properties::NativePropertyCache>,
+    /// Pure originating release recipe retained by the actual property producer.
+    property_origins: BTreeMap<(OoId, bool), tcl_registry::native_property_lookup::NativePropertyLookupProtocol>,
 
     classes: BTreeMap<OoId, Class>,
     objects: BTreeMap<OoId, Object>,
@@ -1572,7 +1576,12 @@ fn slot_field_read(interp: &Interp, slot: &[u8], target: &DefTarget) -> Vec<Vec<
 /// Write a built-in slot's contents back to the active definition target (C's
 /// per-slot `*_Set`). The class-reference and filter/variable list slots store
 /// the list verbatim; the property slots unique it (first occurrence wins).
-fn slot_field_write(interp: &mut Interp, slot: &[u8], target: &DefTarget, list: Vec<Vec<u8>>) {
+fn slot_field_write(
+    interp: &mut Interp,
+    slot: &[u8],
+    target: &DefTarget,
+    list: Vec<Vec<u8>>,
+) -> Result<(), tcl_cmd_core::CmdError> {
     if let Some((want_object, writable)) = slot_property_kind(slot) {
         let mut uniq: Vec<Vec<u8>> = Vec::with_capacity(list.len());
         for v in list {
@@ -1581,7 +1590,7 @@ fn slot_field_write(interp: &mut Interp, slot: &[u8], target: &DefTarget, list: 
             }
         }
         write_property_set(interp, target, want_object, writable, uniq);
-        return;
+        return Ok(());
     }
     let class_refs = matches!(
         slot,
@@ -1643,8 +1652,9 @@ fn slot_field_write(interp: &mut Interp, slot: &[u8], target: &DefTarget, list: 
         match target {
             DefTarget::Class(id) => interp.native_property_structure_changed(*id, true),
             DefTarget::Object(id) => interp.native_property_structure_changed(*id, false),
-        }
+        }?;
     }
+    Ok(())
 }
 
 fn is_variable_slot(slot: &[u8]) -> bool {
@@ -1877,7 +1887,7 @@ fn slot_inst_set_original(
         if let Err(code) = validate_slot_class_references(interp, &slot_name, &list) {
             return code;
         }
-        slot_field_write(interp, &slot_name, &target, list);
+        oo_checked!(interp, slot_field_write(interp, &slot_name, &target, list));
     }
     interp.set_result_bytes(b"");
     Code::Ok
@@ -2444,8 +2454,8 @@ fn install_original_method_vis(
         return interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(first));
     }
     match target {
-        DefTarget::Class(id) => interp.native_property_method_created(id, true),
-        DefTarget::Object(id) => interp.native_property_method_created(id, false),
+        DefTarget::Class(id) => oo_checked!(interp, interp.native_property_method_created(id, true)),
+        DefTarget::Object(id) => oo_checked!(interp, interp.native_property_method_created(id, false)),
     }
     interp.set_result_bytes(b"");
     Code::Ok
@@ -2510,8 +2520,8 @@ fn def_deletemethod(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             oo_original_check!(interp, originals);
             if removed {
                 match &target {
-                    DefTarget::Class(id) => interp.native_property_structure_changed(*id, true),
-                    DefTarget::Object(id) => interp.native_property_structure_changed(*id, false),
+                    DefTarget::Class(id) => oo_checked!(interp, interp.native_property_structure_changed(*id, true)),
+                    DefTarget::Object(id) => oo_checked!(interp, interp.native_property_structure_changed(*id, false)),
                 }
             }
             if !removed {
@@ -2699,8 +2709,8 @@ fn def_renamemethod(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return original_method_entry_unavailable(interp);
         }
         match target {
-            DefTarget::Class(id) => interp.native_property_structure_changed(id, true),
-            DefTarget::Object(id) => interp.native_property_structure_changed(id, false),
+            DefTarget::Class(id) => oo_checked!(interp, interp.native_property_structure_changed(id, true)),
+            DefTarget::Object(id) => oo_checked!(interp, interp.native_property_structure_changed(id, false)),
         }
         oo_original_check!(interp, originals);
         oo_checked!(interp, target_owner.check(interp));
@@ -2795,7 +2805,7 @@ fn def_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             drop(retired);
             oo_original_check!(interp, originals);
         }
-        interp.native_property_structure_changed(obj, false);
+        oo_checked!(interp, interp.native_property_structure_changed(obj, false));
         interp.set_result_bytes(b"");
         Code::Ok
     })
@@ -2998,7 +3008,7 @@ fn def_constructor(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 .constructor
                 .take();
             if retired.is_some() {
-                interp.native_property_structure_changed(class, true);
+                oo_checked!(interp, interp.native_property_structure_changed(class, true));
             }
             drop(retired);
             oo_original_check!(interp, originals);
@@ -3033,8 +3043,8 @@ fn def_constructor(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         drop(retired);
         oo_original_check!(interp, originals);
         oo_checked!(interp, target_owner.check(interp));
-        interp.native_property_method_created(class, true);
-        interp.native_property_structure_changed(class, true);
+        oo_checked!(interp, interp.native_property_method_created(class, true));
+        oo_checked!(interp, interp.native_property_structure_changed(class, true));
         interp.set_result_bytes(b"");
         Code::Ok
     })
@@ -3065,7 +3075,7 @@ fn def_destructor(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 .destructor
                 .take();
             if retired.is_some() {
-                interp.native_property_structure_changed(class, true);
+                oo_checked!(interp, interp.native_property_structure_changed(class, true));
             }
             drop(retired);
             oo_original_check!(interp, originals);
@@ -3093,8 +3103,8 @@ fn def_destructor(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         drop(retired);
         oo_original_check!(interp, originals);
         oo_checked!(interp, target_owner.check(interp));
-        interp.native_property_method_created(class, true);
-        interp.native_property_structure_changed(class, true);
+        oo_checked!(interp, interp.native_property_method_created(class, true));
+        oo_checked!(interp, interp.native_property_structure_changed(class, true));
         interp.set_result_bytes(b"");
         Code::Ok
     })
@@ -3310,8 +3320,8 @@ fn def_export(interp: &mut Interp, argv: &[*mut TclObj], export: bool) -> Code {
         };
         if changed {
             match target {
-                DefTarget::Class(id) => interp.native_property_structure_changed(id, true),
-                DefTarget::Object(id) => interp.native_property_structure_changed(id, false),
+                DefTarget::Class(id) => oo_checked!(interp, interp.native_property_structure_changed(id, true)),
+                DefTarget::Object(id) => oo_checked!(interp, interp.native_property_structure_changed(id, false)),
             }
         }
         interp.set_result_bytes(b"");
@@ -5142,9 +5152,7 @@ impl Interp {
                 // Roll back a failed definition so the name frees up (C destroys
                 // a partially-created class whose definition script errors).
                 self.oo.borrow_mut().classes.remove(&object);
-                let retired_method_cache = self.oo.borrow_mut().retire_native_properties(object);
-                drop(retired_method_cache);
-                let _ = self.check_entered_native_operation();
+                let _ = self.retire_native_properties(object);
                 self.oo.borrow_mut().objects.remove(&object);
                 self.retire_oo_command_identity(object);
                 self.oo.borrow_mut().names.remove(&object);
@@ -5728,9 +5736,7 @@ impl Interp {
                 }
                 // `oo_destroy_bg` removes the object; clean up the class facet
                 // (a failed metaclass instantiation) and the command too.
-                let retired_method_cache = self.oo.borrow_mut().retire_native_properties(object);
-                drop(retired_method_cache);
-                let _ = self.check_entered_native_operation();
+                let _ = self.retire_native_properties(object);
                 self.oo.borrow_mut().objects.remove(&object);
                 self.oo.borrow_mut().classes.remove(&object);
                 self.retire_oo_command_identity(object);
@@ -7332,9 +7338,7 @@ impl Interp {
         drop(retired_name);
         let class = self.oo.borrow().classes.contains_key(&obj);
         self.native_method_structure_changed(obj, class);
-        let retired_method_cache = self.oo.borrow_mut().retire_native_properties(obj);
-        drop(retired_method_cache);
-        let _ = self.check_entered_native_operation();
+        let _ = self.retire_native_properties(obj);
         self.oo.borrow_mut().objects.remove(&obj);
         self.oo.borrow_mut().classes.remove(&obj);
         self.oo.borrow_mut().names.remove(&obj);
@@ -7416,9 +7420,7 @@ impl Interp {
             .get(&class)
             .and_then(|owner| owner.cached_name.borrow_mut().take());
         drop(retired_name);
-        let retired_method_cache = self.oo.borrow_mut().retire_native_properties(class);
-        drop(retired_method_cache);
-        let _ = self.check_entered_native_operation();
+        let _ = self.retire_native_properties(class);
         self.oo.borrow_mut().objects.remove(&class);
         self.oo.borrow_mut().names.remove(&class);
         if let Some(ns) = var_ns {

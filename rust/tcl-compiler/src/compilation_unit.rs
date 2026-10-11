@@ -4039,6 +4039,21 @@ impl CompilationUnit {
             .map(|m| &m.instance_vars)
     }
 
+    /// The complete descriptive class roster from this actual source build.
+    /// Source, full input/configuration, Registry and immutable Module owner
+    /// must still match. Names grant no Native class or Normal result identity.
+    pub(crate) fn retained_source_class_names(
+        &self,
+        registry: &CommandRegistry,
+    ) -> Option<&HashSet<String>> {
+        if self.ir_module.source != tcl_lexer::SourceImage::document(&self.source) {
+            return None;
+        }
+        self.source_class_facts
+            .as_deref()?
+            .for_module(&self.ir_module, registry)
+    }
+
     /// Build conditional CFG/lattice facts for an authentic original child body.
     /// The actual CU function and original parent vector select the source;
     /// report labels supply no body, namespace or entered-frame assumptions.
@@ -4086,10 +4101,7 @@ impl CompilationUnit {
             config,
             child_input.context_registry(),
         );
-        let known_classes = self
-            .source_class_facts
-            .as_deref()?
-            .for_module(module, registry)?;
+        let known_classes = self.retained_source_class_names(registry)?;
         let context = crate::value_transfer::AnalysisContextKey::for_module(
             &self.command_mutations,
             registry,
@@ -7837,6 +7849,84 @@ mod selected_class_roster_tests {
             collect_known_classes("", &self::unit("", &context).ir_module, context.commands())
                 .unwrap()
                 .is_empty()
+        );
+    }
+
+    #[test]
+    fn retained_roster_projection_shares_empty_custom_and_selected_source_classes() {
+        // naming.source.original-collection-body-owner
+        // docs/design/analysis/name-resolution-proofs/original-collection-body-owner.md
+        let context = context(true);
+        for source in [
+            "forge create Empty {}",
+            "rename forge moved; moved create Empty {}",
+            "interp alias {} build {} forge; build create Empty {}",
+        ] {
+            let unit = unit(source, &context);
+            assert!(unit.ir_module.methods.is_empty());
+            let names = unit
+                .retained_source_class_names(context.commands())
+                .unwrap();
+            assert_eq!(names, &HashSet::from(["::Empty".to_owned()]));
+            assert!(std::ptr::eq(
+                names,
+                unit.source_class_facts
+                    .as_ref()
+                    .unwrap()
+                    .for_module(&unit.ir_module, context.commands())
+                    .unwrap()
+            ));
+        }
+        let empty = unit("", &context);
+        assert!(
+            empty
+                .retained_source_class_names(context.commands())
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn retained_roster_projection_withdraws_changed_cu_module_input_and_store() {
+        // naming.source.original-collection-body-owner
+        // docs/design/analysis/name-resolution-proofs/original-collection-body-owner.md
+        let context = context(true);
+        let source = "forge create Empty {}";
+        let original = unit(source, &context);
+        assert!(
+            original
+                .retained_source_class_names(context.commands())
+                .is_some()
+        );
+        for axis in 0..8 {
+            let mut changed = original.clone();
+            match axis {
+                0 => changed.source = "forge create Other {}".to_owned(),
+                1 => {
+                    changed.ir_module.source =
+                        tcl_lexer::SourceImage::native(Arc::<[u8]>::from(source.as_bytes()))
+                }
+                2 => changed.ir_module.lexer_config.strict_quoting ^= true,
+                3 => changed.ir_module.source_metadata_input = None,
+                4 => changed.ir_module.source_entry.unknown_entry = true,
+                5 => changed.ir_module.retained_source_bindings = None,
+                6 => changed.source_class_facts = None,
+                _ => {
+                    changed.source_class_facts =
+                        unit("forge create Other {}", &context).source_class_facts
+                }
+            }
+            assert!(
+                changed
+                    .retained_source_class_names(context.commands())
+                    .is_none(),
+                "axis {axis}"
+            );
+        }
+        assert!(
+            original
+                .retained_source_class_names(self::context(false).commands())
+                .is_none()
         );
     }
 }

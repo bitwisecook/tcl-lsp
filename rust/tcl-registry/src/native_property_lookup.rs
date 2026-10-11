@@ -171,6 +171,19 @@ pub enum NativePropertyInvalidation {
     /// Advance the class representative object's property cache epoch.
     ClassRepresentative,
 }
+/// Selected C9.1 property-storage release stages, inspected independently of
+/// slot mutation and without granting any cache or member header.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativePropertyStorageRetirementStep {
+    /// Release the actual all-readable cached List role.
+    ReadableCache,
+    /// Release the actual all-writable cached List role.
+    WritableCache,
+    /// Release the actual readable member roles.
+    ReadableMembers,
+    /// Release the actual writable member roles.
+    WritableMembers,
+}
 /// Actual Foundation graph links affected by a class structure mutation.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NativePropertyGraphDependents {
@@ -187,6 +200,18 @@ pub struct NativePropertyLookupProtocol {
     materialization: crate::native_string_materialization::NativeStringMaterialization,
 }
 impl NativePropertyLookupProtocol {
+    /// `TclOOReleasePropertyStorage` releases both cached Lists before either
+    /// member array. This source-inspected recipe supplies no physical owner.
+    #[must_use]
+    pub const fn storage_retirement(self) -> [NativePropertyStorageRetirementStep; 4] {
+        use NativePropertyStorageRetirementStep::*;
+        [
+            ReadableCache,
+            WritableCache,
+            ReadableMembers,
+            WritableMembers,
+        ]
+    }
     /// `Tcl_NewMethod` always changes Foundation; instance method creation only
     /// changes its method-chain epoch, leaving property headers resident.
     #[must_use]

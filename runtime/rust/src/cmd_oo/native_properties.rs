@@ -27,29 +27,23 @@ impl PropertyHeaderLease {
     }
 }
 impl OoState {
-    pub(super) fn retire_native_properties(
+    fn apply_property_invalidation(
         &mut self,
         target: OoId,
-    ) -> Option<BTreeMap<Vec<u8>, native_method_cache::CacheEntry>> {
-        let retired_method_cache = self.native_methods.retire(target);
-        self.property_members.retain(|(id, _, _), _| *id != target);
-        self.property_caches.retain(|(id, _), _| *id != target);
-        retired_method_cache
-    }
-    fn apply_property_invalidation(&mut self, target: OoId, action: NativePropertyInvalidation) {
+        action: NativePropertyInvalidation,
+    ) -> Option<NativePropertyCache> {
         match action {
-            NativePropertyInvalidation::None => {}
+            NativePropertyInvalidation::None => None,
             NativePropertyInvalidation::Foundation => {
                 self.property_foundation_epoch = self
                     .property_foundation_epoch
                     .checked_add(1)
-                    .expect("Foundation epoch exhausted")
+                    .expect("Foundation epoch exhausted");
+                None
             }
-            NativePropertyInvalidation::Instance => {
-                self.property_caches.remove(&(target, false));
-            }
+            NativePropertyInvalidation::Instance => self.property_caches.remove(&(target, false)),
             NativePropertyInvalidation::ClassRepresentative => {
-                self.property_caches.remove(&(target, true));
+                self.property_caches.remove(&(target, true))
             }
         }
     }
@@ -113,16 +107,21 @@ impl OoState {
     }
 }
 impl Interp {
-    pub(super) fn native_property_structure_changed(&mut self, target: OoId, class: bool) {
+    pub(super) fn native_property_structure_changed(
+        &mut self,
+        target: OoId,
+        class: bool,
+    ) -> Result<(), CmdError> {
+        let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self)?;
+        let owner = native_context::OriginalOoTarget::capture(self, target, class)?;
         self.native_method_structure_changed(target, class);
-        if self.check_entered_native_operation().is_err() {
-            return;
-        }
+        scope.currency().ensure_current_or_refuse()?;
+        owner.check(self)?;
         let Some(recipe) = self
             .native_invocation_dialect()
             .native_property_lookup_protocol()
         else {
-            return;
+            return Ok(());
         };
         let action = {
             let oo = self.oo.borrow();
@@ -144,21 +143,108 @@ impl Interp {
                     .is_some_and(|o| !o.mixins.is_empty()),
             )
         };
-        self.oo
+        let retired = self
+            .oo
             .borrow_mut()
             .apply_property_invalidation(target, action);
+        drop(retired);
+        scope.currency().ensure_current_or_refuse()?;
+        owner.check(self)
     }
-    pub(super) fn native_property_method_created(&mut self, target: OoId, class: bool) {
+
+    pub(super) fn native_property_method_created(
+        &mut self,
+        target: OoId,
+        class: bool,
+    ) -> Result<(), CmdError> {
+        let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self)?;
+        let owner = native_context::OriginalOoTarget::capture(self, target, class)?;
         self.native_method_created(target, class);
+        scope.currency().ensure_current_or_refuse()?;
+        owner.check(self)?;
         if let Some(recipe) = self
             .native_invocation_dialect()
             .native_property_lookup_protocol()
         {
-            self.oo
+            let retired = self
+                .oo
                 .borrow_mut()
                 .apply_property_invalidation(target, recipe.method_created(class));
+            drop(retired);
+            scope.currency().ensure_current_or_refuse()?;
+            owner.check(self)?;
+        }
+        Ok(())
+    }
+
+    /// Mandatory original property-role cleanup, including reached refusal.
+    /// A torn-down target receives no fresh live-target or invocation authority.
+    pub(super) fn retire_native_properties(&mut self, target: OoId) -> Result<(), CmdError> {
+        use tcl_registry::native_property_lookup::NativePropertyStorageRetirementStep as Stage;
+        let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self);
+        if let Err(first) = &scope {
+            self.refuse_native_execution(first.clone());
+        }
+        let check = || match &scope {
+            Ok(scope) => scope.currency().ensure_current_or_refuse(),
+            Err(first) => Err(first.clone()),
+        };
+        let (method_cache, mut members, mut caches, recipes) = {
+            let mut oo = self.oo.borrow_mut();
+            let method_cache = oo.native_methods.retire(target);
+            let members = [false, true].map(|class| {
+                [false, true].map(|writable| oo.property_members.remove(&(target, class, writable)))
+            });
+            let caches = [false, true].map(|class| oo.property_caches.remove(&(target, class)));
+            let recipes = [false, true].map(|class| oo.property_origins.remove(&(target, class)));
+            (method_cache, members, caches, recipes)
+        };
+        let mut first = check().err();
+        for class in 0..2 {
+            if let Some(recipe) = recipes[class] {
+                for stage in recipe.storage_retirement() {
+                    match stage {
+                        Stage::ReadableCache => drop(
+                            caches[class]
+                                .as_mut()
+                                .and_then(|cache| cache.readable.take()),
+                        ),
+                        Stage::WritableCache => drop(
+                            caches[class]
+                                .as_mut()
+                                .and_then(|cache| cache.writable.take()),
+                        ),
+                        Stage::ReadableMembers => drop(members[class][0].take()),
+                        Stage::WritableMembers => drop(members[class][1].take()),
+                    }
+                    let reached = check().err();
+                    if first.is_none() {
+                        first = reached;
+                    }
+                }
+            } else {
+                // Unissued compatibility storage receives only ordinary Rust
+                // ownership cleanup, without a selected Native release recipe.
+                drop(members[class][0].take());
+                drop(members[class][1].take());
+                drop(caches[class].take());
+                let reached = check().err();
+                if first.is_none() {
+                    first = reached;
+                }
+            }
+        }
+        drop(method_cache);
+        let reached = check().err();
+        if first.is_none() {
+            first = reached;
+        }
+        match first {
+            Some(first) => Err(CmdError::from_execution_refusal(first)),
+            None => Ok(()),
         }
     }
+
     /// Release the selected cached List before the incoming slot references.
     fn retire_original_property_cache(
         &mut self,
@@ -219,11 +305,13 @@ impl Interp {
     ) -> Result<(), CmdError> {
         originals.check()?;
         owner.check(self)?;
-        let retired = self
-            .oo
-            .borrow_mut()
-            .property_members
-            .insert((target, class, writable), members);
+        let recipe = self.native_invocation_dialect().native_property_lookup_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable("property metadata origin"))?;
+        let retired = {
+            let mut oo = self.oo.borrow_mut();
+            oo.property_origins.entry((target, class)).or_insert(recipe);
+            oo.property_members.insert((target, class, writable), members)
+        };
         // A reentrant definition can have published its own new members.
         drop(retired);
         originals.check()?;
@@ -313,6 +401,7 @@ impl Interp {
         )?);
         let lease = PropertyHeaderLease::new(header.as_ptr());
         let mut oo = self.oo.borrow_mut();
+        oo.property_origins.entry((target, class)).or_insert(recipe);
         let cache = oo.property_caches.entry((target, class)).or_default();
         if cache.epoch != epoch {
             cache.readable = None;
@@ -468,14 +557,12 @@ pub(super) fn register_property(
     name: &[u8],
     readable: bool,
     writable: bool,
-) -> Result<(), ValueError> {
-    if interp
-        .native_invocation_dialect()
-        .native_property_lookup_protocol()
-        .is_none()
-    {
+) -> Result<(), CmdError> {
+    let Some(recipe) = interp.native_invocation_dialect().native_property_lookup_protocol() else {
         return Ok(());
-    }
+    };
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)?;
+    let owner = native_context::OriginalOoTarget::capture(interp, target, class)?;
     let original = obj::Owned::fresh(obj::new_string_bytes(name));
     let materialization = interp
         .native_invocation_dialect()
@@ -483,32 +570,53 @@ pub(super) fn register_property(
         .ok_or(ValueError::CommandProtocolUnavailable(
             "property formatted name issuer",
         ))?;
-    obj::retain_native_string_representation(original.as_ptr(), materialization)?;
+    let prepared = obj::retain_native_string_representation(original.as_ptr(), materialization);
+    scope.currency().ensure_current_or_refuse()?;
+    owner.check(interp)?;
+    prepared?;
     let mut changed = false;
     for (direction, adding) in [(false, readable), (true, writable)] {
-        let mut oo = interp.oo.borrow_mut();
-        let slot = oo
-            .property_members
-            .entry((target, class, direction))
-            .or_default();
-        let present = slot.contains_key(name);
-        if !present && adding {
-            slot.insert(name.to_vec(), original.clone());
-            changed = true;
-        }
-        if present && !adding {
-            slot.remove(name);
-            changed = true;
-        }
+        scope.currency().ensure_current_or_refuse()?;
+        owner.check(interp)?;
+        let (present, retired) = {
+            let mut oo = interp.oo.borrow_mut();
+            oo.property_origins.entry((target, class)).or_insert(recipe);
+            let slot = oo
+                .property_members
+                .entry((target, class, direction))
+                .or_default();
+            let present = slot.contains_key(name);
+            let retired = if !present && adding {
+                slot.insert(name.to_vec(), original.clone())
+            } else if present && !adding {
+                slot.remove(name)
+            } else {
+                None
+            };
+            (present, retired)
+        };
+        changed |= present != adding;
+        drop(retired);
+        scope.currency().ensure_current_or_refuse()?;
+        owner.check(interp)?;
         if present != adding {
-            if let Some(cache) = oo.property_caches.get_mut(&(target, class)) {
-                if direction {
-                    cache.writable = None;
-                } else {
-                    cache.readable = None;
-                }
-            }
+            let retired = interp
+                .oo
+                .borrow_mut()
+                .property_caches
+                .get_mut(&(target, class))
+                .and_then(|cache| {
+                    if direction {
+                        cache.writable.take()
+                    } else {
+                        cache.readable.take()
+                    }
+                });
+            drop(retired);
+            scope.currency().ensure_current_or_refuse()?;
+            owner.check(interp)?;
         }
+        let mut oo = interp.oo.borrow_mut();
         let list = if class {
             oo.classes.get_mut(&target).map(|c| {
                 if direction {
@@ -535,9 +643,10 @@ pub(super) fn register_property(
         }
     }
     if changed && class {
-        interp.native_property_structure_changed(target, true);
+        interp.native_property_structure_changed(target, true)?;
     }
-    Ok(())
+    scope.currency().ensure_current_or_refuse()?;
+    owner.check(interp)
 }
 
 pub(super) fn set_property_slot(
@@ -623,7 +732,7 @@ pub(super) fn set_property_slot(
         originals.check()?;
         owner.check(interp)?;
         if class {
-            interp.native_property_structure_changed(target, true);
+            interp.native_property_structure_changed(target, true)?;
         }
         Ok(())
     })();
@@ -1141,7 +1250,7 @@ mod tests {
         let class = interp.oo_resolve_object(b"C");
         let old = interp.native_all_property_header(id, false, false).unwrap();
         let epoch = interp.oo.borrow().property_foundation_epoch;
-        interp.native_property_method_created(id, false);
+        interp.native_property_method_created(id, false).unwrap();
         assert_eq!(interp.oo.borrow().property_foundation_epoch, epoch);
         assert_eq!(
             interp
@@ -1173,7 +1282,7 @@ mod tests {
             old.header
         );
         let epoch = interp.oo.borrow().property_foundation_epoch;
-        interp.native_property_structure_changed(class, true);
+        interp.native_property_structure_changed(class, true).unwrap();
         assert_eq!(interp.oo.borrow().property_foundation_epoch, epoch + 1);
     }
 }

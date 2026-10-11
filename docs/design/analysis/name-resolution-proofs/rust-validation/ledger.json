@@ -237762,6 +237762,51 @@
         }
       },
       "limits": "This record selects its genuine per-process command/exit/timing/log inside the exact whole isolated receipt. A completed process runs one assertion with1619 filtered; a SIGABRT process has no terminal assertion or summary. The complete common source object and unchanged strict Runtime332 image remain original. No other selector, full1620-test suite, current-source acceptance or new external Native provider result is inferred. These isolated processes do not replace the separately retained grouped SIGABRT invocation."
+    },
+    {
+      "id": "rust.frozen333.integration-compiler-own-test-build333",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen333/integration-compiler-own-test-build333/receipt.json.gz",
+        "sha256": "5c6670d1e73bfb349e8671a7a180589be9ce4306b8e5e268f29d003ccc98faac",
+        "compression": "gzip",
+        "uncompressed_sha256": "9e4d344f2dde3a177cdf8d12e6ed3c01cc340ef1d79579d93a5fb782ae087a4f"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen333/integration-compiler-own-test-build333/build.log",
+        "sha256": "d13cf6215641c65dca3c0872a22fe1a2ced9dd5a14430050e1cc252addbbfeb9"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 45.97509224098758,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen333/source-snapshot.json.gz",
+        "sha256": "9d9bf9e6374afc439beb53ced65c32ab7a50ffe7b2205028a0652a75b4d8805d",
+        "compression": "gzip",
+        "uncompressed_sha256": "22d40a058ec6e8ba7c079bf8a077df6f2b69a7c6294ed3e98c1be2830e376e89",
+        "json_pointer": "/source",
+        "authority": "Exact original37,828-leaf Source333 snapshot and immutable source identities. Its complete object equals the closed own Compiler333 receipt source; this source inventory supplies no admitted executable, listing or assertion result."
+      },
+      "tests": [],
+      "question_ids": [],
+      "sealed_images": {},
+      "limits": "The exact own tcl-compiler --lib --no-run producer closes exit101 with one E0603 compilation error: private module source_analysis_entry at original compilation_unit.rs4231. This is a compilation diagnostic, not a failed assertion. There are zero executable creation events, admitted own Compiler image, executable inventory or assertion summaries. Complete original command/source/head/actual compile-root identities remain exact; the whole original Source333 snapshot supplies source provenance only. Other producer/image/assertion receipts and external Native observations supply no executable or behavior outcome for this failed run."
     }
   ]
 }

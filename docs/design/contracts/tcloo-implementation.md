@@ -502,3 +502,19 @@ partial objects still pass through mandatory teardown, preserving the first
 structured cause and reached callback effects. Foundation installation stops
 its remaining OO stages when publication refuses; currency conveys no object,
 namespace or creation-purpose permission.
+### Property owner retirement
+
+Runtime property registration and invalidation retain the original OO target and
+entered operation through reached member and cache releases. Extracted owners
+retire outside OO borrows; a structured refusal stops later direction, metadata,
+epoch and result publication. Mandatory cleanup enters before extraction and
+records an entry refusal on the actual interpreter before any payload callback.
+Every captured original role still retires after refusal, preserving the first
+cause and reached effects.
+
+Each actual property producer stores its pure C9.1 release recipe with the
+facet. Cleanup uses that originating recipe after a profile change, releasing
+readable and writable cached Lists before either member array as inspected in
+`TclOOReleasePropertyStorage`. Unissued compatibility storage uses ordinary
+ownership cleanup. This selected source order conveys no header or invocation
+authority and carries no external teardown callback measurement.

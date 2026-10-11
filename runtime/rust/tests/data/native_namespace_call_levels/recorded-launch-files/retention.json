@@ -1,0 +1,77 @@
+{
+  "files": [
+    {
+      "provider": "tcl8.4",
+      "original_invoked_path": "/workspace/.proofs/oracle-bin/tclsh8.4",
+      "original_recorded_sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+      "original_recorded_bytes": 124,
+      "retained_path": "runtime/rust/tests/data/native_namespace_call_levels/recorded-launch-files/8.4.20/wrapper.sh",
+      "retained_sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+      "compression": null,
+      "whole_original_roundtrip": false,
+      "inspected_current_mode": 493,
+      "mode_at_original_launch_unrecorded": true
+    },
+    {
+      "provider": "tcl8.5",
+      "original_invoked_path": "/workspace/.proofs/oracle-bin/tclsh8.5",
+      "original_recorded_sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+      "original_recorded_bytes": 124,
+      "retained_path": "runtime/rust/tests/data/native_namespace_call_levels/recorded-launch-files/8.5.19/wrapper.sh",
+      "retained_sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+      "compression": null,
+      "whole_original_roundtrip": false,
+      "inspected_current_mode": 493,
+      "mode_at_original_launch_unrecorded": true
+    },
+    {
+      "provider": "tcl8.6",
+      "original_invoked_path": "/workspace/.proofs/oracle-bin/tclsh8.6",
+      "original_recorded_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+      "original_recorded_bytes": 124,
+      "retained_path": "runtime/rust/tests/data/native_namespace_call_levels/recorded-launch-files/8.6.18/wrapper.sh",
+      "retained_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+      "compression": null,
+      "whole_original_roundtrip": false,
+      "inspected_current_mode": 493,
+      "mode_at_original_launch_unrecorded": true
+    },
+    {
+      "provider": "tcl9.0",
+      "original_invoked_path": "/workspace/.proofs/oracle-bin/tclsh9.0",
+      "original_recorded_sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+      "original_recorded_bytes": 122,
+      "retained_path": "runtime/rust/tests/data/native_namespace_call_levels/recorded-launch-files/9.0.4/wrapper.sh",
+      "retained_sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+      "compression": null,
+      "whole_original_roundtrip": false,
+      "inspected_current_mode": 493,
+      "mode_at_original_launch_unrecorded": true
+    },
+    {
+      "provider": "tcl9.1",
+      "original_invoked_path": "/workspace/.proofs/oracle-bin/tclsh9.1",
+      "original_recorded_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+      "original_recorded_bytes": 122,
+      "retained_path": "runtime/rust/tests/data/native_namespace_call_levels/recorded-launch-files/9.1.0/wrapper.sh",
+      "retained_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+      "compression": null,
+      "whole_original_roundtrip": false,
+      "inspected_current_mode": 493,
+      "mode_at_original_launch_unrecorded": true
+    },
+    {
+      "provider": "jim",
+      "original_invoked_path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "original_recorded_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "original_recorded_bytes": 438632,
+      "retained_path": "runtime/rust/tests/data/native_namespace_call_levels/recorded-launch-files/jim/invoked-jimsh.elf.gz",
+      "retained_sha256": "1a6a367de6dd5d1b0f918870a62880f27d3934b292e33c640aac9674d4c6c611",
+      "compression": "gzip",
+      "whole_original_roundtrip": true,
+      "inspected_current_mode": 448,
+      "mode_at_original_launch_unrecorded": true
+    }
+  ],
+  "limits": "Five original binary pins identify retained shell wrappers; the Jim pin identifies the actual retained ELF. Recorded byte hashes match the original process receipt. Current file modes are inspected only, not measured at launch. Downstream/shared dependency closure and full environment/build replay are absent."
+}

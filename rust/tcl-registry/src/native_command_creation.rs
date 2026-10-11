@@ -28,6 +28,18 @@ pub enum NativeRecreatedObjectRetirement {
     DiscardWithoutDeleteProcedure,
 }
 
+/// Public registration's selected name producer. Actual namespace, key object
+/// lifetime and command-slot ownership remain independent runtime obligations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativePublicCommandRegistrationRecipe {
+    /// C public registration projects unqualified names globally and qualified
+    /// names through the original current namespace.
+    CNamespacePublication,
+    /// Jim_CreateCommand constructs a fresh CString name in the root table;
+    /// Jim_RegisterCommand then retains its independently owned table key.
+    JimRootCStringKey,
+}
+
 /// Native creation rules selected independently of actual binding authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NativeCommandCreationProtocol(NativeStringProtocol);
@@ -37,6 +49,50 @@ impl NativeCommandCreationProtocol {
     #[must_use]
     pub const fn protocol(self) -> NativeStringProtocol {
         self.0
+    }
+
+    /// Select the actual public constructor facade, independently of a stored
+    /// command's cleanup purpose. Jim has no counted Engine constructor recipe.
+    #[must_use]
+    pub const fn public_registration_recipe(
+        self,
+        purpose: NativeObjectCommandCreationPurpose,
+    ) -> Option<NativePublicCommandRegistrationRecipe> {
+        match (self.0, purpose) {
+            (
+                NativeStringProtocol::C(_),
+                NativeObjectCommandCreationPurpose::LegacyPublicObjectCommand
+                | NativeObjectCommandCreationPurpose::CountedEngineObjectCommand,
+            ) => Some(NativePublicCommandRegistrationRecipe::CNamespacePublication),
+            (
+                NativeStringProtocol::Jim084,
+                NativeObjectCommandCreationPurpose::LegacyPublicObjectCommand,
+            ) => Some(NativePublicCommandRegistrationRecipe::JimRootCStringKey),
+            _ => None,
+        }
+    }
+
+    /// Project the genuine Jim public API's root CString name through the
+    /// existing name owner. This describes key units, never a live key header.
+    #[must_use]
+    pub fn public_jim_registration_key(
+        self,
+        purpose: NativeObjectCommandCreationPurpose,
+        original: &[u8],
+    ) -> Option<tcl_syntax::naming::NativeJimCommandTableKey> {
+        use tcl_syntax::naming::{NativeJimCommandTableKey, NativeNameContext, NativeNameProtocol};
+        if self.public_registration_recipe(purpose)
+            != Some(NativePublicCommandRegistrationRecipe::JimRootCStringKey)
+        {
+            return None;
+        }
+        let selected = NativeNameProtocol::Jim084
+            .command_publication_input(
+                NativeNameContext::root(),
+                tcl_core_types::c_string_extent(original),
+            )
+            .ok()?;
+        NativeJimCommandTableKey::from_projection(&selected)
     }
 
     /// The measured idle object-command overwrite purpose. Actual operation,
@@ -69,6 +125,69 @@ impl crate::InvocationDialect {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_public_registration_selects_c_namespace_and_jim_root_cstring_purposes() {
+        // naming.embedding.original-command-recreation-discard
+        // docs/design/analysis/name-resolution-proofs/embedding-original-command-recreation-discard.md
+        // Pure source-selected registration units; no live table/header or
+        // counted Jim API equivalence is inferred from the retirement rows.
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let dialect = crate::InvocationDialect::of_profile(
+                crate::model::ingress::resolve_environment(environment).analyser_profile(),
+            );
+            let selected = dialect.native_command_creation_protocol().unwrap();
+            let jim = selected.protocol() == NativeStringProtocol::Jim084;
+            assert_eq!(
+                selected.public_registration_recipe(
+                    NativeObjectCommandCreationPurpose::LegacyPublicObjectCommand
+                ),
+                Some(if jim {
+                    NativePublicCommandRegistrationRecipe::JimRootCStringKey
+                } else {
+                    NativePublicCommandRegistrationRecipe::CNamespacePublication
+                })
+            );
+            assert_eq!(
+                selected.public_registration_recipe(
+                    NativeObjectCommandCreationPurpose::CountedEngineObjectCommand
+                ),
+                (!jim).then_some(NativePublicCommandRegistrationRecipe::CNamespacePublication)
+            );
+            assert!(
+                selected
+                    .public_registration_recipe(
+                        NativeObjectCommandCreationPurpose::OwnedRuntimeShim
+                    )
+                    .is_none()
+            );
+            let key = selected.public_jim_registration_key(
+                NativeObjectCommandCreationPurpose::LegacyPublicObjectCommand,
+                b"::rootEntry\0ignored",
+            );
+            if jim {
+                let key = key.unwrap();
+                assert_eq!(key.report_bytes(), b"::rootEntry");
+                assert_eq!(key.comparison_bytes(), b"rootEntry");
+            } else {
+                assert!(key.is_none());
+            }
+            assert!(
+                selected
+                    .public_jim_registration_key(
+                        NativeObjectCommandCreationPurpose::CountedEngineObjectCommand,
+                        b"::rootEntry"
+                    )
+                    .is_none()
+            );
+        }
+        for environment in ["tcl", "irules"] {
+            let dialect = crate::InvocationDialect::of_profile(
+                crate::model::ingress::resolve_environment(environment).analyser_profile(),
+            );
+            assert!(dialect.native_command_creation_protocol().is_none());
+        }
+    }
 
     #[test]
     fn original_idle_recreation_recipe_requires_a_supported_native_point() {

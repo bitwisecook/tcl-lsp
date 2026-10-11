@@ -37,6 +37,8 @@
 //! + retain-into-result is the whole discipline.
 
 #[cfg(test)]
+mod bootstrap_context_tests;
+#[cfg(test)]
 mod c_api_error_tests;
 mod captured_rmw;
 mod jim_local;
@@ -2019,19 +2021,40 @@ impl Interp {
         // globals. The explicit native constructor consumes only its selected
         // physical root allocation plan.
         if let Some((_, protocol, inputs)) = native {
-            interp.bootstrap_native_core(protocol, &inputs);
+            // The constructor's original entry covers both root publication
+            // and its final result. Failed bootstrap cannot publish success.
+            let scope = match native_operation_currency::NativeOperationScope::enter(&interp) {
+                Ok(scope) => scope,
+                Err(first) => {
+                    interp.refuse_native_execution(first);
+                    return interp;
+                }
+            };
+            let bootstrapped = interp.bootstrap_native_core(protocol, &inputs);
+            let current = scope.currency().ensure_current_or_refuse();
+            if bootstrapped.is_err() || current.is_err() {
+                return interp;
+            }
             if protocol.names().string_protocol()
                 == tcl_syntax::native_string::NativeStringProtocol::Jim084
             {
-                match interp.native_jim_object_context() {
-                    Ok(context) => interp.set_result(context.empty_object().as_ptr()),
-                    Err(error) => {
-                        interp.report_cmd_error(error.into());
-                    }
+                let context = interp
+                    .native_jim_object_context()
+                    .map_err(|error| interp.report_cmd_error(error.into()));
+                let context = match interp.checked_bootstrap_outcome(scope.currency(), context) {
+                    Ok(context) => context,
+                    Err(_) => return interp,
+                };
+                if scope.currency().ensure_current_or_refuse().is_err() {
+                    return interp;
                 }
+                interp.set_result(context.empty_object().as_ptr());
             } else {
                 // Tcl_CreateInterp returns its fresh untyped empty result.
                 interp.set_result_bytes(b"");
+            }
+            if scope.currency().ensure_current_or_refuse().is_err() {
+                return interp;
             }
         } else {
             interp.set_startup_globals();
@@ -2057,15 +2080,19 @@ impl Interp {
         self.invalidate_native_operation_context();
         self.invalidate_interpreter_policy();
         let previous = std::mem::replace(&mut *self.0.host.borrow_mut(), host.clone());
-        drop(previous);
         let mut interp = self.clone();
         let scope = match native_operation_currency::NativeOperationScope::enter(&interp) {
             Ok(scope) => scope,
             Err(first) => {
                 interp.refuse_native_execution(first);
+                drop(previous);
                 return;
             }
         };
+        drop(previous);
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
+        }
         let system_encoding = host.system_encoding();
         if scope.currency().ensure_current_or_refuse().is_err() {
             return;
@@ -5619,25 +5646,55 @@ impl Interp {
         &mut self,
         protocol: tcl_registry::special_vars::NativeBootstrapProtocol,
         inputs: &tcl_registry::special_vars::NativeBootstrapInputs,
-    ) {
+    ) -> Result<(), Code> {
         use tcl_registry::special_vars::{NativeBootstrapPurpose, NativeBootstrapVariable as V};
-        let snapshot =
-            tcl_platform::bootstrap::snapshot(&*self.host(), "treewalk", env!("CARGO_PKG_VERSION"));
-        for variable in protocol
+        let scope = native_operation_currency::NativeOperationScope::enter(self)
+            .map_err(|first| self.refuse_native_execution(first))?;
+        let snapshot = tcl_platform::bootstrap::snapshot_checked(
+            &*self.host(),
+            "treewalk",
+            env!("CARGO_PKG_VERSION"),
+            || scope.currency().ensure_current_or_refuse(),
+        )
+        .map_err(|first| self.refuse_native_execution(first))?;
+        let allocations = protocol
             .allocations(
                 NativeBootstrapPurpose::CreateInterpreter,
                 inputs.default_library.is_some(),
             )
-            .expect("selected native core allocation plan")
-        {
+            .ok_or_else(|| {
+                self.refuse_native_access(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "native core allocation plan",
+                    ),
+                )
+            })?;
+        for variable in allocations {
+            scope
+                .currency()
+                .ensure_current_or_refuse()
+                .map_err(|first| self.refuse_native_execution(first))?;
             let name = variable.name().as_bytes();
             match variable {
                 V::ErrorInfo | V::ErrorCode | V::Precision => {
-                    self.ensure_trace_variable(name)
-                        .expect("selected native root shell");
+                    let allocated = self.ensure_trace_variable(name);
+                    scope
+                        .currency()
+                        .ensure_current_or_refuse()
+                        .map_err(|first| self.refuse_native_execution(first))?;
+                    let allocated =
+                        allocated.map_err(|error| crate::builtins::var_error(self, name, error));
+                    self.checked_bootstrap_outcome(scope.currency(), allocated)?;
                 }
                 V::Environment | V::Platform => {
-                    self.ensure_array(name).expect("fresh native root array");
+                    let allocated = self.ensure_array(name);
+                    scope
+                        .currency()
+                        .ensure_current_or_refuse()
+                        .map_err(|first| self.refuse_native_execution(first))?;
+                    let allocated =
+                        allocated.map_err(|error| crate::builtins::var_error(self, name, error));
+                    self.checked_bootstrap_outcome(scope.currency(), allocated)?;
                     let entries: Vec<(&str, &str)> = if variable == V::Environment {
                         snapshot
                             .environment()
@@ -5652,21 +5709,43 @@ impl Interp {
                             .collect()
                     };
                     for (key, value) in entries {
-                        self.set_global_element_raw(name, key.as_bytes(), value.as_bytes());
+                        self.publish_host_bootstrap_value(
+                            scope.currency(),
+                            name,
+                            Some(key.as_bytes()),
+                            value.as_bytes(),
+                        )?;
                     }
                 }
-                V::PatchLevel => {
-                    self.set_global_raw(name, self.runtime_version().patchlevel().as_bytes())
-                }
-                V::Version => {
-                    self.set_global_raw(name, self.runtime_version().version_string().as_bytes())
-                }
+                V::PatchLevel => self.publish_host_bootstrap_value(
+                    scope.currency(),
+                    name,
+                    None,
+                    self.runtime_version().patchlevel().as_bytes(),
+                )?,
+                V::Version => self.publish_host_bootstrap_value(
+                    scope.currency(),
+                    name,
+                    None,
+                    self.runtime_version().version_string().as_bytes(),
+                )?,
                 V::PackagePath => {
+                    let string_protocol = protocol.names().string_protocol();
                     let members = tcl_syntax::list::split_native_list_bytes(
                         &inputs.package_path,
-                        protocol.names().string_protocol(),
+                        string_protocol,
                     )
-                    .expect("validated build package path");
+                    .map_err(|error| {
+                        self.report_cmd_error(
+                            tcl_syntax::value::ValueError::NativeListParse {
+                                error,
+                                source: inputs.package_path.clone(),
+                                protocol: string_protocol,
+                            }
+                            .into(),
+                        )
+                    });
+                    let members = self.checked_bootstrap_outcome(scope.currency(), members)?;
                     let members: Vec<_> = members
                         .into_iter()
                         .map(|member| obj::Owned::fresh(new_string(&member)))
@@ -5674,41 +5753,66 @@ impl Interp {
                     let pointers: Vec<_> = members.iter().map(obj::Owned::as_ptr).collect();
                     let value = obj::Owned::fresh(crate::list::new_list_obj_native(
                         &pointers,
-                        protocol.names().string_protocol(),
+                        string_protocol,
                     ));
-                    self.var_set_at(name, value.as_ptr(), 0)
-                        .expect("fresh native package path");
+                    scope
+                        .currency()
+                        .ensure_current_or_refuse()
+                        .map_err(|first| self.refuse_native_execution(first))?;
+                    let written = self.var_set_at(name, value.as_ptr(), 0);
+                    drop(value);
+                    drop(members);
+                    scope
+                        .currency()
+                        .ensure_current_or_refuse()
+                        .map_err(|first| self.refuse_native_execution(first))?;
+                    let written =
+                        written.map_err(|error| crate::builtins::var_error(self, name, error));
+                    self.checked_bootstrap_outcome(scope.currency(), written)?;
                 }
-                V::AutoPath => self.set_global_raw(name, &inputs.package_path),
-                V::DefaultLibrary => self.set_global_raw(
+                V::AutoPath => self.publish_host_bootstrap_value(
+                    scope.currency(),
                     name,
-                    inputs
-                        .default_library
-                        .as_deref()
-                        .expect("selected platform default library"),
-                ),
-                V::Interactive => self.set_global_raw(name, b"0"),
+                    None,
+                    &inputs.package_path,
+                )?,
+                V::DefaultLibrary => {
+                    let library = inputs.default_library.as_deref().ok_or_else(|| {
+                        self.refuse_native_access(
+                            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                                "native default library input",
+                            ),
+                        )
+                    })?;
+                    self.publish_host_bootstrap_value(scope.currency(), name, None, library)?;
+                }
+                V::Interactive => {
+                    self.publish_host_bootstrap_value(scope.currency(), name, None, b"0")?
+                }
                 V::Argv0 | V::Argc | V::Argv => {
-                    unreachable!("constructor plan excludes main arguments")
+                    return Err(self.refuse_native_access(
+                        tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                            "native constructor main-argument allocation",
+                        ),
+                    ));
                 }
             }
+            scope
+                .currency()
+                .ensure_current_or_refuse()
+                .map_err(|first| self.refuse_native_execution(first))?;
         }
-        self.install_native_error_variable_traces();
+        self.install_native_error_variable_traces_checked()?;
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| self.refuse_native_execution(first))?;
         self.install_native_precision_trace();
-    }
-
-    fn set_global_raw(&mut self, name: &[u8], value: &[u8]) {
-        let object = new_string(value);
-        if self.var_set_at(name, object, 0).is_err() {
-            drop_fresh(object);
-        }
-    }
-
-    fn set_global_element_raw(&mut self, name: &[u8], key: &[u8], value: &[u8]) {
-        let object = new_string(value);
-        if self.var_set_elem_at(name, key, object, 0).is_err() {
-            drop_fresh(object);
-        }
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| self.refuse_native_execution(first))?;
+        Ok(())
     }
 
     /// Replace the host-derived globals under the original entered context.
@@ -5744,7 +5848,9 @@ impl Interp {
                 .currency()
                 .ensure_current_or_refuse()
                 .map_err(|first| self.refuse_native_execution(first))?;
-            allocated.map_err(|error| crate::builtins::var_error(self, name, error))?;
+            let allocated =
+                allocated.map_err(|error| crate::builtins::var_error(self, name, error));
+            self.checked_bootstrap_outcome(scope.currency(), allocated)?;
         }
         self.publish_host_bootstrap_value(
             scope.currency(),
@@ -5791,7 +5897,21 @@ impl Interp {
         currency
             .ensure_current_or_refuse()
             .map_err(|first| self.refuse_native_execution(first))?;
-        written.map_err(|error| crate::builtins::var_error(self, name, error))
+        let written = written.map_err(|error| crate::builtins::var_error(self, name, error));
+        self.checked_bootstrap_outcome(currency, written)
+    }
+
+    /// Keep the original first cause after reached error reporting or cleanup.
+    /// A current Guest outcome is preserved without replaying its producer.
+    fn checked_bootstrap_outcome<T>(
+        &mut self,
+        currency: &native_operation_currency::NativeOperationCurrency,
+        outcome: Result<T, Code>,
+    ) -> Result<T, Code> {
+        currency
+            .ensure_current_or_refuse()
+            .map_err(|first| self.refuse_native_execution(first))?;
+        outcome
     }
 
     pub fn init_library(&mut self) -> Code {
@@ -12752,9 +12872,9 @@ impl Interp {
         code
     }
 
-    /// `Tcl_CreateObjCommand`: select the original C publication address.
-    /// Unqualified names bind globally; qualified relative names use the actual
-    /// current namespace. Answers the installed token without relooking up a name.
+    /// Select the actual public object-command registration recipe. C qualified
+    /// names use the current namespace; Jim constructs a root CString key.
+    /// Answers the installed token without relooking up a name.
     pub(crate) fn create_obj_command(&mut self, name: &[u8], command: ObjCommand) -> Option<u64> {
         self.create_obj_command_for_purpose(
             name,
@@ -12783,6 +12903,7 @@ impl Interp {
         mut command: ObjCommand,
         purpose: tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose,
     ) -> Option<u64> {
+        use tcl_registry::native_command_creation::NativePublicCommandRegistrationRecipe;
         let scope = match native_operation_currency::NativeOperationScope::enter(self) {
             Ok(scope) => scope,
             Err(first) => {
@@ -12790,19 +12911,81 @@ impl Interp {
                 return None;
             }
         };
-        let selected = self
-            .namespaces_mut()
-            .command_c_api_publication_at(self.current_ns(), name);
-        let Some((namespace, simple)) = selected else {
-            self.refuse_host_command("C command publication has no selected original namespace");
+        let Some(protocol) = self
+            .native_invocation_dialect()
+            .native_command_creation_protocol()
+        else {
+            self.refuse_host_command("public command registration has no selected native protocol");
             return None;
         };
+        let (namespace, simple, report, original_key) =
+            match protocol.public_registration_recipe(purpose) {
+                Some(NativePublicCommandRegistrationRecipe::CNamespacePublication) => {
+                    let selected = self
+                        .namespaces_mut()
+                        .command_c_api_publication_at(self.current_ns(), name);
+                    let Some((namespace, simple)) = selected else {
+                        self.refuse_host_command(
+                            "C command publication has no selected original namespace",
+                        );
+                        return None;
+                    };
+                    (namespace, simple, None, None)
+                }
+                Some(NativePublicCommandRegistrationRecipe::JimRootCStringKey) => {
+                    let Some(report) = protocol.public_jim_registration_key(purpose, name) else {
+                        self.refuse_host_command(
+                            "Jim public registration has no original CString key projection",
+                        );
+                        return None;
+                    };
+                    let original_key = self.generated_jim_command_key(
+                        GLOBAL,
+                        name,
+                        tcl_syntax::naming::NativeNamePurpose::CommandCApiPublication,
+                    );
+                    if scope.currency().ensure_current_or_refuse().is_err() {
+                        return None;
+                    }
+                    let original_key = match original_key {
+                        Ok(Some(key)) => key,
+                        Ok(None) => {
+                            self.refuse_host_command(
+                                "Jim public registration has no original key owner",
+                            );
+                            return None;
+                        }
+                        Err(error) => {
+                            self.report_cmd_error(error.into());
+                            return None;
+                        }
+                    };
+                    (
+                        GLOBAL,
+                        report.comparison_bytes().to_vec(),
+                        Some(report),
+                        Some(original_key),
+                    )
+                }
+                None => {
+                    self.refuse_host_command(
+                        "public command constructor purpose has no selected native recipe",
+                    );
+                    return None;
+                }
+            };
         // A caller-provided owned-shim purpose remains independently sealed
         // even when its record passes through a public constructor facade.
         if command.creation_purpose.is_none() {
             command.creation_purpose = Some(purpose);
         }
-        self.bind_command_replacement(namespace, &simple, Command::ObjCmd(Rc::new(command)));
+        self.bind_command_replacement_with_original_jim_key(
+            namespace,
+            &simple,
+            Command::ObjCmd(Rc::new(command)),
+            report,
+            original_key,
+        );
         if scope.currency().ensure_current_or_refuse().is_err() {
             return None;
         }
