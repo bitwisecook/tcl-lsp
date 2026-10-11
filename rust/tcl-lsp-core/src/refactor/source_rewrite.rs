@@ -72,7 +72,11 @@ fn original_command_at(
     if super::MAX_COMMAND_SEARCH_DEPTH.exceeded(depth) {
         return None;
     }
-    for command in walk.segment(region, offset) {
+    for command in if depth == 0 {
+        walk.segment_document(region)
+    } else {
+        walk.segment_nested(region, offset)
+    } {
         let (start, end) = super::command_span_offsets(source, &command);
         if cursor < start || cursor > end {
             continue;

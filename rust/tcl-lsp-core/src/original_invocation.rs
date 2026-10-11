@@ -273,7 +273,11 @@ impl RegistrySourceWalk<'_> {
         if crate::references::MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
             return;
         }
-        for command in self.walk.segment(text, base) {
+        for command in if depth == 0 {
+            self.walk.segment_document(text)
+        } else {
+            self.walk.segment_nested(text, base)
+        } {
             let regions = self
                 .walk
                 .same_frame_regions(self.source, &command)

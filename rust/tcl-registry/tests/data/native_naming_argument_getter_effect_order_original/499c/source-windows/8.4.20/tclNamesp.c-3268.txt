@@ -1,0 +1,111 @@
+static int
+NamespaceImportCmd(dummy, interp, objc, objv)
+    ClientData dummy;		/* Not used. */
+    Tcl_Interp *interp;		/* Current interpreter. */
+    int objc;			/* Number of arguments. */
+    Tcl_Obj *CONST objv[];	/* Argument objects. */
+{
+    int allowOverwrite = 0;
+    char *string, *pattern;
+    register int i, result;
+    int firstArg;
+
+    if (objc < 2) {
+        Tcl_WrongNumArgs(interp, 2, objv,
+	        "?-force? ?pattern pattern...?");
+        return TCL_ERROR;
+    }
+
+    /*
+     * Skip over the optional "-force" as the first argument.
+     */
+
+    firstArg = 2;
+    if (firstArg < objc) {
+	string = Tcl_GetString(objv[firstArg]);
+	if ((*string == '-') && (strcmp(string, "-force") == 0)) {
+	    allowOverwrite = 1;
+	    firstArg++;
+	}
+    }
+
+    /*
+     * Handle the imports for each of the patterns.
+     */
+
+    for (i = firstArg;  i < objc;  i++) {
+        pattern = Tcl_GetString(objv[i]);
+	result = Tcl_Import(interp, (Tcl_Namespace *) NULL, pattern,
+	        allowOverwrite);
+        if (result != TCL_OK) {
+            return result;
+        }
+    }
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * NamespaceInscopeCmd --
+ *
+ *	Invoked to implement the "namespace inscope" command that executes a
+ *	script in the context of a particular namespace. This command is not
+ *	expected to be used directly by programmers; calls to it are
+ *	generated implicitly when programs use "namespace code" commands
+ *	to register callback scripts. Handles the following syntax:
+ *
+ *	    namespace inscope name arg ?arg...?
+ *
+ *	The "namespace inscope" command is much like the "namespace eval"
+ *	command except that it has lappend semantics and the namespace must
+ *	already exist. It treats the first argument as a list, and appends
+ *	any arguments after the first onto the end as proper list elements.
+ *	For example,
+ *
+ *	    namespace inscope ::foo a b c d
+ *
+ *	is equivalent to
+ *
+ *	    namespace eval ::foo [concat a [list b c d]]
+ *
+ *	This lappend semantics is important because many callback scripts
+ *	are actually prefixes.
+ *
+ * Results:
+ *	Returns TCL_OK to indicate success, or TCL_ERROR to indicate
+ *	failure.
+ *
+ * Side effects:
+ *	Returns a result in the Tcl interpreter's result object.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+NamespaceInscopeCmd(dummy, interp, objc, objv)
+    ClientData dummy;		/* Not used. */
+    Tcl_Interp *interp;		/* Current interpreter. */
+    int objc;			/* Number of arguments. */
+    Tcl_Obj *CONST objv[];	/* Argument objects. */
+{
+    Tcl_Namespace *namespacePtr;
+    Tcl_CallFrame frame;
+    int i, result;
+
+    if (objc < 4) {
+	Tcl_WrongNumArgs(interp, 2, objv, "name arg ?arg...?");
+        return TCL_ERROR;
+    }
+
+    /*
+     * Resolve the namespace reference.
+     */
+
+    result = GetNamespaceFromObj(interp, objv[2], &namespacePtr);
+    if (result != TCL_OK) {
+        return result;
+    }
+    if (namespacePtr == NULL) {
+	Tcl_AppendStringsToObj(Tcl_GetObjResult(interp),
+	        "unknown namespace \"", Tcl_GetString(objv[2]),

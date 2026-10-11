@@ -627,7 +627,7 @@ impl<'a> FrameWalk<'a> {
             for nested in segment_commands_with_offset_and_config(
                 text,
                 u32::try_from(start).unwrap_or(0),
-                self.config,
+                self.config.nested(),
             ) {
                 if nested.name().is_empty() {
                     continue;
@@ -638,9 +638,25 @@ impl<'a> FrameWalk<'a> {
         }
     }
 
-    /// `text`, segmented at its real offset in the walked source.
-    pub(crate) fn segment(&self, text: &str, offset: u32) -> Vec<SegmentedCommand> {
-        segment_commands_with_offset_and_config(text, offset, self.config)
+    /// Segment the actual complete document under its retained file policy.
+    /// Only the initial document traversal calls this method. Currency checks
+    /// validate the supplied source; they never select a parsing purpose.
+    pub(crate) fn segment_document(&self, source: &str) -> Vec<SegmentedCommand> {
+        if !self
+            .analysis
+            .matches_original_source_image(&tcl_lexer::SourceImage::document(source), self.config)
+        {
+            self.complete.set(false);
+            return Vec::new();
+        }
+        segment_commands_with_offset_and_config(source, 0, self.config)
+    }
+
+    /// Segment an extracted body, substitution or selection at its real offset.
+    /// Even an equal copy or a region at offset zero has nested parsing purpose.
+    /// Parent tokens, input and current source receipts retain their full policy.
+    pub(crate) fn segment_nested(&self, text: &str, offset: u32) -> Vec<SegmentedCommand> {
+        segment_commands_with_offset_and_config(text, offset, self.config.nested())
     }
 
     /// The regions of `command` that run in `command`'s own variable frame.
@@ -828,7 +844,8 @@ pub fn find_command_at(
 /// (UTF-16-counted) position of its start.
 ///
 /// `config` is the document's [`LexerConfig`], threaded into every
-/// re-segmentation the walk performs.
+/// re-segmentation the walk performs. The initial document keeps its file
+/// policy; every genuine body descent selects [`LexerConfig::nested`].
 #[must_use]
 pub fn walk_commands(
     source: &str,
@@ -872,7 +889,7 @@ fn walk_commands_inner(
     if MAX_COMMAND_SEARCH_DEPTH.exceeded(depth) {
         return;
     }
-    for cmd in segment_commands_with_offset_and_config(slice, offset, ctx.config) {
+    for cmd in segment_commands_with_offset_and_config(slice, offset, ctx.config.at_depth(depth)) {
         let pos = ctx.line_index.position_at_utf16(cmd.span.start(), ctx.full);
         out.push((cmd.texts.clone(), pos.line, pos.character.get()));
         // Spans here are absolute into `full` (the segmenter was given
@@ -907,7 +924,7 @@ fn find_command_at_inner(
     if MAX_COMMAND_SEARCH_DEPTH.exceeded(depth) {
         return None;
     }
-    for cmd in segment_commands_with_offset_and_config(source, 0, config) {
+    for cmd in segment_commands_with_offset_and_config(source, 0, config.at_depth(depth)) {
         let (cmd_start, cmd_end) = command_span_offsets(source, &cmd);
         if cursor < cmd_start || cursor > cmd_end {
             continue;
@@ -1181,7 +1198,9 @@ mod original_frame_walk_tests {
         ));
         let start = u32::try_from(source.find("expr").unwrap()).unwrap();
         let end = source.find("}\np").unwrap();
-        let command = walk.segment(&source[start as usize..end], start).remove(0);
+        let command = walk
+            .segment_nested(&source[start as usize..end], start)
+            .remove(0);
         let words = walk.native_words(source, &command).unwrap();
         assert_eq!(words[0].span().start(), start);
         assert!(
@@ -1230,7 +1249,7 @@ mod selected_frame_context_tests {
 write 2";
         let analysis = test_logical_analysis(source, "tcl9.0", registry.clone());
         let walk = FrameWalk::new(source, &analysis).unwrap();
-        let command = walk.segment(source, 0).pop().unwrap();
+        let command = walk.segment_document(source).pop().unwrap();
         let words = walk.source_words(source, &command).unwrap();
         assert!(words.roles().unwrap().contains(&(0, ArgRole::VarWrite)));
         assert_eq!(
@@ -1267,7 +1286,7 @@ proc evaluate args {}
 evaluate {[set hidden 1]}";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
         let walk = FrameWalk::new(source, &analysis).unwrap();
-        let commands = walk.segment(source, 0);
+        let commands = walk.segment_document(source);
         let expression = walk.same_frame_regions(source, &commands[1]);
         assert_eq!(expression.len(), 1);
         assert_eq!(
@@ -1285,12 +1304,68 @@ evaluate {[set hidden 1]}";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(dynamic, "tcl");
         let walk = FrameWalk::new(dynamic, &analysis).unwrap();
         assert!(
-            walk.same_frame_regions(dynamic, &walk.segment(dynamic, 0)[0])
+            walk.same_frame_regions(dynamic, &walk.segment_document(dynamic)[0])
                 .is_empty()
         );
         assert!(
             !walk.complete(),
             "a partial body inventory cannot prove coverage"
         );
+    }
+}
+
+#[cfg(test)]
+mod original_parse_purpose_tests {
+    use super::*;
+    #[test]
+    fn original_frame_segmentation_labels_document_and_nested_sources_explicitly() {
+        // naming.refactor.original-frame-traversal
+        // docs/design/analysis/name-resolution-proofs/refactor-original-frame-traversal.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..LexerConfig::for_profile(Some(profile))
+        };
+        let source = "\u{feff}set top ROOT\nproc p {} {\u{feff}set nested VALUE; set final DONE}";
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            config,
+        );
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        let walk = FrameWalk::new(source, &analysis).expect("actual complete document owner");
+        assert_eq!(walk.segment_document(source)[0].name(), "set");
+        // Equality and offset zero cannot change the expressly nested purpose.
+        let copied = source.to_owned();
+        assert_eq!(walk.segment_nested(&copied, 0)[0].name(), "\u{feff}set");
+        let registry = test_registry();
+        let commands = walk_commands(source, &registry, config);
+        assert_eq!(
+            commands
+                .iter()
+                .map(|row| row.0[0].as_str())
+                .collect::<Vec<_>>(),
+            ["set", "proc", "\u{feff}set", "set"]
+        );
+        assert_eq!((commands[0].1, commands[0].2), (0, 1));
+        let cursor = u32::try_from(source.find("set nested").unwrap()).unwrap();
+        assert!(find_command_at(source, cursor, Some("set"), &registry, config).is_none());
+        let cursor = u32::try_from(source.find("set final").unwrap()).unwrap();
+        let command = find_command_at(source, cursor, Some("set"), &registry, config)
+            .expect("unmarked selected body command");
+        assert_eq!(command.span.start(), cursor);
+        assert_eq!(
+            &source[command.span.start() as usize..command.span.end() as usize],
+            "set final DONE"
+        );
+        assert!(walk.complete());
+        assert!(
+            walk.segment_document("\u{feff}set changed VALUE")
+                .is_empty()
+        );
+        assert!(!walk.complete());
     }
 }

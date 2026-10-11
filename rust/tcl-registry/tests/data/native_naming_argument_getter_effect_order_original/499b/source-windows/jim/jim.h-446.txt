@@ -1,0 +1,13 @@
+
+typedef struct Jim_ObjType {
+    const char *name; /* The name of the type. */
+    Jim_FreeInternalRepProc *freeIntRepProc;
+    Jim_DupInternalRepProc *dupIntRepProc;
+    Jim_UpdateStringProc *updateStringProc;
+    int flags;
+} Jim_ObjType;
+
+/* Jim_ObjType flags */
+#define JIM_TYPE_NONE 0        /* No flags */
+#define JIM_TYPE_REFERENCES 1    /* The object may contain references. */
+

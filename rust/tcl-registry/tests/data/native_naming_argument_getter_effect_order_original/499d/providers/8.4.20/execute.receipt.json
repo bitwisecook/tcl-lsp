@@ -1,0 +1,147 @@
+{
+  "provider": "8.4.20",
+  "channel": "execute",
+  "status": "closed",
+  "command": [
+    "/workspace/.proofs/native-naming-argument-order499d/providers/8.4.20/probe.elf"
+  ],
+  "cwd": "/workspace/.proofs/native-naming-argument-order499d",
+  "selected_environment": {
+    "PATH": "/usr/bin:/bin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "removed_inherited_lookup_variables": [
+      "COMPILER_PATH",
+      "LIBRARY_PATH",
+      "GCC_EXEC_PREFIX",
+      "LD_PRELOAD",
+      "LD_LIBRARY_PATH",
+      "BASH_ENV",
+      "ENV"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  "request_sha256": "2d2260c617a84b1863fda0941e3ff2cf4f1aefc64c90d3d4346141b328705901",
+  "source_sha256": "b5e1feb99cbf30c994579a1906177e7a23b2378f6a9538e236a35c2ffc64b3fd",
+  "returncode": 0,
+  "timeout": false,
+  "seconds": 0.008910873992135748,
+  "stdout_sha256": "b8388cc468762f7657327cd1279a17e8d0ef4a16ba5d79a04fb3a786fd91cf97",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "executable_before": {
+    "path": "/workspace/.proofs/native-naming-argument-order499d/providers/8.4.20/probe.elf",
+    "resolved_path": "/workspace/.proofs/native-naming-argument-order499d/providers/8.4.20/probe.elf",
+    "sha256": "60d6cfa11d07127337bcb58c116d074b72f8286852d53469ab1d5d93a7dfa1d6",
+    "size": 863280,
+    "device": 27,
+    "inode": 524038,
+    "mtime_ns": 1791682051706225001,
+    "ctime_ns": 1791682051706243939
+  },
+  "executable_after": {
+    "path": "/workspace/.proofs/native-naming-argument-order499d/providers/8.4.20/probe.elf",
+    "resolved_path": "/workspace/.proofs/native-naming-argument-order499d/providers/8.4.20/probe.elf",
+    "sha256": "60d6cfa11d07127337bcb58c116d074b72f8286852d53469ab1d5d93a7dfa1d6",
+    "size": 863280,
+    "device": 27,
+    "inode": 524038,
+    "mtime_ns": 1791682051706225001,
+    "ctime_ns": 1791682051706243939
+  },
+  "executable_unchanged": true,
+  "compile_receipt_sha256": "0662e253077ec3be8425f00dd100fc8c5283c56e5e3ab3949c26c078e45bb11c",
+  "dependency_receipt_sha256": "f539643f5a408029091ecf5512a153f3469ef7f63bc3809feae7ef3910cb0494",
+  "own_successful_compile_producer": {
+    "path": "/workspace/.proofs/native-naming-argument-order499d/providers/8.4.20/probe.elf",
+    "resolved_path": "/workspace/.proofs/native-naming-argument-order499d/providers/8.4.20/probe.elf",
+    "sha256": "60d6cfa11d07127337bcb58c116d074b72f8286852d53469ab1d5d93a7dfa1d6",
+    "size": 863280,
+    "device": 27,
+    "inode": 524038,
+    "mtime_ns": 1791682051706225001,
+    "ctime_ns": 1791682051706243939
+  },
+  "dependencies_before": [
+    {
+      "path": "/lib/x86_64-linux-gnu/libm.so.6",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+      "sha256": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+      "size": 977112,
+      "device": 27,
+      "inode": 9223372036855342425,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "size": 1995216,
+      "device": 27,
+      "inode": 9223372036855341329,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672,
+      "device": 27,
+      "inode": 9223372036855339413,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    }
+  ],
+  "dependencies_after": [
+    {
+      "path": "/lib/x86_64-linux-gnu/libm.so.6",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+      "sha256": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+      "size": 977112,
+      "device": 27,
+      "inode": 9223372036855342425,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "size": 1995216,
+      "device": 27,
+      "inode": 9223372036855341329,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672,
+      "device": 27,
+      "inode": 9223372036855339413,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    }
+  ],
+  "closed_cases": 15,
+  "closed_marker": true,
+  "actual_version_rows": [
+    "ROW|0|version|0|382e342e3230|events=0",
+    "ROW|1|version|0|382e342e3230|events=0",
+    "ROW|2|version|0|382e342e3230|events=0",
+    "ROW|3|version|0|382e342e3230|events=0",
+    "ROW|4|version|0|382e342e3230|events=0",
+    "ROW|5|version|0|382e342e3230|events=0",
+    "ROW|6|version|0|382e342e3230|events=0",
+    "ROW|7|version|0|382e342e3230|events=0",
+    "ROW|8|version|0|382e342e3230|events=0",
+    "ROW|9|version|0|382e342e3230|events=0",
+    "ROW|10|version|0|382e342e3230|events=0",
+    "ROW|11|version|0|382e342e3230|events=0",
+    "ROW|12|version|0|382e342e3230|events=0",
+    "ROW|13|version|0|382e342e3230|events=0",
+    "ROW|14|version|0|382e342e3230|events=0"
+  ]
+}

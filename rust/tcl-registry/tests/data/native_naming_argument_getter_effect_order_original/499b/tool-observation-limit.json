@@ -1,0 +1,10 @@
+{
+  "scope": "Recorded actual Root tool result, not an original stderr file or synthetic process receipt.",
+  "reported_command": "python3 /workspace/.proofs/native-naming-argument-order499b/launch.py",
+  "reported_tool_session": 56024,
+  "reported_exit": 1,
+  "reported_failure": "launch.py line125 assertion: unpinned runtime dependency /usr/lib/x86_64-linux-gnu/libzstd.so.1.5.7",
+  "direct_outer_stdout_stderr_files_retained": false,
+  "original_observed_files": "Five C compile/dependency/execute receipts and streams; shared compiler-version receipt; Jim compile receipt, link.map, probe.elf and dependency stdout/stderr. Jim dependency receipt, Jim execution and six-provider closure are absent.",
+  "limitations": "Do not invent a Jim dependency process status/receipt or six-provider closure from the retained dependency stream. This reported outer tool observation is distinct from immutable original captured process files."
+}

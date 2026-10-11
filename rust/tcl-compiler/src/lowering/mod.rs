@@ -10681,12 +10681,19 @@ mod original_script_purpose_tests {
         // Parser purpose and retained source ancestry; no Native entry or Normal store.
         let mut prepared = crate::analyser::Analyser::new();
         let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
-        let registry = input.context.commands();
+        let context = input.context_registry();
+        let registry = context.commands();
         let source = "\u{feff}unknown argument";
         for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
-            let mut supplied = input.clone();
-            supplied.config.leading_bom = bom;
-            supplied.config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+            let mut config = input.lexer_config();
+            config.leading_bom = bom;
+            config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+            let supplied = crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                input.context_registry(),
+                config,
+            );
             let config = supplied.lexer_config();
             let mut whole = Lowerer::with_config(registry, config)
                 .with_resolved_analysis_input(supplied.clone());
@@ -10755,10 +10762,17 @@ mod original_script_purpose_tests {
         let mut prepared = crate::analyser::Analyser::new();
         let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
         for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
-            let mut supplied = input.clone();
-            supplied.config.leading_bom = bom;
-            supplied.config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
-            let registry = supplied.context.commands();
+            let mut config = input.lexer_config();
+            config.leading_bom = bom;
+            config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+            let supplied = crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                input.context_registry(),
+                config,
+            );
+            let context = supplied.context_registry();
+            let registry = context.commands();
             let source = "eval {puts hi}";
             let identities =
                 crate::realm::document_realm_bindings_with_resolved_input(source, &supplied, None);
@@ -10799,8 +10813,14 @@ mod original_script_purpose_tests {
                 registry, lowerer.invocation_metadata_context(), command).unwrap();
             assert_eq!(advice.unanimous_command_words().unwrap().command(), "puts");
             assert_eq!(lowerer.metadata_input.as_ref(), Some(&supplied));
-            let mut changed = supplied.clone();
-            changed.config.strict_quoting = !changed.config.strict_quoting;
+            let mut changed_config = supplied.lexer_config();
+            changed_config.strict_quoting = !changed_config.strict_quoting;
+            let changed = crate::analyser::ResolvedAnalysisInput::new(
+                supplied.analyser_profile(),
+                supplied.unit_profile(),
+                supplied.context_registry(),
+                changed_config,
+            );
             assert!(
                 crate::registry_invocation::InvocationMetadataContext::for_source_input(
                     registry,
@@ -10820,7 +10840,8 @@ mod original_script_purpose_tests {
         // Actual original escaped body and selected derived source; no compiler/frame grant.
         let mut prepared = crate::analyser::Analyser::new();
         let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
-        let registry = input.context.commands();
+        let context = input.context_registry();
+        let registry = context.commands();
         let source = "eval \\uFEFFunknown";
         let identities =
             crate::realm::document_realm_bindings_with_resolved_input(source, &input, None);

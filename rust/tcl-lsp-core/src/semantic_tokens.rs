@@ -4355,7 +4355,7 @@ fn augment_snit_handles(
         let Some(text) = source.get(region.as_range()) else {
             continue;
         };
-        for root in walk.segment(text, region.start()) {
+        for root in walk.segment_nested(text, region.start()) {
             let mut commands = Vec::new();
             walk.nested_same_frame_commands(source, &root, &mut commands);
             commands.push(root);

@@ -1,0 +1,298 @@
+TclCreateProc(
+    Tcl_Interp *interp,		/* Interpreter containing proc. */
+    TCL_UNUSED(Namespace *) /*nsPtr*/,
+    const char *procName,	/* Unqualified name of this proc. */
+    Tcl_Obj *argsPtr,		/* Description of arguments. */
+    Tcl_Obj *bodyPtr,		/* Command body. */
+    Proc **procPtrPtr)		/* Returns: pointer to proc data. */
+{
+    Interp *iPtr = (Interp *) interp;
+
+    Proc *procPtr = NULL;
+    Tcl_Size i, numArgs;
+    CompiledLocal *localPtr = NULL;
+    Tcl_Obj **argArray;
+    int precompiled = 0, result;
+    const char *errorCode = NULL;
+
+    ProcGetInternalRep(bodyPtr, procPtr);
+    if (procPtr != NULL) {
+	/*
+	 * Because the body is a TclProProcBody, the actual body is already
+	 * compiled, and it is not shared with anyone else, so it's OK not to
+	 * unshare it (as a matter of fact, it is bad to unshare it, because
+	 * there may be no source code).
+	 *
+	 * We don't create and initialize a Proc structure for the procedure;
+	 * rather, we use what is in the body object. We increment the ref
+	 * count of the Proc struct since the command (soon to be created)
+	 * will be holding a reference to it.
+	 */
+
+	procPtr->iPtr = iPtr;
+	procPtr->refCount++;
+	precompiled = 1;
+    } else {
+	/*
+	 * If the procedure's body object is shared because its string value
+	 * is identical to, e.g., the body of another procedure, we must
+	 * create a private copy for this procedure to use. Such sharing of
+	 * procedure bodies is rare but can cause problems. A procedure body
+	 * is compiled in a context that includes the number of "slots"
+	 * allocated by the compiler for local variables. There is a local
+	 * variable slot for each formal parameter (the
+	 * "procPtr->numCompiledLocals = numArgs" assignment below). This
+	 * means that the same code can not be shared by two procedures that
+	 * have a different number of arguments, even if their bodies are
+	 * identical. Note that we don't use Tcl_DuplicateObj since we would
+	 * not want any bytecode internal representation.
+	 */
+
+	if (Tcl_IsShared(bodyPtr)) {
+	    const char *bytes;
+	    Tcl_Size length;
+	    Tcl_Obj *sharedBodyPtr = bodyPtr;
+
+	    bytes = TclGetStringFromObj(bodyPtr, &length);
+	    bodyPtr = Tcl_NewStringObj(bytes, length);
+
+	    /*
+	     * TIP #280.
+	     * Ensure that the continuation line data for the original body is
+	     * not lost and applies to the new body as well.
+	     */
+
+	    TclContinuationsCopy(bodyPtr, sharedBodyPtr);
+	}
+
+	/*
+	 * Create and initialize a Proc structure for the procedure. We
+	 * increment the ref count of the procedure's body object since there
+	 * will be a reference to it in the Proc structure.
+	 */
+
+	Tcl_IncrRefCount(bodyPtr);
+
+	procPtr = (Proc *)Tcl_Alloc(sizeof(Proc));
+	procPtr->iPtr = iPtr;
+	procPtr->refCount = 1;
+	procPtr->bodyPtr = bodyPtr;
+	procPtr->numArgs = 0;	/* Actual argument count is set below. */
+	procPtr->numCompiledLocals = 0;
+	procPtr->firstLocalPtr = NULL;
+	procPtr->lastLocalPtr = NULL;
+    }
+
+    /*
+     * Break up the argument list into argument specifiers, then process each
+     * argument specifier. If the body is precompiled, processing is limited
+     * to checking that the parsed argument is consistent with the one stored
+     * in the Proc.
+     */
+
+    result = TclListObjGetElements(interp, argsPtr, &numArgs, &argArray);
+    if (result != TCL_OK) {
+	goto procError;
+    }
+
+    if (precompiled) {
+	if (numArgs > procPtr->numArgs) {
+	    Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		    "procedure \"%s\": arg list contains %" TCL_SIZE_MODIFIER "d entries, "
+		    "precompiled header expects %" TCL_SIZE_MODIFIER "d", procName, numArgs,
+		    procPtr->numArgs));
+	    errorCode = "BYTECODELIES";
+	    goto procError;
+	}
+	localPtr = procPtr->firstLocalPtr;
+    } else {
+	procPtr->numArgs = numArgs;
+	procPtr->numCompiledLocals = numArgs;
+    }
+
+    for (i = 0; i < numArgs; i++) {
+	const char *argname, *argnamei, *argnamelast;
+	Tcl_Size fieldCount, nameLength;
+	Tcl_Obj **fieldValues;
+
+	/*
+	 * Now divide the specifier up into name and default.
+	 */
+
+	result = TclListObjGetElements(interp, argArray[i], &fieldCount,
+		&fieldValues);
+	if (result != TCL_OK) {
+	    goto procError;
+	}
+	if (fieldCount > 2) {
+	    Tcl_Obj *errorObj = Tcl_NewStringObj(
+		"too many fields in argument specifier \"", -1);
+	    Tcl_AppendObjToObj(errorObj, argArray[i]);
+	    Tcl_AppendToObj(errorObj, "\"", -1);
+	    Tcl_SetObjResult(interp, errorObj);
+	    errorCode = "FORMALARGUMENTFORMAT";
+	    goto procError;
+	}
+	if ((fieldCount == 0) || (Tcl_GetCharLength(fieldValues[0]) == 0)) {
+	    Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		    "argument with no name", -1));
+	    errorCode = "FORMALARGUMENTFORMAT";
+	    goto procError;
+	}
+
+	argname = TclGetStringFromObj(fieldValues[0], &nameLength);
+
+	/*
+	 * Check that the formal parameter name is a scalar.
+	 */
+
+	argnamei = argname;
+	argnamelast = (nameLength > 0) ? (argname + nameLength - 1) : argname;
+	while (argnamei < argnamelast) {
+	    if (*argnamei == '(') {
+		if (*argnamelast == ')') { /* We have an array element. */
+		    Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+			    "formal parameter \"%s\" is an array element",
+			    TclGetString(fieldValues[0])));
+		    errorCode = "FORMALARGUMENTFORMAT";
+		    goto procError;
+		}
+	    } else if (argnamei[0] == ':' && argnamei[1] == ':') {
+		Tcl_Obj *errorObj = Tcl_NewStringObj(
+			"formal parameter \"", -1);
+		Tcl_AppendObjToObj(errorObj, fieldValues[0]);
+		Tcl_AppendToObj(errorObj, "\" is not a simple name", -1);
+		Tcl_SetObjResult(interp, errorObj);
+		errorCode = "FORMALARGUMENTFORMAT";
+		goto procError;
+	    }
+	    argnamei++;
+	}
+
+	if (precompiled) {
+	    /*
+	     * Compare the parsed argument with the stored one. Note that the
+	     * only flag value that makes sense at this point is VAR_ARGUMENT
+	     * (its value was kept the same as pre VarReform to simplify
+	     * tbcload's processing of older byetcodes).
+	     *
+	     * The only other flag value that is important to retrieve from
+	     * precompiled procs is VAR_TEMPORARY (also unchanged). It is
+	     * needed later when retrieving the variable names.
+	     */
+
+	    if ((localPtr->nameLength != nameLength)
+		    || (memcmp(localPtr->name, argname, nameLength) != 0)
+		    || (localPtr->frameIndex != i)
+		    || !(localPtr->flags & VAR_ARGUMENT)
+		    || (localPtr->defValuePtr == NULL && fieldCount == 2)
+		    || (localPtr->defValuePtr != NULL && fieldCount != 2)) {
+		Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+			"procedure \"%s\": formal parameter %" TCL_SIZE_MODIFIER "d is "
+			"inconsistent with precompiled body", procName, i));
+		errorCode = "BYTECODELIES";
+		goto procError;
+	    }
+
+	    /*
+	     * Compare the default value if any.
+	     */
+
+	    if (localPtr->defValuePtr != NULL) {
+		Tcl_Size tmpLength, valueLength;
+		const char *tmpPtr = TclGetStringFromObj(localPtr->defValuePtr, &tmpLength);
+		const char *value = TclGetStringFromObj(fieldValues[1], &valueLength);
+
+		if ((valueLength != tmpLength)
+			|| memcmp(value, tmpPtr, tmpLength) != 0) {
+		    Tcl_Obj *errorObj = Tcl_ObjPrintf(
+			    "procedure \"%s\": formal parameter \"", procName);
+		    Tcl_AppendObjToObj(errorObj, fieldValues[0]);
+		    Tcl_AppendToObj(errorObj, "\" has "
+			"default value inconsistent with precompiled body", -1);
+		    Tcl_SetObjResult(interp, errorObj);
+		    errorCode = "BYTECODELIES";
+		    goto procError;
+		}
+	    }
+	    if ((i == numArgs - 1)
+		    && (localPtr->nameLength == 4)
+		    && (localPtr->name[0] == 'a')
+		    && (strcmp(localPtr->name, "args") == 0)) {
+		localPtr->flags |= VAR_IS_ARGS;
+	    }
+
+	    localPtr = localPtr->nextPtr;
+	} else {
+	    /*
+	     * Allocate an entry in the runtime procedure frame's array of
+	     * local variables for the argument.
+	     */
+
+	    localPtr = (CompiledLocal *)Tcl_AttemptAlloc(
+		    offsetof(CompiledLocal, name) + 1U + fieldValues[0]->length);
+	    if (!localPtr) {
+		/* Don't set the interp result here. Since a malloc just failed,
+		 * first clean up some memory before doing that */
+		errorCode = TOOMANYARGS;
+		goto procError;
+	    }
+	    if (procPtr->firstLocalPtr == NULL) {
+		procPtr->firstLocalPtr = procPtr->lastLocalPtr = localPtr;
+	    } else {
+		procPtr->lastLocalPtr->nextPtr = localPtr;
+		procPtr->lastLocalPtr = localPtr;
+	    }
+	    localPtr->nextPtr = NULL;
+	    localPtr->nameLength = nameLength;
+	    localPtr->frameIndex = i;
+	    localPtr->flags = VAR_ARGUMENT;
+	    localPtr->resolveInfo = NULL;
+
+	    if (fieldCount == 2) {
+		localPtr->defValuePtr = fieldValues[1];
+		Tcl_IncrRefCount(localPtr->defValuePtr);
+	    } else {
+		localPtr->defValuePtr = NULL;
+	    }
+	    memcpy(localPtr->name, argname, fieldValues[0]->length + 1);
+	    if ((i == numArgs - 1)
+		    && (localPtr->nameLength == 4)
+		    && (localPtr->name[0] == 'a')
+		    && (memcmp(localPtr->name, "args", 4) == 0)) {
+		localPtr->flags |= VAR_IS_ARGS;
+	    }
+	}
+    }
+
+    *procPtrPtr = procPtr;
+    return TCL_OK;
+
+  procError:
+    if (precompiled) {
+	procPtr->refCount--;
+    } else {
+	Tcl_DecrRefCount(bodyPtr);
+	while (procPtr->firstLocalPtr != NULL) {
+	    localPtr = procPtr->firstLocalPtr;
+	    procPtr->firstLocalPtr = localPtr->nextPtr;
+
+	    if (localPtr->defValuePtr != NULL) {
+		Tcl_DecrRefCount(localPtr->defValuePtr);
+	    }
+
+	    Tcl_Free(localPtr);
+	}
+	Tcl_Free(procPtr);
+    }
+    if (errorCode) {
+	if (errorCode == TOOMANYARGS) {
+	    Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		    "procedure \"%s\": arg list contains too many (%"
+		    TCL_SIZE_MODIFIER "d) entries", procName, numArgs));
+	}
+	Tcl_SetErrorCode(interp, "TCL", "OPERATION", "PROC",
+		errorCode, (char *)NULL);
+    }
+    return TCL_ERROR;
+}

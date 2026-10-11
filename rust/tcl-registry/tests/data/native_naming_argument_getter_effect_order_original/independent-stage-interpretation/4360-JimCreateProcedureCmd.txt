@@ -1,0 +1,86 @@
+static Jim_Cmd *JimCreateProcedureCmd(Jim_Interp *interp, Jim_Obj *argListObjPtr,
+    Jim_Obj *staticsListObjPtr, Jim_Obj *bodyObjPtr, Jim_Obj *nsObj)
+{
+    Jim_Cmd *cmdPtr;
+    int argListLen;
+    int i;
+
+    argListLen = Jim_ListLength(interp, argListObjPtr);
+
+    /* Allocate space for both the command pointer and the arg list */
+    cmdPtr = Jim_Alloc(sizeof(*cmdPtr) + sizeof(struct Jim_ProcArg) * argListLen);
+    assert(cmdPtr);
+    memset(cmdPtr, 0, sizeof(*cmdPtr));
+    cmdPtr->inUse = 1;
+    cmdPtr->flags = JIM_CMD_ISPROC;
+    cmdPtr->u.proc.argListObjPtr = argListObjPtr;
+    cmdPtr->u.proc.argListLen = argListLen;
+    cmdPtr->u.proc.bodyObjPtr = bodyObjPtr;
+    cmdPtr->u.proc.argsPos = -1;
+    cmdPtr->u.proc.arglist = (struct Jim_ProcArg *)(cmdPtr + 1);
+    cmdPtr->u.proc.nsObj = nsObj ? nsObj : interp->emptyObj;
+    Jim_IncrRefCount(argListObjPtr);
+    Jim_IncrRefCount(bodyObjPtr);
+    Jim_IncrRefCount(cmdPtr->u.proc.nsObj);
+
+    /* Create the statics hash table. */
+    if (staticsListObjPtr && JimCreateProcedureStatics(interp, cmdPtr, staticsListObjPtr) != JIM_OK) {
+        goto err;
+    }
+
+    /* Parse the args out into arglist, validating as we go */
+    /* Examine the argument list for default parameters and 'args' */
+    for (i = 0; i < argListLen; i++) {
+        Jim_Obj *argPtr;
+        Jim_Obj *nameObjPtr;
+        Jim_Obj *defaultObjPtr;
+        int len;
+
+        /* Examine a parameter */
+        argPtr = Jim_ListGetIndex(interp, argListObjPtr, i);
+        len = Jim_ListLength(interp, argPtr);
+        if (len == 0) {
+            Jim_SetResultString(interp, "argument with no name", -1);
+err:
+            JimDecrCmdRefCount(interp, cmdPtr);
+            return NULL;
+        }
+        if (len > 2) {
+            Jim_SetResultFormatted(interp, "too many fields in argument specifier \"%#s\"", argPtr);
+            goto err;
+        }
+
+        if (len == 2) {
+            /* Optional parameter */
+            nameObjPtr = Jim_ListGetIndex(interp, argPtr, 0);
+            defaultObjPtr = Jim_ListGetIndex(interp, argPtr, 1);
+        }
+        else {
+            /* Required parameter */
+            nameObjPtr = argPtr;
+            defaultObjPtr = NULL;
+        }
+
+
+        if (Jim_CompareStringImmediate(interp, nameObjPtr, "args")) {
+            if (cmdPtr->u.proc.argsPos >= 0) {
+                Jim_SetResultString(interp, "'args' specified more than once", -1);
+                goto err;
+            }
+            cmdPtr->u.proc.argsPos = i;
+        }
+        else {
+            if (len == 2) {
+                cmdPtr->u.proc.optArity++;
+            }
+            else {
+                cmdPtr->u.proc.reqArity++;
+            }
+        }
+
+        cmdPtr->u.proc.arglist[i].nameObjPtr = nameObjPtr;
+        cmdPtr->u.proc.arglist[i].defaultObjPtr = defaultObjPtr;
+    }
+
+    return cmdPtr;
+}

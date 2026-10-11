@@ -1,0 +1,41 @@
+/* Return a new initialized object. */
+Jim_Obj *Jim_NewObj(Jim_Interp *interp)
+{
+    Jim_Obj *objPtr;
+
+    /* -- Check if there are objects in the free list -- */
+    if (interp->freeList != NULL) {
+        /* -- Unlink the object from the free list -- */
+        objPtr = interp->freeList;
+        interp->freeList = objPtr->nextObjPtr;
+    }
+    else {
+        /* -- No ready to use objects: allocate a new one -- */
+        objPtr = Jim_Alloc(sizeof(*objPtr));
+    }
+
+    /* Object is returned with refCount of 0. Every
+     * kind of GC implemented should take care to avoid
+     * scanning objects with refCount == 0. */
+    objPtr->refCount = 0;
+    objPtr->taint = interp->taint;
+    /* All the other fields are left uninitialized to save time.
+     * The caller will probably want to set them to the right
+     * value anyway. */
+
+    /* -- Put the object into the live list -- */
+    objPtr->prevObjPtr = NULL;
+    objPtr->nextObjPtr = interp->liveList;
+    if (interp->liveList)
+        interp->liveList->prevObjPtr = objPtr;
+    interp->liveList = objPtr;
+
+    return objPtr;
+}
+
+/* Free an object. Actually objects are never freed, but
+ * just moved to the free objects list, where they will be
+ * reused by Jim_NewObj(). */
+void Jim_FreeObj(Jim_Interp *interp, Jim_Obj *objPtr)
+{
+    /* Check if the object was already freed, panic. */

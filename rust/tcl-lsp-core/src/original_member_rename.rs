@@ -182,7 +182,11 @@ fn requests(
             .get(start..end)
             .ok_or(OriginalMemberRenameRefusal::StaleSource)?;
         let offset = u32::try_from(start).map_err(|_| OriginalMemberRenameRefusal::StaleSource)?;
-        for command in walk.segment(region, offset) {
+        for command in if depth == 0 {
+            walk.segment_document(region)
+        } else {
+            walk.segment_nested(region, offset)
+        } {
             let words = walk
                 .native_words(document.source, &command)
                 .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?;

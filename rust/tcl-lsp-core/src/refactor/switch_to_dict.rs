@@ -38,9 +38,10 @@ enum BranchBody {
 /// value keeps its original source span (quotes / braces intact) so the
 /// generated dict preserves the literal.
 ///
-/// `config` is the document's [`LexerConfig`].
+/// `config` is the document's [`LexerConfig`]; this extracted arm selects
+/// its nested projection without changing the retained parent input.
 fn parse_branch_assignment(body_text: &str, config: LexerConfig) -> Option<BranchBody> {
-    let commands = segment_commands_with_offset_and_config(body_text, 0, config);
+    let commands = segment_commands_with_offset_and_config(body_text, 0, config.nested());
     if commands.len() != 1 || commands[0].texts.is_empty() {
         return None;
     }
@@ -201,7 +202,7 @@ fn literal_pattern_source(value: &str, config: LexerConfig) -> Option<String> {
     let parsed = tcl_lexer::native_script_words_in(
         tcl_lexer::SourceImage::document(&proposed),
         tcl_lexer::Span::new(0, u32::try_from(proposed.len()).ok()?),
-        config,
+        config.nested(),
     )
     .ok()?;
     let [command] = parsed.commands.as_slice() else {
@@ -462,5 +463,72 @@ mod tests {
                 .unwrap()
                 .starts_with("missing-fresh-store-and-insertion:")
         );
+    }
+}
+
+#[cfg(test)]
+mod original_branch_parser_tests {
+    use super::*;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+    fn analysed(source: &str, config: LexerConfig) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            config,
+        );
+        Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name)
+    }
+    #[test]
+    fn original_dictionary_branches_keep_nested_bom_content_and_parent_edit_geometry() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..LexerConfig::for_profile(Some(profile))
+        };
+        let body = "return {\u{feff}ONE}";
+        let Some(BranchBody::Return(raw)) = parse_branch_assignment(body, config) else {
+            panic!("genuine nested return shape");
+        };
+        assert_eq!(raw, "{\u{feff}ONE}");
+        assert!(parse_branch_assignment("\u{feff}return ONE", config).is_none());
+        assert!(parse_branch_assignment("\u{feff}set answer ONE", config).is_none());
+        assert_eq!(
+            literal_pattern_source("\u{feff}key", config).unwrap(),
+            "\u{feff}key"
+        );
+        let source = "\u{feff}switch -exact -- {$x} {a {return {\u{feff}ONE}} b {return TWO}}";
+        let cursor = u32::try_from(source.find("switch").unwrap()).unwrap();
+        let mut analysis = analysed(source, config);
+        assert_eq!(analysis.body_lexer_config, Some(config));
+        let action = switch_to_dict(source, cursor, &analysis, &LineIndex::new(source))
+            .expect("actual Logical source rewrite");
+        assert!(action.disabled.is_none());
+        assert_eq!(action.edits.len(), 1);
+        assert_eq!(action.edits[0].start, cursor);
+        assert_eq!(action.edits[0].end as usize, source.len());
+        assert_eq!(
+            action.apply(source),
+            "\u{feff}set result_map [dict create a {\u{feff}ONE} b TWO]\nreturn [dict get $result_map {$x}]"
+        );
+        assert!(
+            switch_to_dict(
+                &format!("# displaced\n{source}"),
+                cursor,
+                &analysis,
+                &LineIndex::new(source)
+            )
+            .is_none()
+        );
+        analysis.resolved_input = None;
+        assert!(switch_to_dict(source, cursor, &analysis, &LineIndex::new(source)).is_none());
+        let nested = "\u{feff}switch -exact -- {$x} {a {\u{feff}return ONE} b {return TWO}}";
+        let analysis = analysed(nested, config);
+        assert!(switch_to_dict(nested, cursor, &analysis, &LineIndex::new(nested)).is_none());
     }
 }

@@ -223,10 +223,14 @@ fn original_enclosing_scope(
             return None;
         }
         let mut next = None;
-        for command in walk.segment(
-            source.get(scope.start as usize..scope.end as usize)?,
-            scope.start,
-        ) {
+        for command in if depth == 0 {
+            walk.segment_document(source)
+        } else {
+            walk.segment_nested(
+                source.get(scope.start as usize..scope.end as usize)?,
+                scope.start,
+            )
+        } {
             if command.is_partial {
                 return None;
             }
@@ -537,7 +541,8 @@ fn observing_regions(
     let mut search = frame;
     let mut depth = 0;
     while !crate::references::MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
-        let Some((region, opens_frame)) = containing_region(source, walk, search, block_start)
+        let Some((region, opens_frame)) =
+            containing_region(source, walk, search, block_start, depth)
         else {
             break;
         };
@@ -567,9 +572,14 @@ fn containing_region(
     walk: &super::FrameWalk<'_>,
     search: (u32, u32),
     offset: u32,
+    depth: u32,
 ) -> Option<((u32, u32), bool)> {
     let text = source.get(search.0 as usize..search.1 as usize)?;
-    for command in walk.segment(text, search.0) {
+    for command in if depth == 0 {
+        walk.segment_document(source)
+    } else {
+        walk.segment_nested(text, search.0)
+    } {
         if command.name().is_empty() {
             continue;
         }
@@ -899,7 +909,7 @@ fn reject_enclosing_definition_body(
     if scope.start == 0 {
         return Ok(());
     }
-    for command in walk.segment(source, 0) {
+    for command in walk.segment_document(source) {
         let (start, end) = command_span_offsets(source, &command);
         if scope.start < start || scope.end > end {
             continue;
@@ -1956,7 +1966,7 @@ proc set args {}
 set hidden 1";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
         let walk = super::super::FrameWalk::new(source, &analysis).unwrap();
-        let commands = walk.segment(source, 0);
+        let commands = walk.segment_document(source);
         let roles =
             classify_variables(source, &[&commands[1]], &walk, walk.config.braced_var).unwrap();
         assert_eq!(roles.written.keys().cloned().collect::<Vec<_>>(), ["held"]);

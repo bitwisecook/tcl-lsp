@@ -265,9 +265,10 @@ enum SetOrReturn {
 
 /// Parse a single-command arm body via the tokeniser.
 ///
-/// `config` is the document's [`LexerConfig`].
+/// `config` is the document's [`LexerConfig`]; this extracted arm selects
+/// its nested projection without changing the retained parent input.
 fn parse_set_or_return(text: &str, config: LexerConfig) -> Option<SetOrReturn> {
-    let commands = segment_commands_with_offset_and_config(text, 0, config);
+    let commands = segment_commands_with_offset_and_config(text, 0, config.nested());
     if commands.len() != 1 || commands[0].texts.is_empty() {
         return None;
     }
@@ -984,7 +985,7 @@ fn original_mapping_arms(
         return None;
     }
     for (start, end) in regions {
-        let commands = walk.segment(source.get(start..end)?, u32::try_from(start).ok()?);
+        let commands = walk.segment_nested(source.get(start..end)?, u32::try_from(start).ok()?);
         let [command] = commands.as_slice() else {
             return None;
         };
@@ -1496,5 +1497,45 @@ mod tests {
         // the predicates still tolerate it.
         assert_eq!(infer_value_type(&[" 80 ".to_owned()]), "integer");
         assert_eq!(infer_value_type(&[" 10.0.0.0/8 ".to_owned()]), "ip");
+    }
+}
+
+#[cfg(test)]
+mod original_arm_parser_tests {
+    use super::*;
+    #[test]
+    fn original_datagroup_arm_parsing_keeps_nested_marks_and_literal_extents() {
+        // naming.refactor.selected-if-scalar-source-syntax
+        // docs/design/analysis/name-resolution-proofs/selected-if-scalar-source-syntax.md
+        // Proposal shape only; selected source handlers and edits remain separate.
+        let config = LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..LexerConfig::default()
+        };
+        let Some(SetOrReturn::Set(name, raw)) =
+            parse_set_or_return("set answer {\u{feff}ONE}", config)
+        else {
+            panic!("nested set shape");
+        };
+        assert_eq!(name, "answer");
+        assert_eq!(raw, "{\u{feff}ONE}");
+        let Some(SetOrReturn::Return(raw)) = parse_set_or_return("return \"\u{feff}TWO\"", config)
+        else {
+            panic!("nested return shape");
+        };
+        assert_eq!(raw, "\"\u{feff}TWO\"");
+        for body in ["\u{feff}set answer ONE", "\u{feff}return TWO"] {
+            assert!(parse_set_or_return(body, config).is_none());
+            assert!(
+                extract_set_or_return_values(
+                    &[
+                        ("a".into(), body.into()),
+                        ("b".into(), "return OTHER".into())
+                    ],
+                    config
+                )
+                .is_none()
+            );
+        }
     }
 }

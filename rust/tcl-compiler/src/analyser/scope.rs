@@ -5294,7 +5294,14 @@ mod original_parent_purpose_tests {
                 .find(|advice| advice.original_name_input().bytes() == b"local")
                 .unwrap();
             assert_eq!(write.original_frame(), Some(&frame));
-            assert_eq!(write.original_name_input().source_image(), &image);
+            assert_eq!(
+                write
+                    .original_name_input()
+                    .original_word_key()
+                    .unwrap()
+                    .source_image(),
+                &image
+            );
             let aliases = analysis
                 .original_variable_alias_advice_in_source(&image, config)
                 .unwrap();
@@ -5303,7 +5310,14 @@ mod original_parent_purpose_tests {
                 .find(|alias| alias.original_name_input().bytes() == b"g")
                 .unwrap();
             assert_eq!(alias.original_frame().lexer_config(), config);
-            assert_eq!(alias.original_name_input().source_image(), &image);
+            assert_eq!(
+                alias
+                    .original_name_input()
+                    .original_word_key()
+                    .unwrap()
+                    .source_image(),
+                &image
+            );
             let mut foreign = config;
             foreign.strict_quoting = !foreign.strict_quoting;
             assert!(

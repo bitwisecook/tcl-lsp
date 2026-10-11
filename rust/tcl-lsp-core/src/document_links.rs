@@ -504,7 +504,7 @@ fn lexical_document_links_in_context(
             commands.extend(segment_commands_with_offset_and_config(
                 body,
                 span.start(),
-                config,
+                config.nested(),
             ));
         }
     }
@@ -687,7 +687,7 @@ fn pack_include_links(
         else {
             continue;
         };
-        for row in segment_commands_with_offset_and_config(body_text, body_start, config) {
+        for row in segment_commands_with_offset_and_config(body_text, body_start, config.nested()) {
             // value-transfer-ok: irreducible — the pack grammar's own statements
             if row.texts.first().is_none_or(|head| head != "include") || row.texts.len() != 2 {
                 continue;
@@ -759,7 +759,8 @@ fn link_anchor_with_config(
     // substitution's inner text — byte-identical to `source` at
     // `content_start`, which is what makes rebasing the inner spans truthful.
     let inner = source.get(content_start as usize..arg.span.end() as usize)?;
-    let seg = segment_commands_with_offset_and_config(inner, content_start, config).pop()?;
+    let seg =
+        segment_commands_with_offset_and_config(inner, content_start, config.nested()).pop()?;
     let last = seg.texts.len().checked_sub(1).filter(|i| *i >= 1)?;
     let text = seg.texts.get(last)?;
     if text.is_empty()
@@ -1861,6 +1862,89 @@ mod original_hosted_document_link_tests {
         ] {
             let analysis = path_analysis(source, profile, config);
             assert!(lexical_document_links_in_context(source, &analysis, &context).is_empty());
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_link_parse_purpose_tests {
+    use super::*;
+    #[test]
+    fn original_pack_links_keep_document_marks_distinct_from_include_body_content() {
+        // naming.navigation.retained-path-source-inventory
+        // docs/design/analysis/name-resolution-proofs/retained-path-source-inventory.md
+        let profile = crate::profile_for_dialect("spectcl");
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..tcl_lexer::LexerConfig::for_profile(Some(profile))
+        };
+        let source =
+            "\u{feff}speclib lib 1 {\u{feff}include hidden.tclspec\n    include visible.tclspec}";
+        let mut analysis = super::tests::path_analysis(source, profile, config);
+        let context = LinkContext {
+            script_path: Some("/actual/pack.tclspec"),
+            workspace_root: Some("/wrong"),
+            ..LinkContext::default()
+        };
+        let links = document_links_from_analysis(source, &analysis, &context);
+        assert_eq!(links.len(), 1, "{links:?}");
+        assert_eq!(links[0].target, "file:///actual/visible.tclspec");
+        let start = u32::try_from(source.find("visible.tclspec").unwrap()).unwrap();
+        let line_index = LineIndex::new(source);
+        let position = line_index.position_at_utf16(start, source);
+        assert_eq!(
+            (links[0].start_line, links[0].start_character),
+            (position.line, position.character.get())
+        );
+        let end = line_index.position_at_utf16(start + "visible.tclspec".len() as u32, source);
+        assert_eq!(
+            (links[0].end_line, links[0].end_character),
+            (end.line, end.character.get())
+        );
+        assert!(
+            document_links_from_analysis(&format!("# changed\n{source}"), &analysis, &context)
+                .is_empty()
+        );
+        analysis.resolved_input = None;
+        assert!(document_links_from_analysis(source, &analysis, &context).is_empty());
+    }
+    #[test]
+    fn original_link_anchors_parse_actual_substitution_content_without_file_prologue_rules() {
+        // naming.navigation.retained-path-source-inventory
+        // docs/design/analysis/name-resolution-proofs/retained-path-source-inventory.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..tcl_lexer::LexerConfig::for_profile(Some(profile))
+        };
+        let source = "\u{feff}source [\u{feff}# ordinary arguments leaf.tcl]";
+        let commands = segment_commands_with_offset_and_config(source, 0, config);
+        let token = commands[0].argv[1];
+        let start = u32::try_from(source.find("leaf.tcl").unwrap()).unwrap();
+        assert_eq!(
+            link_anchor_with_config(source, config, &token),
+            Some((start, start + "leaf.tcl".len() as u32))
+        );
+        let analysis = super::tests::path_analysis(source, profile, config);
+        // Geometry cannot resolve the unknown marked command as a file producer.
+        assert!(
+            document_links_from_analysis(
+                source,
+                &analysis,
+                &LinkContext {
+                    workspace_root: Some("/actual"),
+                    ..LinkContext::default()
+                }
+            )
+            .is_empty()
+        );
+        for source in [
+            "source [# leaf.tcl]",
+            "source [file join lib $name]",
+            "source [pwd]",
+        ] {
+            let commands = segment_commands_with_offset_and_config(source, 0, config);
+            assert!(link_anchor_with_config(source, config, &commands[0].argv[1]).is_none());
         }
     }
 }

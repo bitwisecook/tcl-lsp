@@ -1,0 +1,142 @@
+{
+  "request_sha256": "129268fd81e357ca2530d5aff7bdab83e0b3454d795524858c7f91937146f310",
+  "records": [
+    {
+      "provider": "compiler",
+      "channel": "compiler-version",
+      "path": "/workspace/.proofs/native-naming-argument-order499c/compiler-version.receipt.json",
+      "sha256": "7dc62a292dc4e8e1358ec80589770ea2debc71757001858a17371b950b952e32",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-naming-argument-order499c/providers/8.4.20/compile.receipt.json",
+      "sha256": "54ff7b1db84ec3285dcfde4ee7255ddf686d84fed2ce168bb6844186ff378668",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-naming-argument-order499c/providers/8.4.20/dependencies.receipt.json",
+      "sha256": "405ed82d5ee2d2011605e7bce5914bce1fff2470da88ce1fc07365c034a12164",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-naming-argument-order499c/providers/8.4.20/execute.receipt.json",
+      "sha256": "cbba403bf0bdcad2d5aec698e286cab317479fe54eed53ebc481f7b7c54f98b4",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-naming-argument-order499c/providers/8.5.19/compile.receipt.json",
+      "sha256": "b68d2767d8a8d25d18e674c49d98aeab76f3ee78d20af8a9e189824514e820c3",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-naming-argument-order499c/providers/8.5.19/dependencies.receipt.json",
+      "sha256": "14dd961dc656359ad8c369a6b4aea83815804a735a603b96eb4be6ddd68ac193",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-naming-argument-order499c/providers/8.5.19/execute.receipt.json",
+      "sha256": "cd5d942b8ce6e674bcf68df6f61fc7c03b1db777d51ca89dbcf58f4f8141237c",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-naming-argument-order499c/providers/8.6.18/compile.receipt.json",
+      "sha256": "8b8991545b0e135ae69da93916aa9180a2f1bab5212e562bfb3db1846078fc67",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-naming-argument-order499c/providers/8.6.18/dependencies.receipt.json",
+      "sha256": "e9ac5172327c63536e2dd47448787f15a62db813e8980294a0694b8cab52112c",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-naming-argument-order499c/providers/8.6.18/execute.receipt.json",
+      "sha256": "1f307ca4a17785e49f8744b4bc5c49bfdea5975ea8446cfd5401348cf3ce749a",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-naming-argument-order499c/providers/9.0.4/compile.receipt.json",
+      "sha256": "a69aaaea466c6b730c6500171df892fac92085a8077987fb7c243f99bdb8b2c8",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-naming-argument-order499c/providers/9.0.4/dependencies.receipt.json",
+      "sha256": "652dca624606c4aea59fe123c4a8fa4e63602ae091401d849452832b0e25196f",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-naming-argument-order499c/providers/9.0.4/execute.receipt.json",
+      "sha256": "d25e8260c159119f219f9ea6dbfdc6a1abc230f485c70de46d032dcab255c8a6",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-naming-argument-order499c/providers/9.1.0/compile.receipt.json",
+      "sha256": "c94b1764e90273f8ca2d6e9f9e08daf8280c8e0b049e69d5eb0ec2de6cc11a26",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-naming-argument-order499c/providers/9.1.0/dependencies.receipt.json",
+      "sha256": "0fee46d0d6daf1a81f659651ef74a4e85c27076cca7dba68532ab1652e2e4cf0",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-naming-argument-order499c/providers/9.1.0/execute.receipt.json",
+      "sha256": "193727ec6a4f5edb5138fd6ce8702520b9819cd444e0e8b8686eec7b4ad4792f",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-naming-argument-order499c/providers/jim/compile.receipt.json",
+      "sha256": "164e52ce9d41295af1df4d4c4930216e9c90883149e742385183fc8d2a3d9b3c",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-naming-argument-order499c/providers/jim/dependencies.receipt.json",
+      "sha256": "7a18ff5e36d7773a3c88d56bb70f900531216947f25265967253d74148d6c3a3",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-naming-argument-order499c/providers/jim/execute.receipt.json",
+      "sha256": "d53bb20fc4e58b61629e1250a4d61842847df473259219d00c17e5a581177a58",
+      "status": "closed"
+    }
+  ],
+  "required_inputs_unchanged": true,
+  "fresh_output_root": "/workspace/.proofs/native-naming-argument-order499c/providers",
+  "all_capture_processes_closed": true,
+  "scope": "Original process/source/link/runtime closure only; individual Guest failures and Jim unsupported observer/namespace purposes stay explicit."
+}

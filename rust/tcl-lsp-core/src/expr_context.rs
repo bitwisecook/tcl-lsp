@@ -403,7 +403,11 @@ impl ExpressionOperandSelector<'_> {
         if crate::references::MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
             return None;
         }
-        for command in self.walk.segment(text, base) {
+        for command in if depth == 0 {
+            self.walk.segment_document(text)
+        } else {
+            self.walk.segment_nested(text, base)
+        } {
             if command.span.start() > offset || offset > command.span.end() {
                 continue;
             }
