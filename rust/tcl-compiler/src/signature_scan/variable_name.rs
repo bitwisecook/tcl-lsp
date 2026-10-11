@@ -319,7 +319,7 @@ mod tests {
             )
             .is_none()
         );
-        let native_image = SourceImage::native(b"$foo");
+        let native_image = SourceImage::native(b"$foo".as_slice());
         let native_arena = ExecutablePartArena::decompose(
             native_image.clone(),
             Span::new(0, 4),

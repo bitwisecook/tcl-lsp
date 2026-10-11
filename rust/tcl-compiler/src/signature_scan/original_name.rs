@@ -221,7 +221,7 @@ mod tests {
             )
             .is_none()
         );
-        let native_image = SourceImage::native(b"name");
+        let native_image = SourceImage::native(b"name".as_slice());
         let native_plan =
             tcl_lexer::native_script_words_in(native_image.clone(), Span::new(0, 4), config)
                 .unwrap();

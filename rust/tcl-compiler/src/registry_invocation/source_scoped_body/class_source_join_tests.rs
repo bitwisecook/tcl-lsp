@@ -124,7 +124,7 @@ fn original_class_factory_body_and_member_joins_retain_the_complete_source_input
             let mut foreign_config = config;
             foreign_config.strict_quoting = !config.strict_quoting;
             assert!(!parent.matches_source(&image, foreign_config));
-            let foreign_image = SourceImage::document(source.replace("puts α", "puts β"));
+            let foreign_image = SourceImage::document(&source.replace("puts α", "puts β"));
             assert!(!parent.matches_source(&foreign_image, config));
             let foreign_plan =
                 tcl_lexer::native_script_words_in(foreign_image, parent.content_span(), config)
