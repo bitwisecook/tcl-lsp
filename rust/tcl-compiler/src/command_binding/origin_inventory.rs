@@ -351,7 +351,7 @@ impl SourceCommandBindings {
         let Some(segments) = crate::segmenter::segment_commands_image_with_offset_and_config(
             &script.text,
             0,
-            config,
+            config.nested(),
         ) else {
             return calls;
         };
@@ -1312,5 +1312,72 @@ mod tests {
                 .is_some()
         );
         assert_ne!(script.origin, parent.source);
+    }
+}
+
+#[cfg(test)]
+mod original_math_body_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_math_body_inventory_keeps_extracted_bom_and_parent_origin() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Original conditional expression topology only; no native function registration.
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let config = tcl_lexer::LexerConfig {
+                leading_bom: bom,
+                braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+                ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+            };
+            for (source, expected) in [
+                ("eval {expr {abs(-3)}}", true),
+                ("eval {\u{feff}expr {abs(-3)}}", false),
+            ] {
+                let bindings = SourceCommandBindings::analyse_with_options(
+                    source,
+                    config,
+                    registry,
+                    super::super::SourceAnalysisOptions {
+                        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                            profile,
+                        )),
+                        ..Default::default()
+                    },
+                );
+                let parent = super::super::CommandAllocationSite {
+                    source: Arc::clone(bindings.source_origin().unwrap()),
+                    offset: 0,
+                };
+                let body = bindings
+                    .executed_script_at(&parent, 0)
+                    .expect("genuine original eval operand");
+                assert!(matches!(
+                    body.mapping,
+                    super::super::ExecutedScriptMapping::Contiguous { .. }
+                ));
+                let calls = bindings.math_invocations_for_script(registry, body);
+                assert_eq!(
+                    calls.iter().any(|call| call.function == "abs"),
+                    expected,
+                    "{bom:?}: {source:?}"
+                );
+                assert_eq!(body.origin, parent.source);
+                assert!(bindings.matches_original_source_image(
+                    &tcl_lexer::SourceImage::document(source),
+                    config
+                ));
+                assert!(
+                    super::super::ExecutedScriptSource::contiguous(
+                        Arc::clone(&body.origin),
+                        "expr {abs(-4)}",
+                        body.base()
+                    )
+                    .is_none()
+                );
+            }
+        }
     }
 }

@@ -1118,7 +1118,18 @@ mod original_parent_subject_tests {
                     .unwrap();
             assert_eq!(fix.span, invocation.range);
             assert_eq!(fix.new_text, "puts");
-            let invocation = invocations
+            // The unchanged original unknown command can replace later function
+            // lookup. It cannot donate the following expression's occurrence.
+            assert!(!invocations.iter().any(|invocation| {
+                invocation.is_mathfunc_call && invocation.name.contains("missing_original_math")
+            }));
+            // This independent first expression retains the actual math operand
+            // without a preceding unknown command. All subject fields stay checked.
+            let math_source = "\u{feff}expr {missing_original_math()}";
+            analyser.analyse_and_retain_result_for_test(math_source, "tcl9.1");
+            let invocation = analyser
+                .result
+                .command_invocations
                 .iter()
                 .find(|invocation| {
                     invocation.is_mathfunc_call && invocation.name.contains("missing_original_math")

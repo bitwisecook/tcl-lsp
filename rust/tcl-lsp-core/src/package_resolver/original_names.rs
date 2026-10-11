@@ -861,7 +861,7 @@ fn original_index_entries(
         let Some(inner) = super::word_unwrap(content, words[2].tokens()) else {
             continue;
         };
-        let scripts = super::walk_command_words_with_config(&inner, config);
+        let scripts = super::walk_command_words_with_config(&inner, config.nested());
         if scripts.len() != 1 {
             continue;
         }
@@ -1164,5 +1164,49 @@ mod tests {
                 (b" spaced ".as_slice(), Path::new("/library/q.tcl"))
             ]
         );
+    }
+}
+
+#[cfg(test)]
+mod original_index_body_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_auto_index_stored_script_keeps_body_bom_distinct_from_file_prologue() {
+        // naming.package.original-reachability-source-controls
+        // docs/design/analysis/name-resolution-proofs/original-package-reachability-source-controls.md
+        // Stored loader syntax and original name identity; no loader execution grant.
+        let version = tcl_dialect::TclVersion::V9_1;
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+        let policy = NamePolicyProtocol::authored_tcl(version);
+        for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let config = LexerConfig {
+                leading_bom: bom,
+                braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+                ..LexerConfig::for_file_grammar(profile.grammar)
+            };
+            for (source, expected) in [
+                ("set auto_index(p) {source $dir/p.tcl}", true),
+                ("set auto_index(p) {\u{feff}source $dir/p.tcl}", false),
+                (
+                    "\u{feff}set auto_index(p) {source $dir/p.tcl}",
+                    bom == tcl_lexer::LeadingBom::Skip,
+                ),
+            ] {
+                let entries = original_index_entries(
+                    source,
+                    Path::new("/library"),
+                    &|_| true,
+                    config,
+                    policy,
+                );
+                assert_eq!(!entries.is_empty(), expected, "{bom:?}: {source:?}");
+                if let Some(entry) = entries.first() {
+                    assert_eq!(entry.input.bytes(), b"p");
+                    assert_eq!(entry.file, Path::new("/library/p.tcl"));
+                }
+                assert_eq!(config.braced_var, tcl_lexer::BracedVarStyle::FirstClose);
+            }
+        }
     }
 }

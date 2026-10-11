@@ -1,0 +1,20 @@
+{
+  "selected": [
+    "declaration::tests::global_declaration_in_proc_body",
+    "declaration::tests::original_logical_declarations_join_global_aliases_without_local_root_stripping"
+  ],
+  "zero_matches": [],
+  "inputs": [
+    {
+      "path": "/workspace/.proofs/core-alias-trace-request320.json",
+      "sha256": "bac5d21d648276551ffa8f071de976f04b0a286b6e7ebce1e7700aee38ac074f"
+    }
+  ],
+  "actual_inventory_count": 2938,
+  "actual_inventory_receipt": "/workspace/.proofs/integration-core-own-list320.json",
+  "actual_inventory_receipt_sha256": "5d499128bb71aff159e43d3225f9546d0cf173cee6182d6a4370a1a3aceb8e5c",
+  "inventory_log_sha256": "65d1c248a212c4503d1e487c1c65fa7c5c173d996c4dbc3b0aaa7b23d0a3d325",
+  "strict_image_sha256": "e62d1086f8d79fc8f72dd0fc9d35522a189324c9aba0f4a50ee80e92d22517aa",
+  "source_snapshot": "320",
+  "scope": "Actual --list admission only. Assertions and external provider outcomes require the separately closed exact run."
+}

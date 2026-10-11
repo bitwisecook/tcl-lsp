@@ -1060,11 +1060,10 @@ fn format_case_list_body(
                         .saturating_add(u32::try_from(content_range.start).unwrap_or(u32::MAX));
                     let formatted = format_body(
                         content,
-                        action_source_offset,
                         config,
                         registry,
                         identities,
-                        inner_level,
+                        FormattingRegion::body(config, action_source_offset, inner_level),
                     );
                     let head = prefix.join(" ");
                     if formatted.trim().is_empty() {
@@ -2059,13 +2058,13 @@ fn presentation_children(
 
 /// Format a line selection only inside a genuine selected script region and
 /// across complete lexical words. Data words and unavailable bodies are kept.
-pub(crate) fn formatting_range_indent(
+pub(crate) fn formatting_range_region(
     source: &str,
     selection: tcl_lexer::Span,
     config: &FormatterConfig,
     registry: &CommandRegistry,
     identities: &FormattingSourceLayout,
-) -> Option<usize> {
+) -> Option<FormattingRegion> {
     // naming.editor.original-source-whitespace-geometry
     // docs/design/analysis/name-resolution-proofs/original-source-whitespace-geometry.md
     use tcl_lexer::{SourceImage, Span};
@@ -2100,9 +2099,12 @@ pub(crate) fn formatting_range_indent(
         let plan = super::source_layout::words_in(&image, region, config.lexer_config())?;
         let text = source.get(region.as_range())?;
         let map = SourceMap::new(text);
-        let tokens = Lexer::with_config(text, config.lexer_config())
-            .tokenise_all()
-            .ok()?;
+        let local_config = if region == Span::new(0, end) {
+            config.lexer_config()
+        } else {
+            config.lexer_config().nested()
+        };
+        let tokens = Lexer::with_config(text, local_config).tokenise_all().ok()?;
         let (mut commands, _) = parse_commands(text, &map, &tokens);
         let mut children = Vec::new();
         for command in &mut commands {
@@ -2135,12 +2137,47 @@ pub(crate) fn formatting_range_indent(
             if !super::source_layout::selection_keeps_whole_words(&plan, selection) {
                 return None;
             }
-            return usize::try_from(depth).ok();
+            return Some(FormattingRegion {
+                source_offset: selection.start(),
+                indent_level: usize::try_from(depth).ok()?,
+                local_config: if region == Span::new(0, end) && selection.start() == region.start()
+                {
+                    config.lexer_config()
+                } else {
+                    config.lexer_config().nested()
+                },
+            });
         }
     }
 }
 
 // Main entry points
+
+/// Local parsing belongs to the genuine selected region. Original source
+/// joins continue to use the complete parent FormatterConfig and layout.
+pub(crate) struct FormattingRegion {
+    source_offset: u32,
+    indent_level: usize,
+    local_config: tcl_lexer::LexerConfig,
+}
+
+impl FormattingRegion {
+    fn document(config: &FormatterConfig) -> Self {
+        Self {
+            source_offset: 0,
+            indent_level: 0,
+            local_config: config.lexer_config(),
+        }
+    }
+
+    fn body(config: &FormatterConfig, source_offset: u32, indent_level: usize) -> Self {
+        Self {
+            source_offset,
+            indent_level,
+            local_config: config.lexer_config().nested(),
+        }
+    }
+}
 
 /// Format a Tcl script body at the given indent level.  The core
 /// recursive function.
@@ -2151,12 +2188,16 @@ pub(crate) fn formatting_range_indent(
 /// both paths share identical layout rules.
 pub(crate) fn format_body(
     source: &str,
-    source_offset: u32,
     config: &FormatterConfig,
     registry: &CommandRegistry,
     identities: &FormattingSourceLayout,
-    indent_level: usize,
+    region: FormattingRegion,
 ) -> String {
+    let FormattingRegion {
+        source_offset,
+        indent_level,
+        local_config,
+    } = region;
     // Native-stack safety net — see `MAX_FORMAT_DEPTH`'s doc comment.
     // Past the cap, leave this (deeply nested) body unformatted rather than
     // recursing further, matching the give-up-gracefully fallback just below
@@ -2165,8 +2206,7 @@ pub(crate) fn format_body(
         return source.to_owned();
     }
     let sm = SourceMap::new(source);
-    let Ok(tokens) =
-        Lexer::with_source_map(SourceMap::new(source), config.lexer_config()).tokenise_all()
+    let Ok(tokens) = Lexer::with_source_map(SourceMap::new(source), local_config).tokenise_all()
     else {
         return source.to_owned();
     };
@@ -2228,11 +2268,10 @@ pub(crate) fn format_body(
                     } else {
                         format_body(
                             &body_text,
-                            body_source_offset,
                             config,
                             registry,
                             identities,
-                            inner_level,
+                            FormattingRegion::body(config, body_source_offset, inner_level),
                         )
                     };
                 commands[i].args[a].formatted_body = Some(formatted);
@@ -2285,11 +2324,10 @@ pub(crate) fn format_body(
                     .and_then(|layout| layout.text().get(presented_body?.as_range()));
                 let formatted = format_body(
                     presented_text.unwrap_or(&body_text),
-                    lambda_body_offset,
                     config,
                     registry,
                     identities,
-                    inner_level,
+                    FormattingRegion::body(config, lambda_body_offset, inner_level),
                 );
                 commands[i].args[a].formatted_body = Some(formatted);
             }
@@ -2414,7 +2452,13 @@ fn format_tcl_impl(
             |input| FormattingSourceLayout::with_input(&source, input),
         )
     });
-    let mut result = format_body(&source, 0, config, registry, &identities, 0);
+    let mut result = format_body(
+        &source,
+        config,
+        registry,
+        &identities,
+        FormattingRegion::document(config),
+    );
 
     if config.trim_trailing_whitespace {
         result = trim_trailing_ws_preserving_literals(&result, config);
@@ -2431,6 +2475,82 @@ fn format_tcl_impl(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_formatter_body_parsing_keeps_bom_content_and_complete_parent_config() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Original source presentation only; no callable or Native entry grant.
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let lexer_config = tcl_lexer::LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            lexer_config,
+        );
+        let config = FormatterConfig::for_profile(profile).for_resolved_input(&input);
+        for source in [
+            "\u{feff}proc p {} {\u{feff}puts    1}",
+            "apply {{} {\u{feff}puts    1}}",
+            "switch x {x {\u{feff}puts    1}}",
+        ] {
+            let result = format_tcl_with_input(source, &config, &input);
+            assert_eq!(
+                result.matches('\u{feff}').count(),
+                1,
+                "{source:?}: {result:?}"
+            );
+            assert_eq!(config.lexer_config(), input.lexer_config());
+        }
+        let body = "\u{feff}puts    1";
+        let identities = FormattingSourceLayout::with_input(body, &input);
+        let context = input.context_registry();
+        let result = format_body(
+            body,
+            &config,
+            context.commands(),
+            &identities,
+            FormattingRegion::body(&config, 0, 0),
+        );
+        assert_eq!(result, "\u{feff}puts 1");
+        let body = "puts ${a{b}; set x 1";
+        let identities = FormattingSourceLayout::with_input(body, &input);
+        let result = format_body(
+            body,
+            &config,
+            context.commands(),
+            &identities,
+            FormattingRegion::body(&config, 0, 0),
+        );
+        assert_eq!(result, "puts ${a{b}\nset x 1");
+    }
+
+    #[test]
+    fn original_formatter_range_uses_the_selected_script_prologue_purpose() {
+        // naming.editor.original-source-whitespace-geometry
+        // docs/design/analysis/name-resolution-proofs/original-source-whitespace-geometry.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = FormatterConfig::for_profile(profile);
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let source = "set x 0\n\u{feff}puts    1\n";
+        let edits = crate::formatting::range_formatting(
+            source,
+            crate::definition::LspRange {
+                start_line: 1,
+                start_character: 0,
+                end_line: 1,
+                end_character: 20,
+            },
+            &config,
+            context.commands(),
+        );
+        assert_eq!(edits.len(), 1);
+        assert_eq!(edits[0].new_text, "\u{feff}puts 1\n");
+    }
 
     // Implementation contract: naming.editor.original-source-formatting
     // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md
@@ -3808,7 +3928,13 @@ mod tests {
             strict_quoting: !config.lexer_config().strict_quoting,
             ..config.lexer_config()
         });
-        let unchanged = format_body(source, 0, &foreign, registry.commands(), &identities, 0);
+        let unchanged = format_body(
+            source,
+            &foreign,
+            registry.commands(),
+            &identities,
+            FormattingRegion::document(&foreign),
+        );
         assert_eq!(unchanged, source.trim_end_matches('\n'));
     }
 

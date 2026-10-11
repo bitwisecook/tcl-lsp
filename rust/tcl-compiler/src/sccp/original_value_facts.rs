@@ -312,6 +312,12 @@ impl<'a> DiagnosticValueFacts<'a> {
     pub(crate) fn constant_branches(self) -> &'a [ConstantBranch] {
         &self.result.constant_branches
     }
+
+    /// Plans over the same immutable advisory values and reached source blocks.
+    /// They do not replace an executable plan or prove a Native result/store.
+    pub(crate) fn template_plans(self) -> &'a [super::TemplatePlanRecord] {
+        &self.result.template_plans
+    }
 }
 
 /// Detached lazy cache for one immutable function's semantic-purpose view.

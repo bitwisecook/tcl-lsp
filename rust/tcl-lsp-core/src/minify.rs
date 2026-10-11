@@ -736,6 +736,7 @@ fn lexical_default(source: &str, analysis: &AnalysisResult) -> Result<String, Mi
             identities,
         },
         0,
+        input.lexer_config(),
     ))
 }
 
@@ -796,7 +797,7 @@ impl<'a> MinifyEnv<'a> {
 
 /// Minify a Tcl script body (top-level or inside braces). `depth` is this
 /// body's nesting level — see [`MAX_MINIFY_DEPTH`].
-fn minify_body(source: &str, env: MinifyEnv<'_>, depth: u32) -> String {
+fn minify_body(source: &str, env: MinifyEnv<'_>, depth: u32, local_config: LexerConfig) -> String {
     let dialect = env.dialect;
     // Native-stack safety net — see `MAX_MINIFY_DEPTH`'s doc comment.
     // Past the cap, leave this (deeply nested) body unminified rather than
@@ -806,18 +807,18 @@ fn minify_body(source: &str, env: MinifyEnv<'_>, depth: u32) -> String {
         return source.to_owned();
     }
     let sm = SourceMap::new(source);
-    let Ok(tokens) = Lexer::with_config(source, env.config).tokenise_all() else {
+    let Ok(tokens) = Lexer::with_config(source, local_config).tokenise_all() else {
         return source.to_owned();
     };
 
-    let commands = parse_commands(source, &tokens, env.config);
+    let commands = parse_commands(source, &tokens, local_config);
     if commands.is_empty() {
         return String::new();
     }
 
     // naming.minifier.complete-lexical-head
     // docs/design/analysis/name-resolution-proofs/minifier-complete-lexical-head.md
-    let original_words = lexical_script_words(source, env.config);
+    let original_words = lexical_script_words(source, local_config);
     // Render only the source roles selected in the retained context.
     let mut rendered: Vec<Vec<String>> = Vec::with_capacity(commands.len());
     for (index, cmd_args) in commands.iter().enumerate() {
@@ -825,7 +826,14 @@ fn minify_body(source: &str, env: MinifyEnv<'_>, depth: u32) -> String {
             .as_ref()
             .and_then(|plan| plan.commands.get(index))
             .and_then(|command| command.words.first());
-        rendered.push(render_command(&sm, cmd_args, head_word, env, depth));
+        rendered.push(render_command(
+            &sm,
+            cmd_args,
+            head_word,
+            env,
+            depth,
+            local_config,
+        ));
     }
 
     // NB: no template deduplication here.  The former `[subst $alias]`
@@ -2609,12 +2617,13 @@ fn render_command(
     head_word: Option<&tcl_lexer::NativeWord>,
     env: MinifyEnv<'_>,
     depth: u32,
+    local_config: LexerConfig,
 ) -> Vec<String> {
     // naming.minifier.complete-lexical-head
     // docs/design/analysis/name-resolution-proofs/minifier-complete-lexical-head.md
     let cmd_name = cmd_args
         .first()
-        .and_then(|arg| lexical_head_value(sm, arg, head_word?, env.config));
+        .and_then(|arg| lexical_head_value(sm, arg, head_word?, local_config));
     // The head's *effective command identity*: which registry command the
     // spelling really names once the document's `namespace import` / `interp
     // alias` / `rename` / built-in-shadowing `proc` statements are folded in
@@ -2690,13 +2699,16 @@ fn render_command(
         if clause_list_index == Some(i) && single_braced {
             let inner = sm.token_text(arg.tokens[0]);
             let minified = case_list_spec.map_or_else(
-                || minify_body(inner, env, depth + 1),
+                || minify_body(inner, env, depth + 1, env.config.nested()),
                 |cl| minify_case_list(inner, &cl, env, depth + 1),
             );
             out.push(format!("{{{minified}}}"));
         } else if (inline_body_indices.contains(&i) || body_indices.contains(&i)) && single_braced {
             let inner = sm.token_text(arg.tokens[0]);
-            out.push(format!("{{{}}}", minify_body(inner, env, depth + 1)));
+            out.push(format!(
+                "{{{}}}",
+                minify_body(inner, env, depth + 1, env.config.nested())
+            ));
         } else if lambda_indices.contains(&i) && single_braced {
             out.push(minify_lambda_literal(sm, arg.tokens[0], env, depth + 1));
         } else if expr_indices.contains(&i) && single_braced {
@@ -2802,7 +2814,7 @@ fn minify_lambda_literal(sm: &SourceMap, tok: Token, env: MinifyEnv<'_>, depth: 
     let Some(body) = elems.body.as_deref() else {
         return fallback();
     };
-    let minified_body = minify_body(body, env, depth);
+    let minified_body = minify_body(body, env, depth, env.config.nested());
     let mut parts = vec![
         tcl_syntax::list::list_element(&elems.params),
         tcl_syntax::list::list_element(&minified_body),
@@ -2880,7 +2892,10 @@ fn reconstruct_raw(
         // emit it verbatim, not brace-wrapped as `{$}`.
         TokenType::Str if in_quotes => sm.text(tok.span).to_owned(),
         TokenType::Str => format!("{{{}}}", sm.token_text(tok)),
-        TokenType::Cmd => format!("[{}]", minify_body(sm.token_text(tok), env, depth + 1)),
+        TokenType::Cmd => format!(
+            "[{}]",
+            minify_body(sm.token_text(tok), env, depth + 1, env.config.nested())
+        ),
         TokenType::Var => {
             let name = sm.token_text(tok);
             // A name that is not a bare `$name` word can only ever be written
@@ -3137,7 +3152,7 @@ fn minify_case_list(
         parts.push(case_element_text(inner, pattern).to_owned());
         if body.braced {
             let body_src = &inner[body.value.clone()];
-            let minified = minify_body(body_src, env, depth);
+            let minified = minify_body(body_src, env, depth, env.config.nested());
             parts.push(format!("{{{minified}}}"));
         } else {
             parts.push(case_element_text(inner, body).to_owned());
@@ -3447,7 +3462,7 @@ fn tokenise_expr(text: &str, env: MinifyEnv<'_>, nest_depth: u32) -> Vec<ExprTok
             let inner = &text[start + 1..end];
             out.push(ExprTok::Cmd(format!(
                 "[{}]",
-                minify_body(inner, env, nest_depth + 1)
+                minify_body(inner, env, nest_depth + 1, env.config.nested())
             )));
         } else if c == b'$' {
             let start = i;
@@ -3545,6 +3560,45 @@ fn is_word_token(tok: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_minifier_body_parsing_keeps_bom_content_and_complete_parent_config() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Original source geometry only; this does not grant body execution.
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let config = LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let input =
+            tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
+        for source in [
+            "proc p {} {\u{feff}puts    1}",
+            "set x [\u{feff}puts    1]",
+            "apply {{} {\u{feff}puts    1}}",
+            "switch x {x {\u{feff}puts    1}}",
+        ] {
+            let analysis = original::analysis_with_input(source, &input);
+            let result = lexical_default(source, &analysis).unwrap();
+            assert_eq!(
+                result.matches('\u{feff}').count(),
+                1,
+                "{source:?}: {result:?}"
+            );
+            assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
+            assert!(
+                analysis.matches_original_source_image(
+                    &tcl_lexer::SourceImage::document(source),
+                    config
+                )
+            );
+        }
+        let source = "\u{feff}puts    1";
+        let analysis = original::analysis_with_input(source, &input);
+        assert_eq!(lexical_default(source, &analysis).unwrap(), "puts 1");
+    }
 
     fn min(src: &str) -> String {
         let registry = CommandRegistry::build_default();

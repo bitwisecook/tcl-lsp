@@ -175,6 +175,9 @@ fails.
 - [native-scalar-getters.md](contracts/native-scalar-getters.md) — original-object
   primitive getter purposes, queried C target widths, host numeric effects,
   single-probe failure rendering, and raw Boolean output.
+- [retained-positioned-command-realm.md](contracts/retained-positioned-command-realm.md) —
+  reuse of the original Module source inventory, terminal ownership refusal,
+  copy-on-write and independent new-source ingress.
 - [numeric-tower-and-expr-semantics.md](contracts/numeric-tower-and-expr-semantics.md)
   — the small-int → wide → bignum → double tower, and `expr` as a separate
   language with overridable `mathfunc` dispatch.

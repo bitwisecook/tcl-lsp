@@ -9319,6 +9319,21 @@ fields independently of later freed-value contents. Whole public windows in othe
 rows are observations, not lifetime certification. The VM's safe live-header/member
 policy has its own control and supplies no native freed-content identity.
 
+Module consumers obtain that positioned inventory through
+`realm::document_realm_bindings_for_module(module, registry)`. The query checks
+the retained original source/channel, complete configuration, entry/input,
+namespace and actual Registry snapshot; it never rebuilds a refused owner.
+Its `None` is terminal refusal, not `CommandBindingRealm::none/default` spelling
+assistance. Caller analysis records opaque reachable callees, interprocedural
+queries withdraw summaries before memo execution, and warning/rewrite consumers
+stop before replay or writes. Mutable consumers retain the existing owner `Arc`
+before checking `positioned_for_module`; derived inventory mutation detaches
+through the central copy-on-write owner. Actual new cross-file or synthetic
+source keeps its explicit fresh ingress. The
+[retained positioned realm contract](../contracts/retained-positioned-command-realm.md)
+details these interfaces; source correspondence supplies no Native completion,
+frame, store or edit permission.
+
 Callback call-graph and opaque-caller consumers share the genuine positioned
 source inventory and actual Lowerer metadata input. Keep a whole selected list
 builder separate from literal list data and callback target identity. A retained

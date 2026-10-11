@@ -261,6 +261,84 @@ mod tests {
             assert_source_order_guards(version);
         }
     }
+    #[test]
+    fn original_alias_templates_join_qualified_targets_in_their_current_source_frame() {
+        // naming.variable.original-alias-source-template
+        // docs/design/analysis/name-resolution-proofs/original-alias-source-template.md
+        let source = "namespace eval ns {variable foo 1}; proc p {} {global ::ns::foo; puts $foo; puts $::ns::foo; puts $::other::foo}; proc sibling {} {puts $foo}";
+        let logical = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            logical,
+            logical,
+            tcl_registry::model::resolve_environment("tcl9.0").default_context_registry(),
+            LexerConfig::for_file_grammar(logical.grammar),
+        );
+        let mut analyses = tcl_dialect::TclVersion::ALL
+            .into_iter()
+            .map(|version| Analyser::new().analyse(source, version.dialect_name()))
+            .collect::<Vec<_>>();
+        analyses.push(
+            Analyser::new()
+                .with_resolved_input(input)
+                .analyse(source, logical.name),
+        );
+        let declaration =
+            u32::try_from(source.find("global ::ns::foo").unwrap() + "global ".len()).unwrap();
+        let local = u32::try_from(source.find("$foo").unwrap()).unwrap();
+        let qualified = u32::try_from(source.find("$::ns::foo").unwrap()).unwrap();
+        let other = u32::try_from(source.find("$::other::foo").unwrap()).unwrap();
+        let sibling = u32::try_from(source.rfind("$foo").unwrap()).unwrap();
+        let image = SourceImage::document(source);
+        for analysis in analyses {
+            let config = analysis.body_lexer_config.unwrap();
+            let templates = analysis
+                .original_variable_alias_templates_in_source(&image, config)
+                .expect("current complete source");
+            for offset in [declaration, local, qualified] {
+                let template = templates
+                    .iter()
+                    .find(|template| template.span().start() == offset)
+                    .unwrap_or_else(|| {
+                        panic!("{} missing {offset}: {:?}", analysis.dialect, templates)
+                    });
+                assert_eq!(template.declaration_span().start(), declaration);
+                let SignatureSourceVariableSlot::C { namespace, simple } =
+                    template.target_symbol().slot()
+                else {
+                    panic!("source namespace geometry");
+                };
+                assert_eq!(
+                    namespace.as_segments(),
+                    [tcl_core_types::NameBytes::from(&b"ns"[..])]
+                );
+                assert_eq!(simple.as_bytes(), b"foo");
+            }
+            assert!(
+                templates
+                    .iter()
+                    .all(|template| ![other, sibling].contains(&template.span().start()))
+            );
+            assert_source_guards(source, &analysis, config, &image);
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(
+                missing
+                    .original_variable_alias_templates_in_source(&image, config)
+                    .is_none()
+            );
+            let mut unavailable = analysis;
+            unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+                environment: "tcl9.0".to_owned(),
+                overlay: u64::MAX,
+            });
+            assert!(
+                unavailable
+                    .original_variable_alias_templates_in_source(&image, config)
+                    .is_none()
+            );
+        }
+    }
+
     fn assert_source_guards(
         source: &str,
         analysis: &AnalysisResult,

@@ -95,13 +95,24 @@ impl Analyser {
             .chain(cu.methods.values())
             .chain(cu.body_units.values())
         {
-            if unit
-                .invocation_metadata_context_for_module(registry, module)
-                .is_none()
-            {
+            let Some(metadata) = unit.invocation_metadata_context_for_module(registry, module)
+            else {
                 continue;
-            }
-            for record in &unit.sccp.template_plans {
+            };
+            let records = if metadata.permits_logical_source_names() {
+                let Some(values) =
+                    crate::value_transfer::OriginalDiagnosticValues::for_module_function(
+                        module, unit, registry,
+                    )
+                else {
+                    continue;
+                };
+                values.template_plans()
+            } else {
+                // Native execution keeps its independently settled result.
+                unit.sccp.template_plans.iter().collect()
+            };
+            for record in records {
                 let Some(segment) = original_template_segment(unit, record) else {
                     continue;
                 };
@@ -541,9 +552,41 @@ mod tests {
             1,
             "genuine settled record"
         );
+        let values = crate::value_transfer::OriginalDiagnosticValues::for_module_function(
+            &unit.ir_module,
+            function,
+            input.borrowed_context_registry().commands(),
+        )
+        .expect("the genuine Logical advisory plan producer");
+        let records = values.template_plans();
+        assert_eq!(records.len(), 1, "genuine settled advisory record");
         assert_eq!(
-            function.sccp.template_plans[0].switches.as_deref(),
+            records[0].switches.as_deref(),
             Some(["-novariables".to_owned()].as_slice())
+        );
+        assert_eq!(
+            function.sccp.template_plans[0].switches, None,
+            "advisory contents do not supply an executable option value"
+        );
+        let (statement, _) = values.word_at(function.abs_span(records[0].span)).unwrap();
+        let symbol = function.ssa.var_symbol("opt").unwrap();
+        let version =
+            function.ssa.blocks[&statement.block].statements[statement.index].uses[&symbol];
+        assert_eq!(
+            function.sccp.values.get(&(symbol, version)),
+            Some(&crate::analyses::LatticeValue::Overdefined)
+        );
+        let tokens = function
+            .cfg
+            .source_tokens_at(statement.block, statement.index)
+            .unwrap();
+        assert!(
+            tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .native_compilation_admission
+                .is_none()
         );
         let mut analyser = analyse(source, &input);
         analyser.emit_w102_template_plans(&unit);

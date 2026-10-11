@@ -126,7 +126,7 @@ impl Walker<'_, '_> {
             region.start(),
             self.config.at_depth(depth),
         );
-        let commands = super::walk_command_words_with_config(text, self.config);
+        let commands = super::walk_command_words_with_config(text, self.config.at_depth(depth));
         let mut reached = reached.clone();
         for words in &commands {
             let Some(native) = original.words(words, &plan) else {
@@ -439,5 +439,71 @@ mod tests {
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let found = registrations(source, &analysis);
         assert_eq!(found, [("p".to_owned(), Availability::Conditional)]);
+    }
+}
+
+#[cfg(test)]
+mod original_package_region_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_package_body_words_keep_parent_image_and_nested_bom_geometry() {
+        // naming.package.original-reachability-source-controls
+        // docs/design/analysis/name-resolution-proofs/original-package-reachability-source-controls.md
+        // This joins original lexical vectors; it does not close an unknown loader call.
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let config = LexerConfig::for_file_grammar(profile.grammar);
+        for source in [
+            "if 1 {\u{feff}package ifneeded p 1.0 {source p.tcl}}",
+            "if 1 {package ifneeded p 1.0 {source p.tcl}}",
+        ] {
+            let mut analyser = tcl_compiler::analyser::Analyser::new();
+            let analysis = analyser.analyse(source, "tcl9.0");
+            assert!(analysis.matches_original_source_image(&SourceImage::document(source), config));
+            let root = tcl_lexer::native_script_words_in(
+                SourceImage::document(source),
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            let region = root.commands[0].words[2].content_span().unwrap();
+            let original = OriginalScript {
+                image: SourceImage::document(source),
+                span: region,
+                config,
+            };
+            let plan =
+                tcl_lexer::native_script_words_in(original.image.clone(), region, config).unwrap();
+            let text = source.get(region.as_range()).unwrap();
+            let commands = super::super::walk_command_words_with_config(text, config.at_depth(1));
+            let words = original
+                .words(&commands[0], &plan)
+                .expect("complete original body vector");
+            assert_eq!(words[0].config(), config.normalized());
+            assert_eq!(words[0].span().start(), region.start());
+            assert_eq!(words[0].image().bytes(), source.as_bytes());
+            assert_eq!(
+                text.get(commands[0][0][0].span.as_range()),
+                Some(if text.starts_with('\u{feff}') {
+                    "\u{feff}package"
+                } else {
+                    "package"
+                })
+            );
+            let wrong = super::super::walk_command_words_with_config(text, config);
+            if text.starts_with('\u{feff}') {
+                assert!(original.words(&wrong[0], &plan).is_none());
+            }
+        }
+        let body = "puts ${a{b}; package ifneeded p 1.0 {source p.tcl}";
+        let first_close = LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..config
+        };
+        assert_eq!(
+            super::super::walk_command_words_with_config(body, first_close.at_depth(1)).len(),
+            2
+        );
+        assert!(super::super::walk_command_words_with_config(body, config.at_depth(1)).is_empty());
     }
 }

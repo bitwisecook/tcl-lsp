@@ -2453,15 +2453,16 @@ impl Analyser {
             config,
         )
         .ok()?;
-        crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_executable(
-            &arena,
-            &image,
-            config,
-            span,
-            self.word_rules(),
-            self.declaration_name_policy()?,
-        )
-        .map(SignatureSourceNameInput::OriginalVariableRoot)
+        let root = if self.selected_logical_declaration_advice() {
+            crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_logical_source_executable(
+                &arena, &image, config, span, self.word_rules(), policy,
+            )
+        } else {
+            crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_executable(
+                &arena, &image, config, span, self.word_rules(), policy,
+            )
+        };
+        root.map(SignatureSourceNameInput::OriginalVariableRoot)
     }
 
     /// Post-walk pass: attach each recorded [`super::types::QualifiedVarRef`]

@@ -314,7 +314,7 @@ fn range_formatting_impl(
     } else {
         u32::try_from(normalised.len()).unwrap_or(u32::MAX)
     };
-    let Some(depth) = engine::formatting_range_indent(
+    let Some(region) = engine::formatting_range_region(
         &normalised,
         tcl_lexer::Span::new(slice_source_offset, slice_source_end),
         config,
@@ -324,14 +324,7 @@ fn range_formatting_impl(
         return Vec::new();
     };
     let formatted_slice = finalise_slice(
-        &engine::format_body(
-            &slice_text,
-            slice_source_offset,
-            config,
-            registry,
-            &identities,
-            depth,
-        ),
+        &engine::format_body(&slice_text, config, registry, &identities, region),
         config,
         line_ending,
     );

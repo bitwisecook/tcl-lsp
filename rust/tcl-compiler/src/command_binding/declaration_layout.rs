@@ -305,6 +305,58 @@ fn original_local_primary_is_byte_unique(
         })
 }
 
+fn original_alias_template_input_is_current(
+    row: &DeclarationLayoutObservation,
+    input: &crate::signature_scan::scope::SignatureSourceNameInput,
+) -> bool {
+    let Some(owner) = row.snapshot.state.logical_source_name_advice_input() else {
+        return input.is_current(&row.snapshot.state.source_variables);
+    };
+    if !owner.has_logical_source_name_context()
+        || owner.lexer_config() != row.config
+        || row.snapshot.state.baseline.native_entry.is_some()
+        || super::source_analysis_entry::source_input_dialect(owner).authored_name_policy()
+            != Some(input.policy())
+    {
+        return false;
+    }
+    let image = row.entry.source().origin.source_image();
+    match input {
+        crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(word) => {
+            word.source_image() == image && word.lexer_config() == row.config
+        }
+        crate::signature_scan::scope::SignatureSourceNameInput::OriginalVariableRoot(root) => {
+            root.source_image() == image && root.lexer_config() == row.config
+        }
+        crate::signature_scan::scope::SignatureSourceNameInput::OriginalValue(_) => false,
+    }
+}
+
+fn original_alias_template_local_is_byte_unique(
+    row: &DeclarationLayoutObservation,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    name: &[u8],
+) -> bool {
+    let state = &row.snapshot.state;
+    if let Some(input) = state.logical_source_name_advice_input() {
+        if !input.has_logical_source_name_context()
+            || input.lexer_config() != row.config
+            || state.baseline.native_entry.is_some()
+            || state.variable_frame != *row.entry.frame()
+            || !row.entry.owns_original_context(&state.source_variables)
+        {
+            return false;
+        }
+        return match row.entry.as_ref() {
+            OriginalDiagnosticFrameEntry::DeclaredProcedure(body) => {
+                body.logical_alias_local_name_is_byte_unique(policy, row.config)
+            }
+            _ => false,
+        };
+    }
+    original_local_primary_is_byte_unique(state, policy, name)
+}
+
 /// Immutable original local-frame naming owner. This is a conditional source
 /// declaration identity, not an entered activation or a physical local table.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -683,8 +735,13 @@ impl SourceCommandBindings {
             crate::signature_scan::variable_symbol::OriginalVariableAliasAdvice::from_receipt(
                 alias,
             );
+        let geometry =
+            protocol.variable_root_geometry(NativeNameContext::root(), selected.root().selected());
+        let local =
+            matches!(&geometry, NativeVariableRootGeometry::Local(name) if name == alias.local());
         if span != declaration.span()
-            && !matches!(protocol.variable_root_geometry(NativeNameContext::root(), selected.root().selected()), NativeVariableRootGeometry::Local(ref name) if name == alias.local())
+            && !local
+            && matches!(geometry, NativeVariableRootGeometry::Local(_))
         {
             return false;
         }
@@ -722,14 +779,39 @@ impl SourceCommandBindings {
                 continue;
             }
             for row in rows {
-                if !input.is_current(&row.snapshot.state.source_variables)
-                    || !original_local_primary_is_byte_unique(
-                        &row.snapshot.state,
+                if !original_alias_template_input_is_current(row, input)
+                    || !original_alias_template_local_is_byte_unique(
+                        row,
                         input.policy(),
                         alias.local().as_bytes(),
                     )
                 {
                     return false;
+                }
+                if span != declaration.span() && !local {
+                    let namespace = if selected.root().qualification()
+                        == tcl_syntax::naming::NativeNameQualification::Absolute
+                    {
+                        Some(crate::signature_scan::scope::SignatureNamespaceScope::root(
+                            Some(input.policy()),
+                        ))
+                    } else {
+                        row.snapshot
+                            .state
+                            .original_namespace_geometry(&row.namespace, input.policy())
+                    };
+                    let Some(namespace) = namespace else {
+                        return false;
+                    };
+                    let target = crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol::from_original_input(
+                        input,
+                        &namespace,
+                        crate::signature_scan::variable_symbol::OriginalVariableSymbolPurpose::QualifiedOnly,
+                        receiver,
+                    );
+                    if target.as_ref() != Some(alias.target()) {
+                        return false;
+                    }
                 }
                 found = true;
             }

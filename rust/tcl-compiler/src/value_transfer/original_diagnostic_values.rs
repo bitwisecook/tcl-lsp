@@ -189,6 +189,18 @@ impl<'a> OriginalDiagnosticValues<'a> {
         value.as_str().ok().map(str::to_owned)
     }
 
+    /// Settled template advice from this authenticated Logical value producer.
+    /// Every record still needs its reached original statement/vector. The
+    /// consumer must separately join the effective operand and selected schema;
+    /// these contents never alter execution-SCCP, Native stores or completion.
+    pub(crate) fn template_plans(&self) -> Vec<&'a crate::sccp::TemplatePlanRecord> {
+        self.facts
+            .template_plans()
+            .iter()
+            .filter(|record| self.word_at(self.function.abs_span(record.span)).is_some())
+            .collect()
+    }
+
     pub(crate) fn substitution_calls(&self, host: SubstitutionHost) -> Option<Vec<LiftedCall>> {
         self.original_calls(self.point_tokens(host)?)
     }
@@ -357,6 +369,180 @@ mod tests {
         assert_eq!(
             function.sccp.values.get(&(symbol, version)),
             Some(&LatticeValue::Overdefined)
+        );
+    }
+
+    #[test]
+    fn original_advisory_template_plans_keep_current_producer_and_refuse_foreign_or_missing_owners()
+    {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Plans describe source contents only; executable switches stay unavailable.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let input = input(Arc::clone(&context));
+        let original = unit("proc f {x} {set opt -novariables; subst $opt $x}", &input);
+        let function = original.function("::f").unwrap();
+        let values = OriginalDiagnosticValues::for_module_function(
+            &original.ir_module,
+            function,
+            context.commands(),
+        )
+        .expect("authentic current Logical producer");
+        let plans = values.template_plans();
+        assert_eq!(plans.len(), 1);
+        assert_eq!(
+            plans[0].switches.as_deref(),
+            Some(["-novariables".to_owned()].as_slice())
+        );
+        assert_eq!(function.sccp.template_plans.len(), 1);
+        assert_eq!(function.sccp.template_plans[0].switches, None);
+        let (statement, _) = values.word_at(function.abs_span(plans[0].span)).unwrap();
+        let mut cloned = function.clone();
+        assert_eq!(
+            OriginalDiagnosticValues::for_module_function(
+                &original.ir_module,
+                &cloned,
+                context.commands()
+            )
+            .unwrap()
+            .template_plans(),
+            plans
+        );
+        cloned.invalidate_semantic_values();
+        assert_eq!(
+            OriginalDiagnosticValues::for_module_function(
+                &original.ir_module,
+                &cloned,
+                context.commands()
+            )
+            .unwrap()
+            .template_plans(),
+            plans,
+            "legitimate detached recomputation keeps its current producer"
+        );
+        let mut missing = function.clone();
+        missing.source_metadata_input = None;
+        assert!(
+            OriginalDiagnosticValues::for_module_function(
+                &original.ir_module,
+                &missing,
+                context.commands()
+            )
+            .is_none()
+        );
+        let mut changed = function.clone();
+        changed.source_config.strict_quoting = !changed.source_config.strict_quoting;
+        assert!(
+            OriginalDiagnosticValues::for_module_function(
+                &original.ir_module,
+                &changed,
+                context.commands()
+            )
+            .is_none()
+        );
+        let mut changed = function.clone();
+        let Statement::Call {
+            tokens: Some(tokens),
+            ..
+        } = &mut changed
+            .cfg
+            .blocks
+            .get_mut(&statement.block)
+            .unwrap()
+            .statements[statement.index]
+        else {
+            panic!("the genuine template invocation")
+        };
+        tokens.argv_texts[1] = "$foreign".to_owned();
+        assert!(
+            OriginalDiagnosticValues::for_module_function(
+                &original.ir_module,
+                &changed,
+                context.commands()
+            )
+            .unwrap()
+            .template_plans()
+            .is_empty(),
+            "a changed original vector cannot borrow the immutable plan"
+        );
+        let mut missing = original.ir_module.clone();
+        missing.source_metadata_input = None;
+        assert!(
+            OriginalDiagnosticValues::for_module_function(&missing, function, context.commands(),)
+                .is_none()
+        );
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(context.commands())),
+        );
+        assert!(Arc::ptr_eq(older.commands(), context.commands()));
+        let mut older_module = original.ir_module.clone();
+        older_module.source_metadata_input = Some(ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            older,
+            input.lexer_config(),
+        ));
+        assert!(
+            OriginalDiagnosticValues::for_module_function(
+                &older_module,
+                function,
+                context.commands(),
+            )
+            .is_none()
+        );
+        let foreign_registry = CommandRegistry::build_default();
+        assert!(
+            OriginalDiagnosticValues::for_module_function(
+                &original.ir_module,
+                function,
+                &foreign_registry,
+            )
+            .is_none()
+        );
+        let foreign = unit("proc f {x} {set opt -nocommands; subst $opt $x}", &input);
+        let foreign_function = foreign.function("::f").unwrap();
+        assert_eq!(
+            function.source_metadata_input(),
+            foreign_function.source_metadata_input()
+        );
+        assert!(
+            foreign_function
+                .semantic_values()
+                .unwrap()
+                .contents_iter()
+                .any(|(_, value)| *value
+                    == LatticeValue::Const(crate::analyses::ConstValue::String(
+                        "-nocommands".to_owned()
+                    )))
+        );
+        let mut swapped = function.clone();
+        swapped.semantic_value_projection = Arc::clone(&foreign_function.semantic_value_projection);
+        assert!(
+            swapped
+                .semantic_value_projection
+                .matches_source_input(context.commands(), &input)
+        );
+        assert!(
+            OriginalDiagnosticValues::for_module_function(
+                &original.ir_module,
+                &swapped,
+                context.commands()
+            )
+            .is_none(),
+            "equal full inputs do not identify a foreign populated function projection"
+        );
+        let native = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let native = ResolvedAnalysisInput::new(native, native, context, input.lexer_config());
+        let native_unit = unit("subst $unknown", &native);
+        assert!(
+            OriginalDiagnosticValues::for_module_function(
+                &native_unit.ir_module,
+                &native_unit.top_level,
+                native.borrowed_context_registry().commands(),
+            )
+            .is_none()
         );
     }
 

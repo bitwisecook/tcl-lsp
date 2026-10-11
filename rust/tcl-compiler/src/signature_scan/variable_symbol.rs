@@ -476,6 +476,12 @@ impl OriginalVariableAliasTemplate {
     pub fn local_name(&self) -> &NameBytes {
         self.alias.local()
     }
+    /// The actual written local declaration operand. This is source navigation
+    /// advice, independently of a successful link or editable reference set.
+    #[must_use]
+    pub const fn declaration_span(&self) -> tcl_lexer::Span {
+        self.alias.local_span
+    }
     /// Whether this occurrence is the local alias declaration itself.
     #[must_use]
     pub fn is_declaration(&self) -> bool {

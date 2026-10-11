@@ -3644,3 +3644,86 @@ The complete35388-leaf [Source320 snapshot](frozen320/sealed-own-images/source-s
 and [lossless own compiler image](frozen320/sealed-own-images/pinned-compiler320.elf.gz)
 retain the independently closed successful producer and listing scope.
 Current source/implementation bindings and original provider answers remain unchanged.
+
+## Distinct Runtime321, Compiler322 and Source320 closures
+
+Five independently closed commands retain their complete original receipts,
+logs, exact argv and distinct source associations. The two own compilation
+failures admit no image. The traced Core assertions retain both failures.
+The full600 process supplies reached source observations without a completed
+assertion or performance result. The interrupted458-selector command retains
+its partial individual outcomes without an aggregate result.
+
+
+### integration-runtime-own-test-build321
+
+This own no-run build closes exit `101` after 141.20147545301006 seconds with uniform
+source `true`. Five E0425 fixture calls to absent super::obj_bytes in cmd_namespace.rs and one E0599 production call to absent FrameStack.original_error_stack_argv_at in interp/native_introspection.rs stop the own Runtime build. No executable creation event, strict image,
+inventory or assertion is admitted.
+
+The [original receipt](frozen321/integration-runtime-own-test-build321/receipt.json.gz) restores
+SHA-256 `1e6e01cc39219f1074b9034e489217fc50b4aacc4adb757a65c6fecf725ab9bd`; the [whole log](frozen321/integration-runtime-own-test-build321/tests.log)
+retains SHA-256 `3c2cea8dc8be99b0218f2aff805d75d80bd87575f8b3f63fcbc79640274c872c`. The [complete original source snapshot](frozen321/integration-compiler-own-test-build321/source-snapshot.json.gz)
+restores SHA-256 `f1b67d623a0d5984c17ea747c12c8509bcfc6f283d32eaaf6a33ff4b1f2578f0` and exactly matches
+the receipt's distinct isolated source association. Other producers and
+current source repairs supply no executable or assertion credit here.
+
+
+### integration-compiler-own-test-build322
+
+This own no-run build closes exit `101` after 80.92560103800497 seconds with uniform
+source `true`. One E0308 dependency production type mismatch at tcl-lsp-core/src/refactor/extract_variable.rs:58 stops the own Compiler build. No executable creation event, strict image,
+inventory or assertion is admitted.
+
+The [original receipt](frozen322/integration-compiler-own-test-build322/receipt.json.gz) restores
+SHA-256 `4e1853404fb90867ae9497b6ce53baffd6878101b23c2e0cc5a1c1f7e4cfb1b4`; the [whole log](frozen322/integration-compiler-own-test-build322/tests.log)
+retains SHA-256 `1688ed4514b0b314aa91d20128e4bcf0ff297fa937cbbfc9551814bc418d51fa`. The [complete original source snapshot](frozen322/integration-compiler-own-test-build322/source-snapshot.json.gz)
+restores SHA-256 `3a3b7e9911bf98633a878bea9afe3e37bc03eb0f94bb4142301ec1807d34a1aa` and exactly matches
+the receipt's distinct isolated source association. Other producers and
+current source repairs supply no executable or assertion credit here.
+
+
+### integration-core-alias-trace320
+
+This exact command closes exit `101` after 3.090973533981014 seconds with
+uniform source `true`. The two original traced declaration assertions close 0 passed, 2 failed and 2936 filtered. Their complete failures remain independent of the separate177-selector selection.
+
+The [original receipt](frozen320/integration-core-alias-trace320/receipt.json.gz) restores
+SHA-256 `2c2e355adaf78d9c5654376cec0f92510def170798fb40de0546b393e2f535b8`; the [whole original log](frozen320/integration-core-alias-trace320/tests.log)
+retains SHA-256 `0d25f34e6c98ca80166ba62cf2602258ed47e78a938b15d28d468dbc5e385704`. Its complete [original Source320 snapshot](frozen320/sealed-own-images/source-snapshot.json.gz)
+and [own core image](frozen320/sealed-own-images/pinned-core320.elf.gz)
+retain their separately authenticated producer and actual listing. Source315,
+other Source320 selections, current-source consumers and original providers
+receive no outcome from this command.
+
+
+### integration-compiler-performance600320
+
+This exact command closes exit `-9` after 912.3535602269985 seconds with
+uniform source `true`. The unchanged full600 regex control closes SIGKILL (`-9`) with no completed assertion or summary. The original source walk reaches its complete stage; all seven recorded geometry categories report zero world clones. These reached counters do not establish a completed performance comparison. The SIGKILL cause remains unresolved.
+
+The [original receipt](frozen320/integration-compiler-performance600320/receipt.json.gz) restores
+SHA-256 `9cf449b20bef70e7d8e0433144ed030825c7e33a250413fe384d65327ac0daaa`; the [whole original log](frozen320/integration-compiler-performance600320/tests.log)
+retains SHA-256 `f2793b6ac82f177067ed7842015a4f39979db7f1a285dec61ced82f5a5ea9919`. Its complete [original Source320 snapshot](frozen320/sealed-own-images/source-snapshot.json.gz)
+and [own compiler image](frozen320/sealed-own-images/pinned-compiler320.elf.gz)
+retain their separately authenticated producer and actual listing. Source315,
+other Source320 selections, current-source consumers and original providers
+receive no outcome from this command.
+
+
+### Interrupted458-selector Compiler320 command
+
+The exact admitted458-selector command closes SIGKILL (`-9`) after
+2914.6711082359834 seconds with uniform source `true`. Its whole log retains
+381 completed individual outcomes:273 passed and108 failed. One regex control
+starts without a completed assertion;76 admitted selectors do not start.
+The receipt contains no aggregate summary. The SIGKILL cause remains unresolved.
+
+The [original receipt](frozen320/integration-compiler-comprehensive320/receipt.json.gz) restores
+SHA-256 `34563c4fcebee0c6711a0248aec4de201f303ac5d18e572326b701db91225eb8`; the [whole original log](frozen320/integration-compiler-comprehensive320/tests.log)
+retains SHA-256 `444d56507b18a8e8b62a3251631b24badecb6f2023d81c771ba78d539007b0de`. The [actual selection](frozen320/selections/compiler-selected320.json)
+and [original request](frozen320/selections/compiler-requested320b.json) retain
+the original9254-selector listing and strict own Compiler image association.
+Every completed name and the final pending name independently joins the exact
+argv order. Partial outcomes supply no overall Compiler, current-source,
+performance or original-provider result.

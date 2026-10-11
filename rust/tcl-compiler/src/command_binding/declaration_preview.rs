@@ -48,6 +48,41 @@ pub(super) struct DeclaredProcedureBody {
     pub(super) frame: crate::var_resolve::VariableExecutionFrame,
 }
 
+impl DeclaredProcedureBody {
+    /// Closed formal-name geometry in the retained Logical declaration. This
+    /// does not select Native formal storage, an entered frame or alias cells.
+    pub(super) fn logical_alias_local_name_is_byte_unique(
+        &self,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+        config: tcl_lexer::LexerConfig,
+    ) -> bool {
+        use tcl_syntax::naming::{NativeNameContext, NativeVariableRootGeometry};
+        if policy.authority() != tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+            || self.original_parameters.is_some()
+            || self.logical_name.is_none()
+        {
+            return false;
+        }
+        let Some(text) = self.logical_parameters_text.as_deref() else {
+            return false;
+        };
+        if super::logical_definition::static_formals(text, config.list_parse).as_ref()
+            != Some(&self.parameters)
+        {
+            return false;
+        }
+        let protocol = policy.recipe();
+        self.parameters.iter().all(|formal| {
+            let input = protocol.combined_variable_input(formal.name.as_bytes());
+            input.element().is_none()
+                && matches!(
+                    protocol.variable_root_geometry(NativeNameContext::root(), input.root().selected()),
+                    NativeVariableRootGeometry::Local(name) if name.as_bytes() == formal.name.as_bytes()
+                )
+        })
+    }
+}
+
 /// A sealed declaration in the independently retained Logical source model.
 /// It describes an original source slot, strict formals and deferred body;
 /// it grants no Native publication, formal ABI, entered frame or completion.

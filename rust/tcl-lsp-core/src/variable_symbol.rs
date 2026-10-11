@@ -182,9 +182,6 @@ pub(crate) fn select_navigation<'a>(
         return ControlFlow::Break(Some(formal));
     }
     let selected = select(source, analysis, line, character);
-    if analysis.allows_lexical_declaration_advice() {
-        return selected.map_break(|selected| selected.map(NavigationVariable::Original));
-    }
     let Some(config) = analysis.body_lexer_config else {
         return ControlFlow::Break(None);
     };
@@ -199,6 +196,9 @@ pub(crate) fn select_navigation<'a>(
     );
     if let Some(template) = alias_template_at_offset(source, analysis, config, offset) {
         return ControlFlow::Break(Some(NavigationVariable::Alias(Box::new(template))));
+    }
+    if analysis.allows_lexical_declaration_advice() {
+        return selected.map_break(|selected| selected.map(NavigationVariable::Original));
     }
     let Some(profile) = analysis.resolved_profile() else {
         return ControlFlow::Break(None);
@@ -288,6 +288,25 @@ fn logical_formal_navigation(
         }
     }
     None
+}
+
+/// Original alias declaration geometry for go-to-declaration. The template's
+/// conditional source relation supplies neither a live target nor rename edits.
+pub(crate) fn alias_declaration_at_position(
+    source: &str,
+    analysis: &AnalysisResult,
+    line: u32,
+    character: u32,
+) -> Option<Span> {
+    let config = analysis.body_lexer_config?;
+    let offset = crate::definition::byte_offset_at(
+        &tcl_lexer::LineIndex::new(source),
+        source,
+        line,
+        character,
+    );
+    alias_template_at_offset(source, analysis, config, offset)
+        .map(|template| template.declaration_span())
 }
 
 fn alias_template_at_offset(

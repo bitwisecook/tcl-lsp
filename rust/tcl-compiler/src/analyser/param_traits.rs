@@ -1601,7 +1601,7 @@ mod tests {
                 let mut analyser =
                     crate::analyser::Analyser::new().with_resolved_input(supplied.clone());
                 let source =
-                    "proc p {body name} {eval $body; upvar 1 $name local; set local VALUE}";
+                    "proc p {body name} {upvar 1 $name local; set local VALUE; eval $body}";
                 let result = if per_item {
                     analyser.analyse_per_item(source, "display-only")
                 } else {
@@ -1614,6 +1614,25 @@ mod tests {
                     .expect("genuine original procedure");
                 assert_trait(&procedure.param_traits, "body", ProcArgTrait::Eval);
                 assert!(procedure.caller_frame_params.contains("name"));
+
+                // The original order first evaluates an unknown script. Its
+                // later upvar cannot acquire the preceding positive's selection.
+                let mut analyser =
+                    crate::analyser::Analyser::new().with_resolved_input(supplied.clone());
+                let source =
+                    "proc p {body name} {eval $body; upvar 1 $name local; set local VALUE}";
+                let result = if per_item {
+                    analyser.analyse_per_item(source, "display-only")
+                } else {
+                    analyser.analyse(source, "display-only")
+                };
+                assert_eq!(result.resolved_input.as_ref(), Some(&supplied));
+                let procedure = result
+                    .all_procs
+                    .get("::p")
+                    .expect("original unknown-eval procedure");
+                assert_trait(&procedure.param_traits, "body", ProcArgTrait::Eval);
+                assert!(procedure.caller_frame_params.is_empty());
 
                 let mut analyser =
                     crate::analyser::Analyser::new().with_resolved_input(supplied.clone());

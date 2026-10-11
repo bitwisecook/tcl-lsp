@@ -85,8 +85,12 @@ impl Analyser {
         &self,
     ) -> Option<tcl_syntax::expr::parser::ExprParseContext> {
         let input = self.result.resolved_input.as_ref()?;
+        if !self.head_identities.matches_resolved_analysis_input(input) {
+            return None;
+        }
+        let context = self.head_identities.source_metadata_context()?;
         crate::registry_invocation::InvocationMetadataContext::for_source_input(
-            self.registry.as_deref()?,
+            context.commands(),
             input,
             self.file_lexer_config(),
             self.unit_profile,
@@ -1935,9 +1939,18 @@ mod original_expression_grammar_tests {
             });
             let source = "\u{feff}expr {$name == \"literal\"}";
             analyser.analyse_and_retain_result_for_test(source, "tcl9.1");
+            assert!(
+                analyser.registry.is_none(),
+                "walk-exit scratch holder is cleared"
+            );
+            assert!(
+                analyser
+                    .head_identities
+                    .matches_resolved_analysis_input(&input)
+            );
             let context = analyser
                 .original_expression_parser_context()
-                .expect("actual whole input");
+                .expect("actual retained whole input");
             assert_eq!(
                 context.lexer_grammar.braced_var,
                 input.lexer_config().braced_var
@@ -1989,7 +2002,7 @@ mod original_expression_grammar_tests {
                 config,
             );
             let mut analyser = Analyser::new().with_resolved_input(input);
-            let result = analyser.analyse(source, "presentation-only");
+            let result = analyser.analyse_and_retain_result_for_test(source, "presentation-only");
             let hints: Vec<_> = result
                 .diagnostics
                 .iter()

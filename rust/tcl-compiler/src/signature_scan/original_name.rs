@@ -8,7 +8,7 @@ use tcl_core_types::NameBytes;
 use tcl_lexer::{LexerConfig, NativeWord, SourceImage, Span};
 use tcl_syntax::{naming::NamePolicyProtocol, word_rules::WordValueRules};
 
-/// One complete original static naming word and its native value units.
+/// One complete original static naming word and its independently formed units.
 ///
 /// Its private producer preserves the source channel, complete lexical
 /// configuration and independently selected string protocol. This receipt
@@ -44,6 +44,28 @@ impl SignatureSourceNameKey {
         Some(Self {
             original: original.clone(),
             bytes: NameBytes::from(words.literal(0)?),
+            rules,
+            policy,
+        })
+    }
+
+    /// Capture readonly Unicode source units under the actual Document grammar.
+    /// The authored naming abstraction is independent of that grammar and does
+    /// not supply a Native string, literal pool, cell or execution capability.
+    pub(crate) fn from_original_logical_source_word(
+        original: &NativeWord,
+        rules: WordValueRules,
+        policy: NamePolicyProtocol,
+    ) -> Option<Self> {
+        if policy.authority() != tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+            || rules != WordValueRules::from_config(&original.config())
+        {
+            return None;
+        }
+        let bytes = tcl_syntax::word_rules::original_static_word_unicode_value(original)?;
+        Some(Self {
+            original: original.clone(),
+            bytes: bytes.into(),
             rules,
             policy,
         })
@@ -125,6 +147,92 @@ mod tests {
             WordValueRules::from_config(&config),
             policy,
         )
+    }
+
+    #[test]
+    fn original_logical_name_units_keep_actual_grammar_without_native_word_admission() {
+        // naming.variable.original-alias-source-template
+        // docs/design/analysis/name-resolution-proofs/original-alias-source-template.md
+        let config =
+            LexerConfig::for_file_grammar(tcl_dialect::DialectProfile::plain_tcl().grammar);
+        let policy = NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);
+        let image = SourceImage::document(r"name\U0001F600");
+        let plan = tcl_lexer::native_script_words_in(
+            image.clone(),
+            Span::new(0, u32::try_from(image.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let original = &plan.commands[0].words[0];
+        let key = SignatureSourceNameKey::from_original_logical_source_word(
+            original,
+            WordValueRules::from_config(&config),
+            policy,
+        )
+        .expect("actual Logical document value");
+        assert_eq!(key.bytes(), "name😀".as_bytes());
+        assert_eq!(key.source_image(), &image);
+        assert_eq!(key.lexer_config(), config);
+        assert_eq!(key.policy(), policy);
+        assert!(
+            SignatureSourceNameKey::from_original_native_word(
+                original,
+                WordValueRules::from_config(&config),
+                policy,
+            )
+            .is_none(),
+            "source advice cannot supply the mismatched Native recipe"
+        );
+        for source in ["$name", "{*}{name}", r"name\uD800"] {
+            let image = SourceImage::document(source);
+            let plan = tcl_lexer::native_script_words_in(
+                image.clone(),
+                Span::new(0, u32::try_from(image.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            assert!(
+                SignatureSourceNameKey::from_original_logical_source_word(
+                    &plan.commands[0].words[0],
+                    WordValueRules::from_config(&config),
+                    policy,
+                )
+                .is_none(),
+                "{source}"
+            );
+        }
+        let native = NamePolicyProtocol::for_native_point(
+            tcl_dialect::model::DialectPoint::of_dialect_name(Some("tcl9.0")).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            SignatureSourceNameKey::from_original_logical_source_word(
+                original,
+                WordValueRules::from_config(&config),
+                native,
+            )
+            .is_none()
+        );
+        assert!(
+            SignatureSourceNameKey::from_original_logical_source_word(
+                original,
+                WordValueRules::JIM,
+                policy,
+            )
+            .is_none()
+        );
+        let native_image = SourceImage::native(b"name");
+        let native_plan =
+            tcl_lexer::native_script_words_in(native_image.clone(), Span::new(0, 4), config)
+                .unwrap();
+        assert!(
+            SignatureSourceNameKey::from_original_logical_source_word(
+                &native_plan.commands[0].words[0],
+                WordValueRules::from_config(&config),
+                policy,
+            )
+            .is_none()
+        );
     }
 
     #[test]

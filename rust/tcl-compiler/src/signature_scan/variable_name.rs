@@ -29,6 +29,12 @@ enum OriginalVariableRootOwner {
     Executable(ExecutablePartArena),
 }
 
+#[derive(Clone, Copy)]
+enum VariableRootFormation {
+    NativeRecipe,
+    LogicalSource,
+}
+
 impl SignatureSourceVariableRoot {
     /// Select an exact raw or mapped component extent from the retained arena.
     /// A substring, partial root, different grammar or string protocol declines.
@@ -44,6 +50,7 @@ impl SignatureSourceVariableRoot {
             exact_part,
             rules,
             policy,
+            VariableRootFormation::NativeRecipe,
         )
     }
 
@@ -64,6 +71,27 @@ impl SignatureSourceVariableRoot {
             exact_part,
             rules,
             policy,
+            VariableRootFormation::NativeRecipe,
+        )
+    }
+
+    /// Exact readonly Document root under its original source grammar. This
+    /// keeps the authored name abstraction separate from Native object units.
+    pub(crate) fn from_original_logical_source_executable(
+        arena: &ExecutablePartArena,
+        image: &SourceImage,
+        config: tcl_lexer::LexerConfig,
+        exact_part: Span,
+        rules: WordValueRules,
+        policy: NamePolicyProtocol,
+    ) -> Option<Self> {
+        (arena.image() == image && arena.config() == config).then_some(())?;
+        Self::from_owner(
+            OriginalVariableRootOwner::Executable(arena.clone()),
+            exact_part,
+            rules,
+            policy,
+            VariableRootFormation::LogicalSource,
         )
     }
 
@@ -72,15 +100,26 @@ impl SignatureSourceVariableRoot {
         exact_part: Span,
         rules: WordValueRules,
         policy: NamePolicyProtocol,
+        formation: VariableRootFormation,
     ) -> Option<Self> {
         let arena = match &owner {
             OriginalVariableRootOwner::Word(word) => word.executable_parts(),
             OriginalVariableRootOwner::Executable(arena) => arena,
         };
-        if rules != WordValueRules::from_config(&arena.config())
-            || arena.config().escapes != policy.string_protocol().escape_syntax()
-        {
+        if rules != WordValueRules::from_config(&arena.config()) {
             return None;
+        }
+        match formation {
+            VariableRootFormation::NativeRecipe => {
+                (arena.config().escapes == policy.string_protocol().escape_syntax())
+                    .then_some(())?;
+            }
+            VariableRootFormation::LogicalSource => {
+                (policy.authority() == tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+                    && arena.image().channel() == tcl_lexer::SourceChannel::Document)
+                    .then_some(())?;
+                arena.image().try_text().ok()?;
+            }
         }
         let mut selected = arena.all_parts().filter(|part| {
             matches!(part.part, ExecutablePart::Variable { .. })
@@ -93,13 +132,22 @@ impl SignatureSourceVariableRoot {
         let ExecutablePart::Variable { name, .. } = part.part else {
             return None;
         };
-        let bytes = tcl_syntax::backslash::native_source_literal_bytes(
-            arena.bytes(name)?,
-            arena.image().channel(),
-            policy.string_protocol(),
-        )
-        .ok()?
-        .into_owned();
+        let bytes = match formation {
+            VariableRootFormation::NativeRecipe => {
+                tcl_syntax::backslash::native_source_literal_bytes(
+                    arena.bytes(name)?,
+                    arena.image().channel(),
+                    policy.string_protocol(),
+                )
+                .ok()?
+                .into_owned()
+            }
+            VariableRootFormation::LogicalSource => tcl_syntax::backslash::source_literal_bytes(
+                arena.bytes(name)?,
+                tcl_lexer::SourceChannel::Document,
+            )
+            .into_owned(),
+        };
         let part = part.clone();
         let source_span = arena.source_span(&part)?;
         drop(selected);
@@ -139,7 +187,7 @@ impl SignatureSourceVariableRoot {
         ))
     }
 
-    /// Native source-produced root units; variable names do not evaluate escapes.
+    /// Original root units; variable names do not evaluate escapes.
     #[must_use]
     pub fn bytes(&self) -> &[u8] {
         self.bytes.as_bytes()
@@ -207,6 +255,90 @@ impl SignatureSourceVariableRoot {
 mod tests {
     use super::*;
     use tcl_lexer::SubstFlags;
+
+    #[test]
+    fn original_logical_roots_keep_exact_document_geometry_and_native_refusal() {
+        // naming.variable.original-alias-source-template
+        // docs/design/analysis/name-resolution-proofs/original-alias-source-template.md
+        let config = tcl_lexer::LexerConfig::for_file_grammar(
+            tcl_dialect::DialectProfile::plain_tcl().grammar,
+        );
+        let policy = NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);
+        let image = SourceImage::document("$::ns::café($index)");
+        let arena = ExecutablePartArena::decompose(
+            image.clone(),
+            Span::new(0, u32::try_from(image.len()).unwrap()),
+            SubstFlags::default(),
+            config,
+        )
+        .unwrap();
+        let part = arena.list(arena.root()).first().unwrap();
+        let rules = WordValueRules::from_config(&config);
+        let root = SignatureSourceVariableRoot::from_original_logical_source_executable(
+            &arena, &image, config, part.span, rules, policy,
+        )
+        .expect("authentic Logical lexical root");
+        assert_eq!(root.bytes(), "::ns::café".as_bytes());
+        assert_eq!(root.source_image(), &image);
+        assert_eq!(root.lexer_config(), config);
+        assert!(root.is_separate_array_root());
+        assert!(root.static_index_input().is_none());
+        assert!(
+            SignatureSourceVariableRoot::from_original_executable(
+                &arena, &image, config, part.span, rules, policy,
+            )
+            .is_none()
+        );
+        for bad_span in [
+            Span::new(part.span.start() + 1, part.span.end()),
+            Span::new(0, 2),
+        ] {
+            assert!(
+                SignatureSourceVariableRoot::from_original_logical_source_executable(
+                    &arena, &image, config, bad_span, rules, policy,
+                )
+                .is_none()
+            );
+        }
+        let mut changed = config;
+        changed.strict_quoting = !changed.strict_quoting;
+        assert!(
+            SignatureSourceVariableRoot::from_original_logical_source_executable(
+                &arena, &image, changed, part.span, rules, policy,
+            )
+            .is_none()
+        );
+        assert!(
+            SignatureSourceVariableRoot::from_original_logical_source_executable(
+                &arena,
+                &SourceImage::document("$other"),
+                config,
+                part.span,
+                rules,
+                policy,
+            )
+            .is_none()
+        );
+        let native_image = SourceImage::native(b"$foo");
+        let native_arena = ExecutablePartArena::decompose(
+            native_image.clone(),
+            Span::new(0, 4),
+            SubstFlags::default(),
+            config,
+        )
+        .unwrap();
+        assert!(
+            SignatureSourceVariableRoot::from_original_logical_source_executable(
+                &native_arena,
+                &native_image,
+                config,
+                Span::new(0, 4),
+                rules,
+                policy,
+            )
+            .is_none()
+        );
+    }
 
     #[test]
     fn original_executable_root_keeps_channel_configuration_and_separate_index() {

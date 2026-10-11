@@ -62,6 +62,13 @@ pub fn declaration(
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
 ) -> Vec<LspRange> {
+    // A readonly alias template owns the written declaration even when the
+    // independent physical-cell occurrence cannot acquire an executed link.
+    if let Some(span) =
+        crate::variable_symbol::alias_declaration_at_position(source, analysis, line, character)
+    {
+        return vec![span_to_range(source, &LineIndex::new(source), span)];
+    }
     if let std::ops::ControlFlow::Break(selected) =
         crate::variable_symbol::select(source, analysis, line, character)
     {
@@ -593,6 +600,48 @@ mod tests {
             u32::try_from(collision.find("set foo local").unwrap() + "set ".len()).unwrap()
         );
         assert_eq!(global[0].start_character, 4);
+    }
+
+    #[test]
+    fn original_qualified_alias_declarations_keep_the_target_and_body_frame() {
+        // naming.core.original-declaration-navigation
+        // docs/design/analysis/name-resolution-proofs/core-original-declaration-navigation.md
+        let source = "namespace eval ns {variable foo 1}; proc p {} {global ::ns::foo; puts $foo; puts $::ns::foo; puts $::other::foo}; proc sibling {} {puts $foo}";
+        let expected =
+            u32::try_from(source.find("global ::ns::foo").unwrap() + "global ".len()).unwrap();
+        for version in tcl_dialect::TclVersion::ALL {
+            let analysis = Analyser::new().analyse(source, version.dialect_name());
+            for reference in ["$foo", "$::ns::foo"] {
+                let locations = declaration_at_read(source, &analysis, reference);
+                assert_eq!(
+                    locations.len(),
+                    1,
+                    "{} {reference}: {locations:?}",
+                    version.dialect_name()
+                );
+                assert_eq!(locations[0].start_character, expected);
+            }
+            assert!(declaration_at_read(source, &analysis, "$::other::foo").is_empty());
+            let offset = source.rfind("$foo").unwrap();
+            let locations = declaration_at_read(&source[offset..], &analysis, "$foo");
+            assert!(
+                locations.is_empty(),
+                "a stale sliced image cannot borrow the body"
+            );
+            let (line, character) = pos_of(source, "$foo", 2);
+            assert!(
+                declaration(
+                    source,
+                    line,
+                    character + 1,
+                    analysis.resolved_profile().unwrap(),
+                    &analysis,
+                    analysis.resolved_registry().unwrap(),
+                )
+                .is_empty(),
+                "sibling body cannot borrow p's declaration"
+            );
+        }
     }
 
     #[test]

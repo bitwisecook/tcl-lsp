@@ -201,7 +201,7 @@ fn own_object_method_transfers(
     let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
         &body.text,
         body.base(),
-        context.config,
+        context.config.nested(),
     )?;
     let mut transfers = Vec::new();
     for command in &commands {
@@ -475,6 +475,77 @@ mod tests {
                 expected,
                 "{configuration}"
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_configuration_body_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_own_object_configuration_keeps_body_bom_and_parent_policy_separate() {
+        // naming.tcloo.original-own-object-method-transfer
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-own-object-method-transfer.md
+        // Original represented source transfer only, not a physical method-entry grant.
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let config = tcl_lexer::LexerConfig {
+                leading_bom: bom,
+                strict_quoting: true,
+                braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+                ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+            };
+            for (source, expected) in [
+                (
+                    "oo::class create C {}; C create d; oo::objdefine d {method own {} {}}; d own",
+                    true,
+                ),
+                (
+                    "oo::class create C {}; C create d; oo::objdefine d {\u{feff}method own {} {}}; d own",
+                    false,
+                ),
+                (
+                    "\u{feff}oo::class create C {}; C create d; oo::objdefine d {method own {} {}}; d own",
+                    bom == tcl_lexer::LeadingBom::Skip,
+                ),
+            ] {
+                let bindings = SourceCommandBindings::analyse_with_options(
+                    source,
+                    config,
+                    registry,
+                    super::super::SourceAnalysisOptions {
+                        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                            profile,
+                        )),
+                        native_compilation:
+                            tcl_registry::native_compilation::NativeCompilationContext {
+                                mode:
+                                    tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                                ..Default::default()
+                            },
+                        ..Default::default()
+                    },
+                );
+                let offset = u32::try_from(source.rfind("d own").unwrap()).unwrap();
+                let binding = bindings.invocation_at_source("d", offset);
+                assert_eq!(
+                    binding.own_object_method_entries_at_dispatch().is_some(),
+                    expected,
+                    "{bom:?}: {source:?}"
+                );
+                assert!(bindings.matches_original_source_image(
+                    &tcl_lexer::SourceImage::document(source),
+                    config
+                ));
+                assert!(!bindings.matches_original_source_image(
+                    &tcl_lexer::SourceImage::document(&format!("{source} ")),
+                    config
+                ));
+                assert_eq!(config.braced_var, tcl_lexer::BracedVarStyle::FirstClose);
+                assert!(config.strict_quoting);
+            }
         }
     }
 }

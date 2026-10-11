@@ -1159,11 +1159,16 @@ impl Analyser {
         };
         let rules = self.word_rules();
         for word in native {
-            let Some(key) =
+            let key = if self.selected_logical_declaration_advice() {
+                crate::signature_scan::scope::SignatureSourceNameKey::from_original_logical_source_word(
+                    word, rules, policy,
+                )
+            } else {
                 crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
                     word, rules, policy,
                 )
-            else {
+            };
+            let Some(key) = key else {
                 continue;
             };
             let Some(occurrence) =
