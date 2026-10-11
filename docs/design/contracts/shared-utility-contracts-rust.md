@@ -3556,3 +3556,31 @@ canonical String checks; no mutable borrow crosses a getter and no new Native
 hold or Dictionary COW is introduced. Cursor or String refusal retains the full
 first cause before cleanup or Guest presentation. Existing independent Script
 continuations keep their explicit unchanged route.
+
+
+VM OO destruction captures the actual physical interpreter and its entered
+currency before destructor, command or namespace effects. Entry refusal retains
+the first full typed cause and still retires the original owned records. The
+same physical receipt carries descendant cleanup; later optional destructor
+calls require the original current operation. Mandatory cleanup can access only
+the captured interpreter's existing OO storage, including while that state is
+parked. It issues no live object, namespace lookup or resumed execution purpose.
+
+The original object's captured namespace token reaches the existing namespace
+teardown kernel with the originally selected pure traversal recipe. Command
+cleanup requires the same original object token at its captured sidecar. Cached
+names, property caches and members, method-cache observations and whole Object
+and Class payloads leave their storage accesses before release. Every reached
+release checks the original saved target and preserves the first cause. An
+exhausted method or property metadata epoch refuses through the typed owner
+while mandatory payload retirement continues. OO rename retains the actual
+object and class facet before destination publication; cached-name retirement
+must settle before later public name metadata and import/source reattachment.
+
+Property storage retains its originating pure recipe per actual object/class
+facet. Its selected cache-before-member retirement order is independently
+inspected C9.1 source provenance, not measured Native callback chronology.
+Whole VM Object/Class field release has ordinary Rust owning roles; these
+controls do not establish Native MethodType, Class pointer or extension free
+ABI equivalence. Property mutation and invalidation publishers outside this
+lifecycle owner retain their separately defined conversion and storage ports.

@@ -122,6 +122,7 @@ mod native_upvar_info_exists_tests;
 mod native_variable_names;
 mod native_variable_observers;
 mod object_materialization;
+pub(crate) mod oo_cleanup;
 #[cfg(test)]
 mod original_name_residual_tests;
 mod selected_frame;
@@ -6071,7 +6072,12 @@ impl Vm {
         transaction: &mut CommandRenameTransaction,
         new_key: &str,
         command: Command,
-    ) {
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        let original_oo = if let Command::Object(object) = &command {
+            Some(crate::cmd_oo::original_oo_rename(self, *object)?)
+        } else {
+            None
+        };
         if transaction.source_retained_root.is_some() {
             self.materialise_retained_binding(&transaction.old_key);
         }
@@ -6108,7 +6114,13 @@ impl Vm {
         new_key.clone_into(&mut transaction.new_key);
         if let Command::Object(object) = &command {
             let display = self.command_display_key_bytes(&new_key);
-            crate::cmd_oo::oo_command_renamed(self, *object, new_key.clone(), display);
+            crate::cmd_oo::oo_command_renamed(
+                self,
+                *object,
+                new_key.clone(),
+                display,
+                original_oo.as_ref().expect("original Object rename"),
+            )?;
         }
         // What that surviving entry points *at* does move, though: C re-homes
         // the one `Command` (`cmdPtr->nsPtr = newNsPtr`) before it fires, and
@@ -6142,6 +6154,7 @@ impl Vm {
             &CommandSidecarKey::visible(&transaction.old_key),
             &CommandSidecarKey::visible(&new_key),
         );
+        Ok(())
     }
 
     /// Point the still-standing source entry of an open rename at the re-homed
@@ -13024,6 +13037,17 @@ impl Vm {
         let command_traversal = self
             .name_policy_protocol()
             .and_then(|policy| policy.recipe().namespace_command_teardown());
+        self.delete_namespace_token_using(id, deleting_root, command_traversal);
+    }
+
+    fn delete_namespace_token_using(
+        &mut self,
+        id: NsId,
+        deleting_root: bool,
+        command_traversal: Option<
+            tcl_syntax::native_namespace_name::NativeNamespaceCommandTeardown,
+        >,
+    ) {
         let native_error_reset =
             deleting_root && !self.variable_observers.native_error_cells.is_empty();
         if native_error_reset {
@@ -13129,7 +13153,7 @@ impl Vm {
                 .namespaces
                 .contains(&self.ns_path(child))
             {
-                self.delete_namespace_token(child, false);
+                self.delete_namespace_token_using(child, false, command_traversal);
             }
         }
 

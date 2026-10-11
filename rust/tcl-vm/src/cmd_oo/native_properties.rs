@@ -6,11 +6,11 @@ use super::{
     native_method_key_for_target, ok, oo_invoke_value_with_head, private_storage_name_bytes,
     slot_ref_class, slot_ref_obj,
 };
+use tcl_cmd_core::CmdError;
 use tcl_registry::native_property_lookup::{
     NativePropertyGraphDependents, NativePropertyInvalidation,
 };
 use tcl_syntax::value::ValueError;
-use tcl_cmd_core::CmdError;
 mod original_stages;
 use original_stages::{OriginalPropertyOperation, PropertyDerivation};
 
@@ -20,15 +20,72 @@ pub(super) struct NativePropertyCache {
     readable: Option<Value>,
     writable: Option<Value>,
 }
+struct RetiredNativeProperties {
+    methods: Option<super::native_method_cache::RetiredMethodTable>,
+    members: [[Option<BTreeMap<String, Value>>; 2]; 2],
+    caches: [Option<NativePropertyCache>; 2],
+    recipes: [Option<tcl_registry::native_property_lookup::NativePropertyLookupProtocol>; 2],
+}
+impl RetiredNativeProperties {
+    fn finish(
+        mut self,
+        vm: &mut Vm,
+        owner: &crate::interp::oo_cleanup::OriginalOoCleanup,
+    ) -> Result<(), CmdError> {
+        use tcl_registry::native_property_lookup::NativePropertyStorageRetirementStep as Stage;
+        let mut first = owner.check_cleanup(vm).err();
+        for class in 0..2 {
+            if let Some(recipe) = self.recipes[class] {
+                for stage in recipe.storage_retirement() {
+                    match stage {
+                        Stage::ReadableCache => drop(
+                            self.caches[class]
+                                .as_mut()
+                                .and_then(|cache| cache.readable.take()),
+                        ),
+                        Stage::WritableCache => drop(
+                            self.caches[class]
+                                .as_mut()
+                                .and_then(|cache| cache.writable.take()),
+                        ),
+                        Stage::ReadableMembers => drop(self.members[class][0].take()),
+                        Stage::WritableMembers => drop(self.members[class][1].take()),
+                    }
+                    if let Err(error) = owner.check_cleanup(vm) {
+                        first.get_or_insert(error);
+                    }
+                }
+            } else {
+                // Unissued compatibility storage has only ordinary Rust ownership.
+                drop(self.members[class][0].take());
+                drop(self.members[class][1].take());
+                drop(self.caches[class].take());
+                if let Err(error) = owner.check_cleanup(vm) {
+                    first.get_or_insert(error);
+                }
+            }
+        }
+        drop(self.methods.take());
+        if let Err(error) = owner.check_cleanup(vm) {
+            first.get_or_insert(error);
+        }
+        first.map_or(Ok(()), Err)
+    }
+}
 impl OoState {
-    pub(super) fn retire_native_properties(
-        &mut self,
-        target: OoId,
-    ) -> Option<super::native_method_cache::RetiredMethodTable> {
-        let retired_methods = self.native_methods.retire(target);
-        self.property_members.retain(|(id, _, _), _| *id != target);
-        self.property_caches.retain(|(id, _), _| *id != target);
-        retired_methods
+    fn take_native_properties(&mut self, target: OoId) -> RetiredNativeProperties {
+        let methods = self.native_methods.retire(target);
+        let members = [false, true].map(|class| {
+            [false, true].map(|writable| self.property_members.remove(&(target, class, writable)))
+        });
+        let caches = [false, true].map(|class| self.property_caches.remove(&(target, class)));
+        let recipes = [false, true].map(|class| self.property_origins.remove(&(target, class)));
+        RetiredNativeProperties {
+            methods,
+            members,
+            caches,
+            recipes,
+        }
     }
     fn apply_property_invalidation(&mut self, target: OoId, action: NativePropertyInvalidation) {
         match action {
@@ -109,6 +166,111 @@ impl OoState {
     }
 }
 impl Vm {
+    pub(super) fn retire_original_property_structure(
+        &mut self,
+        target: OoId,
+        owner: &crate::interp::oo_cleanup::OriginalOoCleanup,
+    ) -> Result<(), CmdError> {
+        let (methods, property_cache, exhausted) = {
+            let state = owner.oo_mut(self)?;
+            let class = state.classes.contains_key(&target);
+            let subclasses = state
+                .classes
+                .iter()
+                .any(|(id, entry)| *id != target && entry.supers.contains(&target));
+            let instances = state
+                .objects
+                .values()
+                .any(|entry| entry.class == target || entry.mixins.contains(&target));
+            let mixins = state
+                .classes
+                .values()
+                .any(|entry| entry.mixins.contains(&target));
+            let representative = state
+                .objects
+                .get(&target)
+                .is_some_and(|entry| !entry.mixins.is_empty());
+            let methods = if owner.method_cache_selected {
+                state.native_methods.structure_changed_checked(
+                    target,
+                    class,
+                    subclasses || instances || mixins,
+                    representative,
+                )
+            } else {
+                Ok(None)
+            };
+            let recipe = state
+                .property_origins
+                .get(&(target, class))
+                .copied()
+                .or(owner.property_recipe);
+            let action = recipe.map_or(NativePropertyInvalidation::None, |recipe| {
+                recipe.structure_changed(
+                    class,
+                    NativePropertyGraphDependents {
+                        subclasses,
+                        instances,
+                        mixin_dependents: mixins,
+                    },
+                    representative,
+                )
+            });
+            let mut exhausted = false;
+            let property_cache = match action {
+                NativePropertyInvalidation::None => None,
+                NativePropertyInvalidation::Foundation => {
+                    if let Some(next) = state.property_foundation_epoch.checked_add(1) {
+                        state.property_foundation_epoch = next;
+                    } else {
+                        exhausted = true;
+                    }
+                    None
+                }
+                NativePropertyInvalidation::Instance => {
+                    state.property_caches.remove(&(target, false))
+                }
+                NativePropertyInvalidation::ClassRepresentative => {
+                    state.property_caches.remove(&(target, true))
+                }
+            };
+            (methods, property_cache, exhausted)
+        };
+        let mut first = owner.check_cleanup(self).err();
+        let methods = match methods {
+            Ok(methods) => methods,
+            Err(error) => {
+                let error = CmdError::from(error);
+                crate::interp::oo_cleanup::retain_error(self, &error);
+                first.get_or_insert(error);
+                None
+            }
+        };
+        if exhausted {
+            let error: CmdError =
+                ValueError::CommandProtocolUnavailable("original OO property Foundation epoch")
+                    .into();
+            crate::interp::oo_cleanup::retain_error(self, &error);
+            first.get_or_insert(error);
+        }
+        drop(methods);
+        if let Err(error) = owner.check_cleanup(self) {
+            first.get_or_insert(error);
+        }
+        drop(property_cache);
+        if let Err(error) = owner.check_cleanup(self) {
+            first.get_or_insert(error);
+        }
+        first.map_or(Ok(()), Err)
+    }
+    pub(super) fn retire_native_properties(
+        &mut self,
+        target: OoId,
+        owner: &crate::interp::oo_cleanup::OriginalOoCleanup,
+    ) -> Result<(), CmdError> {
+        let retired = owner.oo_mut(self)?.take_native_properties(target);
+        retired.finish(self, owner)
+    }
     pub(super) fn native_property_structure_changed(&mut self, target: OoId, class: bool) {
         self.native_method_structure_changed(target, class);
         let Some(recipe) = self
@@ -165,6 +327,15 @@ impl Vm {
         for (name, original) in members {
             originals.entry(name).or_insert(original);
         }
+        if let Some(recipe) = self
+            .actual_native_invocation_dialect()
+            .native_property_lookup_protocol()
+        {
+            self.oo
+                .property_origins
+                .entry((target, class))
+                .or_insert(recipe);
+        }
         self.oo
             .property_members
             .insert((target, class, writable), originals);
@@ -190,6 +361,10 @@ impl Vm {
             ))?;
         let operation = OriginalPropertyOperation::enter(self, target, class, recipe.strings())?;
         let reached = (|| {
+            self.oo
+                .property_origins
+                .entry((target, class))
+                .or_insert(recipe);
             let epoch = self.oo.property_foundation_epoch;
             if let Some(cache) = self.oo.property_caches.get(&(target, class))
                 && cache.epoch == epoch
@@ -316,7 +491,6 @@ impl Vm {
         operation.complete(self, reached)
     }
 }
-
 
 /// Frozen temporary-table Strings retain the original copied List and target.
 /// A later pair still projects its old table index into the current report.
@@ -543,6 +717,10 @@ pub(super) fn register_property(
             "property formatted name issuer",
         ))?;
     original.retain_native_string_representation(materialization)?;
+    vm.oo
+        .property_origins
+        .entry((target, class))
+        .or_insert(recipe);
     let mut changed = false;
     for (direction, adding) in [(false, readable), (true, writable)] {
         let slot = vm

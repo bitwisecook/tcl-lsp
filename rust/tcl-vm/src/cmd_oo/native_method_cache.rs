@@ -260,27 +260,45 @@ impl NativeMethodWorld {
         dependents: bool,
         representative_mixins: bool,
     ) -> Option<RetiredMethodTable> {
+        self.structure_changed_checked(target, class, dependents, representative_mixins)
+            .expect("native OO structure epoch exhausted")
+    }
+    pub(super) fn structure_changed_checked(
+        &mut self,
+        target: OoId,
+        class: bool,
+        dependents: bool,
+        representative_mixins: bool,
+    ) -> Result<Option<RetiredMethodTable>, tcl_syntax::value::ValueError> {
         if !class {
-            self.bump_object(target);
+            self.bump_object_checked(target)?;
         } else if dependents {
-            self.foundation = self
-                .foundation
-                .checked_add(1)
-                .expect("native OO Foundation epoch exhausted");
+            self.foundation = self.foundation.checked_add(1).ok_or(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original OO method Foundation epoch",
+                ),
+            )?;
         } else if representative_mixins {
-            self.bump_object(target);
-            return self
+            self.bump_object_checked(target)?;
+            return Ok(self
                 .tables
                 .remove(&target)
-                .map(|entries| RetiredMethodTable { _entries: entries });
+                .map(|entries| RetiredMethodTable { _entries: entries }));
         }
-        None
+        Ok(None)
     }
     fn bump_object(&mut self, target: OoId) {
-        let epoch = self.epochs.entry(target).or_default();
-        *epoch = epoch
-            .checked_add(1)
+        self.bump_object_checked(target)
             .expect("native OO object epoch exhausted");
+    }
+    fn bump_object_checked(&mut self, target: OoId) -> Result<(), tcl_syntax::value::ValueError> {
+        let epoch = self.epochs.entry(target).or_default();
+        *epoch = epoch.checked_add(1).ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original OO method object epoch",
+            ),
+        )?;
+        Ok(())
     }
     pub(super) fn retire(&mut self, target: OoId) -> Option<RetiredMethodTable> {
         let retired = self

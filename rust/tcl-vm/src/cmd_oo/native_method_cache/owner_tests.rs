@@ -276,3 +276,45 @@ fn original_vm_method_key_refuses_inherited_context_before_string_and_cache() {
         assert_eq!(vm.execution_refusal, Some(first));
     }
 }
+
+#[test]
+fn original_oo_cleanup_epoch_exhaustion_retains_first_cause_and_retires_whole_payload() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Actual selected metadata epoch exhaustion is a software refusal, not Native counter overflow evidence.
+    let mut vm =
+        crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl9.1"));
+    let reached = vm
+        .eval_source("oo::class create C {}; C create object")
+        .unwrap();
+    assert_eq!(reached.code, Code::Ok);
+    let object = super::super::resolve_object_value(&mut vm, &Value::string("object"))
+        .unwrap()
+        .unwrap();
+    let namespace = vm.oo.objects[&object].namespace_token.unwrap();
+    let original = super::super::native_context::object_name(&vm, object);
+    let name = original.native_lifetime_lease();
+    drop(original);
+    vm.oo.native_methods.epochs.insert(object, u64::MAX);
+    let scope =
+        crate::interp::native_operation_currency::NativeOperationScope::enter(&mut vm).unwrap();
+    let reached = super::super::oo_destroy(&mut vm, object);
+    assert_eq!(reached.code, Code::Error);
+    assert!(!vm.oo.objects.contains_key(&object));
+    assert!(!vm.native_namespace_token_has_owner(namespace));
+    assert!(!name.value().native_object_is_live());
+    assert_eq!(name.value().native_object_reference_count(), 0);
+    let first = vm.execution_refusal.clone().unwrap();
+    assert!(matches!(
+        &first,
+        tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "original OO method object epoch"
+            )
+        )
+    ));
+    assert_eq!(
+        scope.check(&mut vm).unwrap_err().native_execution_refusal(),
+        Some(&first)
+    );
+}

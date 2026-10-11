@@ -1,0 +1,171 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! Mandatory OO payload retirement in the actual original physical interpreter.
+use super::native_operation_currency::{NativeOperationContext, NativeOperationScope};
+use super::{CommandSidecarKey, InterpId, InterpState, Vm};
+use crate::cmd_oo::OoState;
+use crate::command::Command;
+use std::rc::{Rc, Weak};
+use tcl_cmd_core::CmdError;
+use tcl_runtime_api::OoId;
+use tcl_syntax::value::ValueError;
+
+pub(crate) fn retain_error(vm: &mut Vm, error: &CmdError) {
+    if let Some(first) = error.native_execution_refusal() {
+        vm.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(first.clone()));
+    } else if let Some(first) = error.native_access_refusal() {
+        vm.retain_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(first));
+    }
+}
+
+/// Physical storage and original currency are independent of a live OO target.
+/// Entry refusal never skips retirement of already-owned original payloads.
+pub(crate) struct OriginalOoCleanup {
+    owner: u64,
+    interpreter: InterpId,
+    context: Weak<NativeOperationContext>,
+    operation: Option<NativeOperationScope>,
+    entry_failure: Option<CmdError>,
+    namespace_traversal: Option<tcl_syntax::native_namespace_name::NativeNamespaceCommandTeardown>,
+    pub(crate) method_cache_selected: bool,
+    pub(crate) property_recipe:
+        Option<tcl_registry::native_property_lookup::NativePropertyLookupProtocol>,
+}
+impl OriginalOoCleanup {
+    pub(crate) fn enter(vm: &mut Vm) -> Self {
+        let owner = vm.owner_nonce;
+        let interpreter = vm.cur;
+        let context = Rc::downgrade(&vm.native_operation_context);
+        let namespace_traversal = vm
+            .name_policy_protocol()
+            .and_then(|policy| policy.recipe().namespace_command_teardown());
+        let method_cache_selected = vm
+            .actual_native_invocation_dialect()
+            .native_tcloo_method_cache_protocol()
+            .is_some();
+        let property_recipe = vm
+            .actual_native_invocation_dialect()
+            .native_property_lookup_protocol();
+        let (operation, entry_failure) = match NativeOperationScope::enter(vm) {
+            Ok(operation) => (Some(operation), None),
+            Err(first) => {
+                retain_error(vm, &first);
+                (None, Some(first))
+            }
+        };
+        Self {
+            owner,
+            interpreter,
+            context,
+            operation,
+            entry_failure,
+            namespace_traversal,
+            method_cache_selected,
+            property_recipe,
+        }
+    }
+    fn physical(&self, vm: &Vm) -> bool {
+        self.owner == vm.owner_nonce
+            && self.context.upgrade().is_some_and(|context| {
+                vm.st_of(self.interpreter)
+                    .is_some_and(|state| Rc::ptr_eq(&context, &state.native_operation_context))
+            })
+    }
+    fn missing(vm: &mut Vm) -> CmdError {
+        let error = CmdError::from(ValueError::CommandProtocolUnavailable(
+            "original OO cleanup interpreter",
+        ));
+        retain_error(vm, &error);
+        match vm.execution_refusal.clone() {
+            Some(first) => CmdError::from_execution_refusal(first),
+            None => error,
+        }
+    }
+    fn state_mut<'a>(&self, vm: &'a mut Vm) -> Result<&'a mut InterpState, CmdError> {
+        if !self.physical(vm) {
+            return Err(Self::missing(vm));
+        }
+        if vm.cur == self.interpreter {
+            return Ok(&mut vm.state);
+        }
+        Ok(vm.interps[self.interpreter.0]
+            .parked
+            .as_deref_mut()
+            .expect("checked original state"))
+    }
+    pub(crate) fn oo_mut<'a>(&self, vm: &'a mut Vm) -> Result<&'a mut OoState, CmdError> {
+        Ok(&mut self.state_mut(vm)?.oo)
+    }
+    pub(crate) fn check(&self, vm: &mut Vm) -> Result<(), CmdError> {
+        if let Some(first) = &self.entry_failure {
+            return Err(first.clone());
+        }
+        self.operation
+            .as_ref()
+            .expect("entered original cleanup")
+            .check(vm)
+    }
+    pub(crate) fn check_cleanup(&self, vm: &mut Vm) -> Result<(), CmdError> {
+        if let Some(first) = &self.entry_failure {
+            return Err(first.clone());
+        }
+        if !self.physical(vm) {
+            return Err(Self::missing(vm));
+        }
+        self.operation
+            .as_ref()
+            .expect("entered original cleanup")
+            .currency()
+            .check_saved_target(vm, self.interpreter)
+            .map_err(CmdError::from_execution_refusal)
+    }
+    /// The already retained object namespace is a mandatory cleanup holder.
+    pub(crate) fn retire_namespace(
+        &self,
+        vm: &mut Vm,
+        namespace: tcl_runtime_api::NsId,
+    ) -> Result<(), CmdError> {
+        if !self.physical(vm) {
+            return Err(Self::missing(vm));
+        }
+        if namespace == super::ROOT_NS {
+            let error: CmdError =
+                ValueError::CommandProtocolUnavailable("original OO private namespace").into();
+            retain_error(vm, &error);
+            return Err(error);
+        }
+        let retire = |vm: &mut Vm| {
+            if vm.native_namespace_token_has_owner(namespace) {
+                vm.delete_namespace_token_using(namespace, false, self.namespace_traversal);
+            }
+        };
+        if vm.cur == self.interpreter {
+            retire(vm);
+        } else {
+            vm.in_interp(self.interpreter, retire);
+        }
+        self.check_cleanup(vm)
+    }
+    /// Delete only the existing original object's command, never a replacement.
+    pub(crate) fn retire_command(
+        &self,
+        vm: &mut Vm,
+        object: OoId,
+        key: &CommandSidecarKey,
+    ) -> Result<(), CmdError> {
+        if !self.physical(vm) {
+            return Err(Self::missing(vm));
+        }
+        let retire = |vm: &mut Vm| {
+            if matches!(vm.command_at_sidecar_key(key), Some(Command::Object(id)) if id == object) {
+                let retired = vm.retire_command_lifecycle_key(key);
+                drop(retired);
+            }
+        };
+        if vm.cur == self.interpreter {
+            retire(vm);
+        } else {
+            vm.in_interp(self.interpreter, retire);
+        }
+        self.check_cleanup(vm)
+    }
+}

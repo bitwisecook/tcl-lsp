@@ -1028,7 +1028,9 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         if let Err(completion) = check_renamed_alias_loop(vm, &key, &old_key, &cmd) {
             return completion;
         }
-        vm.install_renamed_command(&mut rename, &key, cmd);
+        if let Err(error) = vm.install_renamed_command(&mut rename, &key, cmd) {
+            return completion_from_cmd_error(vm, error);
+        }
         vm.commit_renamed_command(&rename);
         let key = rename.new_key().to_owned();
         // The rename happened: move every trace to the new key so it keeps
