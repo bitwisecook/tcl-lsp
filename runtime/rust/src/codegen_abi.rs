@@ -937,7 +937,7 @@ impl AbiActivation {
     /// `interp` must be the live current interpreter for the whole guard's life.
     unsafe fn enter(interp: *mut Interp) -> Option<Self> {
         // SAFETY: forwarded per this function's contract.
-        unsafe { (*interp).codegen_activation_enter() }.then_some(AbiActivation {
+        unsafe { (*interp).codegen_activation_enter() }.then(|| AbiActivation {
             interp,
             code: crate::interp::Code::Ok,
         })
@@ -4455,6 +4455,39 @@ mod tests {
             }
             tcl_completion_release(&raw mut out);
             release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+        });
+    }
+
+    #[test]
+    fn original_refused_abi_activation_keeps_every_genuinely_held_entry() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual software entry refusal and paired ownership only; this records
+        // no C Tcl nesting limit or original provider callback chronology.
+        leak_free(|| unsafe {
+            let mut interp = selected_c86_activation_interpreter();
+            tcl_runtime_set_current_interp(&raw mut interp);
+            let entered = hold_actual_activation_bound();
+            for _ in 0..3 {
+                assert!(AbiActivation::enter(&raw mut interp).is_none());
+                assert_ne!(
+                    tcl_codegen_activation_enter(),
+                    0,
+                    "a refused ABI attempt cannot retire a genuinely held entry"
+                );
+            }
+            tcl_codegen_activation_leave(0);
+            assert_eq!(
+                tcl_codegen_activation_enter(),
+                0,
+                "only a matching leave makes room for the next actual entry"
+            );
+            tcl_codegen_activation_leave(0);
+            for _ in 1..entered {
+                tcl_codegen_activation_leave(0);
+            }
+            assert!(interp.native_execution_refusal().is_none());
             tcl_runtime_set_current_interp(ptr::null_mut());
         });
     }

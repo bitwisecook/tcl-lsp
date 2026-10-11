@@ -50,6 +50,14 @@ impl Interp {
         current: NsId,
         original: *mut TclObj,
     ) -> Result<Option<(Command, Option<u64>)>, ValueError> {
+        let scope = super::native_operation_currency::NativeOperationScope::enter(self).map_err(
+            |first| {
+                self.refuse_native_execution(first);
+                ValueError::CommandProtocolUnavailable("original Jim command entry")
+            },
+        )?;
+        obj::check_native_liveness(original)?;
+        let _allocation = obj::NativeObjectLifetime::retain(original);
         let dialect = self.native_invocation_dialect();
         let recipe =
             dialect
@@ -104,32 +112,76 @@ impl Interp {
         }
         let bytes = self.native_string_bytes(&original)?;
         let selected = self.resolve_dispatchable_with_generation(current, &bytes);
-        if let Some((_, Some(token))) = &selected {
-            let world = self.namespaces.borrow();
-            let namespace = world.jim_namespace_object(current).ok_or(
-                ValueError::CommandProtocolUnavailable("Jim current namespace original holder"),
-            )?;
-            let epoch = world.jim_procedure_epoch();
-            drop(world);
-            obj::install_jim_command_cache(
+        // The selection is metadata during old-primary retirement. Keeping a
+        // Command clone here would postpone an idle owned delete callback.
+        let token = match selected {
+            Some((command, Some(token))) => {
+                drop(command);
+                Some(token)
+            }
+            other => return Ok(other),
+        };
+        if let Some(token) = token {
+            let (namespace, epoch) = {
+                let world = self.namespaces.borrow();
+                let namespace = world.jim_namespace_original_owner(current).ok_or(
+                    ValueError::CommandProtocolUnavailable("Jim current namespace original holder"),
+                )?;
+                (namespace, world.jim_procedure_epoch())
+            };
+            let namespace_birth = std::rc::Rc::downgrade(&namespace);
+            let check = || {
+                scope.currency().ensure_current_or_refuse().map_err(|_| {
+                    ValueError::CommandProtocolUnavailable("original Jim command currency")
+                })?;
+                obj::check_native_liveness(original)?;
+                obj::check_native_liveness(namespace.as_ptr())?;
+                let world = self.namespaces.borrow();
+                let same_namespace =
+                    world
+                        .jim_namespace_original_owner(current)
+                        .is_some_and(|actual| {
+                            std::rc::Weak::ptr_eq(
+                                &namespace_birth,
+                                &std::rc::Rc::downgrade(&actual),
+                            )
+                        });
+                if world.jim_procedure_epoch() != epoch
+                    || !same_namespace
+                    || world.jim_node_command(token).is_none()
+                {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "captured original Jim command binding",
+                    ));
+                }
+                Ok(())
+            };
+            // Capture keeps only the real namespace holder's Rust allocation.
+            // Its cache-native reference is acquired after old primary retirement.
+            let reached = obj::install_jim_command_cache_with_stage_check(
                 original,
-                obj::JimCommandCache {
-                    interpreter: self.native_command_interpreter,
-                    epoch,
-                    token: *token,
-                    namespace,
+                || {
+                    Ok(obj::JimCommandCache {
+                        interpreter: self.native_command_interpreter,
+                        epoch,
+                        token,
+                        namespace: Owned::retain(namespace.as_ptr()),
+                    })
                 },
                 dialect,
-            )?;
+                &check,
+            );
+            check()?;
+            reached?;
         }
-        // Native miss preserves the old command/Source/other primary unchanged.
-        Ok(selected.and_then(|(command, token)| match token {
-            Some(token) => self
-                .namespaces
-                .borrow()
+        // Project the same selected node only after preparation has settled.
+        // Native miss returned above without changing its existing primary.
+        Ok(token.and_then(|token| {
+            let world = self.namespaces.borrow();
+            let command = world.jim_node_command(token)?;
+            world
                 .jim_previous_selection(token, command)
-                .map(|(command, token)| (command, Some(token))),
-            None => Some((command, None)),
+                .map(|(command, token)| (command, Some(token)))
         }))
     }
 

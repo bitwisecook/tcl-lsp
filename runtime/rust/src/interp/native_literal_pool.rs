@@ -330,7 +330,25 @@ impl Interp {
                         receipt.fully_qualified,
                         self.namespaces.borrow().native_command_reference(origin),
                     );
-                    obj::prime_native_command_name_cache(original, cache, dialect)?;
+                    let scope = super::native_operation_currency::NativeOperationScope::enter(self)
+                        .map_err(|first| {
+                            self.refuse_native_execution(first);
+                            ValueError::CommandProtocolUnavailable("original compiler command priming entry")
+                        })?;
+                    let check = || {
+                        self.original_command_cache_current(scope.currency(), original, &cache, origin)?;
+                        if self.native_compiler_cache_epochs(origin).map(|epochs| epochs.0)
+                            != Some(receipt.context.entry_epoch)
+                        {
+                            return Err(ValueError::CommandProtocolUnavailable("captured compiler command priming context"));
+                        }
+                        Ok(())
+                    };
+                    let reached = obj::prime_native_command_name_cache_with_stage_check(
+                        original, cache.clone(), dialect, Some(&check),
+                    );
+                    check()?;
+                    reached?;
                     continue;
                 }
             };

@@ -373,7 +373,7 @@ fn private_property_comparison_rejects_changed_original_declaration_inventory() 
     for changed in [false, true] {
         let (mut interpreter, _, _) = native();
         assert_eq!(
-            interpreter.eval_str(b"oo::configurable create C {property a}; C create o"),
+            interpreter.eval_str(b"oo::configurable create C {property a; method writePrivate {value} {my configure -a $value}; method readPrivate {} {my configure -a}}; C create o"),
             Code::Ok
         );
         let declaration = obj::Owned::fresh(obj::alloc_typed(&VARIABLE, 0));
@@ -385,12 +385,12 @@ fn private_property_comparison_rejects_changed_original_declaration_inventory() 
         let mut argv: Vec<_> = words.iter().map(obj::Owned::as_ptr).collect();
         argv.push(declaration.as_ptr());
         assert_eq!(interpreter.dispatch(&argv), Code::Ok);
-        assert_eq!(interpreter.eval_str(b"o configure -a VALUE"), Code::Ok);
+        assert_eq!(interpreter.eval_str(b"o writePrivate VALUE"), Code::Ok);
         obj::invalidate_string(declaration.as_ptr());
         REACHED.with(|result| *result.borrow_mut() = None);
         UPDATES.with(|updates| updates.borrow_mut().clear());
         MODE.with(|mode| mode.set(if changed { 4 } else { 0 }));
-        let code = interpreter.eval_str(b"o configure -a");
+        let code = interpreter.eval_str(b"o readPrivate");
         assert_eq!(UPDATES.with(|updates| updates.borrow().clone()), [9]);
         if changed {
             assert_eq!(code, Code::Error);

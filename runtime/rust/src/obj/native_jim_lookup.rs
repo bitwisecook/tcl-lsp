@@ -104,18 +104,30 @@ fn require_original(
     }
     Ok(())
 }
-pub(crate) fn install_command_cache(
+pub(crate) fn install_command_cache_with_stage_check(
     value: *mut TclObj,
-    cache: JimCommandCache,
+    cache: impl FnOnce() -> Result<JimCommandCache, ValueError>,
     dialect: tcl_registry::InvocationDialect,
+    stage_check: &dyn Fn() -> Result<(), ValueError>,
 ) -> Result<(), ValueError> {
+    super::check_native_liveness(value)?;
+    stage_check()?;
     require_original(value, dialect)?;
+    if !obj_type_ptr(value).is_null() {
+        let retired = super::discard_native_internal_representation(value);
+        stage_check()?;
+        super::check_native_liveness(value)?;
+        retired?;
+    }
+    stage_check()?;
+    let cache = cache()?;
     change_type(
         value,
         &JIM_COMMAND_TYPE,
         Box::into_raw(Box::new(cache)) as usize as u64,
     );
-    Ok(())
+    stage_check()?;
+    super::check_native_liveness(value)
 }
 pub(crate) fn install_variable_cache_with_stage_check(
     value: *mut TclObj,

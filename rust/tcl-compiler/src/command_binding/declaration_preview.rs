@@ -254,10 +254,34 @@ fn nested_layout_segments(
     source: &ExecutedScriptSource,
     parent_config: tcl_lexer::LexerConfig,
 ) -> Option<Vec<crate::segmenter::SegmentedCommand>> {
+    let local_config = tcl_lexer::SourceSegmentationPurpose::NestedScript
+        .config(parent_config)
+        .normalized();
+    let tokens = tcl_lexer::Lexer::with_source_image(&source.text, local_config)
+        .tokenise_all()
+        .ok()?;
+    let commands = tcl_lexer::group_commands_bytes(&tokens, source.text.bytes(), local_config);
+    let cut =
+        tcl_lexer::first_parse_cut_image_in_checked(&commands, &tokens, &source.text, local_config)
+            .ok()?;
+    let prefix = if let Some(cut) = cut {
+        // The ordinal belongs to original lexical groups. Select their complete
+        // byte prefix before F5 lookahead can merge a malformed following clause.
+        let command_start = usize::try_from(commands.get(cut.command)?.span.start()).ok()?;
+        tcl_lexer::SourceImage::from_bytes(
+            source.text.bytes().get(..command_start)?,
+            source.text.channel(),
+        )
+    } else {
+        source.text.clone()
+    };
+    source
+        .base()
+        .checked_add(u32::try_from(prefix.bytes().len()).ok()?)?;
     crate::segmenter::segment_commands_image_with_offset_and_config(
-        &source.text,
+        &prefix,
         source.base(),
-        parent_config.nested(),
+        local_config,
     )
 }
 
@@ -2728,6 +2752,147 @@ mod tests {
             );
         }
     }
+    #[test]
+    fn original_declared_body_parse_cut_keeps_only_the_complete_original_prefix() {
+        // naming.source.original-declaration-layout-visits
+        // docs/design/analysis/name-resolution-proofs/source-original-declaration-layout-visits.md
+        // These are source lexical cuts, with no entered frame or Native admission.
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let config = tcl_lexer::LexerConfig {
+            base_offset: 700,
+            base_line: 9,
+            base_col: 4,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let body = "# retained comment\n\u{feff}puts pre; puts ${a{b}\nputs after";
+        let whole = format!("proc p {{}} {{{body}}}");
+        let origin = Arc::new(super::super::SourceOriginId::authored(&Arc::from(
+            whole.as_str(),
+        )));
+        let base = u32::try_from(whole.find(body).unwrap()).unwrap();
+        let source = ExecutedScriptSource::contiguous(Arc::clone(&origin), body, base).unwrap();
+        let mut syntax = NestedLayoutSyntax::default();
+        let prefix = syntax.commands(&source, config).unwrap();
+        assert_eq!(prefix.len(), 1);
+        assert_eq!(prefix[0].tokens.argv_texts, ["\u{feff}puts", "pre"]);
+        assert_eq!(prefix[0].site.source, origin);
+        assert_eq!(
+            prefix[0].site.offset,
+            base + u32::try_from(body.find('\u{feff}').unwrap()).unwrap()
+        );
+        assert_eq!(prefix[0].tokens.argv[0].start(), prefix[0].site.offset);
+        assert!(prefix[0].tokens.source_binding.is_none());
+        assert!(Arc::ptr_eq(
+            &prefix,
+            &syntax.commands(&source, config).unwrap()
+        ));
+        assert!(syntax.commands.keys().any(|key| key.config == config));
+        let first_close = tcl_lexer::LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..config
+        };
+        let complete = syntax.commands(&source, first_close).unwrap();
+        assert_eq!(complete.len(), 3);
+        assert_eq!(complete[1].tokens.argv_texts, ["puts", "${a{b}"]);
+        assert_eq!(complete[2].tokens.argv_texts, ["puts", "after"]);
+        assert!(!Arc::ptr_eq(&prefix, &complete));
+    }
+
+    #[test]
+    fn original_declared_body_parse_cut_uses_geometry_after_f5_segment_merging() {
+        // naming.source.original-declaration-layout-visits
+        // docs/design/analysis/name-resolution-proofs/source-original-declaration-layout-visits.md
+        // The merged source projection supplies no selected command or execution.
+        let profile = tcl_dialect::DialectProfile::find("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::Nesting,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        assert!(config.brace_line_continuation.continues());
+        let parent = CommandAllocationSite {
+            source: Arc::new(super::super::SourceOriginId::authored(&Arc::from(
+                "eval $body",
+            ))),
+            offset: 0,
+        };
+        let source = ExecutedScriptSource::materialised(
+            parent.clone(),
+            vec![0],
+            "if {1} {puts yes}\nelse {puts no}\nputs ${a{b}\nputs after",
+        );
+        let mut syntax = NestedLayoutSyntax::default();
+        let prefix = syntax.commands(&source, config).unwrap();
+        assert_eq!(prefix.len(), 1);
+        assert_eq!(
+            prefix[0].tokens.argv_texts,
+            ["if", "1", "puts yes", "else", "puts no"]
+        );
+        assert_eq!(prefix[0].site.source, source.origin);
+        assert_eq!(prefix[0].site.offset, 0);
+        let first_close = tcl_lexer::LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..config
+        };
+        let complete = syntax.commands(&source, first_close).unwrap();
+        assert_eq!(complete.len(), 3);
+        assert_eq!(complete[0].tokens.argv_texts, prefix[0].tokens.argv_texts);
+        assert_eq!(complete[2].tokens.argv_texts, ["puts", "after"]);
+        let malformed_clause =
+            ExecutedScriptSource::materialised(parent, vec![0], "if {1} {puts yes}\nelse ${a{b}");
+        let clean_if = syntax.commands(&malformed_clause, config).unwrap();
+        assert_eq!(clean_if.len(), 1);
+        assert_eq!(clean_if[0].tokens.argv_texts, ["if", "1", "puts yes"]);
+    }
+
+    #[test]
+    fn original_declared_body_parse_cut_keeps_unavailable_distinct_from_empty() {
+        // naming.source.original-declaration-layout-visits
+        // docs/design/analysis/name-resolution-proofs/source-original-declaration-layout-visits.md
+        // Hard lexical/Unicode refusal is not a complete empty source tape.
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl9.0");
+        let parent = CommandAllocationSite {
+            source: Arc::new(super::super::SourceOriginId::authored(&Arc::from(
+                "eval $body",
+            ))),
+            offset: 0,
+        };
+        let mut syntax = NestedLayoutSyntax::default();
+        for body in ["puts ${a{b}", "puts [list \"unterminated]"] {
+            let source = ExecutedScriptSource::materialised(parent.clone(), vec![0], body);
+            assert!(
+                syntax.commands(&source, config).unwrap().is_empty(),
+                "{body}"
+            );
+        }
+        let clean = ExecutedScriptSource::materialised(parent.clone(), vec![0], "# only comment");
+        assert!(syntax.commands(&clean, config).unwrap().is_empty());
+        let welded = ExecutedScriptSource::materialised(
+            parent.clone(),
+            vec![0],
+            "puts before; puts \"bad\"tail; puts after",
+        );
+        let prefix = syntax.commands(&welded, config).unwrap();
+        assert_eq!(prefix.len(), 1);
+        assert_eq!(prefix[0].tokens.argv_texts, ["puts", "before"]);
+        let strict = tcl_lexer::LexerConfig {
+            strict_quoting: true,
+            ..config
+        };
+        assert!(syntax.commands(&welded, strict).is_none());
+        let parsed = syntax.parsed_scripts;
+        assert!(syntax.commands(&welded, strict).is_none());
+        assert_eq!(syntax.parsed_scripts, parsed);
+        let opaque = ExecutedScriptSource::materialised_image(
+            parent,
+            vec![0],
+            tcl_lexer::SourceImage::native(b"puts \xff".as_slice()),
+        );
+        assert!(syntax.commands(&opaque, config).is_none());
+        let mut overflow = clean;
+        overflow.mapping = super::super::ExecutedScriptMapping::Contiguous { base: u32::MAX };
+        assert!(syntax.commands(&overflow, config).is_none());
+    }
+
     #[test]
     fn original_declared_body_parser_keeps_bom_value_and_complete_parent_cache_key() {
         // naming.source.original-configured-script-completeness

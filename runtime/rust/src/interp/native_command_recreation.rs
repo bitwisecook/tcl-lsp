@@ -448,7 +448,14 @@ mod tests {
                             Some(delete_record),
                         ),
                     )
-                    .unwrap();
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "{provider}/{case}: replacement refused, first cause {:?}, resident result {:?}",
+                            interpreter.native_execution_refusal(),
+                            obj::native_object_snapshot(interpreter.get_obj_result())
+                                .map(|snapshot| snapshot.resident),
+                        )
+                    });
                 assert_ne!(
                     original, replacement,
                     "actual Runtime identities remain distinct"
@@ -489,6 +496,79 @@ mod tests {
                 assert!(owner.interpreter.upgrade().is_none());
             }
         }
+    }
+
+    #[test]
+    fn original_idle_jim_recreation_keeps_the_occupied_key_until_public_delete() {
+        // naming.embedding.original-command-recreation-discard
+        // docs/design/analysis/name-resolution-proofs/embedding-original-command-recreation-discard.md
+        // Software table-key lifetime, separate from original486 callback rows.
+        // Observe the real header without another native reference or name lookup.
+        let mut interpreter = actual_interpreter("jim");
+        let (owner, mut records) = records(&interpreter, 1, 0);
+        interpreter
+            .create_obj_command(
+                b"retiring",
+                ObjCommand::new(
+                    invoke_record,
+                    std::ptr::from_mut(&mut records[0]).cast(),
+                    Some(delete_record),
+                ),
+            )
+            .unwrap();
+        let original_key = interpreter
+            .namespaces()
+            .original_jim_command_key(GLOBAL, b"retiring")
+            .expect("actual occupied Jim key");
+        // Allocation-only lease permits the final retired-header observation;
+        // it leaves the actual table-key count and retirement stage unchanged.
+        let key_allocation = obj::NativeObjectLifetime::retain(original_key);
+        let references = unsafe { (*original_key).ref_count };
+        assert!(references > 0);
+        let replacement = interpreter.create_obj_command(
+            b"retiring",
+            ObjCommand::new(
+                invoke_record,
+                std::ptr::from_mut(&mut records[2]).cast(),
+                Some(delete_record),
+            ),
+        );
+        assert!(
+            replacement.is_some(),
+            "original replacement refused: {:?}",
+            interpreter.native_execution_refusal()
+        );
+        assert_eq!(
+            interpreter
+                .namespaces()
+                .original_jim_command_key(GLOBAL, b"retiring"),
+            Some(original_key)
+        );
+        assert!(obj::allocation_is_live(original_key));
+        assert_eq!(unsafe { (*original_key).ref_count }, references);
+        assert_eq!(owner.deletes[0].get(), 1);
+        assert_eq!(owner.recreated.get(), 1);
+        assert_eq!(owner.deletes[1].get(), 0);
+        assert_eq!(owner.deletes[2].get(), 0);
+        assert_eq!(interpreter.eval_str(INVOCATION), Code::Ok);
+        assert_eq!(interpreter.result_bytes(), b"FINAL");
+        assert_eq!(owner.calls[1].get(), 0);
+        assert_eq!(owner.calls[2].get(), 1);
+        assert!(interpreter.delete_command(b"retiring"));
+        assert!(interpreter
+            .namespaces()
+            .original_jim_command_key(GLOBAL, b"retiring")
+            .is_none());
+        assert!(!obj::allocation_is_live(key_allocation.as_ptr()));
+        drop(key_allocation);
+        assert_eq!(owner.deletes[1].get(), 0);
+        assert_eq!(owner.deletes[2].get(), 1);
+        assert!(interpreter.native_execution_refusal().is_none());
+        drop(interpreter);
+        assert!(owner.interpreter.upgrade().is_none());
+        assert_eq!(owner.deletes[0].get(), 1);
+        assert_eq!(owner.deletes[1].get(), 0);
+        assert_eq!(owner.deletes[2].get(), 1);
     }
 
     #[test]

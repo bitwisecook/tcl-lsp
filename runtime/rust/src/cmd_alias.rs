@@ -4054,7 +4054,25 @@ mod original_alias_storage_tests {
                     } else {
                         interp.dispatch(&argv)
                     };
-                    assert_eq!(code, Code::Ok);
+                    assert_eq!(
+                        code,
+                        Code::Ok,
+                        "{version}/{case}/{label}: parent cause {:?}, parent resident {:?}, child cause/resident {:?}",
+                        interp.native_execution_refusal(),
+                        obj::native_object_snapshot(interp.get_obj_result())
+                            .map(|snapshot| snapshot.resident),
+                        if child {
+                            interp.with_child(b"child", |owner| {
+                                (
+                                    owner.native_execution_refusal(),
+                                    obj::native_object_snapshot(owner.get_obj_result())
+                                        .map(|snapshot| snapshot.resident),
+                                )
+                            })
+                        } else {
+                            None
+                        }
+                    );
                     check_row(stream, case, label, &originals);
                 }
                 assert_eq!(CALLS.with(Cell::get), 2);
@@ -4285,7 +4303,18 @@ mod original_alias_storage_tests {
                 interp
                     .with_child(&child, |owner| owner.dispatch(&call_argv))
                     .unwrap(),
-                Code::Ok
+                Code::Ok,
+                "{version}: parent cause {:?}, parent resident {:?}, child cause/resident {:?}",
+                interp.native_execution_refusal(),
+                obj::native_object_snapshot(interp.get_obj_result())
+                    .map(|snapshot| snapshot.resident),
+                interp.with_child(&child, |owner| {
+                    (
+                        owner.native_execution_refusal(),
+                        obj::native_object_snapshot(owner.get_obj_result())
+                            .map(|snapshot| snapshot.resident),
+                    )
+                })
             );
             assert_eq!(CALLS.with(Cell::get), 1);
             assert_eq!(UPDATES.with(|counts| *counts.borrow()), [1, 1, 1, 1]);

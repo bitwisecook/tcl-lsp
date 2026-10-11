@@ -1,0 +1,42 @@
+{
+  "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.c": {
+    "canonical_path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/source/91/generic/tclOO.c.gz",
+    "stored_sha256": "84ba97815d87fa815902e8e5c1efabffe636ba0355126b35e48a27719cc60082",
+    "original_sha256": "f2abb0b2ca6fa8cf621f158f209a48ee20ec2a08073d2f2c4af541ddf0babbbd",
+    "original_bytes": 98735,
+    "compression": "gzip",
+    "existing_canonical_bytes_verified": true
+  },
+  "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c": {
+    "canonical_path": "runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/tclOODefineCmds.c.gz",
+    "stored_sha256": "ba3c1ac83506d4f059ee8617ab4310049ca33152ad80f3a19e1f81bd863a44e3",
+    "original_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+    "original_bytes": 111662,
+    "compression": "gzip",
+    "existing_canonical_bytes_verified": true
+  },
+  "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": {
+    "canonical_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclOOInfo.c",
+    "stored_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "original_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "original_bytes": 44306,
+    "compression": "none",
+    "existing_canonical_bytes_verified": true
+  },
+  "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInfo.c": {
+    "canonical_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclOOInfo.c",
+    "stored_sha256": "309603344c3aeebe95832928b473a84ebc001b3d85c8489e15675448035de02b",
+    "original_sha256": "309603344c3aeebe95832928b473a84ebc001b3d85c8489e15675448035de02b",
+    "original_bytes": 38143,
+    "compression": "none",
+    "existing_canonical_bytes_verified": true
+  },
+  "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c": {
+    "canonical_path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclOOInfo.c",
+    "stored_sha256": "a1ed9fa857c89ba0cc5eea5a6f4e3be82783130823d5182c8e4a4abc5073158b",
+    "original_sha256": "a1ed9fa857c89ba0cc5eea5a6f4e3be82783130823d5182c8e4a4abc5073158b",
+    "original_bytes": 45060,
+    "compression": "none",
+    "existing_canonical_bytes_verified": true
+  }
+}

@@ -363,6 +363,35 @@ impl Interp {
         ))
     }
 
+    /// Validate the already selected node and reference; never look its name up again.
+    pub(super) fn original_command_cache_current(
+        &self,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+        original: *mut TclObj,
+        cache: &NativeCommandNameCache,
+        origin: NsId,
+    ) -> Result<(), ValueError> {
+        currency.ensure_current_or_refuse().map_err(|_| {
+            ValueError::CommandProtocolUnavailable("original command cache currency")
+        })?;
+        obj::check_native_liveness(original)?;
+        let protocol = self
+            .native_invocation_dialect()
+            .native_command_name_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original command cache purpose",
+            ))?;
+        if !protocol.cache_is_current(
+            cache,
+            &self.native_command_name_lookup_state_at(cache, origin)?,
+        ) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "captured original command binding",
+            ));
+        }
+        Ok(())
+    }
+
     /// Resolve the original object, checking native cache state before lookup.
     /// Failed lookup retains the C9 primary or applies C8's null descriptor.
     pub(crate) fn resolve_original_command(
@@ -395,6 +424,14 @@ impl Interp {
         current: NsId,
         original: *mut TclObj,
     ) -> Result<Option<(Command, Option<u64>)>, ValueError> {
+        let scope = super::native_operation_currency::NativeOperationScope::enter(self).map_err(
+            |first| {
+                self.refuse_native_execution(first);
+                ValueError::CommandProtocolUnavailable("original command lookup entry")
+            },
+        )?;
+        obj::check_native_liveness(original)?;
+        let _allocation = obj::NativeObjectLifetime::retain(original);
         let dialect = self.native_invocation_dialect();
         let Some(protocol) = dialect.native_command_name_protocol() else {
             if dialect.native_jim_lookup_protocol().is_some() {
@@ -462,19 +499,52 @@ impl Interp {
         }
         let binding = self.native_command_name_from_binding(origin, &bytes)?;
         if let Some(cache) = binding {
+            let check =
+                || self.original_command_cache_current(scope.currency(), original, &cache, origin);
+            let reached = obj::install_native_command_name_cache_with_stage_check(
+                original,
+                cache.clone(),
+                dialect,
+                Some(&check),
+            );
+            check()?;
+            reached?;
+            // Cache preparation observes a token; actual worker ownership starts
+            // only after the reached old representation has retired.
             let node = self.namespaces.borrow().native_command_at_node(cache.token);
-            obj::install_native_command_name_cache(original, cache.clone(), dialect)?;
             if let Some((command, fqn)) = node {
                 return Ok(self
                     .command_visible_for_surface_at(&command, &fqn, Some(cache.token))
                     .then_some((command, Some(cache.token))));
             }
         } else {
-            obj::install_unresolved_native_command_name_cache(original, dialect)?;
+            let reference = self.namespaces.borrow().native_command_reference(origin);
+            let check = || {
+                scope.currency().ensure_current_or_refuse().map_err(|_| {
+                    ValueError::CommandProtocolUnavailable("original unresolved command currency")
+                })?;
+                obj::check_native_liveness(original)?;
+                if self.namespaces.borrow().native_command_reference(origin) != reference {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "original unresolved command reference",
+                    ));
+                }
+                Ok(())
+            };
+            let reached = obj::install_unresolved_native_command_name_cache_with_stage_check(
+                original,
+                dialect,
+                Some(&check),
+            );
+            check()?;
+            reached?;
         }
         Ok(None)
     }
 }
+
+#[cfg(test)]
+mod current_cache_tests;
 
 #[cfg(test)]
 mod tests {

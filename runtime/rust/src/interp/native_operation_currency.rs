@@ -674,7 +674,7 @@ mod tests {
         for source in [
             b"proc visible {} {return GUEST_OK}; interp hide {} visible hidden; interp expose {} hidden visible; visible".as_slice(),
             b"interp create child; interp eval child {set x CHILD_OK}; interp delete child; set marker GUEST_OK".as_slice(),
-            b"interp recursionlimit {} 2048; interp limit {} commands -value 100000; interp bgerror {} list; set marker GUEST_OK".as_slice(),
+            b"interp create policyChild; interp recursionlimit {} 2048; interp limit policyChild commands -value 100000; interp bgerror {} list; interp delete policyChild; set marker GUEST_OK".as_slice(),
         ] {
             let compiler_epoch = interpreter.guards.borrow().domain_epoch(GuardDomain::Interpreter);
             assert_eq!(interpreter.eval_str(source), Code::Ok, "source {:?}, first cause {:?}, result {:?}", String::from_utf8_lossy(source), interpreter.native_execution_refusal(), interpreter.result_bytes());
@@ -691,6 +691,35 @@ mod tests {
             assert_eq!(interpreter.result_bytes(), b"GUEST_OK");
             assert!(interpreter.native_execution_refusal().is_none());
         }
+        // C's current-interpreter limit restriction is a Guest failure; it
+        // cannot retire the original operation or its independent scalar issuer.
+        assert_eq!(
+            interpreter.eval_str(b"interp limit {} commands -value 100000"),
+            Code::Error
+        );
+        assert_eq!(
+            interpreter.result_bytes(),
+            b"limits on current interpreter inaccessible"
+        );
+        assert!(interpreter.native_execution_refusal().is_none());
+        assert_eq!(interpreter.native_operation_context_epoch(), context_epoch);
+        entry.currency().ensure_current().unwrap();
+        let scalar =
+            super::super::native_scalar_context::scalar_access(None, value.as_ptr()).unwrap();
+        scalar.ensure_current().unwrap();
+        let mut output = -777;
+        assert_eq!(
+            unsafe {
+                crate::capi::Tcl_GetIntFromObj(core::ptr::null_mut(), value.as_ptr(), &mut output)
+            },
+            0
+        );
+        assert_eq!(output, 17);
+        assert_eq!(unsafe { (*value.as_ptr()).ref_count }, references);
+        assert_eq!(
+            interpreter.result_bytes(),
+            b"limits on current interpreter inaccessible"
+        );
         drop(entry);
         assert_eq!(interpreter.entered_native_operation_count(), 0);
     }

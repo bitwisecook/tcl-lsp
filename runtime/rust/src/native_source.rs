@@ -234,9 +234,16 @@ pub(crate) fn context(value: *mut TclObj) -> Result<Rc<NativeJimObjectContext>, 
                 .and_then(Weak::upgrade)
                 .filter(|context| context.is_live())
         })
-        .ok_or(ValueError::CommandProtocolUnavailable(
-            "Jim original source context",
-        ))
+        .ok_or_else(|| {
+            #[cfg(test)]
+            if std::env::var_os("TCL_RUNTIME_TRACE_MISSING_JIM_CONTEXT").is_some() {
+                eprintln!(
+                    "missing original Jim object context for {value:p}:\n{}",
+                    std::backtrace::Backtrace::force_capture()
+                );
+            }
+            ValueError::CommandProtocolUnavailable("Jim original source context")
+        })
 }
 
 pub(crate) fn pin_source_info(

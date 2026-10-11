@@ -192,6 +192,8 @@ fn check_reached(interpreter: &Interp, argument: &obj::Owned, mode: u8, class: b
 
 #[test]
 fn shared_method_reports_keep_original_receiver_before_name_getters_and_table_access() {
+    // naming.tcloo.original-introspection-target-continuation
+    // docs/design/analysis/name-resolution-proofs/tcloo-original-introspection-target-continuation.md
     // Software receiver/refusal control; no Native pointer-lifetime conclusion.
     for class in [false, true] {
         for (member, role) in [
@@ -242,6 +244,8 @@ fn shared_method_reports_keep_original_receiver_before_name_getters_and_table_ac
 
 #[test]
 fn object_reports_refuse_withdrawn_receivers_before_relation_namespace_or_report_derivation() {
+    // naming.tcloo.original-introspection-target-continuation
+    // docs/design/analysis/name-resolution-proofs/tcloo-original-introspection-target-continuation.md
     for (member, role) in [
         (b"methods".as_slice(), 2),
         (b"vars", 3),
@@ -283,6 +287,8 @@ fn object_reports_refuse_withdrawn_receivers_before_relation_namespace_or_report
 
 #[test]
 fn isa_missing_precondition_leaves_relation_unread_but_selected_receiver_withdrawal_refuses() {
+    // naming.tcloo.original-introspection-target-continuation
+    // docs/design/analysis/name-resolution-proofs/tcloo-original-introspection-target-continuation.md
     for category in [b"mixin".as_slice(), b"typeof"] {
         for missing in [false, true] {
             for mode in 0..8 {

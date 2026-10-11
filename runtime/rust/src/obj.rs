@@ -48,7 +48,7 @@
 mod native_jim_lookup;
 pub(crate) use native_jim_lookup::{JimCommandCache, JimVariableCache};
 pub(crate) use native_jim_lookup::{
-    install_command_cache as install_jim_command_cache,
+    install_command_cache_with_stage_check as install_jim_command_cache_with_stage_check,
     install_variable_cache_with_stage_check as install_jim_variable_cache_with_stage_check,
     with_command_cache as with_jim_command_cache, with_variable_cache as with_jim_variable_cache,
 };
@@ -1523,6 +1523,30 @@ static NATIVE_COMMAND_NAME_TYPE: TclObjType = TclObjType {
     set_from_any_proc: None,
 };
 
+fn command_name_stage_current(
+    value: *mut TclObj,
+    stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    if let Some(check) = stage_check {
+        check()?;
+        check_native_liveness(value)?;
+    }
+    Ok(())
+}
+
+fn retire_command_name_primary(
+    value: *mut TclObj,
+    stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    if stage_check.is_some() && !obj_type_ptr(value).is_null() {
+        // The reached old primary retires before the selected cache is adopted.
+        let retired = discard_native_internal_representation(value);
+        command_name_stage_current(value, stage_check)?;
+        retired?;
+    }
+    command_name_stage_current(value, stage_check)
+}
+
 /// Original command-name primary receipt; inspecting it grants no live cache hit.
 pub(crate) fn native_command_name_cache(
     value: *mut TclObj,
@@ -1555,6 +1579,17 @@ pub(crate) fn install_native_command_name_cache(
     cache: tcl_runtime_api::native_command_name::NativeCommandNameCache,
     dialect: tcl_registry::InvocationDialect,
 ) -> Result<(), tcl_syntax::value::ValueError> {
+    install_native_command_name_cache_with_stage_check(value, cache, dialect, None)
+}
+
+/// The same selected cache worker with original-operation stage checks.
+pub(crate) fn install_native_command_name_cache_with_stage_check(
+    value: *mut TclObj,
+    cache: tcl_runtime_api::native_command_name::NativeCommandNameCache,
+    dialect: tcl_registry::InvocationDialect,
+    stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    command_name_stage_current(value, stage_check)?;
     use tcl_syntax::value::ValueError;
     let protocol =
         dialect
@@ -1572,6 +1607,7 @@ pub(crate) fn install_native_command_name_cache(
             "native command-name resident string",
         ));
     }
+    retire_command_name_primary(value, stage_check)?;
     change_type(
         value,
         &NATIVE_COMMAND_NAME_TYPE,
@@ -1580,7 +1616,7 @@ pub(crate) fn install_native_command_name_cache(
             cache: Some(cache),
         })) as usize as u64,
     );
-    Ok(())
+    command_name_stage_current(value, stage_check)
 }
 
 /// Apply compile-time priming's selected early return to the original object.
@@ -1589,6 +1625,17 @@ pub(crate) fn prime_native_command_name_cache(
     incoming: tcl_runtime_api::native_command_name::NativeCommandNameCache,
     dialect: tcl_registry::InvocationDialect,
 ) -> Result<(), tcl_syntax::value::ValueError> {
+    prime_native_command_name_cache_with_stage_check(value, incoming, dialect, None)
+}
+
+/// The same selected cache worker with original-operation stage checks.
+pub(crate) fn prime_native_command_name_cache_with_stage_check(
+    value: *mut TclObj,
+    incoming: tcl_runtime_api::native_command_name::NativeCommandNameCache,
+    dialect: tcl_registry::InvocationDialect,
+    stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    command_name_stage_current(value, stage_check)?;
     use tcl_syntax::value::ValueError;
     let protocol =
         dialect
@@ -1611,7 +1658,7 @@ pub(crate) fn prime_native_command_name_cache(
     if protocol.preserves_primed_cache(existing.as_ref(), unresolved.is_some(), &incoming) {
         return Ok(());
     }
-    install_native_command_name_cache(value, incoming, dialect)
+    install_native_command_name_cache_with_stage_check(value, incoming, dialect, stage_check)
 }
 
 /// Apply the selected failed lookup's null descriptor effect; C9 keeps its primary.
@@ -1619,6 +1666,16 @@ pub(crate) fn install_unresolved_native_command_name_cache(
     value: *mut TclObj,
     dialect: tcl_registry::InvocationDialect,
 ) -> Result<(), tcl_syntax::value::ValueError> {
+    install_unresolved_native_command_name_cache_with_stage_check(value, dialect, None)
+}
+
+/// The same selected cache worker with original-operation stage checks.
+pub(crate) fn install_unresolved_native_command_name_cache_with_stage_check(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    command_name_stage_current(value, stage_check)?;
     use tcl_syntax::value::ValueError;
     let protocol =
         dialect
@@ -1634,6 +1691,7 @@ pub(crate) fn install_unresolved_native_command_name_cache(
             "native command-name resident string",
         ));
     }
+    retire_command_name_primary(value, stage_check)?;
     change_type(
         value,
         &NATIVE_COMMAND_NAME_TYPE,
@@ -1642,7 +1700,7 @@ pub(crate) fn install_unresolved_native_command_name_cache(
             cache: None,
         })) as usize as u64,
     );
-    Ok(())
+    command_name_stage_current(value, stage_check)
 }
 
 /// Retire only this reached command-name primary, preserving resident storage.

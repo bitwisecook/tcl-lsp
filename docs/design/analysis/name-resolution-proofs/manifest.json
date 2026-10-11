@@ -547698,6 +547698,621 @@
         "command": [],
         "limitations": "A bounded source/API contract and one authored software definition, with no external input, original provider process or matching owned assertion run attached. Complete typed diagnostic transport does not authenticate the record, issue an original context or establish Native/Guest execution parity."
       }
+    },
+    {
+      "id": "naming.tcloo.original-introspection-target-continuation",
+      "kind": "implementation-contract",
+      "document": "docs/design/analysis/name-resolution-proofs/tcloo-original-introspection-target-continuation.md",
+      "problem_statement": "A Class facet can be replaced while its Object and operation context survive. Later report getters can also destroy or recreate an already selected receiver or instance namespace. Reselecting by display or treating a reached withdrawal as an initial missing receiver can report from the wrong owner.",
+      "question": "Do Class allocation and introspection continuations retain the original Object, independently issued Class facet and selected namespace ledger across later operand getters, while initial missing isa receivers remain false without a secondary getter and reached owner withdrawal stops later report access?",
+      "conclusion": "The current source/API owner distinguishes software Object creation from Class facet birth, retains the original receiver before report operands, and joins selected instance namespace access to the actual Object/token ledger. Initial missing isa and withdrawal of an already selected receiver remain separate. Six linked finite software controls have no attached matching owned assertion outcome. Sixteen exact source joins inspect C9.1 allocation/context/report order plus C8.6/C9.0 initial-missing isa order; they establish no callback, safe pointer/payload lifetime or physical parity. All seven external executions are not tested.",
+      "scope": "Actual Runtime Class birth/copy and retained Class/Object receiver continuations for the described class reports, shared forward/definition/methodtype/call reports, object relation/method/variable/property reports and initial-missing isa behavior. The original source windows are inspected facts only; Host/ABA/destruction/rebirth controls remain software definitions. Aggregate method report headers, Method name/hash/refcounts, active chain/payload rendering, definition getter/effect order, Class variables and Native frame/source admission require independent purposes. Existing compatible object-name resolution is not promoted into original C CommandId authority.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "not tested for this source/API question",
+          "build": "No external process executes this bounded introspection target continuation contract",
+          "input_channel": "Source/API inspection and authored software records only; no external worker input for this question",
+          "dialect": "tcl8.4",
+          "status": "not-tested",
+          "answer": "No original tcl8.4 process tests this introspection target continuation contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.5",
+          "version": "not tested for this source/API question",
+          "build": "No external process executes this bounded introspection target continuation contract",
+          "input_channel": "Source/API inspection and authored software records only; no external worker input for this question",
+          "dialect": "tcl8.5",
+          "status": "not-tested",
+          "answer": "No original tcl8.5 process tests this introspection target continuation contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.6",
+          "version": "not tested for this source/API question",
+          "build": "No external process executes this bounded introspection target continuation contract",
+          "input_channel": "Source/API inspection and authored software records only; no external worker input for this question",
+          "dialect": "tcl8.6",
+          "status": "not-tested",
+          "answer": "No original tcl8.6 process tests this introspection target continuation contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.0",
+          "version": "not tested for this source/API question",
+          "build": "No external process executes this bounded introspection target continuation contract",
+          "input_channel": "Source/API inspection and authored software records only; no external worker input for this question",
+          "dialect": "tcl9.0",
+          "status": "not-tested",
+          "answer": "No original tcl9.0 process tests this introspection target continuation contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.1",
+          "version": "not tested for this source/API question",
+          "build": "No external process executes this bounded introspection target continuation contract",
+          "input_channel": "Source/API inspection and authored software records only; no external worker input for this question",
+          "dialect": "tcl9.1",
+          "status": "not-tested",
+          "answer": "No original tcl9.1 process tests this introspection target continuation contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.",
+          "evidence": []
+        },
+        {
+          "id": "jim",
+          "version": "not tested for this source/API question",
+          "build": "No external process executes this bounded introspection target continuation contract",
+          "input_channel": "Source/API inspection and authored software records only; no external worker input for this question",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "No original jim process tests this introspection target continuation contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "not tested for this source/API question",
+          "build": "No external process executes this bounded introspection target continuation contract",
+          "input_channel": "Source/API inspection and authored software records only; no external worker input for this question",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "No original bigip process tests this introspection target continuation contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.",
+          "evidence": []
+        }
+      ],
+      "evidence": [
+        {
+          "id": "original-source-joins-0",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_introspection_target_continuation_source/receiver-oo-class-facet534-source-joins.json",
+          "sha256": "cb5d9d38fd216cbcfe23d236d3ab0a49534c30da7a3398b0286f24568d1ca262",
+          "description": "Exact retained original source associations and physical LF basis. These are source/API inspection records, not external execution receipts or safe callback-lifetime observations."
+        },
+        {
+          "id": "full-source-9.1.0-tclOO",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/source/91/generic/tclOO.c.gz",
+          "sha256": "84ba97815d87fa815902e8e5c1efabffe636ba0355126b35e48a27719cc60082",
+          "description": "Reused complete canonical original source bytes, independently joined by whole SHA and gzip roundtrip where compressed. Reuse supplies no binary/source equivalence, native callback observation or outcome from the other question."
+        },
+        {
+          "id": "source-window-0-0",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_introspection_target_continuation_source/9.1.0/source-C91-tclOO-1890-1932.c",
+          "sha256": "084cea8ed42b57dc695c80c5d016866897608fd58ecf7ce6284daed12ffd5b68",
+          "description": "Actual AllocClass issues a distinct Class allocation and connects the original object/class facet; source inspection only. Exact inspected source only; callback and physical Class/Object lifetime executions are not tested."
+        },
+        {
+          "id": "full-source-9.1.0-tclOODefineCmds",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/tclOODefineCmds.c.gz",
+          "sha256": "ba3c1ac83506d4f059ee8617ab4310049ca33152ad80f3a19e1f81bd863a44e3",
+          "description": "Reused complete canonical original source bytes, independently joined by whole SHA and gzip roundtrip where compressed. Reuse supplies no binary/source equivalence, native callback observation or outcome from the other question."
+        },
+        {
+          "id": "source-window-0-1",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_introspection_target_continuation_source/9.1.0/source-C91-tclOODefineCmds-994-1034.c",
+          "sha256": "08828e2ee6fffc89d9013e0d991edce3dfd5c9a86334ee6ae07883a1dfca21e3",
+          "description": "Original definition-context object versus class selection, separate from later operand getters. Exact inspected source only; callback and physical Class/Object lifetime executions are not tested."
+        },
+        {
+          "id": "source-window-0-2",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_introspection_target_continuation_source/9.1.0/source-C91-tclOODefineCmds-1704-1803.c",
+          "sha256": "c0929678d493c07d6937005a40661af7669a0fb7b12d9d2ad9c141b6d6b70c70",
+          "description": "Original Class worker selected object, class operand and demotion/promotion facet effects; does not prove safe callback pointer lifetime. Exact inspected source only; callback and physical Class/Object lifetime executions are not tested."
+        },
+        {
+          "id": "full-source-9.1.0-tclOOInfo",
+          "role": "source-anchor",
+          "path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclOOInfo.c",
+          "sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+          "description": "Reused complete canonical original source bytes, independently joined by whole SHA and gzip roundtrip where compressed. Reuse supplies no binary/source equivalence, native callback observation or outcome from the other question."
+        },
+        {
+          "id": "source-window-0-3",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_introspection_target_continuation_source/9.1.0/source-C91-tclOOInfo-1152-1188.c",
+          "sha256": "f42e00dad422f753fc78450a795d2474510cc0d3245885b44a56be583611c3ca",
+          "description": "InfoClassDefnNs selects original Class before the reached kind getter and later Class storage access. Exact inspected source only; callback and physical Class/Object lifetime executions are not tested."
+        },
+        {
+          "id": "original-source-joins-1",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_introspection_target_continuation_source/receiver-oo-report-target535-source-joins.json",
+          "sha256": "ae8700ab4df7c7b6e8458247d650241c67fd7fbeac341b6c7f927c235ad8f00b",
+          "description": "Exact retained original source associations and physical LF basis. These are source/API inspection records, not external execution receipts or safe callback-lifetime observations."
+        },
+        {
+          "id": "source-window-1-0",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_introspection_target_continuation_source/9.1.0/source-C91-tclOOInfo-177-201.c",
+          "sha256": "23ad962cc23b442e97d179eb173462974790911b5ab8f1916fa1793ef2c4ecc9",
+          "description": "GetClassFromObj object/class precondition roles. Exact inspected source only; callback and physical Class/Object lifetime executions are not tested."
+        },
+        {
+          "id": "source-window-1-1",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_introspection_target_continuation_source/9.1.0/source-C91-tclOOInfo-202-278.c",
+          "sha256": "3c96471a4782976f740b0ebae9015d05eb0ebe04bdeb25e1172cbd226238ed11",
+          "description": "Class/instance method hash lookup over original name. Exact inspected source only; callback and physical Class/Object lifetime executions are not tested."
+        },
+        {
+          "id": "source-window-1-2",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_introspection_target_continuation_source/9.1.0/source-C91-tclOOInfo-340-383.c",
+          "sha256": "6e8a8fc3c3dcbfa2082c0d873688ca3ee83e3a76bc7bcce32f9dadc9c05c1559",
+          "description": "InfoObjectClass receiver selected before second class getter. Exact inspected source only; callback and physical Class/Object lifetime executions are not tested."
+        },
+        {
+          "id": "source-window-1-3",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_introspection_target_continuation_source/9.1.0/source-C91-tclOOInfo-535-645.c",
+          "sha256": "01a43fc247f60686c223fb40c1d699a139bdcdbc5543d8af1fc6f5a268122e35",
+          "description": "Isa category then selected receiver; missing original receiver false before secondary getter; later relation uses original receiver. Exact inspected source only; callback and physical Class/Object lifetime executions are not tested."
+        },
+        {
+          "id": "source-window-1-4",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_introspection_target_continuation_source/9.1.0/source-C91-tclOOInfo-659-750.c",
+          "sha256": "dd854687becd729c3fad8701da47b813b2c987c0ca84ab0d8e2ceb3fbc58ef34",
+          "description": "Object Methods receiver precedes reached options/report derivation. Exact inspected source only; callback and physical Class/Object lifetime executions are not tested."
+        },
+        {
+          "id": "source-window-1-5",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_introspection_target_continuation_source/9.1.0/source-C91-tclOOInfo-1003-1060.c",
+          "sha256": "9fbf4e06f1433491b74d47035689130ed5a4416760b5da46f1df6c83d9c63f6d",
+          "description": "Object Vars receiver precedes pattern and instance namespace table. Exact inspected source only; callback and physical Class/Object lifetime executions are not tested."
+        },
+        {
+          "id": "source-window-1-6",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_introspection_target_continuation_source/9.1.0/source-C91-tclOOInfo-1107-1138.c",
+          "sha256": "990d74af15ea251c00665596f02167b232820a2fb5b1173c322c72f4312c3bcf",
+          "description": "Class definition retains selected receiver through original method getter. Exact inspected source only; callback and physical Class/Object lifetime executions are not tested."
+        },
+        {
+          "id": "source-window-1-7",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_introspection_target_continuation_source/9.1.0/source-C91-tclOOInfo-1281-1309.c",
+          "sha256": "d855aeafebb8b22de7ed0fac54194da00458e24e5d88339e5f93afe1d17e2a3f",
+          "description": "Class forward actual original record/prefix report. Exact inspected source only; callback and physical Class/Object lifetime executions are not tested."
+        },
+        {
+          "id": "source-window-1-8",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_introspection_target_continuation_source/9.1.0/source-C91-tclOOInfo-1501-1526.c",
+          "sha256": "7b9e8c4b1bd8eb9c7f617225ce2b52c29841ece124b4597bd1755dfee710510d",
+          "description": "Class methodtype current selected record after original getter. Exact inspected source only; callback and physical Class/Object lifetime executions are not tested."
+        },
+        {
+          "id": "source-window-1-9",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_introspection_target_continuation_source/9.1.0/source-C91-tclOOInfo-1734-1815.c",
+          "sha256": "b67be81bfb0b1951a674a2092e8b12c0b3d2553ffbd6e56167b480fb43d81e0c",
+          "description": "Object and class call reports select receiver before actual original method name. Exact inspected source only; callback and physical Class/Object lifetime executions are not tested."
+        },
+        {
+          "id": "full-source-8.6.18-tclOOInfo",
+          "role": "source-anchor",
+          "path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclOOInfo.c",
+          "sha256": "309603344c3aeebe95832928b473a84ebc001b3d85c8489e15675448035de02b",
+          "description": "Reused complete canonical original source bytes, independently joined by whole SHA and gzip roundtrip where compressed. Reuse supplies no binary/source equivalence, native callback observation or outcome from the other question."
+        },
+        {
+          "id": "source-window-1-10",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_introspection_target_continuation_source/8.6.18/source-C8.6.18-tclOOInfo-394-500.c",
+          "sha256": "05d302d59bca097e27e76a8cb0cebd7d638b08fb6fde80794dadbc09207c9e0f",
+          "description": "Original Isa initial missing receiver skips secondary getter and returns false, separate from live receiver continuation. Exact inspected source only; callback and physical Class/Object lifetime executions are not tested."
+        },
+        {
+          "id": "full-source-9.0.4-tclOOInfo",
+          "role": "source-anchor",
+          "path": "rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclOOInfo.c",
+          "sha256": "a1ed9fa857c89ba0cc5eea5a6f4e3be82783130823d5182c8e4a4abc5073158b",
+          "description": "Reused complete canonical original source bytes, independently joined by whole SHA and gzip roundtrip where compressed. Reuse supplies no binary/source equivalence, native callback observation or outcome from the other question."
+        },
+        {
+          "id": "source-window-1-11",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_introspection_target_continuation_source/9.0.4/source-C9.0.4-tclOOInfo-442-553.c",
+          "sha256": "a443e5f95daf382f1f49df6ace4001c3d6f24f4af1c622a104bffeb25dbb4b4c",
+          "description": "Original Isa initial missing receiver skips secondary getter and returns false, separate from live receiver continuation. Exact inspected source only; callback and physical Class/Object lifetime executions are not tested."
+        },
+        {
+          "id": "full-source-reuse-map",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_introspection_target_continuation_source/full-source-reuse-map.json",
+          "sha256": "ea79dc49c08f3fdc8f7004266bd91052c9b969f99f44bc1055551363fe92d5e6",
+          "description": "Exact independently verified mappings to five complete canonical original sources. No source tree or executable is duplicated and no outcome is transferred from the retaining question."
+        },
+        {
+          "id": "implementation-source-0",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_oo.rs",
+          "sha256": "052368e9d422ac23a7e4f50026defab0f14f9ab08a4c6da888e483d663e4ed5d",
+          "description": "Exact current Class facet or receiver/report continuation and finite software definitions. Only the described source/API target continuity is bound; physical original C pointers, payload/refcount lifetime and matching owned execution are independent."
+        },
+        {
+          "id": "implementation-source-1",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_oo/native_context.rs",
+          "sha256": "b42a96874415df5da27056b5ae25225fd13b4904e70de52e022f0b0f6f1c8e43",
+          "description": "Exact current Class facet or receiver/report continuation and finite software definitions. Only the described source/API target continuity is bound; physical original C pointers, payload/refcount lifetime and matching owned execution are independent."
+        },
+        {
+          "id": "implementation-source-2",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_oo/original_class_facet_tests.rs",
+          "sha256": "cc4ca3f7314230f6002a2d0f1edd15d99a2a7206bedd89d1bb0e590119f17848",
+          "description": "Exact current Class facet or receiver/report continuation and finite software definitions. Only the described source/API target continuity is bound; physical original C pointers, payload/refcount lifetime and matching owned execution are independent."
+        },
+        {
+          "id": "implementation-source-3",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_oo/original_info_target_tests.rs",
+          "sha256": "660773f4d410023d8cdc7c8f71cfb7ddf72f07b07423c48202a8b644e8738f45",
+          "description": "Exact current Class facet or receiver/report continuation and finite software definitions. Only the described source/API target continuity is bound; physical original C pointers, payload/refcount lifetime and matching owned execution are independent."
+        }
+      ],
+      "source_anchors": [
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Original source joined by complete bytes and physical LF extents; source inspection only, without external callback or safe pointer-lifetime execution",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.c",
+          "function": "TclOOAllocClass",
+          "lines": [
+            1890,
+            1932
+          ],
+          "source_sha256": "f2abb0b2ca6fa8cf621f158f209a48ee20ec2a08073d2f2c4af541ddf0babbbd",
+          "snippet": "TclOOAllocClass(\n    Tcl_Interp *interp,\t\t/* Interpreter within which to allocate the\n\t\t\t\t * class. */\n    Object *useThisObj)\t\t/* Object that is to act as the class\n\t\t\t\t * representation. */\n{\n    Foundation *fPtr = GetFoundation(interp);\n    Class *clsPtr = (Class *) Tcl_Alloc(sizeof(Class));\n\n    memset(clsPtr, 0, sizeof(Class));\n    clsPtr->thisPtr = useThisObj;\n\n    /*\n     * Configure the namespace path for the class's object.\n     */\n\n    InitClassPath(interp, clsPtr);\n\n    /*\n     * Classes are subclasses of oo::object, i.e. the objects they create are\n     * objects.\n     */\n\n    clsPtr->superclasses.num = 1;\n    clsPtr->superclasses.list = (Class **) Tcl_Alloc(sizeof(Class *));\n    clsPtr->superclasses.list[0] = fPtr->objectCls;\n    AddRef(fPtr->objectCls->thisPtr);\n\n    /*\n     * Finish connecting the class structure to the object structure.\n     */\n\n    clsPtr->thisPtr->classPtr = clsPtr;\n\n    /*\n     * That's the complicated bit. Now fill in the rest of the non-zero/NULL\n     * fields.\n     */\n\n    Tcl_InitObjHashTable(&clsPtr->classMethods);\n    return clsPtr;\n}\n\f\n",
+          "snippet_sha256": "084cea8ed42b57dc695c80c5d016866897608fd58ecf7ce6284daed12ffd5b68",
+          "evidence": "source-window-0-0"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Original source joined by complete bytes and physical LF extents; source inspection only, without external callback or safe pointer-lifetime execution",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+          "function": "TclOOGetDefineCmdContext / TclOOGetClassDefineCmdContext",
+          "lines": [
+            994,
+            1034
+          ],
+          "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+          "snippet": "TclOOGetDefineCmdContext(\n    Tcl_Interp *interp)\n{\n    Interp *iPtr = (Interp *) interp;\n    Tcl_Object object;\n\n    if ((iPtr->varFramePtr == NULL)\n\t    || (iPtr->varFramePtr->isProcCallFrame != FRAME_IS_OO_DEFINE\n\t    && iPtr->varFramePtr->isProcCallFrame != PRIVATE_FRAME)) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"this command may only be called from within the context of\"\n\t\t\" an ::oo::define or ::oo::objdefine command\",\n\t\tTCL_AUTO_LENGTH));\n\tOO_ERROR(interp, MONKEY_BUSINESS);\n\treturn NULL;\n    }\n    object = (Tcl_Object) iPtr->varFramePtr->clientData;\n    if (Tcl_ObjectDeleted(object)) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"this command cannot be called when the object has been\"\n\t\t\" deleted\", TCL_AUTO_LENGTH));\n\tOO_ERROR(interp, MONKEY_BUSINESS);\n\treturn NULL;\n    }\n    return object;\n}\n\nClass *\nTclOOGetClassDefineCmdContext(\n    Tcl_Interp *interp)\n{\n    Object *oPtr = (Object *) TclOOGetDefineCmdContext(interp);\n    if (oPtr == NULL) {\n\treturn NULL;\n    }\n    if (!oPtr->classPtr) {\n\t(void) ReportAbuse(interp);\n\treturn NULL;\n    }\n    return oPtr->classPtr;\n}\n",
+          "snippet_sha256": "08828e2ee6fffc89d9013e0d991edce3dfd5c9a86334ee6ae07883a1dfca21e3",
+          "evidence": "source-window-0-1"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Original source joined by complete bytes and physical LF extents; source inspection only, without external callback or safe pointer-lifetime execution",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+          "function": "TclOODefineClassObjCmd",
+          "lines": [
+            1704,
+            1803
+          ],
+          "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+          "snippet": "TclOODefineClassObjCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    Object *oPtr;\n    Class *clsPtr;\n    Foundation *fPtr = TclOOGetFoundation(interp);\n\n    /*\n     * Parse the context to get the object to operate on.\n     */\n\n    oPtr = (Object *) TclOOGetDefineCmdContext(interp);\n    if (oPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    if (oPtr->flags & ROOT_OBJECT) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"may not modify the class of the root object class\",\n\t\tTCL_AUTO_LENGTH));\n\tOO_ERROR(interp, MONKEY_BUSINESS);\n\treturn TCL_ERROR;\n    }\n    if (oPtr->flags & ROOT_CLASS) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"may not modify the class of the class of classes\",\n\t\tTCL_AUTO_LENGTH));\n\tOO_ERROR(interp, MONKEY_BUSINESS);\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Parse the argument to get the class to set the object's class to.\n     */\n\n    if (objc != 2) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"className\");\n\treturn TCL_ERROR;\n    }\n    clsPtr = GetClassInOuterContext(interp, objv[1],\n\t    \"the class of an object must be a class\");\n    if (clsPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    if (oPtr == clsPtr->thisPtr) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"may not change classes into an instance of themselves\",\n\t\tTCL_AUTO_LENGTH));\n\tOO_ERROR(interp, MONKEY_BUSINESS);\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Set the object's class.\n     */\n\n    bool wasClass = (oPtr->classPtr != NULL);\n    bool willBeClass = TclOOIsReachable(fPtr->classCls, clsPtr);\n\n    if (oPtr->selfCls != clsPtr) {\n\tTclOORemoveFromInstances(oPtr, oPtr->selfCls);\n\tTclOODecrRefCount(oPtr->selfCls->thisPtr);\n\toPtr->selfCls = clsPtr;\n\tAddRef(oPtr->selfCls->thisPtr);\n\tTclOOAddToInstances(oPtr, oPtr->selfCls);\n\n\t/*\n\t * Create or delete the class guts if necessary.\n\t */\n\n\tif (wasClass && !willBeClass) {\n\t    /*\n\t     * This is the most global of all epochs. Bump it! No cache can be\n\t     * trusted!\n\t     */\n\n\t    TclOORemoveFromMixins(oPtr->classPtr, oPtr);\n\t    oPtr->fPtr->epoch++;\n\t    oPtr->flags |= DONT_DELETE;\n\t    TclOODeleteDescendants(interp, oPtr);\n\t    oPtr->flags &= ~DONT_DELETE;\n\t    TclOOReleaseClassContents(interp, oPtr);\n\t    Tcl_Free(oPtr->classPtr);\n\t    oPtr->classPtr = NULL;\n\t} else if (!wasClass && willBeClass) {\n\t    TclOOAllocClass(interp, oPtr);\n\t}\n\n\tif (oPtr->classPtr != NULL) {\n\t    BumpGlobalEpoch(interp, oPtr->classPtr);\n\t} else {\n\t    BumpInstanceEpoch(oPtr);\n\t}\n    }\n    return TCL_OK;\n}\n\f\n/*\n",
+          "snippet_sha256": "c0929678d493c07d6937005a40661af7669a0fb7b12d9d2ad9c141b6d6b70c70",
+          "evidence": "source-window-0-2"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Original source joined by complete bytes and physical LF extents; source inspection only, without external callback or safe pointer-lifetime execution",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+          "function": "InfoClassDefnNsCmd",
+          "lines": [
+            1152,
+            1188
+          ],
+          "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+          "snippet": "InfoClassDefnNsCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    static const char *const kindList[] = {\n\t\"-class\",\n\t\"-instance\",\n\tNULL\n    };\n    int kind = 0;\n    Tcl_Obj *nsNamePtr;\n    Class *clsPtr;\n\n    if (objc != 2 && objc != 3) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"className ?kind?\");\n\treturn TCL_ERROR;\n    }\n    clsPtr = TclOOGetClassFromObj(interp, objv[1]);\n    if (clsPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    if (objc == 3 && Tcl_GetIndexFromObj(interp, objv[2], kindList, \"kind\", 0,\n\t    &kind) != TCL_OK) {\n\treturn TCL_ERROR;\n    }\n\n    if (kind) {\t\t\t// -instance\n\tnsNamePtr = clsPtr->objDefinitionNs;\n    } else {\t\t\t// -class\n\tnsNamePtr = clsPtr->clsDefinitionNs;\n    }\n    if (nsNamePtr) {\n\tTcl_SetObjResult(interp, nsNamePtr);\n    }\n    return TCL_OK;\n",
+          "snippet_sha256": "f42e00dad422f753fc78450a795d2474510cc0d3245885b44a56be583611c3ca",
+          "evidence": "source-window-0-3"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Original source joined by complete bytes and physical LF extents; source inspection only, without external callback or safe pointer-lifetime execution",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+          "function": "TclOOGetClassFromObj",
+          "lines": [
+            177,
+            201
+          ],
+          "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+          "snippet": "TclOOGetClassFromObj(\n    Tcl_Interp *interp,\n    Tcl_Obj *objPtr)\n{\n    Object *oPtr = (Object *) Tcl_GetObjectFromObj(interp, objPtr);\n\n    if (oPtr == NULL) {\n\treturn NULL;\n    }\n    if (oPtr->classPtr == NULL) {\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\"\\\"%s\\\" is not a class\", TclGetString(objPtr)));\n\tTcl_SetErrorCode(interp, \"TCL\", \"LOOKUP\", \"CLASS\",\n\t\tTclGetString(objPtr), (char *)NULL);\n\treturn NULL;\n    }\n    return oPtr->classPtr;\n}\n\f\n/*\n * ----------------------------------------------------------------------\n *\n * GetClassMethodFromObj --\n *\n *\tHelper for looking up a class-defined method.\n",
+          "snippet_sha256": "23ad962cc23b442e97d179eb173462974790911b5ab8f1916fa1793ef2c4ecc9",
+          "evidence": "source-window-1-0"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Original source joined by complete bytes and physical LF extents; source inspection only, without external callback or safe pointer-lifetime execution",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+          "function": "GetClassMethodFromObj / GetInstanceMethodFromObj",
+          "lines": [
+            202,
+            278
+          ],
+          "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+          "snippet": " *\n * ----------------------------------------------------------------------\n */\nstatic inline Method *\nGetClassMethodFromObj(\n    Tcl_Interp *interp,\n    Class *clsPtr,\n    Tcl_Obj *methodName)\n{\n    Tcl_HashEntry *hPtr = Tcl_FindHashEntry(&clsPtr->classMethods, methodName);\n    Method *mPtr;\n\n    if (hPtr == NULL) {\n\tgoto unknownMethod;\n    }\n    mPtr = (Method *)Tcl_GetHashValue(hPtr);\n    if (mPtr->type2Ptr == NULL) {\n\t/*\n\t * Special entry for visibility control: pretend the method doesnt\n\t * exist.\n\t */\n\n\tgoto unknownMethod;\n    }\n    return mPtr;\n\n  unknownMethod:\n    Tcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t    \"unknown method \\\"%s\\\"\", TclGetString(methodName)));\n    Tcl_SetErrorCode(interp, \"TCL\", \"LOOKUP\", \"METHOD\",\n\t    TclGetString(methodName), (char *)NULL);\n    return NULL;\n}\n\f\n/*\n * ----------------------------------------------------------------------\n *\n * GetInstanceMethodFromObj --\n *\n *\tHelper for looking up an object-instance-defined method.\n *\n * ----------------------------------------------------------------------\n */\nstatic inline Method *\nGetInstanceMethodFromObj(\n    Tcl_Interp *interp,\n    Object *oPtr,\n    Tcl_Obj *methodName)\n{\n    Tcl_HashEntry *hPtr;\n    Method *mPtr;\n\n    if (!oPtr->methodsPtr) {\n\tgoto unknownMethod;\n    }\n    hPtr = Tcl_FindHashEntry(oPtr->methodsPtr, methodName);\n    if (hPtr == NULL) {\n\tgoto unknownMethod;\n    }\n    mPtr = (Method *)Tcl_GetHashValue(hPtr);\n    if (mPtr->type2Ptr == NULL) {\n\t/*\n\t * Special entry for visibility control: pretend the method doesnt\n\t * exist.\n\t */\n\n\tgoto unknownMethod;\n    }\n    return mPtr;\n\n  unknownMethod:\n    Tcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t    \"unknown method \\\"%s\\\"\", TclGetString(methodName)));\n    Tcl_SetErrorCode(interp, \"TCL\", \"LOOKUP\", \"METHOD\",\n\t    TclGetString(methodName), (char *)NULL);\n    return NULL;\n}\n",
+          "snippet_sha256": "3c96471a4782976f740b0ebae9015d05eb0ebe04bdeb25e1172cbd226238ed11",
+          "evidence": "source-window-1-1"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Original source joined by complete bytes and physical LF extents; source inspection only, without external callback or safe pointer-lifetime execution",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+          "function": "InfoObjectClassCmd",
+          "lines": [
+            340,
+            383
+          ],
+          "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+          "snippet": "static int\nInfoObjectClassCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    Object *oPtr;\n\n    if (objc != 2 && objc != 3) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"objName ?className?\");\n\treturn TCL_ERROR;\n    }\n\n    oPtr = (Object *) Tcl_GetObjectFromObj(interp, objv[1]);\n    if (oPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n\n    if (objc == 2) {\n\tTcl_SetObjResult(interp,\n\t\tTclOOObjectName(interp, oPtr->selfCls->thisPtr));\n\treturn TCL_OK;\n    } else {\n\tClass *mixinPtr, *o2clsPtr;\n\tTcl_Size i;\n\n\to2clsPtr = TclOOGetClassFromObj(interp, objv[2]);\n\tif (o2clsPtr == NULL) {\n\t    return TCL_ERROR;\n\t}\n\n\tFOREACH(mixinPtr, oPtr->mixins) {\n\t    if (!mixinPtr) {\n\t\tcontinue;\n\t    }\n\t    if (TclOOIsReachable(o2clsPtr, mixinPtr)) {\n\t\tTcl_SetObjResult(interp, Tcl_NewBooleanObj(1));\n\t\treturn TCL_OK;\n\t    }\n\t}\n\tTcl_SetObjResult(interp, Tcl_NewBooleanObj(\n\t\tTclOOIsReachable(o2clsPtr, oPtr->selfCls)));\n\treturn TCL_OK;\n",
+          "snippet_sha256": "6e8a8fc3c3dcbfa2082c0d873688ca3ee83e3a76bc7bcce32f9dadc9c05c1559",
+          "evidence": "source-window-1-2"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Original source joined by complete bytes and physical LF extents; source inspection only, without external callback or safe pointer-lifetime execution",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+          "function": "InfoObjectIsACmd",
+          "lines": [
+            535,
+            645
+          ],
+          "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+          "snippet": "InfoObjectIsACmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    static const char *const categories[] = {\n\t\"class\", \"metaclass\", \"mixin\", \"object\", \"typeof\", NULL\n    };\n    enum IsACats {\n\tIsClass, IsMetaclass, IsMixin, IsObject, IsType\n    } idx;\n    Object *oPtr, *o2Ptr;\n    int result = 0;\n    Tcl_Size i;\n\n    if (objc < 3) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"category objName ?arg ...?\");\n\treturn TCL_ERROR;\n    }\n    if (Tcl_GetIndexFromObj(interp, objv[1], categories, \"category\", 0,\n\t    &idx) != TCL_OK) {\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Now we know what test we are doing, we can check we've got the right\n     * number of arguments.\n     */\n\n    switch (idx) {\n    case IsObject:\n    case IsClass:\n    case IsMetaclass:\n\tif (objc != 3) {\n\t    Tcl_WrongNumArgs(interp, 2, objv, \"objName\");\n\t    return TCL_ERROR;\n\t}\n\tbreak;\n    case IsMixin:\n    case IsType:\n\tif (objc != 4) {\n\t    Tcl_WrongNumArgs(interp, 2, objv, \"objName className\");\n\t    return TCL_ERROR;\n\t}\n\tbreak;\n    default:\n\tTCL_UNREACHABLE();\n    }\n\n    /*\n     * Perform the check. Note that we can guarantee that we will not fail\n     * from here on; \"failures\" result in a false-TCL_OK result.\n     */\n\n    oPtr = (Object *) Tcl_GetObjectFromObj(interp, objv[2]);\n    if (oPtr == NULL) {\n\tgoto failPrecondition;\n    }\n\n    switch (idx) {\n    case IsObject:\n\tresult = 1;\n\tbreak;\n    case IsClass:\n\tresult = (oPtr->classPtr != NULL);\n\tbreak;\n    case IsMetaclass:\n\tif (oPtr->classPtr != NULL) {\n\t    result = TclOOIsReachable(TclOOGetFoundation(interp)->classCls,\n\t\t    oPtr->classPtr);\n\t}\n\tbreak;\n    case IsMixin:\n\to2Ptr = (Object *) Tcl_GetObjectFromObj(interp, objv[3]);\n\tif (o2Ptr == NULL) {\n\t    goto failPrecondition;\n\t}\n\tif (o2Ptr->classPtr != NULL) {\n\t    Class *mixinPtr;\n\n\t    FOREACH(mixinPtr, oPtr->mixins) {\n\t\tif (!mixinPtr) {\n\t\t    continue;\n\t\t}\n\t\tif (TclOOIsReachable(o2Ptr->classPtr, mixinPtr)) {\n\t\t    result = 1;\n\t\t    break;\n\t\t}\n\t    }\n\t}\n\tbreak;\n    case IsType:\n\to2Ptr = (Object *) Tcl_GetObjectFromObj(interp, objv[3]);\n\tif (o2Ptr == NULL) {\n\t    goto failPrecondition;\n\t}\n\tif (o2Ptr->classPtr != NULL) {\n\t    result = TclOOIsReachable(o2Ptr->classPtr, oPtr->selfCls);\n\t}\n\tbreak;\n    default:\n\tTCL_UNREACHABLE();\n    }\n    Tcl_SetObjResult(interp, Tcl_NewBooleanObj(result));\n    return TCL_OK;\n\n  failPrecondition:\n    Tcl_ResetResult(interp);\n    Tcl_SetObjResult(interp, Tcl_NewBooleanObj(0));\n    return TCL_OK;\n",
+          "snippet_sha256": "01a43fc247f60686c223fb40c1d699a139bdcdbc5543d8af1fc6f5a268122e35",
+          "evidence": "source-window-1-3"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Original source joined by complete bytes and physical LF extents; source inspection only, without external callback or safe pointer-lifetime execution",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+          "function": "InfoObjectMethodsCmd",
+          "lines": [
+            659,
+            750
+          ],
+          "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+          "snippet": "InfoObjectMethodsCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    static const char *const options[] = {\n\t\"-all\", \"-localprivate\", \"-private\", \"-scope\", NULL\n    };\n    enum Options {\n\tOPT_ALL, OPT_LOCALPRIVATE, OPT_PRIVATE, OPT_SCOPE\n    } idx;\n    static const char *const scopes[] = {\n\t\"private\", \"public\", \"unexported\"\n    };\n    enum Scopes {\n\tSCOPE_PRIVATE, SCOPE_PUBLIC, SCOPE_UNEXPORTED,\n\tSCOPE_LOCALPRIVATE,\n\tSCOPE_DEFAULT = -1\n    };\n    Object *oPtr;\n    int flag = PUBLIC_METHOD, scope = SCOPE_DEFAULT;\n    bool recurse = false;\n    FOREACH_HASH_DECLS;\n    Tcl_Obj *namePtr, *resultObj;\n    Method *mPtr;\n\n    /*\n     * Parse arguments.\n     */\n\n    if (objc < 2) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"objName ?-option value ...?\");\n\treturn TCL_ERROR;\n    }\n    oPtr = (Object *) Tcl_GetObjectFromObj(interp, objv[1]);\n    if (oPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    if (objc != 2) {\n\tfor (Tcl_Size i=2 ; i<objc ; i++) {\n\t    if (Tcl_GetIndexFromObj(interp, objv[i], options, \"option\", 0,\n\t\t    &idx) != TCL_OK) {\n\t\treturn TCL_ERROR;\n\t    }\n\t    switch (idx) {\n\t    case OPT_ALL:\n\t\trecurse = true;\n\t\tbreak;\n\t    case OPT_LOCALPRIVATE:\n\t\tflag = PRIVATE_METHOD;\n\t\tbreak;\n\t    case OPT_PRIVATE:\n\t\tflag = 0;\n\t\tbreak;\n\t    case OPT_SCOPE:\n\t\tif (++i >= objc) {\n\t\t    Tcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\t    \"missing option for -scope\"));\n\t\t    Tcl_SetErrorCode(interp, \"TCL\", \"ARGUMENT\", \"MISSING\",\n\t\t\t    (char *)NULL);\n\t\t    return TCL_ERROR;\n\t\t}\n\t\tif (Tcl_GetIndexFromObj(interp, objv[i], scopes, \"scope\", 0,\n\t\t\t&scope) != TCL_OK) {\n\t\t    return TCL_ERROR;\n\t\t}\n\t\tbreak;\n\t    default:\n\t\tTCL_UNREACHABLE();\n\t    }\n\t}\n    }\n    if (scope != SCOPE_DEFAULT) {\n\trecurse = false;\n\tswitch (scope) {\n\tcase SCOPE_PRIVATE:\n\t    flag = TRUE_PRIVATE_METHOD;\n\t    break;\n\tcase SCOPE_PUBLIC:\n\t    flag = PUBLIC_METHOD;\n\t    break;\n\tcase SCOPE_LOCALPRIVATE:\n\t    flag = PRIVATE_METHOD;\n\t    break;\n\tcase SCOPE_UNEXPORTED:\n\t    flag = 0;\n\t    break;\n\t}\n    }\n\n    /*\n",
+          "snippet_sha256": "dd854687becd729c3fad8701da47b813b2c987c0ca84ab0d8e2ceb3fbc58ef34",
+          "evidence": "source-window-1-4"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Original source joined by complete bytes and physical LF extents; source inspection only, without external callback or safe pointer-lifetime execution",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+          "function": "InfoObjectVarsCmd",
+          "lines": [
+            1003,
+            1060
+          ],
+          "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+          "snippet": "InfoObjectVarsCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    Object *oPtr;\n    const char *pattern = NULL;\n    FOREACH_HASH_DECLS;\n    VarInHash *vihPtr;\n    Tcl_Obj *nameObj, *resultObj;\n\n    if (objc != 2 && objc != 3) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"objName ?pattern?\");\n\treturn TCL_ERROR;\n    }\n    oPtr = (Object *) Tcl_GetObjectFromObj(interp, objv[1]);\n    if (oPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    if (objc == 3) {\n\tpattern = TclGetString(objv[2]);\n    }\n    TclNewObj(resultObj);\n\n    /*\n     * Extract the information we need from the object's namespace's table of\n     * variables. Note that this involves horrific knowledge of the guts of\n     * tclVar.c, so we can't leverage our hash-iteration macros properly.\n     */\n\n    FOREACH_HASH_VALUE(vihPtr,\n\t    &((Namespace *) oPtr->namespacePtr)->varTable.table) {\n\tnameObj = vihPtr->entry.key.objPtr;\n\n\tif (TclIsVarUndefined(&vihPtr->var)\n\t\t|| !TclIsVarNamespaceVar(&vihPtr->var)) {\n\t    continue;\n\t}\n\tif (pattern != NULL\n\t\t&& !Tcl_StringMatch(TclGetString(nameObj), pattern)) {\n\t    continue;\n\t}\n\tTcl_ListObjAppendElement(NULL, resultObj, nameObj);\n    }\n\n    Tcl_SetObjResult(interp, resultObj);\n    return TCL_OK;\n}\n\f\n/*\n * ----------------------------------------------------------------------\n *\n * InfoClassConstrCmd --\n *\n *\tImplements [info class constructor $clsName]\n *\n * ----------------------------------------------------------------------\n",
+          "snippet_sha256": "9fbf4e06f1433491b74d47035689130ed5a4416760b5da46f1df6c83d9c63f6d",
+          "evidence": "source-window-1-5"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Original source joined by complete bytes and physical LF extents; source inspection only, without external callback or safe pointer-lifetime execution",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+          "function": "InfoClassDefnCmd",
+          "lines": [
+            1107,
+            1138
+          ],
+          "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+          "snippet": "InfoClassDefnCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    Method *mPtr;\n    Proc *procPtr;\n    Tcl_Obj *resultObjs[2];\n    Class *clsPtr;\n\n    if (objc != 3) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"className methodName\");\n\treturn TCL_ERROR;\n    }\n    clsPtr = TclOOGetClassFromObj(interp, objv[1]);\n    if (clsPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    mPtr = GetClassMethodFromObj(interp, clsPtr, objv[2]);\n    if (mPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    procPtr = GetProcFromMethod(interp, mPtr);\n    if (procPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n\n    resultObjs[0] = DescribeMethodArgs(procPtr);\n    resultObjs[1] = TclOOGetMethodBody(mPtr);\n    Tcl_SetObjResult(interp, Tcl_NewListObj(2, resultObjs));\n    return TCL_OK;\n",
+          "snippet_sha256": "990d74af15ea251c00665596f02167b232820a2fb5b1173c322c72f4312c3bcf",
+          "evidence": "source-window-1-6"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Original source joined by complete bytes and physical LF extents; source inspection only, without external callback or safe pointer-lifetime execution",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+          "function": "InfoClassForwardCmd",
+          "lines": [
+            1281,
+            1309
+          ],
+          "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+          "snippet": "InfoClassForwardCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    Method *mPtr;\n    Tcl_Obj *prefixObj;\n    Class *clsPtr;\n\n    if (objc != 3) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"className methodName\");\n\treturn TCL_ERROR;\n    }\n    clsPtr = TclOOGetClassFromObj(interp, objv[1]);\n    if (clsPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    mPtr = GetClassMethodFromObj(interp, clsPtr, objv[2]);\n    if (mPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    prefixObj = GetForwardFromMethod(interp, mPtr);\n    if (prefixObj == NULL) {\n\treturn TCL_ERROR;\n    }\n\n    Tcl_SetObjResult(interp, prefixObj);\n    return TCL_OK;\n",
+          "snippet_sha256": "d855aeafebb8b22de7ed0fac54194da00458e24e5d88339e5f93afe1d17e2a3f",
+          "evidence": "source-window-1-7"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Original source joined by complete bytes and physical LF extents; source inspection only, without external callback or safe pointer-lifetime execution",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+          "function": "InfoClassMethodTypeCmd",
+          "lines": [
+            1501,
+            1526
+          ],
+          "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+          "snippet": "InfoClassMethodTypeCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    Method *mPtr;\n    Class *clsPtr;\n\n    if (objc != 3) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"className methodName\");\n\treturn TCL_ERROR;\n    }\n    clsPtr = TclOOGetClassFromObj(interp, objv[1]);\n    if (clsPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n\n    mPtr = GetClassMethodFromObj(interp, clsPtr, objv[2]);\n    if (mPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    Tcl_SetObjResult(interp,\n\t    Tcl_NewStringObj(mPtr->type2Ptr->name, TCL_AUTO_LENGTH));\n    return TCL_OK;\n}\n",
+          "snippet_sha256": "7b9e8c4b1bd8eb9c7f617225ce2b52c29841ece124b4597bd1755dfee710510d",
+          "evidence": "source-window-1-8"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Original source joined by complete bytes and physical LF extents; source inspection only, without external callback or safe pointer-lifetime execution",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+          "function": "InfoObjectCallCmd / InfoClassCallCmd",
+          "lines": [
+            1734,
+            1815
+          ],
+          "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+          "snippet": "InfoObjectCallCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    Object *oPtr;\n    CallContext *contextPtr;\n\n    if (objc != 3) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"objName methodName\");\n\treturn TCL_ERROR;\n    }\n    oPtr = (Object *) Tcl_GetObjectFromObj(interp, objv[1]);\n    if (oPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Get the call context and render its call chain.\n     */\n\n    contextPtr = TclOOGetCallContext(oPtr, objv[2], PUBLIC_METHOD, NULL, NULL,\n\t    NULL);\n    if (contextPtr == NULL) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"cannot construct any call chain\", TCL_AUTO_LENGTH));\n\tOO_ERROR(interp, BAD_CALL_CHAIN);\n\treturn TCL_ERROR;\n    }\n    Tcl_SetObjResult(interp,\n\t    TclOORenderCallChain(interp, contextPtr->callPtr));\n    TclOODeleteContext(contextPtr);\n    return TCL_OK;\n}\n\f\n/*\n * ----------------------------------------------------------------------\n *\n * InfoClassCallCmd --\n *\n *\tImplements [info class call $clsName $methodName]\n *\n * ----------------------------------------------------------------------\n */\n\nstatic int\nInfoClassCallCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    Class *clsPtr;\n    CallChain *callPtr;\n\n    if (objc != 3) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"className methodName\");\n\treturn TCL_ERROR;\n    }\n    clsPtr = TclOOGetClassFromObj(interp, objv[1]);\n    if (clsPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Get an render the stereotypical call chain.\n     */\n\n    callPtr = TclOOGetStereotypeCallChain(clsPtr, objv[2], PUBLIC_METHOD);\n    if (callPtr == NULL) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"cannot construct any call chain\", TCL_AUTO_LENGTH));\n\tOO_ERROR(interp, BAD_CALL_CHAIN);\n\treturn TCL_ERROR;\n    }\n    Tcl_SetObjResult(interp, TclOORenderCallChain(interp, callPtr));\n    TclOODeleteChain(callPtr);\n    return TCL_OK;\n}\n\f\n/*\n",
+          "snippet_sha256": "b67be81bfb0b1951a674a2092e8b12c0b3d2553ffbd6e56167b480fb43d81e0c",
+          "evidence": "source-window-1-9"
+        },
+        {
+          "provider": "tcl8.6",
+          "version": "8.6.18",
+          "revision": "Original source joined by complete bytes and physical LF extents; source inspection only, without external callback or safe pointer-lifetime execution",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInfo.c",
+          "function": "InfoObjectIsACmd",
+          "lines": [
+            394,
+            500
+          ],
+          "source_sha256": "309603344c3aeebe95832928b473a84ebc001b3d85c8489e15675448035de02b",
+          "snippet": "InfoObjectIsACmd(\n    ClientData clientData,\n    Tcl_Interp *interp,\n    int objc,\n    Tcl_Obj *const objv[])\n{\n    static const char *const categories[] = {\n\t\"class\", \"metaclass\", \"mixin\", \"object\", \"typeof\", NULL\n    };\n    enum IsACats {\n\tIsClass, IsMetaclass, IsMixin, IsObject, IsType\n    };\n    Object *oPtr, *o2Ptr;\n    int idx, i, result = 0;\n\n    if (objc < 3) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"category objName ?arg ...?\");\n\treturn TCL_ERROR;\n    }\n    if (Tcl_GetIndexFromObj(interp, objv[1], categories, \"category\", 0,\n\t    &idx) != TCL_OK) {\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Now we know what test we are doing, we can check we've got the right\n     * number of arguments.\n     */\n\n    switch ((enum IsACats) idx) {\n    case IsObject:\n    case IsClass:\n    case IsMetaclass:\n\tif (objc != 3) {\n\t    Tcl_WrongNumArgs(interp, 2, objv, \"objName\");\n\t    return TCL_ERROR;\n\t}\n\tbreak;\n    case IsMixin:\n    case IsType:\n\tif (objc != 4) {\n\t    Tcl_WrongNumArgs(interp, 2, objv, \"objName className\");\n\t    return TCL_ERROR;\n\t}\n\tbreak;\n    }\n\n    /*\n     * Perform the check. Note that we can guarantee that we will not fail\n     * from here on; \"failures\" result in a false-TCL_OK result.\n     */\n\n    oPtr = (Object *) Tcl_GetObjectFromObj(interp, objv[2]);\n    if (oPtr == NULL) {\n\tgoto failPrecondition;\n    }\n\n    switch ((enum IsACats) idx) {\n    case IsObject:\n\tresult = 1;\n\tbreak;\n    case IsClass:\n\tresult = (oPtr->classPtr != NULL);\n\tbreak;\n    case IsMetaclass:\n\tif (oPtr->classPtr != NULL) {\n\t    result = TclOOIsReachable(TclOOGetFoundation(interp)->classCls,\n\t\t    oPtr->classPtr);\n\t}\n\tbreak;\n    case IsMixin:\n\to2Ptr = (Object *) Tcl_GetObjectFromObj(interp, objv[3]);\n\tif (o2Ptr == NULL) {\n\t    goto failPrecondition;\n\t}\n\tif (o2Ptr->classPtr != NULL) {\n\t    Class *mixinPtr;\n\n\t    FOREACH(mixinPtr, oPtr->mixins) {\n\t\tif (!mixinPtr) {\n\t\t    continue;\n\t\t}\n\t\tif (TclOOIsReachable(o2Ptr->classPtr, mixinPtr)) {\n\t\t    result = 1;\n\t\t    break;\n\t\t}\n\t    }\n\t}\n\tbreak;\n    case IsType:\n\to2Ptr = (Object *) Tcl_GetObjectFromObj(interp, objv[3]);\n\tif (o2Ptr == NULL) {\n\t    goto failPrecondition;\n\t}\n\tif (o2Ptr->classPtr != NULL) {\n\t    result = TclOOIsReachable(o2Ptr->classPtr, oPtr->selfCls);\n\t}\n\tbreak;\n    }\n    Tcl_SetObjResult(interp, Tcl_NewBooleanObj(result));\n    return TCL_OK;\n\n  failPrecondition:\n    Tcl_ResetResult(interp);\n    Tcl_SetObjResult(interp, Tcl_NewBooleanObj(0));\n    return TCL_OK;\n}\n",
+          "snippet_sha256": "05d302d59bca097e27e76a8cb0cebd7d638b08fb6fde80794dadbc09207c9e0f",
+          "evidence": "source-window-1-10"
+        },
+        {
+          "provider": "tcl9.0",
+          "version": "9.0.4",
+          "revision": "Original source joined by complete bytes and physical LF extents; source inspection only, without external callback or safe pointer-lifetime execution",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c",
+          "function": "InfoObjectIsACmd",
+          "lines": [
+            442,
+            553
+          ],
+          "source_sha256": "a1ed9fa857c89ba0cc5eea5a6f4e3be82783130823d5182c8e4a4abc5073158b",
+          "snippet": "InfoObjectIsACmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\n    int objc,\n    Tcl_Obj *const objv[])\n{\n    static const char *const categories[] = {\n\t\"class\", \"metaclass\", \"mixin\", \"object\", \"typeof\", NULL\n    };\n    enum IsACats {\n\tIsClass, IsMetaclass, IsMixin, IsObject, IsType\n    } idx;\n    Object *oPtr, *o2Ptr;\n    int result = 0;\n    Tcl_Size i;\n\n    if (objc < 3) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"category objName ?arg ...?\");\n\treturn TCL_ERROR;\n    }\n    if (Tcl_GetIndexFromObj(interp, objv[1], categories, \"category\", 0,\n\t    &idx) != TCL_OK) {\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Now we know what test we are doing, we can check we've got the right\n     * number of arguments.\n     */\n\n    switch (idx) {\n    case IsObject:\n    case IsClass:\n    case IsMetaclass:\n\tif (objc != 3) {\n\t    Tcl_WrongNumArgs(interp, 2, objv, \"objName\");\n\t    return TCL_ERROR;\n\t}\n\tbreak;\n    case IsMixin:\n    case IsType:\n\tif (objc != 4) {\n\t    Tcl_WrongNumArgs(interp, 2, objv, \"objName className\");\n\t    return TCL_ERROR;\n\t}\n\tbreak;\n    default:\n\tTCL_UNREACHABLE();\n    }\n\n    /*\n     * Perform the check. Note that we can guarantee that we will not fail\n     * from here on; \"failures\" result in a false-TCL_OK result.\n     */\n\n    oPtr = (Object *) Tcl_GetObjectFromObj(interp, objv[2]);\n    if (oPtr == NULL) {\n\tgoto failPrecondition;\n    }\n\n    switch (idx) {\n    case IsObject:\n\tresult = 1;\n\tbreak;\n    case IsClass:\n\tresult = (oPtr->classPtr != NULL);\n\tbreak;\n    case IsMetaclass:\n\tif (oPtr->classPtr != NULL) {\n\t    result = TclOOIsReachable(TclOOGetFoundation(interp)->classCls,\n\t\t    oPtr->classPtr);\n\t}\n\tbreak;\n    case IsMixin:\n\to2Ptr = (Object *) Tcl_GetObjectFromObj(interp, objv[3]);\n\tif (o2Ptr == NULL) {\n\t    goto failPrecondition;\n\t}\n\tif (o2Ptr->classPtr != NULL) {\n\t    Class *mixinPtr;\n\n\t    FOREACH(mixinPtr, oPtr->mixins) {\n\t\tif (!mixinPtr) {\n\t\t    continue;\n\t\t}\n\t\tif (TclOOIsReachable(o2Ptr->classPtr, mixinPtr)) {\n\t\t    result = 1;\n\t\t    break;\n\t\t}\n\t    }\n\t}\n\tbreak;\n    case IsType:\n\to2Ptr = (Object *) Tcl_GetObjectFromObj(interp, objv[3]);\n\tif (o2Ptr == NULL) {\n\t    goto failPrecondition;\n\t}\n\tif (o2Ptr->classPtr != NULL) {\n\t    result = TclOOIsReachable(o2Ptr->classPtr, oPtr->selfCls);\n\t}\n\tbreak;\n    default:\n\tTCL_UNREACHABLE();\n    }\n    Tcl_SetObjResult(interp, Tcl_NewBooleanObj(result));\n    return TCL_OK;\n\n  failPrecondition:\n    Tcl_ResetResult(interp);\n    Tcl_SetObjResult(interp, Tcl_NewBooleanObj(0));\n    return TCL_OK;\n}\n",
+          "snippet_sha256": "a443e5f95daf382f1f49df6ace4001c3d6f24f4af1c622a104bffeb25dbb4b4c",
+          "evidence": "source-window-1-11"
+        }
+      ],
+      "tests": [
+        {
+          "path": "runtime/rust/src/cmd_oo/original_class_facet_tests.rs",
+          "selector": "cmd_oo::original_class_facet_tests::actual_class_allocation_and_copy_issue_fresh_births_while_observations_share_identity",
+          "status": "linked",
+          "assertion": "Actual Runtime Class allocation and copy issue fresh software births, while shallow observation clones share the same birth. The finite control checks actual root/default/copy producers without claiming original C Class pointer identity or payload lifetime. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/original_class_facet_tests.rs",
+          "selector": "cmd_oo::original_class_facet_tests::demotion_and_promotion_cannot_refresh_an_original_class_facet_continuation",
+          "status": "linked",
+          "assertion": "Genuine demotion and promotion keep the original Object/context but issue a different Class facet birth. A retained weak original facet cannot become the new facet; this is software continuation withdrawal, not an original C callback safety observation. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/original_class_facet_tests.rs",
+          "selector": "cmd_oo::original_class_facet_tests::original_class_reports_check_reached_operands_before_current_facet_access",
+          "status": "linked",
+          "assertion": "Selected Class reports retain the original receiver/facet before kind, method, property-option and pattern getters. Ordinary metadata changes remain allowed, while Host/ABA, Object withdrawal and reborn facets stop later current table/report access. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/original_info_target_tests.rs",
+          "selector": "cmd_oo::original_info_target_tests::shared_method_reports_keep_original_receiver_before_name_getters_and_table_access",
+          "status": "linked",
+          "assertion": "Object and Class forward/definition/methodtype/call reports retain the original receiver before method-name getters and later table derivation. Reached bytes and first refusal remain separate from missing-method presentation or fresh receiver reselection. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/original_info_target_tests.rs",
+          "selector": "cmd_oo::original_info_target_tests::object_reports_refuse_withdrawn_receivers_before_relation_namespace_or_report_derivation",
+          "status": "linked",
+          "assertion": "Object class-membership, methods, variables and property reports preserve original receiver checks after reached later operands. The selected instance namespace is joined to its actual original object and token ledger before access; software destruction/recreation and ordinary mutations remain distinct. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/original_info_target_tests.rs",
+          "selector": "cmd_oo::original_info_target_tests::isa_missing_precondition_leaves_relation_unread_but_selected_receiver_withdrawal_refuses",
+          "status": "linked",
+          "assertion": "Initial missing isa receiver returns false without reading the secondary relation operand, separately from an initially selected live receiver withdrawn during a later getter. The latter preserves reached bytes/first refusal and cannot be repaired by a fresh false or spelling lookup. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant."
+        }
+      ],
+      "owners": [
+        {
+          "path": "runtime/rust/src/cmd_oo.rs",
+          "symbol": "Class",
+          "purpose": "Keep a distinct software Class facet birth for genuine allocation, independent of Object creation and shallow observation clones."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo.rs",
+          "symbol": "oo_copy_cmd",
+          "purpose": "Replace the shallow Class observation birth with a fresh birth before genuine destination insertion."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/native_context.rs",
+          "symbol": "OriginalOoTarget",
+          "purpose": "Retain the exact Object creation and weak Class facet birth across actual report getters; equal display or surviving Object does not authenticate a reborn facet."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/native_context.rs",
+          "symbol": "OriginalOoTarget::check_instance_namespace",
+          "purpose": "Join the selected instance namespace to the original Object and actual namespace-name token ledger before later access; no physical original C namespace recipe is issued."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo.rs",
+          "symbol": "info_class",
+          "purpose": "Retain the selected original Object/Class receiver across the described later getter and current report/table derivation, without Native Method header, pointer-lifetime or callback execution authority."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo.rs",
+          "symbol": "info_object",
+          "purpose": "Retain the selected original Object/Class receiver across the described later getter and current report/table derivation, without Native Method header, pointer-lifetime or callback execution authority."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo.rs",
+          "symbol": "info_forward",
+          "purpose": "Retain the selected original Object/Class receiver across the described later getter and current report/table derivation, without Native Method header, pointer-lifetime or callback execution authority."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo.rs",
+          "symbol": "info_definition",
+          "purpose": "Retain the selected original Object/Class receiver across the described later getter and current report/table derivation, without Native Method header, pointer-lifetime or callback execution authority."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo.rs",
+          "symbol": "info_methodtype",
+          "purpose": "Retain the selected original Object/Class receiver across the described later getter and current report/table derivation, without Native Method header, pointer-lifetime or callback execution authority."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo.rs",
+          "symbol": "info_call",
+          "purpose": "Retain the selected original Object/Class receiver across the described later getter and current report/table derivation, without Native Method header, pointer-lifetime or callback execution authority."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "Only exact source/API inspection and finite software definitions are attached. There is no original callback process or matching owned assertion outcome for this question. Retained Class/Object software identities do not prove safe original C pointer lifetime, payload retention, namespace representation, physical refcounts, dynamic lookup or execution admission."
+      }
     }
   ]
 }

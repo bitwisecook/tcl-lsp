@@ -1,0 +1,134 @@
+[
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+    "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "start": 177,
+    "end": 201,
+    "line_basis": "physical LF bytes",
+    "excerpt": "/tmp/receiver-oo-report-target535/source-C91-tclOOInfo-177-201.c",
+    "excerpt_sha256": "23ad962cc23b442e97d179eb173462974790911b5ab8f1916fa1793ef2c4ecc9",
+    "purpose": "GetClassFromObj object/class precondition roles",
+    "evidence": "source/API inspection; Native callback semantics remain NT"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+    "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "start": 202,
+    "end": 278,
+    "line_basis": "physical LF bytes",
+    "excerpt": "/tmp/receiver-oo-report-target535/source-C91-tclOOInfo-202-278.c",
+    "excerpt_sha256": "3c96471a4782976f740b0ebae9015d05eb0ebe04bdeb25e1172cbd226238ed11",
+    "purpose": "Class/instance method hash lookup over original name",
+    "evidence": "source/API inspection; Native callback semantics remain NT"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+    "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "start": 340,
+    "end": 383,
+    "line_basis": "physical LF bytes",
+    "excerpt": "/tmp/receiver-oo-report-target535/source-C91-tclOOInfo-340-383.c",
+    "excerpt_sha256": "6e8a8fc3c3dcbfa2082c0d873688ca3ee83e3a76bc7bcce32f9dadc9c05c1559",
+    "purpose": "InfoObjectClass receiver selected before second class getter",
+    "evidence": "source/API inspection; Native callback semantics remain NT"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+    "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "start": 535,
+    "end": 645,
+    "line_basis": "physical LF bytes",
+    "excerpt": "/tmp/receiver-oo-report-target535/source-C91-tclOOInfo-535-645.c",
+    "excerpt_sha256": "01a43fc247f60686c223fb40c1d699a139bdcdbc5543d8af1fc6f5a268122e35",
+    "purpose": "Isa category then selected receiver; missing original receiver false before secondary getter; later relation uses original receiver",
+    "evidence": "source/API inspection; Native callback semantics remain NT"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+    "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "start": 659,
+    "end": 750,
+    "line_basis": "physical LF bytes",
+    "excerpt": "/tmp/receiver-oo-report-target535/source-C91-tclOOInfo-659-750.c",
+    "excerpt_sha256": "dd854687becd729c3fad8701da47b813b2c987c0ca84ab0d8e2ceb3fbc58ef34",
+    "purpose": "Object Methods receiver precedes reached options/report derivation",
+    "evidence": "source/API inspection; Native callback semantics remain NT"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+    "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "start": 1003,
+    "end": 1060,
+    "line_basis": "physical LF bytes",
+    "excerpt": "/tmp/receiver-oo-report-target535/source-C91-tclOOInfo-1003-1060.c",
+    "excerpt_sha256": "9fbf4e06f1433491b74d47035689130ed5a4416760b5da46f1df6c83d9c63f6d",
+    "purpose": "Object Vars receiver precedes pattern and instance namespace table",
+    "evidence": "source/API inspection; Native callback semantics remain NT"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+    "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "start": 1107,
+    "end": 1138,
+    "line_basis": "physical LF bytes",
+    "excerpt": "/tmp/receiver-oo-report-target535/source-C91-tclOOInfo-1107-1138.c",
+    "excerpt_sha256": "990d74af15ea251c00665596f02167b232820a2fb5b1173c322c72f4312c3bcf",
+    "purpose": "Class definition retains selected receiver through original method getter",
+    "evidence": "source/API inspection; Native callback semantics remain NT"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+    "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "start": 1281,
+    "end": 1309,
+    "line_basis": "physical LF bytes",
+    "excerpt": "/tmp/receiver-oo-report-target535/source-C91-tclOOInfo-1281-1309.c",
+    "excerpt_sha256": "d855aeafebb8b22de7ed0fac54194da00458e24e5d88339e5f93afe1d17e2a3f",
+    "purpose": "Class forward actual original record/prefix report",
+    "evidence": "source/API inspection; Native callback semantics remain NT"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+    "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "start": 1501,
+    "end": 1526,
+    "line_basis": "physical LF bytes",
+    "excerpt": "/tmp/receiver-oo-report-target535/source-C91-tclOOInfo-1501-1526.c",
+    "excerpt_sha256": "7b9e8c4b1bd8eb9c7f617225ce2b52c29841ece124b4597bd1755dfee710510d",
+    "purpose": "Class methodtype current selected record after original getter",
+    "evidence": "source/API inspection; Native callback semantics remain NT"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c",
+    "source_sha256": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "start": 1734,
+    "end": 1815,
+    "line_basis": "physical LF bytes",
+    "excerpt": "/tmp/receiver-oo-report-target535/source-C91-tclOOInfo-1734-1815.c",
+    "excerpt_sha256": "b67be81bfb0b1951a674a2092e8b12c0b3d2553ffbd6e56167b480fb43d81e0c",
+    "purpose": "Object and class call reports select receiver before actual original method name",
+    "evidence": "source/API inspection; Native callback semantics remain NT"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInfo.c",
+    "source_sha256": "309603344c3aeebe95832928b473a84ebc001b3d85c8489e15675448035de02b",
+    "start": 394,
+    "end": 500,
+    "line_basis": "physical LF bytes",
+    "excerpt": "/tmp/receiver-oo-report-target535/source-C8.6.18-tclOOInfo-394-500.c",
+    "excerpt_sha256": "05d302d59bca097e27e76a8cb0cebd7d638b08fb6fde80794dadbc09207c9e0f",
+    "purpose": "Original Isa initial missing receiver skips secondary getter and returns false, separate from live receiver continuation",
+    "evidence": "source/API inspection; Native callback semantics remain NT"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c",
+    "source_sha256": "a1ed9fa857c89ba0cc5eea5a6f4e3be82783130823d5182c8e4a4abc5073158b",
+    "start": 442,
+    "end": 553,
+    "line_basis": "physical LF bytes",
+    "excerpt": "/tmp/receiver-oo-report-target535/source-C9.0.4-tclOOInfo-442-553.c",
+    "excerpt_sha256": "a443e5f95daf382f1f49df6ace4001c3d6f24f4af1c622a104bffeb25dbb4b4c",
+    "purpose": "Original Isa initial missing receiver skips secondary getter and returns false, separate from live receiver continuation",
+    "evidence": "source/API inspection; Native callback semantics remain NT"
+  }
+]

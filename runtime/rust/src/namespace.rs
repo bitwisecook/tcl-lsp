@@ -2799,8 +2799,12 @@ impl Namespaces {
             return None;
         }
         // The owned binding is returned before its record can be retired;
-        // callers release it outside the namespace RefCell borrow.
-        self.remove_native_binding(entry.namespace, name)
+        // callers release it outside the namespace RefCell borrow. Jim's
+        // Jim_ReplaceHashEntry overwrites only the value of an occupied key,
+        // including a value recreated by the original delete procedure.
+        // The shared replacement worker preserves that key; C removes its
+        // independent entry using the existing selected replacement recipe.
+        self.take_native_binding_for_replacement(entry.namespace, name)
     }
 
     /// Consume the original creation entry after its callbacks have returned.
