@@ -369,7 +369,7 @@ impl<'a> Builder<'a> {
             // trivia to be tiled.
             TokenType::Comment => {
                 self.pending
-                    .push(GreenTrivia::new(TriviaKind::Comment, raw));
+                    .push(GreenTrivia::from_token(TriviaKind::Comment, raw, tok));
                 true
             }
             // A backslash-newline that is a *separator* (between or after
@@ -388,7 +388,7 @@ impl<'a> Builder<'a> {
                     self.word_boundary = Some(region);
                 }
                 self.pending
-                    .push(GreenTrivia::new(TriviaKind::Whitespace, raw));
+                    .push(GreenTrivia::from_token(TriviaKind::Whitespace, raw, tok));
                 true
             }
             TokenType::Eol => {
@@ -401,7 +401,7 @@ impl<'a> Builder<'a> {
 
     /// Close (or skip) a command on an `Eol` terminator.
     fn handle_eol(&mut self, i: usize, raw: &'a str, region: u32) {
-        let eol_triv = GreenTrivia::new(TriviaKind::Eol, raw);
+        let eol_triv = GreenTrivia::from_token(TriviaKind::Eol, raw, self.tokens[i]);
         // The `Eol` supplies the range boundary only when a word ended at
         // it; otherwise the last separator's boundary stands.
         let boundary = self.plan.word_end[i].then_some(region);
