@@ -53,10 +53,11 @@ pub fn command_substitution_tokens(
     let base = site.span.start().checked_add(1)?;
     let map = tcl_lexer::SourceMap::new(inner).with_base(base, 0, 0);
     Some(
-        crate::segmenter::segment_commands_with_offset_and_config(inner, base, config)
+        crate::segmenter::segment_commands_with_offset_and_config(inner, base, config.nested())
             .iter()
             .map(|command| {
-                let mut tokens = crate::ir::CommandTokens::from_segmented(&map, config, command);
+                let mut tokens =
+                    crate::ir::CommandTokens::from_segmented(&map, config.nested(), command);
                 if let Some(parent) = parent {
                     tokens.inherit_nested_bindings(parent);
                 }
@@ -253,7 +254,9 @@ pub fn parse_command_substitution_with_spans_and_config(
     // Offset of `inner`'s first byte within `text`: leading whitespace + `[`.
     let base = leading_ws + 1;
 
-    let tokens = Lexer::with_config(inner, config).tokenise_all().ok()?;
+    let tokens = Lexer::with_config(inner, config.nested())
+        .tokenise_all()
+        .ok()?;
     // One `SourceMap` for the whole scan — `widened_token_text` needs the
     // lexer's content geometry to widen a word over its closing delimiter,
     // and building a map per token would re-index `inner`'s lines each time.
@@ -390,6 +393,60 @@ fn widened_token_text(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_bracket_projection_keeps_body_bom_and_original_child_coordinates() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Genuine original parent/child word geometry; no evaluated child result/admission.
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let source = "puts [\u{feff}unknown argument]";
+        let identities =
+            crate::realm::document_realm_bindings_with_resolved_input(source, &input, None);
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            input.lexer_config(),
+        )
+        .pop()
+        .unwrap();
+        let mut parent = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            input.lexer_config(),
+            &command,
+        );
+        identities
+            .source_bindings_ref()
+            .stamp_original_tokens(&mut parent);
+        let child =
+            command_substitution_tokens(&parent.words()[1], Some(&parent), input.lexer_config())
+                .unwrap();
+        assert_eq!(child.len(), 1);
+        assert_eq!(child[0].argv_texts, ["\u{feff}unknown", "argument"]);
+        assert_eq!(child[0].argv[0].start(), 6);
+        assert_eq!(
+            source.get(child[0].argv[0].as_range()),
+            Some("\u{feff}unknown")
+        );
+        assert_eq!(child[0].nested_bindings, parent.nested_bindings);
+        let site = child[0]
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .invocation_site()
+            .unwrap();
+        assert_eq!(site.offset, 6);
+        assert_eq!(site.source.source_image().bytes(), source.as_bytes());
+        let (head, arguments) = parse_command_substitution_with_spans_and_config(
+            "[\u{feff}unknown argument]",
+            input.lexer_config(),
+        )
+        .unwrap();
+        assert_eq!(head, "\u{feff}unknown");
+        assert_eq!(arguments[0].0, "argument");
+        assert_eq!(arguments[0].1.start(), 12);
+    }
 
     #[test]
     fn pure_var_bare_and_braced() {

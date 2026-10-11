@@ -940,7 +940,7 @@ file; this call falls through to the 'unknown' handler."
         let slice = source_slice(&self.source, stmt_span)?;
         let toks = tcl_lexer::Lexer::with_source_map(
             tcl_lexer::SourceMap::new(&slice),
-            self.lexer_config(),
+            self.file_lexer_config().nested(),
         )
         .tokenise_all()
         .ok()?;
@@ -991,6 +991,7 @@ file; this call falls through to the 'unknown' handler."
             if depth > 4 {
                 return None;
             }
+            let config = config.nested();
             let toks = tcl_lexer::Lexer::with_source_map(tcl_lexer::SourceMap::new(slice), config)
                 .tokenise_all()
                 .ok()?;
@@ -1564,8 +1565,11 @@ file; this call falls through to the 'unknown' handler."
         ir_proc: Option<&crate::ir::Procedure>,
         ctx: &ReadBeforeSetCtx<'_>,
     ) -> HashSet<String> {
-        let exists_guards =
-            collect_existence_guards(fu, self.analysis_context().commands(), self.lexer_config());
+        let exists_guards = collect_existence_guards(
+            fu,
+            self.analysis_context().commands(),
+            fu.source_lexer_config(),
+        );
         let mut w210_min = self.definite_missing_read_spans(fu, ctx, &exists_guards);
         let original_image = tcl_lexer::SourceImage::document(&self.source);
         let declared_flow = ir_proc.and_then(|procedure| {
@@ -4910,7 +4914,7 @@ pub(super) fn body_references_param(
     if param.is_empty() {
         return false;
     }
-    let cmds = crate::segmenter::segment_commands_with_offset_and_config(body, 0, config);
+    let cmds = crate::segmenter::segment_commands_with_offset_and_config(body, 0, config.nested());
     for cmd in &cmds {
         // `namespace eval NS BODY` — the trailing body word evaluates in NS's
         // frame, so exclude it; the NS-name word (e.g. `namespace eval $x …`)
@@ -5668,5 +5672,36 @@ mod original_store_context_tests {
             original_store_metadata(function, tokens, context.commands(), Some(&stale_module))
                 .is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod original_body_parser_config_tests {
+    use super::*;
+
+    #[test]
+    fn original_body_reference_suppression_keeps_bom_in_the_selected_head() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Textual unused-parameter suppression only; no namespace/body execution proof.
+        let config = tcl_lexer::LexerConfig::for_file_grammar(
+            crate::environment_ingress::resolve_environment("tcl9.1").grammar(),
+        );
+        assert!(!body_references_param(
+            "namespace eval NS {puts $parameter}",
+            "parameter",
+            config
+        ));
+        assert!(body_references_param(
+            "\u{feff}namespace eval NS {puts $parameter}",
+            "parameter",
+            config
+        ));
+        assert!(body_references_param(
+            "puts $parameter",
+            "parameter",
+            config
+        ));
+        assert!(!body_references_param("puts $another", "parameter", config));
     }
 }

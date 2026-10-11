@@ -330,7 +330,7 @@ impl Analyser {
                 use std::fmt::Write as _;
                 let _ = write!(message, "; did you mean '{best}'?");
                 if let Some(fix) = subject.as_ref().and_then(|subject| {
-                    original_command_suggestion_fix(subject, best, self.lexer_config())
+                    original_command_suggestion_fix(subject, best, self.file_lexer_config())
                 }) {
                     fixes.push(fix);
                 }
@@ -385,7 +385,7 @@ impl Analyser {
         let offset = invocation.lookup.offset(invocation.range)?;
         if invocation.is_mathfunc_call {
             let image = self.head_identities.original_source_image()?;
-            let config = self.lexer_config();
+            let config = self.file_lexer_config();
             let mut occurrences = self
                 .head_identities
                 .source_bindings_ref()
@@ -415,7 +415,7 @@ impl Analyser {
         let subject = super::super::SourceUnresolvedCommandSubject::from_original_invocation(
             self.head_identities.invocation_at_source("", offset),
             invocation,
-            self.lexer_config(),
+            self.file_lexer_config(),
             self.word_rules(),
             self.declaration_name_policy()?,
         )?;
@@ -1079,5 +1079,64 @@ mod require_ordering_tests {
             .candidates;
         assert!(candidates.iter().any(|name| name == "puts"));
         assert!(!candidates.iter().any(|name| name == "dict"));
+    }
+}
+
+#[cfg(test)]
+mod original_parent_subject_tests {
+    use super::*;
+
+    #[test]
+    fn original_unresolved_subjects_keep_default_and_supplied_file_configuration() {
+        // naming.diagnostic.original-math-function-subject
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-math-function-subject.md
+        // Original diagnostic operands; no runtime absence/dispatch authority.
+        let mut prepared = Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        for supplied in [None, Some(input.clone())] {
+            let mut analyser = supplied.map_or_else(Analyser::new, |input| {
+                Analyser::new().with_resolved_input(input)
+            });
+            let source = "\u{feff}missing_original_command arg\nexpr {missing_original_math()}";
+            analyser.analyse_and_retain_result_for_test(source, "tcl9.1");
+            let registry = analyser.profile_registry();
+            let invocations = &analyser.result.command_invocations;
+            let invocation = invocations
+                .iter()
+                .find(|invocation| invocation.name == "missing_original_command")
+                .expect("actual original command");
+            let subject = analyser
+                .unresolved_source_subject(invocation, &registry)
+                .expect("original command subject");
+            let super::super::super::DiagnosticSubject::UnresolvedCommand(ref original) = subject
+            else {
+                panic!("wrong subject");
+            };
+            assert_eq!(original.reporting_name(), "missing_original_command");
+            let fix =
+                original_command_suggestion_fix(&subject, "puts", analyser.file_lexer_config())
+                    .unwrap();
+            assert_eq!(fix.span, invocation.range);
+            assert_eq!(fix.new_text, "puts");
+            let invocation = invocations
+                .iter()
+                .find(|invocation| {
+                    invocation.is_mathfunc_call && invocation.name.contains("missing_original_math")
+                })
+                .expect("actual original math occurrence");
+            assert!(matches!(
+                analyser.unresolved_source_subject(invocation, &registry),
+                Some(super::super::super::DiagnosticSubject::UnresolvedMathFunction(_))
+            ));
+            // The actual point image cannot be reinterpreted with stale policy.
+            let mut changed = input.clone();
+            changed.config.strict_quoting = !changed.config.strict_quoting;
+            analyser.resolved_input = Some(changed);
+            assert!(
+                analyser
+                    .unresolved_source_subject(invocation, &registry)
+                    .is_none()
+            );
+        }
     }
 }

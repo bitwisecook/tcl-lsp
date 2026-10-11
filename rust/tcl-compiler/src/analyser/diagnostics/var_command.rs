@@ -153,7 +153,7 @@ impl Analyser {
         let input = self
             .head_identities
             .source_bindings_ref()
-            .original_written_name_input_at_span(site.method_span?, self.lexer_config())?;
+            .original_written_name_input_at_span(site.method_span?, self.file_lexer_config())?;
         input
             .policy()
             .recipe()

@@ -442,8 +442,12 @@ impl Analyser {
 
         // Abstain when the swallowed text spans more than one
         // top-level command — see the doc comment above.
-        if crate::segmenter::segment_commands_with_offset_and_config(&text, 0, self.lexer_config())
-            .len()
+        if crate::segmenter::segment_commands_with_offset_and_config(
+            &text,
+            0,
+            self.file_lexer_config().nested(),
+        )
+        .len()
             != 1
         {
             return false;

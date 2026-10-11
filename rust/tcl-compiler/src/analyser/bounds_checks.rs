@@ -1019,7 +1019,7 @@ pub(super) fn any_command_recursive(
     lexer_config: tcl_lexer::LexerConfig,
     pred: &mut impl FnMut(&SegmentedCommand) -> bool,
 ) -> bool {
-    for cmd in segment_commands_with_offset_and_config(script, 0, lexer_config) {
+    for cmd in segment_commands_with_offset_and_config(script, 0, lexer_config.nested()) {
         if pred(&cmd) {
             return true;
         }
@@ -2931,5 +2931,26 @@ mod tests {
         ] {
             assert_verdicts(src, &["W241"]);
         }
+    }
+}
+
+#[cfg(test)]
+mod original_body_parser_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_body_walk_keeps_leading_bom_as_command_content_at_each_depth() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Retained available schema plus lexical body topology, no entered loop/exit.
+        let context = tcl_registry::model::ingress::static_context_for("tcl9.1");
+        let config = tcl_lexer::LexerConfig::for_file_grammar(
+            crate::environment_ingress::resolve_environment("tcl9.1").grammar(),
+        );
+        let metadata = BoundsMetadataContext::Retained(&context);
+        assert!(body_may_exit("break", metadata, config));
+        assert!(!body_may_exit("\u{feff}break", metadata, config));
+        assert!(!body_may_exit("if 1 {\u{feff}break}", metadata, config));
+        assert!(body_may_exit("if 1 {break}", metadata, config));
     }
 }

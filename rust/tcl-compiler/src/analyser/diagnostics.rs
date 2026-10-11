@@ -950,7 +950,7 @@ impl Analyser {
         UndefSuppressionSemantics {
             dialect: Some(context.context().authoring_query()),
             rules: self.word_rules(),
-            lexer_config: self.lexer_config(),
+            lexer_config: self.file_lexer_config(),
             source: &self.source,
             analysis: &self.result,
             module,
@@ -1056,7 +1056,7 @@ impl Analyser {
         let exists_guards = collect_existence_guards(
             function_unit,
             suppression_context.commands(),
-            self.lexer_config(),
+            function_unit.source_lexer_config(),
         );
         let rbs_params: HashSet<&str> = ir_proc
             .map(|p| p.params.iter().map(String::as_str).collect())

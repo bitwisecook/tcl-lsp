@@ -907,7 +907,7 @@ impl Analyser {
                     registry,
                     &self.source,
                     &self.head_identities,
-                    self.lexer_config(),
+                    self.file_lexer_config(),
                     self.analysis_context(),
                 )
             });

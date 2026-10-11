@@ -88,7 +88,7 @@ impl Analyser {
         crate::registry_invocation::InvocationMetadataContext::for_source_input(
             self.registry.as_deref()?,
             input,
-            self.lexer_config(),
+            self.file_lexer_config(),
             self.unit_profile,
         )?;
         let mut parser = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
@@ -505,7 +505,7 @@ Use braces: {{ \u{2026} }}"
                 // and shift the regions back into slice coordinates.
                 let coff = usize::from(tok.content_offset);
                 slice.get(coff..).map_or_else(Vec::new, |content| {
-                    comment_regions_recursive(content, self.lexer_config())
+                    comment_regions_recursive(content, self.file_lexer_config())
                         .into_iter()
                         .map(|r| r.start + coff..r.end + coff)
                         .collect()
@@ -1360,7 +1360,8 @@ fn comment_regions_recursive(
         if !slice.contains('#') {
             return;
         }
-        let Ok(tokens) = tcl_lexer::Lexer::with_config(slice, config).tokenise_all() else {
+        let Ok(tokens) = tcl_lexer::Lexer::with_config(slice, config.nested()).tokenise_all()
+        else {
             return;
         };
         for tok in &tokens {
@@ -1920,6 +1921,49 @@ mod issue996_tests {
 #[cfg(test)]
 mod original_expression_grammar_tests {
     use super::*;
+
+    #[test]
+    fn original_expression_advice_keeps_whole_input_and_body_comment_bom() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Actual parser input and lexical comment geometry; no expression execution grant.
+        let mut prepared = Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        for supplied in [None, Some(input.clone())] {
+            let mut analyser = supplied.map_or_else(Analyser::new, |input| {
+                Analyser::new().with_resolved_input(input)
+            });
+            let source = "\u{feff}expr {$name == \"literal\"}";
+            analyser.analyse_and_retain_result_for_test(source, "tcl9.1");
+            let context = analyser
+                .original_expression_parser_context()
+                .expect("actual whole input");
+            assert_eq!(
+                context.lexer_grammar.braced_var,
+                input.lexer_config().braced_var
+            );
+            assert_eq!(analyser.result.resolved_input.as_ref(), Some(&input));
+            let hints = analyser
+                .result
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code == DiagCode::W110)
+                .collect::<Vec<_>>();
+            assert_eq!(hints.len(), 1);
+            assert_eq!(source.get(hints[0].span.as_range()), Some("=="));
+            let mut changed = input.clone();
+            changed.config.strict_quoting = !changed.config.strict_quoting;
+            analyser.result.resolved_input = Some(changed);
+            assert!(analyser.original_expression_parser_context().is_none());
+            analyser.result.resolved_input = None;
+            assert!(analyser.original_expression_parser_context().is_none());
+        }
+        // The BOM in extracted brace content is a command character, so the
+        // following # is an argument rather than the start of a comment.
+        assert!(comment_regions_recursive("\u{feff}# prose", input.lexer_config()).is_empty());
+        let comments = comment_regions_recursive("# prose\n{# nested}", input.lexer_config());
+        assert_eq!(comments, [0..7, 9..17]);
+    }
 
     #[test]
     fn original_string_comparison_advice_uses_retained_variable_grammar() {
