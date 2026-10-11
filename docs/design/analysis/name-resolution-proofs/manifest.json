@@ -542169,6 +542169,180 @@
           "evidence": "rust-tcl-registry-tests-data-native_oo_operand_stages_original-original-inputs-tmp--receiver-oo-operand-stages-request499--source-inspection--9.1.0--tclOOBasic.c"
         }
       ]
+    },
+    {
+      "id": "naming.editor.logical-written-component-geometry",
+      "kind": "implementation-contract",
+      "document": "docs/design/analysis/name-resolution-proofs/logical-written-component-geometry.md",
+      "problem_statement": "Logical namespace edits and source selection need exact written component positions. Collapsing a separator run loses byte geometry, and recovering namespace versus empty terminal entity meaning from a label loses the actual occurrence purpose. A failed component mapping cannot establish complete edit coverage.",
+      "question": "Which exact original byte extents and selected occurrence purposes does the shared written-component owner retain for Logical namespace selection and edits, and when must component correspondence refuse?",
+      "conclusion": "The shared Rust owner defines nonempty original byte extents, consuming each complete run of at least two colons and retaining lone colons, Unicode and NUL bytes. Logical consumers separately retain Namespace, Entity or configured Variable purpose, so trailing separators and actual braced headers keep their own meaning. Exact written suffix correspondence yields an original extent or an independently established inherited omission; failed correspondence remains terminal and never counts as occurrence coverage. Complete current source, metadata, grammar and edit guards remain required. The four finite software controls are defined but have no attached assertion result; all seven external provider executions are not tested for this question.",
+      "scope": "Current Rust source/API definitions in tcl-syntax and tcl-lsp-core, actual parent module registrations, and four unexecuted software control definitions. Raw byte segmentation is separate from configured variable header selection and positively selected Logical source edit geometry. The direct mapper refuses escaped/computed geometry without an authentic container. Whole original input/configuration/metadata and coverage/hazard checks remain independently required. Authored C/Jim/F5 profiles in model controls are not original provider processes. No Native lookup, namespace lifetime, current command/cell identity, header/cache, body entry, source-to-runtime byte equivalence, applied external edit or measured performance outcome is inferred.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "not tested",
+          "build": "No original external process for this Rust written-component contract",
+          "input_channel": "Current Rust source/API and finite model definitions",
+          "dialect": "tcl8.4",
+          "status": "not-tested",
+          "answer": "The shared written byte geometry and selected Logical occurrence contract are inspected Rust definitions only. No original tcl8.4 execution or provider result is attached.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.5",
+          "version": "not tested",
+          "build": "No original external process for this Rust written-component contract",
+          "input_channel": "Current Rust source/API and finite model definitions",
+          "dialect": "tcl8.5",
+          "status": "not-tested",
+          "answer": "The shared written byte geometry and selected Logical occurrence contract are inspected Rust definitions only. No original tcl8.5 execution or provider result is attached.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.6",
+          "version": "not tested",
+          "build": "No original external process for this Rust written-component contract",
+          "input_channel": "Current Rust source/API and finite model definitions",
+          "dialect": "tcl8.6",
+          "status": "not-tested",
+          "answer": "The shared written byte geometry and selected Logical occurrence contract are inspected Rust definitions only. No original tcl8.6 execution or provider result is attached.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.0",
+          "version": "not tested",
+          "build": "No original external process for this Rust written-component contract",
+          "input_channel": "Current Rust source/API and finite model definitions",
+          "dialect": "tcl9.0",
+          "status": "not-tested",
+          "answer": "The shared written byte geometry and selected Logical occurrence contract are inspected Rust definitions only. No original tcl9.0 execution or provider result is attached.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.1",
+          "version": "not tested",
+          "build": "No original external process for this Rust written-component contract",
+          "input_channel": "Current Rust source/API and finite model definitions",
+          "dialect": "tcl9.1",
+          "status": "not-tested",
+          "answer": "The shared written byte geometry and selected Logical occurrence contract are inspected Rust definitions only. No original tcl9.1 execution or provider result is attached.",
+          "evidence": []
+        },
+        {
+          "id": "jim",
+          "version": "not tested",
+          "build": "No original external process for this Rust written-component contract",
+          "input_channel": "Current Rust source/API and finite model definitions",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "The shared written byte geometry and selected Logical occurrence contract are inspected Rust definitions only. No original jim execution or provider result is attached.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "not tested",
+          "build": "No original external process for this Rust written-component contract",
+          "input_channel": "Current Rust source/API and finite model definitions",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "The shared written byte geometry and selected Logical occurrence contract are inspected Rust definitions only. No original bigip execution or provider result is attached.",
+          "evidence": []
+        }
+      ],
+      "evidence": [
+        {
+          "id": "written-geometry-0",
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "sha256": "af601143313ec01d115f4c2f229269056e421cf18d702e33ce124e3266c95db7",
+          "role": "implementation",
+          "description": "Current exact shared written-component/Logical consumer source or authentic module registration; source contract only, with no compiled assertion or external interpreter credit."
+        },
+        {
+          "id": "written-geometry-1",
+          "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+          "sha256": "f910036e09e51d73d3bba87025fa12762658998e9bc4874c7969374e5c949841",
+          "role": "implementation",
+          "description": "Current exact shared written-component/Logical consumer source or authentic module registration; source contract only, with no compiled assertion or external interpreter credit."
+        },
+        {
+          "id": "written-geometry-2",
+          "path": "rust/tcl-syntax/src/lib.rs",
+          "sha256": "eba20677b3652b80fb4273e1e89aec569d5740cc4d3760fa8d42426988dcab45",
+          "role": "implementation",
+          "description": "Current exact shared written-component/Logical consumer source or authentic module registration; source contract only, with no compiled assertion or external interpreter credit."
+        },
+        {
+          "id": "written-geometry-3",
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "sha256": "f2f4085e01013fd986beeabba9695c35e101aaa9ac0d486aef727d9a48c4bdcf",
+          "role": "implementation",
+          "description": "Current exact shared written-component/Logical consumer source or authentic module registration; source contract only, with no compiled assertion or external interpreter credit."
+        }
+      ],
+      "source_anchors": [],
+      "tests": [
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "selector": "naming::tests::written_component_extents_share_segmentation_and_preserve_original_byte_geometry",
+          "status": "linked",
+          "assertion": "The finite byte-vector control compares the shared component extents with qualifier_segments, including complete separator runs, lone colons, Unicode and NUL bytes. These are software definitions, not external interpreter or editable-container observations."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+          "selector": "namespace_rename::tests::logical_written_namespace_geometry_retains_complete_separator_runs_and_purpose",
+          "status": "linked",
+          "assertion": "Direct Logical mapping keeps namespace/entity/variable purposes distinct, complete separator widths and original Unicode positions. It separates inherited omission from failed correspondence and refuses changed written names and escaped direct geometry."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+          "selector": "namespace_rename::tests::logical_braced_variable_geometry_uses_the_actual_header_span_and_close_rule",
+          "status": "linked",
+          "assertion": "The genuine analyser-produced braced Var span ends before its closer. The selected original braced-variable grammar supplies contained geometry, retaining parentheses and nested versus first-close meaning; malformed or mismatched headers refuse."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+          "selector": "namespace_rename::tests::logical_namespace_rename_maps_source_and_refuses_failed_occurrence_coverage",
+          "status": "linked",
+          "assertion": "The retained Logical analyser/source model defines exact selected replacement extents and keeps failed mappings outside occurrence coverage. Changed source, configuration, occurrence projection and missing original input refuse. Authored C/Jim/F5 model profiles are not external provider executions."
+        }
+      ],
+      "owners": [
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "symbol": "qualifier_component_extents",
+          "purpose": "Define exact nonempty original byte extents using complete runs of at least two colons; a lone colon remains a component byte. No trailing empty entity purpose, constructed-key inversion or source container is issued."
+        },
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "symbol": "qualifier_segments",
+          "purpose": "Collect the same shared extents directly as original byte slices; retain the separately selected trailing-separator purpose at consumers."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+          "symbol": "WrittenNamePurpose",
+          "purpose": "Retain independently issued Logical Namespace, Entity or Variable grammar purpose; a display label cannot supply this role."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+          "symbol": "written_cell_occurrence",
+          "purpose": "Check the selected resolved suffix against the complete original written geometry and selected variable header grammar. Return exact Written, independently established Inherited, or terminal failed correspondence."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+          "symbol": "lexical_namespace_rename_edits",
+          "purpose": "Require positively selected Logical advice and complete current source/metadata/configuration. Failed component mapping never counts as covered occurrence; existing coverage/hazard and source edit guards remain independent."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+          "symbol": "original_namespace_rename_span_at_offset",
+          "purpose": "Retain the independent Native original operand, source container, current component path and checked original literal extent route. Logical geometry grants no authority to this separate route."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "Executed software results require a matching independently successful source producer, actual executable inventory and separately closed selected assertion receipt. The shared written extent query does not establish Native operand/container/edit admission or external provider behavior. No such execution is attached here."
+      }
     }
   ]
 }
