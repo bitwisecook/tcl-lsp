@@ -363,7 +363,7 @@ pub(crate) fn completion_options(
                     )
                 })
             });
-            let working = crate::dict::EnteredNativeDictionary::borrowed_prepared(
+            let mut working = crate::dict::EnteredNativeDictionary::borrowed_prepared(
                 snapshot.original(),
                 strings,
                 scope.currency(),

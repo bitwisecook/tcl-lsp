@@ -1108,7 +1108,7 @@ fn validate_native_list_storage_consumers(root: &Path) -> Result<Vec<String>> {
         ("rust/tcl-vm/src/value.rs", "items.replace_native("),
         (
             "runtime/rust/src/list.rs",
-            "replace_prepared_native_elements(",
+            "replace_prepared_native_elements_using(",
         ),
         (
             "rust/tcl-vm/src/native_list_backing.rs",

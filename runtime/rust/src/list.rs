@@ -49,9 +49,7 @@ struct TclList {
 
 #[path = "list/native_list_storage.rs"]
 mod native_list_storage;
-pub(crate) use native_list_storage::{
-    native_list_command_range, native_list_range, replace_prepared_native_elements,
-};
+pub(crate) use native_list_storage::{native_list_command_range, native_list_range};
 
 struct NativeListElements(
     Vec<*mut TclObj>,

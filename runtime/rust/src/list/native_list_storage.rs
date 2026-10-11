@@ -522,28 +522,6 @@ fn replace_selected_native_storage<E>(
     Ok(version >= TclVersion::V9_0 && !(delete == 0 && first + insert.len() == storage.len()))
 }
 
-/// Replace members on the physically selected header. All original index and
-/// value operands must have been evaluated before this mutation door.
-pub(crate) fn replace_prepared_native_elements(
-    original: *mut TclObj,
-    first: usize,
-    delete: usize,
-    insert: &[*mut TclObj],
-    protocol: NativeStringProtocol,
-    invalidate: bool,
-) -> Result<(), ValueError> {
-    replace_prepared_native_elements_using(
-        original,
-        first,
-        delete,
-        insert,
-        protocol,
-        invalidate,
-        &|| Ok(()),
-        &|error| error,
-    )
-}
-
 pub(super) fn replace_prepared_native_elements_using<E>(
     original: *mut TclObj,
     first: usize,

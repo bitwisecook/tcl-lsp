@@ -744,7 +744,7 @@ impl crate::expr::ExprCtx for CompiledExpressionContext<'_> {
                         original_options,
                     ) {
                         let code = self.interp.refuse_native_execution(first);
-                        return Err(self.error(code));
+                        return Some(Err(self.error(code)));
                     }
                 }
                 Err(self.error(code))

@@ -3059,7 +3059,8 @@ mod tests {
             );
         }
         let context = logical_script_context();
-        let source = "proc selected {value} {}; selected {[inert CHILD]}";
+        // The original declaration suffix remains lexical advice after the actual return.
+        let source = "proc selected {value} {}; return DONE; selected {[inert CHILD]}";
         let (analysis, tokens) = logical_original_tokens(source, &context);
         let input = analysis.resolved_input.as_ref().unwrap();
         let binding = tokens.source_binding.as_ref().unwrap();

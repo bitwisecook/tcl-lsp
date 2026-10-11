@@ -1996,8 +1996,8 @@ mod tests {
         assert_eq!(ok(b"dict filter {a 1 b 2 aa 3} key a*"), b"a 1 aa 3");
         assert_eq!(ok(b"dict filter {a 1 b 2 aa 3} value 2"), b"b 2");
         assert_eq!(ok(b"dict filter {a 1 b 2} key"), b""); // no patterns → empty
-        // The filterType is validated *before* the dict is parsed (was a bug:
-        // a bad dict + bogus type reported the dict error first).
+                                                           // The filterType is validated *before* the dict is parsed (was a bug:
+                                                           // a bad dict + bogus type reported the dict error first).
         let (c, b) = run(b"dict filter {a b c} bogus");
         assert_eq!(c, Code::Error);
         assert_eq!(
@@ -2228,11 +2228,9 @@ include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publi
                 if *engine == "tcl8.4" {
                     assert_eq!(expected_code, 0, "{engine}/{case} native API boundary");
                     assert_eq!(expected_result, b"NOT_APPLICABLE");
-                    assert!(
-                        tcl_registry::InvocationDialect::of_profile(profile)
-                            .native_dictionary_path_publication()
-                            .is_none()
-                    );
+                    assert!(tcl_registry::InvocationDialect::of_profile(profile)
+                        .native_dictionary_path_publication()
+                        .is_none());
                     unsupported += 1;
                     continue;
                 }
@@ -2335,7 +2333,7 @@ mod original_map_option_cleanup_tests {
             assert_eq!(
                 crate::vars::get_at(
                     &interpreter.frames.borrow(),
-                    &interpreter.namespaces.borrow(),
+                    &interpreter.namespaces(),
                     b"::original_map_effect",
                     0
                 ),
