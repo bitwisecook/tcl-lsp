@@ -96,6 +96,12 @@ enum OriginalCommandPublication {
     Refused,
 }
 
+struct OriginalBuiltinPublication {
+    namespace: NsId,
+    tail: Vec<u8>,
+    generation: u64,
+}
+
 struct OriginalProcedurePublication {
     namespace: NsId,
     tail: Vec<u8>,
@@ -2992,22 +2998,43 @@ impl Interp {
 
     /// Only engine installation identifies an actual stock handler token.
     pub(crate) fn register_stock_builtin(&mut self, name: &[u8], f: BuiltinFn) -> u64 {
-        let generation = self.bind_builtin(name, f);
-        if generation == 0 {
-            return 0;
+        self.register_stock_builtin_publication(name, f)
+            .map_or(0, |publication| publication.generation)
+    }
+
+    fn register_stock_builtin_publication(
+        &mut self,
+        name: &[u8],
+        f: BuiltinFn,
+    ) -> Option<OriginalBuiltinPublication> {
+        let publication = self.bind_builtin_publication(name, f)?;
+        self.check_entered_native_operation().ok()?;
+        if !self.original_command_publication_is_current(
+            publication.namespace,
+            &publication.tail,
+            publication.generation,
+        ) {
+            return None;
         }
-        let Some((fqn, _)) = self.raw_command_location_by_generation(generation) else {
-            return 0;
-        };
+        let (fqn, _) = self.raw_command_location_by_generation(publication.generation)?;
         self.registry_builtin_names
             .borrow_mut()
-            .insert(generation, fqn.clone());
-        self.record_scripted_helper_registration(&fqn, generation);
-        generation
+            .insert(publication.generation, fqn.clone());
+        self.record_scripted_helper_registration(&fqn, publication.generation);
+        Some(publication)
     }
 
     /// Bind a builtin through its actual publication owner.
     fn bind_builtin(&mut self, name: &[u8], f: BuiltinFn) -> u64 {
+        self.bind_builtin_publication(name, f)
+            .map_or(0, |publication| publication.generation)
+    }
+
+    fn bind_builtin_publication(
+        &mut self,
+        name: &[u8],
+        f: BuiltinFn,
+    ) -> Option<OriginalBuiltinPublication> {
         let original_key = match self.generated_jim_command_key(
             GLOBAL,
             name,
@@ -3016,12 +3043,12 @@ impl Interp {
             Ok(key) => key,
             Err(error) => {
                 self.report_cmd_error(error.into());
-                return 0;
+                return None;
             }
         };
         let Some((ns, tail)) = self.namespaces_mut().command_publication_at(GLOBAL, name) else {
             let _ = self.refuse_host_command("builtin publication has no actual namespace");
-            return 0;
+            return None;
         };
         let report = self.namespaces().jim_command_table_key_at(
             GLOBAL,
@@ -3037,12 +3064,16 @@ impl Interp {
                 original_key,
             )
         else {
-            return 0;
+            return None;
         };
         if self.host_refusal_pending() {
-            return 0;
+            return None;
         }
-        generation
+        Some(OriginalBuiltinPublication {
+            namespace: ns,
+            tail,
+            generation,
+        })
     }
 
     /// The one writer of the attestation table: attest `identities` for the
@@ -4532,6 +4563,26 @@ impl Interp {
         native: Option<NativeProcEntry>,
         statics: Option<Rc<crate::frame::StaticVariables>>,
     ) -> Option<u64> {
+        self.install_proc_original_storage_publication(
+            name,
+            params,
+            parameters_obj,
+            body_obj,
+            native,
+            statics,
+        )
+        .map(|publication| publication.generation)
+    }
+
+    fn install_proc_original_storage_publication(
+        &mut self,
+        name: &[u8],
+        params: Vec<Param>,
+        parameters_obj: Option<*mut TclObj>,
+        body_obj: *mut TclObj,
+        native: Option<NativeProcEntry>,
+        statics: Option<Rc<crate::frame::StaticVariables>>,
+    ) -> Option<OriginalProcedurePublication> {
         let scope = match native_operation_currency::NativeOperationScope::enter(self) {
             Ok(scope) => scope,
             Err(first) => {
@@ -4551,7 +4602,15 @@ impl Interp {
             self.refuse_native_execution(first);
             return None;
         }
-        reached
+        let publication = reached?;
+        self.check_original_procedure_publication(
+            publication.namespace,
+            &publication.tail,
+            publication.generation,
+            &publication.binding,
+        )
+        .ok()?;
+        Some(publication)
     }
 
     fn install_proc_original_storage_entered(
@@ -4562,7 +4621,7 @@ impl Interp {
         body_obj: *mut TclObj,
         native: Option<NativeProcEntry>,
         statics: Option<Rc<crate::frame::StaticVariables>>,
-    ) -> Option<u64> {
+    ) -> Option<OriginalProcedurePublication> {
         if self.host_refusal_pending() {
             return None;
         }
@@ -4573,7 +4632,7 @@ impl Interp {
                 return None;
             }
         };
-        self.install_proc_chosen_storage(
+        self.install_proc_chosen_storage_publication(
             name,
             params,
             parameters_obj,
@@ -4593,6 +4652,26 @@ impl Interp {
         native: Option<NativeProcEntry>,
         statics: Option<Rc<crate::frame::StaticVariables>>,
     ) -> Option<u64> {
+        self.install_proc_chosen_storage_publication(
+            name,
+            params,
+            parameters_obj,
+            body,
+            native,
+            statics,
+        )
+        .map(|publication| publication.generation)
+    }
+
+    fn install_proc_chosen_storage_publication(
+        &mut self,
+        name: &[u8],
+        params: Vec<Param>,
+        parameters_obj: Option<*mut TclObj>,
+        body: (*mut TclObj, obj::Owned),
+        native: Option<NativeProcEntry>,
+        statics: Option<Rc<crate::frame::StaticVariables>>,
+    ) -> Option<OriginalProcedurePublication> {
         let scope = match native_operation_currency::NativeOperationScope::enter(self) {
             Ok(scope) => scope,
             Err(first) => {
@@ -4612,7 +4691,15 @@ impl Interp {
             self.refuse_native_execution(first);
             return None;
         }
-        reached
+        let publication = reached?;
+        self.check_original_procedure_publication(
+            publication.namespace,
+            &publication.tail,
+            publication.generation,
+            &publication.binding,
+        )
+        .ok()?;
+        Some(publication)
     }
 
     fn install_proc_chosen_storage_entered(
@@ -4623,7 +4710,7 @@ impl Interp {
         body: (*mut TclObj, obj::Owned),
         native: Option<NativeProcEntry>,
         statics: Option<Rc<crate::frame::StaticVariables>>,
-    ) -> Option<u64> {
+    ) -> Option<OriginalProcedurePublication> {
         let original_key = match self.generated_jim_command_key(
             self.current_ns.get(),
             name,
@@ -4635,7 +4722,7 @@ impl Interp {
                 return None;
             }
         };
-        self.install_proc_chosen_storage_with_original_key(
+        self.install_proc_chosen_storage_with_original_key_publication(
             (name, original_key),
             params,
             parameters_obj,
@@ -4656,6 +4743,26 @@ impl Interp {
         native: Option<NativeProcEntry>,
         statics: Option<Rc<crate::frame::StaticVariables>>,
     ) -> Option<u64> {
+        self.install_proc_chosen_storage_with_original_key_publication(
+            name,
+            params,
+            parameters_obj,
+            body,
+            native,
+            statics,
+        )
+        .map(|publication| publication.generation)
+    }
+
+    fn install_proc_chosen_storage_with_original_key_publication(
+        &mut self,
+        name: (&[u8], Option<Rc<obj::Owned>>),
+        params: Vec<Param>,
+        parameters_obj: Option<*mut TclObj>,
+        body: (*mut TclObj, obj::Owned),
+        native: Option<NativeProcEntry>,
+        statics: Option<Rc<crate::frame::StaticVariables>>,
+    ) -> Option<OriginalProcedurePublication> {
         let scope = match native_operation_currency::NativeOperationScope::enter(self) {
             Ok(scope) => scope,
             Err(first) => {
@@ -4685,7 +4792,7 @@ impl Interp {
             &publication.binding,
         )
         .ok()?;
-        Some(publication.generation)
+        Some(publication)
     }
 
     fn install_proc_chosen_storage_with_original_key_entered(

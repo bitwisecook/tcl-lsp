@@ -3337,7 +3337,14 @@ recorded only for an actual stock registration selected by its installed family.
 Stock root and nested ensemble installers consume `create_ensemble`'s actual
 publication generation. The shared publisher checks original currency and the
 same binding after its token/configuration cleanup; refusal supplies no
-receipt and cannot classify a callback-created command at that spelling.
+receipt and cannot classify a callback-created command at that spelling. Private stock helpers carry the
+same original scope through registration preparation and cleanup, check their
+actual fixed-slot publication before metadata, and stop later helper installation
+on refusal. Scripted distribution roots retain the procedure publisher's weak
+original Proc/declaration, namespace slot and generation through caller body
+cleanup. Stock metadata consumes that same receipt; a later spelling lookup
+cannot adopt a callback-created procedure. Existing generation and void
+registration facades delegate to the same publication worker.
 
 Command visibility reads stock identity by generation, including renamed
 primitive and ensemble tokens. Host handlers use their actual binding without a

@@ -18,7 +18,10 @@
 
 //! Actual engine-owned ensemble registrations and worker argument views.
 
-use super::{BuiltinFn, Code, Command, Interp, TclObj, GLOBAL};
+use super::{
+    native_operation_currency::NativeOperationScope, BuiltinFn, Code, Command, Interp, TclObj,
+    GLOBAL,
+};
 use crate::ensemble::EnsembleConfig;
 use std::collections::HashMap;
 use tcl_registry::invocation_words::EnsembleImplementationFamily;
@@ -78,6 +81,13 @@ impl Interp {
         members: &[(&'static [u8], BuiltinFn)],
         admitted: &[&[u8]],
     ) {
+        let scope = match NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return;
+            }
+        };
         let mut installed = InstalledFamily {
             public,
             generation: 0,
@@ -115,6 +125,10 @@ impl Interp {
                     target.extend_from_slice(member);
                 }
                 let _ = self.register_stock_worker(&target, callback, &mut installed);
+                if let Err(first) = scope.currency().ensure_current_or_refuse() {
+                    self.refuse_native_execution(first);
+                    return;
+                }
                 map.push((member.to_vec(), vec![target]));
             }
             let config = EnsembleConfig {
@@ -159,20 +173,33 @@ impl Interp {
         ingress: tcl_registry::native_binary_value::NativeBinaryScriptedIngress,
         callbacks: &[BuiltinFn],
     ) {
+        let scope = match NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return;
+            }
+        };
         let family = EnsembleImplementationFamily::Binary;
         let Some(mut installed) = self.stock_ensembles.borrow_mut().families.remove(&family) else {
             return;
         };
-        if self.resolve_cmd_token(installed.public) == Some(installed.generation)
-            && self.stock_ensemble_config_matches(&installed)
-            && ingress.members.len() == callbacks.len()
-        {
+        let _ = (|| {
+            if self.resolve_cmd_token(installed.public) != Some(installed.generation)
+                || !self.stock_ensemble_config_matches(&installed)
+                || ingress.members.len() != callbacks.len()
+            {
+                return None;
+            }
             let parameters = crate::cmd_proc::parse_params_in(self, ingress.parameters.as_bytes())
                 .expect("audited distribution formal grammar");
             for (name, callback) in ingress.members.iter().zip(callbacks) {
-                if let Some(token) =
-                    self.register_stock_worker(name.as_bytes(), *callback, &mut installed)
-                {
+                let token = self.register_stock_worker(name.as_bytes(), *callback, &mut installed);
+                if let Err(first) = scope.currency().ensure_current_or_refuse() {
+                    self.refuse_native_execution(first);
+                    return None;
+                }
+                if let Some(token) = token {
                     // These helpers belong to the scripted distribution; no
                     // C primitive compiler identity is donated to them.
                     self.native_compilation.borrow_mut().stock.remove(&token);
@@ -182,18 +209,34 @@ impl Interp {
                 }
             }
             let body = crate::obj::Owned::fresh(super::new_string(ingress.body.as_bytes()));
-            self.define_proc_storage(
+            let reached = self.install_proc_original_storage_publication(
                 ingress.name.as_bytes(),
                 parameters,
+                None,
                 body.as_ptr(),
                 None,
                 None,
             );
-            installed.generation = self
-                .resolve_cmd_token(ingress.name.as_bytes())
-                .expect("installed actual distribution procedure");
+            // This is the caller's actual temporary, independent of the Proc's
+            // body role. Its cleanup cannot issue a different publication.
+            drop(body);
+            if let Err(first) = scope.currency().ensure_current_or_refuse() {
+                self.refuse_native_execution(first);
+                return None;
+            }
+            let publication = reached?;
+            self.check_original_procedure_publication(
+                publication.namespace,
+                &publication.tail,
+                publication.generation,
+                &publication.binding,
+            )
+            .ok()?;
+            installed.generation = publication.generation;
             installed.scripted = true;
-        }
+            Some(())
+        })();
+        // Reached installer bookkeeping is mandatory even on refusal.
         self.stock_ensembles
             .borrow_mut()
             .families
@@ -220,15 +263,32 @@ impl Interp {
         callback: BuiltinFn,
         installed: &mut InstalledFamily,
     ) -> Option<u64> {
+        let scope = match NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return None;
+            }
+        };
         // A host or script may already own the private spelling when a host
         // changes release. Its live handler remains the map's actual target.
         if self.resolve_cmd_token(name).is_some() {
             return None;
         }
-        let generation = self.register_stock_builtin(name, callback);
-        if generation == 0 {
+        let publication = self.register_stock_builtin_publication(name, callback);
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            self.refuse_native_execution(first);
             return None;
         }
+        let publication = publication?;
+        if !self.original_command_publication_is_current(
+            publication.namespace,
+            &publication.tail,
+            publication.generation,
+        ) {
+            return None;
+        }
+        let generation = publication.generation;
         self.native_compilation
             .borrow_mut()
             .stock
@@ -257,6 +317,13 @@ impl Interp {
         members: &[(&[u8], BuiltinFn)],
         prefixes: bool,
     ) {
+        let scope = match NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return;
+            }
+        };
         let Some(mut installed) = self.stock_ensembles.borrow_mut().families.remove(&family) else {
             return;
         };
@@ -271,6 +338,14 @@ impl Interp {
                 target.extend_from_slice(b"::");
                 target.extend_from_slice(member);
                 let _ = self.register_stock_worker(&target, worker, &mut installed);
+                if let Err(first) = scope.currency().ensure_current_or_refuse() {
+                    self.refuse_native_execution(first);
+                    self.stock_ensembles
+                        .borrow_mut()
+                        .families
+                        .insert(family, installed);
+                    return;
+                }
                 map.push((member.to_vec(), vec![target]));
             }
             let config = EnsembleConfig {
@@ -1087,3 +1162,6 @@ mod tests {
         assert!(interpreter.ensemble_rewrite().is_none());
     }
 }
+
+#[cfg(test)]
+mod publication_tests;
