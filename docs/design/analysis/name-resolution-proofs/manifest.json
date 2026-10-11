@@ -321986,8 +321986,8 @@
           "id": "authored-compiler-registry633-787dfd2b73c7",
           "role": "implementation",
           "path": "rust/tcl-registry/src/native_numeric_error/command.rs",
-          "sha256": "5a5f92d7a5120523ad1504b6e70debd0b50421b7fee0b7b3fb3b3810894e1d98",
-          "description": "Current actual authored source/API control and genuine module owner, inspected for the attached assertion scope only. This evidence supplies no executable admission, passed assertion, Native callback/worker chronology or provider outcome."
+          "sha256": "f998662eef67311bb4fa54bdc290766f02d77df8e16fa434ac680b751bf35f40",
+          "description": "Command-purpose descriptors independently select actual primitive widths, availability, diagnostics and C/Jim ordering. Read/seek/binary/debug purposes retain their existing recipes; search/sort numeric and stride purposes are independent selected consumers."
         },
         {
           "id": "sourceperf-current633-9bcd627d7624",
@@ -322041,9 +322041,9 @@
         {
           "id": "sourceperf-current633-7d862f0767b6",
           "path": "runtime/rust/src/typed_value.rs",
-          "sha256": "931f8359ce00de9e85e1b7496fe5986935cb3d4672f8733f4a2584ae8aea2140",
+          "sha256": "7aba761b7bd89ed2ab218cd23822ab6913e7aa7e7c5244fb32b6021b5d0486e6",
           "role": "implementation",
-          "description": "Current authored source/API owner and its linked control declarations, inspected only for the bounded described stages. This hash supplies no executable admission, passed assertion, Native chronology or provider observation."
+          "description": "The same scalar/Number and failure-presentation workers carry actual original currency/header and lazy retained Jim Host. Optional entered frame/storage checks also bracket String, failed workers and checked primary adoption; full typed cause precedes Guest projection."
         },
         {
           "id": "sourceperf-current633-c1356ca813b9",
@@ -322069,9 +322069,9 @@
         {
           "id": "sourceperf-current633-e046ecc1ab0e",
           "path": "rust/tcl-vm/src/interp/native_string_stage_tests.rs",
-          "sha256": "5b722634b42f3edb586e9534e6d53c1738564feb5cf073f7ae5b2e4f5a6b43e2",
+          "sha256": "facde9b66586599270974403acfe0828ed05151d63507135a6c94cd8cadd757c",
           "role": "implementation",
-          "description": "Current authored source/API owner and its linked control declarations, inspected only for the bounded described stages. This hash supplies no executable admission, passed assertion, Native chronology or provider observation."
+          "description": "Registered software controls cover actual original numeric/String/full-cause and publication boundaries. Source declarations retain their prior bodies independently from later membership registration and executable outcomes."
         },
         {
           "id": "sourceperf-current633-0fb57b7be02c",
@@ -322233,6 +322233,41 @@
           "path": "rust/tcl-vm/src/interp/oo_cleanup.rs",
           "sha256": "45df292d416218d2540d4377a81ca27fccb432bc9336d66cd159b87543d87b97",
           "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
+        },
+        {
+          "id": "original-encoding-owner-8bc5a15bd80b",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_encoding_source.rs",
+          "sha256": "930d7dc4648eda027132ab26e4f8528e1919b8885f1df7aa853ee92bbd2df86f",
+          "description": "OriginalArguments retain actual command currency and reached operand headers across catalogue and source stages. Typed failure is latched before mandatory close."
+        },
+        {
+          "id": "original-encoding-owner-5df1d6a30071",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_encoding_source/tests.rs",
+          "sha256": "22684b4ff81a77b6f19c5e2d1249acc6213a0b21541a5bed8a50c5dc57521590",
+          "description": "Registered source/software controls cover byte-name resolution, captured defaults, stage order and typed callback refusal. Executable admission and assertion results remain separate from these declarations and external Native observations."
+        },
+        {
+          "id": "original-encoding-owner-3ea64916c589",
+          "role": "implementation",
+          "path": "rust/tcl-cmd-core/src/encoding/original_names.rs",
+          "sha256": "ba4a0f01d7367660cce90007243c09ce44f4cf073b18f65686b6cd8a3fa5ad4f",
+          "description": "Byte encoding-name resolution keeps exact C-string extent and reset/channel purposes separate. The source coordinator orders original String, open, lookup, read and same-handle close, retaining full typed failure before cleanup. Selected filename conversion consumes the actual reached mutable system encoding; original source labels and backend/reporting byte extents remain distinct."
+        },
+        {
+          "id": "original-encoding-owner-3622975b48c3",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/command/native_encoding_source.rs",
+          "sha256": "521bc00029729c055b2153539078dc89aca3824328a20efde56d5ee7fba43996",
+          "description": "Actual Name/header ownership surrounds encoding catalogue and source stages. Typed refusal is retained before mandatory handle cleanup and original package/frame completion settlement."
+        },
+        {
+          "id": "original-encoding-owner-03a384feb151",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/command/native_encoding_source/tests.rs",
+          "sha256": "d926a79cec5b25c30c330df8d9c7474bbd2b94441145f5f780a67f9cfd6364dd",
+          "description": "Registered source/software controls cover byte-name resolution, captured defaults, stage order and typed callback refusal. Executable admission and assertion results remain separate from these declarations and external Native observations."
         }
       ],
       "source_anchors": [],
@@ -322731,6 +322766,26 @@
           "path": "rust/tcl-vm/src/interp/native_numeric_ops.rs",
           "symbol": "OriginalNumericOps::retain_failure",
           "purpose": "The existing unconditional first-cause latch is shared by genuine same-Vm consumers before mandatory cleanup; refused original currency is not replaced by a new scope or Guest reconstruction."
+        },
+        {
+          "path": "rust/tcl-cmd-core/src/encoding/original_names.rs",
+          "symbol": "prepare_source_file",
+          "purpose": "Retain the full typed stage refusal before mandatory same-handle close and check original currentness before later source work."
+        },
+        {
+          "path": "rust/tcl-vm/src/command/native_encoding_source.rs",
+          "symbol": "lookup",
+          "purpose": "Check the original Name and reached header around actual catalogue acquisition and callback, preserving full Host cause before Guest lookup presentation."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_encoding_source.rs",
+          "symbol": "SourceOps::retain_failure",
+          "purpose": "Latch the original typed stage cause before reached file cleanup; a later callback cannot replace it."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_encoding_source.rs",
+          "symbol": "SourceOps::check",
+          "purpose": "Check original argv currency and every reached operand header on both stage outcomes before continuation."
         }
       ],
       "tests": [
@@ -326597,6 +326652,36 @@
           "selector": "cmd_oo::native_properties::original_copy_boundary_tests::original_property_table_copy_checks_retirement_after_member_getter_before_query",
           "status": "linked",
           "assertion": "Original property table copy checks retirement after member getter before query. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose."
+        },
+        {
+          "path": "rust/tcl-vm/src/command/native_encoding_source/tests.rs",
+          "selector": "command::native_encoding_source::tests::original_catalogue_callback_header_withdrawal_preserves_first_host_before_guest",
+          "status": "linked",
+          "assertion": "A supplied catalogue callback can withdraw the original header; retain that exact first Host cause, prevent system mutation and suppress later observers under the still-active original scope."
+        },
+        {
+          "path": "rust/tcl-vm/src/command/native_encoding_source/tests.rs",
+          "selector": "command::native_encoding_source::tests::original_absent_catalogue_refuses_without_unknown_guest_or_system_mutation",
+          "status": "linked",
+          "assertion": "Unavailable actual catalogue capability remains a typed Host refusal and prevents a fabricated unknown-encoding Guest result or system mutation."
+        },
+        {
+          "path": "rust/tcl-vm/src/command/native_encoding_source/tests.rs",
+          "selector": "command::native_encoding_source::tests::original_opened_file_configures_before_read_and_closes_on_failure",
+          "status": "linked",
+          "assertion": "Keep the original opened handle through configure/read/close: lookup failure suppresses read, and reached file failure still closes the same handle."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_encoding_source/tests.rs",
+          "selector": "interp::native_encoding_source::tests::original_system_reset_and_catalogue_callback_keep_original_currency",
+          "status": "linked",
+          "assertion": "Restore the independently captured encoding default and retain the exact original currency refusal after a supplied catalogue callback changes and restores interpreter context."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_encoding_source/tests.rs",
+          "selector": "interp::native_encoding_source::tests::original_unknown_io_refusal_is_retained_before_mandatory_close_callback",
+          "status": "linked",
+          "assertion": "Latch the full unavailable filesystem-errno cause before the mandatory close callback changes interpreter context; cleanup cannot replace the earlier typed refusal."
         }
       ],
       "replay": {
@@ -572075,8 +572160,8 @@
           "id": "authored-compiler-registry633-787dfd2b73c7",
           "role": "implementation",
           "path": "rust/tcl-registry/src/native_numeric_error/command.rs",
-          "sha256": "5a5f92d7a5120523ad1504b6e70debd0b50421b7fee0b7b3fb3b3810894e1d98",
-          "description": "Current actual authored source/API control and genuine module owner, inspected for the attached assertion scope only. This evidence supplies no executable admission, passed assertion, Native callback/worker chronology or provider outcome."
+          "sha256": "f998662eef67311bb4fa54bdc290766f02d77df8e16fa434ac680b751bf35f40",
+          "description": "Command-purpose descriptors independently select actual primitive widths, availability, diagnostics and C/Jim ordering. Read/seek/binary/debug purposes retain their existing recipes; search/sort numeric and stride purposes are independent selected consumers."
         },
         {
           "id": "sourceperf-current633-a24276d3c8e0",
@@ -572095,9 +572180,9 @@
         {
           "id": "sourceperf-current633-787dfd2b73c7",
           "path": "rust/tcl-registry/src/native_numeric_error/command.rs",
-          "sha256": "5a5f92d7a5120523ad1504b6e70debd0b50421b7fee0b7b3fb3b3810894e1d98",
+          "sha256": "f998662eef67311bb4fa54bdc290766f02d77df8e16fa434ac680b751bf35f40",
           "role": "implementation",
-          "description": "Current authored source/API owner and its linked control declarations, inspected only for the bounded described stages. This hash supplies no executable admission, passed assertion, Native chronology or provider observation."
+          "description": "Command-purpose descriptors independently select actual primitive widths, availability, diagnostics and C/Jim ordering. Read/seek/binary/debug purposes retain their existing recipes; search/sort numeric and stride purposes are independent selected consumers."
         },
         {
           "id": "sourceperf-current633-473748ec0f4b",
@@ -572116,9 +572201,9 @@
         {
           "id": "sourceperf-current633-e046ecc1ab0e",
           "path": "rust/tcl-vm/src/interp/native_string_stage_tests.rs",
-          "sha256": "5b722634b42f3edb586e9534e6d53c1738564feb5cf073f7ae5b2e4f5a6b43e2",
+          "sha256": "facde9b66586599270974403acfe0828ed05151d63507135a6c94cd8cadd757c",
           "role": "implementation",
-          "description": "Current authored source/API owner and its linked control declarations, inspected only for the bounded described stages. This hash supplies no executable admission, passed assertion, Native chronology or provider observation."
+          "description": "Registered software controls cover actual original numeric/String/full-cause and publication boundaries. Source declarations retain their prior bodies independently from later membership registration and executable outcomes."
         }
       ],
       "source_anchors": [],
@@ -576688,8 +576773,117 @@
           "input_channel": "No original BIG-IP input was executed."
         }
       ],
-      "tests": [],
-      "owners": [],
+      "tests": [
+        {
+          "path": "rust/tcl-cmd-core/src/encoding/original_names/tests.rs",
+          "selector": "encoding::original_names::tests::original_byte_names_keep_c_extent_raw_diagnostics_and_actual_reset_default",
+          "status": "linked",
+          "assertion": "Resolve the original encoding-name C-string extent, preserve invalid/case/modified-zero bytes in selected diagnostics, and restore the supplied reset default without a catalogue query."
+        },
+        {
+          "path": "rust/tcl-cmd-core/src/encoding/original_names/tests.rs",
+          "selector": "encoding::original_names::tests::original_channel_pseudo_encodings_stay_distinct_from_system_reset_and_catalogue_absence",
+          "status": "linked",
+          "assertion": "Keep channel empty/binary handling separate from system reset, and distinguish unavailable catalogue knowledge from a genuine missing-name diagnostic."
+        },
+        {
+          "path": "rust/tcl-cmd-core/src/encoding/original_names/tests.rs",
+          "selector": "encoding::original_names::tests::original_source_stage_failure_stops_before_later_lookup_or_backend",
+          "status": "linked",
+          "assertion": "Check the original String and open stage on both outcomes; an earlier getter, file or currentness failure prevents later catalogue or backend work."
+        },
+        {
+          "path": "rust/tcl-vm/src/command/native_encoding_source/tests.rs",
+          "selector": "command::native_encoding_source::tests::original_system_names_keep_resident_bytes_zero_queries_and_captured_default",
+          "status": "linked",
+          "assertion": "Use resident original names without Host catalogue queries for supported encodings/reset, and retain exact unknown bytes plus the previously captured default."
+        },
+        {
+          "path": "rust/tcl-vm/src/command/native_encoding_source/tests.rs",
+          "selector": "command::native_encoding_source::tests::original_source_opens_before_lookup_and_consumes_selected_encoding",
+          "status": "linked",
+          "assertion": "Consume the supplied encoding when reading the script and preserve missing-file precedence before a reached encoding lookup."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_encoding_source/tests.rs",
+          "selector": "interp::native_encoding_source::tests::original_source_argument_encoding_is_consumed_and_missing_file_precedes_lookup",
+          "status": "linked",
+          "assertion": "The actual Runtime argv owner supplies the selected encoding to source conversion; a missing file reports ENOENT before an encoding catalogue query."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_encoding_source/tests.rs",
+          "selector": "interp::native_encoding_source::tests::original_system_reset_and_catalogue_callback_keep_original_currency",
+          "status": "linked",
+          "assertion": "Restore the independently captured encoding default and retain the exact original currency refusal after a supplied catalogue callback changes and restores interpreter context."
+        }
+      ],
+      "owners": [
+        {
+          "path": "rust/tcl-cmd-core/src/encoding/original_names.rs",
+          "symbol": "resolve_original_encoding_name",
+          "purpose": "Resolve only the original encoding-name C-string extent, with selected C diagnostics, independent reset/channel purpose and an actual catalogue capability for names beyond the implemented codec subset."
+        },
+        {
+          "path": "rust/tcl-cmd-core/src/encoding/original_names.rs",
+          "symbol": "prepare_source_file",
+          "purpose": "Coordinate original operand String, file open, encoding selection, read and same-handle close. Check each stage on success and failure; evaluation and the independently selected filesystem filename facts retain their own purposes."
+        },
+        {
+          "path": "rust/tcl-registry/src/native_encoding.rs",
+          "symbol": "InvocationDialect::native_encoding_name_protocol",
+          "purpose": "Select actual C encoding-name presentation independently of original object authority; Jim encoding-command absence stays explicit."
+        },
+        {
+          "path": "rust/tcl-registry/src/native_encoding.rs",
+          "symbol": "InvocationDialect::native_source_file_protocol",
+          "purpose": "Select actual source default and explicit grammar purpose without issuing file, String or catalogue authority."
+        },
+        {
+          "path": "rust/tcl-platform/src/lib.rs",
+          "symbol": "EncodingCatalogue",
+          "purpose": "Supply actual byte-name lookup capability; a known miss and unavailable knowledge remain different results."
+        },
+        {
+          "path": "rust/tcl-platform/src/lib.rs",
+          "symbol": "SourceFile",
+          "purpose": "Retain one actually opened handle for the separate read and mandatory close stages."
+        },
+        {
+          "path": "rust/tcl-host-native/src/lib.rs",
+          "symbol": "NativeFs::open_source_bytes",
+          "purpose": "Open the actual original byte path before reading and retain the owned file handle for source configuration, read and close."
+        },
+        {
+          "path": "runtime/rust/src/mem_fs.rs",
+          "symbol": "MemFs::open_source_bytes",
+          "purpose": "Capture the current VFS file backing at open and expose read separately, preserving that handle through cleanup."
+        },
+        {
+          "path": "rust/tcl-vm/src/command/native_encoding_source.rs",
+          "symbol": "set_system",
+          "purpose": "Resolve original system encoding bytes under the actual Name scope and header, capturing reset default independently of mutable current encoding."
+        },
+        {
+          "path": "rust/tcl-vm/src/command/native_encoding_source.rs",
+          "symbol": "source",
+          "purpose": "Retain original Name operation, selected source operands, package/frame effects and full completion through shared file staging."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_encoding_source.rs",
+          "symbol": "lookup",
+          "purpose": "Resolve actual argv encoding-name bytes using their original header/currency and supplied Host catalogue."
+        },
+        {
+          "path": "runtime/rust/src/cmd_fs.rs",
+          "symbol": "source_cmd",
+          "purpose": "Retain original command scope and argv through selected source encoding, file stages and evaluation."
+        },
+        {
+          "path": "runtime/rust/src/cmd_misc.rs",
+          "symbol": "encoding_cmd",
+          "purpose": "Retain original command scope and argv through system encoding lookup and mutation."
+        }
+      ],
       "replay": {
         "command": [
           "python3",
@@ -577845,6 +578039,90 @@
           "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/same-library-version/execute.stdout",
           "sha256": "d7ce62ac8c979a247ad4edf0a43c9133dc8b547cdfc8e5b540fccd9bbe848166",
           "description": "Actual linked-library version output."
+        },
+        {
+          "id": "original-encoding-owner-0aa1365fb58f",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_fs.rs",
+          "sha256": "33faf227680d04b17dfd1f8c9772d601ed9e877478dd1db32a38da0bf233e20c",
+          "description": "Source dispatch retains its original operation and argv, consumes selected encoding and hands the staged decoded script to the existing package/frame evaluator."
+        },
+        {
+          "id": "original-encoding-owner-f6af840f54d9",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_misc.rs",
+          "sha256": "7606c8ba1a20a667b7c5efee4c4aab88c697e9fa4ddf3bf9a12b0260c2c4c516",
+          "description": "System encoding dispatch retains original scope and argv and distinguishes captured Host reset default from current encoding state."
+        },
+        {
+          "id": "original-encoding-owner-8bc5a15bd80b",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_encoding_source.rs",
+          "sha256": "930d7dc4648eda027132ab26e4f8528e1919b8885f1df7aa853ee92bbd2df86f",
+          "description": "OriginalArguments retain actual command currency and reached operand headers across catalogue and source stages. Typed failure is latched before mandatory close."
+        },
+        {
+          "id": "original-encoding-owner-5df1d6a30071",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_encoding_source/tests.rs",
+          "sha256": "22684b4ff81a77b6f19c5e2d1249acc6213a0b21541a5bed8a50c5dc57521590",
+          "description": "Registered source/software controls cover byte-name resolution, captured defaults, stage order and typed callback refusal. Executable admission and assertion results remain separate from these declarations and external Native observations."
+        },
+        {
+          "id": "original-encoding-owner-ee5866eb784a",
+          "role": "implementation",
+          "path": "runtime/rust/src/mem_fs.rs",
+          "sha256": "662a096d00f6fe7a14fe0787bde814d7d04e106f5142ffbd1c5e104858a7a990",
+          "description": "The VFS captures the actual immutable file backing at open and exposes a later read from that same backing."
+        },
+        {
+          "id": "original-encoding-owner-3ea64916c589",
+          "role": "implementation",
+          "path": "rust/tcl-cmd-core/src/encoding/original_names.rs",
+          "sha256": "ba4a0f01d7367660cce90007243c09ce44f4cf073b18f65686b6cd8a3fa5ad4f",
+          "description": "Byte encoding-name resolution keeps exact C-string extent and reset/channel purposes separate. The source coordinator orders original String, open, lookup, read and same-handle close, retaining full typed failure before cleanup. Selected filename conversion consumes the actual reached mutable system encoding; original source labels and backend/reporting byte extents remain distinct."
+        },
+        {
+          "id": "original-encoding-owner-195e5af98323",
+          "role": "implementation",
+          "path": "rust/tcl-cmd-core/src/encoding/original_names/tests.rs",
+          "sha256": "3ec19e0baf511c4ae882cae2aab07bbc8baec504a54eb4efbd92de788ae87dd7",
+          "description": "Registered source/software controls cover byte-name resolution, captured defaults, stage order and typed callback refusal. Executable admission and assertion results remain separate from these declarations and external Native observations."
+        },
+        {
+          "id": "original-encoding-owner-4e420eb7a229",
+          "role": "implementation",
+          "path": "rust/tcl-host-native/src/lib.rs",
+          "sha256": "ca255a3b7d43f74cfe5ecae08c1f3f100309094ff2b87747101346695744799a",
+          "description": "The native filesystem opens an owned original-path file handle before source configuration and exposes its later read independently."
+        },
+        {
+          "id": "original-encoding-owner-4065d34b637e",
+          "role": "implementation",
+          "path": "rust/tcl-platform/src/lib.rs",
+          "sha256": "0a371c35d83bc12de2f3cdf07928d446d5e381d7d7b7e32f3da9be75badf9805",
+          "description": "Encoding catalogue capability distinguishes supported names, actual misses and unavailable knowledge. Owned source files expose separate open, read and close stages; whole-file readers do not implicitly supply that capability."
+        },
+        {
+          "id": "original-encoding-owner-d84da7f12271",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/native_encoding.rs",
+          "sha256": "28b49bd59c5755f8a44d6c1185ba22e2702934de89afe4507102aff38b873d0e",
+          "description": "Actual invocation dialect selects C encoding lookup and C/Jim source defaults independently of original object, file or catalogue authority."
+        },
+        {
+          "id": "original-encoding-owner-3622975b48c3",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/command/native_encoding_source.rs",
+          "sha256": "521bc00029729c055b2153539078dc89aca3824328a20efde56d5ee7fba43996",
+          "description": "Actual Name/header ownership surrounds encoding catalogue and source stages. Typed refusal is retained before mandatory handle cleanup and original package/frame completion settlement."
+        },
+        {
+          "id": "original-encoding-owner-03a384feb151",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/command/native_encoding_source/tests.rs",
+          "sha256": "d926a79cec5b25c30c330df8d9c7474bbd2b94441145f5f780a67f9cfd6364dd",
+          "description": "Registered source/software controls cover byte-name resolution, captured defaults, stage order and typed callback refusal. Executable admission and assertion results remain separate from these declarations and external Native observations."
         }
       ],
       "source_anchors": [
