@@ -10752,47 +10752,82 @@ impl Interp {
         original: *mut TclObj,
     ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
         let scope = native_operation_currency::NativeOperationScope::enter(self)?;
-        obj::check_native_liveness(original)
-            .map_err(|error| self.refuse_completion_value_access(error))?;
-        let lifetime = obj::NativeObjectLifetime::retain(original);
-        scope.currency().ensure_current_or_refuse()?;
-        if self.uses_c84_global_error_info() {
-            self.publish_original_c84_error_code(original);
-        } else if self
-            .native_invocation_dialect()
-            .native_error_variable_protocol()
-            .is_some()
-        {
-            self.retire_native_error_object_checked(
-                scope.currency(),
-                tcl_registry::special_vars::NativeErrorStorageVariable::ErrorCode,
-                native_error_variables::NativeErrorObjectRetirementPurpose::OriginalSetter,
-            )?;
-            scope.currency().ensure_current_or_refuse()?;
-            obj::check_native_liveness(original)
-                .map_err(|error| self.refuse_completion_value_access(error))?;
-            let reentered = self
-                .exc
-                .borrow_mut()
-                .native
-                .code
-                .replace(obj::Owned::retain(original));
-            drop(reentered);
-        } else {
-            return Err(
-                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
-                    "original C error-code setter",
-                )
-                .into(),
-            );
-        }
-        scope.currency().ensure_current_or_refuse()?;
-        obj::check_native_liveness(lifetime.as_ptr())
-            .map_err(|error| self.refuse_completion_value_access(error))?;
-        drop(lifetime);
+        let actual = self.clone();
+        self.set_original_c_error_code_using(
+            scope.currency(),
+            original,
+            &|| Ok(()),
+            &|error| actual.clone().refuse_completion_value_access(error),
+            &|error| {
+                actual.clone().refuse_native_execution(error.clone());
+                error
+            },
+        )?;
         scope.currency().ensure_current_or_refuse()?;
         self.c_api_errors.set(self.c_api_errors.get() + 1);
         Ok(())
+    }
+
+    /// The same selected old-code retirement and incoming native role stages.
+    /// A compiled caller supplies its original frame/pair receipt; only the
+    /// public C API wrapper increments its software error-call counter.
+    pub(super) fn set_original_c_error_code_using<E>(
+        &mut self,
+        currency: &native_operation_currency::NativeOperationCurrency,
+        original: *mut TclObj,
+        extra: &dyn Fn() -> Result<(), E>,
+        refuse: &dyn Fn(ValueError) -> E,
+        retain: &dyn Fn(E) -> E,
+    ) -> Result<(), E>
+    where
+        E: From<tcl_runtime_api::NativeExecutionError>,
+    {
+        currency.ensure_current_or_refuse()?;
+        extra()?;
+        obj::check_native_liveness(original).map_err(refuse)?;
+        let lifetime = obj::NativeObjectLifetime::retain(original);
+        let reached = (|| -> Result<(), E> {
+            currency.ensure_current_or_refuse()?;
+            extra()?;
+            if self.uses_c84_global_error_info() {
+                // The reached C84 global write settles ERROR_CODE_SET even
+                // when a trace refuses; classify only after mandatory cleanup.
+                self.publish_original_c84_error_code(original);
+            } else if self
+                .native_invocation_dialect()
+                .native_error_variable_protocol()
+                .is_some()
+            {
+                self.retire_native_error_object_checked(
+                    currency,
+                    tcl_registry::special_vars::NativeErrorStorageVariable::ErrorCode,
+                    native_error_variables::NativeErrorObjectRetirementPurpose::OriginalSetter,
+                )?;
+                currency.ensure_current_or_refuse()?;
+                extra()?;
+                obj::check_native_liveness(original).map_err(refuse)?;
+                let reentered = self
+                    .exc
+                    .borrow_mut()
+                    .native
+                    .code
+                    .replace(obj::Owned::retain(original));
+                drop(reentered);
+            } else {
+                return Err(refuse(ValueError::CommandProtocolUnavailable(
+                    "original C error-code setter",
+                )));
+            }
+            currency.ensure_current_or_refuse()?;
+            extra()?;
+            obj::check_native_liveness(lifetime.as_ptr()).map_err(refuse)?;
+            Ok(())
+        })();
+        let reached = reached.map_err(retain);
+        drop(lifetime);
+        currency.ensure_current_or_refuse()?;
+        extra()?;
+        reached
     }
 
     /// Note that a C API call left an error the interpreter already holds (a

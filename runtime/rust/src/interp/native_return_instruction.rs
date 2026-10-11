@@ -507,13 +507,12 @@ impl Interp {
                 }
                 if let Some(error_code) = find(b"-errorcode")? {
                     // This selected stage retains the original without GetString.
-                    self.retain_native_error_option_using(
+                    self.set_original_c_error_code_using(
                         scope.currency(),
-                        false,
                         error_code,
                         &pairs_current,
-                        string,
                         refuse,
+                        retain,
                     )?;
                     let mut error = self.exc.borrow_mut();
                     error.code.clear();

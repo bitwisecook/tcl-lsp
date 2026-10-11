@@ -2076,6 +2076,14 @@ impl Interp {
             .scripts
             .get(&region)
             .expect("admitted original script instruction region");
+        let fatal_original = if script.fatal.is_some() {
+            match native_list_conversion::BodyObjectOperation::capture(self) {
+                Ok(original) => Some(original),
+                Err(error) => return self.report_cmd_error(error),
+            }
+        } else {
+            None
+        };
         if let Some(empty) = script.empty {
             self.set_result(
                 artifact
@@ -2123,11 +2131,17 @@ impl Interp {
                 .literals
                 .original(fatal.options)
                 .expect("emitted original SYNTAX options");
-            let code = match self.process_original_c_return_options(
+            let original = fatal_original.as_ref().expect("actual fatal script entry");
+            let objects = match original.objects(self) {
+                Ok(objects) => objects,
+                Err(error) => return self.report_cmd_error(error),
+            };
+            let code = match self.process_original_c_return_options_with_objects(
                 tcl_registry::native_return_options::NativeReturnOptionsApplication::Syntax,
                 1,
                 0,
                 options,
+                &objects,
             ) {
                 Ok(code) => code,
                 Err(error) => return self.report_cmd_error(error.into()),
@@ -2139,6 +2153,9 @@ impl Interp {
                         .original(fatal.message)
                         .expect("emitted original SYNTAX result"),
                 );
+                if let Err(error) = original.check(self) {
+                    return self.report_cmd_error(error);
+                }
                 self.clear_error_logged();
                 if code == Code::Error {
                     if let Err(first) = self.capture_original_return_instruction_context(
@@ -2348,15 +2365,24 @@ impl Interp {
         message: usize,
         options: usize,
     ) -> Code {
+        let original = match native_list_conversion::BodyObjectOperation::capture(self) {
+            Ok(original) => original,
+            Err(error) => return self.report_cmd_error(error),
+        };
+        let objects = match original.objects(self) {
+            Ok(objects) => objects,
+            Err(error) => return self.report_cmd_error(error),
+        };
         let options = artifact
             .literals
             .original(options)
             .expect("original syntax options");
-        let code = match self.process_original_c_return_options(
+        let code = match self.process_original_c_return_options_with_objects(
             tcl_registry::native_return_options::NativeReturnOptionsApplication::Syntax,
             1,
             0,
             options,
+            &objects,
         ) {
             Ok(code) => code,
             Err(error) => return self.report_cmd_error(error.into()),
@@ -2367,6 +2393,9 @@ impl Interp {
                 .original(message)
                 .expect("original syntax message"),
         );
+        if let Err(error) = original.check(self) {
+            return self.report_cmd_error(error);
+        }
         self.clear_error_logged();
         code
     }
@@ -3606,82 +3635,107 @@ impl Interp {
                 Ok(Code::Ok)
             }
             Operation::SelectedReturn(recipe, empty, options) => {
-                use tcl_registry::native_return_compilation::{
-                    NativeReturnExit as Exit, NativeReturnOptionsOperand as Options,
-                };
-                let stack_options = match &recipe.options {
-                    Options::StackWord(index) => {
-                        Some(self.body_word(artifact, &command.words[*index], execution)?)
-                    }
-                    Options::StackPairs(range) => {
-                        let originals = command.words[range.clone()]
-                            .iter()
-                            .map(|word| self.body_word(artifact, word, execution))
-                            .collect::<Result<Vec<_>, _>>()?;
-                        let members = originals.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
-                        Some(obj::Owned::fresh(crate::list::new_list_obj_native(
-                            &members,
-                            artifact.stamp.source_protocol,
-                        )))
-                    }
-                    Options::Static(_) => None,
-                };
-                let value = match recipe.value_word {
-                    Some(index) => self.body_word(artifact, &command.words[index], execution)?,
-                    None => obj::Owned::retain(
-                        artifact
-                            .literals
-                            .original(empty.expect("implicit return result"))
-                            .expect("empty literal"),
-                    ),
-                };
-                if recipe.exit == Exit::Done {
-                    self.set_result(value.as_ptr());
-                    execution.done = true;
-                    Ok(Code::Return)
-                } else if recipe.exit == Exit::Fallthrough {
-                    self.set_result(value.as_ptr());
-                    Ok(Code::Ok)
-                } else {
-                    let merged;
-                    let (code, level, original) = if recipe.exit == Exit::Stack {
-                        let options = stack_options.as_ref().expect("stack original options");
-                        let (mut ops, protocol) =
-                            crate::return_options::NativeReturnOps::selected(self)
-                                .map_err(|error| self.report_cmd_error(error))?;
-                        merged = tcl_cmd_core::native_return_merge::merge_stack(
-                            &mut ops, protocol, options,
-                        )
-                        .map_err(|error| self.report_cmd_error(error))?;
-                        (
-                            merged.code,
-                            i64::from(merged.level),
-                            merged.options.as_ptr(),
-                        )
-                    } else {
-                        let Options::Static(literal) = &recipe.options else {
-                            unreachable!()
-                        };
-                        (
-                            literal.code,
-                            i64::from(literal.level),
+                let original_operation = native_list_conversion::BodyObjectOperation::capture(self)
+                    .map_err(|error| self.report_cmd_error(error))?;
+                let reached = (|| {
+                    use tcl_registry::native_return_compilation::{
+                        NativeReturnExit as Exit, NativeReturnOptionsOperand as Options,
+                    };
+                    let stack_options = match &recipe.options {
+                        Options::StackWord(index) => {
+                            Some(self.body_word(artifact, &command.words[*index], execution)?)
+                        }
+                        Options::StackPairs(range) => {
+                            let originals = command.words[range.clone()]
+                                .iter()
+                                .map(|word| self.body_word(artifact, word, execution))
+                                .collect::<Result<Vec<_>, _>>()?;
+                            let members =
+                                originals.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
+                            Some(obj::Owned::fresh(crate::list::new_list_obj_native(
+                                &members,
+                                artifact.stamp.source_protocol,
+                            )))
+                        }
+                        Options::Static(_) => None,
+                    };
+                    let value = match recipe.value_word {
+                        Some(index) => {
+                            self.body_word(artifact, &command.words[index], execution)?
+                        }
+                        None => obj::Owned::retain(
                             artifact
                                 .literals
-                                .original(options.expect("private Return slot"))
-                                .expect("private Return original"),
-                        )
+                                .original(empty.expect("implicit return result"))
+                                .expect("empty literal"),
+                        ),
                     };
-                    let code=self.process_original_c_return_options(tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,code,level,original).map_err(|error|self.report_cmd_error(error.into()))?;
-                    self.set_result(value.as_ptr());
-                    if code == Code::Error && recipe.exit == Exit::Immediate {
-                        self.capture_original_return_instruction_context(
+                    if recipe.exit == Exit::Done {
+                        self.set_result(value.as_ptr());
+                        original_operation.check(self)
+                            .map_err(|error| self.report_cmd_error(error))?;
+                        execution.done = true;
+                        Ok(Code::Return)
+                    } else if recipe.exit == Exit::Fallthrough {
+                        self.set_result(value.as_ptr());
+                        original_operation.check(self)
+                            .map_err(|error| self.report_cmd_error(error))?;
+                        Ok(Code::Ok)
+                    } else {
+                        let merged;
+                        let (code, level, original) = if recipe.exit == Exit::Stack {
+                            let options = stack_options.as_ref().expect("stack original options");
+                            let (ops, protocol) =
+                                crate::return_options::NativeReturnOps::selected(self)
+                                    .map_err(|error| self.report_cmd_error(error))?;
+                            let mut ops = ops.with_original_objects(
+                                original_operation
+                                    .objects(self)
+                                    .map_err(|error| self.report_cmd_error(error))?,
+                            );
+                            merged = tcl_cmd_core::native_return_merge::merge_stack(
+                                &mut ops, protocol, options,
+                            )
+                            .map_err(|error| self.report_cmd_error(error))?;
+                            (
+                                merged.code,
+                                i64::from(merged.level),
+                                merged.options.as_ptr(),
+                            )
+                        } else {
+                            let Options::Static(literal) = &recipe.options else {
+                                unreachable!()
+                            };
+                            (
+                                literal.code,
+                                i64::from(literal.level),
+                                artifact
+                                    .literals
+                                    .original(options.expect("private Return slot"))
+                                    .expect("private Return original"),
+                            )
+                        };
+                        let objects = original_operation
+                            .objects(self)
+                            .map_err(|error| self.report_cmd_error(error))?;
+                        let code=self.process_original_c_return_options_with_objects(tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,code,level,original,&objects).map_err(|error|self.report_cmd_error(error))?;
+                        self.set_result(value.as_ptr());
+                        original_operation.check(self)
+                            .map_err(|error| self.report_cmd_error(error))?;
+                        if code == Code::Error && recipe.exit == Exit::Immediate {
+                            self.capture_original_return_instruction_context(
                             tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,
                             value.as_ptr(),
                             original,
                         ).map_err(|first| self.refuse_native_execution(first))?;
+                        }
+                        Ok(code)
                     }
-                    Ok(code)
-                }
+                })();
+                original_operation
+                    .check(self)
+                    .map_err(|error| self.report_cmd_error(error))?;
+                reached
             }
         }
     }
@@ -4357,3 +4411,7 @@ mod tests {
         assert_eq!(interpreter.frames.borrow().top_level(), 0);
     }
 }
+
+#[cfg(test)]
+#[path = "native_body_artifact/original_return_parent_tests.rs"]
+mod original_return_parent_tests;
