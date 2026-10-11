@@ -52,6 +52,14 @@ impl NativeElementEntries {
             }
         }
     }
+    /// Borrow the actual live table key; this creates no alias or object hold.
+    pub(super) fn original_key(&self, id: VarId, key: &[u8]) -> Option<*mut TclObj> {
+        let entry = self.0.get(&id)?;
+        if entry.key != key || entry.retired.get() || !entry.table_owned.get() {
+            return None;
+        }
+        entry.original.borrow().as_ref().map(Owned::as_ptr)
+    }
     pub(super) fn has_aliases(&self, key: &[u8]) -> bool {
         self.0
             .values()

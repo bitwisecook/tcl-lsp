@@ -249,6 +249,21 @@ impl Interp {
         original: *mut TclObj,
         values: *mut TclObj,
     ) -> Result<(), Code> {
+        let arguments = OriginalArguments::enter(self, &[original, values])
+            .map_err(|error| self.report_cmd_error(error))?;
+        let reached = self.set_original_c_array_entered(original, values, &arguments);
+        arguments
+            .check()
+            .map_err(|error| self.report_cmd_error(error))?;
+        reached
+    }
+
+    fn set_original_c_array_entered(
+        &mut self,
+        original: *mut TclObj,
+        values: *mut TclObj,
+        arguments: &OriginalArguments,
+    ) -> Result<(), Code> {
         let protocol = self.native_c_variable_name_protocol().ok_or_else(|| {
             self.report_cmd_error(
                 ValueError::CommandProtocolUnavailable("original C array set").into(),
@@ -261,11 +276,17 @@ impl Interp {
         let captured = self.prepare_original_c_array_set(original, &original_bytes, protocol)?;
         // Root selection precedes conversion/parity checks; an error must not
         // erase its authentic name cache or invent a replacement receiver.
-        let pairs = self.original_c_array_set_pairs(values, protocol)?;
+        let pairs = self.original_c_array_set_pairs(values, protocol);
+        arguments
+            .check()
+            .map_err(|error| self.report_cmd_error(error))?;
+        let pairs = pairs?;
         if pairs.is_empty() {
-            return captured
-                .receiver
-                .ensure_array()
+            let reached = captured.receiver.ensure_array();
+            arguments
+                .check()
+                .map_err(|error| self.report_cmd_error(error))?;
+            return reached
                 .map_err(|error| self.original_c_empty_array_error(&captured.root, error));
         }
         match pairs {
@@ -302,14 +323,147 @@ impl Interp {
                     if copy.is_none() {
                         // C84 re-fetches the same original list after callbacks;
                         // later C pins its actual copied List backing instead.
-                        members = ValueOps::list_elements(self, &values)
-                            .map_err(|error| self.report_cmd_error(error.into()))?;
+                        let reached = ValueOps::list_elements(self, &values);
+                        arguments
+                            .check()
+                            .map_err(|error| self.report_cmd_error(error))?;
+                        members = reached.map_err(|error| self.report_cmd_error(error.into()))?;
                     }
                 }
                 drop(copy);
+                arguments
+                    .check()
+                    .map_err(|error| self.report_cmd_error(error))?;
             }
         }
         Ok(())
+    }
+
+    /// Reached ArrayFor lookup; current array/key identities remain actual
+    /// physical owners rather than names reconstructed from a roster.
+    pub(crate) fn original_c_array_for_cell(
+        &mut self,
+        original: *mut TclObj,
+    ) -> Result<Option<crate::frame::RetainedArrayCell>, Code> {
+        self.native_invocation_dialect()
+            .native_array_for_protocol()
+            .ok_or_else(|| {
+                self.report_cmd_error(
+                    ValueError::CommandProtocolUnavailable("original ArrayFor worker").into(),
+                )
+            })?;
+        let captured =
+            self.capture_original_c_array_name(original, NativeVariableNameLookupPurpose::Array)?;
+        Ok(captured.and_then(|captured| captured.receiver.selected_array()))
+    }
+
+    /// Jim array-set reaches List/parity before its JIM_UNSHARED variable read.
+    /// An absent root adopts the original List; existing roots use the shared
+    /// selected Dictionary worker/COW owner, then original-name publication.
+    pub(crate) fn set_original_jim_array(
+        &mut self,
+        original: *mut TclObj,
+        values: *mut TclObj,
+    ) -> Result<(), Code> {
+        let arguments = OriginalArguments::enter(self, &[original, values])
+            .map_err(|error| self.report_cmd_error(error))?;
+        let reached = (|| {
+            if self.native_invocation_dialect().native_array_set_protocol()
+                != Some(tcl_registry::native_array::NativeArraySetProtocol::JimOriginalVariable)
+            {
+                return Err(self.report_cmd_error(
+                    ValueError::CommandProtocolUnavailable("original Jim array-set worker").into(),
+                ));
+            }
+            let protocol = self
+                .native_invocation_dialect()
+                .native_string_protocol()
+                .ok_or_else(|| {
+                    self.report_cmd_error(
+                        ValueError::CommandProtocolUnavailable("original Jim array String").into(),
+                    )
+                })?;
+            let length = ValueOps::list_len(self, &values);
+            arguments
+                .check()
+                .map_err(|error| self.report_cmd_error(error))?;
+            let length = length.map_err(|error| self.report_cmd_error(error.into()))?;
+            if length % 2 != 0 {
+                return Err(
+                    self.report_cmd_error(tcl_cmd_core::CmdError::argument_format(
+                        "list must have an even number of elements",
+                    )),
+                );
+            }
+            let existing = self.read_original_named_variable_for_update(original);
+            arguments
+                .check()
+                .map_err(|error| self.report_cmd_error(error))?;
+            let Some(existing) = existing? else {
+                return self.assign_original_named_variable(original, values);
+            };
+            let retained = OriginalArguments::enter(self, &[existing])
+                .map_err(|error| self.report_cmd_error(error))?;
+            let prepared = crate::dict::EnteredNativeDictionary::after_conversion(
+                existing,
+                protocol,
+                arguments.currency(),
+            );
+            retained
+                .check()
+                .map_err(|error| self.report_cmd_error(error))?;
+            let mut prepared = prepared.map_err(|error| self.report_cmd_error(error.into()))?;
+            for index in (0..length).step_by(2) {
+                let key = ValueOps::list_index(self, &values, index);
+                arguments
+                    .check()
+                    .map_err(|error| self.report_cmd_error(error))?;
+                let key = key
+                    .map_err(|error| self.report_cmd_error(error.into()))?
+                    .ok_or_else(|| {
+                        self.report_cmd_error(
+                            ValueError::CommandProtocolUnavailable("original Jim array key index")
+                                .into(),
+                        )
+                    })?;
+                let value = ValueOps::list_index(self, &values, index + 1);
+                arguments
+                    .check()
+                    .map_err(|error| self.report_cmd_error(error))?;
+                let value = value
+                    .map_err(|error| self.report_cmd_error(error.into()))?
+                    .ok_or_else(|| {
+                        self.report_cmd_error(
+                            ValueError::CommandProtocolUnavailable(
+                                "original Jim array value index",
+                            )
+                            .into(),
+                        )
+                    })?;
+                let members = OriginalArguments::enter(self, &[key, value])
+                    .map_err(|error| self.report_cmd_error(error))?;
+                let stored = prepared.set_member(key, value);
+                members
+                    .check()
+                    .map_err(|error| self.report_cmd_error(error))?;
+                stored.map_err(|error| self.report_cmd_error(error.into()))?;
+                drop(members);
+                arguments
+                    .check()
+                    .map_err(|error| self.report_cmd_error(error))?;
+            }
+            let assigned = self.assign_original_named_variable(original, prepared.as_ptr());
+            drop(prepared);
+            drop(retained);
+            arguments
+                .check()
+                .map_err(|error| self.report_cmd_error(error))?;
+            assigned
+        })();
+        arguments
+            .check()
+            .map_err(|error| self.report_cmd_error(error))?;
+        reached
     }
 
     fn prepare_original_c_array_set(
@@ -393,6 +547,8 @@ impl Interp {
         value: *mut TclObj,
         protocol: tcl_syntax::native_variable_name::NativeVariableNameProtocol,
     ) -> Result<(), Code> {
+        let arguments = OriginalArguments::enter(self, &[original_key, value])
+            .map_err(|error| self.report_cmd_error(error))?;
         let raw_key = self
             .native_string_bytes(&original_key)
             .map_err(|error| self.report_cmd_error(error.into()))?
@@ -408,7 +564,11 @@ impl Interp {
             .selected()
             .to_vec();
         let purpose = NativeVariableNameLookupPurpose::Write;
-        captured.receiver.ensure_array().map_err(|error| {
+        let initialised = captured.receiver.ensure_array();
+        arguments
+            .check()
+            .map_err(|error| self.report_cmd_error(error))?;
+        initialised.map_err(|error| {
             self.original_c_variable_receiver_error(
                 input,
                 purpose,
@@ -435,7 +595,11 @@ impl Interp {
                     ValueError::CommandProtocolUnavailable("original array-set member home").into(),
                 )
             })?;
-        receiver.store(value).map_err(|error| {
+        let stored = receiver.store(value);
+        arguments
+            .original(1)
+            .map_err(|error| self.report_cmd_error(error))?;
+        stored.map_err(|error| {
             self.original_c_variable_receiver_error(
                 input,
                 purpose,
@@ -445,7 +609,11 @@ impl Interp {
         })?;
         if self.original_variable_trace_requires_name(&home, Some(&key), b"write") {
             let access = self.trace_access(report_root, &captured.root, Some(&key), &home, false);
-            if self.fire_var_trace_resolved(&home, &access, b"write") {
+            let traced = self.fire_var_trace_resolved(&home, &access, b"write");
+            arguments
+                .check()
+                .map_err(|error| self.report_cmd_error(error))?;
+            if traced {
                 return Err(self.original_c_variable_receiver_error(
                     input,
                     purpose,
@@ -454,6 +622,9 @@ impl Interp {
                 ));
             }
         }
+        arguments
+            .check()
+            .map_err(|error| self.report_cmd_error(error))?;
         if self.host_refusal_pending() {
             return Err(Code::Error);
         }

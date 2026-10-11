@@ -229,6 +229,19 @@ impl RetainedArrayCell {
         }
     }
 
+    /// Exact current member key, without a new native reference or key header.
+    pub(crate) fn original_member_key(&self, key: &[u8]) -> Option<*mut TclObj> {
+        let contents = self.contents.borrow();
+        if contents.binding_id != Some(self.id)
+            || contents.rmw_array_epoch != self.epoch
+            || !matches!(contents.var.as_ref(),Some(Var::Array(map)) if map.contains_key(key))
+        {
+            return None;
+        }
+        contents
+            .native_member_keys
+            .original_key(*contents.element_ids.get(key)?, key)
+    }
     pub(crate) fn identity(&self) -> VarId {
         self.id
     }

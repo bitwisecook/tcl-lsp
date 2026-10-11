@@ -137,7 +137,9 @@ pub(super) struct OriginalSourceCommandWorld {
     policy: Option<NamePolicyProtocol>,
     unavailable: bool,
     namespaces: Vec<NamespaceGeometry>,
-    publications: Vec<OriginalCommandPublication>,
+    // Original rows are immutable across flow snapshots. A changed row must
+    // detach; ledger order and full row equality/hash remain semantic.
+    publications: Vec<Arc<OriginalCommandPublication>>,
     exports: Vec<(SignatureNamespaceScope, Vec<SignatureSourceNameInput>)>,
 }
 
@@ -555,7 +557,7 @@ impl OriginalSourceCommandWorld {
     fn publish(&mut self, publication: OriginalCommandPublication) {
         self.publications
             .retain(|previous| previous.slot != publication.slot);
-        self.publications.push(publication);
+        self.publications.push(Arc::new(publication));
     }
 }
 
@@ -663,7 +665,11 @@ impl OriginalCompletedCommandWorld {
     }
     /// Original source publications that survive the completed modeled world.
     pub fn declarations(&self) -> impl Iterator<Item = &OriginalCommandPublication> {
-        self.state.original_command_world.publications.iter()
+        self.state
+            .original_command_world
+            .publications
+            .iter()
+            .map(Arc::as_ref)
     }
     /// Exact byte-slot presence among independently retained source publications.
     #[must_use]
@@ -1476,7 +1482,8 @@ impl CapturedOriginalCommandTransfer {
                     else {
                         continue;
                     };
-                    let mut publication = self.world.publications.remove(index);
+                    let mut publication =
+                        Arc::unwrap_or_clone(self.world.publications.remove(index));
                     publication.slot = to;
                     publication.input = input;
                     self.world.publish(publication);
@@ -1673,7 +1680,7 @@ impl ModuleCommandBindings {
         else {
             return false;
         };
-        publication.definition = Some(definition);
+        Arc::make_mut(publication).definition = Some(definition);
         true
     }
 
@@ -1693,7 +1700,7 @@ impl ModuleCommandBindings {
             .iter()
             .filter(|publication| publication.slot() == slot && publication.policy() == policy);
         let selected = publications.next()?;
-        publications.next().is_none().then_some(selected)
+        publications.next().is_none().then_some(selected.as_ref())
     }
 }
 
@@ -1803,7 +1810,7 @@ impl OriginalSourceCommandWorld {
                 {
                     return None;
                 }
-                let mut retained = publication.clone();
+                let mut retained = publication.as_ref().clone();
                 retained.slot = slot;
                 retained.input = input.clone();
                 retained.origin = Some(
@@ -2152,6 +2159,125 @@ mod tests {
                 .original_completed_command_world()
                 .is_none()
         );
+    }
+
+    #[test]
+    fn publication_snapshots_share_original_rows_and_detach_actual_moves_and_replacements() {
+        // naming.command.original-publication-row-sharing
+        // docs/design/analysis/name-resolution-proofs/original-publication-row-sharing.md
+        // Actual source ledger snapshots only, with no external evaluation,
+        // Native freshness, selected handler or source-edit claim.
+        let source = "proc alpha {} {}; proc beta {} {}; rename alpha gamma; rename gamma beta";
+        for version in tcl_dialect::TclVersion::ALL {
+            let bindings = analyse(source, version);
+            let first_site = u32::try_from(source.find("rename alpha").unwrap()).unwrap();
+            let second_site = u32::try_from(source.find("rename gamma").unwrap()).unwrap();
+            let first = &bindings
+                .dispatch_points_at(first_site)
+                .next()
+                .unwrap()
+                .state
+                .original_command_world;
+            let second = &bindings
+                .dispatch_points_at(second_site)
+                .next()
+                .unwrap()
+                .state
+                .original_command_world;
+            let complete = bindings
+                .original_completed_command_world()
+                .expect("completed original rename sequence");
+            let final_world = &complete.state.original_command_world;
+            let row = |world: &OriginalSourceCommandWorld, name: &[u8]| {
+                world
+                    .publications
+                    .iter()
+                    .find(|entry| entry.slot.simple.as_bytes() == name)
+                    .cloned()
+                    .expect("actual publication")
+            };
+            let alpha = row(first, b"alpha");
+            let beta = row(first, b"beta");
+            let gamma = row(second, b"gamma");
+            assert!(
+                Arc::ptr_eq(&beta, &row(second, b"beta")),
+                "an unchanged row retains its actual producer"
+            );
+            assert!(
+                !Arc::ptr_eq(&alpha, &gamma),
+                "a moved publication detaches its own row"
+            );
+            assert_eq!(alpha.name_input().bytes(), b"alpha");
+            assert_eq!(gamma.name_input().bytes(), b"gamma");
+            assert_eq!(alpha.declaration_site(), gamma.declaration_site());
+            assert_eq!(alpha.definition(), gamma.definition());
+            let replaced = row(final_world, b"beta");
+            assert!(!Arc::ptr_eq(&beta, &replaced));
+            assert!(!Arc::ptr_eq(&gamma, &replaced));
+            assert_eq!(replaced.declaration_site(), alpha.declaration_site());
+            assert_eq!(replaced.name_input().bytes(), b"beta");
+            assert_eq!(beta.name_input().bytes(), b"beta");
+            assert_ne!(beta.declaration_site(), replaced.declaration_site());
+            assert_eq!(first.publications.len(), 2);
+            assert_eq!(second.publications.len(), 2);
+            assert_eq!(final_world.publications.len(), 1);
+            let branch = first.as_ref().clone();
+            assert_eq!(&branch, first.as_ref());
+            for (original, shared) in first.publications.iter().zip(&branch.publications) {
+                assert!(Arc::ptr_eq(original, shared));
+            }
+            let mut changed = branch;
+            let altered = Arc::make_mut(&mut changed.publications[0]);
+            altered.definition = None;
+            assert_eq!(alpha.name_input().bytes(), b"alpha");
+            assert!(
+                alpha.definition().is_some(),
+                "changing a private branch cannot erase the original definition"
+            );
+            assert_ne!(&changed, first.as_ref());
+        }
+    }
+
+    #[test]
+    fn publication_row_sharing_preserves_complete_semantic_equality_hash_and_order() {
+        // naming.command.original-publication-row-sharing
+        // docs/design/analysis/name-resolution-proofs/original-publication-row-sharing.md
+        use std::hash::{Hash, Hasher};
+        let hash = |world: &OriginalSourceCommandWorld| {
+            let mut state = std::collections::hash_map::DefaultHasher::new();
+            world.hash(&mut state);
+            state.finish()
+        };
+        let source = "proc alpha {} {}; proc beta {} {}; rename alpha gamma";
+        for version in tcl_dialect::TclVersion::ALL {
+            let first = analyse(source, version)
+                .original_completed_command_world()
+                .unwrap();
+            let independent = analyse(source, version)
+                .original_completed_command_world()
+                .unwrap();
+            let left = first.state.original_command_world.as_ref();
+            let right = independent.state.original_command_world.as_ref();
+            assert_eq!(left, right);
+            assert_eq!(hash(left), hash(right));
+            let names = first
+                .declarations()
+                .map(|publication| publication.slot.simple.clone())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                names,
+                [
+                    NameBytes::from(b"beta".as_slice()),
+                    NameBytes::from(b"gamma".as_slice())
+                ]
+            );
+            assert!(
+                first
+                    .declarations()
+                    .zip(independent.declarations())
+                    .all(|(a, b)| a == b)
+            );
+        }
     }
 
     #[test]

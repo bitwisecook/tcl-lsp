@@ -25,8 +25,10 @@
 
 use tcl_registry::{ArgRole, InvocationWord, InvocationWords};
 
-use crate::interp::{Code, Interp, new_string, obj_bytes};
+use crate::interp::native_arguments::OriginalArguments;
+use crate::interp::{new_string, Code, Interp};
 use crate::obj::TclObj;
+use tcl_syntax::value::ValueOps;
 
 /// Register `array`.
 pub fn install(interp: &mut Interp) {
@@ -179,13 +181,22 @@ fn array_trace_target_index(interp: &Interp, argv: &[*mut TclObj], sub: &[u8]) -
         .and_then(|index| index.checked_add(1))
 }
 
-fn array_for_variables(interp: &mut Interp, argv: &[*mut TclObj]) -> Result<[Vec<u8>; 2], Code> {
-    let varlist = obj_bytes(argv[2]);
-    let variables = crate::parse::split_list(&varlist)
-        .map_err(|error| interp.report_list_error(&varlist, error))?;
-    variables.try_into().map_err(|_| {
-        interp.error_with_code(b"must have two variable names", b"TCL SYNTAX array for")
-    })
+fn array_for_variables(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Result<(), Code> {
+    let length = ValueOps::list_len(interp, &argv[2]);
+    arguments
+        .check()
+        .map_err(|error| interp.report_cmd_error(error))?;
+    let length = length.map_err(|error| interp.report_cmd_error(error.into()))?;
+    if length != 2 {
+        return Err(
+            interp.error_with_code(b"must have two variable names", b"TCL SYNTAX array for")
+        );
+    }
+    Ok(())
 }
 
 fn array_default_option(interp: &mut Interp, argv: &[*mut TclObj]) -> Result<&'static [u8], Code> {
@@ -213,10 +224,26 @@ fn unknown_subcommand(interp: &mut Interp, sub: &[u8]) -> Code {
 }
 
 fn array_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = array_cmd_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn array_cmd_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args_for_invocation(argv, b"subcommand ?arg ...?");
     }
-    let word = obj_bytes(argv[1]);
+    let word = match arguments.bytes(1) {
+        Ok(word) => word,
+        Err(error) => return interp.report_cmd_error(error),
+    };
     // Resolve the subcommand first — exact match, else a unique prefix — so
     // `array e a` reaches `exists` *and* fires its `array` trace under the
     // canonical name, as C does.
@@ -225,8 +252,18 @@ fn array_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Some(index) => names[index],
         None => return unknown_subcommand(interp, &word),
     };
+    // Jim's array-set extension checks List/parity before reading its name.
+    // C's LocateArray/array trace entry must not be donated to this worker.
+    if sub == b"set"
+        && interp
+            .native_invocation_dialect()
+            .native_array_set_protocol()
+            == Some(tcl_registry::native_array::NativeArraySetProtocol::JimOriginalVariable)
+    {
+        return array_set(interp, argv, arguments);
+    }
     let trace_target_index = array_trace_target_index(interp, argv, sub);
-    let mut for_variables = None;
+    let mut for_variables = false;
     let mut default_option = None;
     if let Some(index) = trace_target_index {
         // Every member validates its outer arity before `LocateArray`. Two
@@ -234,8 +271,8 @@ fn array_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // two-variable list and `array default` resolves its inner option.
         // The selected default option's narrower arity is intentionally later.
         match sub {
-            b"for" => match array_for_variables(interp, argv) {
-                Ok(variables) => for_variables = Some(variables),
+            b"for" => match array_for_variables(interp, argv, arguments) {
+                Ok(()) => for_variables = true,
                 Err(code) => return code,
             },
             b"default" => match array_default_option(interp, argv) {
@@ -248,12 +285,22 @@ fn array_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return interp.set_error(b"array subcommand has incomplete registry metadata");
         };
         if interp.native_c_variable_name_protocol().is_some() {
-            if let Err(code) = interp.prepare_original_c_array_name(*name_obj) {
+            let prepared = interp.prepare_original_c_array_name(*name_obj);
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            if let Err(code) = prepared {
                 return code;
             }
         }
-        let name = obj_bytes(*name_obj);
-        return interp.with_array_trace_target(&name, |interp, target| {
+        let name = match arguments.bytes(index) {
+            Ok(name) => name,
+            Err(error) => return interp.report_cmd_error(error),
+        };
+        let reached = interp.with_array_trace_target(&name, |interp, target| {
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
             array_cmd_after_trace(
                 interp,
                 argv,
@@ -261,23 +308,37 @@ fn array_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 for_variables,
                 default_option,
                 Some(target),
+                arguments,
             )
         });
+        return arguments.finish(reached);
     }
-    array_cmd_after_trace(interp, argv, sub, for_variables, default_option, None)
+    array_cmd_after_trace(
+        interp,
+        argv,
+        sub,
+        for_variables,
+        default_option,
+        None,
+        arguments,
+    )
 }
 
 fn array_cmd_after_trace(
     interp: &mut Interp,
     argv: &[*mut TclObj],
     sub: &[u8],
-    for_variables: Option<[Vec<u8>; 2]>,
+    for_variables: bool,
     default_option: Option<&'static [u8]>,
     target: Option<&tcl_runtime_api::ArrayTarget>,
+    arguments: &OriginalArguments,
 ) -> Code {
     if let Some(result) =
         tcl_cmd_core::native_array_search::dispatch_bytes(interp, sub, &argv[2..], target)
     {
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
         return match result {
             Ok(value) => {
                 interp.set_result(value);
@@ -290,6 +351,9 @@ fn array_cmd_after_trace(
     // this runtime's `VarStore`/`Frames`/`ValueOps`); a fresh-or-borrowed result
     // object is retained by `set_result`.
     if let Some(result) = tcl_cmd_core::array::dispatch_bytes_at(interp, sub, &argv[2..], target) {
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
         return match result {
             Ok(result) => {
                 if let Some(miss) = result.read_miss {
@@ -309,8 +373,8 @@ fn array_cmd_after_trace(
     // Per-runtime: `set` (per-element write traces), `default` (TIP 508), `for`
     // (Family-B iteration), and the unknown-subcommand message.
     match sub {
-        b"set" => array_set(interp, argv),
-        b"for" => array_for(interp, argv, for_variables),
+        b"set" => array_set(interp, argv, arguments),
+        b"for" => array_for(interp, argv, for_variables, arguments),
         b"default" => array_default(interp, argv, default_option, target),
         // Unreachable: every `SUBCOMMANDS` name is handled above or by the
         // shared core.
@@ -368,80 +432,194 @@ fn array_default(
 fn array_for(
     interp: &mut Interp,
     argv: &[*mut TclObj],
-    prepared_variables: Option<[Vec<u8>; 2]>,
+    prepared_variables: bool,
+    arguments: &OriginalArguments,
 ) -> Code {
     use tcl_runtime_api::completion_options::ControlOptionPolicy;
-
     if argv.len() != 5 {
         return interp.wrong_args_for_prefix(argv, 2, b"{key value} arrayName script");
     }
-    let [kvar, vvar] = match prepared_variables {
-        Some(variables) => variables,
-        None => match array_for_variables(interp, argv) {
-            Ok(variables) => variables,
-            Err(code) => return code,
-        },
+    if !prepared_variables {
+        if let Err(code) = array_for_variables(interp, argv, arguments) {
+            return code;
+        }
+    }
+    let name = match arguments.bytes(3) {
+        Ok(name) => name,
+        Err(error) => return interp.report_cmd_error(error),
     };
-    let name = obj_bytes(argv[3]);
-    if !interp.var_is_array(&name) {
-        return not_array(interp, &name);
+    let selected = interp.original_c_array_for_cell(argv[3]);
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
     }
-    let body = argv[4];
-
-    // Snapshot the element names; the iteration order is the snapshot order and a
-    // change to the *set* of keys (not their values) aborts the loop.
-    let snapshot = interp.array_names(&name).unwrap_or_default();
-    let snapshot_set: std::collections::BTreeSet<Vec<u8>> = snapshot.iter().cloned().collect();
-    let policy = ControlOptionPolicy::FRESH_SETTLED;
-    interp.begin_control_options(policy);
-
-    for idx in 0..=snapshot.len() {
-        // Detect a structural change since the snapshot (C's search invalidation).
-        let current: std::collections::BTreeSet<Vec<u8>> = interp
-            .array_names(&name)
-            .unwrap_or_default()
-            .into_iter()
-            .collect();
-        if current != snapshot_set {
-            return interp
-                .error_with_code(b"array changed during iteration", b"TCL READ array for");
+    let array = match selected {
+        Ok(Some(array)) => array,
+        Ok(None) => return not_array(interp, &name),
+        Err(code) => return code,
+    };
+    let search = array.weak_search_cell();
+    let revision = match search.revision() {
+        Some(revision) => revision,
+        None => {
+            return interp.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original ArrayFor search generation",
+                )
+                .into(),
+            )
         }
-        if idx == snapshot.len() {
-            break;
+    };
+    // ArrayForNRCmd creates its actual copied List and retains the script only
+    // after successful array selection. The copy owns backing, not extra child holds.
+    let protocol = match interp
+        .native_invocation_dialect()
+        .native_array_for_protocol()
+    {
+        Some(protocol) => protocol,
+        None => {
+            return interp.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable("array for command")
+                    .into(),
+            )
         }
-        interp.begin_control_options(policy);
-        let key = &snapshot[idx];
-        // Read the value through the trace-firing path (var-23.13 counts reads).
-        if let Some(c) = interp.fire_read_trace(&name, Some(key)) {
-            return c;
+    };
+    let copied = crate::list::native_list_copy(argv[2], protocol);
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
+    let variables = match copied {
+        Ok(copy) => copy,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    let body = crate::obj::Owned::retain(argv[4]);
+    let code = (|| {
+        let snapshot = search.keys();
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
         }
-        let Some(value) = interp.var_get_elem(&name, key) else {
-            continue; // element became undefined mid-iteration
-        };
-        let ko = new_string(key);
-        if let Err(e) = interp.var_set(&kvar, ko) {
-            crate::interp::drop_fresh(ko);
-            return crate::builtins::var_error(interp, &kvar, e);
-        }
-        // `value` is borrowed from the store; `var_set` retains it (no drop here).
-        if let Err(e) = interp.var_set(&vvar, value) {
-            return crate::builtins::var_error(interp, &vvar, e);
-        }
-        match interp.eval_control_body(body) {
-            Code::Ok | Code::Continue => {}
-            Code::Break => break,
-            Code::Error => {
-                if !interp.in_proc() {
-                    interp.append_body_frame(b"array for");
-                }
-                return Code::Error;
+        let snapshot = match snapshot {
+            Ok(Some(keys)) => keys,
+            Ok(None) => {
+                return interp
+                    .error_with_code(b"array changed during iteration", b"TCL READ array for")
             }
-            other => return other,
+            Err(error) => return interp.report_cmd_error(error.into()),
+        };
+        let policy = ControlOptionPolicy::FRESH_SETTLED;
+        interp.begin_control_options(policy);
+        for idx in 0..=snapshot.len() {
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            if search.revision() != Some(revision) {
+                return interp
+                    .error_with_code(b"array changed during iteration", b"TCL READ array for");
+            }
+            if idx == snapshot.len() {
+                break;
+            }
+            interp.begin_control_options(policy);
+            let key = &snapshot[idx];
+            if !search.element_is_defined(key) {
+                continue;
+            }
+            let original_key = match array.original_member_key(key) {
+                Some(key) => key,
+                None => {
+                    return interp.report_cmd_error(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "original ArrayFor member key header",
+                        )
+                        .into(),
+                    )
+                }
+            };
+            let key_arguments = match OriginalArguments::enter(interp, &[original_key]) {
+                Ok(owner) => owner,
+                Err(error) => return interp.report_cmd_error(error),
+            };
+            let read = interp.fire_read_trace(&name, Some(key));
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            if let Some(code) = read {
+                return code;
+            }
+            let value = interp.var_get_elem(&name, key);
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            let Some(value) = value else {
+                continue;
+            };
+            let members = ValueOps::list_elements(interp, &variables.as_ptr());
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            let members = match members {
+                Ok(members) => members,
+                Err(error) => return interp.report_cmd_error(error.into()),
+            };
+            let [kvar, vvar] = members.as_slice() else {
+                return interp.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "array for copied variable List",
+                    )
+                    .into(),
+                );
+            };
+            let member_arguments = match OriginalArguments::enter(interp, &[*kvar, *vvar, value]) {
+                Ok(owner) => owner,
+                Err(error) => return interp.report_cmd_error(error),
+            };
+            let original_key = match key_arguments.original(0) {
+                Ok(key) => key,
+                Err(error) => return interp.report_cmd_error(error),
+            };
+            let assigned = interp.assign_original_named_variable(*kvar, original_key);
+            if let Err(error) = member_arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            if let Err(code) = assigned {
+                return code;
+            }
+            // The read value is still borrowed from the actual array. Its new
+            // destination cell takes the selected owning hold; no protective +1.
+            let assigned = interp.assign_original_named_variable(*vvar, value);
+            if let Err(error) = member_arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            if let Err(code) = assigned {
+                return code;
+            }
+            drop(key_arguments);
+            drop(member_arguments);
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            let evaluated = interp.eval_control_body(body.as_ptr());
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            match evaluated {
+                Code::Ok | Code::Continue => {}
+                Code::Break => break,
+                Code::Error => {
+                    if !interp.in_proc() {
+                        interp.append_body_frame(b"array for");
+                    }
+                    return Code::Error;
+                }
+                other => return other,
+            }
         }
-    }
-    interp.set_result_bytes(b"");
-    interp.settle_control_options(policy, Code::Ok);
-    Code::Ok
+        interp.set_result_bytes(b"");
+        interp.settle_control_options(policy, Code::Ok);
+        Code::Ok
+    })();
+    drop(variables);
+    drop(body);
+    arguments.finish(code)
 }
 
 /// `"<name>" isn't an array`.
@@ -453,12 +631,20 @@ fn not_array(interp: &mut Interp, name: &[u8]) -> Code {
 }
 
 /// `array set arrayName {key value …}` — store each pair as an element.
-fn array_set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+fn array_set(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArguments) -> Code {
     if argv.len() != 4 {
         return interp.wrong_args_for_prefix(argv, 2, b"arrayName list");
     }
-    if interp.native_c_variable_name_protocol().is_some() {
-        return match interp.set_original_c_array(argv[2], argv[3]) {
+    if interp
+        .native_invocation_dialect()
+        .native_array_set_protocol()
+        == Some(tcl_registry::native_array::NativeArraySetProtocol::JimOriginalVariable)
+    {
+        let reached = interp.set_original_jim_array(argv[2], argv[3]);
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
+        return match reached {
             Ok(()) => {
                 interp.set_result_bytes(b"");
                 Code::Ok
@@ -466,7 +652,23 @@ fn array_set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Err(code) => code,
         };
     }
-    let name = obj_bytes(argv[2]);
+    if interp.native_c_variable_name_protocol().is_some() {
+        let reached = interp.set_original_c_array(argv[2], argv[3]);
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
+        return match reached {
+            Ok(()) => {
+                interp.set_result_bytes(b"");
+                Code::Ok
+            }
+            Err(code) => code,
+        };
+    }
+    let name = match arguments.bytes(2) {
+        Ok(name) => name,
+        Err(error) => return interp.report_cmd_error(error),
+    };
     // An array-element name (`foo(bar)`) can't be the target of `array set`.
     let (_, element) = match interp.variable_name_parts(&name) {
         Ok(parts) => parts,
@@ -482,9 +684,13 @@ fn array_set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // value keeps its `Tcl_Obj` identity through the array — C shares objs by
     // reference, and TIP 280 keys a literal's source location on that identity
     // (so a `-body {…}` stored via `array set` still evaluates as `type source`).
-    let kvs = match crate::list::list_elements(argv[3]) {
-        Ok(v) => v,
-        Err(e) => return interp.report_cmd_error(e.into()),
+    let members = ValueOps::list_elements(interp, &argv[3]);
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
+    let kvs = match members {
+        Ok(members) => members,
+        Err(error) => return interp.report_cmd_error(error.into()),
     };
     if kvs.len() % 2 != 0 {
         return interp.report_cmd_error(tcl_cmd_core::CmdError::argument_format(
@@ -522,9 +728,24 @@ fn array_set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     for pair in kvs.chunks_exact(2) {
         // `var_set_elem` retains the live value obj (no fresh allocation).
-        let key = obj_bytes(pair[0]);
-        if let Err(e) = interp.var_set_elem(&name, &key, pair[1]) {
-            return crate::builtins::var_element_error(interp, &name, &key, e);
+        let member = match OriginalArguments::enter(interp, pair) {
+            Ok(owner) => owner,
+            Err(error) => return interp.report_cmd_error(error),
+        };
+        let key = match member.bytes(0) {
+            Ok(key) => key,
+            Err(error) => return interp.report_cmd_error(error),
+        };
+        let stored = interp.var_set_elem(&name, &key, pair[1]);
+        if let Err(error) = member.check() {
+            return interp.report_cmd_error(error);
+        }
+        if let Err(error) = stored {
+            return crate::builtins::var_element_error(interp, &name, &key, error);
+        }
+        drop(member);
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
         }
     }
     interp.set_result_bytes(b"");
@@ -532,12 +753,15 @@ fn array_set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 #[cfg(test)]
+mod original_argument_tests;
+
+#[cfg(test)]
 mod undefined_root;
 
 #[cfg(test)]
 mod tests {
     use crate::counters;
-    use crate::interp::{Code, Interp, new_string};
+    use crate::interp::{Code, Interp, new_string, obj_bytes};
 
     fn leak_free(body: impl FnOnce(&mut Interp)) {
         leak_free_native(crate::environment::profile_for_dialect("tcl9.0"), body);
