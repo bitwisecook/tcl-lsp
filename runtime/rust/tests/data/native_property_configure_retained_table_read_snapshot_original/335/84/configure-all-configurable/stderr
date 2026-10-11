@@ -1,0 +1,8 @@
+invalid command name "oo::configurable"
+    while executing
+"oo::configurable create C {
+    property a -get {
+        lappend ::events a
+        oo::define C {
+            property b -get {lappend ::events b; r..."
+    (file "/workspace/.proofs/property-report-native335/configure-all-configurable.tcl" line 2)

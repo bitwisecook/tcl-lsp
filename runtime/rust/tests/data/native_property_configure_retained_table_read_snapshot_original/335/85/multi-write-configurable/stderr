@@ -1,0 +1,7 @@
+invalid command name "oo::configurable"
+    while executing
+"oo::configurable create C {
+    property a -get {return A} -set {
+        lappend ::events a
+        oo::define C {property b -get {return B} -set {la..."
+    (file "/workspace/.proofs/property-report-native335/multi-write-configurable.tcl" line 2)

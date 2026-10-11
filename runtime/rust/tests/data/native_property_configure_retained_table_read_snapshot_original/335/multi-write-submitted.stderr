@@ -1,0 +1,13 @@
+invalid command name "property"
+    while executing
+"property a -get {return A} -set {
+        lappend ::events a
+        oo::define C {property b -get {return B} -set {lappend ::events b}}
+    }"
+    (in definition script for class "::C" line 2)
+    invoked from within
+"oo::class create C {
+    property a -get {return A} -set {
+        lappend ::events a
+        oo::define C {property b -get {return B} -set {lappend :..."
+    (file "/workspace/.proofs/property-report-native335/multi-write-submitted.tcl" line 2)

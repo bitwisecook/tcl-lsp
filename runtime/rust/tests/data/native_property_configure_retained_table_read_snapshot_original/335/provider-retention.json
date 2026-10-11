@@ -1,0 +1,87 @@
+{
+  "84": {
+    "provider_key": "84",
+    "invoked_file": "/workspace/.proofs/oracle-bin/tclsh8.4",
+    "invoked_file_sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+    "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "executable_sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+    "executable_bytes": 907648,
+    "executable_mode": 448,
+    "packed_executable_sha256": "0ef35bc55b478afbee73fdeaad303290df5449989182a55e9535b339d8ed1f28",
+    "source_tclOOProp.c": null,
+    "ldd_exit": 0,
+    "ldd_purpose": "Records reported loader dependencies, not a measured loaded-address/ABI attestation."
+  },
+  "85": {
+    "provider_key": "85",
+    "invoked_file": "/workspace/.proofs/oracle-bin/tclsh8.5",
+    "invoked_file_sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+    "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "executable_sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+    "executable_bytes": 1294480,
+    "executable_mode": 448,
+    "packed_executable_sha256": "47cba54ad641a54ba11e204d74a5ce4232e847fc198142f5a4846078ec5c6c58",
+    "source_tclOOProp.c": null,
+    "ldd_exit": 0,
+    "ldd_purpose": "Records reported loader dependencies, not a measured loaded-address/ABI attestation."
+  },
+  "86": {
+    "provider_key": "86",
+    "invoked_file": "/workspace/.proofs/oracle-bin/tclsh8.6",
+    "invoked_file_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+    "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "executable_sha256": "9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff",
+    "executable_bytes": 1915376,
+    "executable_mode": 448,
+    "packed_executable_sha256": "7f604661926c1c5237e7423365f39c9ffda3bd849441190a130d903f046a8ba8",
+    "source_tclOOProp.c": null,
+    "ldd_exit": 0,
+    "ldd_purpose": "Records reported loader dependencies, not a measured loaded-address/ABI attestation."
+  },
+  "90": {
+    "provider_key": "90",
+    "invoked_file": "/workspace/.proofs/oracle-bin/tclsh9.0",
+    "invoked_file_sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+    "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "executable_sha256": "f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1",
+    "executable_bytes": 3471033,
+    "executable_mode": 448,
+    "packed_executable_sha256": "efd77c98ed7007ad21ec1b50feb70b2533301fa372379cc17f17ce85333cea3a",
+    "source_tclOOProp.c": {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOProp.c",
+      "sha256": "43f16f2b596af56b27320ff5e735c3073e081dbf183b05b5aa785ff7a2b57789",
+      "purpose": "Source inspection for exact retained table/current-header index and configure-all List role. No full binary/source reproducible-build claim."
+    },
+    "ldd_exit": 0,
+    "ldd_purpose": "Records reported loader dependencies, not a measured loaded-address/ABI attestation."
+  },
+  "91": {
+    "provider_key": "91",
+    "invoked_file": "/workspace/.proofs/oracle-bin/tclsh9.1",
+    "invoked_file_sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+    "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+    "executable_bytes": 3717328,
+    "executable_mode": 448,
+    "packed_executable_sha256": "fc6c12552b3f4c0e1e5d023322046330cecaafa80f3fb45d46727cf1261262a2",
+    "source_tclOOProp.c": {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOProp.c",
+      "sha256": "c791423ae9b49c877bea8da8a7c2b74b40520e600863341e8d12a63b10c2aaaf",
+      "purpose": "Source inspection for exact retained table/current-header index and configure-all List role. No full binary/source reproducible-build claim."
+    },
+    "ldd_exit": 0,
+    "ldd_purpose": "Records reported loader dependencies, not a measured loaded-address/ABI attestation."
+  },
+  "jim": {
+    "provider_key": "jim",
+    "invoked_file": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "invoked_file_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+    "executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+    "executable_bytes": 438632,
+    "executable_mode": 448,
+    "packed_executable_sha256": "4bb1e19e71a50cfeaf339019c06cb10c52ce4110a385229e99c95f89e92be8ea",
+    "ldd_exit": 0,
+    "ldd_purpose": "Records reported loader dependencies, not a measured loaded-address/ABI attestation."
+  }
+}

@@ -542999,6 +542999,1116 @@
         "command": [],
         "limitations": "Each original receipt records a CLI argv consuming the exact retained probe on standard input. The five C invocation pins are shell wrappers; their downstream executable/library identities and the inherited full environment are not closed replay inputs here. The Jim ELF is retained losslessly, while shared dependency/build replay remains absent. Source-level Native explanations, physical frame/Host metadata equivalence and Rust assertions require independent evidence. No native or Rust replay is performed by this publication."
       }
+    },
+    {
+      "id": "naming.property.original-configure-retained-table-and-read-snapshot",
+      "kind": "native-observation",
+      "document": "docs/design/analysis/name-resolution-proofs/property-original-configure-retained-table-and-read-snapshot.md",
+      "problem_statement": "A property setter or getter can change the property roster while configure remains active. Reusing an old selected name as though it were a current member, or rebuilding a configure-all read inventory after each getter, changes the selected property and returned snapshot. Public result equality must remain separate from the native table/header storage recipe.",
+      "question": "For the two exact original configurable-class scripts, which setter executes after the first setter inserts b, and which properties and events does configure-all return when its first getter inserts b and an unrelated method?",
+      "conclusion": "Tcl 9.0.4 and 9.1.0 each close both scripts exit0 with empty stderr. Multi-write reports events {a b}, while configure-all reports {-a A -z Z} and events {a z}, excluding newly added b; both final rosters include -a,-b,-z. Tcl 8.4.20, 8.5.19, 8.6.18 and Jim 0.84-9-g5bac7c9 reject oo::configurable before these workers. Two generic-class attempts reject property before the intended worker and supply no intended answer. Independent C9 source excerpts explain old cached name-table selection against current members and the retained configure-all List; C9.0 printed values do not grant the C9.1 software physical purpose. BIG-IP and the named Rust body have no execution outcome.",
+      "scope": "Twelve exact configurable-script CLI observations, independent own version/process receipts, and two separately retained generic-class setup refusals. Script-visible code/result/event/roster bytes are measured; no custom header updater, pointer identity, cache primary, reference-count chronology or internal error-formatting stop is observed. Six invoked-file/downstream executable joins and whole lossless ELF bytes are retained. ldd reports dependencies without retained shared-library byte closure; inherited full environment and configure/build replay are absent. Eight exact source windows join whole C9.0/C9.1 tclOOProp.c bytes independently. One source-bound C9.1 software comparator remains unrun; no physical frame, Host metadata, Native admission, whole engine, BIG-IP/TMM or Rust implementation equivalence follows.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "8.4.20",
+          "build": "Actual invoked shell wrapper and its downstream Tcl ELF identified by original recorded whole hashes; exact executable gzip roundtrip and 8.4.20 printed version are retained. Reported ldd dependencies lack retained shared-library bytes and launch-time dependency hashes. Source inspection is not configure/build replay or a binary/source equivalence proof.",
+          "input_channel": "Two exact ordinary script files through recorded CLI argv; independent version script, whole public stdout/stderr and own closed process receipts.",
+          "dialect": "tcl8.4",
+          "status": "observed",
+          "answer": "Both exact configurable scripts close exit1 with empty stdout and invalid command name \"oo::configurable\" before either intended configure worker is reached. This measures producer unavailability for these invocations, not the intended retained-table/read-snapshot behavior.",
+          "evidence": [
+            "multi-write-configurable-input",
+            "configure-all-configurable-input",
+            "matrix-original",
+            "provider-retention-original",
+            "tcl8.4-multi-write-configurable-receipt-json",
+            "tcl8.4-multi-write-configurable-stdout",
+            "tcl8.4-multi-write-configurable-stderr",
+            "tcl8.4-multi-write-configurable-version-stdout",
+            "tcl8.4-multi-write-configurable-version-stderr",
+            "tcl8.4-configure-all-configurable-receipt-json",
+            "tcl8.4-configure-all-configurable-stdout",
+            "tcl8.4-configure-all-configurable-stderr",
+            "tcl8.4-configure-all-configurable-version-stdout",
+            "tcl8.4-configure-all-configurable-version-stderr",
+            "tcl8.4-executable-elf-gz",
+            "tcl8.4-ldd-stdout",
+            "tcl8.4-ldd-stderr",
+            "tcl8.4-wrapper-sh"
+          ]
+        },
+        {
+          "id": "tcl8.5",
+          "version": "8.5.19",
+          "build": "Actual invoked shell wrapper and its downstream Tcl ELF identified by original recorded whole hashes; exact executable gzip roundtrip and 8.5.19 printed version are retained. Reported ldd dependencies lack retained shared-library bytes and launch-time dependency hashes. Source inspection is not configure/build replay or a binary/source equivalence proof.",
+          "input_channel": "Two exact ordinary script files through recorded CLI argv; independent version script, whole public stdout/stderr and own closed process receipts.",
+          "dialect": "tcl8.5",
+          "status": "observed",
+          "answer": "Both exact configurable scripts close exit1 with empty stdout and invalid command name \"oo::configurable\" before either intended configure worker is reached. This measures producer unavailability for these invocations, not the intended retained-table/read-snapshot behavior.",
+          "evidence": [
+            "multi-write-configurable-input",
+            "configure-all-configurable-input",
+            "matrix-original",
+            "provider-retention-original",
+            "tcl8.5-multi-write-configurable-receipt-json",
+            "tcl8.5-multi-write-configurable-stdout",
+            "tcl8.5-multi-write-configurable-stderr",
+            "tcl8.5-multi-write-configurable-version-stdout",
+            "tcl8.5-multi-write-configurable-version-stderr",
+            "tcl8.5-configure-all-configurable-receipt-json",
+            "tcl8.5-configure-all-configurable-stdout",
+            "tcl8.5-configure-all-configurable-stderr",
+            "tcl8.5-configure-all-configurable-version-stdout",
+            "tcl8.5-configure-all-configurable-version-stderr",
+            "tcl8.5-executable-elf-gz",
+            "tcl8.5-ldd-stdout",
+            "tcl8.5-ldd-stderr",
+            "tcl8.5-wrapper-sh"
+          ]
+        },
+        {
+          "id": "tcl8.6",
+          "version": "8.6.18",
+          "build": "Actual invoked shell wrapper and its downstream Tcl ELF identified by original recorded whole hashes; exact executable gzip roundtrip and 8.6.18 printed version are retained. Reported ldd dependencies lack retained shared-library bytes and launch-time dependency hashes. Source inspection is not configure/build replay or a binary/source equivalence proof.",
+          "input_channel": "Two exact ordinary script files through recorded CLI argv; independent version script, whole public stdout/stderr and own closed process receipts.",
+          "dialect": "tcl8.6",
+          "status": "observed",
+          "answer": "Both exact configurable scripts close exit1 with empty stdout and invalid command name \"oo::configurable\" before either intended configure worker is reached. This measures producer unavailability for these invocations, not the intended retained-table/read-snapshot behavior.",
+          "evidence": [
+            "multi-write-configurable-input",
+            "configure-all-configurable-input",
+            "matrix-original",
+            "provider-retention-original",
+            "tcl8.6-multi-write-configurable-receipt-json",
+            "tcl8.6-multi-write-configurable-stdout",
+            "tcl8.6-multi-write-configurable-stderr",
+            "tcl8.6-multi-write-configurable-version-stdout",
+            "tcl8.6-multi-write-configurable-version-stderr",
+            "tcl8.6-configure-all-configurable-receipt-json",
+            "tcl8.6-configure-all-configurable-stdout",
+            "tcl8.6-configure-all-configurable-stderr",
+            "tcl8.6-configure-all-configurable-version-stdout",
+            "tcl8.6-configure-all-configurable-version-stderr",
+            "tcl8.6-executable-elf-gz",
+            "tcl8.6-ldd-stdout",
+            "tcl8.6-ldd-stderr",
+            "tcl8.6-wrapper-sh"
+          ]
+        },
+        {
+          "id": "tcl9.0",
+          "version": "9.0.4",
+          "build": "Actual invoked shell wrapper and its downstream Tcl ELF identified by original recorded whole hashes; exact executable gzip roundtrip and 9.0.4 printed version are retained. Reported ldd dependencies lack retained shared-library bytes and launch-time dependency hashes. Source inspection is not configure/build replay or a binary/source equivalence proof.",
+          "input_channel": "Two exact ordinary script files through recorded CLI argv; independent version script, whole public stdout/stderr and own closed process receipts.",
+          "dialect": "tcl9.0",
+          "status": "observed",
+          "answer": "Both exact configurable scripts close exit0 with empty stderr. Multi-write prints code 0, empty result, events {a b} and properties {-a -b -z}; configure-all prints code 0, result {-a A -z Z}, events {a z} and properties {-a -b -z}. The latter excludes newly added b from its read result. These public values alone establish no pointer/refcount/physical cache recipe or Rust assertion outcome.",
+          "evidence": [
+            "multi-write-configurable-input",
+            "configure-all-configurable-input",
+            "matrix-original",
+            "provider-retention-original",
+            "tcl9.0-multi-write-configurable-receipt-json",
+            "tcl9.0-multi-write-configurable-stdout",
+            "tcl9.0-multi-write-configurable-stderr",
+            "tcl9.0-multi-write-configurable-version-stdout",
+            "tcl9.0-multi-write-configurable-version-stderr",
+            "tcl9.0-configure-all-configurable-receipt-json",
+            "tcl9.0-configure-all-configurable-stdout",
+            "tcl9.0-configure-all-configurable-stderr",
+            "tcl9.0-configure-all-configurable-version-stdout",
+            "tcl9.0-configure-all-configurable-version-stderr",
+            "tcl9.0-executable-elf-gz",
+            "tcl9.0-ldd-stdout",
+            "tcl9.0-ldd-stderr",
+            "tcl9.0-wrapper-sh"
+          ]
+        },
+        {
+          "id": "tcl9.1",
+          "version": "9.1.0",
+          "build": "Actual invoked shell wrapper and its downstream Tcl ELF identified by original recorded whole hashes; exact executable gzip roundtrip and 9.1.0 printed version are retained. Reported ldd dependencies lack retained shared-library bytes and launch-time dependency hashes. Source inspection is not configure/build replay or a binary/source equivalence proof.",
+          "input_channel": "Two exact ordinary script files through recorded CLI argv; independent version script, whole public stdout/stderr and own closed process receipts.",
+          "dialect": "tcl9.1",
+          "status": "observed",
+          "answer": "Both exact configurable scripts close exit0 with empty stderr. Multi-write prints code 0, empty result, events {a b} and properties {-a -b -z}; configure-all prints code 0, result {-a A -z Z}, events {a z} and properties {-a -b -z}. The latter excludes newly added b from its read result. These public values alone establish no pointer/refcount/physical cache recipe or Rust assertion outcome.",
+          "evidence": [
+            "multi-write-configurable-input",
+            "configure-all-configurable-input",
+            "matrix-original",
+            "provider-retention-original",
+            "tcl9.1-multi-write-configurable-receipt-json",
+            "tcl9.1-multi-write-configurable-stdout",
+            "tcl9.1-multi-write-configurable-stderr",
+            "tcl9.1-multi-write-configurable-version-stdout",
+            "tcl9.1-multi-write-configurable-version-stderr",
+            "tcl9.1-configure-all-configurable-receipt-json",
+            "tcl9.1-configure-all-configurable-stdout",
+            "tcl9.1-configure-all-configurable-stderr",
+            "tcl9.1-configure-all-configurable-version-stdout",
+            "tcl9.1-configure-all-configurable-version-stderr",
+            "tcl9.1-executable-elf-gz",
+            "tcl9.1-ldd-stdout",
+            "tcl9.1-ldd-stderr",
+            "tcl9.1-wrapper-sh"
+          ]
+        },
+        {
+          "id": "jim",
+          "version": "0.84-9-g5bac7c9",
+          "build": "Actual invoked Jim ELF identified by original recorded whole hashes; exact executable gzip roundtrip and 0.84-9-g5bac7c9 printed version are retained. Reported ldd dependencies lack retained shared-library bytes and launch-time dependency hashes. Source inspection is not configure/build replay or a binary/source equivalence proof.",
+          "input_channel": "Two exact ordinary script files through recorded CLI argv; independent version script, whole public stdout/stderr and own closed process receipts.",
+          "dialect": "jim",
+          "status": "observed",
+          "answer": "Both exact configurable scripts close exit1 with empty stdout and invalid command name \"oo::configurable\" before either intended configure worker is reached. This measures producer unavailability for these invocations, not the intended retained-table/read-snapshot behavior.",
+          "evidence": [
+            "multi-write-configurable-input",
+            "configure-all-configurable-input",
+            "matrix-original",
+            "provider-retention-original",
+            "jim-multi-write-configurable-receipt-json",
+            "jim-multi-write-configurable-stdout",
+            "jim-multi-write-configurable-stderr",
+            "jim-multi-write-configurable-version-stdout",
+            "jim-multi-write-configurable-version-stderr",
+            "jim-configure-all-configurable-receipt-json",
+            "jim-configure-all-configurable-stdout",
+            "jim-configure-all-configurable-stderr",
+            "jim-configure-all-configurable-version-stdout",
+            "jim-configure-all-configurable-version-stderr",
+            "jim-executable-elf-gz",
+            "jim-ldd-stdout",
+            "jim-ldd-stderr"
+          ]
+        },
+        {
+          "id": "bigip",
+          "version": "not tested",
+          "build": "No original BIG-IP process for this property question",
+          "input_channel": "No BIG-IP property script response",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "No original BIG-IP response is attached. Authored Runtime profiles and local Tcl/Jim observations establish no BIG-IP/TMM property behavior.",
+          "evidence": []
+        }
+      ],
+      "evidence": [
+        {
+          "id": "multi-write-configurable-input",
+          "role": "input",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/multi-write-configurable.tcl",
+          "sha256": "ec3701e9be1a215a4deef521d3c3d1f166dd481d27889bb399476313c069be80",
+          "description": "Exact ordinary configurable-class input supplied to all six measured provider invocations. Public printed result, event order and roster are separate from native pointer/layout observations."
+        },
+        {
+          "id": "configure-all-configurable-input",
+          "role": "input",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/configure-all-configurable.tcl",
+          "sha256": "f32e501e32060df1b2657732e66bf8f89b7f394b42e4e64e1b7e54c2e7b58290",
+          "description": "Exact ordinary configurable-class input supplied to all six measured provider invocations. Public printed result, event order and roster are separate from native pointer/layout observations."
+        },
+        {
+          "id": "matrix-original",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/matrix.json",
+          "sha256": "264239231a59437b8dd2099f2d4406f530d157dcbd3837dea011b8acba69cd3f",
+          "description": "Original twelve provider/case summaries with actual argv, input/wrapper hashes, exits/durations, raw stream hashes and independent version channels. Each original own receipt and raw stream is retained independently."
+        },
+        {
+          "id": "configurable-original-receipt",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/configurable-receipt.json",
+          "sha256": "afe5a503a13596b541f10776b2fd700e48f52d16885ed19159c833d003ca74bf",
+          "description": "Two independently retained C9.1 original process records with the actual configurable producer. These are distinct from the twelve-case matrix invocations."
+        },
+        {
+          "id": "rejected-original-receipt",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/submitted-receipt.json",
+          "sha256": "cb669feccbdc08d46bfcc356703332b7631f46f56f74d66936ab273f8d70007b",
+          "description": "Two exact C9.1 generic oo::class submissions close exit1 at invalid property command before the intended configure workers. Their setup refusal establishes no retained-table/read-snapshot result."
+        },
+        {
+          "id": "multi-write-submitted-tcl",
+          "role": "input",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/multi-write-submitted.tcl",
+          "sha256": "8715c0fdf3ec71f863c7ebc1b7a22d7db9225e24ac45c071034769d773ce3905",
+          "description": "Exact original generic-class attempt bytes. The intended property configure worker is not reached; rejected setup must not supply a successful property observation."
+        },
+        {
+          "id": "multi-write-submitted-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/multi-write-submitted.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact original generic-class attempt bytes. The intended property configure worker is not reached; rejected setup must not supply a successful property observation."
+        },
+        {
+          "id": "multi-write-submitted-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/multi-write-submitted.stderr",
+          "sha256": "82274ba2140b4296aeb226afc4054996baadf798e3101ed801f2a5ab2d61b1f8",
+          "description": "Exact original generic-class attempt bytes. The intended property configure worker is not reached; rejected setup must not supply a successful property observation."
+        },
+        {
+          "id": "configure-all-submitted-tcl",
+          "role": "input",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/configure-all-submitted.tcl",
+          "sha256": "475701e60bc5ee3d0fd496bc4d0d4d75101b8d3fa7393e299e0e82b706a8040a",
+          "description": "Exact original generic-class attempt bytes. The intended property configure worker is not reached; rejected setup must not supply a successful property observation."
+        },
+        {
+          "id": "configure-all-submitted-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/configure-all-submitted.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact original generic-class attempt bytes. The intended property configure worker is not reached; rejected setup must not supply a successful property observation."
+        },
+        {
+          "id": "configure-all-submitted-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/configure-all-submitted.stderr",
+          "sha256": "811a9e04c76050533be5b15716c2bb62ab6f8b76d7b7f20d56b854ed179db3e0",
+          "description": "Exact original generic-class attempt bytes. The intended property configure worker is not reached; rejected setup must not supply a successful property observation."
+        },
+        {
+          "id": "version-input",
+          "role": "input",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/version.tcl",
+          "sha256": "c150325350330227902317fba9520b1ceeb87194e7537137648cbd8c00d7c165",
+          "description": "Exact independent version/nameofexecutable script. This ordinary version channel does not measure native property memory or full build provenance."
+        },
+        {
+          "id": "provider-retention-original",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-retention.json",
+          "sha256": "ea4ca508f4531f8823609f59a41a7d994854584f25cfe0330ed53c6964676ffc",
+          "description": "Original full invoked-wrapper/downstream-ELF and source joins. Six retained gzip executables independently round-trip to recorded full SHA and size. ldd outputs report loader dependencies without retained shared-library bytes or launch-time hashes; configure/build replay is absent."
+        },
+        {
+          "id": "tcl8.4-multi-write-configurable-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/84/multi-write-configurable/receipt.json",
+          "sha256": "b5cb4f8f010b2c58b2074808b0ec9a64df3162aa00a8f5d005359133ec8c3841",
+          "description": "Own original argv/input/invoked-file identity, closed exit/duration and whole raw stream hashes; no before/after full environment or reproducible-build closure."
+        },
+        {
+          "id": "tcl8.4-multi-write-configurable-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/84/multi-write-configurable/stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact original public script stdout. C9 successful printed events/result/roster are observable values only; older/Jim stdout is empty after producer refusal."
+        },
+        {
+          "id": "tcl8.4-multi-write-configurable-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/84/multi-write-configurable/stderr",
+          "sha256": "9543d12e63583969894d41c150234f8ff70e472e5593cc4f55ce4071a8cd09c4",
+          "description": "Whole original stderr: empty for successful C9 scripts; older/Jim invalid oo::configurable setup refusal precedes the intended configure worker."
+        },
+        {
+          "id": "tcl8.4-multi-write-configurable-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/84/multi-write-configurable/version.stdout",
+          "sha256": "068188ab11ced78c7f40d01dae26088440c13e92e4f7ecb8500848d9327722fd",
+          "description": "Exact independent printed version and executable path from this original invocation."
+        },
+        {
+          "id": "tcl8.4-multi-write-configurable-version-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/84/multi-write-configurable/version.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact independent version-channel stderr, retained empty."
+        },
+        {
+          "id": "tcl8.4-configure-all-configurable-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/84/configure-all-configurable/receipt.json",
+          "sha256": "9b1eea9d1437a095e7437b3e1767c26ac72e61d89d1073137f9969c10300404f",
+          "description": "Own original argv/input/invoked-file identity, closed exit/duration and whole raw stream hashes; no before/after full environment or reproducible-build closure."
+        },
+        {
+          "id": "tcl8.4-configure-all-configurable-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/84/configure-all-configurable/stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact original public script stdout. C9 successful printed events/result/roster are observable values only; older/Jim stdout is empty after producer refusal."
+        },
+        {
+          "id": "tcl8.4-configure-all-configurable-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/84/configure-all-configurable/stderr",
+          "sha256": "32ab00fd10205660070f4e1eb3f3d0bef4241eb47fca342883e2b848d503a541",
+          "description": "Whole original stderr: empty for successful C9 scripts; older/Jim invalid oo::configurable setup refusal precedes the intended configure worker."
+        },
+        {
+          "id": "tcl8.4-configure-all-configurable-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/84/configure-all-configurable/version.stdout",
+          "sha256": "068188ab11ced78c7f40d01dae26088440c13e92e4f7ecb8500848d9327722fd",
+          "description": "Exact independent printed version and executable path from this original invocation."
+        },
+        {
+          "id": "tcl8.4-configure-all-configurable-version-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/84/configure-all-configurable/version.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact independent version-channel stderr, retained empty."
+        },
+        {
+          "id": "tcl8.4-executable-elf-gz",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/84/executable.elf.gz",
+          "sha256": "0ef35bc55b478afbee73fdeaad303290df5449989182a55e9535b339d8ed1f28",
+          "description": "Retained original provider file. Whole ELF gzip decompresses to the original recorded SHA/size; wrappers match invocation hashes. ldd text lists reported dependencies only and supplies no loaded-address, library-byte or ABI/build correspondence."
+        },
+        {
+          "id": "tcl8.4-ldd-stdout",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/84/ldd.stdout",
+          "sha256": "322fce485c073c190020aa0b1592e59e8da792787e87eef2ab643f7b6826f7eb",
+          "description": "Retained original provider file. Whole ELF gzip decompresses to the original recorded SHA/size; wrappers match invocation hashes. ldd text lists reported dependencies only and supplies no loaded-address, library-byte or ABI/build correspondence."
+        },
+        {
+          "id": "tcl8.4-ldd-stderr",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/84/ldd.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Retained original provider file. Whole ELF gzip decompresses to the original recorded SHA/size; wrappers match invocation hashes. ldd text lists reported dependencies only and supplies no loaded-address, library-byte or ABI/build correspondence."
+        },
+        {
+          "id": "tcl8.4-wrapper-sh",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/84/wrapper.sh",
+          "sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+          "description": "Retained original provider file. Whole ELF gzip decompresses to the original recorded SHA/size; wrappers match invocation hashes. ldd text lists reported dependencies only and supplies no loaded-address, library-byte or ABI/build correspondence."
+        },
+        {
+          "id": "tcl8.5-multi-write-configurable-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/85/multi-write-configurable/receipt.json",
+          "sha256": "f83dacebe1ed4aec5e3fbd0dd91ad017f640dd45fcff56ef9c4b9359b440ad2a",
+          "description": "Own original argv/input/invoked-file identity, closed exit/duration and whole raw stream hashes; no before/after full environment or reproducible-build closure."
+        },
+        {
+          "id": "tcl8.5-multi-write-configurable-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/85/multi-write-configurable/stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact original public script stdout. C9 successful printed events/result/roster are observable values only; older/Jim stdout is empty after producer refusal."
+        },
+        {
+          "id": "tcl8.5-multi-write-configurable-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/85/multi-write-configurable/stderr",
+          "sha256": "9543d12e63583969894d41c150234f8ff70e472e5593cc4f55ce4071a8cd09c4",
+          "description": "Whole original stderr: empty for successful C9 scripts; older/Jim invalid oo::configurable setup refusal precedes the intended configure worker."
+        },
+        {
+          "id": "tcl8.5-multi-write-configurable-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/85/multi-write-configurable/version.stdout",
+          "sha256": "259a49bd971e95b8fc49e6ac8781be0003b69017f397c279c80f1f7dc24db0ca",
+          "description": "Exact independent printed version and executable path from this original invocation."
+        },
+        {
+          "id": "tcl8.5-multi-write-configurable-version-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/85/multi-write-configurable/version.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact independent version-channel stderr, retained empty."
+        },
+        {
+          "id": "tcl8.5-configure-all-configurable-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/85/configure-all-configurable/receipt.json",
+          "sha256": "c762f4438e96dec27b9d4a3fafd96f936ec97c2adaaba2924670d4c765d4a75c",
+          "description": "Own original argv/input/invoked-file identity, closed exit/duration and whole raw stream hashes; no before/after full environment or reproducible-build closure."
+        },
+        {
+          "id": "tcl8.5-configure-all-configurable-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/85/configure-all-configurable/stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact original public script stdout. C9 successful printed events/result/roster are observable values only; older/Jim stdout is empty after producer refusal."
+        },
+        {
+          "id": "tcl8.5-configure-all-configurable-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/85/configure-all-configurable/stderr",
+          "sha256": "32ab00fd10205660070f4e1eb3f3d0bef4241eb47fca342883e2b848d503a541",
+          "description": "Whole original stderr: empty for successful C9 scripts; older/Jim invalid oo::configurable setup refusal precedes the intended configure worker."
+        },
+        {
+          "id": "tcl8.5-configure-all-configurable-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/85/configure-all-configurable/version.stdout",
+          "sha256": "259a49bd971e95b8fc49e6ac8781be0003b69017f397c279c80f1f7dc24db0ca",
+          "description": "Exact independent printed version and executable path from this original invocation."
+        },
+        {
+          "id": "tcl8.5-configure-all-configurable-version-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/85/configure-all-configurable/version.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact independent version-channel stderr, retained empty."
+        },
+        {
+          "id": "tcl8.5-executable-elf-gz",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/85/executable.elf.gz",
+          "sha256": "47cba54ad641a54ba11e204d74a5ce4232e847fc198142f5a4846078ec5c6c58",
+          "description": "Retained original provider file. Whole ELF gzip decompresses to the original recorded SHA/size; wrappers match invocation hashes. ldd text lists reported dependencies only and supplies no loaded-address, library-byte or ABI/build correspondence."
+        },
+        {
+          "id": "tcl8.5-ldd-stdout",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/85/ldd.stdout",
+          "sha256": "889f87ad90d1610bb864bbf25706a6d801265f0ecd7a9381c97ba943b58aa783",
+          "description": "Retained original provider file. Whole ELF gzip decompresses to the original recorded SHA/size; wrappers match invocation hashes. ldd text lists reported dependencies only and supplies no loaded-address, library-byte or ABI/build correspondence."
+        },
+        {
+          "id": "tcl8.5-ldd-stderr",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/85/ldd.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Retained original provider file. Whole ELF gzip decompresses to the original recorded SHA/size; wrappers match invocation hashes. ldd text lists reported dependencies only and supplies no loaded-address, library-byte or ABI/build correspondence."
+        },
+        {
+          "id": "tcl8.5-wrapper-sh",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/85/wrapper.sh",
+          "sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+          "description": "Retained original provider file. Whole ELF gzip decompresses to the original recorded SHA/size; wrappers match invocation hashes. ldd text lists reported dependencies only and supplies no loaded-address, library-byte or ABI/build correspondence."
+        },
+        {
+          "id": "tcl8.6-multi-write-configurable-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/86/multi-write-configurable/receipt.json",
+          "sha256": "4ced5f30e40f34ca9c49c6a4415407b95c487fcf0b5e43d7a0293d5bf898f847",
+          "description": "Own original argv/input/invoked-file identity, closed exit/duration and whole raw stream hashes; no before/after full environment or reproducible-build closure."
+        },
+        {
+          "id": "tcl8.6-multi-write-configurable-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/86/multi-write-configurable/stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact original public script stdout. C9 successful printed events/result/roster are observable values only; older/Jim stdout is empty after producer refusal."
+        },
+        {
+          "id": "tcl8.6-multi-write-configurable-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/86/multi-write-configurable/stderr",
+          "sha256": "9543d12e63583969894d41c150234f8ff70e472e5593cc4f55ce4071a8cd09c4",
+          "description": "Whole original stderr: empty for successful C9 scripts; older/Jim invalid oo::configurable setup refusal precedes the intended configure worker."
+        },
+        {
+          "id": "tcl8.6-multi-write-configurable-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/86/multi-write-configurable/version.stdout",
+          "sha256": "a81129b21e3b9f356fdcce11e8283263ddef932c26801d5356865d71bfa5cbbc",
+          "description": "Exact independent printed version and executable path from this original invocation."
+        },
+        {
+          "id": "tcl8.6-multi-write-configurable-version-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/86/multi-write-configurable/version.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact independent version-channel stderr, retained empty."
+        },
+        {
+          "id": "tcl8.6-configure-all-configurable-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/86/configure-all-configurable/receipt.json",
+          "sha256": "c7ad100405a75b5f2f66240197e523869a6821bc6d57b993f0f7731aad4732d6",
+          "description": "Own original argv/input/invoked-file identity, closed exit/duration and whole raw stream hashes; no before/after full environment or reproducible-build closure."
+        },
+        {
+          "id": "tcl8.6-configure-all-configurable-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/86/configure-all-configurable/stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact original public script stdout. C9 successful printed events/result/roster are observable values only; older/Jim stdout is empty after producer refusal."
+        },
+        {
+          "id": "tcl8.6-configure-all-configurable-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/86/configure-all-configurable/stderr",
+          "sha256": "32ab00fd10205660070f4e1eb3f3d0bef4241eb47fca342883e2b848d503a541",
+          "description": "Whole original stderr: empty for successful C9 scripts; older/Jim invalid oo::configurable setup refusal precedes the intended configure worker."
+        },
+        {
+          "id": "tcl8.6-configure-all-configurable-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/86/configure-all-configurable/version.stdout",
+          "sha256": "a81129b21e3b9f356fdcce11e8283263ddef932c26801d5356865d71bfa5cbbc",
+          "description": "Exact independent printed version and executable path from this original invocation."
+        },
+        {
+          "id": "tcl8.6-configure-all-configurable-version-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/86/configure-all-configurable/version.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact independent version-channel stderr, retained empty."
+        },
+        {
+          "id": "tcl8.6-executable-elf-gz",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/86/executable.elf.gz",
+          "sha256": "7f604661926c1c5237e7423365f39c9ffda3bd849441190a130d903f046a8ba8",
+          "description": "Retained original provider file. Whole ELF gzip decompresses to the original recorded SHA/size; wrappers match invocation hashes. ldd text lists reported dependencies only and supplies no loaded-address, library-byte or ABI/build correspondence."
+        },
+        {
+          "id": "tcl8.6-ldd-stdout",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/86/ldd.stdout",
+          "sha256": "16279183390cbadc66886bce49b5d5f2e6e37e39c6a71ce1ea4f14adbc184cc5",
+          "description": "Retained original provider file. Whole ELF gzip decompresses to the original recorded SHA/size; wrappers match invocation hashes. ldd text lists reported dependencies only and supplies no loaded-address, library-byte or ABI/build correspondence."
+        },
+        {
+          "id": "tcl8.6-ldd-stderr",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/86/ldd.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Retained original provider file. Whole ELF gzip decompresses to the original recorded SHA/size; wrappers match invocation hashes. ldd text lists reported dependencies only and supplies no loaded-address, library-byte or ABI/build correspondence."
+        },
+        {
+          "id": "tcl8.6-wrapper-sh",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/86/wrapper.sh",
+          "sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+          "description": "Retained original provider file. Whole ELF gzip decompresses to the original recorded SHA/size; wrappers match invocation hashes. ldd text lists reported dependencies only and supplies no loaded-address, library-byte or ABI/build correspondence."
+        },
+        {
+          "id": "tcl9.0-multi-write-configurable-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/90/multi-write-configurable/receipt.json",
+          "sha256": "a55329f4d45cda0f5c6b170c6f68f2f4998994959ee07c3127efc008d9e1ed7a",
+          "description": "Own original argv/input/invoked-file identity, closed exit/duration and whole raw stream hashes; no before/after full environment or reproducible-build closure."
+        },
+        {
+          "id": "tcl9.0-multi-write-configurable-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/90/multi-write-configurable/stdout",
+          "sha256": "3895d8ce2308703009139185084af03dee5dfc6e7776f4b9e1e0df64de34afcc",
+          "description": "Exact original public script stdout. C9 successful printed events/result/roster are observable values only; older/Jim stdout is empty after producer refusal."
+        },
+        {
+          "id": "tcl9.0-multi-write-configurable-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/90/multi-write-configurable/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Whole original stderr: empty for successful C9 scripts; older/Jim invalid oo::configurable setup refusal precedes the intended configure worker."
+        },
+        {
+          "id": "tcl9.0-multi-write-configurable-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/90/multi-write-configurable/version.stdout",
+          "sha256": "69eee34205bb624bf438509249dfaa4b1378791c3999e0dd58c00be6ba8158e3",
+          "description": "Exact independent printed version and executable path from this original invocation."
+        },
+        {
+          "id": "tcl9.0-multi-write-configurable-version-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/90/multi-write-configurable/version.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact independent version-channel stderr, retained empty."
+        },
+        {
+          "id": "tcl9.0-configure-all-configurable-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/90/configure-all-configurable/receipt.json",
+          "sha256": "2e2afea092a3e794c1150d6c81716c7d6a9f675dc2f5dfd15159a6c5578fdeea",
+          "description": "Own original argv/input/invoked-file identity, closed exit/duration and whole raw stream hashes; no before/after full environment or reproducible-build closure."
+        },
+        {
+          "id": "tcl9.0-configure-all-configurable-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/90/configure-all-configurable/stdout",
+          "sha256": "d144c19f27db833224ec594d22af0aeba951367d98ac4fa4772dd16c9ea5c309",
+          "description": "Exact original public script stdout. C9 successful printed events/result/roster are observable values only; older/Jim stdout is empty after producer refusal."
+        },
+        {
+          "id": "tcl9.0-configure-all-configurable-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/90/configure-all-configurable/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Whole original stderr: empty for successful C9 scripts; older/Jim invalid oo::configurable setup refusal precedes the intended configure worker."
+        },
+        {
+          "id": "tcl9.0-configure-all-configurable-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/90/configure-all-configurable/version.stdout",
+          "sha256": "69eee34205bb624bf438509249dfaa4b1378791c3999e0dd58c00be6ba8158e3",
+          "description": "Exact independent printed version and executable path from this original invocation."
+        },
+        {
+          "id": "tcl9.0-configure-all-configurable-version-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/90/configure-all-configurable/version.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact independent version-channel stderr, retained empty."
+        },
+        {
+          "id": "tcl9.0-executable-elf-gz",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/90/executable.elf.gz",
+          "sha256": "efd77c98ed7007ad21ec1b50feb70b2533301fa372379cc17f17ce85333cea3a",
+          "description": "Retained original provider file. Whole ELF gzip decompresses to the original recorded SHA/size; wrappers match invocation hashes. ldd text lists reported dependencies only and supplies no loaded-address, library-byte or ABI/build correspondence."
+        },
+        {
+          "id": "tcl9.0-ldd-stdout",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/90/ldd.stdout",
+          "sha256": "0eaff2aa38de4eb9b9dfd0b8cdb9847c3abe24cfffe0825b26bc4356844d8ebf",
+          "description": "Retained original provider file. Whole ELF gzip decompresses to the original recorded SHA/size; wrappers match invocation hashes. ldd text lists reported dependencies only and supplies no loaded-address, library-byte or ABI/build correspondence."
+        },
+        {
+          "id": "tcl9.0-ldd-stderr",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/90/ldd.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Retained original provider file. Whole ELF gzip decompresses to the original recorded SHA/size; wrappers match invocation hashes. ldd text lists reported dependencies only and supplies no loaded-address, library-byte or ABI/build correspondence."
+        },
+        {
+          "id": "tcl9.0-wrapper-sh",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/90/wrapper.sh",
+          "sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+          "description": "Retained original provider file. Whole ELF gzip decompresses to the original recorded SHA/size; wrappers match invocation hashes. ldd text lists reported dependencies only and supplies no loaded-address, library-byte or ABI/build correspondence."
+        },
+        {
+          "id": "tcl9.1-multi-write-configurable-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/91/multi-write-configurable/receipt.json",
+          "sha256": "52fea2d702c77bccebbcaa9e5c88a64c00644d2eb2bdbf789fd896692099609b",
+          "description": "Own original argv/input/invoked-file identity, closed exit/duration and whole raw stream hashes; no before/after full environment or reproducible-build closure."
+        },
+        {
+          "id": "tcl9.1-multi-write-configurable-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/91/multi-write-configurable/stdout",
+          "sha256": "3895d8ce2308703009139185084af03dee5dfc6e7776f4b9e1e0df64de34afcc",
+          "description": "Exact original public script stdout. C9 successful printed events/result/roster are observable values only; older/Jim stdout is empty after producer refusal."
+        },
+        {
+          "id": "tcl9.1-multi-write-configurable-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/91/multi-write-configurable/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Whole original stderr: empty for successful C9 scripts; older/Jim invalid oo::configurable setup refusal precedes the intended configure worker."
+        },
+        {
+          "id": "tcl9.1-multi-write-configurable-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/91/multi-write-configurable/version.stdout",
+          "sha256": "8b89a9cc4b86d71b504dc58191a433a1226a5bd0f407cd3e3c0b6606f7e96f11",
+          "description": "Exact independent printed version and executable path from this original invocation."
+        },
+        {
+          "id": "tcl9.1-multi-write-configurable-version-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/91/multi-write-configurable/version.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact independent version-channel stderr, retained empty."
+        },
+        {
+          "id": "tcl9.1-configure-all-configurable-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/91/configure-all-configurable/receipt.json",
+          "sha256": "0adc0d57c6fb9063a6e171dc9ff15ddbe48b809128643056eaab57673da46389",
+          "description": "Own original argv/input/invoked-file identity, closed exit/duration and whole raw stream hashes; no before/after full environment or reproducible-build closure."
+        },
+        {
+          "id": "tcl9.1-configure-all-configurable-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/91/configure-all-configurable/stdout",
+          "sha256": "d144c19f27db833224ec594d22af0aeba951367d98ac4fa4772dd16c9ea5c309",
+          "description": "Exact original public script stdout. C9 successful printed events/result/roster are observable values only; older/Jim stdout is empty after producer refusal."
+        },
+        {
+          "id": "tcl9.1-configure-all-configurable-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/91/configure-all-configurable/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Whole original stderr: empty for successful C9 scripts; older/Jim invalid oo::configurable setup refusal precedes the intended configure worker."
+        },
+        {
+          "id": "tcl9.1-configure-all-configurable-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/91/configure-all-configurable/version.stdout",
+          "sha256": "8b89a9cc4b86d71b504dc58191a433a1226a5bd0f407cd3e3c0b6606f7e96f11",
+          "description": "Exact independent printed version and executable path from this original invocation."
+        },
+        {
+          "id": "tcl9.1-configure-all-configurable-version-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/91/configure-all-configurable/version.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact independent version-channel stderr, retained empty."
+        },
+        {
+          "id": "tcl9.1-executable-elf-gz",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/91/executable.elf.gz",
+          "sha256": "fc6c12552b3f4c0e1e5d023322046330cecaafa80f3fb45d46727cf1261262a2",
+          "description": "Retained original provider file. Whole ELF gzip decompresses to the original recorded SHA/size; wrappers match invocation hashes. ldd text lists reported dependencies only and supplies no loaded-address, library-byte or ABI/build correspondence."
+        },
+        {
+          "id": "tcl9.1-ldd-stdout",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/91/ldd.stdout",
+          "sha256": "24871b07178963e8dc2df2ae1a86a7e5a6ae7e45944f2de2e79961852dc286ac",
+          "description": "Retained original provider file. Whole ELF gzip decompresses to the original recorded SHA/size; wrappers match invocation hashes. ldd text lists reported dependencies only and supplies no loaded-address, library-byte or ABI/build correspondence."
+        },
+        {
+          "id": "tcl9.1-ldd-stderr",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/91/ldd.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Retained original provider file. Whole ELF gzip decompresses to the original recorded SHA/size; wrappers match invocation hashes. ldd text lists reported dependencies only and supplies no loaded-address, library-byte or ABI/build correspondence."
+        },
+        {
+          "id": "tcl9.1-wrapper-sh",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/91/wrapper.sh",
+          "sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+          "description": "Retained original provider file. Whole ELF gzip decompresses to the original recorded SHA/size; wrappers match invocation hashes. ldd text lists reported dependencies only and supplies no loaded-address, library-byte or ABI/build correspondence."
+        },
+        {
+          "id": "jim-multi-write-configurable-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/jim/multi-write-configurable/receipt.json",
+          "sha256": "5a30b1b1ca50c31c85d11d6b6d14e2371e3959db052d7a3ee578840d9e63e33e",
+          "description": "Own original argv/input/invoked-file identity, closed exit/duration and whole raw stream hashes; no before/after full environment or reproducible-build closure."
+        },
+        {
+          "id": "jim-multi-write-configurable-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/jim/multi-write-configurable/stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact original public script stdout. C9 successful printed events/result/roster are observable values only; older/Jim stdout is empty after producer refusal."
+        },
+        {
+          "id": "jim-multi-write-configurable-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/jim/multi-write-configurable/stderr",
+          "sha256": "91daf4b9065a360f5cb67415b12004217807028447ecb8d5f0937be3b61e5a06",
+          "description": "Whole original stderr: empty for successful C9 scripts; older/Jim invalid oo::configurable setup refusal precedes the intended configure worker."
+        },
+        {
+          "id": "jim-multi-write-configurable-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/jim/multi-write-configurable/version.stdout",
+          "sha256": "99b5bb7754238fcb794ac3b8e264e28f187a60f3042185ad32824c06f315853a",
+          "description": "Exact independent printed version and executable path from this original invocation."
+        },
+        {
+          "id": "jim-multi-write-configurable-version-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/jim/multi-write-configurable/version.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact independent version-channel stderr, retained empty."
+        },
+        {
+          "id": "jim-configure-all-configurable-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/jim/configure-all-configurable/receipt.json",
+          "sha256": "96949be436959f3bf80cf4a9c1ac9ab2c98908ac72824c14cff7a0cca0ae5ada",
+          "description": "Own original argv/input/invoked-file identity, closed exit/duration and whole raw stream hashes; no before/after full environment or reproducible-build closure."
+        },
+        {
+          "id": "jim-configure-all-configurable-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/jim/configure-all-configurable/stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact original public script stdout. C9 successful printed events/result/roster are observable values only; older/Jim stdout is empty after producer refusal."
+        },
+        {
+          "id": "jim-configure-all-configurable-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/jim/configure-all-configurable/stderr",
+          "sha256": "ba8c5b6f5f11b1aad7a095c8ce1b867155047ec4370e6727a8b994555eb3889f",
+          "description": "Whole original stderr: empty for successful C9 scripts; older/Jim invalid oo::configurable setup refusal precedes the intended configure worker."
+        },
+        {
+          "id": "jim-configure-all-configurable-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/jim/configure-all-configurable/version.stdout",
+          "sha256": "99b5bb7754238fcb794ac3b8e264e28f187a60f3042185ad32824c06f315853a",
+          "description": "Exact independent printed version and executable path from this original invocation."
+        },
+        {
+          "id": "jim-configure-all-configurable-version-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/jim/configure-all-configurable/version.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact independent version-channel stderr, retained empty."
+        },
+        {
+          "id": "jim-executable-elf-gz",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/jim/executable.elf.gz",
+          "sha256": "4bb1e19e71a50cfeaf339019c06cb10c52ce4110a385229e99c95f89e92be8ea",
+          "description": "Retained original provider file. Whole ELF gzip decompresses to the original recorded SHA/size; wrappers match invocation hashes. ldd text lists reported dependencies only and supplies no loaded-address, library-byte or ABI/build correspondence."
+        },
+        {
+          "id": "jim-ldd-stdout",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/jim/ldd.stdout",
+          "sha256": "4429c9cfdc881a14d6b2a1d86cc3d7cca4367f991b6ef145bcca954ec4eb25a9",
+          "description": "Retained original provider file. Whole ELF gzip decompresses to the original recorded SHA/size; wrappers match invocation hashes. ldd text lists reported dependencies only and supplies no loaded-address, library-byte or ABI/build correspondence."
+        },
+        {
+          "id": "jim-ldd-stderr",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/jim/ldd.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Retained original provider file. Whole ELF gzip decompresses to the original recorded SHA/size; wrappers match invocation hashes. ldd text lists reported dependencies only and supplies no loaded-address, library-byte or ABI/build correspondence."
+        },
+        {
+          "id": "source-window-0",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/source-windows/tcl9.1.0-274-343.c",
+          "sha256": "343a1ba048fc015da66373af15de4e9a6d99d4fe96fff45de55b38242fa7249c",
+          "description": "Exact physical-LF source excerpt rejoined to retained whole tclOOProp.c SHA. It inspects current-member lookup, copied old table List/cache release, or configure-all retained working List. C9.0 source joins and printed values do not issue the software adapter C9.1 physical purpose."
+        },
+        {
+          "id": "source-window-1",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/source-windows/tcl9.1.0-347-360.c",
+          "sha256": "6104be04b61fb5e6243ad46ce99e4c414e3d9d421e7932b83c2b18138f483c36",
+          "description": "Exact physical-LF source excerpt rejoined to retained whole tclOOProp.c SHA. It inspects current-member lookup, copied old table List/cache release, or configure-all retained working List. C9.0 source joins and printed values do not issue the software adapter C9.1 physical purpose."
+        },
+        {
+          "id": "source-window-2",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/source-windows/tcl9.1.0-365-409.c",
+          "sha256": "c97921ab14cabd97832031611208646c5a4ada47cc748732bc16fc8b8d6d542b",
+          "description": "Exact physical-LF source excerpt rejoined to retained whole tclOOProp.c SHA. It inspects current-member lookup, copied old table List/cache release, or configure-all retained working List. C9.0 source joins and printed values do not issue the software adapter C9.1 physical purpose."
+        },
+        {
+          "id": "source-window-3",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/source-windows/tcl9.1.0-416-466.c",
+          "sha256": "38c1be425b81bb92d3bb125434474674da38459769b0cf220c59aaf29ecc53ac",
+          "description": "Exact physical-LF source excerpt rejoined to retained whole tclOOProp.c SHA. It inspects current-member lookup, copied old table List/cache release, or configure-all retained working List. C9.0 source joins and printed values do not issue the software adapter C9.1 physical purpose."
+        },
+        {
+          "id": "source-window-4",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/source-windows/tcl9.0.4-163-232.c",
+          "sha256": "01f8eaa50b99a7223632096ce6176a5dae8786ad8ac91d58823e256699c2fdae",
+          "description": "Exact physical-LF source excerpt rejoined to retained whole tclOOProp.c SHA. It inspects current-member lookup, copied old table List/cache release, or configure-all retained working List. C9.0 source joins and printed values do not issue the software adapter C9.1 physical purpose."
+        },
+        {
+          "id": "source-window-5",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/source-windows/tcl9.0.4-236-249.c",
+          "sha256": "6104be04b61fb5e6243ad46ce99e4c414e3d9d421e7932b83c2b18138f483c36",
+          "description": "Exact physical-LF source excerpt rejoined to retained whole tclOOProp.c SHA. It inspects current-member lookup, copied old table List/cache release, or configure-all retained working List. C9.0 source joins and printed values do not issue the software adapter C9.1 physical purpose."
+        },
+        {
+          "id": "source-window-6",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/source-windows/tcl9.0.4-254-298.c",
+          "sha256": "6a042e426c201fc8e00149facae37076cbfa9f0fe91bec3150dd572364d8f665",
+          "description": "Exact physical-LF source excerpt rejoined to retained whole tclOOProp.c SHA. It inspects current-member lookup, copied old table List/cache release, or configure-all retained working List. C9.0 source joins and printed values do not issue the software adapter C9.1 physical purpose."
+        },
+        {
+          "id": "source-window-7",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/source-windows/tcl9.0.4-305-355.c",
+          "sha256": "43b5eefd3b3b6d1776c8c1d226125349ba46b8ea273e24f6ea7ce2d2040a7a6d",
+          "description": "Exact physical-LF source excerpt rejoined to retained whole tclOOProp.c SHA. It inspects current-member lookup, copied old table List/cache release, or configure-all retained working List. C9.0 source joins and printed values do not issue the software adapter C9.1 physical purpose."
+        },
+        {
+          "id": "tcl9.0-whole-property-source",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/90/tclOOProp.c.gz",
+          "sha256": "7c91177bd05c0cffa3fee909749df371b089b10ac2a6a00267118c7b230f0cc9",
+          "description": "Lossless complete original tclOOProp.c bytes identified by provider-retention.json; exact physical-LF excerpts are selected independently. Inspected source does not prove that a binary was built from these bytes."
+        },
+        {
+          "id": "tcl9.1-whole-property-source",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/91/tclOOProp.c.gz",
+          "sha256": "794ef09bb04b32ddd5a7a12aabb5542b43414197cd86572f5de1d0877d791438",
+          "description": "Lossless complete original tclOOProp.c bytes identified by provider-retention.json; exact physical-LF excerpts are selected independently. Inspected source does not prove that a binary was built from these bytes."
+        },
+        {
+          "id": "current-source-0",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_oo/native_properties.rs",
+          "sha256": "2bf6ce84f3598db31ffa19d2722a0c1831967b1c2d69a1f4e59acf429923a7ad",
+          "description": "Current software owner or actual parent module registration. The source definition has no attached matching owned Rust assertion result; the public C9 prints do not establish its physical cache/lifetime behavior."
+        },
+        {
+          "id": "current-source-1",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_oo/original_property_reporting_tests.rs",
+          "sha256": "8290118ae22279e1c22ee9a669b16309ab896ea8bd94191b4747f324c5da8f16",
+          "description": "Current software owner or actual parent module registration. The source definition has no attached matching owned Rust assertion result; the public C9 prints do not establish its physical cache/lifetime behavior."
+        },
+        {
+          "id": "current-source-2",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_oo.rs",
+          "sha256": "cf78841987d41897f202be04d13e5d2db524d4182cb52b5014fa838596035bab",
+          "description": "Current software owner or actual parent module registration. The source definition has no attached matching owned Rust assertion result; the public C9 prints do not establish its physical cache/lifetime behavior."
+        }
+      ],
+      "source_anchors": [
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Configured original source tree joined by complete SHA; configure/build processes have no replay receipts",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOProp.c",
+          "function": "GetPropertyName",
+          "lines": [
+            274,
+            343
+          ],
+          "source_sha256": "c791423ae9b49c877bea8da8a7c2b74b40520e600863341e8d12a63b10c2aaaf",
+          "snippet": "GetPropertyName(\n    Tcl_Interp *interp,\t\t/* Context and error reporting. */\n    Object *oPtr,\t\t/* Object to get property name from. */\n    int flags,\t\t\t/* Are we looking for a writable property?\n\t\t\t\t * Can we do a fallback message?\n\t\t\t\t * See GPNFlags for possible values */\n    Tcl_Obj *namePtr,\t\t/* The name supplied by the user. */\n    GPNCache **cachePtr)\t/* Where to cache the table, if the caller\n\t\t\t\t * wants that. The contents are to be freed\n\t\t\t\t * with Tcl_Free if the cache is used. */\n{\n    Tcl_Size objc, index, i;\n    Tcl_Obj *listPtr = GetAllObjectProperties(\n\t    oPtr, (flags & GPN_WRITABLE) != 0);\n    Tcl_Obj **objv;\n    GPNCache *tablePtr;\n\n    (void) Tcl_ListObjGetElements(NULL, listPtr, &objc, &objv);\n    if (cachePtr && *cachePtr) {\n\ttablePtr = *cachePtr;\n    } else {\n\ttablePtr = (GPNCache *) TclStackAlloc(interp,\n\t\toffsetof(GPNCache, names) + sizeof(char *) * ((size_t)objc + 1));\n\n\tfor (i = 0; i < objc; i++) {\n\t    tablePtr->names[i] = TclGetString(objv[i]);\n\t}\n\ttablePtr->names[objc] = NULL;\n\tif (cachePtr) {\n\t    /*\n\t     * Have a cache, but nothing in it so far.\n\t     *\n\t     * We cache the list here so it doesn't vanish from under our\n\t     * feet if a property implementation does something crazy like\n\t     * changing the set of properties. The type of copy this does\n\t     * means that the copy holds the references to the names in the\n\t     * table.\n\t     */\n\t    tablePtr->listPtr = TclListObjCopy(NULL, listPtr);\n\t    Tcl_IncrRefCount(tablePtr->listPtr);\n\t    *cachePtr = tablePtr;\n\t} else {\n\t    tablePtr->listPtr = NULL;\n\t}\n    }\n    int result = Tcl_GetIndexFromObjStruct(interp, namePtr, tablePtr->names,\n\t    sizeof(char *), \"property\", TCL_INDEX_TEMP_TABLE, &index);\n    if (result == TCL_ERROR && !(flags & GPN_FALLING_BACK)) {\n\t/*\n\t * If property can be accessed the other way, use a special message.\n\t * We use a recursive call to look this up.\n\t */\n\n\tTcl_InterpState state = Tcl_SaveInterpState(interp, result);\n\tTcl_Obj *otherName = GetPropertyName(interp, oPtr,\n\t\tflags ^ (GPN_WRITABLE | GPN_FALLING_BACK), namePtr, NULL);\n\tresult = Tcl_RestoreInterpState(interp, state);\n\tif (otherName != NULL) {\n\t    Tcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t    \"property \\\"%s\\\" is %s only\",\n\t\t    TclGetString(otherName),\n\t\t    (flags & GPN_WRITABLE) ? \"read\" : \"write\"));\n\t}\n    }\n    if (!cachePtr) {\n\tTclStackFree(interp, tablePtr);\n    }\n    if (result != TCL_OK) {\n\treturn NULL;\n    }\n",
+          "snippet_sha256": "343a1ba048fc015da66373af15de4e9a6d99d4fe96fff45de55b38242fa7249c",
+          "evidence": "source-window-0"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Configured original source tree joined by complete SHA; configure/build processes have no replay receipts",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOProp.c",
+          "function": "ReleasePropertyNameCache",
+          "lines": [
+            347,
+            360
+          ],
+          "source_sha256": "c791423ae9b49c877bea8da8a7c2b74b40520e600863341e8d12a63b10c2aaaf",
+          "snippet": "/* Release the cache made by GetPropertyName(). */\nstatic inline void\nReleasePropertyNameCache(\n    Tcl_Interp *interp,\n    GPNCache **cachePtr)\n{\n    if (*cachePtr) {\n\tGPNCache *tablePtr = *cachePtr;\n\tif (tablePtr->listPtr) {\n\t    Tcl_DecrRefCount(tablePtr->listPtr);\n\t}\n\tTclStackFree(interp, tablePtr);\n\t*cachePtr = NULL;\n    }\n",
+          "snippet_sha256": "6104be04b61fb5e6243ad46ce99e4c414e3d9d421e7932b83c2b18138f483c36",
+          "evidence": "source-window-1"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Configured original source tree joined by complete SHA; configure/build processes have no replay receipts",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOProp.c",
+          "function": "TclOO_Configurable_Configure",
+          "lines": [
+            365,
+            409
+          ],
+          "source_sha256": "c791423ae9b49c877bea8da8a7c2b74b40520e600863341e8d12a63b10c2aaaf",
+          "snippet": "    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\t\t/* Interpreter used for the result, error\n\t\t\t\t * reporting, etc. */\n    Tcl_ObjectContext context,\t/* The object/call context. */\n    Tcl_Size objc,\t\t/* Number of arguments. */\n    Tcl_Obj *const *objv)\t/* The actual arguments. */\n{\n    Object *oPtr = (Object *) Tcl_ObjectContextObject(context);\n    Tcl_Size skip = Tcl_ObjectContextSkippedArgs(context);\n    Tcl_Obj *namePtr;\n    Tcl_Size i, namec;\n    int code = TCL_OK;\n\n    objc -= skip;\n    if ((objc & 1) && (objc != 1)) {\n\t/*\n\t * Bad (odd > 1) number of arguments.\n\t */\n\n\tTcl_WrongNumArgs(interp, skip, objv, \"?-option value ...?\");\n\treturn TCL_ERROR;\n    }\n\n    objv += skip;\n    if (objc == 0) {\n\t/*\n\t * Read all properties.\n\t */\n\n\tTcl_Obj *listPtr = GetAllObjectProperties(oPtr, false);\n\tTcl_Obj *resultPtr = Tcl_NewObj(), **namev;\n\n\tTcl_IncrRefCount(listPtr);\n\tListObjGetElements(listPtr, namec, namev);\n\n\tfor (i = 0; i < namec; ) {\n\t    code = ReadProperty(interp, oPtr, namev[i]);\n\t    if (code != TCL_OK) {\n\t\tTcl_DecrRefCount(resultPtr);\n\t\tbreak;\n\t    }\n\t    Tcl_DictObjPut(NULL, resultPtr, namev[i],\n\t\t    Tcl_GetObjResult(interp));\n\t    if (++i >= namec) {\n\t\tTcl_SetObjResult(interp, resultPtr);\n",
+          "snippet_sha256": "c97921ab14cabd97832031611208646c5a4ada47cc748732bc16fc8b8d6d542b",
+          "evidence": "source-window-2"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Configured original source tree joined by complete SHA; configure/build processes have no replay receipts",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOProp.c",
+          "function": "TclOO_Configurable_Configure",
+          "lines": [
+            416,
+            466
+          ],
+          "source_sha256": "c791423ae9b49c877bea8da8a7c2b74b40520e600863341e8d12a63b10c2aaaf",
+          "snippet": "    } else if (objc == 1) {\n\t/*\n\t * Read a single named property.\n\t */\n\n\tnamePtr = GetPropertyName(interp, oPtr, 0, objv[0], NULL);\n\tif (namePtr == NULL) {\n\t    return TCL_ERROR;\n\t}\n\treturn ReadProperty(interp, oPtr, namePtr);\n    } else if (objc == 2) {\n\t/*\n\t * Special case for writing to one property. Saves fiddling with the\n\t * cache in this common case.\n\t */\n\n\tnamePtr = GetPropertyName(interp, oPtr, GPN_WRITABLE, objv[0], NULL);\n\tif (namePtr == NULL) {\n\t    return TCL_ERROR;\n\t}\n\tcode = WriteProperty(interp, oPtr, namePtr, objv[1]);\n\tif (code == TCL_OK) {\n\t    Tcl_ResetResult(interp);\n\t}\n\treturn code;\n    } else {\n\t/*\n\t * Write properties. Slightly tricky because we want to cache the\n\t * table of property names.\n\t */\n\tGPNCache *cache = NULL;\n\n\tcode = TCL_OK;\n\tfor (i = 0; i < objc; i += 2) {\n\t    namePtr = GetPropertyName(interp, oPtr, GPN_WRITABLE, objv[i],\n\t\t    &cache);\n\t    if (namePtr == NULL) {\n\t\tcode = TCL_ERROR;\n\t\tbreak;\n\t    }\n\t    code = WriteProperty(interp, oPtr, namePtr, objv[i + 1]);\n\t    if (code != TCL_OK) {\n\t\tbreak;\n\t    }\n\t}\n\tif (code == TCL_OK) {\n\t    Tcl_ResetResult(interp);\n\t}\n\tReleasePropertyNameCache(interp, &cache);\n\treturn code;\n    }\n",
+          "snippet_sha256": "38c1be425b81bb92d3bb125434474674da38459769b0cf220c59aaf29ecc53ac",
+          "evidence": "source-window-3"
+        },
+        {
+          "provider": "tcl9.0",
+          "version": "9.0.4",
+          "revision": "Configured original source tree joined by complete SHA; configure/build processes have no replay receipts",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOProp.c",
+          "function": "GetPropertyName",
+          "lines": [
+            163,
+            232
+          ],
+          "source_sha256": "43f16f2b596af56b27320ff5e735c3073e081dbf183b05b5aa785ff7a2b57789",
+          "snippet": "GetPropertyName(\n    Tcl_Interp *interp,\t\t/* Context and error reporting. */\n    Object *oPtr,\t\t/* Object to get property name from. */\n    int flags,\t\t\t/* Are we looking for a writable property?\n\t\t\t\t * Can we do a fallback message?\n\t\t\t\t * See GPNFlags for possible values */\n    Tcl_Obj *namePtr,\t\t/* The name supplied by the user. */\n    GPNCache **cachePtr)\t/* Where to cache the table, if the caller\n\t\t\t\t * wants that. The contents are to be freed\n\t\t\t\t * with Tcl_Free if the cache is used. */\n{\n    Tcl_Size objc, index, i;\n    Tcl_Obj *listPtr = GetAllObjectProperties(\n\t    oPtr, flags & GPN_WRITABLE);\n    Tcl_Obj **objv;\n    GPNCache *tablePtr;\n\n    (void) Tcl_ListObjGetElements(NULL, listPtr, &objc, &objv);\n    if (cachePtr && *cachePtr) {\n\ttablePtr = *cachePtr;\n    } else {\n\ttablePtr = (GPNCache *) TclStackAlloc(interp,\n\t\toffsetof(GPNCache, names) + sizeof(char *) * (objc + 1));\n\n\tfor (i = 0; i < objc; i++) {\n\t    tablePtr->names[i] = TclGetString(objv[i]);\n\t}\n\ttablePtr->names[objc] = NULL;\n\tif (cachePtr) {\n\t    /*\n\t     * Have a cache, but nothing in it so far.\n\t     *\n\t     * We cache the list here so it doesn't vanish from under our\n\t     * feet if a property implementation does something crazy like\n\t     * changing the set of properties. The type of copy this does\n\t     * means that the copy holds the references to the names in the\n\t     * table.\n\t     */\n\t    tablePtr->listPtr = TclListObjCopy(NULL, listPtr);\n\t    Tcl_IncrRefCount(tablePtr->listPtr);\n\t    *cachePtr = tablePtr;\n\t} else {\n\t    tablePtr->listPtr = NULL;\n\t}\n    }\n    int result = Tcl_GetIndexFromObjStruct(interp, namePtr, tablePtr->names,\n\t    sizeof(char *), \"property\", TCL_INDEX_TEMP_TABLE, &index);\n    if (result == TCL_ERROR && !(flags & GPN_FALLING_BACK)) {\n\t/*\n\t * If property can be accessed the other way, use a special message.\n\t * We use a recursive call to look this up.\n\t */\n\n\tTcl_InterpState state = Tcl_SaveInterpState(interp, result);\n\tTcl_Obj *otherName = GetPropertyName(interp, oPtr,\n\t\tflags ^ (GPN_WRITABLE | GPN_FALLING_BACK), namePtr, NULL);\n\tresult = Tcl_RestoreInterpState(interp, state);\n\tif (otherName != NULL) {\n\t    Tcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t    \"property \\\"%s\\\" is %s only\",\n\t\t    TclGetString(otherName),\n\t\t    (flags & GPN_WRITABLE) ? \"read\" : \"write\"));\n\t}\n    }\n    if (!cachePtr) {\n\tTclStackFree(interp, tablePtr);\n    }\n    if (result != TCL_OK) {\n\treturn NULL;\n    }\n",
+          "snippet_sha256": "01f8eaa50b99a7223632096ce6176a5dae8786ad8ac91d58823e256699c2fdae",
+          "evidence": "source-window-4"
+        },
+        {
+          "provider": "tcl9.0",
+          "version": "9.0.4",
+          "revision": "Configured original source tree joined by complete SHA; configure/build processes have no replay receipts",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOProp.c",
+          "function": "ReleasePropertyNameCache",
+          "lines": [
+            236,
+            249
+          ],
+          "source_sha256": "43f16f2b596af56b27320ff5e735c3073e081dbf183b05b5aa785ff7a2b57789",
+          "snippet": "/* Release the cache made by GetPropertyName(). */\nstatic inline void\nReleasePropertyNameCache(\n    Tcl_Interp *interp,\n    GPNCache **cachePtr)\n{\n    if (*cachePtr) {\n\tGPNCache *tablePtr = *cachePtr;\n\tif (tablePtr->listPtr) {\n\t    Tcl_DecrRefCount(tablePtr->listPtr);\n\t}\n\tTclStackFree(interp, tablePtr);\n\t*cachePtr = NULL;\n    }\n",
+          "snippet_sha256": "6104be04b61fb5e6243ad46ce99e4c414e3d9d421e7932b83c2b18138f483c36",
+          "evidence": "source-window-5"
+        },
+        {
+          "provider": "tcl9.0",
+          "version": "9.0.4",
+          "revision": "Configured original source tree joined by complete SHA; configure/build processes have no replay receipts",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOProp.c",
+          "function": "TclOO_Configurable_Configure",
+          "lines": [
+            254,
+            298
+          ],
+          "source_sha256": "43f16f2b596af56b27320ff5e735c3073e081dbf183b05b5aa785ff7a2b57789",
+          "snippet": "    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\t\t/* Interpreter used for the result, error\n\t\t\t\t * reporting, etc. */\n    Tcl_ObjectContext context,\t/* The object/call context. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *const *objv)\t/* The actual arguments. */\n{\n    Object *oPtr = (Object *) Tcl_ObjectContextObject(context);\n    Tcl_Size skip = Tcl_ObjectContextSkippedArgs(context);\n    Tcl_Obj *namePtr;\n    Tcl_Size i, namec;\n    int code = TCL_OK;\n\n    objc -= skip;\n    if ((objc & 1) && (objc != 1)) {\n\t/*\n\t * Bad (odd > 1) number of arguments.\n\t */\n\n\tTcl_WrongNumArgs(interp, skip, objv, \"?-option value ...?\");\n\treturn TCL_ERROR;\n    }\n\n    objv += skip;\n    if (objc == 0) {\n\t/*\n\t * Read all properties.\n\t */\n\n\tTcl_Obj *listPtr = GetAllObjectProperties(oPtr, 0);\n\tTcl_Obj *resultPtr = Tcl_NewObj(), **namev;\n\n\tTcl_IncrRefCount(listPtr);\n\tListObjGetElements(listPtr, namec, namev);\n\n\tfor (i = 0; i < namec; ) {\n\t    code = ReadProperty(interp, oPtr, TclGetString(namev[i]));\n\t    if (code != TCL_OK) {\n\t\tTcl_DecrRefCount(resultPtr);\n\t\tbreak;\n\t    }\n\t    Tcl_DictObjPut(NULL, resultPtr, namev[i],\n\t\t    Tcl_GetObjResult(interp));\n\t    if (++i >= namec) {\n\t\tTcl_SetObjResult(interp, resultPtr);\n",
+          "snippet_sha256": "6a042e426c201fc8e00149facae37076cbfa9f0fe91bec3150dd572364d8f665",
+          "evidence": "source-window-6"
+        },
+        {
+          "provider": "tcl9.0",
+          "version": "9.0.4",
+          "revision": "Configured original source tree joined by complete SHA; configure/build processes have no replay receipts",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOProp.c",
+          "function": "TclOO_Configurable_Configure",
+          "lines": [
+            305,
+            355
+          ],
+          "source_sha256": "43f16f2b596af56b27320ff5e735c3073e081dbf183b05b5aa785ff7a2b57789",
+          "snippet": "    } else if (objc == 1) {\n\t/*\n\t * Read a single named property.\n\t */\n\n\tnamePtr = GetPropertyName(interp, oPtr, 0, objv[0], NULL);\n\tif (namePtr == NULL) {\n\t    return TCL_ERROR;\n\t}\n\treturn ReadProperty(interp, oPtr, TclGetString(namePtr));\n    } else if (objc == 2) {\n\t/*\n\t * Special case for writing to one property. Saves fiddling with the\n\t * cache in this common case.\n\t */\n\n\tnamePtr = GetPropertyName(interp, oPtr, GPN_WRITABLE, objv[0], NULL);\n\tif (namePtr == NULL) {\n\t    return TCL_ERROR;\n\t}\n\tcode = WriteProperty(interp, oPtr, TclGetString(namePtr), objv[1]);\n\tif (code == TCL_OK) {\n\t    Tcl_ResetResult(interp);\n\t}\n\treturn code;\n    } else {\n\t/*\n\t * Write properties. Slightly tricky because we want to cache the\n\t * table of property names.\n\t */\n\tGPNCache *cache = NULL;\n\n\tcode = TCL_OK;\n\tfor (i = 0; i < objc; i += 2) {\n\t    namePtr = GetPropertyName(interp, oPtr, GPN_WRITABLE, objv[i],\n\t\t    &cache);\n\t    if (namePtr == NULL) {\n\t\tcode = TCL_ERROR;\n\t\tbreak;\n\t    }\n\t    code = WriteProperty(interp, oPtr, TclGetString(namePtr),\n\t\t    objv[i + 1]);\n\t    if (code != TCL_OK) {\n\t\tbreak;\n\t    }\n\t}\n\tif (code == TCL_OK) {\n\t    Tcl_ResetResult(interp);\n\t}\n\tReleasePropertyNameCache(interp, &cache);\n\treturn code;\n",
+          "snippet_sha256": "43b5eefd3b3b6d1776c8c1d226125349ba46b8ea273e24f6ea7ce2d2040a7a6d",
+          "evidence": "source-window-7"
+        }
+      ],
+      "tests": [
+        {
+          "path": "runtime/rust/src/cmd_oo/original_property_reporting_tests.rs",
+          "selector": "cmd_oo::original_property_reporting_tests::materialized_property_reports_preserve_native_snapshot_and_table_index_roles",
+          "status": "linked",
+          "assertion": "Two exact original configurable scripts and printed results/events/rosters supply a bounded software comparison under the actual C9.1 physical adapter purpose. C9.0 equal public results do not broaden that physical issuer. This body is unrun; independent sort/refusal/private-inventory controls and native pointer/refcount/lifetime equality are not inferred."
+        }
+      ],
+      "owners": [
+        {
+          "path": "runtime/rust/src/cmd_oo/native_properties.rs",
+          "symbol": "lookup_property",
+          "purpose": "Selected software property lookup retains the old copied name table while mapping its selected index into the actual current property header. Actual currency/target/lifetime checks remain independent; public C9.0 values do not grant this C9.1 physical purpose."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/native_properties.rs",
+          "symbol": "configure_all_original",
+          "purpose": "Selected software configure-all retains the actual working property header/member inventory across accessor calls. The native two-script output comparison does not certify callback Host/refusal cleanup or physical reference counts."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/native_properties.rs",
+          "symbol": "configure_native_original",
+          "purpose": "Selected software multi-write carries a retained lookup table between actual sequential accessors; its issuer, actual object ownership and completion guards remain independent of printed result equality."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "Exact original CLI argv and script/version inputs remain in the own receipts. Restore gzip ELF and whole-source copies to their recorded SHA/size before old replay. Wrappers select the original executable path/TCL_LIBRARY, but complete library/environment and configure/build replay inputs are absent. Initial generic-class scripts stop before the intended worker. No native/Rust replay is performed by publication; C9.0 public equality is independent of the C9.1 selected physical software contract."
+      }
     }
   ]
 }

@@ -1,0 +1,23 @@
+{
+  "provider_key": "86",
+  "input": "/workspace/.proofs/property-report-native335/configure-all-configurable.tcl",
+  "input_sha256": "f32e501e32060df1b2657732e66bf8f89b7f394b42e4e64e1b7e54c2e7b58290",
+  "command": [
+    "/workspace/.proofs/oracle-bin/tclsh8.6",
+    "/workspace/.proofs/property-report-native335/configure-all-configurable.tcl"
+  ],
+  "invoked_file": "/workspace/.proofs/oracle-bin/tclsh8.6",
+  "invoked_file_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+  "exit": 1,
+  "seconds": 0.014882921008393168,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "32ab00fd10205660070f4e1eb3f3d0bef4241eb47fca342883e2b848d503a541",
+  "version_command": [
+    "/workspace/.proofs/oracle-bin/tclsh8.6",
+    "/workspace/.proofs/property-report-native335/version.tcl"
+  ],
+  "version_script_sha256": "c150325350330227902317fba9520b1ceeb87194e7537137648cbd8c00d7c165",
+  "version_exit": 0,
+  "version_stdout_sha256": "a81129b21e3b9f356fdcce11e8283263ddef932c26801d5356865d71bfa5cbbc",
+  "version_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

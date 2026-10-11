@@ -1,0 +1,3 @@
+/workspace/.proofs/property-report-native335/multi-write-configurable.tcl:2: Error: invalid command name "oo::configurable"
+Traceback (most recent call last):
+  File "/workspace/.proofs/property-report-native335/multi-write-configurable.tcl", line 2
