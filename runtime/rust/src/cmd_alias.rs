@@ -81,6 +81,19 @@ fn jim_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// protected list here (`rename ::return ::myreturn` succeeds on tclsh
 /// 8.6.16 / 9.0.4).
 fn rename(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = rename_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn rename_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
     if argv.len() != 3 {
         return interp.wrong_args(b"rename oldName newName");
     }
@@ -102,7 +115,14 @@ fn rename(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return interp.error(&recipe.local_rename_error(&old));
         }
     }
-    match interp.rename_command(&old, &new) {
+    let outcome = interp.rename_command(&old, &new);
+    // Rename/delete observers may refuse or replace the execution context.
+    // Keep their reached effects and mandatory retirement, then stop before
+    // either success-result publication or Guest error construction.
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
+    match outcome {
         RenameOutcome::Renamed | RenameOutcome::Deleted => {
             interp.set_result_bytes(b"");
             Code::Ok
@@ -3135,6 +3155,131 @@ pub(crate) mod original_operand_tests {
                     })
                     .unwrap();
                 assert_eq!(interp.entered_native_operation_count(), 0);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_rename_operation_tests {
+    use super::*;
+    use crate::obj::Owned;
+    use std::cell::{Cell, RefCell};
+    use tcl_runtime_api::NativeExecutionError;
+    use tcl_syntax::raw_string::NativeValueAccessRefusal;
+
+    #[derive(Clone, Copy)]
+    enum Callback {
+        Normal,
+        Host,
+        Restore,
+    }
+    thread_local! {
+        static MODE: Cell<Callback> = const { Cell::new(Callback::Normal) };
+        static CALLS: Cell<usize> = const { Cell::new(0) };
+        static FIRST: RefCell<Option<NativeExecutionError>> = const { RefCell::new(None) };
+    }
+    fn victim(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
+        interp.set_result_bytes(b"VICTIM");
+        Code::Ok
+    }
+    fn observer(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
+        CALLS.with(|calls| calls.set(calls.get() + 1));
+        let effect = Owned::fresh(obj::new_string_bytes(b"REACHED\0\xff"));
+        interp
+            .var_set(b"original_rename_effect", effect.as_ptr())
+            .unwrap();
+        match MODE.with(Cell::get) {
+            Callback::Normal => interp.set_result_bytes(b"CALLBACK"),
+            Callback::Host => {
+                interp.refuse_host_command("first original rename observer");
+                FIRST.with(|first| *first.borrow_mut() = interp.native_execution_refusal());
+            }
+            Callback::Restore => {
+                let original = interp.runtime_context();
+                let mut changed = original.clone();
+                changed.packages = vec![("original-rename-observer".to_owned(), "1.0".to_owned())];
+                interp.pin_context(&changed).unwrap();
+                interp.pin_context(&original).unwrap();
+            }
+        }
+        Code::Ok
+    }
+
+    #[test]
+    fn original_rename_observers_keep_reached_effects_and_stop_later_result_publication() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual command-trace callbacks and native entry; no external Native order claim.
+        for version in ["tcl8.6", "tcl9.1"] {
+            for mode in [Callback::Normal, Callback::Host, Callback::Restore] {
+                for deleting in [false, true] {
+                    let mut interp = super::original_operand_tests::native(version);
+                    interp.register_builtin(b"original_rename_victim", victim);
+                    interp.register_builtin(b"original_rename_observer", observer);
+                    assert_eq!(interp.eval_str(b"trace add command original_rename_victim {rename delete} original_rename_observer"), Code::Ok);
+                    MODE.with(|selected| selected.set(mode));
+                    CALLS.with(|calls| calls.set(0));
+                    FIRST.with(|first| first.borrow_mut().take());
+                    let owned = super::original_operand_tests::words(&[
+                        b"rename",
+                        b"original_rename_victim",
+                        if deleting {
+                            b""
+                        } else {
+                            b"original_rename_moved"
+                        },
+                    ]);
+                    let argv: Vec<_> = owned.iter().map(Owned::as_ptr).collect();
+                    let counts: Vec<_> = argv.iter().map(|&p| unsafe { (*p).ref_count }).collect();
+                    let prior = super::original_operand_tests::seed(&mut interp);
+                    let code = super::rename(&mut interp, &argv);
+                    assert_eq!(CALLS.with(Cell::get), 1);
+                    assert!(
+                        interp
+                            .resolve_cmd_token(b"original_rename_victim")
+                            .is_none()
+                    );
+                    assert_eq!(
+                        interp.resolve_cmd_token(b"original_rename_moved").is_some(),
+                        !deleting
+                    );
+                    let effect = interp
+                        .var_get(b"original_rename_effect")
+                        .expect("actual callback variable effect remains");
+                    assert_eq!(obj::bytes_of(effect), b"REACHED\0\xff");
+                    assert_eq!(
+                        argv.iter()
+                            .map(|&p| unsafe { (*p).ref_count })
+                            .collect::<Vec<_>>(),
+                        counts
+                    );
+                    assert_eq!(interp.entered_native_operation_count(), 0);
+                    if matches!(mode, Callback::Normal) {
+                        assert_eq!(code, Code::Ok);
+                        assert!(interp.native_execution_refusal().is_none());
+                        assert_eq!(obj::bytes_of(interp.get_obj_result()), b"");
+                    } else {
+                        assert_eq!(code, Code::Error);
+                        let expected = match mode {
+                            Callback::Host => FIRST.with(|first| {
+                                first.borrow().clone().expect("actual callback first Host")
+                            }),
+                            Callback::Restore => NativeExecutionError::ValueAccessRefusal(
+                                NativeValueAccessRefusal::CommandProtocolUnavailable(
+                                    "stale entered native operation",
+                                ),
+                            ),
+                            Callback::Normal => unreachable!(),
+                        };
+                        assert_eq!(interp.native_execution_refusal(), Some(expected));
+                        assert_eq!(interp.get_obj_result(), prior.as_ptr());
+                        assert_eq!(obj::bytes_of(prior.as_ptr()), b"PRIOR\0\xff");
+                        assert_eq!(interp.pending_return_level(), 2);
+                        assert_eq!(interp.pending_return_code(), Code::Other(7));
+                        assert_eq!(interp.pending_return_option_objects().len(), 1);
+                    }
+                }
             }
         }
     }
