@@ -3763,3 +3763,24 @@ presentation uses the original String's C-string extent, so a modified zero can
 remain visible in a diagnostic even when it terminates the converted lookup.
 These are separate source filename facts and do not confer filesystem callback,
 path normalization, platform-wide codec or Native header/reference chronology.
+
+
+Runtime selected C86+ declared-variable Set uses
+`cmd_oo::variable_mapping` as an adapter to
+`install_original_variable_mapping`. Genuine arguments, target/class facet,
+selected policy and the original definition-frame birth span the actual List
+and String stages. Every incoming reference precedes old-visible retirement;
+stored original then private fullName roles retire outside OO access before
+zero-length setup and sequential canonical first-unique key installation. C90+
+private records retain their reached fullName header independently of their
+counted declaration key. Genuine Object/Class copies retain both stored roles;
+report and automatic metadata views acquire allocation-only observations.
+Explicit private linking consumes the stored fullName header, while variable
+reporting, automatic bindings and property projection preserve its stored
+storage bytes and identity. Allocation retention never revives a retired role.
+Matching retirement tickets grant only mandatory physical cleanup and preserve
+callback replacements; ordinary same-target roster mutations remain permitted.
+The neutral software worker has its separate adopt-before-retire schedule and
+None fullName reconstruction. C84/Jim original TclOO mapping authority, Native
+Class pointer lifetimes and external callback chronology are not supplied by
+these adapters.

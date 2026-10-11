@@ -215,9 +215,51 @@ impl Method {
 
 /// An original declaration object and its full counted native table key.
 #[derive(Clone)]
-struct DeclaredVariable {
-    original: obj::Owned,
+enum DeclaredVariableHeader {
+    Stored(obj::Owned),
+    Observed(obj::NativeObjectLifetime),
+}
+impl DeclaredVariableHeader {
+    fn as_ptr(&self) -> *mut TclObj {
+        match self {
+            Self::Stored(value) => value.as_ptr(),
+            Self::Observed(value) => value.as_ptr(),
+        }
+    }
+    fn observation(&self) -> Self {
+        match self {
+            Self::Stored(value) => {
+                Self::Observed(obj::NativeObjectLifetime::retain(value.as_ptr()))
+            }
+            Self::Observed(value) => Self::Observed(value.clone()),
+        }
+    }
+    fn into_stored(self) -> obj::Owned {
+        match self {
+            Self::Stored(value) => value,
+            Self::Observed(_) => unreachable!("neutral slot record owns its actual reference"),
+        }
+    }
+}
+#[derive(Clone)]
+struct DeclaredVariableFullName {
+    original: DeclaredVariableHeader,
     name: Vec<u8>,
+}
+#[derive(Clone)]
+struct DeclaredVariable {
+    original: DeclaredVariableHeader,
+    name: Vec<u8>,
+    full_name: Option<DeclaredVariableFullName>,
+}
+impl DeclaredVariable {
+    fn check_originals(&self) -> Result<(), tcl_syntax::value::ValueError> {
+        obj::check_native_liveness(self.original.as_ptr())?;
+        if let Some(full) = &self.full_name {
+            obj::check_native_liveness(full.original.as_ptr())?;
+        }
+        Ok(())
+    }
 }
 
 /// A class definition.
@@ -487,6 +529,7 @@ pub struct OoState {
     native_methods: native_method_cache::NativeMethodWorld,
     method_reports: Option<FoundationMethodReports>,
     property_foundation_epoch: u64,
+    variable_mapping_retirements: BTreeMap<(OoId, bool, bool), std::rc::Weak<()>>,
     property_my_name: Option<obj::Owned>,
     property_members: BTreeMap<(OoId, bool, bool), BTreeMap<Vec<u8>, obj::Owned>>,
     property_caches: BTreeMap<(OoId, bool), native_properties::NativePropertyCache>,
@@ -1837,7 +1880,7 @@ fn declared_variables(interp: &Interp, target: &DefTarget, private: bool) -> Vec
             }
         }),
     }
-    .cloned()
+    .map(|entries| entries.iter().map(variable_mapping::observation).collect())
     .unwrap_or_default()
 }
 
@@ -1889,9 +1932,26 @@ fn write_declared_variables(
     Ok(())
 }
 
-fn set_declared_variable_list(interp: &mut Interp, values: &[DeclaredVariable]) {
-    let members: Vec<_> = values.iter().map(|entry| entry.original.as_ptr()).collect();
+fn set_declared_variable_list(
+    interp: &mut Interp,
+    values: &[DeclaredVariable],
+) -> Result<(), tcl_cmd_core::CmdError> {
+    let operation = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
+        .map_err(tcl_cmd_core::CmdError::from_execution_refusal)?;
+    let mut members = Vec::new();
+    for entry in values {
+        obj::check_native_liveness(entry.original.as_ptr()).map_err(|error| {
+            tcl_cmd_core::CmdError::from_execution_refusal(
+                interp.refuse_completion_value_access(error),
+            )
+        })?;
+        members.push(entry.original.as_ptr());
+    }
     interp.set_result(interp.new_list_object(&members));
+    operation
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(tcl_cmd_core::CmdError::from_execution_refusal)
 }
 
 fn prepare_declared_variables(
@@ -1904,8 +1964,9 @@ fn prepare_declared_variables(
             .native_string_bytes(&value)
             .map_err(|error| interp.report_cmd_error(error.into()))?;
         retained.push(DeclaredVariable {
-            original: obj::Owned::retain(value),
+            original: DeclaredVariableHeader::Stored(obj::Owned::retain(value)),
             name: name.to_vec(),
+            full_name: None,
         });
     }
     Ok(retained)
@@ -1958,7 +2019,7 @@ fn slot_inst_get(interp: &mut Interp, slot: OoId, _args: &[*mut TclObj]) -> Code
     if is_variable_slot(&slot_name) {
         let private = interp.oo.borrow().private_depth > 0;
         let values = declared_variables(interp, &target, private);
-        set_declared_variable_list(interp, &values);
+        oo_checked!(interp, set_declared_variable_list(interp, &values));
     } else {
         let list = slot_field_read(interp, &slot_name, &target);
         set_list(interp, &list);
@@ -2020,6 +2081,15 @@ fn slot_inst_set_original(
         if args.len() != 1 {
             return wrong_args(interp, b"Set filterList");
         }
+        let selected = interp
+            .name_policy_protocol()
+            .filter(|policy| variable_mapping::selected(*policy));
+        let mapping = selected
+            .map(|policy| {
+                variable_mapping::Entry::capture(interp, &target, policy, originals, &target_owner)
+            })
+            .transpose();
+        let mapping = oo_checked!(interp, mapping);
         let members = native_context::original_list_members(interp, args[0], originals);
         oo_original_check!(interp, originals);
         oo_checked!(interp, target_owner.check(interp));
@@ -2027,26 +2097,53 @@ fn slot_inst_set_original(
             Ok(members) => members,
             Err(error) => return interp.report_cmd_error(error),
         };
-        let values = match prepare_declared_variables(interp, &members) {
-            Ok(values) => values,
-            Err(code) => return code,
+        let values = if let Some(mapping) = &mapping {
+            oo_checked!(
+                interp,
+                mapping.prepare(interp, &target, &members, originals, &target_owner)
+            )
+        } else {
+            match prepare_declared_variables(interp, &members) {
+                Ok(values) => values,
+                Err(code) => return code,
+            }
         };
         oo_original_check!(interp, originals);
         oo_checked!(interp, target_owner.check(interp));
         if let Err(code) = validate_declared_variables(interp, &values) {
             return code;
         }
-        let values = tcl_syntax::naming::apply_native_oo_variable_slot(
-            Vec::new(),
-            values,
-            tcl_syntax::naming::NativeOoVariableSlotOperation::Set,
-            |entry| entry.name.as_slice(),
-        );
+        let values = if mapping.is_some() {
+            values
+        } else {
+            tcl_syntax::naming::apply_native_oo_variable_slot(
+                Vec::new(),
+                values,
+                tcl_syntax::naming::NativeOoVariableSlotOperation::Set,
+                |entry| entry.name.as_slice(),
+            )
+        };
         let private = interp.oo.borrow().private_depth > 0;
-        oo_checked!(
-            interp,
+        let reached = if let Some(mapping) = &mapping {
+            let reached = variable_mapping::install(
+                interp,
+                &target,
+                private,
+                mapping,
+                &values,
+                originals,
+                &target_owner,
+            );
+            let reached = reached.map_err(|error| originals.retain_refusal(error));
+            drop(values);
+            oo_original_check!(interp, originals);
+            oo_checked!(interp, target_owner.check(interp));
+            reached
+        } else {
             write_declared_variables(interp, &target, private, values, originals, &target_owner)
-        );
+        };
+        let reached = reached.map_err(|error| originals.retain_refusal(error));
+        oo_checked!(interp, reached);
     } else {
         let list = if let Some(original) = args.first() {
             let members = native_context::original_list_members(interp, *original, originals);
@@ -2376,7 +2473,20 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // The source resolves like a command (current namespace then global), so a
         // copy from inside a namespace still finds a global object (oo-15.1).
         let src = oo_original_object!(interp, originals, 1);
-        let Some(mut src_obj) = interp.oo.borrow().objects.get(&src).cloned() else {
+        let source = {
+            let state = interp.oo.borrow();
+            state
+                .objects
+                .get(&src)
+                .map(|source| {
+                    for variable in source.variables.iter().chain(&source.private_variables) {
+                        variable.check_originals()?;
+                    }
+                    Ok::<_, tcl_syntax::value::ValueError>(source.clone())
+                })
+                .transpose()
+        };
+        let Some(mut src_obj) = oo_checked!(interp, source) else {
             let mut m = b"\"".to_vec();
             m.extend_from_slice(&oo_original_bytes!(interp, originals, 1));
             m.extend_from_slice(b"\" does not refer to an object");
@@ -2408,7 +2518,20 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let dst = publication.report.clone();
         // If the source is also a class, clone the class definition too, so the
         // copy is a working class (TclOO copies both the object and class facets).
-        let mut src_cls = interp.oo.borrow().classes.get(&src).cloned();
+        let source = {
+            let state = interp.oo.borrow();
+            state
+                .classes
+                .get(&src)
+                .map(|source| {
+                    for variable in source.variables.iter().chain(&source.private_variables) {
+                        variable.check_originals()?;
+                    }
+                    Ok::<_, tcl_syntax::value::ValueError>(source.clone())
+                })
+                .transpose()
+        };
+        let mut src_cls = oo_checked!(interp, source);
         if let Some(class) = &mut src_cls {
             let methods = class.methods.duplicate_declarations();
             oo_original_check!(interp, originals);
@@ -3457,7 +3580,7 @@ fn slot_run_op(
             entry.name.as_slice()
         })
         .into_iter()
-        .map(|entry| entry.original)
+        .map(|entry| entry.original.into_stored())
         .collect::<Vec<_>>()
     } else {
         // These operations concatenate original records without accessing keys.
@@ -4548,14 +4671,20 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             b"variables" => {
                 let v = interp.oo.borrow().objects.get(&obj).map(|o| {
                     if private_variables {
-                        o.private_variables.clone()
+                        o.private_variables
+                            .iter()
+                            .map(variable_mapping::observation)
+                            .collect::<Vec<_>>()
                     } else {
-                        o.variables.clone()
+                        o.variables
+                            .iter()
+                            .map(variable_mapping::observation)
+                            .collect::<Vec<_>>()
                     }
                 });
                 match v {
                     Some(v) => {
-                        set_declared_variable_list(interp, &v);
+                        oo_checked!(interp, set_declared_variable_list(interp, &v));
                         Code::Ok
                     }
                     None => not_object(interp, &oo_original_bytes!(interp, originals, 3)),
@@ -5302,12 +5431,20 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             b"variables" | b"variable" => {
                 let cl = interp.oo.borrow();
                 let v = if private_variables {
-                    cl.classes[&cls].private_variables.clone()
+                    cl.classes[&cls]
+                        .private_variables
+                        .iter()
+                        .map(variable_mapping::observation)
+                        .collect::<Vec<_>>()
                 } else {
-                    cl.classes[&cls].variables.clone()
+                    cl.classes[&cls]
+                        .variables
+                        .iter()
+                        .map(variable_mapping::observation)
+                        .collect::<Vec<_>>()
                 };
                 drop(cl);
-                set_declared_variable_list(interp, &v);
+                oo_checked!(interp, set_declared_variable_list(interp, &v));
                 Code::Ok
             }
             b"properties" => {
@@ -6940,14 +7077,16 @@ impl Interp {
                             );
                         }
                     };
-                    let storage = self.private_storage_name(
+                    let mapped = match self.private_storage_name_original(
                         &bytes,
                         tcl_syntax::naming::NativeOoPrivateVariablePurpose::ExplicitLink,
-                    );
-                    let mapped = storage
+                    ) {
+                        Ok(mapped) => mapped,
+                        Err(error) => return Some(self.report_cmd_error(error)),
+                    };
+                    let target = mapped
                         .as_ref()
-                        .map(|storage| obj::Owned::fresh(obj::new_string_bytes(storage)));
-                    let target = mapped.as_ref().map_or(original, obj::Owned::as_ptr);
+                        .map_or(original, |full| full.original.as_ptr());
                     let code = self.link_original_c_oo_variable(target, var_ns, &local);
                     if code != Code::Ok {
                         return Some(code);
@@ -6965,12 +7104,13 @@ impl Interp {
                     Ok(bytes) => bytes.to_vec(),
                     Err(error) => return Some(self.report_cmd_error(error.into())),
                 };
-                let storage = self
-                    .private_storage_name(
-                        &bytes,
-                        tcl_syntax::naming::NativeOoPrivateVariablePurpose::Varname,
-                    )
-                    .unwrap_or(bytes);
+                let storage = match self.private_storage_name(
+                    &bytes,
+                    tcl_syntax::naming::NativeOoPrivateVariablePurpose::Varname,
+                ) {
+                    Ok(storage) => storage.unwrap_or(bytes),
+                    Err(error) => return Some(self.report_cmd_error(error)),
+                };
                 Some(self.original_c_oo_varname(args[0], var_ns, &storage))
             }
             // Evaluate a script in the object's namespace (concatenating multiple
@@ -7173,38 +7313,85 @@ impl Interp {
     /// method's declaring scope, its mangled storage name (`"<creationEpoch> :
     /// name"`); otherwise `None`. The scope is the provider of the call-stack's
     /// top frame (the method that invoked the built-in).
+    fn private_storage_name_original(
+        &self,
+        name: &[u8],
+        purpose: tcl_syntax::naming::NativeOoPrivateVariablePurpose,
+    ) -> Result<Option<DeclaredVariableFullName>, tcl_cmd_core::CmdError> {
+        let Some(selected) = self.native_c_variable_name_protocol() else {
+            return Ok(None);
+        };
+        let protocol = tcl_syntax::naming::NativeNameProtocol::C(selected.version());
+        let reached = {
+            let oo = self.oo.borrow();
+            let frame =
+                oo.call_stack.iter().rev().find(|frame| {
+                    frame.activation == Some(self.frames.borrow().current_activation())
+                });
+            frame
+                .and_then(|frame| {
+                    frame
+                        .chain
+                        .get(frame.index)
+                        .map(|step| (frame.object, step.provider))
+                })
+                .and_then(|(object, provider)| {
+                    let declared = if provider == object {
+                        &oo.objects.get(&provider)?.private_variables
+                    } else {
+                        &oo.classes.get(&provider)?.private_variables
+                    };
+                    let declaration = declared.iter().find(|variable| {
+                        tcl_syntax::naming::native_oo_private_variable_matches(
+                            protocol,
+                            purpose,
+                            &variable.name,
+                            name,
+                        ) == Ok(true)
+                    })?;
+                    Some((
+                        declaration.check_originals(),
+                        declaration
+                            .full_name
+                            .as_ref()
+                            .map(|full| DeclaredVariableFullName {
+                                original: full.original.observation(),
+                                name: full.name.clone(),
+                            }),
+                        oo.objects.get(&provider)?.creation_id,
+                        declaration.name.clone(),
+                    ))
+                })
+        };
+        let Some((current, full, epoch, declared)) = reached else {
+            return Ok(None);
+        };
+        if let Err(error) = current {
+            return Err(tcl_cmd_core::CmdError::from_execution_refusal(
+                self.clone().refuse_completion_value_access(error),
+            ));
+        }
+        if let Some(full) = full {
+            return Ok(Some(full));
+        }
+        // Neutral declarations retain their separate reconstructed-input contract.
+        let mut bytes = format!("{epoch} : ").into_bytes();
+        bytes.extend_from_slice(&declared);
+        Ok(Some(DeclaredVariableFullName {
+            original: DeclaredVariableHeader::Stored(obj::Owned::fresh(obj::new_string_bytes(
+                &bytes,
+            ))),
+            name: bytes,
+        }))
+    }
+
     fn private_storage_name(
         &self,
         name: &[u8],
         purpose: tcl_syntax::naming::NativeOoPrivateVariablePurpose,
-    ) -> Option<Vec<u8>> {
-        let protocol = tcl_syntax::naming::NativeNameProtocol::C(
-            self.native_c_variable_name_protocol()?.version(),
-        );
-        let oo = self.oo.borrow();
-        let frame =
-            oo.call_stack.iter().rev().find(|frame| {
-                frame.activation == Some(self.frames.borrow().current_activation())
-            })?;
-        let prov = frame.chain.get(frame.index)?.provider;
-        let is_object = prov == frame.object;
-        let declared = if is_object {
-            &oo.objects.get(&prov)?.private_variables
-        } else {
-            &oo.classes.get(&prov)?.private_variables
-        };
-        let declaration = declared.iter().find(|variable| {
-            tcl_syntax::naming::native_oo_private_variable_matches(
-                protocol,
-                purpose,
-                &variable.name,
-                name,
-            ) == Ok(true)
-        })?;
-        let epoch = oo.objects.get(&prov)?.creation_id;
-        let mut s = format!("{epoch} : ").into_bytes();
-        s.extend_from_slice(&declaration.name);
-        Some(s)
+    ) -> Result<Option<Vec<u8>>, tcl_cmd_core::CmdError> {
+        self.private_storage_name_original(name, purpose)
+            .map(|full| full.map(|full| full.name))
     }
 
     /// Copy the procedures and variables of namespace `src_ns` into `dst_ns`
@@ -7963,19 +8150,36 @@ impl Interp {
         {
             let oo = self.oo.borrow();
             let privates = if is_object {
-                oo.objects.get(&prov).map(|o| o.private_variables.clone())
+                oo.objects.get(&prov).map(|o| {
+                    o.private_variables
+                        .iter()
+                        .map(variable_mapping::observation)
+                        .collect::<Vec<_>>()
+                })
             } else {
-                oo.classes.get(&prov).map(|c| c.private_variables.clone())
+                oo.classes.get(&prov).map(|c| {
+                    c.private_variables
+                        .iter()
+                        .map(variable_mapping::observation)
+                        .collect::<Vec<_>>()
+                })
             };
             // A class is also an object, so its creation id lives in `objects`.
             let epoch = oo.objects.get(&prov).map(|o| o.creation_id).unwrap_or(0);
             if let Some(pv) = privates {
                 for variable in pv {
+                    if let Err(error) = variable.check_originals() {
+                        drop(oo);
+                        return self.report_cmd_error(error.into());
+                    }
                     let v = variable.name;
                     if !vars.iter().any(|(l, _)| *l == v) {
-                        let storage = format!("{epoch} : ").into_bytes();
-                        let mut storage = storage;
-                        storage.extend_from_slice(&v);
+                        let storage =
+                            variable.full_name.map(|full| full.name).unwrap_or_else(|| {
+                                let mut storage = format!("{epoch} : ").into_bytes();
+                                storage.extend_from_slice(&v);
+                                storage
+                            });
                         vars.push((v, storage));
                     }
                 }
@@ -7988,12 +8192,26 @@ impl Interp {
         {
             let oo = self.oo.borrow();
             let declared = if is_object {
-                oo.objects.get(&prov).map(|o| o.variables.clone())
+                oo.objects.get(&prov).map(|o| {
+                    o.variables
+                        .iter()
+                        .map(variable_mapping::observation)
+                        .collect::<Vec<_>>()
+                })
             } else {
-                oo.classes.get(&prov).map(|c| c.variables.clone())
+                oo.classes.get(&prov).map(|c| {
+                    c.variables
+                        .iter()
+                        .map(variable_mapping::observation)
+                        .collect::<Vec<_>>()
+                })
             };
             if let Some(vs) = declared {
                 for v in &vs {
+                    if let Err(error) = v.check_originals() {
+                        drop(oo);
+                        return self.report_cmd_error(error.into());
+                    }
                     push_public(&v.name, &mut vars);
                 }
             }
@@ -11572,3 +11790,6 @@ mod original_argument_tests {
 
 #[cfg(test)]
 mod original_namespace_copy_tests;
+
+#[path = "cmd_oo/variable_mapping.rs"]
+mod variable_mapping;

@@ -17,8 +17,9 @@ fn variable_info_validates_original_options_before_target_lookup() {
         let root = interp.oo_resolve_object(b"::oo::class");
         let name = obj::Owned::fresh(obj::new_string_bytes(b"private\xff\0TAIL"));
         let declaration = DeclaredVariable {
-            original: name.clone(),
+            original: DeclaredVariableHeader::Stored(name.clone()),
             name: b"private\xff\0TAIL".to_vec(),
+            full_name: None,
         };
         interp
             .oo
@@ -124,8 +125,9 @@ fn variable_info_matches_original_native_option_and_target_failures() {
         let class = interp.oo_resolve_object(b"C");
         let object = interp.oo_resolve_object(b"O");
         let declared = |name: &[u8]| DeclaredVariable {
-            original: obj::Owned::fresh(obj::new_string_bytes(name)),
+            original: DeclaredVariableHeader::Stored(obj::Owned::fresh(obj::new_string_bytes(name))),
             name: name.to_vec(),
+            full_name: None,
         };
         // Select introspection on the captured setup's retained rows; this
         // test does not establish declaration-installation equivalence.

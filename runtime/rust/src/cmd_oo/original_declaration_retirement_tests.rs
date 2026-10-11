@@ -153,7 +153,50 @@ fn replace(interpreter: &mut Interp, original: *mut TclObj) -> Code {
         .collect();
     let mut argv: Vec<_> = words.iter().map(obj::Owned::as_ptr).collect();
     argv.push(original);
-    interpreter.dispatch(&argv)
+    let target = if CLASS.with(Cell::get) {
+        DefTarget::Class(TARGET.with(Cell::get))
+    } else {
+        DefTarget::Object(TARGET.with(Cell::get))
+    };
+    let originals =
+        crate::interp::native_arguments::OriginalArguments::enter(interpreter, &argv).unwrap();
+    let caller = match interpreter.oo_enter_definition(&target, &argv) {
+        Ok(caller) => caller,
+        Err(code) => return code,
+    };
+    let old_private = interpreter.oo.borrow().private_depth;
+    interpreter.oo.borrow_mut().private_depth = usize::from(PRIVATE.with(Cell::get));
+    let code = (|| {
+        let target_owner =
+            match native_context::OriginalOoTarget::for_definition(interpreter, &target) {
+                Ok(owner) => owner,
+                Err(error) => return interpreter.report_cmd_error(error),
+            };
+        let values = match prepare_declared_variables(interpreter, &[original]) {
+            Ok(values) => values,
+            Err(code) => return code,
+        };
+        if let Err(code) = validate_declared_variables(interpreter, &values) {
+            return code;
+        }
+        match write_declared_variables(
+            interpreter,
+            &target,
+            PRIVATE.with(Cell::get),
+            values,
+            &originals,
+            &target_owner,
+        ) {
+            Ok(()) => {
+                interpreter.set_result_bytes(b"");
+                Code::Ok
+            }
+            Err(error) => interpreter.report_cmd_error(error),
+        }
+    })();
+    interpreter.oo.borrow_mut().private_depth = old_private;
+    interpreter.oo_leave_definition(caller);
+    originals.finish(code)
 }
 fn install_old(interpreter: &mut Interp) -> obj::NativeObjectLifetime {
     let old = obj::Owned::fresh(obj::alloc_typed(&DECLARATION, 17));

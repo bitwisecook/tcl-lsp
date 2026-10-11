@@ -62,6 +62,11 @@ impl NativeOoVariableResolver {
                 .ok_or(NameProjectionUnavailable::PurposeNotModelled)?;
             (&owner.variables, &owner.private_variables)
         };
+        for entry in public.iter().chain(private) {
+            entry
+                .check_originals()
+                .map_err(|_| NameProjectionUnavailable::PurposeNotModelled)?;
+        }
         Ok(read(epoch, public, private))
     }
 
@@ -83,8 +88,15 @@ impl NativeOoVariableResolver {
                     &declaration.name,
                     supplied,
                 )? {
-                    let mut name = format!("{epoch} : ").into_bytes();
-                    name.extend_from_slice(&declaration.name);
+                    let name = declaration
+                        .full_name
+                        .as_ref()
+                        .map(|full| full.name.clone())
+                        .unwrap_or_else(|| {
+                            let mut name = format!("{epoch} : ").into_bytes();
+                            name.extend_from_slice(&declaration.name);
+                            name
+                        });
                     return Ok(Some((self.namespace, name)));
                 }
             }
@@ -111,8 +123,15 @@ impl NativeOoVariableResolver {
                 .iter()
                 .map(|entry| (self.namespace, entry.name.clone(), entry.name.clone()))
                 .chain(private.iter().map(|entry| {
-                    let mut storage = format!("{epoch} : ").into_bytes();
-                    storage.extend_from_slice(&entry.name);
+                    let storage = entry
+                        .full_name
+                        .as_ref()
+                        .map(|full| full.name.clone())
+                        .unwrap_or_else(|| {
+                            let mut storage = format!("{epoch} : ").into_bytes();
+                            storage.extend_from_slice(&entry.name);
+                            storage
+                        });
                     (self.namespace, entry.name.clone(), storage)
                 }))
                 .collect()

@@ -1161,12 +1161,8 @@ fn default_storage_name(
             .into_iter()
             .flatten()
             .map(|variable| {
-                obj::check_native_liveness(variable.original.as_ptr())?;
-                Ok((
-                    variable.original.as_ptr(),
-                    variable.name.clone(),
-                    obj::NativeObjectLifetime::retain(variable.original.as_ptr()),
-                ))
+                variable.check_originals()?;
+                Ok(super::variable_mapping::observation(variable))
             })
             .collect::<Result<Vec<_>, ValueError>>()?;
         let creation = state
@@ -1202,10 +1198,26 @@ fn default_storage_name(
         let same_inventory = current_variables.is_some_and(|current| {
             current
                 .iter()
-                .map(|variable| (variable.original.as_ptr(), variable.name.as_slice()))
-                .eq(variables
-                    .iter()
-                    .map(|(header, name, _)| (*header, name.as_slice())))
+                .map(|variable| {
+                    (
+                        variable.original.as_ptr(),
+                        variable.name.as_slice(),
+                        variable
+                            .full_name
+                            .as_ref()
+                            .map(|full| (full.original.as_ptr(), full.name.as_slice())),
+                    )
+                })
+                .eq(variables.iter().map(|variable| {
+                    (
+                        variable.original.as_ptr(),
+                        variable.name.as_slice(),
+                        variable
+                            .full_name
+                            .as_ref()
+                            .map(|full| (full.original.as_ptr(), full.name.as_slice())),
+                    )
+                }))
         });
         if !same_inventory
             || !Rc::ptr_eq(&mutation.0, &current.0)
@@ -1217,14 +1229,24 @@ fn default_storage_name(
             )
             .into());
         }
+        for variable in &variables {
+            variable.check_originals()?;
+        }
         Ok(())
     };
-    for (header, name, _lease) in &variables {
-        if compare_original_members(*header, original, strings, &check)?
+    for variable in &variables {
+        if compare_original_members(variable.original.as_ptr(), original, strings, &check)?
             == std::cmp::Ordering::Equal
         {
-            let mut storage = format!("{creation} : ").into_bytes();
-            storage.extend_from_slice(name);
+            let storage = variable
+                .full_name
+                .as_ref()
+                .map(|full| full.name.clone())
+                .unwrap_or_else(|| {
+                    let mut storage = format!("{creation} : ").into_bytes();
+                    storage.extend_from_slice(&variable.name);
+                    storage
+                });
             check()?;
             return Ok(Some(storage));
         }
