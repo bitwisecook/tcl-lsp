@@ -3519,6 +3519,8 @@ fn source_command_tokens_boxed(
     config: tcl_lexer::LexerConfig,
     segment: &crate::segmenter::SegmentedCommand,
 ) -> Box<crate::ir::CommandTokens> {
+    #[cfg(any(test, debug_assertions))]
+    let _timing = root_owner_work::Timing::at(root_owner_work::Query::SourceWordTokens);
     Box::new(crate::ir::CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::from_image(image).with_base(base, 0, 0),
         config,
@@ -3535,6 +3537,8 @@ fn prepare_source_native_invocation<'a>(
     registry: &CommandRegistry,
     realm: tcl_dialect::model::InvocationRealm,
 ) -> Result<Box<PreparedSourceNativeInvocation<'a>>, SourceNativePreparationError> {
+    #[cfg(any(test, debug_assertions))]
+    let _timing = root_owner_work::Timing::at(root_owner_work::Query::NativeInvocationPreparation);
     let mut arguments = target
         .prepended
         .iter()
@@ -6492,6 +6496,8 @@ impl SourceCommandBindings {
         config: tcl_lexer::LexerConfig,
         registry: &CommandRegistry,
     ) {
+        #[cfg(any(test, debug_assertions))]
+        let _timing = root_owner_work::Timing::at(root_owner_work::Query::DeferredEntry);
         use crate::var_resolve::VariableExecutionFrame;
         if root.future_frame.is_some() {
             self.walk_future_body(root, incoming, config, registry);
@@ -7578,9 +7584,12 @@ impl SourceCommandBindings {
                 tcl_registry::completion_route::InvocationCompletionRoute::Unknown,
             );
         }
-        let Some(segments) =
+        let segments = {
+            #[cfg(any(test, debug_assertions))]
+            let _timing = root_owner_work::Timing::at(root_owner_work::Query::SourceSegmentation);
             crate::segmenter::segment_commands_image_with_offset_and_config(image, base, config)
-        else {
+        };
+        let Some(segments) = segments else {
             self.record_unrepresented_source_entry(state, context);
             return opaque_source_invocation(state);
         };
@@ -7627,10 +7636,14 @@ impl SourceCommandBindings {
             context,
             prepared.entry_error.as_deref(),
         );
-        if let Some(parent) = parent {
-            outcomes.restore_frame(&parent, &previous_frame);
+        {
+            #[cfg(any(test, debug_assertions))]
+            let _timing = root_owner_work::Timing::at(root_owner_work::Query::SourcePublication);
+            if let Some(parent) = parent {
+                outcomes.restore_frame(&parent, &previous_frame);
+            }
+            outcomes.publish(state);
         }
-        outcomes.publish(state);
         self.record_runtime_coverage(
             state.current_source_origin.as_ref(),
             base,
@@ -7726,6 +7739,8 @@ impl SourceCommandBindings {
         let assessment = compiled_preflight::preflight_image(image, base, state, context, snapshot);
         #[cfg(any(test, debug_assertions))]
         drop(preflight_timing);
+        #[cfg(any(test, debug_assertions))]
+        let _timing = root_owner_work::Timing::at(root_owner_work::Query::PreflightPublication);
         // A declaration template interprets possible compilation locally. It
         // never publishes an actual compiler visit or chunk-entry obligation.
         if self.declaration_preview_depth == 0 {
@@ -7780,6 +7795,8 @@ impl SourceCommandBindings {
         state: &ModuleCommandBindings,
         context: &SourceExecutionContext<'_>,
     ) {
+        #[cfg(any(test, debug_assertions))]
+        let _timing = root_owner_work::Timing::at(root_owner_work::Query::ContinuationCapture);
         let context = *context;
         if self.root_origin != state.current_source_origin {
             return;
@@ -7991,6 +8008,8 @@ impl SourceCommandBindings {
         words: &[crate::ir::WordExpr],
         context: &SourceExecutionContext<'_>,
     ) -> Box<PreparedSourceArguments> {
+        #[cfg(any(test, debug_assertions))]
+        let _timing = root_owner_work::Timing::at(root_owner_work::Query::SourceArguments);
         self.prepare_source_argument_range(
             source_arguments::SourceArgumentSlice {
                 source,
@@ -8015,6 +8034,8 @@ impl SourceCommandBindings {
         arguments_complete_normally: bool,
         context: &SourceExecutionContext<'_>,
     ) -> Box<normal_result::InvocationResultBasis> {
+        #[cfg(any(test, debug_assertions))]
+        let _timing = root_owner_work::Timing::at(root_owner_work::Query::PointCapture);
         let SourceCommandInput {
             segment,
             words,
@@ -8108,6 +8129,8 @@ impl SourceCommandBindings {
         compiled: &compiled_invocation::CompiledInvocationSelection,
         context: &SourceExecutionContext<'_>,
     ) -> SourceOutcomes {
+        #[cfg(any(test, debug_assertions))]
+        let _timing = root_owner_work::Timing::at(root_owner_work::Query::SelectedCommand);
         use tcl_registry::native_compilation::NativeCompilationSelection;
         let SourceCommandInput {
             image,

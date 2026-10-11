@@ -1116,6 +1116,13 @@ impl Value {
     }
 
     pub(crate) fn check_native_header(&self) -> Result<(), tcl_syntax::value::ValueError> {
+        self.original_native_header_currentness()
+            .map_err(Into::into)
+    }
+
+    pub(crate) fn original_native_header_currentness(
+        &self,
+    ) -> Result<(), tcl_syntax::raw_string::NativeValueAccessRefusal> {
         if self.native_object_is_live() {
             Ok(())
         } else {
@@ -1126,9 +1133,11 @@ impl Value {
                     std::backtrace::Backtrace::force_capture()
                 );
             }
-            Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "retired native object header",
-            ))
+            Err(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "retired native object header",
+                ),
+            )
         }
     }
 
@@ -2086,38 +2095,109 @@ impl Value {
         protocol: NativeStringProtocol,
         formatter: Option<&dyn tcl_platform::NativeIntegerFormatter>,
     ) -> Result<Rc<[u8]>, tcl_syntax::native_string::NativeStringUnavailable> {
+        self.native_string_bytes_using(protocol, formatter, std::convert::identity, &mut None)
+    }
+
+    /// Reach the same String updater with the original caller's currentness check.
+    /// Formatter callbacks are checked before consuming their result or publishing bytes.
+    pub(crate) fn native_string_bytes_checked<E: From<ValueError>>(
+        &self,
+        protocol: NativeStringProtocol,
+        formatter: Option<&dyn tcl_platform::NativeIntegerFormatter>,
+        check: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<Rc<[u8]>, E> {
+        self.native_string_bytes_checked_for_value(protocol, formatter, &mut |_| check())
+    }
+
+    pub(crate) fn native_string_bytes_checked_for_value<E: From<ValueError>>(
+        &self,
+        protocol: NativeStringProtocol,
+        formatter: Option<&dyn tcl_platform::NativeIntegerFormatter>,
+        check: &mut dyn FnMut(&Value) -> Result<(), E>,
+    ) -> Result<Rc<[u8]>, E> {
+        let mut original = |current: &Value| {
+            check(current)?;
+            self.check_native_header()?;
+            current.check_native_header().map_err(E::from)
+        };
+        self.native_string_bytes_using(
+            protocol,
+            formatter,
+            |error| {
+                ValueError::from(
+                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
+                )
+                .into()
+            },
+            &mut Some(&mut original),
+        )
+    }
+
+    fn native_string_stage_check<E>(
+        &self,
+        check: &mut Option<&mut dyn FnMut(&Value) -> Result<(), E>>,
+    ) -> Result<(), E> {
+        if let Some(check) = check {
+            let mut stage = || check(self);
+            Self::native_stage_check(&mut Some(&mut stage))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn native_string_bytes_using<E>(
+        &self,
+        protocol: NativeStringProtocol,
+        formatter: Option<&dyn tcl_platform::NativeIntegerFormatter>,
+        failure: fn(tcl_syntax::native_string::NativeStringUnavailable) -> E,
+        check: &mut Option<&mut dyn FnMut(&Value) -> Result<(), E>>,
+    ) -> Result<Rc<[u8]>, E> {
+        self.native_string_stage_check(check)?;
         if !self.native_object_is_live() {
             #[cfg(test)]
             self.report_native_string_unavailable(protocol, "retired-header");
-            return Err(tcl_syntax::native_string::NativeStringUnavailable::StringUpdater);
+            return Err(failure(
+                tcl_syntax::native_string::NativeStringUnavailable::StringUpdater,
+            ));
         }
         if matches!(&*self.0.intrep.borrow(), IntRep::FrameLevel { version, .. }
             if protocol != NativeStringProtocol::C(*version))
         {
-            return Err(tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable);
+            return Err(failure(
+                tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable,
+            ));
         }
         if self
             .native_instruction_name()
             .is_some_and(|name| protocol != NativeStringProtocol::C(name.version()))
         {
-            return Err(tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable);
+            return Err(failure(
+                tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable,
+            ));
         }
         if self.native_jim_option_cache().is_some() && !protocol.is_jim084() {
-            return Err(tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable);
+            return Err(failure(
+                tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable,
+            ));
         }
         if self.native_property_name_is_cached()
             && protocol != NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1)
         {
-            return Err(tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable);
+            return Err(failure(
+                tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable,
+            ));
         }
         if let Some(resident) = self.resident_string_bytes() {
             return Ok(resident);
         }
         if matches!(&*self.0.intrep.borrow(), IntRep::NativeBytecode(_)) {
-            return Err(tcl_syntax::native_string::NativeStringUnavailable::StringUpdater);
+            return Err(failure(
+                tcl_syntax::native_string::NativeStringUnavailable::StringUpdater,
+            ));
         }
         if let Some(result) = self.parsed_variable_string_bytes(protocol) {
-            let bytes = result?;
+            let bytes = result.map_err(failure)?;
+            self.native_string_stage_check(check)?;
             *self.0.string.borrow_mut() = Some(RawString::from_bytes(Rc::clone(&bytes)));
             self.0
                 .string_storage
@@ -2126,17 +2206,18 @@ impl Value {
         }
         if let Some(cache) = self.native_namespace_name_cache() {
             if protocol != NativeStringProtocol::C(cache.version()) {
-                return Err(tcl_syntax::native_string::NativeStringUnavailable::StringUpdater);
+                return Err(failure(
+                    tcl_syntax::native_string::NativeStringUnavailable::StringUpdater,
+                ));
             }
             let recipe =
                 tcl_syntax::native_namespace_name::NativeNamespaceNameRecipe::for_tcl_version(
                     cache.version(),
                 );
-            let bytes: Rc<[u8]> = Rc::from(
-                cache
-                    .string_update_bytes(recipe)
-                    .ok_or(tcl_syntax::native_string::NativeStringUnavailable::StringUpdater)?,
-            );
+            let bytes: Rc<[u8]> = Rc::from(cache.string_update_bytes(recipe).ok_or_else(|| {
+                failure(tcl_syntax::native_string::NativeStringUnavailable::StringUpdater)
+            })?);
+            self.native_string_stage_check(check)?;
             *self.0.string.borrow_mut() = Some(RawString::from_bytes(Rc::clone(&bytes)));
             self.0.string_storage.set(if bytes.is_empty() {
                 NativeStringStorageIdentity::CanonicalEmpty
@@ -2157,15 +2238,19 @@ impl Value {
             };
             if let Some((kind, value)) = scalar {
                 if let Some(formatter) = formatter {
-                    if formatter.build().version[..2] != [8, 4] {
-                        return Err(
+                    let build = formatter.build();
+                    self.native_string_stage_check(check)?;
+                    if build.version[..2] != [8, 4] {
+                        return Err(failure(
                             tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable,
-                        );
+                        ));
                     }
-                    let bytes: Rc<[u8]> =
-                        Rc::from(formatter.format(kind, value).map_err(|_| {
-                            tcl_syntax::native_string::NativeStringUnavailable::StringUpdater
-                        })?);
+                    let reached = formatter.format(kind, value);
+                    self.native_string_stage_check(check)?;
+                    let bytes: Rc<[u8]> = Rc::from(reached.map_err(|_| {
+                        failure(tcl_syntax::native_string::NativeStringUnavailable::StringUpdater)
+                    })?);
+                    self.native_string_stage_check(check)?;
                     *self.0.string.borrow_mut() = Some(RawString::from_bytes(Rc::clone(&bytes)));
                     self.0
                         .string_storage
@@ -2173,18 +2258,25 @@ impl Value {
                     return Ok(bytes);
                 }
                 if value == i64::MIN {
-                    return Err(tcl_syntax::native_string::NativeStringUnavailable::StringUpdater);
+                    return Err(failure(
+                        tcl_syntax::native_string::NativeStringUnavailable::StringUpdater,
+                    ));
                 }
             }
         }
-        self.seal_compound_string_protocol(protocol)?;
+        self.native_string_stage_check(check)?;
+        self.seal_compound_string_protocol(protocol)
+            .map_err(failure)?;
         if matches!(
             *self.0.intrep.borrow(),
             IntRep::List { .. } | IntRep::Dict(_)
         ) {
-            return self.materialize_native_compound(protocol, formatter);
+            return self.materialize_native_compound_using(protocol, formatter, failure, check);
         }
-        self.materialize_native_cache_string(protocol)
+        self.native_string_stage_check(check)?;
+        let reached = self.materialize_native_cache_string(protocol);
+        self.native_string_stage_check(check)?;
+        reached.map_err(failure)
     }
 
     fn materialize_native_cache_string(
@@ -2374,11 +2466,13 @@ impl Value {
         Ok(self.string_bytes())
     }
 
-    fn materialize_native_compound(
+    fn materialize_native_compound_using<E>(
         &self,
         protocol: NativeStringProtocol,
         formatter: Option<&dyn tcl_platform::NativeIntegerFormatter>,
-    ) -> Result<Rc<[u8]>, tcl_syntax::native_string::NativeStringUnavailable> {
+        failure: fn(tcl_syntax::native_string::NativeStringUnavailable) -> E,
+        check: &mut Option<&mut dyn FnMut(&Value) -> Result<(), E>>,
+    ) -> Result<Rc<[u8]>, E> {
         enum Backing {
             List(crate::NativeListItems),
             Dictionary(Rc<Vec<(Value, Value)>>),
@@ -2419,17 +2513,21 @@ impl Value {
         let mut pending = vec![(Node::Root, false)];
         while let Some((node, expanded)) = pending.pop() {
             let current = node.value(self, &backings);
+            current.native_string_stage_check(check)?;
             if current.resident_string_bytes().is_some() {
                 continue;
             }
-            current.seal_compound_string_protocol(protocol)?;
+            current
+                .seal_compound_string_protocol(protocol)
+                .map_err(failure)?;
             let backing = match &*current.0.intrep.borrow() {
                 IntRep::List { items, .. } => Some(Backing::List(items.lifetime_view())),
                 IntRep::Dict(dict) => Some(Backing::Dictionary(dict.pairs_backing())),
                 _ => None,
             };
             let Some(backing) = backing else {
-                drop(current.native_string_bytes_with_integer_formatter(protocol, formatter)?);
+                drop(current.native_string_bytes_using(protocol, formatter, failure, check)?);
+                current.native_string_stage_check(check)?;
                 continue;
             };
             if !expanded {
@@ -2462,6 +2560,7 @@ impl Value {
                 )
                 .render(&materialized),
             );
+            current.native_string_stage_check(check)?;
             *current.0.string.borrow_mut() = Some(RawString::from_bytes(Rc::clone(&bytes)));
             if let IntRep::List {
                 items, canonical, ..
@@ -2476,6 +2575,7 @@ impl Value {
                 NativeStringStorageIdentity::Allocated
             });
         }
+        self.native_string_stage_check(check)?;
         Ok(self
             .resident_string_bytes()
             .expect("completed native compound updater"))

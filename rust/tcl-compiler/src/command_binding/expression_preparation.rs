@@ -1107,6 +1107,9 @@ impl SourceCommandBindings {
         &self,
         script: &ExecutedScriptSource,
     ) -> Vec<SourceExpressionPreparation> {
+        #[cfg(any(test, debug_assertions))]
+        let _timing =
+            super::root_owner_work::Timing::at(super::root_owner_work::Query::BodyExpression);
         self.expression_preparations
             .iter()
             .filter(|(site, _)| {

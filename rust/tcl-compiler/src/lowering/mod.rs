@@ -1718,10 +1718,27 @@ impl<'r> Lowerer<'r> {
         source: crate::command_binding::ExecutedScriptSource,
         namespace: &crate::command_binding::SourceNamespaceKey,
     ) -> Script {
+        #[cfg(any(test, debug_assertions))]
+        let started = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+            .is_some()
+            .then(std::time::Instant::now);
+        #[cfg(any(test, debug_assertions))]
+        let trace = |phase: &str| {
+            if let Some(started) = started {
+                eprintln!(
+                    "LOWER_ORIGINAL_BODY_PHASE bytes={} base={} phase={phase} scope=body-inclusive ms={}",
+                    source.text.len(),
+                    source.base(),
+                    started.elapsed().as_millis()
+                );
+            }
+        };
         let (Ok(text), Some(bindings)) = (
             source.try_text(),
             self.selected_source_bindings_boxed_in_context(&source, namespace),
         ) else {
+            #[cfg(any(test, debug_assertions))]
+            trace("unavailable-projection");
             let mut script = unavailable_original_body_script(
                 source.base(),
                 source.text.len(),
@@ -1731,13 +1748,21 @@ impl<'r> Lowerer<'r> {
             script.namespace_context = Some(Box::new(namespace.clone()));
             return script;
         };
+        #[cfg(any(test, debug_assertions))]
+        trace("selected-projection");
         let implicit_math_invocations =
             bindings.math_invocations_for_script(self.registry, &source);
+        #[cfg(any(test, debug_assertions))]
+        trace("math-inventory");
         let expression_preparations = bindings.expression_preparations_for_script(&source);
+        #[cfg(any(test, debug_assertions))]
+        trace("expression-inventory");
         let label = namespace.display().unwrap_or_default();
         let enclosing_channel = std::mem::replace(&mut self.source_channel, source.text.channel());
         let mut script =
             self.lower_into_script_with_boxed_bindings(text, source.base(), &label, bindings);
+        #[cfg(any(test, debug_assertions))]
+        trace("lowered");
         self.source_channel = enclosing_channel;
         script.implicit_math_invocations = implicit_math_invocations;
         script.expression_preparations = expression_preparations;

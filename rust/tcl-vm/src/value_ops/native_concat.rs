@@ -43,10 +43,15 @@ pub(super) fn append(vm: &Vm, target: &Value, source: &Value) -> Result<(), Valu
     Ok(())
 }
 pub(super) fn first(
-    vm: &Vm,
+    vm: &mut Vm,
     source: &Value,
 ) -> Result<Option<NativeConcatFirstElement<Value>>, ValueError> {
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter_native(vm)
+        .map_err(|_| crate::interp::native_numeric_ops::OriginalNumericOps::value_unwind())?;
     let members = vm.native_object_list_elements_in(source, protocol(vm)?)?;
+    scope
+        .check_native(vm)
+        .map_err(|_| crate::interp::native_numeric_ops::OriginalNumericOps::value_unwind())?;
     members
         .elements()?
         .first()
@@ -58,15 +63,12 @@ pub(super) fn first(
         })
         .transpose()
 }
-pub(super) fn bytes(vm: &Vm, value: &Value) -> Result<Rc<[u8]>, ValueError> {
+pub(super) fn bytes(vm: &mut Vm, value: &Value) -> Result<Rc<[u8]>, ValueError> {
     let selected = protocol(vm)?;
-    if selected.is_jim084() {
-        value.bind_native_jim_context(&vm.native_jim_object_context()?)?;
-    }
-    value
-        .native_string_bytes_with_integer_formatter(selected, vm.host().native_integer_formatter())
-        .map_err(|error| tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error).into())
+    crate::interp::native_numeric_ops::OriginalNumericOps::entered_value(vm)?
+        .string_value(value, selected)
 }
+
 pub(super) fn string(vm: &Vm, bytes: &[u8]) -> Result<Value, ValueError> {
     let selected = protocol(vm)?;
     if selected

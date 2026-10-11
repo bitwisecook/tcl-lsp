@@ -2272,12 +2272,15 @@ fn procedure_header_compilation(
                 "native procedure header string producer is unavailable".into(),
             ));
         };
-        let parameter_bytes = match params.native_string_bytes_with_integer_formatter(
-            protocol,
-            vm.host().native_integer_formatter(),
-        ) {
+        let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(vm)
+            .map_err(|error| completion_from_cmd_error(vm, error))?;
+        let reached = (|| {
+            crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(vm, &scope)?
+                .string(params, protocol)
+        })();
+        let parameter_bytes = match reached {
             Ok(bytes) => bytes,
-            Err(error) => return Err(vm.refuse_host_command(error.to_string())),
+            Err(error) => return Err(completion_from_cmd_error(vm, error)),
         };
         native_header = tcl_registry::native_procedure::procedure_header_compilation_bytes(
             dialect,
@@ -2286,9 +2289,15 @@ fn procedure_header_compilation(
             Some(false),
         );
         if native_header == tcl_dialect::NativeProcedureHeaderCompilation::Unknown {
-            let body_bytes = match body_text.native_string_bytes(protocol) {
+            let reached = (|| {
+                crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(
+                    vm, &scope,
+                )?
+                .string(body_text, protocol)
+            })();
+            let body_bytes = match reached {
                 Ok(bytes) => bytes,
-                Err(error) => return Err(vm.refuse_host_command(error.to_string())),
+                Err(error) => return Err(completion_from_cmd_error(vm, error)),
             };
             native_header = tcl_registry::native_procedure::procedure_header_compilation_bytes(
                 dialect,
@@ -3674,12 +3683,14 @@ pub(crate) fn cmd_upvar(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ok(Value::empty())
 }
 
+#[cfg(test)]
 struct OriginalFrameLevel<'a> {
     value: &'a Value,
     dialect: tcl_registry::InvocationDialect,
     host: std::rc::Rc<dyn tcl_platform::Host>,
 }
 
+#[cfg(test)]
 impl<'a> OriginalFrameLevel<'a> {
     fn selected(vm: &Vm, value: &'a Value) -> Result<Self, tcl_syntax::value::ValueError> {
         value.check_native_header()?;
@@ -3718,6 +3729,7 @@ impl<'a> OriginalFrameLevel<'a> {
     }
 }
 
+#[cfg(test)]
 impl tcl_registry::frame_effect::NativeFrameLevelObject for OriginalFrameLevel<'_> {
     type Error = tcl_syntax::value::ValueError;
 
@@ -3838,6 +3850,8 @@ pub(crate) fn runtime_frame_selection(
     effect: tcl_registry::FrameEffectSpec,
     args: &[Value],
 ) -> Result<(usize, usize), Completion<Value>> {
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(vm)
+        .map_err(|error| completion_from_cmd_error(vm, error))?;
     let dialect = vm.native_scalar_carrier_dialect();
     let Some(protocol) = dialect.native_frame_level_protocol() else {
         return Err(
@@ -3876,7 +3890,11 @@ pub(crate) fn runtime_frame_selection(
         && protocol.probes_single_script_list_first()
         && original.resident_string_bytes().is_none()
     {
-        match tcl_syntax::value::ValueOps::list_len(vm, original) {
+        let reached = tcl_syntax::value::ValueOps::list_len(vm, original);
+        scope
+            .check(vm)
+            .map_err(|error| completion_from_cmd_error(vm, error))?;
+        match reached {
             Ok(length) if length > 1 => return default_target(vm),
             Err(error) if error.native_access_refusal().is_some() => {
                 return Err(completion_from_cmd_error(vm, error.into()));
@@ -3884,16 +3902,22 @@ pub(crate) fn runtime_frame_selection(
             _ => {}
         }
     }
-    let mut operand = OriginalFrameLevel::selected(vm, original)
-        .map_err(|error| completion_from_cmd_error(vm, error.into()))?;
-    let resolution = protocol.resolve_leading_object(current, &mut operand);
+    let resolution = (|| {
+        let mut operand = native_frame_numeric::CheckedFrameLevel::selected(vm, original, &scope)?;
+        let reached = protocol.resolve_leading_object(current, &mut operand);
+        operand.current()?;
+        reached
+    })();
+    scope
+        .check(vm)
+        .map_err(|error| completion_from_cmd_error(vm, error))?;
     match resolution {
         Ok(Ok(result)) => Ok((
             count_width.unwrap_or(usize::from(result.explicit)),
             result.target,
         )),
         Ok(Err(failure)) => Err(native_frame_failure(vm, failure)),
-        Err(error) => Err(completion_from_cmd_error(vm, error.into())),
+        Err(error) => Err(completion_from_cmd_error(vm, error)),
     }
 }
 
@@ -3918,21 +3942,30 @@ fn runtime_frame_selection_with_requirement(
     original: &Value,
     required: bool,
 ) -> Result<usize, Completion<Value>> {
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(vm)
+        .map_err(|error| completion_from_cmd_error(vm, error))?;
     let dialect = vm.native_scalar_carrier_dialect();
     let protocol = dialect.native_frame_level_protocol().ok_or_else(|| {
         vm.refuse_host_command("native original-object frame protocol is unavailable".into())
     })?;
-    let mut operand = OriginalFrameLevel::selected(vm, original)
-        .map_err(|error| completion_from_cmd_error(vm, error.into()))?;
-    let result = if required {
-        protocol.resolve_required_object(vm.current_level(), &mut operand)
-    } else {
-        protocol.resolve_object(vm.current_level(), &mut operand)
-    };
+    let current = vm.current_level();
+    let result = (|| {
+        let mut operand = native_frame_numeric::CheckedFrameLevel::selected(vm, original, &scope)?;
+        let reached = if required {
+            protocol.resolve_required_object(current, &mut operand)
+        } else {
+            protocol.resolve_object(current, &mut operand)
+        };
+        operand.current()?;
+        reached
+    })();
+    scope
+        .check(vm)
+        .map_err(|error| completion_from_cmd_error(vm, error))?;
     match result {
         Ok(Ok(selected)) => Ok(selected.target),
         Ok(Err(failure)) => Err(native_frame_failure(vm, failure)),
-        Err(error) => Err(completion_from_cmd_error(vm, error.into())),
+        Err(error) => Err(completion_from_cmd_error(vm, error)),
     }
 }
 
@@ -5563,3 +5596,9 @@ mod native_static_original_tests;
 
 #[cfg(test)]
 mod native_completion_option_tests;
+
+#[cfg(test)]
+#[path = "command/native_string_stage_tests.rs"]
+mod original_string_stage_tests;
+
+mod native_frame_numeric;

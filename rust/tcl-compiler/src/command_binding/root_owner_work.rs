@@ -15,8 +15,23 @@ pub(super) enum Query {
     Layout,
     Body,
     ReceiverBody,
+    DeferredEntry,
+    SourceSegmentation,
+    SourceWordTokens,
+    CompilerSelection,
+    SourceArguments,
+    NativeInvocationPreparation,
+    PointCapture,
+    ContinuationCapture,
+    SelectedCommand,
+    PreflightPublication,
+    SourcePublication,
+    LexicalMemo,
+    LexicalCapture,
+    BodyMath,
+    BodyExpression,
 }
-const NAMES: [&str; 9] = [
+const NAMES: [&str; 24] = [
     "branch",
     "frame",
     "snapshot",
@@ -26,9 +41,24 @@ const NAMES: [&str; 9] = [
     "layout",
     "body",
     "receiver-body",
+    "deferred-entry",
+    "source-segmentation",
+    "source-word-tokens",
+    "compiler-selection",
+    "source-arguments",
+    "native-invocation-preparation",
+    "point-capture",
+    "continuation-capture",
+    "selected-command",
+    "preflight-publication",
+    "source-publication",
+    "lexical-memo",
+    "lexical-capture",
+    "body-math",
+    "body-expression",
 ];
 thread_local! {
-    static TOTALS: Cell<[(u64, u128); 9]> = const { Cell::new([(0, 0); 9]) };
+    static TOTALS: Cell<[(u64, u128); 24]> = const { Cell::new([(0, 0); 24]) };
 }
 pub(super) struct Timing {
     query: Query,

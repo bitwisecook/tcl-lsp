@@ -65,6 +65,9 @@ impl OriginalSourceProjectionMemo {
         config: LexerConfig,
     ) -> Option<Arc<OriginalSourceCommandProjection>> {
         #[cfg(any(test, debug_assertions))]
+        let _timing =
+            super::root_owner_work::Timing::at(super::root_owner_work::Query::LexicalMemo);
+        #[cfg(any(test, debug_assertions))]
         if self.trace {
             self.requests
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -94,6 +97,10 @@ impl OriginalSourceProjectionMemo {
         entry
             .original
             .get_or_init(|| {
+                #[cfg(any(test, debug_assertions))]
+                let _timing = super::root_owner_work::Timing::at(
+                    super::root_owner_work::Query::LexicalCapture,
+                );
                 #[cfg(any(test, debug_assertions))]
                 if cfg!(test) || self.trace {
                     self.captures

@@ -38,7 +38,7 @@ impl<'a> OriginalNumericOps<'a> {
 
     // This is only an unwind token for a legacy ValueError seam. The full
     // original cause stays in the Vm and must be checked at its real boundary.
-    fn value_unwind() -> ValueError {
+    pub(crate) fn value_unwind() -> ValueError {
         ValueError::CommandProtocolUnavailable("original VM numeric operation")
     }
 
@@ -79,6 +79,30 @@ impl<'a> OriginalNumericOps<'a> {
         self.current().map_err(|_| Self::value_unwind())
     }
 
+    fn current_for_value_native(
+        &self,
+        value: &Value,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let mut vm = self.vm.borrow_mut();
+        self.scope.check_native(&mut vm)?;
+        if let Err(refusal) = value.original_native_header_currentness() {
+            return Err(
+                vm.retain_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(refusal))
+            );
+        }
+        self.scope.check_native(&mut vm)
+    }
+
+    pub(crate) fn current_for_value(&self, value: &Value) -> Result<(), CmdError> {
+        self.current_for_value_native(value)
+            .map_err(CmdError::from_execution_refusal)
+    }
+
+    fn current_value_for_value(&self, value: &Value) -> Result<(), ValueError> {
+        self.current_for_value_native(value)
+            .map_err(|_| Self::value_unwind())
+    }
+
     pub(crate) fn with_environment<T>(
         &self,
         operation: impl FnOnce(
@@ -89,14 +113,26 @@ impl<'a> OriginalNumericOps<'a> {
         self.with_environment_using(operation, || self.current())
     }
 
-    fn with_environment_value<T>(
+    pub(crate) fn with_environment_for_value<T>(
         &self,
+        value: &Value,
+        operation: impl FnOnce(
+            Option<&dyn tcl_platform::NumericEnvironment>,
+            &mut dyn FnMut() -> Result<(), CmdError>,
+        ) -> Result<T, CmdError>,
+    ) -> Result<T, CmdError> {
+        self.with_environment_using(operation, || self.current_for_value(value))
+    }
+
+    fn with_environment_value_for_value<T>(
+        &self,
+        value: &Value,
         operation: impl FnOnce(
             Option<&dyn tcl_platform::NumericEnvironment>,
             &mut dyn FnMut() -> Result<(), ValueError>,
         ) -> Result<T, ValueError>,
     ) -> Result<T, ValueError> {
-        self.with_environment_using(operation, || self.current_value())
+        self.with_environment_using(operation, || self.current_value_for_value(value))
     }
 
     fn with_environment_using<T, E>(
@@ -148,8 +184,8 @@ impl<'a> OriginalNumericOps<'a> {
         value: &Value,
         kind: NativeScalarGetterKind,
     ) -> Result<NativeScalarGetterValue, CmdError> {
-        self.bind_jim_using(value, || self.current())?;
-        self.with_environment(|environment, check| {
+        self.bind_jim_using(value, || self.current_for_value(value))?;
+        self.with_environment_for_value(value, |environment, check| {
             value.native_scalar_getter_checked(self.dialect, kind, environment, check)
         })
     }
@@ -159,8 +195,8 @@ impl<'a> OriginalNumericOps<'a> {
         value: &Value,
         kind: NativeScalarGetterKind,
     ) -> Result<NativeScalarGetterValue, ValueError> {
-        self.bind_jim_using(value, || self.current_value())?;
-        self.with_environment_value(|environment, check| {
+        self.bind_jim_using(value, || self.current_value_for_value(value))?;
+        self.with_environment_value_for_value(value, |environment, check| {
             value.native_scalar_getter_checked(self.dialect, kind, environment, check)
         })
     }
@@ -170,8 +206,8 @@ impl<'a> OriginalNumericOps<'a> {
         value: &Value,
         kind: NativeScalarGetterKind,
     ) -> Result<Result<NativeScalarGetterValue, NativeScalarGetterFailure>, ValueError> {
-        self.bind_jim_using(value, || self.current_value())?;
-        self.with_environment_value(|environment, check| {
+        self.bind_jim_using(value, || self.current_value_for_value(value))?;
+        self.with_environment_value_for_value(value, |environment, check| {
             value.native_scalar_probe_checked(self.dialect, kind, environment, check)
         })
     }
@@ -181,10 +217,11 @@ impl<'a> OriginalNumericOps<'a> {
         value: &Value,
         kind: NativeNumberGetterKind,
     ) -> Result<Result<Number, NativeScalarGetterFailure>, ValueError> {
-        self.current_value()?;
-        let reached =
-            value.native_number_probe_checked(self.dialect, kind, &mut || self.current_value());
-        self.current_value()?;
+        self.current_value_for_value(value)?;
+        let reached = value.native_number_probe_checked(self.dialect, kind, &mut || {
+            self.current_value_for_value(value)
+        });
+        self.current_value_for_value(value)?;
         reached
     }
 
@@ -193,8 +230,8 @@ impl<'a> OriginalNumericOps<'a> {
         value: &Value,
         kind: NativeScalarGetterKind,
     ) -> Result<Result<NativeScalarGetterValue, NativeScalarGetterFailure>, CmdError> {
-        self.bind_jim_using(value, || self.current())?;
-        self.with_environment(|environment, check| {
+        self.bind_jim_using(value, || self.current_for_value(value))?;
+        self.with_environment_for_value(value, |environment, check| {
             value.native_scalar_probe_checked(self.dialect, kind, environment, check)
         })
     }
@@ -204,9 +241,10 @@ impl<'a> OriginalNumericOps<'a> {
         value: &Value,
         kind: NativeNumberGetterKind,
     ) -> Result<Result<Number, NativeScalarGetterFailure>, CmdError> {
-        self.current()?;
-        let reached = value.native_number_probe_checked(self.dialect, kind, &mut || self.current());
-        self.current()?;
+        self.current_for_value(value)?;
+        let reached = value
+            .native_number_probe_checked(self.dialect, kind, &mut || self.current_for_value(value));
+        self.current_for_value(value)?;
         reached
     }
 
@@ -214,7 +252,7 @@ impl<'a> OriginalNumericOps<'a> {
         &self,
         value: &Value,
     ) -> Result<Result<NativeScalarGetterValue, NativeScalarGetterFailure>, CmdError> {
-        self.with_environment(|environment, check| {
+        self.with_environment_for_value(value, |environment, check| {
             value.original_expression_integer84_checked(self.dialect, environment, check)
         })
     }
@@ -224,12 +262,12 @@ impl<'a> OriginalNumericOps<'a> {
         value: &Value,
         boolean: bool,
     ) -> Result<NativeScalarGetterValue, CmdError> {
-        self.current()?;
+        self.current_for_value(value)?;
         let reached =
             value.original_expression_word_boolean84_checked(self.dialect, boolean, &mut || {
-                self.current()
+                self.current_for_value(value)
             });
-        self.current()?;
+        self.current_for_value(value)?;
         reached
     }
 
@@ -239,15 +277,57 @@ impl<'a> OriginalNumericOps<'a> {
         kind: NativeScalarGetterKind,
         failure: NativeScalarGetterFailure,
     ) -> Result<NativeScalarGetterError, CmdError> {
-        self.current()?;
+        self.current_for_value(value)?;
         let reached = value.native_scalar_failure_presentation_checked(
             self.dialect,
             kind,
             failure,
-            &mut || self.current(),
+            &mut || self.current_for_value(value),
         );
-        self.current()?;
+        self.current_for_value(value)?;
         reached
+    }
+
+    fn string_using<E: From<ValueError>>(
+        &self,
+        value: &Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        current: impl Fn(&Value) -> Result<(), E>,
+    ) -> Result<Rc<[u8]>, E> {
+        current(value)?;
+        if self.dialect.native_string_protocol() != Some(protocol) {
+            return Err(
+                ValueError::CommandProtocolUnavailable("original VM String protocol").into(),
+            );
+        }
+        self.bind_jim_using(value, || current(value))?;
+        let formatter = self.host.native_integer_formatter();
+        current(value)?;
+        let reached =
+            value.native_string_bytes_checked_for_value(protocol, formatter, &mut |original| {
+                current(value)?;
+                current(original)
+            });
+        current(value)?;
+        reached
+    }
+
+    pub(crate) fn string(
+        &self,
+        value: &Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+    ) -> Result<Rc<[u8]>, CmdError> {
+        self.string_using(value, protocol, |original| self.current_for_value(original))
+    }
+
+    pub(crate) fn string_value(
+        &self,
+        value: &Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+    ) -> Result<Rc<[u8]>, ValueError> {
+        self.string_using(value, protocol, |original| {
+            self.current_value_for_value(original)
+        })
     }
 
     pub(crate) fn nonfinite84(
@@ -293,6 +373,8 @@ mod tests {
         changed_abi: Cell<bool>,
         original: RefCell<Option<crate::value::NativeObjectLifetimeLease>>,
         references: RefCell<Vec<(&'static str, usize)>>,
+        retire_at: Cell<Option<&'static str>>,
+        retire_owner: RefCell<Option<Value>>,
     }
     impl ActualNumeric {
         fn record(&self, name: &'static str, bytes: &[u8], offset: usize, base: u32, flag: bool) {
@@ -304,6 +386,10 @@ mod tests {
             self.calls
                 .borrow_mut()
                 .push((name, bytes.to_vec(), offset, base, flag));
+            if self.retire_at.get() == Some(name) {
+                let retired = self.retire_owner.borrow_mut().take();
+                drop(retired);
+            }
         }
         fn state_value() -> NumericErrorState {
             NumericErrorState {
@@ -987,4 +1073,206 @@ mod tests {
         assert!(numeric.calls.borrow().is_empty());
         assert!(vm.execution_refusal.is_none());
     }
+
+    #[test]
+    fn original_value_environment_keeps_the_same_header_and_shared_numeric_stages() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual VM header and software Host stages; no Runtime extension issuer is claimed.
+        let (mut vm, numeric) = provided("tcl8.4");
+        let original = Value::new_native_string_bytes(b"6");
+        let held = original.native_lifetime_lease();
+        *numeric.original.borrow_mut() = Some(original.native_lifetime_lease());
+        let count = original.native_object_reference_count();
+        let before = original.native_object_snapshot();
+        let scope = NativeOperationScope::enter(&mut vm).unwrap();
+        let reached = OriginalNumericOps::in_original_scope(&mut vm, &scope)
+            .unwrap()
+            .with_environment_for_value(held.value(), |environment, check| {
+                let actual = environment.ok_or(ValueError::ScalarNumericInputUnavailable)?;
+                let abi = actual
+                    .c_integer_abi()
+                    .map_err(|_| ValueError::ScalarNumericInputUnavailable);
+                check()?;
+                assert_eq!(abi?.long_bytes, 8);
+                let state = actual
+                    .state()
+                    .map_err(|_| ValueError::ScalarNumericInputUnavailable);
+                check()?;
+                assert_eq!(state?.errno, 37);
+                let converted = actual
+                    .unsigned(b"6", 0, 10)
+                    .map_err(|_| ValueError::ScalarNumericInputUnavailable);
+                check()?;
+                Ok(converted?.value)
+            })
+            .unwrap();
+        assert_eq!(reached, 6);
+        assert_eq!(numeric.host_queries.get(), 1);
+        assert_eq!(
+            numeric
+                .calls
+                .borrow()
+                .iter()
+                .map(|call| call.0)
+                .collect::<Vec<_>>(),
+            ["abi", "state", "unsigned"]
+        );
+        assert!(
+            numeric
+                .references
+                .borrow()
+                .iter()
+                .all(|entry| entry.1 == count)
+        );
+        assert_eq!(original.native_object_reference_count(), count);
+        assert_eq!(original.native_object_snapshot(), before);
+        assert!(vm.execution_refusal.is_none());
+        scope.check_native(&mut vm).unwrap();
+    }
+
+    #[test]
+    fn original_value_environment_retains_header_refusal_before_the_next_host_worker() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // A software callback releases the actual VM owner; the lease retains allocation only.
+        for stage in ["abi", "state", "unsigned"] {
+            let (mut vm, numeric) = provided("tcl8.4");
+            let original = Value::new_native_string_bytes(b"6");
+            let held = original.native_lifetime_lease();
+            *numeric.original.borrow_mut() = Some(original.native_lifetime_lease());
+            assert_eq!(original.native_object_reference_count(), 1);
+            numeric.retire_at.set(Some(stage));
+            *numeric.retire_owner.borrow_mut() = Some(original);
+            let scope = NativeOperationScope::enter(&mut vm).unwrap();
+            let reached = OriginalNumericOps::in_original_scope(&mut vm, &scope)
+                .unwrap()
+                .with_environment_for_value(held.value(), |environment, check| {
+                    let actual = environment.ok_or(ValueError::ScalarNumericInputUnavailable)?;
+                    let abi = actual
+                        .c_integer_abi()
+                        .map_err(|_| ValueError::ScalarNumericInputUnavailable);
+                    check()?;
+                    abi?;
+                    let state = actual
+                        .state()
+                        .map_err(|_| ValueError::ScalarNumericInputUnavailable);
+                    check()?;
+                    state?;
+                    let result = actual
+                        .unsigned(b"6", 0, 10)
+                        .map_err(|_| ValueError::ScalarNumericInputUnavailable);
+                    check()?;
+                    result?;
+                    Ok(())
+                });
+            let first = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "retired native object header",
+                ),
+            );
+            assert_eq!(
+                reached.unwrap_err().native_execution_refusal(),
+                Some(&first)
+            );
+            assert_eq!(vm.execution_refusal.as_ref(), Some(&first));
+            let expected = match stage {
+                "abi" => &["abi"][..],
+                "state" => &["abi", "state"][..],
+                _ => &["abi", "state", "unsigned"][..],
+            };
+            assert_eq!(
+                numeric
+                    .calls
+                    .borrow()
+                    .iter()
+                    .map(|call| call.0)
+                    .collect::<Vec<_>>(),
+                expected
+            );
+            assert!(numeric.references.borrow().iter().all(|entry| entry.1 == 1));
+            assert!(!held.value().native_object_is_live());
+            assert!(held.value().native_scalar_cache().is_none());
+            assert_eq!(vm.try_invoke_command("set", &[]).unwrap_err(), first);
+            assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
+        }
+    }
+
+    #[test]
+    fn original_scalar_facade_preserves_retired_header_cause_through_quiet_value_error() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Genuine reached numeric callbacks retire the actual header before any returned cache publication.
+        for stage in ["abi", "double"] {
+            for legacy in [false, true] {
+                let (mut vm, numeric) = provided("tcl8.4");
+                let original = Value::new_native_string_bytes(b"1.25");
+                let held = original.native_lifetime_lease();
+                *numeric.original.borrow_mut() = Some(original.native_lifetime_lease());
+                numeric.retire_at.set(Some(stage));
+                *numeric.retire_owner.borrow_mut() = Some(original);
+                let scope = NativeOperationScope::enter(&mut vm).unwrap();
+                let ops = OriginalNumericOps::in_original_scope(&mut vm, &scope).unwrap();
+                let first = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "retired native object header",
+                    ),
+                );
+                if legacy {
+                    assert_eq!(
+                        ops.probe_value(held.value(), Kind::Double).unwrap_err(),
+                        OriginalNumericOps::value_unwind()
+                    );
+                } else {
+                    assert_eq!(
+                        ops.getter(held.value(), Kind::Double)
+                            .unwrap_err()
+                            .native_execution_refusal(),
+                        Some(&first)
+                    );
+                }
+                drop(ops);
+                assert_eq!(vm.execution_refusal.as_ref(), Some(&first));
+                assert_eq!(numeric.calls.borrow().last().unwrap().0, stage);
+                assert!(numeric.references.borrow().iter().all(|entry| entry.1 == 1));
+                assert!(!held.value().native_object_is_live());
+                assert!(held.value().native_scalar_cache().is_none());
+                assert_eq!(vm.try_invoke_command("set", &[]).unwrap_err(), first);
+                assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
+            }
+        }
+    }
+
+    #[test]
+    fn original_value_header_check_preserves_an_earlier_entered_scope_cause() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let (mut vm, numeric) = provided("tcl8.6");
+        let original = Value::new_native_string_bytes(b"6");
+        let held = original.native_lifetime_lease();
+        let scope = NativeOperationScope::enter(&mut vm).unwrap();
+        let ops = OriginalNumericOps::in_original_scope(&mut vm, &scope).unwrap();
+        let _ = ops
+            .vm
+            .borrow_mut()
+            .refuse_host_command("earlier actual operation refusal".into());
+        let first = ops.vm.borrow().execution_refusal.clone().unwrap();
+        drop(original);
+        assert!(!held.value().native_object_is_live());
+        assert_eq!(
+            ops.current_for_value(held.value())
+                .unwrap_err()
+                .native_execution_refusal(),
+            Some(&first)
+        );
+        drop(ops);
+        assert_eq!(numeric.host_queries.get(), 0);
+        assert!(numeric.calls.borrow().is_empty());
+        assert_eq!(vm.try_invoke_command("set", &[]).unwrap_err(), first);
+        assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
+    }
 }
+
+#[cfg(test)]
+#[path = "native_string_stage_tests.rs"]
+mod original_string_stage_tests;

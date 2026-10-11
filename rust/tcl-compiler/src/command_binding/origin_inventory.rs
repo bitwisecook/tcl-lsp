@@ -331,6 +331,8 @@ impl SourceCommandBindings {
         registry: &tcl_registry::CommandRegistry,
         script: &ExecutedScriptSource,
     ) -> Vec<super::SourceMathInvocation> {
+        #[cfg(any(test, debug_assertions))]
+        let _timing = super::root_owner_work::Timing::at(super::root_owner_work::Query::BodyMath);
         let mut calls = self.implicit_math_invocations_for_script(script);
         let Some(config) = self.lexer_config else {
             return calls;

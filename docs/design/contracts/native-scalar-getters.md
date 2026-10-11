@@ -294,8 +294,19 @@ and cannot replace the checked execution facade.
 `getter`, `probe`, `number` and `failure` retain the same original object,
 selected physical dialect, Host and ABI observation. Jim getter/probe ingress
 binds the actual retained interpreter context centrally. `dialect` exposes the
-captured policy for an independent consumer protocol join; `with_vm` checks
-the same receipt before and after a caller's actual VM operation.
+captured policy for an independent consumer protocol join. `current` checks
+the original interpreter receipt for ambient stages. `current_for_value`
+additionally checks the exact original header and retains a genuine header
+refusal in the VM's existing typed first-cause owner. It supplies no new object,
+getter, frame or runtime identity.
+
+Operand-dependent environment queries use `with_environment_for_value`.
+It shares the facade's captured Host and ABI observation cell and checks that
+same original header before and after each reached numeric worker, including
+failed workers. Getter, probe, Number, Boolean, failure and String methods use
+this operand check; ambient precision and nonfinite error queries keep their
+independent operation-only purpose. A frame adapter must not recreate a local
+environment checker or issue a fresh receipt after a callback.
 
 The legacy ValueOps, ListIndex, duration and info integer seams return
 `ValueError`. Their shared facade uses a constant unavailable-operation token
@@ -343,9 +354,35 @@ and [VM target tests](../../../rust/tcl-vm/src/value_scalar_target_tests.rs):
 - `descriptive_target_does_not_admit_retired_or_foreign_original_cache` keeps
   layout facts independent of original-header admission.
 
-The unchanged `primitive_boolean_storage_and_followup_wide_match_all_native_fixtures`
+The `primitive_boolean_storage_and_followup_wide_match_all_native_fixtures`
 controls in [Runtime](../../../runtime/rust/src/typed_value.rs) and
 [VM](../../../rust/tcl-vm/src/value_scalar_tests.rs) retain all 77 original
 storage/followup rows. Native process observations, source/policy controls and
 successful Rust assertions remain separate validation scopes in the linked
 proof records.
+
+Original VM String materialisation uses `OriginalNumericOps::string` (or the
+ValueError-compatible `string_value`) and `Value::native_string_bytes_checked`.
+The selected protocol must match the captured actual invocation; the same
+entered scope and exact original header check Host formatter acquisition,
+formatter build and format, compound children, and publication of String bytes.
+Actual header withdrawal remains a typed first cause even when the formatter
+also returns an unavailable result. The existing worker's optional checker
+receives each reached original value. The canonical facade checks both its
+original root and that actual child before further work; a live root cannot
+replace a retired child's header or cause after backing retirement. Compound backing leases
+retain original children without adding native object references. A refused
+child does not publish its bytes or run later child updaters. Previously reached
+child effects remain observable.
+
+The public Value String APIs are independent adapters with no entered-operation
+receipt. Their explicit formatter capability supplies no VM context authority.
+A consumer with an actual VM must use the checked adapter. ValueError is only
+a compatibility unwind carrier: the actual VM retains its full first cause and
+the execution boundary checks it before guest presentation.
+
+The VM software controls release the actual original value owner during a
+supplied numeric or formatter callback while retaining only allocation leases.
+They check first-cause transport and suppression of later workers or cache
+publication. They do not establish a Runtime extension object issuer or an
+external Tcl updater/free callback chronology.

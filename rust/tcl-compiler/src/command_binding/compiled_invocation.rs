@@ -900,6 +900,9 @@ pub(super) fn select_invocation_boxed(
     context: &super::SourceExecutionContext<'_>,
     offset: u32,
 ) -> Box<CompiledInvocationSelection> {
+    #[cfg(any(test, debug_assertions))]
+    let _timing =
+        super::root_owner_work::Timing::at(super::root_owner_work::Query::CompilerSelection);
     let context = *context;
     Box::new(select_invocation(words, state, context, offset))
 }
