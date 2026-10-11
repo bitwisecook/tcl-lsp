@@ -1,0 +1,24 @@
+{
+  "argv": [
+    "/workspace/.proofs/root-native-direct-binary-replacement634a/9.1.0/probe.elf",
+    "5"
+  ],
+  "cwd": "/workspace/.proofs/root-native-direct-binary-replacement634a/9.1.0/case-05",
+  "environment": {
+    "PATH": "/usr/bin:/bin",
+    "LC_ALL": "C",
+    "LANG": "C",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "timeout_seconds": 30,
+  "timed_out": false,
+  "exit": 0,
+  "seconds": 0.007261199003551155,
+  "stdout": "/workspace/.proofs/root-native-direct-binary-replacement634a/9.1.0/case-05/execute.stdout",
+  "stdout_sha256": "b195239b5d1fe3a8c4f8e66affe6fea63b5910665c7570ec71e4120692eabee3",
+  "stderr": "/workspace/.proofs/root-native-direct-binary-replacement634a/9.1.0/case-05/execute.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "case": 5,
+  "executable_sha256_before": "2a15905690a8759a6895cbefe6a139ebb220a0ccce7a81e86f2ea828d452cfe9",
+  "executable_sha256_after": "2a15905690a8759a6895cbefe6a139ebb220a0ccce7a81e86f2ea828d452cfe9"
+}

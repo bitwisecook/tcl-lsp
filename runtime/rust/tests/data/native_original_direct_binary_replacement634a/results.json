@@ -1,0 +1,45 @@
+{
+  "proof_id": "naming.string.original-binary-replacement-direct-helper-sharing",
+  "problem": "Does the genuine parsed-index TclStringReplace C9 producer select subject/fresh/replacement headers for actual unshared/shared/no-inplace inputs, independently of indexed EvalObjv caller ownership?",
+  "request_sha256": "ad10337f0a1690214d987c8678f1c5f181acda84e71ec59789fcd9a4e81590e8",
+  "source_sha256": "12e3a810df236b87cf35405cfd3cb707d5beb6a7167ed298b133cd7ddbab6e2f",
+  "providers": [
+    {
+      "provider": "9.0.4",
+      "compile_exit": 0,
+      "cli_version_exit": 0,
+      "executions": 8,
+      "process_exits": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "all_after_pins_match": true,
+      "receipt_sha256": "028d63ef3c7e27198d2c673a9381b05d48cc75ed6abdc59739db7c4d2b8cfe9d"
+    },
+    {
+      "provider": "9.1.0",
+      "compile_exit": 0,
+      "cli_version_exit": 0,
+      "executions": 8,
+      "process_exits": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "all_after_pins_match": true,
+      "receipt_sha256": "3d9c89fedd7bc17eb487229d929db6de91038883bc07dfed0a9def10530ee551"
+    }
+  ],
+  "scope": "Each case fresh process. Constructors proper native ByteArray, subject/replacement one genuine native reference each; case1 adds one subject reference. first/count already parsed literal operands, no command-name/index/caller-frame claim. snapshots original public fields and source bytes; helper result has no interpreter publication until explicit snapshot/getter."
+}

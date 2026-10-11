@@ -1,0 +1,15 @@
+{
+  "providers": [
+    {
+      "provider": "9.0.4",
+      "receipt_sha256": "beb578e8296562e62f4264e2bc943a77e264c19de4f9740897fd7a69553f5223",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "9.1.0",
+      "receipt_sha256": "862765a346b1abfb223b3d07d114639aaac4398d0998c4b7cf3389190469da93",
+      "all_after_pins_match": true
+    }
+  ],
+  "scope": "Same-library independent diagnostic observations, not inserted into the original replacement processes."
+}

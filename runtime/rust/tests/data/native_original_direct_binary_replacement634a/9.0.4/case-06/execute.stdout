@@ -1,0 +1,15 @@
+case	6	replacement-resident-string
+purpose	direct-TclStringReplace	parsed-first=1	parsed-count=2	flags=2	omit=0	extra-subject-reference=0
+input-subject	4100ff5a
+input-replacement	51fe
+setup-replacement-string	51c3be
+before-subject	bytearray	0	1	0
+before-replacement	bytearray	1	1	3
+returned	1
+reached-subject	bytearray	0	1	0
+reached-replacement	bytearray	1	1	3
+reached-result	bytearray	0	1	0
+result-alias	subject=1	replacement=0
+result-bytes	4151c3be5a
+materialised-result	bytearray	1	1	5
+subject-bytes	4151c3be5a

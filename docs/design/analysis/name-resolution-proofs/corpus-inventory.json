@@ -195492,6 +195492,974 @@
         "naming.string.original-binary-replacement-sharing-and-result-roles"
       ],
       "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-00/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-00/execute.stdout",
+      "sha256": "0831ccd6cd3f1cf53db4f101c92cea6cebb95bbf82e696b2c89eabbb8b4929be",
+      "bytes": 477,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-00/receipt.json",
+      "sha256": "8c738c02e2036d90962b322b60b3453bef274b37fcd1dd264ad0fc930a2a8815",
+      "bytes": 1037,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-01/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-01/execute.stdout",
+      "sha256": "87af5877ebe5dec20c8beeb85adc60dc7d8f104793ec360929c1b9ab0e24f932",
+      "bytes": 477,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-01/receipt.json",
+      "sha256": "ea945dc80bd2979a104e79f7e7f13548250490103ca45fcd018bcfb62ae0404b",
+      "bytes": 1037,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-02/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-02/execute.stdout",
+      "sha256": "02b40f538a969b0bc96988f4053d3693d48d6ce3760ec578946a7b4161adb1af",
+      "bytes": 479,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-02/receipt.json",
+      "sha256": "869ecbb5e231178f197dbce84f9390bea1a2451a7a54b15d1b61397ca837f76e",
+      "bytes": 1036,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-03/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-03/execute.stdout",
+      "sha256": "53caae2154cf7e9ad6b457d821ded9c3b0bad0a84d3f0abc5bd34afdb8f49f12",
+      "bytes": 494,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-03/receipt.json",
+      "sha256": "301075b1d9787c9db9056a2be5b6f3d3e00d9f6ca0a15024b7c9442ead38526d",
+      "bytes": 1036,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-04/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-04/execute.stdout",
+      "sha256": "a0fe3fdd1a135644fd0df3f7deb64ad0fd18f0aebcd977d07c240ee9914a94a0",
+      "bytes": 467,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-04/receipt.json",
+      "sha256": "d7184b10286c9a736f0e661c6b822a9712e440a3ec9f4a3fbb18920c05396256",
+      "bytes": 1037,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-05/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-05/execute.stdout",
+      "sha256": "b195239b5d1fe3a8c4f8e66affe6fea63b5910665c7570ec71e4120692eabee3",
+      "bytes": 482,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-05/receipt.json",
+      "sha256": "6a2899761db3df2371e598e40b64301593c9fb3ba1c12161d58ddd6fff8a6aea",
+      "bytes": 1037,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-06/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-06/execute.stdout",
+      "sha256": "f4faf2f788e209a66b85fd6889aa39f1d02a946830460ad589c5c89c2692eb32",
+      "bytes": 514,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-06/receipt.json",
+      "sha256": "d7d8c2b06dfe5359335e01a28118a678853e2dfc4d2215ae88e1364888f34ed2",
+      "bytes": 1037,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-07/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-07/execute.stdout",
+      "sha256": "a387e290be7c1b757cf5584908f9176376852c9918d4370bcdb1c4458587e296",
+      "bytes": 512,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/case-07/receipt.json",
+      "sha256": "f45a16b50a2cd76a26fdd692942515c2f29e21c5e1ead8db9ceb754c69e3fd31",
+      "bytes": 1037,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/cli-version.stdout",
+      "sha256": "b83920bac1b2d47c3840f588f95bee9dc69b85e26117f471541cdf85d7da52a2",
+      "bytes": 6,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/probe.elf.gz",
+      "sha256": "c21b2bfec184fc7372518d31f8dbda9b6ee19e4c9c8a4705b2c2946d6fff3b76",
+      "bytes": 959013,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/receipt.json",
+      "sha256": "028d63ef3c7e27198d2c673a9381b05d48cc75ed6abdc59739db7c4d2b8cfe9d",
+      "bytes": 148273,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/same-library-version/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/same-library-version/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/same-library-version/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/same-library-version/execute.stdout",
+      "sha256": "d016aed0da5636f83bfe6d76f7c26b06e30ce7951203b5d3543001780eb51a2c",
+      "bytes": 48,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/same-library-version/receipt.json",
+      "sha256": "beb578e8296562e62f4264e2bc943a77e264c19de4f9740897fd7a69553f5223",
+      "bytes": 138593,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/same-library-version/version.elf.gz",
+      "sha256": "8fdd7305d16a18c0a91bef13b78c64e80bf59a50dd5f7968e31ce41b7b8de5c2",
+      "bytes": 958303,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-00/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-00/execute.stdout",
+      "sha256": "0831ccd6cd3f1cf53db4f101c92cea6cebb95bbf82e696b2c89eabbb8b4929be",
+      "bytes": 477,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-00/receipt.json",
+      "sha256": "6a96261e6961842bbf08570e03af8985a4b0e7fabb26be48026fcd1ca3648516",
+      "bytes": 1036,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-01/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-01/execute.stdout",
+      "sha256": "87af5877ebe5dec20c8beeb85adc60dc7d8f104793ec360929c1b9ab0e24f932",
+      "bytes": 477,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-01/receipt.json",
+      "sha256": "5c5036c5e7b0254d0bd6afda692514a64e69a270994ab4d68d1858ffba44f1f9",
+      "bytes": 1036,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-02/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-02/execute.stdout",
+      "sha256": "02b40f538a969b0bc96988f4053d3693d48d6ce3760ec578946a7b4161adb1af",
+      "bytes": 479,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-02/receipt.json",
+      "sha256": "83b2c7dfdb202242f886196d26bdcbb783e2e3cc44f2d04f6b729f3b252c7bd6",
+      "bytes": 1036,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-03/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-03/execute.stdout",
+      "sha256": "30b5f5561ac9780c550dd20d117feab53bff1b634a7095eff9a17502a6e99092",
+      "bytes": 492,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-03/receipt.json",
+      "sha256": "26213d5847fdd855060583cb0e49416d4d739dffbfa1b14d2a689ead3e075879",
+      "bytes": 1036,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-04/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-04/execute.stdout",
+      "sha256": "a0fe3fdd1a135644fd0df3f7deb64ad0fd18f0aebcd977d07c240ee9914a94a0",
+      "bytes": 467,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-04/receipt.json",
+      "sha256": "6c9568cffcc1b9aa412561cfc9e4bac4bc3dd3c7aeb42ea6b491fafaf1188d60",
+      "bytes": 1035,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-05/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-05/execute.stdout",
+      "sha256": "b195239b5d1fe3a8c4f8e66affe6fea63b5910665c7570ec71e4120692eabee3",
+      "bytes": 482,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-05/receipt.json",
+      "sha256": "3ee20ce8a56c920048d681b8518f806d5afaf0b748de89f34ecfd2451bffd76a",
+      "bytes": 1036,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-06/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-06/execute.stdout",
+      "sha256": "f4faf2f788e209a66b85fd6889aa39f1d02a946830460ad589c5c89c2692eb32",
+      "bytes": 514,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-06/receipt.json",
+      "sha256": "c6aa7d524d724c7401d0377209bcae176ba388fe64c8ef828d3f58b2153c3e6e",
+      "bytes": 1036,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-07/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-07/execute.stdout",
+      "sha256": "a387e290be7c1b757cf5584908f9176376852c9918d4370bcdb1c4458587e296",
+      "bytes": 512,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/case-07/receipt.json",
+      "sha256": "b8145f7156164a60d401b59e15b93c6ee1e3203af890f265cb6bd7d63639feee",
+      "bytes": 1036,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/cli-version.stdout",
+      "sha256": "077ee5b3a3a7fc2622ceff6466fea0c28f3fb08b24653dcc7f4baab29b9aef36",
+      "bytes": 6,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/probe.elf.gz",
+      "sha256": "ad419af8bbce77b0a6c85072a902fa029a0a1e8e62a9c7b6ce1e38ecb51e4458",
+      "bytes": 1027075,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/receipt.json",
+      "sha256": "3d9c89fedd7bc17eb487229d929db6de91038883bc07dfed0a9def10530ee551",
+      "bytes": 148410,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/same-library-version/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/same-library-version/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/same-library-version/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/same-library-version/execute.stdout",
+      "sha256": "b225f15b75641002abfa4f29d4d1be66051123c85bc897b9a7234b22317ea071",
+      "bytes": 48,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/same-library-version/receipt.json",
+      "sha256": "862765a346b1abfb223b3d07d114639aaac4398d0998c4b7cf3389190469da93",
+      "bytes": 138740,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/same-library-version/version.elf.gz",
+      "sha256": "3c9c625700c96e4b5c0c524c855396985985846a78c574dc37ba81ce19e49717",
+      "bytes": 1025681,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/compiler-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/compiler-version.stdout",
+      "sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+      "bytes": 252,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/compiler.json",
+      "sha256": "05ac9503423c876ec755dda5927985439fe365e2307ad0581cff73f937470a2e",
+      "bytes": 845,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/interpretation.json",
+      "sha256": "7f5cf0bf75e5fa0c48452d677ed582ef14660e4e57f0dfaf3362a03ca1f647ce",
+      "bytes": 30964,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/library-version-results.json",
+      "sha256": "896cf33e24e13b851cefca57374588dde7fa708480f13e1a222ee407c64dee9f",
+      "bytes": 476,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/library-version.c",
+      "sha256": "1fd6edce16eb4275c0e08e86d6a489fd966d10794d89dc7068ee1a4a733280df",
+      "bytes": 929,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/pinned-input-bytes.tar.gz",
+      "sha256": "8935acfc1bbed72bcec39de143da671b98098855ec1132ea5fd0fbfe49784215",
+      "bytes": 12091133,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/pinned-input-map.json",
+      "sha256": "1ab7435b9a7b1e83b8f89b49967dfc0b4974627c3ff5f5147f89f83c1a6d198e",
+      "bytes": 272222,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/probe.c",
+      "sha256": "12e3a810df236b87cf35405cfd3cb707d5beb6a7167ed298b133cd7ddbab6e2f",
+      "bytes": 3538,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/protocol/run-direct-binary-replacement-library-version634a.py",
+      "sha256": "f3b9b9201cd141ab4b8bb56126ff002b8293e4ef6f6328b8c5c98bcdd3f4dc18",
+      "bytes": 3092,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/protocol/run-native-direct-binary-replacement634a.py",
+      "sha256": "0ba00b7d787c1636bfec69888d3a3c24978d6ad2e5420c17d7c18a062d7f1a99",
+      "bytes": 7176,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/request.json",
+      "sha256": "ad10337f0a1690214d987c8678f1c5f181acda84e71ec59789fcd9a4e81590e8",
+      "bytes": 1301,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/results.json",
+      "sha256": "387f348e4f3ac1fc5cbf074149e68f465d10ab80b243b775283f348565bf35bf",
+      "bytes": 1605,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/retention.json",
+      "sha256": "d39775e4fb0abed991e825d1a155b541cd16b0488f43f6501e6779193d8e7155",
+      "bytes": 45391,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/source-windows.json",
+      "sha256": "898a5ed06f8bdd65790b2750c5ce73d336d9c38402bdda7ad043b50848c3d039",
+      "bytes": 11603,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/version.tcl",
+      "sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+      "bytes": 23,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.string.original-binary-replacement-direct-helper-sharing"
+      ],
+      "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
     }
   ]
 }
