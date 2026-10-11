@@ -21,8 +21,9 @@ The broader number and expression contract is
 | Actual host layout and numeric thread state | `tcl_platform::NumericEnvironment`; `tcl_host_c_abi::NativeNumericEnvironment` |
 | Original cache layout and reached primitive eligibility | `NativeScalarGetterProtocol::{validate_cache_abi, validate_primitive_abi}`; `tcl_cmd_core::native_numeric::scalar_getter_recipe_abi` |
 | Reached C84/Jim conversion stages | `tcl_cmd_core::native_numeric::{fresh_c84_conversion, fresh_jim_conversion}` |
-| Original Runtime object probe and failure rendering | `typed_value::{native_scalar_probe_with_environment, native_scalar_failure_presentation}` |
-| Original VM object probe and failure rendering | `Value::{native_scalar_probe_with_environment, native_scalar_failure_presentation}` |
+| Entered Runtime object probe and failure rendering | `typed_value::{native_scalar_probe_with_environment_and_currency, native_scalar_failure_presentation_with_currency}` |
+| Entered VM object probe and failure rendering | `OriginalNumericOps::{probe, failure}` through `Value::{native_scalar_probe_checked_with_string, native_scalar_failure_presentation_checked_with_string}` |
+| Independent VM object recipes | `Value::{native_scalar_probe, native_scalar_getter}` |
 
 The Runtime and VM entry points validate the original live header and selected
 protocol, inspect its genuine cache, obtain required target facts, and apply the
@@ -30,6 +31,14 @@ selected cache transition. A guest conversion failure can still change that
 cache. Keep those changes when returning the failure. Foreign or retired headers
 and missing capabilities return typed host refusals; consumers preserve the
 first cause instead of publishing a guessed Tcl diagnostic.
+
+The entered VM facade supplies its same-scope, node-aware String provider to
+the checked Value kernels. Runtime entered adapters supply their original
+`NativeOperationCurrency`; command adapters retain it through
+`OriginalArguments`. Independent object recipes delegate those same
+kernels without an operation checker. The VM
+`native_scalar_failure_presentation` compatibility wrapper is test-only;
+production failure presentation goes through the checked facade.
 
 ## Query the actual target
 
@@ -307,6 +316,11 @@ failed workers. Getter, probe, Number, Boolean, failure and String methods use
 this operand check; ambient precision and nonfinite error queries keep their
 independent operation-only purpose. A frame adapter must not recreate a local
 environment checker or issue a fresh receipt after a callback.
+
+`with_vm_for_value` brackets an existing mutable VM worker with the same
+original operation and operand-header checks, including failed results. Frame
+List probing uses this adapter; it supplies neither a new getter purpose nor a
+replacement operation receipt.
 
 The legacy ValueOps, ListIndex, duration and info integer seams return
 `ValueError`. Their shared facade uses a constant unavailable-operation token
