@@ -9,6 +9,90 @@ use tcl_dialect::{TclVersion, model::Family};
 
 const EXPORT_MODES: &[&str] = &["-export", "-private", "-unexport"];
 
+/// Reached command-head String stage for the selected class-variable worker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeTclooClassVariableHeadStage {
+    /// C9.0 reads the head only to report a missing method context.
+    MissingContext,
+    /// C9.1 reads the head before checking the current method context.
+    BeforeContext,
+}
+
+/// Original local-name validation failure before any class-variable links.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeTclooClassVariableNameFailure {
+    /// The local scalar name has array-element shape.
+    ArrayElement,
+    /// The local scalar name includes a namespace separator.
+    NamespaceSeparator,
+}
+impl NativeTclooClassVariableNameFailure {
+    /// Original CString diagnostic, independent of the counted lookup key.
+    #[must_use]
+    pub fn message(self, original: &[u8]) -> Vec<u8> {
+        let reason: &[u8] = match self {
+            Self::ArrayElement => b"scalar variable that looks like an array element",
+            Self::NamespaceSeparator => b"local variable with a namespace separator in it",
+        };
+        [
+            b"bad variable name \"".as_slice(),
+            tcl_core_types::c_string_extent(original),
+            b"\": can't create a ",
+            reason,
+        ]
+        .concat()
+    }
+    /// Both native shape failures use the same local-element error code.
+    #[must_use]
+    pub const fn error_code(self) -> &'static [u8] {
+        b"TCL UPVAR LOCAL_ELEMENT"
+    }
+}
+
+/// Pure C9 class-variable operand schedule; supplies no frame or class owner.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NativeTclooClassVariableProtocol {
+    version: TclVersion,
+}
+impl NativeTclooClassVariableProtocol {
+    /// Core classvariable is available in the inspected C9 workers.
+    #[must_use]
+    pub fn select(dialect: InvocationDialect) -> Option<Self> {
+        let version = dialect.tcl_version?;
+        (dialect.family() == Some(Family::Tcl) && version >= TclVersion::V9_0)
+            .then_some(Self { version })
+    }
+    /// Native release-specific head getter stage, before operand validation.
+    #[must_use]
+    pub const fn head_stage(self) -> NativeTclooClassVariableHeadStage {
+        if matches!(self.version, TclVersion::V9_1) {
+            NativeTclooClassVariableHeadStage::BeforeContext
+        } else {
+            NativeTclooClassVariableHeadStage::MissingContext
+        }
+    }
+    /// Check every original name before any target lookup or local link.
+    ///
+    /// # Errors
+    /// Returns the first array-shape or namespace-shape rejection.
+    pub fn validate_name(self, original: &[u8]) -> Result<(), NativeTclooClassVariableNameFailure> {
+        let names = tcl_syntax::native_variable_name::NativeVariableNameProtocol::for_tcl_version(
+            self.version,
+        );
+        if names.alias_local_is_element(original) {
+            return Err(NativeTclooClassVariableNameFailure::ArrayElement);
+        }
+        if names
+            .alias_local_input(tcl_core_types::c_string_extent(original))
+            .qualification()
+            != tcl_syntax::naming::NativeNameQualification::Unqualified
+        {
+            return Err(NativeTclooClassVariableNameFailure::NamespaceSeparator);
+        }
+        Ok(())
+    }
+}
+
 /// Distinct native method flags; unexported is not true-private.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativeTclooMethodVisibility {
@@ -359,5 +443,56 @@ mod tests {
             crate::model::ingress::resolve_environment("jim").unit_profile(),
         );
         assert!(NativeTclooMethodDefinitionProtocol::select(jim).is_none());
+    }
+}
+
+#[cfg(test)]
+mod classvariable_tests {
+    use super::*;
+
+    #[test]
+    fn selected_classvariable_schedule_keeps_availability_and_cstring_shapes_distinct() {
+        // naming.tcloo.original-classvariable-preflight-and-link-owner
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-classvariable-preflight-and-link-owner.md
+        for version in TclVersion::ALL {
+            let selected =
+                NativeTclooClassVariableProtocol::select(InvocationDialect::for_version(version));
+            assert_eq!(selected.is_some(), version >= TclVersion::V9_0);
+            let Some(selected) = selected else { continue };
+            assert_eq!(
+                selected.head_stage(),
+                if version == TclVersion::V9_1 {
+                    NativeTclooClassVariableHeadStage::BeforeContext
+                } else {
+                    NativeTclooClassVariableHeadStage::MissingContext
+                },
+            );
+            assert_eq!(selected.validate_name(b"plain"), Ok(()));
+            assert_eq!(selected.validate_name(b"plain\0::tail(k)"), Ok(()));
+            assert_eq!(
+                selected.validate_name(b"a(k)\0tail"),
+                Err(NativeTclooClassVariableNameFailure::ArrayElement)
+            );
+            assert_eq!(
+                selected.validate_name(b"ns::a(k)"),
+                Err(NativeTclooClassVariableNameFailure::ArrayElement)
+            );
+            assert_eq!(
+                selected.validate_name(b"ns::a"),
+                Err(NativeTclooClassVariableNameFailure::NamespaceSeparator)
+            );
+        }
+        let jim = InvocationDialect::of_profile(
+            crate::model::ingress::resolve_environment("jim").unit_profile(),
+        );
+        assert!(NativeTclooClassVariableProtocol::select(jim).is_none());
+        assert_eq!(
+            NativeTclooClassVariableNameFailure::NamespaceSeparator.message(b"ns::a\0tail"),
+            b"bad variable name \"ns::a\": can't create a local variable with a namespace separator in it",
+        );
+        assert_eq!(
+            NativeTclooClassVariableNameFailure::NamespaceSeparator.error_code(),
+            b"TCL UPVAR LOCAL_ELEMENT"
+        );
     }
 }

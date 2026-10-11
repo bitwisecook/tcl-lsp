@@ -33,19 +33,24 @@ mod tests {
         tcl_lexer::LexerConfig,
         Option<crate::environment_ingress::CapturedNativeEntry>,
     ) {
-        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         let frame = crate::var_resolve::VariableExecutionFrame::Procedure {
             namespace: "::".to_owned(),
             identity: "inventory-test".to_owned(),
         };
+        let entry = Some(crate::environment_ingress::captured_native_entry(profile));
         let bindings = SourceCommandBindings::analyse_in_frame_with_options(
             source,
             &frame,
             config,
             &registry,
             super::super::SourceAnalysisOptions {
+                native_entry: entry
+                    .as_ref()
+                    .map(crate::environment_ingress::CapturedNativeEntry::as_entry),
                 invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
@@ -55,13 +60,13 @@ mod tests {
                 ..Default::default()
             },
         );
-        (bindings, config)
+        (bindings, config, entry)
     }
 
     #[test]
     fn unknown_iterable_retains_the_entered_expression_read_inventory() {
         let source = "proc p {l} {foreach x $l {set y [expr {$x + 1}]}}";
-        let (bindings, _) = analyse(source);
+        let (bindings, _, _owner) = analyse(source);
         assert!(
             bindings
                 .variable_accesses
@@ -117,7 +122,7 @@ mod tests {
     #[test]
     fn return_does_not_remove_later_compiler_admission() {
         let source = "return done; set never 1";
-        let (bindings, config) = analyse(source);
+        let (bindings, config, _owner) = analyse(source);
         let offset = u32::try_from(source.find("set").unwrap()).unwrap();
         let binding = bindings.invocation_at_source("", offset);
         assert_eq!(
@@ -152,7 +157,7 @@ mod tests {
     fn literal_colon_namespace_retains_its_entered_declaration_points() {
         let source =
             "namespace eval : {proc p {} {namespace export exposed; return [namespace current]}}";
-        let (bindings, _) = analyse(source);
+        let (bindings, _, _owner) = analyse(source);
         let offset = u32::try_from(source.find("proc p").unwrap()).unwrap();
         let binding = bindings.invocation_at_source("proc", offset);
         assert_eq!(
@@ -214,7 +219,7 @@ mod tests {
     #[test]
     fn expanded_head_stamps_the_original_invocation_site_including_its_marker() {
         let source = "set command {set result READY}; {*}$command";
-        let (bindings, config) = analyse(source);
+        let (bindings, config, _owner) = analyse(source);
         let map = tcl_lexer::SourceMap::new(source);
         let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
         let segment = segments.last().unwrap();
@@ -239,7 +244,7 @@ mod tests {
     #[test]
     fn dynamically_compiled_unentered_arm_remains_in_parent_compiler_inventory() {
         let source = "set flag 0; if {$flag} {set never 1}; set reached 2";
-        let (bindings, config) = analyse(source);
+        let (bindings, config, _owner) = analyse(source);
         let offset = u32::try_from(source.find("set never").unwrap()).unwrap();
         let binding = bindings.invocation_at_source("", offset);
         assert_eq!(

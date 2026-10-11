@@ -256,6 +256,22 @@ pub(crate) fn store_native_compiled_temporary(
         &mut self,
         slot: usize,
     ) -> Result<super::VariableReceiver, super::VarError> {
+        self.capture_native_compiled_temporary_receiver_at(slot, true)?
+            .ok_or(super::VarError::NameProtocolUnavailable)
+    }
+
+    pub(crate) fn capture_native_compiled_temporary_receiver_for_unset(
+        &mut self,
+        slot: usize,
+    ) -> Result<Option<super::VariableReceiver>, super::VarError> {
+        self.capture_native_compiled_temporary_receiver_at(slot, false)
+    }
+
+    fn capture_native_compiled_temporary_receiver_at(
+        &mut self,
+        slot: usize,
+        create: bool,
+    ) -> Result<Option<super::VariableReceiver>, super::VarError> {
         let (frame, cell) = self
             .compiled_cell(slot)
             .ok_or(super::VarError::NameProtocolUnavailable)?;
@@ -264,28 +280,7 @@ pub(crate) fn store_native_compiled_temporary(
         }
         self.frames[frame]
             .table
-            .capture_receiver_at(cell, None, true)?
-            .ok_or(super::VarError::NameProtocolUnavailable)
-    }
-
-    /// Clear the actual installed anonymous compiler cell.
-    pub(crate) fn unset_native_compiled_temporary(
-        &mut self,
-        slot: usize,
-    ) -> Result<(), super::VarError> {
-        let (frame, cell) = self
-            .compiled_cell(slot)
-            .ok_or(super::VarError::NameProtocolUnavailable)?;
-        if !self.frames[frame].table.cells[cell].anonymous {
-            return Err(super::VarError::NameProtocolUnavailable);
-        }
-        if let Some(receiver) = self.frames[frame]
-            .table
-            .capture_receiver_at(cell, None, false)?
-        {
-            receiver.unset()?;
-        }
-        Ok(())
+            .capture_receiver_at(cell, None, create)
     }
 
     /// Borrow the actual header held by an installed unnamed compiler local.

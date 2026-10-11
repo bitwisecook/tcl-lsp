@@ -104,6 +104,8 @@ passes, and ownership matrices.
 
 ## contracts/
 
+- [runtime-error-code-owners.md](contracts/runtime-error-code-owners.md) — original C error-code headers, selected global/private storage and checked publication.
+
 One contract per file: who owns a surface, what its rules are, and how it
 fails.
 

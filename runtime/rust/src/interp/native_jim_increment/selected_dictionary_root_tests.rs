@@ -416,7 +416,17 @@ fn original_jim_member_root_and_retained_alias_publish_through_the_same_original
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     let mut interpreter = native();
     interpreter.register_builtin(b"original_member_update", update_original_member);
-    assert_eq!(interpreter.eval_str(b"set a [dict create slot [dict create old 1]]; proc update {} {upvar #0 a alias; original_member_update alias(slot) new 2}; update"), Code::Ok);
+    let code = interpreter.eval_str(b"set a [dict create slot [dict create old 1]]; proc update {} {upvar #0 a alias; original_member_update alias(slot) new 2}; update");
+    if code != Code::Ok {
+        // Failure-only inspection of already resident storage; no String getter.
+        eprintln!(
+            "original Jim member update: native={:?}, resident={:?}",
+            interpreter.native_execution_refusal(),
+            obj::native_object_snapshot(interpreter.get_obj_result())
+                .map(|snapshot| snapshot.resident),
+        );
+    }
+    assert_eq!(code, Code::Ok);
     let root = current(&interpreter, b"a").unwrap();
     let member = crate::dict::original_cached_member(root, b"slot")
         .unwrap()

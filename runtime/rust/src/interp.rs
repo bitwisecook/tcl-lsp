@@ -41,7 +41,11 @@ mod bootstrap_context_tests;
 #[cfg(test)]
 mod byte_store_retirement_tests;
 #[cfg(test)]
+mod anonymous_cell_cleanup_tests;
+#[cfg(test)]
 mod c_api_error_tests;
+#[cfg(test)]
+mod original_error_code_setter_tests;
 mod captured_rmw;
 mod jim_local;
 mod jim_teardown;
@@ -6697,6 +6701,56 @@ impl Interp {
         reached
     }
 
+    /// Clear the original anonymous cell, then retire its actual displaced
+    /// owner outside the frame borrow before continuing the instruction.
+    pub(crate) fn unset_native_compiled_temporary_checked(
+        &mut self,
+        slot: usize,
+    ) -> Result<(), VarError> {
+        let scope =
+            native_operation_currency::NativeOperationScope::enter(self).map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        let (receiver, frame) = {
+            let mut frames = self.frames.borrow_mut();
+            let frame = frames.current_activation_owner();
+            (
+                frames.capture_native_compiled_temporary_receiver_for_unset(slot)?,
+                frame,
+            )
+        };
+        let reached = receiver.as_ref().map_or(Ok(()), |receiver| {
+            receiver.unset().map(|_| ())
+        });
+        let receiver_current = receiver.as_ref().map_or(Ok(()), |receiver| {
+            receiver.check_current()
+        });
+        drop(receiver);
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        let frame_current = {
+            let frames = self.frames.borrow();
+            std::rc::Weak::ptr_eq(&frame, &frames.current_activation_owner())
+                && frame.strong_count() != 0
+        };
+        if !frame_current {
+            return Err(self.byte_store_failure(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "captured native anonymous frame",
+                )
+                .into(),
+            ));
+        }
+        receiver_current?;
+        reached
+    }
+
     /// Frame-addressed [`var_set`](Self::var_set) — the cell takes a **+1**.
     pub(crate) fn var_set_at(
         &mut self,
@@ -9600,11 +9654,58 @@ impl Interp {
         if scope.currency().ensure_current_or_refuse().is_err() {
             return;
         }
-        self.capture_native_error_objects();
-        if scope.currency().ensure_current_or_refuse().is_err() {
-            return;
+        let original = obj::Owned::fresh(new_string(code));
+        if let Err(first) = self.set_original_c_error_code(original.as_ptr()) {
+            self.refuse_native_execution(first);
         }
+    }
+
+    /// Set the actual C error-code header without reaching its String getter.
+    /// Global C8.4 publication and modern private storage retain their own
+    /// selected protocols; a byte author is a separate original object producer.
+    pub(crate) fn set_original_c_error_code(
+        &mut self,
+        original: *mut TclObj,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        obj::check_native_liveness(original)
+            .map_err(|error| self.refuse_completion_value_access(error))?;
+        let lifetime = obj::NativeObjectLifetime::retain(original);
+        scope.currency().ensure_current_or_refuse()?;
+        if self.uses_c84_global_error_info() {
+            self.publish_original_c84_error_code(original);
+        } else if self
+            .native_invocation_dialect()
+            .native_error_variable_protocol()
+            .is_some()
+        {
+            let retired = self.exc.borrow_mut().native.code.take();
+            drop(retired);
+            scope.currency().ensure_current_or_refuse()?;
+            obj::check_native_liveness(original)
+                .map_err(|error| self.refuse_completion_value_access(error))?;
+            let reentered = self
+                .exc
+                .borrow_mut()
+                .native
+                .code
+                .replace(obj::Owned::retain(original));
+            drop(reentered);
+        } else {
+            return Err(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original C error-code setter",
+                )
+                .into(),
+            );
+        }
+        scope.currency().ensure_current_or_refuse()?;
+        obj::check_native_liveness(lifetime.as_ptr())
+            .map_err(|error| self.refuse_completion_value_access(error))?;
+        drop(lifetime);
+        scope.currency().ensure_current_or_refuse()?;
         self.c_api_errors.set(self.c_api_errors.get() + 1);
+        Ok(())
     }
 
     /// Note that a C API call left an error the interpreter already holds (a
@@ -10938,6 +11039,12 @@ impl Interp {
                 exc.code.clone(),
                 exc.code_explicit,
             )
+        };
+        let original = if self.uses_c84_global_error_info() {
+            self.var_get_at(b"::errorCode", 0)
+                .map(obj::NativeObjectLifetime::retain)
+        } else {
+            original
         };
         let bytes = if let Some(original) = original {
             let protocol = self

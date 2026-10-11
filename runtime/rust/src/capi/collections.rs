@@ -491,22 +491,11 @@ pub(super) unsafe fn set_error_code(interpreter: *mut Interp, original: *mut Tcl
         Ok(operation) => operation,
         Err(_) => return,
     };
-    let result = operation.string(original);
-    match result {
-        Ok(code) => {
-            operation.interpreter.set_c_error_code(&code);
-            // Preserve Tcl_SetObjErrorCode's actual retain/release of an rc0 input.
-            unsafe {
-                obj::incr_ref_count(original);
-                obj::decr_ref_count(original);
-            }
-            if let Err(error) = operation.currency().ensure_current_or_refuse() {
-                operation.interpreter.refuse_native_execution(error);
-            }
-        }
-        Err(error) => {
-            operation.publish(error);
-        }
+    if let Err(first) = operation.interpreter.set_original_c_error_code(original) {
+        operation.publish(CmdError::from_execution_refusal(first));
+    }
+    if let Err(error) = operation.currency().ensure_current_or_refuse() {
+        operation.interpreter.refuse_native_execution(error);
     }
 }
 

@@ -864,6 +864,20 @@ impl Interp {
         namespace: crate::namespace::NsId,
         local: *mut TclObj,
     ) -> Code {
+        let target = match self.prepare_original_c_namespace_link_target(original, namespace) {
+            Ok(target) => target,
+            Err(code) => return code,
+        };
+        self.bind_original_c_alias_local(local, target)
+    }
+
+    /// Prepare the original namespace receiver before a caller's local-link
+    /// publication. The caller retains its actual frame and namespace purpose.
+    pub(crate) fn prepare_original_c_namespace_link_target(
+        &mut self,
+        original: *mut TclObj,
+        namespace: crate::namespace::NsId,
+    ) -> Result<crate::frame::Link, Code> {
         let selected = match self.prepare_original_c_name_in(
             original,
             NativeVariableNameLookupPurpose::Link,
@@ -871,12 +885,12 @@ impl Interp {
         ) {
             Ok(Some(selected)) => selected,
             Ok(None) => {
-                return self.report_cmd_error(
+                return Err(self.report_cmd_error(
                     ValueError::CommandProtocolUnavailable("original namespace upvar target")
                         .into(),
-                );
+                ));
             }
-            Err(code) => return code,
+            Err(code) => return Err(code),
         };
         let target = crate::vars::original_namespace_link_target(
             &self.frames.borrow(),
@@ -888,21 +902,21 @@ impl Interp {
         let mut target = match target {
             Ok(target) => target,
             Err(error) => {
-                return self.original_c_lookup_var_error(
+                return Err(self.original_c_lookup_var_error(
                     original,
                     NativeVariableNameLookupPurpose::Link,
                     error,
-                );
+                ));
             }
         };
         if let Err(error) = self.prepare_upvar_target(&mut target) {
-            return self.original_c_lookup_var_error(
+            return Err(self.original_c_lookup_var_error(
                 original,
                 NativeVariableNameLookupPurpose::Link,
                 error,
-            );
+            ));
         }
-        self.bind_original_c_alias_local(local, target)
+        Ok(target)
     }
 
     pub(crate) fn link_original_c_namespace_alias(

@@ -2805,7 +2805,7 @@ mod tests {
         // The merged source projection supplies no selected command or execution.
         let profile = tcl_dialect::DialectProfile::find("f5-irules").unwrap();
         let config = tcl_lexer::LexerConfig {
-            braced_var: tcl_lexer::BracedVarStyle::Nesting,
+            braced_var: tcl_lexer::BracedVarStyle::Tcl9Nesting,
             ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
         };
         assert!(config.brace_line_continuation.continues());

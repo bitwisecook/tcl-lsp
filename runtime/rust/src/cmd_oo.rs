@@ -3948,6 +3948,13 @@ fn nextto_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// its own class rather than the leaf object's.
 fn classvariable_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     native_context::with_original_arguments(interp, argv, |interp, originals| {
+        if let Some(selected) =
+            tcl_registry::native_tcloo_method_definition::NativeTclooClassVariableProtocol::select(
+                interp.native_invocation_dialect(),
+            )
+        {
+            return classvariable_original(interp, argv, originals, selected);
+        }
         // Method-context only. C exposes `classvariable` through `::oo::Helpers` on a
         // method's namespace path; the runtime models the helpers as global builtins
         // that consult the call stack (as `self`/`my`/`next` do), so outside a method
@@ -4009,6 +4016,120 @@ fn classvariable_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         interp.set_result_bytes(b"");
         Code::Ok
     })
+}
+
+fn classvariable_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    originals: &crate::interp::native_arguments::OriginalArguments,
+    selected: tcl_registry::native_tcloo_method_definition::NativeTclooClassVariableProtocol,
+) -> Code {
+    use tcl_registry::native_tcloo_method_definition::NativeTclooClassVariableHeadStage;
+
+    if argv.len() < 2 {
+        return wrong_args(interp, b"classvariable name ...");
+    }
+    let (activation, frame_owner) = {
+        let frames = interp.frames.borrow();
+        (
+            frames.current_activation(),
+            frames.current_activation_owner(),
+        )
+    };
+    let frame_current = |interpreter: &Interp| -> Result<(), tcl_cmd_core::CmdError> {
+        originals.check()?;
+        let frames = interpreter.frames.borrow();
+        if frame_owner.upgrade().is_some()
+            && frames.current_activation() == activation
+            && frame_owner.ptr_eq(&frames.current_activation_owner())
+        {
+            Ok(())
+        } else {
+            Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original classvariable method frame",
+            )
+            .into())
+        }
+    };
+    let head = if selected.head_stage() == NativeTclooClassVariableHeadStage::BeforeContext {
+        let head = oo_original_bytes!(interp, originals, 0);
+        oo_checked!(interp, frame_current(interp));
+        Some(head)
+    } else {
+        None
+    };
+    let step = {
+        let state = interp.oo.borrow();
+        state
+            .call_stack
+            .iter()
+            .rev()
+            .find(|frame| frame.activation == Some(activation))
+            .and_then(|frame| frame.chain.get(frame.index).cloned())
+    };
+    let Some(step) = step else {
+        let head = head.unwrap_or_else(Vec::new);
+        let head = if selected.head_stage() == NativeTclooClassVariableHeadStage::MissingContext {
+            oo_original_bytes!(interp, originals, 0)
+        } else {
+            head
+        };
+        oo_checked!(interp, frame_current(interp));
+        return interp.native_oo_context_required(tcl_core_types::c_string_extent(&head));
+    };
+    if step.is_object {
+        return interp.error_with_code(
+            b"method not defined by a class",
+            b"TCL OO UNMATCHED_CONTEXT",
+        );
+    }
+    let target = oo_checked!(
+        interp,
+        native_context::OriginalOoTarget::capture(interp, step.provider, true)
+    );
+    let namespace = {
+        let state = interp.oo.borrow();
+        state.objects[&step.provider].var_ns
+    };
+    let holder = match interp.native_namespace_token_at(namespace) {
+        Some(holder) => holder,
+        None => {
+            return interp.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original classvariable namespace",
+                )
+                .into(),
+            );
+        }
+    };
+    let check = |interpreter: &Interp| -> Result<(), tcl_cmd_core::CmdError> {
+        frame_current(interpreter)?;
+        target.check_instance_namespace(interpreter, namespace, &holder)
+    };
+    oo_checked!(interp, check(interp));
+    for index in 1..argv.len() {
+        let bytes = originals.bytes(index);
+        oo_checked!(interp, check(interp));
+        let bytes = oo_checked!(interp, bytes);
+        if let Err(error) = selected.validate_name(&bytes) {
+            return interp.error_with_code(&error.message(&bytes), error.error_code());
+        }
+    }
+    for &original in &argv[1..] {
+        oo_checked!(interp, check(interp));
+        let target = interp.prepare_original_c_namespace_link_target(original, namespace);
+        oo_checked!(interp, check(interp));
+        let target = match target {
+            Ok(target) => target,
+            Err(code) => return code,
+        };
+        let code = interp.bind_original_c_alias_local(original, target);
+        oo_checked!(interp, check(interp));
+        if code != Code::Ok {
+            return code;
+        }
+    }
+    Code::Ok
 }
 
 // info object / info class (called from cmd_info)

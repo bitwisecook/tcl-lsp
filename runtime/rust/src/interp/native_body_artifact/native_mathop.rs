@@ -237,10 +237,7 @@ impl Interp {
                     stack.push(obj::Owned::retain(value));
                 }
                 MathopStep::UnsetTemporary(slot) => {
-                    let unset = self
-                        .frames
-                        .borrow_mut()
-                        .unset_native_compiled_temporary(*slot);
+                    let unset = self.unset_native_compiled_temporary_checked(*slot);
                     unset.map_err(|_| self.report_cmd_error(failure().into()))?;
                 }
                 MathopStep::Pop => {

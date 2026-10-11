@@ -548,7 +548,7 @@ impl Interp {
         }
     }
 
-    fn native_oo_context_required(&mut self, head: &[u8]) -> Code {
+    pub(super) fn native_oo_context_required(&mut self, head: &[u8]) -> Code {
         let mut message = head.to_vec();
         message.extend_from_slice(b" may only be called from inside a method");
         let code = crate::interp::error_code_list(&[b"TCL", b"OO", b"CONTEXT_REQUIRED"]);
