@@ -169,6 +169,8 @@ mod origin_inventory;
 mod retained_body_inventory;
 pub(crate) use retained_body_inventory::RetainedSourceBodyInventory;
 mod original_body_namespace;
+#[cfg(test)]
+mod original_script_parse_entry_tests;
 pub(crate) use conditional_body::SourceConditionalBodyEntry;
 pub use conditional_body::{SourceCallerFrameInvocationTemplate, SourceDeclaredReceiverBodyEntry};
 pub use source_declared_method_template::OriginalDeclaredSelfMethodTemplate;
@@ -7568,6 +7570,49 @@ impl SourceCommandBindings {
         let entry_context = source_chunk_context_boxed(context, None);
         let context = entry_context.as_ref();
         let config = context.source_purpose.config(context.config);
+        // Physical Direct parsing is independent of lexical prefix recovery and
+        // unentered declaration previews. Only the actual baseline entry can
+        // select it; explicitly authored advice remains its separate route.
+        if self.declaration_preview_depth == 0
+            && context.compilation.mode
+                == tcl_registry::native_compilation::NativeCompilationMode::Direct
+            && let Some(entry) = state.baseline.native_entry.as_deref()
+        {
+            use tcl_registry::native_compilation::NativeDirectScriptParseEntry;
+            match context.compilation.direct_script_parse_entry(entry) {
+                Some(NativeDirectScriptParseEntry::CommandAtTime) => {}
+                Some(NativeDirectScriptParseEntry::WholeScript) => {
+                    match tcl_lexer::jim_script_syntax_tokens(image, config) {
+                        Ok(syntax) if syntax.missing.is_none() => {}
+                        Ok(_syntax_error) => {
+                            compiled_preflight::materialise_error_storage(state, context.registry);
+                            let failed = SourceOutcomes::invocation(
+                                state,
+                                tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                                    tcl_registry::completion::CompletionCode::Error,
+                                ),
+                            );
+                            self.record_unrepresented_source_entry(state, context);
+                            self.record_runtime_coverage(
+                                state.current_source_origin.as_ref(),
+                                base,
+                                source.len(),
+                                &failed,
+                            );
+                            return failed;
+                        }
+                        Err(_) => {
+                            self.record_unrepresented_source_entry(state, context);
+                            return opaque_source_invocation(state);
+                        }
+                    }
+                }
+                None => {
+                    self.record_unrepresented_source_entry(state, context);
+                    return opaque_source_invocation(state);
+                }
+            }
+        }
         let depth = context.depth;
         let mut prepared = Box::<PreparedSourceChunk>::default();
         self.prepare_source_chunk(image, base, state, context, &mut prepared);

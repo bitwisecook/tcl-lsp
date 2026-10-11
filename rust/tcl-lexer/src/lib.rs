@@ -95,7 +95,7 @@ pub use highlight::{
 };
 pub use jim_script_tokens::{
     JimScriptLine, JimScriptToken, JimScriptTokenKind, JimScriptTokens, JimScriptTokensUnavailable,
-    jim_script_tokens,
+    jim_script_syntax_tokens, jim_script_tokens,
 };
 pub use jim_subst_tokens::{JimSubstTokens, jim_subst_tokens};
 pub use lexer::{LeadingBom, LexError, LexWarning, Lexer, LexerConfig, UTF8_BOM};

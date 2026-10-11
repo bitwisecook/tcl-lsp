@@ -124,6 +124,23 @@ pub fn jim_script_tokens(
     if image.channel() != crate::SourceChannel::NativeValue {
         return Err(JimScriptTokensUnavailable::SourceChannel);
     }
+    jim_script_syntax_tokens(image, config)
+}
+
+/// Retain the selected Jim scanner's whole-script syntax facts in the original
+/// input channel, before any command or child script executes. Delimiter scans
+/// keep command bodies opaque until their own script entry; the roster retains
+/// malformed tokens, the missing marker and its original source line.
+///
+/// This readonly projection grants no NativeValue ingress, Script object,
+/// filename, interpreter identity or execution authority.
+///
+/// # Errors
+/// Returns unavailable selected Jim grammar or counted source geometry.
+pub fn jim_script_syntax_tokens(
+    image: &SourceImage,
+    config: LexerConfig,
+) -> Result<JimScriptTokens, JimScriptTokensUnavailable> {
     let mut result = Lexer::with_source_image(image, config).jim_script_roster(image.clone())?;
     if result.missing.is_none()
         && let Some(line) = result
@@ -303,6 +320,109 @@ mod tests {
                 &SourceImage::native(b"set x 1".as_slice()),
                 LexerConfig::default()
             ),
+            Err(JimScriptTokensUnavailable::Grammar)
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_script_syntax_tests {
+    use super::*;
+    use tcl_dialect::model::{Family, Release, grammar};
+
+    fn config() -> LexerConfig {
+        LexerConfig::for_file_grammar(grammar(Family::Jim, Release::JIM_0_84))
+    }
+
+    #[test]
+    fn original_jim_syntax_roster_keeps_channel_and_native_value_ingress_separate() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        let source = "proc before {} {}; list {a}b; proc after {} {}";
+        let document = SourceImage::document(source);
+        let native = SourceImage::native(source.as_bytes());
+        let original = jim_script_syntax_tokens(&document, config()).unwrap();
+        let selected = jim_script_tokens(&native, config()).unwrap();
+        assert_eq!(original.image, document);
+        assert_eq!(original.image.channel(), crate::SourceChannel::Document);
+        assert_eq!(selected.image.channel(), crate::SourceChannel::NativeValue);
+        assert_eq!(original.tokens, selected.tokens);
+        assert_eq!(original.missing, Some(b'}'));
+        assert_eq!(original.missing, selected.missing);
+        assert_eq!(original.completeness_line, selected.completeness_line);
+        assert_eq!(
+            jim_script_tokens(&document, config()),
+            Err(JimScriptTokensUnavailable::SourceChannel)
+        );
+        // The existing info-complete query has its distinct terminal-brace rule.
+        assert!(jim_script_is_complete(&document, config()).unwrap());
+    }
+
+    #[test]
+    fn original_jim_syntax_roster_delays_child_syntax_but_keeps_enclosing_delimiters() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        for source in [
+            "set before 1; set sink [list {a}b]; set after 2",
+            "set before 1; set sink [set inner 1; list {a}b]; set after 2",
+            "set before 1; set sink \"[list {a}b]\"; set after 2",
+            "set before 1; set sink $arr([list {a}b]); set after 2",
+        ] {
+            let image = SourceImage::document(source);
+            let roster = jim_script_syntax_tokens(&image, config()).unwrap();
+            assert_eq!(roster.missing, None, "{source}");
+            assert_eq!(roster.image, image);
+            assert!(roster.tokens.iter().any(|token| matches!(
+                token.kind,
+                JimScriptTokenKind::Command | JimScriptTokenKind::IndexedVariable
+            )));
+        }
+        for source in [
+            "set before 1; set sink [list {a]; set after 2",
+            "set before 1; set sink [list ${a]; set after 2",
+            "set before 1; set sink [list x{]; set after 2",
+        ] {
+            let image = SourceImage::document(source);
+            let roster = jim_script_syntax_tokens(&image, config()).unwrap();
+            assert_eq!(roster.missing, Some(b'['), "{source}");
+            assert!(matches!(
+                roster.completeness_line,
+                JimScriptLine::Original(_)
+            ));
+            assert_eq!(roster.image, image);
+        }
+        let child = SourceImage::document("set inner 1; list {a}b");
+        assert_eq!(
+            jim_script_syntax_tokens(&child, config().nested())
+                .unwrap()
+                .missing,
+            Some(b'}')
+        );
+    }
+
+    #[test]
+    fn original_jim_syntax_roster_uses_complete_config_and_refuses_foreign_grammar() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        let source = "\u{feff}set value one\r\nset later two";
+        let image = SourceImage::document(source);
+        let root = jim_script_syntax_tokens(&image, config()).unwrap();
+        let body = jim_script_syntax_tokens(&image, config().nested()).unwrap();
+        assert_eq!(root.image, image);
+        assert_eq!(body.image, image);
+        assert_eq!(root.missing, None);
+        assert_eq!(body.missing, None);
+        assert_eq!(root.tokens[0].source.start(), 3);
+        assert_eq!(body.tokens[0].source.start(), 0);
+        assert_ne!(root.tokens[0].value, body.tokens[0].value);
+        let mut foreign = config();
+        foreign.braced_var = crate::BracedVarStyle::Tcl9Nesting;
+        assert_eq!(
+            jim_script_syntax_tokens(&image, foreign),
+            Err(JimScriptTokensUnavailable::Grammar)
+        );
+        assert_eq!(
+            jim_script_syntax_tokens(&image, LexerConfig::for_dialect("tcl9.0")),
             Err(JimScriptTokensUnavailable::Grammar)
         );
     }

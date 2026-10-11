@@ -263,3 +263,29 @@ vector to those original groups before reusing written bytes. Their raw spelling
 includes every wrapper and expansion marker; component spans remain separate.
 Missing geometry stays a dynamic/opaque inventory entry and cannot become an
 empty successfully parsed word or a static Registry operand.
+
+
+## Selected Direct script parsing
+
+`NativeCompilationContext::direct_script_parse_entry` reads the actual retained
+Direct entry's physical point. Supported C entries keep command-at-a-time
+execution; the selected Jim entry validates its whole script before any prefix
+publication. Missing or unsupported actual points remain unavailable. Authored
+source advice and unentered declaration previews retain their distinct purpose.
+
+`tcl_lexer::jim_script_syntax_tokens` projects the existing Jim scanner's full
+roster, missing marker and original completeness line while preserving the
+input channel. Its enclosing delimiter scan delays command-body syntax until
+that child script is entered. The NativeValue-only `jim_script_tokens` door
+still owns native token ingress; the readonly syntax sibling supplies no native
+object, filename, interpreter, Script backing or execution receipt. Jim's
+info-complete query retains its separate terminal-brace rule.
+
+The shared `parse_cut::first_parse_cut_image_with_descent_checked` accepts an
+explicit `ParseCutDescent`. `RecursiveCommands` is the unchanged compatibility
+purpose. `EnclosingScript` inspects the same original word/component delimiters
+and variable-index parts but delays command-body syntax. This syntax choice
+issues no physical engine entry, and the generic component scanner does not
+substitute for Jim's selected scanner. Both purposes preserve unavailable
+ownership separately from a clean script. Complete lexical editor prefixes do
+not establish a Jim execution prefix.

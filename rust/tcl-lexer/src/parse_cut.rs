@@ -262,6 +262,16 @@ pub fn first_parse_cut_image(source: &SourceImage, config: LexerConfig) -> Optio
     first_parse_cut_image_checked(source, config).ok().flatten()
 }
 
+/// Syntax depth selected by a genuine parser entry, independent of execution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ParseCutDescent {
+    /// Validate substituted command scripts through the existing full-depth walk.
+    RecursiveCommands,
+    /// Validate this script's original words and component delimiters, delaying
+    /// command-substitution body syntax until that child parser is entered.
+    EnclosingScript,
+}
+
 /// Inspect an original image without hiding unavailable lexical ownership.
 ///
 /// # Errors
@@ -270,8 +280,30 @@ pub fn first_parse_cut_image_checked(
     source: &SourceImage,
     config: LexerConfig,
 ) -> Result<Option<ParseCut>, ParseCutUnavailable> {
+    first_parse_cut_image_with_descent_checked(source, config, ParseCutDescent::RecursiveCommands)
+}
+
+/// Inspect an original script under its producer-selected syntax descent.
+/// The same lexical/group/component owners retain source and unavailable cuts.
+/// Delaying command bodies changes no delimiter scanner, variable-index
+/// traversal or parse-error term and supplies no execution/entry authority.
+///
+/// # Errors
+/// Returns unavailable selected lexical or original component ownership.
+pub fn first_parse_cut_image_with_descent_checked(
+    source: &SourceImage,
+    config: LexerConfig,
+    descent: ParseCutDescent,
+) -> Result<Option<ParseCut>, ParseCutUnavailable> {
     let (tokens, commands) = lex_and_group(source.bytes(), config, source.channel())?;
-    first_parse_cut_image_in_checked(&commands, &tokens, source, config)
+    first_parse_cut_channel_in_with_descent(
+        &commands,
+        &tokens,
+        source.bytes(),
+        config,
+        source.channel(),
+        descent,
+    )
 }
 
 /// Inspect retained tokens and grouping under the same original image/config.
@@ -295,8 +327,28 @@ fn first_parse_cut_channel_in(
     config: LexerConfig,
     channel: SourceChannel,
 ) -> Result<Option<ParseCut>, ParseCutUnavailable> {
+    first_parse_cut_channel_in_with_descent(
+        commands,
+        tokens,
+        src,
+        config,
+        channel,
+        ParseCutDescent::RecursiveCommands,
+    )
+}
+
+fn first_parse_cut_channel_in_with_descent(
+    commands: &[CommandSpan],
+    tokens: &[Token],
+    src: &[u8],
+    config: LexerConfig,
+    channel: SourceChannel,
+    descent: ParseCutDescent,
+) -> Result<Option<ParseCut>, ParseCutUnavailable> {
     for (index, command) in commands.iter().enumerate() {
-        if let Some((offset, term, kind)) = command_cut(command, tokens, src, config, channel)? {
+        if let Some((offset, term, kind)) =
+            command_cut(command, tokens, src, config, channel, descent)?
+        {
             return Ok(Some(ParseCut {
                 command: index,
                 offset,
@@ -384,6 +436,7 @@ fn command_cut(
     src: &[u8],
     config: LexerConfig,
     channel: SourceChannel,
+    descent: ParseCutDescent,
 ) -> Result<Option<(u32, u32, crate::ParseIssueKind)>, ParseCutUnavailable> {
     let jobs = word_jobs(&command.words, tokens, src, 0, config);
     let mut stack = vec![Frame::Words {
@@ -393,7 +446,7 @@ fn command_cut(
         next: 0,
         report_at: None,
     }];
-    drain(&mut stack, config, channel)
+    drain(&mut stack, config, channel, descent)
 }
 
 /// Resolve every word of a grouped script into its [`WordJob`], with offsets
@@ -502,6 +555,7 @@ fn drain(
     stack: &mut Vec<Frame>,
     config: LexerConfig,
     channel: SourceChannel,
+    descent: ParseCutDescent,
 ) -> Result<Option<(u32, u32, crate::ParseIssueKind)>, ParseCutUnavailable> {
     while let Some(frame) = stack.last_mut() {
         match frame {
@@ -593,6 +647,9 @@ fn drain(
                         stack.push(pushed);
                     }
                     ExecutablePart::Command { body } => {
+                        if descent == ParseCutDescent::EnclosingScript {
+                            continue;
+                        }
                         // The inner script's original extent is independent of
                         // the enclosing variable's diagnostic reporting anchor.
                         let pushed =
@@ -1225,5 +1282,108 @@ mod tests {
             first_parse_cut(&shallow_error, LexerConfig::default()).map(|c| c.message),
             Some(EXTRA_AFTER_CLOSE_QUOTE),
         );
+    }
+}
+
+#[cfg(test)]
+mod original_parse_descent_tests {
+    use super::*;
+
+    #[test]
+    fn original_enclosing_script_cut_delays_child_syntax_without_hiding_root_delimiters() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Syntax depth only; genuine Registry entry independently selects its use.
+        let config = LexerConfig::for_dialect("jim");
+        for source in [
+            "set before 1; list [list {a}b]",
+            "set before 1; list \"[list {a}b]\"",
+            "set before 1; list $arr([list {a}b])",
+        ] {
+            let image = SourceImage::document(source);
+            assert_eq!(
+                first_parse_cut_image_with_descent_checked(
+                    &image,
+                    config,
+                    ParseCutDescent::EnclosingScript
+                ),
+                Ok(None),
+                "{source}"
+            );
+            assert!(
+                first_parse_cut_image_checked(&image, config)
+                    .unwrap()
+                    .is_some(),
+                "{source}"
+            );
+        }
+        for source in [
+            "set before 1; {a}b",
+            "set before 1; list [list {a]",
+            "set before 1; list \"unterminated",
+        ] {
+            let image = SourceImage::document(source);
+            let recursive = first_parse_cut_image_checked(&image, config).unwrap();
+            let enclosing = first_parse_cut_image_with_descent_checked(
+                &image,
+                config,
+                ParseCutDescent::EnclosingScript,
+            )
+            .unwrap();
+            assert!(enclosing.is_some(), "{source}");
+            assert_eq!(enclosing, recursive, "{source}");
+        }
+        let child = SourceImage::document("list {a}b");
+        assert!(
+            first_parse_cut_image_with_descent_checked(
+                &child,
+                config.nested(),
+                ParseCutDescent::EnclosingScript
+            )
+            .unwrap()
+            .is_some()
+        );
+    }
+
+    #[test]
+    fn original_parse_descent_keeps_recursive_wrapper_and_unavailable_geometry_distinct() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let config = LexerConfig::for_dialect(dialect);
+            for source in ["list 1", "list [list {a}b]", "list ${a{b}c}"] {
+                let image = SourceImage::document(source);
+                assert_eq!(
+                    first_parse_cut_image_checked(&image, config),
+                    first_parse_cut_image_with_descent_checked(
+                        &image,
+                        config,
+                        ParseCutDescent::RecursiveCommands
+                    )
+                );
+            }
+        }
+        let image = SourceImage::document("list 1");
+        let tokens = Lexer::with_source_image(&image, LexerConfig::default())
+            .tokenise_all()
+            .unwrap();
+        let mut groups = group_commands_bytes(&tokens, image.bytes(), LexerConfig::default());
+        groups[0].words[0].tokens = tokens.len()..tokens.len();
+        for descent in [
+            ParseCutDescent::RecursiveCommands,
+            ParseCutDescent::EnclosingScript,
+        ] {
+            assert!(
+                first_parse_cut_channel_in_with_descent(
+                    &groups,
+                    &tokens,
+                    image.bytes(),
+                    LexerConfig::default(),
+                    image.channel(),
+                    descent
+                )
+                .is_err()
+            );
+        }
     }
 }

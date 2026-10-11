@@ -127,6 +127,31 @@ impl NativeCompilationWordShape {
     }
 }
 
+/// Syntax validation boundary of an actual selected Direct script entry.
+/// This supplies no command lookup, frame, naming or successful entry proof.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NativeDirectScriptParseEntry {
+    /// Supported C Tcl entries validate each command before its effects.
+    CommandAtTime,
+    /// Jim 0.84 validates the complete script before its first command.
+    WholeScript,
+}
+
+impl NativeDirectScriptParseEntry {
+    fn for_point(point: tcl_dialect::model::DialectPoint) -> Option<Self> {
+        use tcl_dialect::model::Release;
+        match point.release() {
+            Release::TCL_8_4
+            | Release::TCL_8_5
+            | Release::TCL_8_6
+            | Release::TCL_9_0
+            | Release::TCL_9_1 => Some(Self::CommandAtTime),
+            Release::JIM_0_84 => Some(Self::WholeScript),
+            _ => None,
+        }
+    }
+}
+
 /// Native compiler context supplied by the script-entry owner.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct NativeCompilationContext {
@@ -141,6 +166,21 @@ pub struct NativeCompilationContext {
 }
 
 impl NativeCompilationContext {
+    /// Select parse ordering from this actual Direct entry's physical engine.
+    /// Assistance, handler simulation and lexical grammar cannot supply it.
+    /// Unsupported or missing physical points remain unavailable; bytecode
+    /// entry keeps its independent compiler traversal protocol.
+    #[must_use]
+    pub fn direct_script_parse_entry(
+        self,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Option<NativeDirectScriptParseEntry> {
+        if self.mode != NativeCompilationMode::Direct {
+            return None;
+        }
+        NativeDirectScriptParseEntry::for_point(entry.execution_point?)
+    }
+
     /// Enter one inline exception range without inventing an unknown depth.
     /// Overflow retains unknown exception nesting instead of wrapping.
     #[must_use]
