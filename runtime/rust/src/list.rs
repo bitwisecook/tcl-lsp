@@ -1215,20 +1215,70 @@ pub(crate) fn append_prepared_native_elements_using<E>(
 }
 
 /// LAPPEND_LIST reaches original receiver conversion before its header COW.
+#[cfg(test)]
 pub(crate) fn append_native_list_elements(
     original: *mut TclObj,
     elements: &[*mut TclObj],
     protocol: NativeStringProtocol,
 ) -> Result<obj::Owned, tcl_syntax::value::ValueError> {
-    prepare_native_list_mutation(original, protocol)?;
+    append_native_list_elements_with_original(
+        original,
+        elements,
+        protocol,
+        &|| Ok(()),
+        &|error| error,
+        false,
+    )
+}
+
+/// Same LAPPEND_LIST converter/COW/mutator under the actual original receiver.
+pub(crate) fn append_native_list_elements_using<E>(
+    original: *mut TclObj,
+    elements: &[*mut TclObj],
+    protocol: NativeStringProtocol,
+    check: &impl Fn() -> Result<(), E>,
+    refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
+) -> Result<obj::Owned, E> {
+    append_native_list_elements_with_original(original, elements, protocol, check, refuse, true)
+}
+fn append_native_list_elements_with_original<E>(
+    original: *mut TclObj,
+    elements: &[*mut TclObj],
+    protocol: NativeStringProtocol,
+    check: &impl Fn() -> Result<(), E>,
+    refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
+    checked: bool,
+) -> Result<obj::Owned, E> {
+    check()?;
+    if checked {
+        prepare_native_list_mutation_using(original, protocol, check, refuse)?;
+    } else {
+        prepare_native_list_mutation(original, protocol).map_err(refuse)?;
+    }
+    check()?;
     let value = if obj::is_shared(original) {
-        let value = obj::duplicate(original);
+        let value = if checked {
+            with_native_conversion_check(check, refuse, |stage, retain| {
+                obj::duplicate_with_stage_check(original, &mut || stage(), &mut |error| {
+                    retain(error.clone());
+                })
+            })?
+        } else {
+            obj::duplicate(original)
+        };
         duplicate_native_backing(original, value, protocol);
-        obj::Owned::fresh(value)
+        let value = obj::Owned::fresh(value);
+        check()?;
+        value
     } else {
         obj::Owned::retain(original)
     };
-    append_prepared_native_elements(value.as_ptr(), elements, protocol)?;
+    if checked {
+        append_prepared_native_elements_using(value.as_ptr(), elements, protocol, check, refuse)?;
+    } else {
+        append_prepared_native_elements(value.as_ptr(), elements, protocol).map_err(refuse)?;
+    }
+    check()?;
     Ok(value)
 }
 
@@ -1238,32 +1288,106 @@ pub(crate) fn concatenate_native_lists(
     source: *mut TclObj,
     protocol: NativeStringProtocol,
 ) -> Result<obj::Owned, tcl_syntax::value::ValueError> {
+    concatenate_native_lists_with_original(
+        original,
+        source,
+        protocol,
+        &|| Ok(()),
+        &|error| error,
+        false,
+    )
+}
+
+/// Same LIST_CONCAT worker, preserving its duplicate-before-source order.
+pub(crate) fn concatenate_native_lists_using<E>(
+    original: *mut TclObj,
+    source: *mut TclObj,
+    protocol: NativeStringProtocol,
+    check: &impl Fn() -> Result<(), E>,
+    refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
+) -> Result<obj::Owned, E> {
+    concatenate_native_lists_with_original(original, source, protocol, check, refuse, true)
+}
+fn concatenate_native_lists_with_original<E>(
+    original: *mut TclObj,
+    source: *mut TclObj,
+    protocol: NativeStringProtocol,
+    check: &impl Fn() -> Result<(), E>,
+    refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
+    checked: bool,
+) -> Result<obj::Owned, E> {
+    check()?;
     let value = if obj::is_shared(original) {
-        let value = obj::duplicate(original);
+        let value = if checked {
+            with_native_conversion_check(check, refuse, |stage, retain| {
+                obj::duplicate_with_stage_check(original, &mut || stage(), &mut |error| {
+                    retain(error.clone());
+                })
+            })?
+        } else {
+            obj::duplicate(original)
+        };
         duplicate_native_backing(original, value, protocol);
-        obj::Owned::fresh(value)
+        let value = obj::Owned::fresh(value);
+        check()?;
+        value
     } else {
         obj::Owned::retain(original)
     };
-    let elements = list_elements_native_checked(source, protocol)?;
-    append_prepared_native_elements(value.as_ptr(), &elements, protocol)?;
+    let elements = if checked {
+        list_elements_native_using(source, protocol, check, refuse)?
+    } else {
+        list_elements_native_checked(source, protocol).map_err(refuse)?
+    };
+    if checked {
+        append_prepared_native_elements_using(value.as_ptr(), &elements, protocol, check, refuse)?;
+    } else {
+        append_prepared_native_elements(value.as_ptr(), &elements, protocol).map_err(refuse)?;
+    }
+    check()?;
     Ok(value)
 }
 
 /// The C9 full-range opcode used by a single expanded lappend operand.
+#[cfg(test)]
 pub(crate) fn native_full_list_range(
     original: *mut TclObj,
     protocol: NativeStringProtocol,
 ) -> Result<obj::Owned, tcl_syntax::value::ValueError> {
+    native_full_list_range_with_original(original, protocol, &|| Ok(()), &|error| error, false)
+}
+
+/// Same full-range worker with original conversion/copy stage checks.
+pub(crate) fn native_full_list_range_using<E>(
+    original: *mut TclObj,
+    protocol: NativeStringProtocol,
+    check: &impl Fn() -> Result<(), E>,
+    refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
+) -> Result<obj::Owned, E> {
+    native_full_list_range_with_original(original, protocol, check, refuse, true)
+}
+fn native_full_list_range_with_original<E>(
+    original: *mut TclObj,
+    protocol: NativeStringProtocol,
+    check: &impl Fn() -> Result<(), E>,
+    refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
+    checked: bool,
+) -> Result<obj::Owned, E> {
+    check()?;
     if !protocol
         .tcl_version()
         .is_some_and(|version| version >= tcl_dialect::TclVersion::V9_0)
     {
-        return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-            "C9 full List range",
+        return Err(refuse(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("C9 full List range"),
         ));
     }
-    let elements = list_elements_native_checked(original, protocol)?;
+    let elements = if checked {
+        list_elements_native_using(original, protocol, check, refuse)?
+    } else {
+        list_elements_native_checked(original, protocol).map_err(refuse)?
+    };
+    check()?;
     if elements.is_empty() {
         return Ok(
             if !obj::has_string_rep(original) || obj::bytes_of(original).is_empty() {
@@ -1274,11 +1398,17 @@ pub(crate) fn native_full_list_range(
         );
     }
     let value = if obj::is_shared(original) {
-        native_list_copy(original, protocol)?
+        if checked {
+            native_list_copy_using(original, protocol, check, refuse)?
+        } else {
+            native_list_copy(original, protocol).map_err(refuse)?
+        }
     } else {
         obj::Owned::retain(original)
     };
+    check()?;
     obj::invalidate_string(value.as_ptr());
+    check()?;
     Ok(value)
 }
 

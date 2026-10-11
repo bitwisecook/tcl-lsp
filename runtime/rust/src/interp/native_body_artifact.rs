@@ -50,6 +50,8 @@ use native_mathop::MathopOperation;
 use native_scalar::ScalarOperation;
 mod native_each;
 mod native_list_conversion;
+#[path = "native_body_artifact/native_lappend.rs"]
+mod native_lappend;
 use native_list_conversion::{BodyListArguments, BodyListFrame};
 mod native_info_exists;
 mod native_unset;
@@ -2575,6 +2577,19 @@ impl Interp {
         slot: Option<usize>,
         creates: bool,
     ) -> Result<super::native_variable_names::OriginalCVariableCapture, Code> {
+        self.body_capture_target_using(evaluated, slot, creates, None)
+    }
+
+    fn body_capture_target_using(
+        &mut self,
+        evaluated: &EvaluatedTarget,
+        slot: Option<usize>,
+        creates: bool,
+        original: Option<&native_list_conversion::BodyObjectOperation>,
+    ) -> Result<super::native_variable_names::OriginalCVariableCapture, Code> {
+        if let Some(original) = original {
+            original.check(self).map_err(|first| self.report_cmd_error(first))?;
+        }
         use tcl_syntax::naming::{
             NativeVariableDiagnosticReason as Reason, NativeVariableFailureSite as Site,
         };
@@ -2592,7 +2607,12 @@ impl Interp {
                 .original_index
                 .as_ref()
                 .map(|value| {
-                    ValueOps::native_string_bytes(self, &value.as_ptr()).map(|bytes| bytes.to_vec())
+                    if let Some(original) = original {
+                        original.bytes(self, value.as_ptr()).map(|bytes| bytes.to_vec())
+                    } else {
+                        ValueOps::native_string_bytes(self, &value.as_ptr())
+                            .map(|bytes| bytes.to_vec()).map_err(tcl_cmd_core::CmdError::from)
+                    }
                 })
                 .transpose()
                 .map_err(|error| self.report_cmd_error(error.into()))?;
@@ -2834,197 +2854,6 @@ impl Interp {
             return Err(Code::Error);
         }
         Ok(receiver.read().ok().flatten().map(obj::Owned::retain))
-    }
-
-    fn body_argument_list(
-        &mut self,
-        artifact: &NativeBodyArtifact,
-        command: &CommandInstruction,
-        steps: &[NativeArgumentListStep],
-        strip_single_expanded: bool,
-        execution: &mut BodyExecution,
-    ) -> Result<obj::Owned, Code> {
-        let mut stack = Vec::<obj::Owned>::new();
-        for step in steps {
-            match *step {
-                NativeArgumentListStep::Word(index) => {
-                    stack.push(self.body_word(artifact, &command.words[index], execution)?);
-                }
-                NativeArgumentListStep::List(count) => {
-                    let operands = stack.split_off(stack.len() - count);
-                    let members: Vec<_> = operands.iter().map(obj::Owned::as_ptr).collect();
-                    stack.push(obj::Owned::fresh(crate::list::new_list_obj_native(
-                        &members,
-                        artifact.stamp.source_protocol,
-                    )));
-                }
-                NativeArgumentListStep::Concat => {
-                    let source = stack.pop().expect("argument List source");
-                    let target = stack.pop().expect("argument List target");
-                    let value = crate::list::concatenate_native_lists(
-                        target.as_ptr(),
-                        source.as_ptr(),
-                        artifact.stamp.source_protocol,
-                    )
-                    .map_err(|error| self.report_cmd_error(error.into()))?;
-                    stack.push(value);
-                }
-            }
-        }
-        let value = stack.pop().expect("native argument List result");
-        debug_assert!(stack.is_empty());
-        if strip_single_expanded {
-            crate::list::native_full_list_range(value.as_ptr(), artifact.stamp.source_protocol)
-                .map_err(|error| self.report_cmd_error(error.into()))
-        } else {
-            Ok(value)
-        }
-    }
-
-    fn body_publish_append(
-        &mut self,
-        capture: super::native_variable_names::OriginalCVariableCapture,
-        value: obj::Owned,
-    ) -> Code {
-        let root = capture.root.as_slice();
-        let element = capture.element.as_deref();
-        if let Err(error) = capture.receiver.store(value.as_ptr()) {
-            return crate::builtins::var_error(self, root, error);
-        }
-        drop(value);
-        let access = self.trace_access(root, root, element, &capture.home, false);
-        if match self.fire_var_trace_resolved(&capture.home, &access, b"write") {
-            Ok(outcome) => outcome.is_guest_error(),
-            Err(first) => return self.refuse_native_execution(first),
-        } {
-            return crate::builtins::var_error(self, root, crate::frame::VarError::TraceError);
-        }
-        if self.host_refusal_pending() {
-            return Code::Error;
-        }
-        match capture.receiver.read() {
-            Ok(Some(value)) => self.set_result(value),
-            _ => self.set_result_bytes(b""),
-        }
-        Code::Ok
-    }
-
-    fn body_append_list_element(
-        &mut self,
-        capture: super::native_variable_names::OriginalCVariableCapture,
-        element: *mut TclObj,
-        protocol: NativeStringProtocol,
-    ) -> Code {
-        let root = capture.root.as_slice();
-        if capture.receiver.is_constant() {
-            return crate::builtins::var_error(self, root, crate::frame::VarError::IsConstant);
-        }
-        let original = match capture.receiver.read_initial() {
-            Ok(original) => original,
-            Err(error) => return crate::builtins::var_error(self, root, error),
-        };
-        let value = match original {
-            None => obj::Owned::fresh(obj::new_string_bytes(b"")),
-            Some(value) if obj::is_shared(value) => {
-                let duplicate = obj::duplicate(value);
-                crate::list::duplicate_native_backing(value, duplicate, protocol);
-                obj::Owned::fresh(duplicate)
-            }
-            Some(value) => obj::Owned::retain(value),
-        };
-        // TclPtrSetVar's single-element append installs the selected header
-        // before conversion. A malformed receiver still keeps that duplicate.
-        if let Err(error) = capture.receiver.store(value.as_ptr()) {
-            return crate::builtins::var_error(self, root, error);
-        }
-        if let Err(error) =
-            crate::list::append_prepared_native_elements(value.as_ptr(), &[element], protocol)
-        {
-            return self.report_cmd_error(error.into());
-        }
-        self.body_publish_append(capture, value)
-    }
-
-    fn body_append_list_values(
-        &mut self,
-        evaluated: &EvaluatedTarget,
-        slot: Option<usize>,
-        input: *mut TclObj,
-        protocol: NativeStringProtocol,
-    ) -> Code {
-        // LAPPEND_LIST converts its evaluated input before variable lookup.
-        let elements = match crate::list::list_elements_native_checked(input, protocol) {
-            Ok(elements) => elements,
-            Err(error) => return self.report_cmd_error(error.into()),
-        };
-        let capture = match self.body_capture_target(evaluated, slot, true) {
-            Ok(capture) => capture,
-            Err(code) => return code,
-        };
-        let root = capture.root.as_slice();
-        let access =
-            self.trace_access(root, root, capture.element.as_deref(), &capture.home, false);
-        let read_failed = match self.fire_var_trace_resolved(&capture.home, &access, b"read") {
-            Ok(outcome) => outcome.is_guest_error(),
-            Err(first) => return self.refuse_native_execution(first),
-        };
-        if self.host_refusal_pending() {
-            return Code::Error;
-        }
-        let original = if read_failed {
-            let reason = self
-                .traces
-                .borrow_mut()
-                .pending_err
-                .take()
-                .unwrap_or_default();
-            self.var_trace_error(root, b"read", &reason);
-            None
-        } else {
-            match capture.receiver.read_initial() {
-                Ok(value) => value,
-                Err(error) => {
-                    crate::builtins::var_error(self, root, error);
-                    None
-                }
-            }
-        };
-        if original.is_none() && !read_failed {
-            self.no_such_variable(root, capture.element.as_deref());
-        }
-        let Some(empty) =
-            tcl_registry::native_instruction_plan::native_list_append_empty_publication(protocol)
-        else {
-            return self.report_cmd_error(
-                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                    "native List append instruction",
-                )
-                .into(),
-            );
-        };
-        let value = match original {
-            // Native missing-variable LAPPEND_LIST stores its prepared input.
-            None if elements.is_empty() && empty.fresh_missing_receiver => {
-                obj::Owned::fresh(obj::new_obj())
-            }
-            None => obj::Owned::retain(input),
-            Some(value) => {
-                if elements.is_empty() && empty.skip_existing_store {
-                    if let Err(error) = crate::list::list_elements_native_checked(value, protocol) {
-                        return self.report_cmd_error(error.into());
-                    }
-                    // The borrowed receiver is live in its original variable or
-                    // array-default owner; the result setter retains it.
-                    unsafe { self.set_obj_result(value) };
-                    return Code::Ok;
-                }
-                match crate::list::append_native_list_elements(value, &elements, protocol) {
-                    Ok(value) => value,
-                    Err(error) => return self.report_cmd_error(error.into()),
-                }
-            }
-        };
-        self.body_publish_append(capture, value)
     }
 
     fn body_helper_operand(
@@ -3605,57 +3434,7 @@ impl Interp {
                 ))
             }
             Operation::Append(target, recipe) => {
-                let evaluated = self.body_target(artifact, command, target, execution)?;
-                match &recipe.operands {
-                    NativeAppendOperands::StringObjects => {
-                        // Native multi-append evaluates every value before
-                        // its first append, then publishes each in order.
-                        let values = command.words[recipe.values.clone()]
-                            .iter()
-                            .map(|word| self.body_word(artifact, word, execution))
-                            .collect::<Result<Vec<_>, _>>()?;
-                        for value in values {
-                            let capture =
-                                self.body_capture_target(&evaluated, target.slot, true)?;
-                            let code = self.append_native_captured(capture, &[value.as_ptr()]);
-                            if code != Code::Ok {
-                                return Ok(code);
-                            }
-                        }
-                        Ok(Code::Ok)
-                    }
-                    NativeAppendOperands::ListElement => {
-                        let value = self.body_word(
-                            artifact,
-                            &command.words[recipe.values.start],
-                            execution,
-                        )?;
-                        let capture = self.body_capture_target(&evaluated, target.slot, true)?;
-                        Ok(self.body_append_list_element(
-                            capture,
-                            value.as_ptr(),
-                            artifact.stamp.source_protocol,
-                        ))
-                    }
-                    NativeAppendOperands::ListElements {
-                        steps,
-                        strip_single_expanded,
-                    } => {
-                        let value = self.body_argument_list(
-                            artifact,
-                            command,
-                            steps,
-                            *strip_single_expanded,
-                            execution,
-                        )?;
-                        Ok(self.body_append_list_values(
-                            &evaluated,
-                            target.slot,
-                            value.as_ptr(),
-                            artifact.stamp.source_protocol,
-                        ))
-                    }
-                }
+                self.execute_body_append(artifact, command, target, recipe, execution)
             }
             Operation::List(recipe, index) => {
                 let value = if let Some(index) = index {
