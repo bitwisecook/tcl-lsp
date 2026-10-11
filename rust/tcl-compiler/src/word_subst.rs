@@ -237,6 +237,11 @@ fn collect_original_expression_calls(
         .words()
         .iter()
         .any(|word| matches!(word, WordExpr::BracedLiteral { text, .. } if text.contains('[')));
+    // The enclosing and nested original words are authenticated by the
+    // caller. Handler roles are needed only to enter a written braced Expr.
+    if !has_braced_commands {
+        return Some(());
+    }
     let invocation = if metadata.permits_logical_source_names() {
         crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
             registry, metadata, tokens,
@@ -2408,5 +2413,91 @@ mod tests {
             })
             .expect("puts argument word");
         assert!(whole_word_command_tokens(word, config).is_none());
+    }
+
+    #[test]
+    fn original_lexical_bracket_inventory_does_not_require_parent_handler_roles() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Authenticated written substitutions only; no child dispatch or body entry.
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl").unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let config = input.lexer_config();
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            registry, &input,
+        )
+        .unwrap();
+        let source = "puts [\u{feff}unknown argument]";
+        let tokens = original_logical_tokens(source, &input);
+        assert!(original_call_context(&tokens, config, registry, metadata).is_some());
+        assert!(
+            crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+                registry, metadata, &tokens,
+            )
+            .is_none()
+        );
+        let calls = checked_original_lifted_calls_with_metadata_context(
+            &tokens, config, registry, metadata,
+        )
+        .unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].command, "\u{feff}unknown");
+        assert_eq!(calls[0].args, ["argument"]);
+        assert_eq!(source.get(calls[0].span.as_range()), Some("[\u{feff}unknown argument]"));
+        let child = calls[0].tokens.as_ref().unwrap();
+        assert!(original_call_context(child, config, registry, metadata).is_some());
+        assert!(child.source_binding.as_ref().unwrap().proved_execution_target().is_none());
+        let mut changed = config;
+        changed.strict_quoting = !changed.strict_quoting;
+        assert!(checked_original_lifted_calls_with_metadata_context(
+            &tokens, changed, registry, metadata,
+        ).is_none());
+        let mut withdrawn = tokens.clone();
+        withdrawn.nested_bindings.clear();
+        assert!(checked_original_lifted_calls_with_metadata_context(
+            &withdrawn, config, registry, metadata,
+        ).is_none());
+        let mut changed_vector = tokens.clone();
+        changed_vector.argv_texts[0].push('!');
+        assert!(checked_original_lifted_calls_with_metadata_context(
+            &changed_vector, config, registry, metadata,
+        ).is_none());
+    }
+
+    #[test]
+    fn original_braced_expression_inventory_still_requires_actual_selected_roles() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Braced Expr descent remains separate from lexical bracket substitutions.
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl").unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let config = input.lexer_config();
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            registry, &input,
+        )
+        .unwrap();
+        let unknown = original_logical_tokens("unknown {[dict size DATA]}", &input);
+        assert!(original_call_context(&unknown, config, registry, metadata).is_some());
+        assert!(checked_original_lifted_calls_with_metadata_context(
+            &unknown, config, registry, metadata,
+        ).is_none());
+        let literal = original_logical_tokens("puts {[dict size DATA]}", &input);
+        assert!(checked_original_lifted_calls_with_metadata_context(
+            &literal, config, registry, metadata,
+        ).unwrap().is_empty());
+        let expression = original_logical_tokens("expr {[dict size DATA]}", &input);
+        let calls = checked_original_lifted_calls_with_metadata_context(
+            &expression, config, registry, metadata,
+        ).unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].command, "dict");
+        assert_eq!(calls[0].args, ["size", "DATA"]);
+        let mut withdrawn = expression.clone();
+        withdrawn.source_binding = None;
+        assert!(checked_original_lifted_calls_with_metadata_context(
+            &withdrawn, config, registry, metadata,
+        ).is_none());
     }
 }
