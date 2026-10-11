@@ -1,0 +1,113 @@
+	struct Tcl_Obj *listPtr, struct Tcl_Obj **newObjPtr);
+typedef int (Tcl_ObjTypeGetElements) (Tcl_Interp *interp,
+	struct Tcl_Obj *listPtr, Tcl_Size *objcptr, struct Tcl_Obj ***objvptr);
+typedef struct Tcl_Obj *(Tcl_ObjTypeSetElement) (Tcl_Interp *interp,
+	struct Tcl_Obj *listPtr, Tcl_Size indexCount,
+	struct Tcl_Obj *const indexArray[], struct Tcl_Obj *valueObj);
+typedef int (Tcl_ObjTypeReplaceProc) (Tcl_Interp *interp,
+	struct Tcl_Obj *listObj, Tcl_Size first, Tcl_Size numToDelete,
+	Tcl_Size numToInsert, struct Tcl_Obj *const insertObjs[]);
+typedef int (Tcl_ObjTypeInOperatorProc) (Tcl_Interp *interp,
+	struct Tcl_Obj *valueObj, struct Tcl_Obj *listObj, int *boolResult);
+
+#ifndef TCL_NO_DEPRECATED
+#   define Tcl_PackageInitProc Tcl_LibraryInitProc
+#   define Tcl_PackageUnloadProc Tcl_LibraryUnloadProc
+#endif
+
+/*
+ *----------------------------------------------------------------------------
+ * The following structure represents a type of object, which is a particular
+ * internal representation for an object plus a set of functions that provide
+ * standard operations on objects of that type.
+ */
+
+typedef struct Tcl_ObjType {
+    const char *name;		/* Name of the type, e.g. "int". */
+    Tcl_FreeInternalRepProc *freeIntRepProc;
+				/* Called to free any storage for the type's
+				 * internal rep. NULL if the internal rep does
+				 * not need freeing. */
+    Tcl_DupInternalRepProc *dupIntRepProc;
+				/* Called to create a new object as a copy of
+				 * an existing object. */
+    Tcl_UpdateStringProc *updateStringProc;
+				/* Called to update the string rep from the
+				 * type's internal representation. */
+    Tcl_SetFromAnyProc *setFromAnyProc;
+				/* Called to convert the object's internal rep
+				 * to this type. Frees the internal rep of the
+				 * old type. Returns TCL_ERROR on failure. */
+    size_t version;		/* Version field for future-proofing. */
+
+    /* List emulation functions - ObjType Version 1 */
+    Tcl_ObjTypeLengthProc *lengthProc;
+				/* Return the [llength] of the AbstractList */
+    Tcl_ObjTypeIndexProc *indexProc;
+				/* Return a value (Tcl_Obj) at a given index */
+    Tcl_ObjTypeSliceProc *sliceProc;
+				/* Return an AbstractList for
+				 * [lrange $al $start $end] */
+    Tcl_ObjTypeReverseProc *reverseProc;
+				/* Return an AbstractList for [lreverse $al] */
+    Tcl_ObjTypeGetElements *getElementsProc;
+				/* Return an objv[] of all elements in the list */
+    Tcl_ObjTypeSetElement *setElementProc;
+				/* Replace the element at the indicies with the
+				 * given valueObj. */
+    Tcl_ObjTypeReplaceProc *replaceProc;
+				/* Replace sublist with another sublist */
+    Tcl_ObjTypeInOperatorProc *inOperProc;
+				/* "in" and "ni" expr list operation.
+				 * Determine if the given string value matches
+				 * an element in the list. */
+} Tcl_ObjType;
+
+#define TCL_OBJTYPE_V0 0, \
+	0,0,0,0,0,0,0,0 /* Pre-Tcl 9 */
+#define TCL_OBJTYPE_V1(a) offsetof(Tcl_ObjType, indexProc), \
+	a,0,0,0,0,0,0,0 /* Tcl 9 Version 1 */
+#define TCL_OBJTYPE_V2(a,b,c,d,e,f,g,h) sizeof(Tcl_ObjType),  \
+	a,b,c,d,e,f,g,h /* Tcl 9 - AbstractLists */
+
+/*
+ * The following structure stores an internal representation (internalrep) for
+ * a Tcl value. An internalrep is associated with an Tcl_ObjType when both
+ * are stored in the same Tcl_Obj.  The routines of the Tcl_ObjType govern
+ * the handling of the internalrep.
+ */
+
+typedef union Tcl_ObjInternalRep {/* The internal representation: */
+    long longValue;		/*   - an long integer value. */
+    double doubleValue;		/*   - a double-precision floating value. */
+    void *otherValuePtr;	/*   - another, type-specific value, */
+				/*     not used internally any more. */
+    Tcl_WideInt wideValue;	/*   - an integer value >= 64bits */
+    struct {			/*   - internal rep as two pointers. */
+	void *ptr1;
+	void *ptr2;
+    } twoPtrValue;
+    struct {			/*   - internal rep as a pointer and a long, */
+	void *ptr;		/*     not used internally any more. */
+	unsigned long value;
+    } ptrAndLongRep;
+    struct {			/*   - use for pointer and length reps */
+	void *ptr;
+	Tcl_Size size;
+    } ptrAndSize;
+} Tcl_ObjInternalRep;
+
+/*
+ * One of the following structures exists for each object in the Tcl system.
+ * An object stores a value as either a string, some internal representation,
+ * or both.
+ */
+
+typedef struct Tcl_Obj {
+    Tcl_Size refCount;		/* When 0 the object will be freed. */
+    char *bytes;		/* This points to the first byte of the
+				 * object's string representation. The array
+				 * must be followed by a null byte (i.e., at
+				 * offset length) but may also contain
+				 * embedded null characters. The array's
+				 * storage is allocated by Tcl_Alloc. NULL means

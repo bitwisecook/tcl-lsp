@@ -1,0 +1,112 @@
+	return TCL_ERROR;
+    }
+
+    oPtr = (Object *) TclOOGetDefineCmdContext(interp);
+    if (oPtr == NULL) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Make the oo::objdefine namespace the current namespace and evaluate the
+     * command(s).
+     */
+
+    if (InitDefineContext(interp, fPtr->objdefNs, oPtr, objc,objv) != TCL_OK){
+	return TCL_ERROR;
+    }
+
+    AddRef(oPtr);
+    if (objc == 2) {
+	Tcl_Obj *objNameObj = TclOOObjectName(interp, oPtr);
+
+	Tcl_IncrRefCount(objNameObj);
+	result = TclEvalObjEx(interp, objv[1], 0,
+		((Interp *)interp)->cmdFramePtr, 2);
+	if (result == TCL_ERROR) {
+	    GenerateErrorInfo(interp, oPtr, objNameObj, "class object");
+	}
+	TclDecrRefCount(objNameObj);
+    } else {
+	result = MagicDefinitionInvoke(interp, fPtr->objdefNs, 1, objc, objv);
+    }
+    TclOODecrRefCount(oPtr);
+
+    /*
+     * Restore the previous "current" namespace.
+     */
+
+    TclPopStackFrame(interp);
+    return result;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOODefineClassObjCmd --
+ *	Implementation of the "class" subcommand of the "oo::objdefine"
+ *	command.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+int
+TclOODefineClassObjCmd(
+    ClientData clientData,
+    Tcl_Interp *interp,
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr;
+    Class *clsPtr;
+    Foundation *fPtr = TclOOGetFoundation(interp);
+    int wasClass, willBeClass;
+
+    /*
+     * Parse the context to get the object to operate on.
+     */
+
+    oPtr = (Object *) TclOOGetDefineCmdContext(interp);
+    if (oPtr == NULL) {
+	return TCL_ERROR;
+    }
+    if (oPtr->flags & ROOT_OBJECT) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"may not modify the class of the root object class", -1));
+	Tcl_SetErrorCode(interp, "TCL", "OO", "MONKEY_BUSINESS", (char *)NULL);
+	return TCL_ERROR;
+    }
+    if (oPtr->flags & ROOT_CLASS) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"may not modify the class of the class of classes", -1));
+	Tcl_SetErrorCode(interp, "TCL", "OO", "MONKEY_BUSINESS", (char *)NULL);
+	return TCL_ERROR;
+    }
+
+    /*
+     * Parse the argument to get the class to set the object's class to.
+     */
+
+    if (objc != 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "className");
+	return TCL_ERROR;
+    }
+    clsPtr = GetClassInOuterContext(interp, objv[1],
+	    "the class of an object must be a class");
+    if (clsPtr == NULL) {
+	return TCL_ERROR;
+    }
+    if (oPtr == clsPtr->thisPtr) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"may not change classes into an instance of themselves", -1));
+	Tcl_SetErrorCode(interp, "TCL", "OO", "MONKEY_BUSINESS", (char *)NULL);
+	return TCL_ERROR;
+    }
+
+    /*
+     * Set the object's class.
+     */
+
+    wasClass = (oPtr->classPtr != NULL);
+    willBeClass = (TclOOIsReachable(fPtr->classCls, clsPtr));
+
+    if (oPtr->selfCls != clsPtr) {

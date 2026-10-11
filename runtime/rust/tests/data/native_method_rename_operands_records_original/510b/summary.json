@@ -1,0 +1,38 @@
+{
+  "question_id": "naming.tcloo.original-method-rename-operands-and-records",
+  "request_sha256": "7c170b36257f5a9fbf6218f34f54d59c809d69890dada09a3d9904b3fd44f7bf",
+  "launcher_sha256": "0d6aece97913e53bf659c1b20d2f739ca58165343ce630d6965ca345fc014472",
+  "scope": "Finite actual original TclOO rename source/destination getters, table refusal/splice and retained object/member roles; public EvalObjv and selected public CmdInfo stock-worker channels separate. 32 cases C86/C90/C91 each; other3 initialized availability only.",
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "status": "closed",
+      "receipt_sha256": "f8c6b7b7114239ff951e92f560464f4367b14db79ed8cbf6c079548a24a4f2a6"
+    },
+    {
+      "provider": "8.5.19",
+      "status": "closed",
+      "receipt_sha256": "8cebbb53d5c2306540bbb58380d039d198926fb1810e46c3c085098edf98f26d"
+    },
+    {
+      "provider": "8.6.18",
+      "status": "closed",
+      "receipt_sha256": "441a3945c3c2f7db24af41084b7b0f77c901b741ad5b53655b78943ad246e10b"
+    },
+    {
+      "provider": "9.0.4",
+      "status": "closed",
+      "receipt_sha256": "47f6058d64f6b4ffa5b30ff302c210a68fb921db21b3294e1c8651a1d9526975"
+    },
+    {
+      "provider": "9.1.0",
+      "status": "closed",
+      "receipt_sha256": "d98491ad37d6f962bfe2b61abd1021a4baade12f816c49c4a71631c326af59c9"
+    },
+    {
+      "provider": "jim",
+      "status": "closed",
+      "receipt_sha256": "9dfa7ad96082ef704d66ec08a620482ec1e4362febbd8a476b0519cf6f0fcf2e"
+    }
+  ]
+}

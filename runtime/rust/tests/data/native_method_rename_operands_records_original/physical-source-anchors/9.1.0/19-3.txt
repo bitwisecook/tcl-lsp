@@ -1,0 +1,112 @@
+#endif /* TCL_NO_DEPRECATED */
+
+Tcl_Method
+Tcl_NewInstanceMethod2(
+    TCL_UNUSED(Tcl_Interp *),
+    Tcl_Object object,		/* The object that has the method attached to
+				 * it. */
+    Tcl_Obj *nameObj,		/* The name of the method. May be NULL; if so,
+				 * up to caller to manage storage (e.g., when
+				 * it is a constructor or destructor). */
+    int flags,			/* Whether this is a public method. */
+    const Tcl_MethodType2 *typePtr,
+				/* The type of method this is, which defines
+				 * how to invoke, delete and clone the
+				 * method. */
+    void *clientData)		/* Some data associated with the particular
+				 * method to be created. */
+{
+    if (typePtr->version < TCL_OO_METHOD_VERSION_2) {
+	Tcl_Panic("%s: Wrong version in typePtr->version, should be %s",
+		"Tcl_NewInstanceMethod2", "TCL_OO_METHOD_VERSION_2");
+    }
+    return TclNewInstanceMethod(NULL, object, nameObj, flags,
+	    typePtr, clientData);
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * Tcl_NewMethod --
+ *
+ *	Attach a method to a class.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+Tcl_Method
+TclNewMethod(
+    Tcl_Class cls,		/* The class to attach the method to. */
+    Tcl_Obj *nameObj,		/* The name of the object. May be NULL (e.g.,
+				 * for constructors or destructors); if so, up
+				 * to caller to manage storage. */
+    int flags,			/* Whether this is a public method. */
+    const Tcl_MethodType2 *typePtr,
+				/* The type of method this is, which defines
+				 * how to invoke, delete and clone the
+				 * method. */
+    void *clientData)		/* Some data associated with the particular
+				 * method to be created. */
+{
+    Class *clsPtr = (Class *) cls;
+    Method *mPtr;
+    Tcl_HashEntry *hPtr;
+    int isNew;
+
+    if (nameObj == NULL) {
+	mPtr = (Method *) Tcl_Alloc(sizeof(Method));
+	mPtr->namePtr = NULL;
+	mPtr->refCount = 1;
+	goto populate;
+    }
+    hPtr = Tcl_CreateHashEntry(&clsPtr->classMethods, nameObj, &isNew);
+    if (isNew) {
+	mPtr = (Method *) Tcl_Alloc(sizeof(Method));
+	mPtr->refCount = 1;
+	mPtr->namePtr = nameObj;
+	Tcl_IncrRefCount(nameObj);
+	Tcl_SetHashValue(hPtr, mPtr);
+    } else {
+	mPtr = (Method *) Tcl_GetHashValue(hPtr);
+	if (mPtr->type2Ptr != NULL && mPtr->type2Ptr->deleteProc != NULL) {
+	    mPtr->type2Ptr->deleteProc(mPtr->clientData);
+	}
+    }
+
+  populate:
+    clsPtr->thisPtr->fPtr->epoch++;
+    mPtr->type2Ptr = typePtr;
+    mPtr->clientData = clientData;
+    mPtr->flags = 0;
+    mPtr->declaringObjectPtr = NULL;
+    mPtr->declaringClassPtr = clsPtr;
+    if (flags) {
+	mPtr->flags |= flags &
+		(PUBLIC_METHOD | PRIVATE_METHOD | TRUE_PRIVATE_METHOD);
+	if (flags & TRUE_PRIVATE_METHOD) {
+	    clsPtr->flags |= HAS_PRIVATE_METHODS;
+	}
+    }
+
+    return (Tcl_Method) mPtr;
+}
+
+#ifndef TCL_NO_DEPRECATED
+#undef Tcl_NewMethod
+Tcl_Method
+Tcl_NewMethod(
+    TCL_UNUSED(Tcl_Interp *),
+    Tcl_Class cls,		/* The class to attach the method to. */
+    Tcl_Obj *nameObj,		/* The name of the object. May be NULL (e.g.,
+				 * for constructors or destructors); if so, up
+				 * to caller to manage storage. */
+    int flags,			/* Whether this is a public method. */
+    const Tcl_MethodType *typePtr,
+				/* The type of method this is, which defines
+				 * how to invoke, delete and clone the
+				 * method. */
+    void *clientData)		/* Some data associated with the particular
+				 * method to be created. */
+{
+    if (typePtr->version > TCL_OO_METHOD_VERSION_1) {
+	Tcl_Panic("%s: Wrong version in typePtr->version, should be %s",

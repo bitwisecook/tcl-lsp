@@ -1,0 +1,112 @@
+	return TCL_ERROR;
+    }
+
+    oPtr = (Object *) TclOOGetDefineCmdContext(interp);
+    if (oPtr == NULL) {
+	return TCL_ERROR;
+    }
+    clsPtr = oPtr->classPtr;
+
+    Tcl_GetStringFromObj(objv[1], &bodyLength);
+    if (bodyLength > 0) {
+	/*
+	 * Create the method structure.
+	 */
+
+	method = (Tcl_Method) TclOONewProcMethod(interp, clsPtr,
+		PUBLIC_METHOD, NULL, NULL, objv[1], NULL);
+	if (method == NULL) {
+	    return TCL_ERROR;
+	}
+    } else {
+	/*
+	 * Delete the destructor method record and set the field in the class
+	 * record to NULL.
+	 */
+
+	method = NULL;
+    }
+
+    /*
+     * Place the method structure in the class record. Note that we might not
+     * immediately delete the destructor as this might be being done during
+     * execution of the destructor itself. Also note that setting a
+     * destructor during a destructor is fairly dumb anyway.
+     */
+
+    Tcl_ClassSetDestructor(interp, (Tcl_Class) clsPtr, method);
+    return TCL_OK;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOODefineExportObjCmd --
+ *	Implementation of the "export" subcommand of the "oo::define" and
+ *	"oo::objdefine" commands.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+int
+TclOODefineExportObjCmd(
+    ClientData clientData,
+    Tcl_Interp *interp,
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    int isInstanceExport = (clientData != NULL);
+    Object *oPtr;
+    Method *mPtr;
+    Tcl_HashEntry *hPtr;
+    Class *clsPtr;
+    int i, isNew, changed = 0;
+
+    if (objc < 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "name ?name ...?");
+	return TCL_ERROR;
+    }
+
+    oPtr = (Object *) TclOOGetDefineCmdContext(interp);
+    if (oPtr == NULL) {
+	return TCL_ERROR;
+    }
+    clsPtr = oPtr->classPtr;
+    if (!isInstanceExport && !clsPtr) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"attempt to misuse API", -1));
+	Tcl_SetErrorCode(interp, "TCL", "OO", "MONKEY_BUSINESS", (char *)NULL);
+	return TCL_ERROR;
+    }
+
+    for (i = 1; i < objc; i++) {
+	/*
+	 * Exporting is done by adding the PUBLIC_METHOD flag to the method
+	 * record. If there is no such method in this object or class (i.e.
+	 * the method comes from something inherited from or that we're an
+	 * instance of) then we put in a blank record with that flag; such
+	 * records are skipped over by the call chain engine *except* for
+	 * their flags member.
+	 */
+
+	if (isInstanceExport) {
+	    if (!oPtr->methodsPtr) {
+		oPtr->methodsPtr = ckalloc(sizeof(Tcl_HashTable));
+		Tcl_InitObjHashTable(oPtr->methodsPtr);
+		oPtr->flags &= ~USE_CLASS_CACHE;
+	    }
+	    hPtr = Tcl_CreateHashEntry(oPtr->methodsPtr, (char *) objv[i],
+		    &isNew);
+	} else {
+	    hPtr = Tcl_CreateHashEntry(&clsPtr->classMethods, (char*) objv[i],
+		    &isNew);
+	}
+
+	if (isNew) {
+	    mPtr = ckalloc(sizeof(Method));
+	    memset(mPtr, 0, sizeof(Method));
+	    mPtr->refCount = 1;
+	    mPtr->namePtr = objv[i];
+	    Tcl_IncrRefCount(objv[i]);
+	    Tcl_SetHashValue(hPtr, mPtr);
+	} else {

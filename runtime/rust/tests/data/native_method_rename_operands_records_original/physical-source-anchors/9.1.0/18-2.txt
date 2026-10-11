@@ -1,0 +1,111 @@
+	 * Delete the method structure from the appropriate hash table.
+	 */
+
+	if (RenameDeleteMethod(interp, oPtr, !isInstanceDeleteMethod,
+		objv[i], NULL) != TCL_OK) {
+	    return TCL_ERROR;
+	}
+    }
+
+    if (isInstanceDeleteMethod) {
+	BumpInstanceEpoch(oPtr);
+    } else {
+	BumpGlobalEpoch(interp, oPtr->classPtr);
+    }
+    return TCL_OK;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOODefineDestructorObjCmd --
+ *
+ *	Implementation of the "destructor" subcommand of the "oo::define"
+ *	command.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+int
+TclOODefineDestructorObjCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    Tcl_Size objc,
+    Tcl_Obj *const *objv)
+{
+    Tcl_Method method;
+    Tcl_Size bodyLength;
+    Class *clsPtr = TclOOGetClassDefineCmdContext(interp);
+
+    if (clsPtr == NULL) {
+	return TCL_ERROR;
+    } else if (objc != 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "body");
+	return TCL_ERROR;
+    }
+
+    (void) TclGetStringFromObj(objv[1], &bodyLength);
+    if (bodyLength > 0) {
+	/*
+	 * Create the method structure.
+	 */
+
+	method = (Tcl_Method) TclOONewProcMethod(interp, clsPtr,
+		PUBLIC_METHOD, NULL, NULL, objv[1], NULL);
+	if (method == NULL) {
+	    return TCL_ERROR;
+	}
+    } else {
+	/*
+	 * Delete the destructor method record and set the field in the class
+	 * record to NULL.
+	 */
+
+	method = NULL;
+    }
+
+    /*
+     * Place the method structure in the class record. Note that we might not
+     * immediately delete the destructor as this might be being done during
+     * execution of the destructor itself. Also note that setting a
+     * destructor during a destructor is fairly dumb anyway.
+     */
+
+    Tcl_ClassSetDestructor(interp, (Tcl_Class) clsPtr, method);
+    return TCL_OK;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOODefineExportObjCmd --
+ *
+ *	Implementation of the "export" subcommand of the "oo::define" and
+ *	"oo::objdefine" commands.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+int
+TclOODefineExportObjCmd(
+    void *clientData,
+    Tcl_Interp *interp,
+    Tcl_Size objc,
+    Tcl_Obj *const *objv)
+{
+    bool isInstanceExport = (clientData != NULL), changed = false;
+
+    if (objc < 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "name ?name ...?");
+	return TCL_ERROR;
+    }
+
+    Object *oPtr = (Object *) TclOOGetDefineCmdContext(interp);
+    if (oPtr == NULL) {
+	return TCL_ERROR;
+    }
+    Class *clsPtr = oPtr->classPtr;
+    if (!isInstanceExport && !clsPtr) {
+	return ReportAbuse(interp);
+    }
+

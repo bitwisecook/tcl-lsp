@@ -1,0 +1,111 @@
+	return TCL_ERROR;
+    }
+
+    oPtr = (Object *) TclOOGetDefineCmdContext(interp);
+    if (oPtr == NULL) {
+	return TCL_ERROR;
+    }
+    clsPtr = oPtr->classPtr;
+    if (!isInstanceUnexport && !clsPtr) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"attempt to misuse API", TCL_AUTO_LENGTH));
+	OO_ERROR(interp, MONKEY_BUSINESS);
+	return TCL_ERROR;
+    }
+
+    for (i = 1; i < objc; i++) {
+	if (isInstanceUnexport) {
+	    changed |= UnexportInstanceMethod(oPtr, objv[i]);
+	} else {
+	    changed |= UnexportMethod(clsPtr, objv[i]);
+	}
+    }
+
+    /*
+     * Bump the right epoch if we actually changed anything.
+     */
+
+    if (changed) {
+	if (isInstanceUnexport) {
+	    BumpInstanceEpoch(oPtr);
+	} else {
+	    BumpGlobalEpoch(interp, clsPtr);
+	}
+    }
+    return TCL_OK;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * Tcl_ClassSetConstructor, Tcl_ClassSetDestructor --
+ *
+ *	How to install a constructor or destructor into a class; API to call
+ *	from C.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+void
+Tcl_ClassSetConstructor(
+    Tcl_Interp *interp,
+    Tcl_Class clazz,
+    Tcl_Method method)
+{
+    Class *clsPtr = (Class *) clazz;
+
+    if (method != (Tcl_Method) clsPtr->constructorPtr) {
+	TclOODelMethodRef(clsPtr->constructorPtr);
+	clsPtr->constructorPtr = (Method *) method;
+
+	/*
+	 * Remember to invalidate the cached constructor chain for this class.
+	 * [Bug 2531577]
+	 */
+
+	if (clsPtr->constructorChainPtr) {
+	    TclOODeleteChain(clsPtr->constructorChainPtr);
+	    clsPtr->constructorChainPtr = NULL;
+	}
+	BumpGlobalEpoch(interp, clsPtr);
+    }
+}
+
+void
+Tcl_ClassSetDestructor(
+    Tcl_Interp *interp,
+    Tcl_Class clazz,
+    Tcl_Method method)
+{
+    Class *clsPtr = (Class *) clazz;
+
+    if (method != (Tcl_Method) clsPtr->destructorPtr) {
+	TclOODelMethodRef(clsPtr->destructorPtr);
+	clsPtr->destructorPtr = (Method *) method;
+	if (clsPtr->destructorChainPtr) {
+	    TclOODeleteChain(clsPtr->destructorChainPtr);
+	    clsPtr->destructorChainPtr = NULL;
+	}
+	BumpGlobalEpoch(interp, clsPtr);
+    }
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOODefineSlots --
+ *
+ *	Create the "::oo::Slot" class and its standard instances. These are
+ *	basically lists at the low level of TclOO; this provides a more
+ *	consistent interface to them.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+int
+TclOODefineSlots(
+    Foundation *fPtr)
+{
+    Tcl_Interp *interp = fPtr->interp;
+    Tcl_Object object = Tcl_NewObjectInstance(interp, (Tcl_Class)
+	    fPtr->classCls, "::oo::Slot", NULL, TCL_INDEX_NONE, NULL, 0);

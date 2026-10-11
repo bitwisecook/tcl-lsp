@@ -1,0 +1,112 @@
+ */
+
+static int
+RenameDeleteMethod(
+    Tcl_Interp *interp,
+    Object *oPtr,
+    int useClass,
+    Tcl_Obj *const fromPtr,
+    Tcl_Obj *const toPtr)
+{
+    Tcl_HashEntry *hPtr, *newHPtr = NULL;
+    Method *mPtr;
+    int isNew;
+
+    if (!useClass) {
+	if (!oPtr->methodsPtr) {
+	noSuchMethod:
+	    Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		    "method %s does not exist", TclGetString(fromPtr)));
+	    Tcl_SetErrorCode(interp, "TCL", "LOOKUP", "METHOD",
+		    TclGetString(fromPtr), (char *)NULL);
+	    return TCL_ERROR;
+	}
+	hPtr = Tcl_FindHashEntry(oPtr->methodsPtr, (char *) fromPtr);
+	if (hPtr == NULL) {
+	    goto noSuchMethod;
+	}
+	if (toPtr) {
+	    newHPtr = Tcl_CreateHashEntry(oPtr->methodsPtr, (char *) toPtr,
+		    &isNew);
+	    if (hPtr == newHPtr) {
+	    renameToSelf:
+		Tcl_SetObjResult(interp, Tcl_NewStringObj(
+			"cannot rename method to itself", -1));
+		Tcl_SetErrorCode(interp, "TCL", "OO", "RENAME_TO_SELF", (char *)NULL);
+		return TCL_ERROR;
+	    } else if (!isNew) {
+	    renameToExisting:
+		Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+			"method called %s already exists",
+			TclGetString(toPtr)));
+		Tcl_SetErrorCode(interp, "TCL", "OO", "RENAME_OVER", (char *)NULL);
+		return TCL_ERROR;
+	    }
+	}
+    } else {
+	hPtr = Tcl_FindHashEntry(&oPtr->classPtr->classMethods,
+		(char *) fromPtr);
+	if (hPtr == NULL) {
+	    goto noSuchMethod;
+	}
+	if (toPtr) {
+	    newHPtr = Tcl_CreateHashEntry(&oPtr->classPtr->classMethods,
+		    (char *) toPtr, &isNew);
+	    if (hPtr == newHPtr) {
+		goto renameToSelf;
+	    } else if (!isNew) {
+		goto renameToExisting;
+	    }
+	}
+    }
+
+    /*
+     * Complete the splicing by changing the method's name.
+     */
+
+    mPtr = Tcl_GetHashValue(hPtr);
+    if (toPtr) {
+	Tcl_IncrRefCount(toPtr);
+	Tcl_DecrRefCount(mPtr->namePtr);
+	mPtr->namePtr = toPtr;
+	Tcl_SetHashValue(newHPtr, mPtr);
+    } else {
+	if (!useClass) {
+	    RecomputeClassCacheFlag(oPtr);
+	}
+	TclOODelMethodRef(mPtr);
+    }
+    Tcl_DeleteHashEntry(hPtr);
+    return TCL_OK;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOOUnknownDefinition --
+ *	Handles what happens when an unknown command is encountered during the
+ *	processing of a definition script. Works by finding a command in the
+ *	operating definition namespace that the requested command is a unique
+ *	prefix of.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+int
+TclOOUnknownDefinition(
+    ClientData clientData,
+    Tcl_Interp *interp,
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    Namespace *nsPtr = (Namespace *) Tcl_GetCurrentNamespace(interp);
+    Tcl_HashSearch search;
+    Tcl_HashEntry *hPtr;
+    int soughtLen;
+    const char *soughtStr, *matchedStr = NULL;
+
+    if (objc < 2) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"bad call of unknown handler", -1));
+	Tcl_SetErrorCode(interp, "TCL", "OO", "BAD_UNKNOWN", (char *)NULL);
+	return TCL_ERROR;

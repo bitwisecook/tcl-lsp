@@ -1,0 +1,112 @@
+ * or both.
+ */
+
+typedef struct Tcl_Obj {
+    Tcl_Size refCount;		/* When 0 the object will be freed. */
+    char *bytes;		/* This points to the first byte of the
+				 * object's string representation. The array
+				 * must be followed by a null byte (i.e., at
+				 * offset length) but may also contain
+				 * embedded null characters. The array's
+				 * storage is allocated by Tcl_Alloc. NULL means
+				 * the string rep is invalid and must be
+				 * regenerated from the internal rep.  Clients
+				 * should use Tcl_GetStringFromObj or
+				 * Tcl_GetString to get a pointer to the byte
+				 * array as a readonly value. */
+    Tcl_Size length;		/* The number of bytes at *bytes, not
+				 * including the terminating null. */
+    const Tcl_ObjType *typePtr;	/* Denotes the object's type. Always
+				 * corresponds to the type of the object's
+				 * internal rep. NULL indicates the object has
+				 * no internal rep (has no type). */
+    Tcl_ObjInternalRep internalRep;
+				/* The internal representation: */
+} Tcl_Obj;
+
+/*
+ *----------------------------------------------------------------------------
+ * The following definitions support Tcl's namespace facility. Note: the first
+ * five fields must match exactly the fields in a Namespace structure (see
+ * tclInt.h).
+ */
+
+typedef struct Tcl_Namespace {
+    char *name;			/* The namespace's name within its parent
+				 * namespace. This contains no ::'s. The name
+				 * of the global namespace is "" although "::"
+				 * is an synonym. */
+    char *fullName;		/* The namespace's fully qualified name. This
+				 * starts with ::. */
+    void *clientData;		/* Arbitrary value associated with this
+				 * namespace. */
+    Tcl_NamespaceDeleteProc *deleteProc;
+				/* Function invoked when deleting the
+				 * namespace to, e.g., free clientData. */
+    struct Tcl_Namespace *parentPtr;
+				/* Points to the namespace that contains this
+				 * one. NULL if this is the global
+				 * namespace. */
+} Tcl_Namespace;
+
+/*
+ *----------------------------------------------------------------------------
+ * The following structure represents a call frame, or activation record. A
+ * call frame defines a naming context for a procedure call: its local scope
+ * (for local variables) and its namespace scope (used for non-local
+ * variables; often the global :: namespace). A call frame can also define the
+ * naming context for a namespace eval or namespace inscope command: the
+ * namespace in which the command's code should execute. The Tcl_CallFrame
+ * structures exist only while procedures or namespace eval/inscope's are
+ * being executed, and provide a Tcl call stack.
+ *
+ * A call frame is initialized and pushed using Tcl_PushCallFrame and popped
+ * using Tcl_PopCallFrame. Storage for a Tcl_CallFrame must be provided by the
+ * Tcl_PushCallFrame caller, and callers typically allocate them on the C call
+ * stack for efficiency. For this reason, Tcl_CallFrame is defined as a
+ * structure and not as an opaque token. However, most Tcl_CallFrame fields
+ * are hidden since applications should not access them directly; others are
+ * declared as "dummyX".
+ *
+ * WARNING!! The structure definition must be kept consistent with the
+ * CallFrame structure in tclInt.h. If you change one, change the other.
+ */
+
+typedef struct Tcl_CallFrame {
+    Tcl_Namespace *nsPtr;	/* Current namespace for the call frame. */
+    int dummy1;
+    Tcl_Size dummy2;
+    void *dummy3;
+    void *dummy4;
+    void *dummy5;
+    Tcl_Size dummy6;
+    void *dummy7;
+    void *dummy8;
+    Tcl_Size dummy9;
+    void *dummy10;
+    void *dummy11;
+    void *dummy12;
+    void *dummy13;
+} Tcl_CallFrame;
+
+/*
+ *----------------------------------------------------------------------------
+ * Information about commands that is returned by Tcl_GetCommandInfo and
+ * passed to Tcl_SetCommandInfo. objProc is an objc/objv object-based command
+ * function while proc is a traditional Tcl argc/argv string-based function.
+ * Tcl_CreateObjCommand and Tcl_CreateCommand ensure that both objProc and
+ * proc are non-NULL and can be called to execute the command. However, it may
+ * be faster to call one instead of the other. The member isNativeObjectProc
+ * is set to 1 if an object-based function was registered by
+ * Tcl_CreateObjCommand, and to 0 if a string-based function was registered by
+ * Tcl_CreateCommand. The other function is typically set to a compatibility
+ * wrapper that does string-to-object or object-to-string argument conversions
+ * then calls the other function.
+ */
+
+typedef struct {
+    int isNativeObjectProc;	/* 1 if objProc was registered by a call to
+				 * Tcl_CreateObjCommand; 2 if objProc was registered by
+				 * a call to Tcl_CreateObjCommand2; 0 otherwise.
+				 * Tcl_SetCmdInfo does not modify this field. */
+    Tcl_ObjCmdProc *objProc;	/* Command's object-based function. */

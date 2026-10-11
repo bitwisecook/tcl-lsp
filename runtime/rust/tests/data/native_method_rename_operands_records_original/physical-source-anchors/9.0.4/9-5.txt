@@ -1,0 +1,112 @@
+ */
+
+Tcl_Object
+TclOOGetDefineCmdContext(
+    Tcl_Interp *interp)
+{
+    Interp *iPtr = (Interp *) interp;
+    Tcl_Object object;
+
+    if ((iPtr->varFramePtr == NULL)
+	    || (iPtr->varFramePtr->isProcCallFrame != FRAME_IS_OO_DEFINE
+	    && iPtr->varFramePtr->isProcCallFrame != PRIVATE_FRAME)) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"this command may only be called from within the context of"
+		" an ::oo::define or ::oo::objdefine command",
+		TCL_AUTO_LENGTH));
+	OO_ERROR(interp, MONKEY_BUSINESS);
+	return NULL;
+    }
+    object = (Tcl_Object) iPtr->varFramePtr->clientData;
+    if (Tcl_ObjectDeleted(object)) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"this command cannot be called when the object has been"
+		" deleted", TCL_AUTO_LENGTH));
+	OO_ERROR(interp, MONKEY_BUSINESS);
+	return NULL;
+    }
+    return object;
+}
+
+Class *
+TclOOGetClassDefineCmdContext(
+    Tcl_Interp *interp)
+{
+    Object *oPtr = (Object *) TclOOGetDefineCmdContext(interp);
+    if (oPtr == NULL) {
+	return NULL;
+    }
+    if (!oPtr->classPtr) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"attempt to misuse API", TCL_AUTO_LENGTH));
+	OO_ERROR(interp, MONKEY_BUSINESS);
+	return NULL;
+    }
+    return oPtr->classPtr;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * GetClassInOuterContext, GetNamespaceInOuterContext --
+ *
+ *	Wrappers round Tcl_GetObjectFromObj and TclGetNamespaceFromObj to
+ *	perform the lookup in the context that called oo::define (or
+ *	equivalent). Note that this may have to go up multiple levels to get
+ *	the level that we started doing definitions at.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static inline Class *
+GetClassInOuterContext(
+    Tcl_Interp *interp,
+    Tcl_Obj *className,
+    const char *errMsg)
+{
+    Interp *iPtr = (Interp *) interp;
+    Object *oPtr;
+    CallFrame *savedFramePtr = iPtr->varFramePtr;
+
+    while (iPtr->varFramePtr->isProcCallFrame == FRAME_IS_OO_DEFINE
+	    || iPtr->varFramePtr->isProcCallFrame == PRIVATE_FRAME) {
+	if (iPtr->varFramePtr->callerVarPtr == NULL) {
+	    Tcl_Panic("getting outer context when already in global context");
+	}
+	iPtr->varFramePtr = iPtr->varFramePtr->callerVarPtr;
+    }
+    oPtr = (Object *) Tcl_GetObjectFromObj(interp, className);
+    iPtr->varFramePtr = savedFramePtr;
+    if (oPtr == NULL) {
+	return NULL;
+    }
+    if (oPtr->classPtr == NULL) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(errMsg, TCL_AUTO_LENGTH));
+	Tcl_SetErrorCode(interp, "TCL", "LOOKUP", "CLASS",
+		TclGetString(className), (char *)NULL);
+	return NULL;
+    }
+    return oPtr->classPtr;
+}
+
+static inline Tcl_Namespace *
+GetNamespaceInOuterContext(
+    Tcl_Interp *interp,
+    Tcl_Obj *namespaceName)
+{
+    Interp *iPtr = (Interp *) interp;
+    Tcl_Namespace *nsPtr;
+    int result;
+    CallFrame *savedFramePtr = iPtr->varFramePtr;
+
+    while (iPtr->varFramePtr->isProcCallFrame == FRAME_IS_OO_DEFINE
+	    || iPtr->varFramePtr->isProcCallFrame == PRIVATE_FRAME) {
+	if (iPtr->varFramePtr->callerVarPtr == NULL) {
+	    Tcl_Panic("getting outer context when already in global context");
+	}
+	iPtr->varFramePtr = iPtr->varFramePtr->callerVarPtr;
+    }
+    result = TclGetNamespaceFromObj(interp, namespaceName, &nsPtr);
+    iPtr->varFramePtr = savedFramePtr;
+    if (result != TCL_OK) {
+	return NULL;

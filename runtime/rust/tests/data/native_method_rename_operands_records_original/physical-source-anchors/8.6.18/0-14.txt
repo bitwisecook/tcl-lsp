@@ -1,0 +1,112 @@
+	return TCL_ERROR;
+    }
+
+    oPtr = (Object *) TclOOGetDefineCmdContext(interp);
+    if (oPtr == NULL) {
+	return TCL_ERROR;
+    }
+    if (!isInstanceRenameMethod && !oPtr->classPtr) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"attempt to misuse API", -1));
+	Tcl_SetErrorCode(interp, "TCL", "OO", "MONKEY_BUSINESS", (char *)NULL);
+	return TCL_ERROR;
+    }
+
+    /*
+     * Delete the method entry from the appropriate hash table, and transfer
+     * the thing it points to to its new entry. To do this, we first need to
+     * get the entries from the appropriate hash tables (this can generate a
+     * range of errors...)
+     */
+
+    if (RenameDeleteMethod(interp, oPtr, !isInstanceRenameMethod,
+	    objv[1], objv[2]) != TCL_OK) {
+	return TCL_ERROR;
+    }
+
+    if (isInstanceRenameMethod) {
+	oPtr->epoch++;
+    } else {
+	BumpGlobalEpoch(interp, oPtr->classPtr);
+    }
+    return TCL_OK;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOODefineUnexportObjCmd --
+ *	Implementation of the "unexport" subcommand of the "oo::define" and
+ *	"oo::objdefine" commands.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+int
+TclOODefineUnexportObjCmd(
+    ClientData clientData,
+    Tcl_Interp *interp,
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    int isInstanceUnexport = (clientData != NULL);
+    Object *oPtr;
+    Method *mPtr;
+    Tcl_HashEntry *hPtr;
+    Class *clsPtr;
+    int i, isNew, changed = 0;
+
+    if (objc < 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "name ?name ...?");
+	return TCL_ERROR;
+    }
+
+    oPtr = (Object *) TclOOGetDefineCmdContext(interp);
+    if (oPtr == NULL) {
+	return TCL_ERROR;
+    }
+    clsPtr = oPtr->classPtr;
+    if (!isInstanceUnexport && !clsPtr) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"attempt to misuse API", -1));
+	Tcl_SetErrorCode(interp, "TCL", "OO", "MONKEY_BUSINESS", (char *)NULL);
+	return TCL_ERROR;
+    }
+
+    for (i = 1; i < objc; i++) {
+	/*
+	 * Unexporting is done by removing the PUBLIC_METHOD flag from the
+	 * method record. If there is no such method in this object or class
+	 * (i.e. the method comes from something inherited from or that we're
+	 * an instance of) then we put in a blank record without that flag;
+	 * such records are skipped over by the call chain engine *except* for
+	 * their flags member.
+	 */
+
+	if (isInstanceUnexport) {
+	    if (!oPtr->methodsPtr) {
+		oPtr->methodsPtr = ckalloc(sizeof(Tcl_HashTable));
+		Tcl_InitObjHashTable(oPtr->methodsPtr);
+		oPtr->flags &= ~USE_CLASS_CACHE;
+	    }
+	    hPtr = Tcl_CreateHashEntry(oPtr->methodsPtr, (char *) objv[i],
+		    &isNew);
+	} else {
+	    hPtr = Tcl_CreateHashEntry(&clsPtr->classMethods, (char*) objv[i],
+		    &isNew);
+	}
+
+	if (isNew) {
+	    mPtr = ckalloc(sizeof(Method));
+	    memset(mPtr, 0, sizeof(Method));
+	    mPtr->refCount = 1;
+	    mPtr->namePtr = objv[i];
+	    Tcl_IncrRefCount(objv[i]);
+	    Tcl_SetHashValue(hPtr, mPtr);
+	} else {
+	    mPtr = Tcl_GetHashValue(hPtr);
+	}
+	if (isNew || mPtr->flags & PUBLIC_METHOD) {
+	    mPtr->flags &= ~PUBLIC_METHOD;
+	    changed = 1;
+	}
