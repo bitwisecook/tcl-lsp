@@ -201897,14 +201897,14 @@
           "id": "current-primary-table-owner-0",
           "role": "implementation",
           "path": "runtime/rust/src/vars/entered_container.rs",
-          "sha256": "8e2cc207bbc826b6450bb042f520241766bd1254d84e7d307c4552ae497e528b",
+          "sha256": "271efb22bbc2e3504f5f4c2357cf248c72e75fe1ad55552f1acb6cc4da8a4ad3",
           "description": "Current checked primary-table source/API owner. Static membership, links, original operation currency and frame identity retain independent guards; no C/Jim process or software assertion outcome is attached."
         },
         {
           "id": "current-primary-table-owner-1",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_jim_links.rs",
-          "sha256": "a1d7b7561ec122869328bd0891b39ab51b8e2db337995897c5d0818b94f33d7e",
+          "sha256": "62049cc50077d29f81d928ee3367c68ef13f2faa85138a4b4747746986b5ea59",
           "description": "Current checked primary-table source/API owner. Static membership, links, original operation currency and frame identity retain independent guards; no C/Jim process or software assertion outcome is attached."
         }
       ],
@@ -326019,6 +326019,168 @@
           "selector": "interp::native_numeric_ops::original_string_stage_tests::original_static_lookup_tests::original_jim_cat_authored_routing_checks_inherited_currency_without_native_issuer",
           "status": "linked",
           "assertion": "Authored cat routing checks an actually inherited entered currency before routing while retaining its separate unavailable physical materialization purpose. This additional source-defined software control carries no attached current owned assertion result, external provider observation, Native private-header/callback chronology or new execution grant."
+        },
+        {
+          "path": "runtime/rust/src/frame/stored_link_role_tests.rs",
+          "selector": "frame::stored_link_role_tests::original_c_alias_retirement_keeps_metadata_without_postponing_its_native_role",
+          "assertion": "Retained Link metadata does not postpone the actual published alias-role withdrawal or final old key release. The control checks outside-borrow reentry, original currentness and preservation of the first reached Host or changed-and-restored context cause before new adoption. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/frame/stored_link_role_tests.rs",
+          "selector": "frame::stored_link_role_tests::original_generic_link_publication_retires_old_scalar_after_actual_adoption",
+          "assertion": "The generic logical lane adopts the new Link before retiring the old scalar and keeps that reached adoption through Host or context refusal. The profile loop selects software storage policies; it does not establish the selected C release-before-adopt callback schedule. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/frame/stored_link_role_tests.rs",
+          "selector": "frame::stored_link_role_tests::original_shared_link_metadata_transfers_one_role_and_real_removal_withdraws_it_once",
+          "assertion": "Replacing published storage with shared Link metadata transfers one actual alias role. Explicit removal withdraws it once despite retained metadata observations, and those observations cannot mint a new semantic role. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/frame/stored_link_role_tests.rs",
+          "selector": "frame::stored_link_role_tests::original_c_same_target_noop_issues_no_new_alias_role_for_every_selected_profile",
+          "assertion": "A genuine selected C same-target no-op preserves the existing single alias role and entered-operation lifetime without acquiring or retiring another target role. The five selected software profiles remain independent of external C outcomes. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/frame/stored_link_role_tests.rs",
+          "selector": "frame::stored_link_role_tests::original_compiled_alias_distinguishes_c84_target_reference_from_later_hash_only_role",
+          "assertion": "Actual compiled alias publication distinguishes the C8.4 target-reference lane from later hash-owned target-reference lanes. The control checks the real target fact and stored role without treating metadata allocation ownership as a native reference. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/frame/pending_scalar.rs",
+          "selector": "frame::pending_scalar::formal_tests::original_formal_store_refuses_pending_role_before_hold_and_after_metadata_retirement",
+          "assertion": "Formal storage refuses an unsettled scalar role before the incoming stored reference and after actual metadata retirement can publish that role. It checks the unchanged incoming count, absence of later adoption or updater, preserved reached state and full original typed cause. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/frame/materialisation_tests.rs",
+          "selector": "frame::materialisation_tests::original_formal_metadata_retires_before_adoption_under_the_same_frame_and_cell",
+          "assertion": "Actual formal metadata owners retire outside cell, frame and namespace borrows before adoption under the original frame and cell observations. Host, restored-context ABA and real frame withdrawal stop later adoption while preserving the reached result and genuine incoming-role count. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/frame/materialisation_tests.rs",
+          "selector": "frame::materialisation_tests::original_search_string_keeps_the_same_node_birth_without_a_native_snapshot_hold",
+          "assertion": "The actual search owner uses pointer-first matching or the existing String fallback without a new native snapshot hold. Callback refusal and removal/recreation of the same numeric search id cannot advance the original node cursor. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/frame/materialisation_tests.rs",
+          "selector": "frame::materialisation_tests::original_done_search_retires_its_actual_handle_before_result_publication_outside_borrows",
+          "assertion": "Done-search retires its actual chain-owned handle outside storage borrows before empty-result publication. A reached free callback can reenter storage, and its original Host or context cause preserves the prior result while mandatory handle removal completes. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/frame/materialisation_tests.rs",
+          "selector": "frame::materialisation_tests::original_search_chain_and_formal_availability_keep_their_selected_physical_roles",
+          "assertion": "The genuine captured array-operation receipt preserves separately selected legacy cursor and modern chain-owned header roles without snapshot references. The control also keeps original formal-availability selection and unavailable Jim purpose separate. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/frame/materialisation_tests.rs",
+          "selector": "frame::materialisation_tests::original_array_search_requires_the_actual_captured_operation_receipt",
+          "assertion": "A numeric cell identity without the actual captured array-operation receipt cannot reach the backend, call a String updater, change reference counts or publish a new result. It checks the terminal original-array-purpose refusal and unchanged search chain. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/frame/member_materialisation_tests.rs",
+          "selector": "frame::member_materialisation_tests::original_c_member_birth_precedes_search_retirement_and_keeps_the_selected_parent",
+          "assertion": "The selected modern C member birth precedes actual search retirement under the original parent. Reentrant parent replacement, member rebirth, Host and context refusal cannot adopt through the old member receipt; reached callback values and true incoming reference counts remain observable. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/frame/member_materialisation_tests.rs",
+          "selector": "frame::member_materialisation_tests::original_c_alias_selection_cannot_adopt_a_rebound_or_restored_alias_after_retirement",
+          "assertion": "The original resolved alias/root selection survives search retirement only while its actual binding and target remain current. Rebinding or changing and restoring the alias refuses old-selection adoption without affecting the unrelated target or replacing reached callback state. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/frame/member_materialisation_tests.rs",
+          "selector": "frame::member_materialisation_tests::original_c_member_receipt_refuses_late_member_rebirth_before_receiver_capture",
+          "assertion": "The original member receipt rejects late member rebirth before receiver capture. Original table, member and context observations remain distinct, and a late receiver adds no native key reference merely to retain the observation. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/frame/member_materialisation_tests.rs",
+          "selector": "frame::member_materialisation_tests::original_c_legacy_search_cursor_retirement_adds_no_native_handle_role",
+          "assertion": "The actual captured array-operation receipt reaches the legacy C8.5/C8.6 search cursor without a chain-owned native handle reference. Adding an actual member retires the cursor while preserving the caller-owned returned header and the original new member key role. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_variable_names/original_handoff_tests.rs",
+          "selector": "interp::native_variable_names::original_handoff_tests::original_name_cache_retirement_keeps_reached_store_result_and_first_cause",
+          "assertion": "Original name-primary retirement preserves the reached store and result under the same entered operation. Actual Host or context refusal stops Parsed cache adoption while the allocation-only observer adds no native name reference. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_variable_names/original_handoff_tests.rs",
+          "selector": "interp::native_variable_names::original_handoff_tests::original_c9_selected_root_rebirth_refuses_while_c8_selects_after_its_old_free",
+          "assertion": "The selected C9 name-cache lane refuses rebirth of its already captured root; the independently selected C8 lane selects after its old primary free. The control exercises these software stage contracts without claiming one shared external callback chronology. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_variable_names/original_handoff_tests.rs",
+          "selector": "interp::native_variable_names::original_handoff_tests::original_c9_alias_handoff_refuses_retarget_before_cache_and_receiver_adoption",
+          "assertion": "A C9 original alias retarget during primary retirement refuses before cache and receiver adoption. The actual new alias target remains installed and the old target value is unchanged; no fresh name lookup can adopt the rebound alias as the original selection. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_variable_names/original_handoff_tests.rs",
+          "selector": "interp::native_variable_names::original_handoff_tests::original_indexed_selection_retirement_refuses_reborn_frame_at_the_same_slot",
+          "assertion": "The original indexed selection observes the actual frame birth before retirement. Reusing that numeric level or slot cannot supply the old frame receipt, adopt a cache or grant a new receiver purpose. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_variable_names/original_handoff_tests.rs",
+          "selector": "interp::native_variable_names::original_handoff_tests::original_declined_cache_retirement_keeps_intrinsic_refusal_before_unused_part_free",
+          "assertion": "A genuine primary-publication-slot refusal is retained before unused prepared parts retire and reach a later Host callback. Actual mandatory ownership cleanup completes while the earlier structured cause and reached result remain authoritative. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/frame/jim_alias_publication/tests.rs",
+          "selector": "frame::jim_alias_publication::tests::original_jim_link_detaches_before_getter_and_retires_visible_old_pointer_before_assignment",
+          "assertion": "Original Jim link publication detaches the stored target-name role before the target getter and retires the stage-visible old pointer before assignment. Real temporary and incoming-cell references remain separate; semantic reads during retirement refuse, and reentry, Host, context ABA or frame withdrawal cannot overwrite callback state. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/frame/jim_alias_publication/tests.rs",
+          "selector": "frame::jim_alias_publication::tests::original_jim_same_target_rebinding_uses_only_existing_temporary_and_cell_references",
+          "assertion": "Genuine Jim same-target rebinding withdraws the previous stored-name role and installs the new role with only the source temporary and cell references. The original unqualified hash key retains its own table reference without a fabricated key temporary. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/frame/jim_alias_publication/tests.rs",
+          "selector": "frame::jim_alias_publication::tests::original_jim_qualified_missing_link_keeps_stripped_fresh_name_role_and_same_local_cell",
+          "assertion": "Qualified missing Jim link publication retains the actual freshly stripped target-name storage role and original local cell. Qualified caller headers acquire no spurious hash or target-storage reference, and the original local cache retains its selected global fact. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/frame/jim_alias_publication/tests.rs",
+          "selector": "frame::jim_alias_publication::tests::original_jim_static_link_rebinding_keeps_shared_cell_without_new_local_table_entry",
+          "assertion": "Rebinding a genuine Jim static fallback updates the existing shared cell without inserting a local primary-table or ledger entry. Both actual frame views see the new stored-name role, the old role is withdrawn and caller versus stored references remain separate. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/frame/jim_alias_publication/scalar_store_tests.rs",
+          "selector": "frame::jim_alias_publication::scalar_store_tests::original_jim_cached_scalar_store_retires_visible_old_role_before_assignment_and_checks_original_cell",
+          "assertion": "Cached Jim scalar storage acquires its one genuine incoming cell reference, retires the stage-visible old stored pointer outside storage borrows, then checks the original cell before assignment. Host, context ABA, same-cell replacement or real frame withdrawal preserve reached callback state and cannot donate a replacement-cell role. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/frame/jim_alias_publication/scalar_store_tests.rs",
+          "selector": "frame::jim_alias_publication::scalar_store_tests::original_jim_variable_cache_adoption_preserves_callback_primary_and_stops_before_scalar_store",
+          "assertion": "Actual original-name cache conversion preserves a callback-published replacement primary and retains the earliest typed primary-slot or entered-operation refusal. The refused conversion cannot acquire a later scalar cell reference, replace the stored scalar or adopt the unused weak cache metadata. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/frame/jim_alias_publication/scalar_store_tests.rs",
+          "selector": "frame::jim_alias_publication::scalar_store_tests::original_jim_cached_static_scalar_store_and_link_recursion_keep_original_shared_cell_roles",
+          "assertion": "Cached Jim static fallback and genuine linked storage update the original shared scalar cell without inserting a new local hash entry. The existing recursive worker and same-value store preserve the sole actual cell reference alongside the caller reference. This links a software definition, not a passed assertion or original-provider callback observation.",
+          "status": "linked"
         }
       ],
       "replay": {
