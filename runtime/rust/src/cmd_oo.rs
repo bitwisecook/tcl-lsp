@@ -5656,20 +5656,16 @@ impl Interp {
                 self.enter_namespace_activation(var_ns);
                 self.frames.borrow_mut().push_namespace(var_ns);
                 if let Some(argv) = original_argv {
-                    let words = native_context::original_frame_words(self, argv);
-                    let words = match words {
-                        Ok(words) => words,
-                        Err(code) => {
-                            let popped = self.pop_native_call_frame();
-                            self.set_current_ns(caller);
-                            self.leave_namespace_activation(popped);
-                            return Some(code);
-                        }
-                    };
-                    self.frames.borrow_mut().set_words(words);
-                    self.frames
+                    let installed = self
+                        .frames
                         .borrow_mut()
                         .install_original_error_stack_argv(argv);
+                    if let Err(error) = installed {
+                        let popped = self.pop_native_call_frame();
+                        self.set_current_ns(caller);
+                        self.leave_namespace_activation(popped);
+                        return Some(self.report_cmd_error(error.into()));
+                    }
                 }
                 let activation = self.frames.borrow().current_activation();
                 // Run the script with an OO context frame so `self`/`my` work
@@ -9906,8 +9902,8 @@ mod original_argument_tests {
     fn definition_frame_reporting_runs_updaters_outside_frame_borrow_and_cleans_refusal() {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-        // Existing eager reporting stage only; original native lazy reporting
-        // is independently measured by the TclOO operand-stage question.
+        // Definition entry retains the original tape without presentation.
+        // The explicit report String stage reaches the original updater.
         for mode in [0, 1, 2] {
             let mut interpreter = native();
             let target = interpreter.oo_resolve_object(b"OriginalArgumentClass");
@@ -9922,26 +9918,43 @@ mod original_argument_tests {
             interpreter.set_result_bytes(b"PRIOR");
             let prior = interpreter.get_obj_result();
             MODE.with(|selected| selected.set(mode));
-            let result = interpreter.oo_enter_definition(&DefTarget::Class(target), &pointers);
+            let originals =
+                crate::interp::native_arguments::OriginalArguments::enter(&interpreter, &pointers)
+                    .unwrap();
+            let caller = interpreter
+                .oo_enter_definition(&DefTarget::Class(target), &pointers)
+                .unwrap();
+            assert!(
+                matches!(interpreter.active_def_target(), Some(DefTarget::Class(actual)) if actual == target)
+            );
+            assert_eq!(
+                interpreter
+                    .frames
+                    .borrow()
+                    .original_error_stack_argv()
+                    .unwrap(),
+                pointers,
+            );
+            assert_eq!(UPDATES.with(Cell::get), 0);
+            assert!(!obj::has_string_rep(argv[2].as_ptr()));
+            let level = interpreter.frames.borrow().current_level();
+            let report = obj::Owned::fresh(
+                tcl_runtime_api::Introspect::level_argv(&interpreter, level)
+                    .unwrap()
+                    .unwrap(),
+            );
+            let bytes = interpreter.native_object_string_bytes(report.as_ptr());
             if mode == 0 {
-                let caller = result.unwrap();
-                assert!(
-                    matches!(interpreter.active_def_target(), Some(DefTarget::Class(actual)) if actual == target)
-                );
-                assert_eq!(
-                    interpreter
-                        .frames
-                        .borrow()
-                        .original_error_stack_argv()
-                        .unwrap(),
-                    pointers
-                );
-                interpreter.oo_leave_definition(caller);
+                assert!(bytes.is_ok());
+                assert!(originals.check().is_ok());
             } else {
-                assert_eq!(result, Err(Code::Error));
+                assert!(bytes.is_err());
+                assert!(originals.check().is_err());
                 retained_failure(&interpreter, prior);
-                assert!(interpreter.active_def_target().is_none());
             }
+            drop(report);
+            interpreter.oo_leave_definition(caller);
+            drop(originals);
             assert_eq!(UPDATES.with(Cell::get), 1);
             assert_eq!(unsafe { (*argv[2].as_ptr()).ref_count }, 1);
             assert_eq!(interpreter.current_ns(), namespace);

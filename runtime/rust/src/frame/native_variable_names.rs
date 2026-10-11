@@ -134,20 +134,40 @@ impl FrameStack {
         Some(Rc::as_ptr(&self.frames[frame].table.cells.get(cell)?.contents) as usize)
     }
 
-    /// Borrow the original argument vector held by this active C invocation.
-    /// The admitting caller keeps its original headers pinned until frame pop.
-    pub(crate) fn install_original_error_stack_argv(&mut self, original: &[*mut TclObj]) {
+    /// Keep the original invocation allocation safe until frame pop, without
+    /// acquiring native references or reading its argument Strings.
+    pub(crate) fn install_original_error_stack_argv(
+        &mut self,
+        original: &[*mut TclObj],
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        let original = original
+            .iter()
+            .map(|&original| {
+                crate::obj::check_native_liveness(original)?;
+                Ok(crate::obj::NativeObjectLifetime::retain(original))
+            })
+            .collect::<Result<Vec<_>, tcl_syntax::value::ValueError>>()?;
         let index = self.current_frame_index();
-        self.frames[index].original_error_stack_argv = Some(original.to_vec());
+        self.frames[index].original_error_stack_argv = Some(original);
+        Ok(())
     }
     pub(crate) fn original_error_stack_argv(&self) -> Option<Vec<*mut TclObj>> {
         self.frames[self.current_frame_index()]
             .original_error_stack_argv
-            .clone()
+            .as_ref()
+            .map(|original| {
+                original
+                    .iter()
+                    .map(crate::obj::NativeObjectLifetime::as_ptr)
+                    .collect()
+            })
     }
-    /// Borrow the actual invocation transport at an absolute call level.
-    /// Copying these pointer values acquires no native object references.
-    pub(crate) fn original_error_stack_argv_at(&self, level: usize) -> Option<Vec<*mut TclObj>> {
+    /// Retain allocation safety outside the frame borrow while a reporter
+    /// selects its own original header/List/String purpose. No native +1.
+    pub(crate) fn original_error_stack_argv_owner_at(
+        &self,
+        level: usize,
+    ) -> Option<Vec<crate::obj::NativeObjectLifetime>> {
         self.frames[self.index_of_level(level)?]
             .original_error_stack_argv
             .clone()

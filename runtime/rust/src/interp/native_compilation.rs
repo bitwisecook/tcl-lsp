@@ -1005,9 +1005,16 @@ impl Interp {
                     .retain_c_procedure(Rc::clone(procedure));
             }
             if let Some(argv) = meta.original_argv {
-                self.frames
+                let installed = self
+                    .frames
                     .borrow_mut()
                     .install_original_error_stack_argv(argv);
+                if let Err(error) = installed {
+                    let popped = self.pop_native_call_frame();
+                    self.leave_namespace_activation(popped);
+                    self.recursion_depth.set(self.recursion_depth.get() - 1);
+                    return Err(self.report_cmd_error(error.into()));
+                }
             }
         }
         if self.native_invocation_dialect().native_string_protocol()

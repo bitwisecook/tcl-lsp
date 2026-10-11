@@ -382,3 +382,18 @@ separate declaration, raw List access, explicit presentation and invocation
 reads. They cover the fixed observed inputs. The initialized C 8.4.20, C 8.5.19
 and Jim providers have no TclOO command in those controls. No unsupported OO
 execution follows from their availability records.
+
+### Original definition-frame reports
+
+Definition and object-evaluation frames retain the original argument tape with
+allocation-only header leases. Installing a tape reads no argument String and
+adds no native object reference. The actual admitting caller still supplies
+live original headers. A retained lease cannot revive a header whose native
+roles have retired.
+
+The shared `Introspect::level_argv` query returns a fresh List when a report
+asks for the invocation. That List retains the same original members. Its
+outer typed execution error remains distinct from an absent frame, so a
+refused report cannot enter Guest bad-level formatting. Explicit presentation
+uses the existing checked original String producer outside frame borrows;
+frame or native-purpose authority does not follow from operation currency.

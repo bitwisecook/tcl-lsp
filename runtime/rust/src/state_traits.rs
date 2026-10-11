@@ -627,14 +627,50 @@ impl Introspect for Interp {
         self.frames.borrow().current_level()
     }
 
-    fn level_argv(&self, level: usize) -> Option<*mut TclObj> {
-        let original = self.frames.borrow().original_error_stack_argv_at(level);
-        if let Some(original) = original {
-            return Some(self.new_list_object(&original));
+    fn level_argv(
+        &self,
+        level: usize,
+    ) -> Result<Option<*mut TclObj>, tcl_runtime_api::NativeExecutionError> {
+        let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self)?;
+        let original = self
+            .frames
+            .borrow()
+            .original_error_stack_argv_owner_at(level);
+        let result = if let Some(original) = original {
+            let pointers = original
+                .iter()
+                .map(|original| {
+                    let pointer = original.as_ptr();
+                    crate::obj::check_native_liveness(pointer).map_err(|error| {
+                        tcl_runtime_api::NativeExecutionError::from(
+                            error
+                                .native_access_refusal()
+                                .expect("native object liveness refusal"),
+                        )
+                    })?;
+                    Ok(pointer)
+                })
+                .collect::<Result<Vec<_>, tcl_runtime_api::NativeExecutionError>>()?;
+            self.new_list_object(&pointers)
+        } else {
+            let Some(words) = self.level_words(level) else {
+                return Ok(None);
+            };
+            if words.is_empty() {
+                return Ok(None);
+            }
+            let objects: Vec<_> = words.iter().map(|word| new_string(word)).collect();
+            self.new_list_object(&objects)
+        };
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            crate::interp::drop_fresh(result);
+            return Err(scope
+                .currency()
+                .ensure_current_or_refuse()
+                .err()
+                .unwrap_or(first));
         }
-        let words = self.level_words(level)?;
-        let objs: Vec<*mut TclObj> = words.iter().map(|w| new_string(w)).collect();
-        Some(self.new_list_object(&objs))
+        Ok(Some(result))
     }
 }
 
@@ -1655,7 +1691,7 @@ mod tests {
         leak_free(|i| {
             // Top level: depth 0, the global frame has no invoking call.
             assert_eq!(Introspect::level(i), 0);
-            assert!(Introspect::level_argv(i, 0).is_none());
+            assert!(Introspect::level_argv(i, 0).unwrap().is_none());
             // Push a proc-call frame and record its invoking words.
             i.frames.borrow_mut().push(crate::namespace::GLOBAL);
             i.frames
@@ -1664,7 +1700,7 @@ mod tests {
             assert_eq!(Introspect::level(i), 1);
             // `level_argv` builds a fresh (rc-0) list; the result slot adopts it
             // via `set_result`, so the leak gate stays balanced.
-            let argv = Introspect::level_argv(i, 1).expect("level 1 argv");
+            let argv = Introspect::level_argv(i, 1).unwrap().expect("level 1 argv");
             i.set_result(argv);
             assert_eq!(i.result_bytes(), b"p x");
             i.frames.borrow_mut().pop();

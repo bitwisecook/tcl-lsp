@@ -91,6 +91,7 @@ where
     };
     if target >= 1
         && let Some(argv) = ops.level_argv(usize::try_from(target).unwrap_or(0))
+            .map_err(CmdError::from_execution_refusal)?
     {
         return Ok(argv);
     }

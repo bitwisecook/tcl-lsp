@@ -1334,7 +1334,7 @@ struct Frame {
     /// `tcl_codegen_slot_*` calls do — and an indexed access costs one array
     /// index rather than a name clone plus an ordered lookup.
     compiled_slots: Vec<Option<usize>>,
-    original_error_stack_argv: Option<Vec<*mut TclObj>>,
+    original_error_stack_argv: Option<Vec<obj::NativeObjectLifetime>>,
     /// The logical call level (`info level`, `upvar`/`uplevel` arithmetic) — the
     /// invoking var-frame's level + 1, **not** the stack index. They diverge
     /// when a proc is invoked while `uplevel` has redirected the active frame:

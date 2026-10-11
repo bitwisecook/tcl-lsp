@@ -24776,10 +24776,14 @@ impl Introspect for Vm {
         self.current_level()
     }
 
-    fn level_argv(&self, level: usize) -> Option<Value> {
-        self.frame_argv(level)
+    fn level_argv(
+        &self,
+        level: usize,
+    ) -> Result<Option<Value>, tcl_runtime_api::NativeExecutionError> {
+        Ok(self
+            .frame_argv(level)
             .filter(|av| !av.is_empty())
-            .map(Value::list)
+            .map(Value::list))
     }
 }
 
@@ -28778,14 +28782,17 @@ mod family_b_tests {
         let mut vm = Vm::new();
         // Top level: depth 0, the global frame has no invoking call.
         assert_eq!(Introspect::level(&vm), 0);
-        assert!(Introspect::level_argv(&vm, 0).is_none());
+        assert!(Introspect::level_argv(&vm, 0).unwrap().is_none());
         // A proc-call frame with its invoking words.
         vm.push_call_frame(
             Some("p".to_string()),
             vec![Value::string("p"), Value::string("x")],
         );
         assert_eq!(Introspect::level(&vm), 1);
-        assert_eq!(&*Introspect::level_argv(&vm, 1).unwrap().to_str(), "p x");
+        assert_eq!(
+            &*Introspect::level_argv(&vm, 1).unwrap().unwrap().to_str(),
+            "p x"
+        );
         vm.pop_call_frame();
         assert_eq!(Introspect::level(&vm), 0);
     }

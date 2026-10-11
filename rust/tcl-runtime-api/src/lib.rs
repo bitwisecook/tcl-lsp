@@ -2091,7 +2091,9 @@ pub trait Introspect {
     /// The current call-stack depth (`info level`).
     fn level(&self) -> usize;
     /// The argv of the call at `level` (`info level N`), if retained.
-    fn level_argv(&self, level: usize) -> Option<Self::Value>;
+    /// An absent call is `Ok(None)`; original access/execution refusal stays
+    /// outside Guest bad-level handling and preserves its exact first cause.
+    fn level_argv(&self, level: usize) -> Result<Option<Self::Value>, NativeExecutionError>;
 }
 
 /// Procedure introspection backing `info body`/`args`/`default`: the retained

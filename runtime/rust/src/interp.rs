@@ -5789,9 +5789,16 @@ impl Interp {
         self.enter_namespace_activation(target);
         self.frames.borrow_mut().push_namespace(target);
         if let Some(arguments) = original_arguments {
-            self.frames
+            let installed = self
+                .frames
                 .borrow_mut()
                 .install_original_error_stack_argv(arguments);
+            if let Err(error) = installed {
+                let popped = self.pop_native_call_frame();
+                self.current_ns.set(saved);
+                self.leave_namespace_activation(popped);
+                return self.report_cmd_error(error.into());
+            }
         }
         if let Err(error) = self.retain_native_jim_frame_namespace(target) {
             let popped = self.pop_native_call_frame();
