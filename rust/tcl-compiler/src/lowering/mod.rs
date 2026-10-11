@@ -6863,29 +6863,16 @@ pub(crate) fn command_at_time_script_image(
     source: &tcl_lexer::SourceImage,
     config: tcl_lexer::LexerConfig,
 ) -> Result<CommandAtTimeScript, tcl_lexer::ParseCutUnavailable> {
-    let fatal = tcl_lexer::first_parse_cut_image_checked(source, config)?;
-    let unavailable = || {
-        tcl_lexer::ParseCutUnavailable::SourceGeometry(
-            tcl_lexer::ExecutablePartsUnavailable::SourceGeometry,
-        )
-    };
-    let mut commands =
-        crate::segmenter::segment_commands_image_with_offset_and_config(source, 0, config)
-            .ok_or_else(unavailable)?;
-    let fatal_tail = if let Some(cut) = fatal {
-        let command = commands.get(cut.command).ok_or_else(unavailable)?;
-        let start = command.span.start() as usize;
-        commands.truncate(cut.command);
-        Some((start, cut.message.to_owned(), Some(cut.term)))
-    } else {
-        if commands.iter().any(|command| command.is_partial) {
-            return Err(unavailable());
-        }
-        None
-    };
+    let script = crate::segmenter::segment_script_image_with_offset_and_config(source, 0, config)?;
     Ok(CommandAtTimeScript {
-        commands,
-        fatal_tail,
+        commands: script.commands,
+        fatal_tail: script.fatal_tail.map(|tail| {
+            (
+                tail.command.span.start() as usize,
+                tail.cut.message.to_owned(),
+                Some(tail.cut.term),
+            )
+        }),
     })
 }
 

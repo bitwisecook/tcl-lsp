@@ -61,7 +61,7 @@ use std::path::{Path, PathBuf};
 
 use crate::vfs::{NativeStore, SourceStore};
 
-use tcl_lexer::{Lexer, Token, TokenType};
+use tcl_lexer::{Token, TokenType};
 
 pub use tcl_dialect::PackagePrefer;
 
@@ -200,39 +200,24 @@ pub(super) fn walk_command_words_with_config(
     text: &str,
     config: tcl_lexer::LexerConfig,
 ) -> Vec<Vec<Vec<Token>>> {
-    let tokens = Lexer::with_config(text, config)
-        .tokenise_all()
-        .unwrap_or_default();
-    let mut commands: Vec<Vec<Vec<Token>>> = Vec::new();
-    let mut words: Vec<Vec<Token>> = Vec::new();
-    let mut word: Vec<Token> = Vec::new();
-
-    for tok in tokens {
-        match tok.kind {
-            TokenType::Comment | TokenType::Eof => {}
-            TokenType::Eol => {
-                if !word.is_empty() {
-                    words.push(std::mem::take(&mut word));
-                }
-                if !words.is_empty() {
-                    commands.push(std::mem::take(&mut words));
-                }
-            }
-            TokenType::Sep | TokenType::Expand => {
-                if !word.is_empty() {
-                    words.push(std::mem::take(&mut word));
-                }
-            }
-            _ => word.push(tok),
-        }
-    }
-    if !word.is_empty() {
-        words.push(word);
-    }
-    if !words.is_empty() {
-        commands.push(words);
-    }
-    commands
+    let Ok(script) = tcl_compiler::segmenter::segment_script_image_with_offset_and_config(
+        &tcl_lexer::SourceImage::document(text),
+        0,
+        config,
+    ) else {
+        return Vec::new();
+    };
+    script
+        .commands
+        .into_iter()
+        .map(|command| {
+            command
+                .word_fragments
+                .into_iter()
+                .map(|word| word.into_iter().map(|fragment| fragment.token).collect())
+                .collect()
+        })
+        .collect()
 }
 
 /// The verbatim source slice spanning `word` within `text`.

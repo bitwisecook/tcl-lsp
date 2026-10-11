@@ -405,11 +405,13 @@ fn binding_region_commands(
     config: tcl_lexer::LexerConfig,
     nested: bool,
 ) -> Vec<tcl_compiler::segmenter::SegmentedCommand> {
-    tcl_compiler::segmenter::segment_commands_with_offset_and_config(
-        &source[start..end],
+    tcl_compiler::segmenter::segment_script_image_with_offset_and_config(
+        &tcl_lexer::SourceImage::document(&source[start..end]),
         u32::try_from(start).unwrap_or(0),
         if nested { config.nested() } else { config },
     )
+    .map(tcl_compiler::segmenter::SegmentedScript::into_editor_commands)
+    .unwrap_or_default()
 }
 
 /// The bindings one call site contributes — at most one per parameter whose

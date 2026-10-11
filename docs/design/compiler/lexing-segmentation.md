@@ -68,6 +68,23 @@ position-tracking path must keep the two mechanisms in lock-step.
 
 ### Stage 2 — Segmentation
 
+`segment_script_image_with_offset_and_config` returns a checked `SegmentedScript`:
+complete CST commands and a separate typed `SegmentedParseCut`. It delegates
+syntax failure selection to `tcl_lexer::first_parse_cut_image_checked` and joins
+the cut ordinal before F5 lookahead merges the complete prefix. Source or lexer
+unavailability is a `Result` error, never a clean empty script. Callers retain
+the complete lexer configuration and choose file or nested-body purpose before
+calling this adapter.
+
+Execution and package scans use only `commands`; a compiler projects the retained
+cut into its runtime error. Editor assistance may use `into_editor_commands` to
+include the original incomplete command, which is marked `is_partial`. Terminal
+syntax errors do not become incomplete commands, and no projection includes
+commands after a cut. The raw CST and heuristic recovery entry points remain
+available for presentation. Neither projection supplies execution or name
+resolution authority. Add fixed source/configuration controls when changing
+this adapter; retain independent parser-kind, source-range and consumer checks.
+
 `segment_commands` does not run its own token loop: it builds
 the canonical lossless **red-green concrete syntax tree** for the region
 (`rust/tcl-compiler/src/parsing/syntax/`, see
