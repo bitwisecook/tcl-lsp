@@ -258,6 +258,25 @@ impl BodyObjectOperation {
         keys: &[*mut TclObj],
         protocol: NativeStringProtocol,
     ) -> Result<*mut TclObj, CmdError> {
+        self.dictionary_lookup(
+            actual,
+            original,
+            keys,
+            protocol,
+            tcl_registry::native_dictionary_compilation::NativeDictionaryLookupKind::Get,
+            None,
+        )
+    }
+    pub(super) fn dictionary_lookup(
+        &self,
+        actual: &mut Interp,
+        original: *mut TclObj,
+        keys: &[*mut TclObj],
+        protocol: NativeStringProtocol,
+        kind: tcl_registry::native_dictionary_compilation::NativeDictionaryLookupKind,
+        default: Option<*mut TclObj>,
+    ) -> Result<*mut TclObj, CmdError> {
+        use tcl_registry::native_dictionary_compilation::NativeDictionaryLookupKind as Kind;
         let retained = std::cell::RefCell::new(Vec::<Rc<BodyDictionaryPairs>>::new());
         let check = |actual: &Interp| {
             self.check(actual)?;
@@ -266,37 +285,56 @@ impl BodyObjectOperation {
             }
             Ok::<(), CmdError>(())
         };
-        tcl_cmd_core::dict::get_using(
-            actual,
-            &original,
-            keys,
-            |actual, key| {
-                check(actual)?;
-                let bytes = self.bytes_using(actual, *key, &|| check(actual))?;
-                check(actual)?;
-                Ok(bytes)
-            },
-            |actual, value| {
-                check(actual)?;
-                let view = Rc::new(self.pairs(actual, *value, protocol)?);
-                retained.borrow_mut().push(view.clone());
-                Ok(view)
-            },
-            |actual, view, key| {
-                check(actual)?;
-                let reached = view.lookup(actual, self, key);
-                check(actual)?;
-                reached
-            },
-            |actual, key| match check(actual) {
-                Err(first) => first,
-                Ok(()) => tcl_cmd_core::dict::missing_key_error(
-                    actual,
-                    tcl_syntax::naming::NativeDictionaryMissingKeyOperation::Get,
-                    key,
-                ),
-            },
-        )
+        let string = |actual: &mut Interp, key: &*mut TclObj| {
+            check(actual)?;
+            let bytes = self.bytes_using(actual, *key, &|| check(actual))?;
+            check(actual)?;
+            Ok(bytes)
+        };
+        let pairs = |actual: &mut Interp, value: &*mut TclObj| {
+            check(actual)?;
+            let view = Rc::new(self.pairs(actual, *value, protocol)?);
+            retained.borrow_mut().push(view.clone());
+            Ok(view)
+        };
+        let lookup = |actual: &mut Interp, view: &Rc<BodyDictionaryPairs>, key: &[u8]| {
+            check(actual)?;
+            let reached = view.lookup(actual, self, key);
+            check(actual)?;
+            reached
+        };
+        let reached = match kind {
+            Kind::Get => tcl_cmd_core::dict::get_using(
+                actual,
+                &original,
+                keys,
+                string,
+                pairs,
+                lookup,
+                |actual, key| match check(actual) {
+                    Err(first) => first,
+                    Ok(()) => tcl_cmd_core::dict::missing_key_error(
+                        actual,
+                        tcl_syntax::naming::NativeDictionaryMissingKeyOperation::Get,
+                        key,
+                    ),
+                },
+            ),
+            Kind::Exists => {
+                tcl_cmd_core::dict::exists_using(actual, &original, keys, string, pairs, lookup)
+                    .map(|exists| obj::new_boolean_obj(i32::from(exists)))
+            }
+            Kind::GetDefault => {
+                let default = default.ok_or_else(|| {
+                    self.refuse(unavailable("original compiled dictionary default operand"))
+                })?;
+                tcl_cmd_core::dict::getdef_using(
+                    actual, &original, keys, &default, string, pairs, lookup,
+                )
+            }
+        };
+        check(actual)?;
+        reached
     }
     pub(super) fn objects(
         self: &Rc<Self>,

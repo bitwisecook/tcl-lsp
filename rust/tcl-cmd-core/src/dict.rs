@@ -259,25 +259,46 @@ pub fn exists<O: ValueOps>(
     dict: &O::Value,
     keys: &[O::Value],
 ) -> Result<O::Value, CmdError> {
+    let exists = exists_using(
+        ops,
+        dict,
+        keys,
+        |ops, key| ops.native_string_bytes(key).map_err(Into::into),
+        |ops, value| ops.dict_pairs(value).map_err(Into::into),
+        |ops, pairs, key| lookup(ops, pairs, key),
+    )?;
+    Ok(ops.new_bool(exists))
+}
+
+/// The same existence walker with original String and pair projections.
+/// Only a genuine Guest conversion error means false; full execution refusal
+/// remains terminal and never authorizes a later key or result worker.
+pub fn exists_using<O, V: Clone, P>(
+    ops: &mut O,
+    dict: &V,
+    keys: &[V],
+    mut string: impl FnMut(&mut O, &V) -> Result<std::rc::Rc<[u8]>, CmdError>,
+    mut pairs: impl FnMut(&mut O, &V) -> Result<P, CmdError>,
+    mut lookup: impl FnMut(&mut O, &P, &[u8]) -> Result<Option<V>, CmdError>,
+) -> Result<bool, CmdError> {
     let mut cur = dict.clone();
-    for k in keys {
-        let ks = ops.native_string_bytes(k)?.to_vec();
-        let pairs = match ops.dict_pairs(&cur) {
+    for key in keys {
+        let bytes = string(ops, key)?.to_vec();
+        let current_pairs = match pairs(ops, &cur) {
             Ok(pairs) => pairs,
             Err(error) => {
-                let error = CmdError::from(error);
-                if error.native_access_refusal().is_some() {
+                if error.native_execution_refusal().is_some() {
                     return Err(error);
                 }
-                return Ok(ops.new_bool(false));
+                return Ok(false);
             }
         };
-        match lookup(ops, &pairs, &ks)? {
-            Some(v) => cur = v,
-            None => return Ok(ops.new_bool(false)),
+        match lookup(ops, &current_pairs, &bytes)? {
+            Some(value) => cur = value,
+            None => return Ok(false),
         }
     }
-    Ok(ops.new_bool(true))
+    Ok(true)
 }
 
 /// `dict keys dictionary ?globPattern?`.
@@ -431,12 +452,34 @@ pub fn getdef<O: ValueOps>(
     keys: &[O::Value],
     default: &O::Value,
 ) -> Result<O::Value, CmdError> {
+    getdef_using(
+        ops,
+        dict,
+        keys,
+        default,
+        |ops, key| ops.native_string_bytes(key).map_err(Into::into),
+        |ops, value| ops.dict_pairs(value).map_err(Into::into),
+        |ops, pairs, key| lookup(ops, pairs, key),
+    )
+}
+
+/// The same defaulting path walker with retained original String/pair views.
+/// A missing key selects the genuine default; conversion errors are preserved.
+pub fn getdef_using<O, V: Clone, P>(
+    ops: &mut O,
+    dict: &V,
+    keys: &[V],
+    default: &V,
+    mut string: impl FnMut(&mut O, &V) -> Result<std::rc::Rc<[u8]>, CmdError>,
+    mut pairs: impl FnMut(&mut O, &V) -> Result<P, CmdError>,
+    mut lookup: impl FnMut(&mut O, &P, &[u8]) -> Result<Option<V>, CmdError>,
+) -> Result<V, CmdError> {
     let mut cur = dict.clone();
-    for k in keys {
-        let ks = ops.native_string_bytes(k)?.to_vec();
-        let pairs = ops.dict_pairs(&cur)?;
-        match lookup(ops, &pairs, &ks)? {
-            Some(v) => cur = v,
+    for key in keys {
+        let bytes = string(ops, key)?.to_vec();
+        let current_pairs = pairs(ops, &cur)?;
+        match lookup(ops, &current_pairs, &bytes)? {
+            Some(value) => cur = value,
             None => return Ok(default.clone()),
         }
     }
