@@ -1285,7 +1285,8 @@ mod index_key_ownership_controls {
         .unwrap()
     }
     fn series() -> obj::Owned {
-        let plan = tcl_cmd_core::lseq::decode(&[b"5"]).unwrap();
+        let plan = tcl_cmd_core::lseq::decode(&[b"5"])
+            .unwrap_or_else(|_| panic!("valid five-element original series fixture"));
         let value = tcl_cmd_core::lseq::prepare_series(&plan).unwrap().unwrap();
         obj::Owned::fresh(
             crate::native_arithseries::new_series(
