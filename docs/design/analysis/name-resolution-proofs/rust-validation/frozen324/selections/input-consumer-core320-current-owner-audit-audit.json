@@ -1,0 +1,603 @@
+{
+  "status": "Read-only bounded audit of actual closed Core320 failures against current source owners; no tests or builds launched",
+  "actual_image": "Source320",
+  "actual_result": {
+    "selected": 177,
+    "passed": 127,
+    "failed": 50
+  },
+  "log": "/workspace/.proofs/integration-core-consumer-focus320.log",
+  "log_sha256": "b3cb113f6adbb3b1f593f5fba8d5e0f3b3fe5cc6f1a3b458ebef57f0462fbc8b",
+  "failed_controls": [
+    {
+      "selector": "call_hierarchy::original_source_context_tests::original_method_hierarchy_uses_selected_helpers_and_same_source_frame",
+      "path": "rust/tcl-lsp-core/src/call_hierarchy.rs",
+      "source_failure_line": 2388,
+      "actual_failure": "[\"source_dispatch\", \"if\", \"proc\", \"missing\"]\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace",
+      "current_source_sha256": "1da5eaaf83b5c955488f981d42e449f3ebd08e9b47d445df22060c9862264c8e",
+      "classification": "Current complete source/selected declaration query; shared cause not yet measured",
+      "current_related_source_receipts": [],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "code_actions::diagnostic_context::tests::original_context_diagnostic_currency_keeps_the_complete_availability_owner",
+      "path": "rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs",
+      "source_failure_line": 660,
+      "actual_failure": "assertion failed: std::sync::Arc::ptr_eq(input.borrowed_context_registry().commands(),\n    older_input.borrowed_context_registry().commands())",
+      "current_source_sha256": "5ca2607384a9a76f951326b85d9e2d7f47340affd6254c85191847a58435357c",
+      "classification": "Typed diagnostic source currency or sink/current advice",
+      "current_related_source_receipts": [
+        "Consumer416b"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "code_actions::diagnostic_context::tests::original_diagnostic_actions_keep_typed_sink_and_source_when_prose_changes",
+      "path": "rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs",
+      "source_failure_line": 492,
+      "actual_failure": "missing T100: []",
+      "current_source_sha256": "5ca2607384a9a76f951326b85d9e2d7f47340affd6254c85191847a58435357c",
+      "classification": "Typed diagnostic source currency or sink/current advice",
+      "current_related_source_receipts": [
+        "Diagnostic484/485"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "code_actions::diagnostic_context::tests::original_diagnostic_actions_refuse_stale_source_configuration_registry_and_range",
+      "path": "rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs",
+      "source_failure_line": 612,
+      "actual_failure": "assertion failed: !actions(source, &analysis, &diagnostic).is_empty()",
+      "current_source_sha256": "5ca2607384a9a76f951326b85d9e2d7f47340affd6254c85191847a58435357c",
+      "classification": "Typed diagnostic source currency or sink/current advice",
+      "current_related_source_receipts": [
+        "Diagnostic484/485"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "declaration::tests::declaration_scan_uses_the_declared_local_tail_of_a_global_name",
+      "path": "rust/tcl-lsp-core/src/declaration.rs",
+      "source_failure_line": 1001,
+      "actual_failure": "assertion `left == right` failed\n  left: [0, 2]\n right: [2]",
+      "current_source_sha256": "015b2f41a443ab7b91fda07ef054516316d355ec16411cbd38f0ec50b0f62134",
+      "classification": "Retained readonly original alias/name/root/frame correspondence; strict physical occurrence separate",
+      "current_related_source_receipts": [
+        "Consumer417"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "declaration::tests::global_declaration_in_proc_body",
+      "path": "rust/tcl-lsp-core/src/declaration.rs",
+      "source_failure_line": 675,
+      "actual_failure": "assertion `left == right` failed: []\n  left: 0\n right: 1",
+      "current_source_sha256": "015b2f41a443ab7b91fda07ef054516316d355ec16411cbd38f0ec50b0f62134",
+      "classification": "Retained readonly original alias/name/root/frame correspondence; strict physical occurrence separate",
+      "current_related_source_receipts": [
+        "Consumer417"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "declaration::tests::global_declared_inside_apply_lambda_body_is_found",
+      "path": "rust/tcl-lsp-core/src/declaration.rs",
+      "source_failure_line": 773,
+      "actual_failure": "assertion `left == right` failed: []\n  left: 0\n right: 1",
+      "current_source_sha256": "015b2f41a443ab7b91fda07ef054516316d355ec16411cbd38f0ec50b0f62134",
+      "classification": "Retained readonly original alias/name/root/frame correspondence; strict physical occurrence separate",
+      "current_related_source_receipts": [
+        "Consumer417"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "declaration::tests::global_declared_inside_control_flow_body_is_found",
+      "path": "rust/tcl-lsp-core/src/declaration.rs",
+      "source_failure_line": 747,
+      "actual_failure": "assertion `left == right` failed: []\n  left: 0\n right: 1",
+      "current_source_sha256": "015b2f41a443ab7b91fda07ef054516316d355ec16411cbd38f0ec50b0f62134",
+      "classification": "Retained readonly original alias/name/root/frame correspondence; strict physical occurrence separate",
+      "current_related_source_receipts": [
+        "Consumer417"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "declaration::tests::original_alias_declaration_navigation_keeps_the_independent_local_operand",
+      "path": "rust/tcl-lsp-core/src/declaration.rs",
+      "source_failure_line": 843,
+      "actual_failure": "assertion `left == right` failed: tcl8.6\n  left: []\n right: [LspRange { start_line: 1, start_character: 30, end_line: 1, end_character: 35 }]",
+      "current_source_sha256": "015b2f41a443ab7b91fda07ef054516316d355ec16411cbd38f0ec50b0f62134",
+      "classification": "Retained readonly original alias/name/root/frame correspondence; strict physical occurrence separate",
+      "current_related_source_receipts": [
+        "Consumer417"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "declaration::tests::original_logical_declarations_join_global_aliases_without_local_root_stripping",
+      "path": "rust/tcl-lsp-core/src/declaration.rs",
+      "source_failure_line": 571,
+      "actual_failure": "assertion `left == right` failed\n  left: 28\n right: 54",
+      "current_source_sha256": "015b2f41a443ab7b91fda07ef054516316d355ec16411cbd38f0ec50b0f62134",
+      "classification": "Retained readonly original alias/name/root/frame correspondence; strict physical occurrence separate",
+      "current_related_source_receipts": [
+        "Consumer417"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "declaration::tests::original_logical_declarations_keep_qualified_targets_and_current_source_owners",
+      "path": "rust/tcl-lsp-core/src/declaration.rs",
+      "source_failure_line": 598,
+      "actual_failure": "$::ns::foo: [LspRange { start_line: 0, start_character: 28, end_line: 0, end_character: 31 }]",
+      "current_source_sha256": "015b2f41a443ab7b91fda07ef054516316d355ec16411cbd38f0ec50b0f62134",
+      "classification": "Retained readonly original alias/name/root/frame correspondence; strict physical occurrence separate",
+      "current_related_source_receipts": [
+        "Consumer417"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "declaration::tests::upvar_local_alias_is_a_declaration",
+      "path": "rust/tcl-lsp-core/src/declaration.rs",
+      "source_failure_line": 724,
+      "actual_failure": "assertion `left == right` failed: []\n  left: 0\n right: 1",
+      "current_source_sha256": "015b2f41a443ab7b91fda07ef054516316d355ec16411cbd38f0ec50b0f62134",
+      "classification": "Retained readonly original alias/name/root/frame correspondence; strict physical occurrence separate",
+      "current_related_source_receipts": [
+        "Consumer417"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "definition::original_next_source_context_tests::original_next_definition_uses_captured_target_and_selected_availability",
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "source_failure_line": 8275,
+      "actual_failure": "assertion `left == right` failed\n  left: None\n right: Some(Span { start: 30, end: 31 })",
+      "current_source_sha256": "9a007866a6ef2779b4535505e5ff36fff9d98866862ca8a8c09259324a56c5c8",
+      "classification": "Current complete source/selected declaration query; shared cause not yet measured",
+      "current_related_source_receipts": [],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "definition::tests::original_external_visibility_keeps_variable_and_object_names_separate_from_self_dispatch",
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "source_failure_line": 4407,
+      "actual_failure": "assertion `left == right` failed: oo::class create C {}; set my [C new]; oo::objdefine $my {method Hidden {} {}}; $my Hidden\n  left: Clear\n right: Native",
+      "current_source_sha256": "9a007866a6ef2779b4535505e5ff36fff9d98866862ca8a8c09259324a56c5c8",
+      "classification": "Actual Native receiver method entry versus independent Logical original configuration anchor",
+      "current_related_source_receipts": [
+        "Shared472b/478 may affect source query; current Native variable receipt requires actual trace"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "definition::tests::original_source_visibility_keeps_full_lexer_input_and_conditional_mask_purpose",
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "source_failure_line": 4537,
+      "actual_failure": "assertion `left == right` failed\n  left: Unavailable\n right: ConditionalSource",
+      "current_source_sha256": "9a007866a6ef2779b4535505e5ff36fff9d98866862ca8a8c09259324a56c5c8",
+      "classification": "Actual Native receiver method entry versus independent Logical original configuration anchor",
+      "current_related_source_receipts": [
+        "Shared472b/478 may affect source query; current Native variable receipt requires actual trace"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "diagnostic_report::tests::supplied_policy_rewrites_keep_actual_source_config_and_refresh_directives",
+      "path": "rust/tcl-lsp-core/src/diagnostic_report.rs",
+      "source_failure_line": 497,
+      "actual_failure": "current Logical branch advice reaches the real rewrite loop",
+      "current_source_sha256": "974c439e34d9964b42f0c971718f3ec23ab85f1512b2f0c4dd3951ef110a7ad1",
+      "classification": "Current complete source/selected declaration query; shared cause not yet measured",
+      "current_related_source_receipts": [],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "document_links::original_hosted_document_link_tests::original_source_path_links_use_selected_operations_and_authentic_bound_values",
+      "path": "rust/tcl-lsp-core/src/document_links.rs",
+      "source_failure_line": 1854,
+      "actual_failure": "assertion `left == right` failed: []\n  left: 0\n right: 1",
+      "current_source_sha256": "ecb09ac2fdf86b5740dbd68a23f8d6dd2dbadc9c8c1d5ff835f6dc62308e3057",
+      "classification": "Selected source operation/name and authenticated diagnostic values",
+      "current_related_source_receipts": [
+        "Consumer414/Grammar475 local parser purpose; Diagnostic484 source plans"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "document_links::tests::original_source_links_use_actual_selected_navigation_and_decline_shadows_or_stale_input",
+      "path": "rust/tcl-lsp-core/src/document_links.rs",
+      "source_failure_line": 1097,
+      "actual_failure": "assertion `left == right` failed: rename source load; load /tmp/\u00e9.tcl: []\n  left: 0\n right: 1",
+      "current_source_sha256": "ecb09ac2fdf86b5740dbd68a23f8d6dd2dbadc9c8c1d5ff835f6dc62308e3057",
+      "classification": "Selected source operation/name and authenticated diagnostic values",
+      "current_related_source_receipts": [
+        "Consumer414/Grammar475 local parser purpose; Diagnostic484 source plans"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "formatting::tests::analysed_formatting_member_vocabulary_precedes_same_spelling_global_alias",
+      "path": "rust/tcl-lsp-core/src/formatting/mod.rs",
+      "source_failure_line": 606,
+      "actual_failure": "interp alias {} method {} if 1\n\noo::class create C {\n    method m {} { puts \u03b1 }\n}\n",
+      "current_source_sha256": "9a6945ec3a0c4ab9fe6910f3474fbc1553d234fd973033d8d8377ecf7a45ce0f",
+      "classification": "Selected definition-parent/member source body geometry; current parent schema purpose",
+      "current_related_source_receipts": [
+        "Grammar formatting owner and latest source facade changes"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "formatting::tests::analysed_formatting_retains_selected_definition_parent_body_geometry",
+      "path": "rust/tcl-lsp-core/src/formatting/mod.rs",
+      "source_failure_line": 587,
+      "actual_failure": "oo::class create C {\n    method m {} { puts \u03b1 }\n}\n",
+      "current_source_sha256": "9a6945ec3a0c4ab9fe6910f3474fbc1553d234fd973033d8d8377ecf7a45ce0f",
+      "classification": "Selected definition-parent/member source body geometry; current parent schema purpose",
+      "current_related_source_receipts": [
+        "Grammar formatting owner and latest source facade changes"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "hover::original_registry::tests::original_registry_hover_keeps_current_context_and_conditional_shadow_barriers",
+      "path": "rust/tcl-lsp-core/src/hover/original_registry.rs",
+      "source_failure_line": 432,
+      "actual_failure": "conditional source documentation",
+      "current_source_sha256": "d4d9299afcf70f14249bb86f14197e908de293a8f62b3dc6d97ae7c92b252459",
+      "classification": "Current complete source/selected declaration query; shared cause not yet measured",
+      "current_related_source_receipts": [],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "inlay_hints::retained_hint_context_tests::original_inlay_hints_keep_retained_profile_registry_and_whole_source",
+      "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "source_failure_line": 3011,
+      "actual_failure": "[InlayHint { position_line: 1, position_character: 10, label: \"int\", kind: Type, padding_left: true }, InlayHint { position_line: 0, position_character: 4, label: \"varName:\", kind: Parameter, padding_left: false }, InlayHint { position_line: 0, position_character: 10, label: \"value:\", kind: Parameter, padding_left: false }, InlayHint { position_line: 1, position_character: 7, label: \"formatString:\", kind: Parameter, padding_left: false }]",
+      "current_source_sha256": "a5e7236f82d302ef563ff4d2148f1389e5fb46c68c6be45a6e7875e7afeabfc1",
+      "classification": "Current complete source/selected declaration query; shared cause not yet measured",
+      "current_related_source_receipts": [],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "linked_editing_range::original_linked_tests::original_linked_editing_keeps_qualified_unicode_tail_and_refuses_stale_source",
+      "path": "rust/tcl-lsp-core/src/linked_editing_range.rs",
+      "source_failure_line": 536,
+      "actual_failure": "jimtcl",
+      "current_source_sha256": "40e7a51d3b4e90268ea0983192230b498f02c09f778d732a3ee9918e4dec3821",
+      "classification": "Current complete source/selected declaration query; shared cause not yet measured",
+      "current_related_source_receipts": [],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "namespace_rename::tests::namespace_hazard_keeps_original_roles_and_unavailable_owner_refusal",
+      "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+      "source_failure_line": 610,
+      "actual_failure": "called `Option::unwrap()` on a `None` value",
+      "current_source_sha256": "f901bd24edf5ad22c26f33e4431ae401ea8c6c54f2b97edc4d8e47a8c3047264",
+      "classification": "Current source-selected roles, callback/member parent metadata and original naming geometry",
+      "current_related_source_receipts": [
+        "Grammar475 and source name/root417; complete context required"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "original_context::tests::supplied_editor_entries_do_not_use_logical_purpose_as_source_currency",
+      "path": "rust/tcl-lsp-core/src/original_context.rs",
+      "source_failure_line": 127,
+      "actual_failure": "assertion failed: !crate::definition::definition(source, 0, 13, &analysis).is_empty()",
+      "current_source_sha256": "e95dea7d3e93b9f3ee01004255dc76400081874a6e7eafe1f3df3fe5e460a37b",
+      "classification": "Current complete source/selected declaration query; shared cause not yet measured",
+      "current_related_source_receipts": [],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "receiver_identity::tests::captured_prefix_references_require_actual_capture_and_deferred_registration",
+      "path": "rust/tcl-lsp-core/src/receiver_identity.rs",
+      "source_failure_line": 795,
+      "actual_failure": "assertion failed: crate::rename::prepare_rename(&source, 0, cursor, &analysis).is_some()",
+      "current_source_sha256": "db46e174fcef0ea57f181c7ed5eb7d21acbd0b25a3eb9c24a7cbf34954c41dcf",
+      "classification": "Actual original allocated receiver/method/name occurrence; rename edit permission independent",
+      "current_related_source_receipts": [
+        "Receiver426/434 and source name/root417"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "receiver_identity::tests::original_receiver_entry_is_shared_by_navigation_hover_and_rename",
+      "path": "rust/tcl-lsp-core/src/receiver_identity.rs",
+      "source_failure_line": 975,
+      "actual_failure": "called `Option::unwrap()` on a `None` value",
+      "current_source_sha256": "db46e174fcef0ea57f181c7ed5eb7d21acbd0b25a3eb9c24a7cbf34954c41dcf",
+      "classification": "Actual original allocated receiver/method/name occurrence; rename edit permission independent",
+      "current_related_source_receipts": [
+        "Receiver426/434 and source name/root417"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "receiver_identity::tests::original_receiver_navigation_joins_allocations_without_reporting_maps",
+      "path": "rust/tcl-lsp-core/src/receiver_identity.rs",
+      "source_failure_line": 734,
+      "actual_failure": "an actual method entry must join its original class allocation",
+      "current_source_sha256": "db46e174fcef0ea57f181c7ed5eb7d21acbd0b25a3eb9c24a7cbf34954c41dcf",
+      "classification": "Actual original allocated receiver/method/name occurrence; rename edit permission independent",
+      "current_related_source_receipts": [
+        "Receiver426/434 and source name/root417"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "refactor::extract_proc::selected_source_variable_tests::original_extraction_uses_retained_brace_grammar_and_withdraws_changed_owners",
+      "path": "rust/tcl-lsp-core/src/refactor/extract_proc.rs",
+      "source_failure_line": 2028,
+      "actual_failure": "Some(\"the original command's frame effects are unavailable\")",
+      "current_source_sha256": "f8adbc1bf25328cb4c92478431d5877e0065b042e3e7d9d6c0294ff38545e532",
+      "classification": "Selected source rewrite/extraction and independent Native effect/read/cache edit permissions",
+      "current_related_source_receipts": [
+        "Current source owners; Native erasure/admission unchanged"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "refactor::extract_variable::tests::logical_complete_value_words_keep_explicit_compatibility_behaviour",
+      "path": "rust/tcl-lsp-core/src/refactor/extract_variable.rs",
+      "source_failure_line": 322,
+      "actual_failure": "assertion failed: action.disabled.is_none()",
+      "current_source_sha256": "7b7c344cba091ffd30934ea72f212ae1a06642989862bc850c2b727915b21797",
+      "classification": "Whole-word/source-edit advice admission",
+      "current_related_source_receipts": [
+        "Consumer416b"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "refactor::extract_variable::tests::logical_extraction_keeps_supplied_availability_and_source_configuration",
+      "path": "rust/tcl-lsp-core/src/refactor/extract_variable.rs",
+      "source_failure_line": 411,
+      "actual_failure": "assertion failed: extract_variable(source, (5, end), \"seasoning\", &analyse(older),\n        &index).is_none()",
+      "current_source_sha256": "7b7c344cba091ffd30934ea72f212ae1a06642989862bc850c2b727915b21797",
+      "classification": "Whole-word/source-edit advice admission",
+      "current_related_source_receipts": [
+        "Consumer416b"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "refactor::extract_variable::tests::logical_invalid_multiword_value_never_becomes_a_four_argument_set",
+      "path": "rust/tcl-lsp-core/src/refactor/extract_variable.rs",
+      "source_failure_line": 346,
+      "actual_failure": "assertion failed: run(source, 5, u32::try_from(source.len()).unwrap(), \"result\").is_none()",
+      "current_source_sha256": "7b7c344cba091ffd30934ea72f212ae1a06642989862bc850c2b727915b21797",
+      "classification": "Whole-word/source-edit advice admission",
+      "current_related_source_receipts": [
+        "Consumer416b"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "refactor::extract_variable::tests::logical_one_line_body_insertion_remains_inside_the_original_body",
+      "path": "rust/tcl-lsp-core/src/refactor/extract_variable.rs",
+      "source_failure_line": 364,
+      "actual_failure": "assertion `left == right` failed\n  left: \"proc p {} {puts literal}\"\n right: \"proc p {} {set result literal; puts $result}\"",
+      "current_source_sha256": "7b7c344cba091ffd30934ea72f212ae1a06642989862bc850c2b727915b21797",
+      "classification": "Whole-word/source-edit advice admission",
+      "current_related_source_receipts": [
+        "Consumer416b"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "refactor::inline_variable::tests::original_inline_variable_requires_exact_definition_and_unobserved_read_without_ui_maps",
+      "path": "rust/tcl-lsp-core/src/refactor/inline_variable.rs",
+      "source_failure_line": 624,
+      "actual_failure": "tcl8.4",
+      "current_source_sha256": "a456a2eab5d830a739f30271c56be1e5544eb21e746107f7664d8a7d9d473325",
+      "classification": "Selected source rewrite/extraction and independent Native effect/read/cache edit permissions",
+      "current_related_source_receipts": [
+        "Current source owners; Native erasure/admission unchanged"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "refactor::source_rewrite::tests::original_source_rewrites_require_current_handler_and_distinct_permissions",
+      "path": "rust/tcl-lsp-core/src/refactor/source_rewrite.rs",
+      "source_failure_line": 160,
+      "actual_failure": "selected original expr",
+      "current_source_sha256": "036b4e721620e7ba1b9331dd3dce9e5d7b7d73190264547d0ebdd4cc46da3f05",
+      "classification": "Selected source rewrite/extraction and independent Native effect/read/cache edit permissions",
+      "current_related_source_receipts": [
+        "Current source owners; Native erasure/admission unchanged"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "refactor::source_rewrite::tests::source_rewrites_keep_actual_availability_and_command_horizons",
+      "path": "rust/tcl-lsp-core/src/refactor/source_rewrite.rs",
+      "source_failure_line": 231,
+      "actual_failure": "assertion failed: select(source, invocation_cursor, &analyse(source, older),\n        LoweringHookId::Expr,\n        RewriteObligation::ExpressionEvaluation).is_none()",
+      "current_source_sha256": "036b4e721620e7ba1b9331dd3dce9e5d7b7d73190264547d0ebdd4cc46da3f05",
+      "classification": "Selected source rewrite/extraction and independent Native effect/read/cache edit permissions",
+      "current_related_source_receipts": [
+        "Current source owners; Native erasure/admission unchanged"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands",
+      "path": "rust/tcl-lsp-core/src/references/member_metadata.rs",
+      "source_failure_line": 169,
+      "actual_failure": "called `Option::unwrap()` on a `None` value",
+      "current_source_sha256": "71d7d4ee88ebcbdcd47fba95ebbd99ce0ad7bfb9b7b3d573b6171fdf28bb3d61",
+      "classification": "Current source-selected roles, callback/member parent metadata and original naming geometry",
+      "current_related_source_receipts": [
+        "Grammar475 and source name/root417; complete context required"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "references::member_metadata::tests::member_hazards_refuse_stale_missing_and_unowned_class_metadata",
+      "path": "rust/tcl-lsp-core/src/references/member_metadata.rs",
+      "source_failure_line": 169,
+      "actual_failure": "called `Option::unwrap()` on a `None` value",
+      "current_source_sha256": "71d7d4ee88ebcbdcd47fba95ebbd99ce0ad7bfb9b7b3d573b6171fdf28bb3d61",
+      "classification": "Current source-selected roles, callback/member parent metadata and original naming geometry",
+      "current_related_source_receipts": [
+        "Grammar475 and source name/root417; complete context required"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary",
+      "path": "rust/tcl-lsp-core/src/references/member_metadata.rs",
+      "source_failure_line": 169,
+      "actual_failure": "called `Option::unwrap()` on a `None` value",
+      "current_source_sha256": "71d7d4ee88ebcbdcd47fba95ebbd99ce0ad7bfb9b7b3d573b6171fdf28bb3d61",
+      "classification": "Current source-selected roles, callback/member parent metadata and original naming geometry",
+      "current_related_source_receipts": [
+        "Grammar475 and source name/root417; complete context required"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "references::tests::callback_source_roles_keep_actual_availability_and_original_builder_geometry",
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "source_failure_line": 7397,
+      "actual_failure": "source_callback [namespace code [list source_dispatch selected]]",
+      "current_source_sha256": "6d3a7dc093693049da7e519ed39772d525c6efe084b22207602bca583e1020cb",
+      "classification": "Current source-selected roles, callback/member parent metadata and original naming geometry",
+      "current_related_source_receipts": [
+        "Grammar475 and source name/root417; complete context required"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "references::tests::method_dispatch_scan_uses_retained_custom_schema_and_script_purpose",
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "source_failure_line": 7572,
+      "actual_failure": "assertion `left == right` failed: custom schema is retained; reference-only script is excluded\n  left: 0\n right: 1",
+      "current_source_sha256": "6d3a7dc093693049da7e519ed39772d525c6efe084b22207602bca583e1020cb",
+      "classification": "Current source-selected roles, callback/member parent metadata and original naming geometry",
+      "current_related_source_receipts": [
+        "Grammar475 and source name/root417; complete context required"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "references::tests::method_source_dispatch_keeps_actual_store_availability_and_lookup_barriers",
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "source_failure_line": 7272,
+      "actual_failure": "called `Option::unwrap()` on a `None` value",
+      "current_source_sha256": "6d3a7dc093693049da7e519ed39772d525c6efe084b22207602bca583e1020cb",
+      "classification": "Current source-selected roles, callback/member parent metadata and original naming geometry",
+      "current_related_source_receipts": [
+        "Grammar475 and source name/root417; complete context required"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "rename_safety::original_hazard_context_tests::original_self_hazards_use_selected_helpers_and_captured_selector_positions",
+      "path": "rust/tcl-lsp-core/src/rename_safety.rs",
+      "source_failure_line": 2165,
+      "actual_failure": "assertion `left == right` failed: oo::class create C {method m {} {source_my $selector}}: []\n  left: 0\n right: 1",
+      "current_source_sha256": "5c631c680702efd7bc0d0f0b76a9fe8e7eaf313c000a80e473367fa6c78bf25d",
+      "classification": "Current source-selected roles, callback/member parent metadata and original naming geometry",
+      "current_related_source_receipts": [
+        "Grammar475 and source name/root417; complete context required"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "rename_safety::tests::original_dynamic_name_value_narrowing_stays_in_its_logical_purpose",
+      "path": "rust/tcl-lsp-core/src/rename_safety.rs",
+      "source_failure_line": 1548,
+      "actual_failure": "called `Option::unwrap()` on a `None` value",
+      "current_source_sha256": "5c631c680702efd7bc0d0f0b76a9fe8e7eaf313c000a80e473367fa6c78bf25d",
+      "classification": "Current source-selected roles, callback/member parent metadata and original naming geometry",
+      "current_related_source_receipts": [
+        "Grammar475 and source name/root417; complete context required"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "semantic_tokens::receiver_source::tests::original_registry_and_collection_receivers_keep_selected_child_operands",
+      "path": "rust/tcl-lsp-core/src/semantic_tokens/receiver_source/tests.rs",
+      "source_failure_line": 87,
+      "actual_failure": "assertion failed: method_at(source, &current, None, \"curselection\")",
+      "current_source_sha256": "430d5c68ed990e5b7ab75039ae21b07df27e5f6edcdf5b733a7c2f6580c6e207",
+      "classification": "Genuine factory/collection/loop or current receiver source receipt; imported canonical class unavailable remains distinct",
+      "current_related_source_receipts": [
+        "Semantic366; shared current source/class owner"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "semantic_tokens::selected_source_token_tests::original_loop_handle_advice_keeps_actual_availability_captures_and_inert_data",
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "source_failure_line": 10452,
+      "actual_failure": "assertion failed: handles.contains_key(\"left\")",
+      "current_source_sha256": "142156c62d4bbc9d6b99b7dd99e64953a37d2b914762d6f035de99d8b9cf63be",
+      "classification": "Genuine factory/collection/loop or current receiver source receipt; imported canonical class unavailable remains distinct",
+      "current_related_source_receipts": [
+        "Semantic366; shared current source/class owner"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "semantic_tokens::selected_source_token_tests::original_member_handle_advice_uses_the_genuine_factory_member_body",
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "source_failure_line": 10477,
+      "actual_failure": "assertion failed: regions.iter().any(|(span, _)|\n        {\n            source[span.as_range()].starts_with(\"install item using Engine $win.a\")\n        })",
+      "current_source_sha256": "142156c62d4bbc9d6b99b7dd99e64953a37d2b914762d6f035de99d8b9cf63be",
+      "classification": "Genuine factory/collection/loop or current receiver source receipt; imported canonical class unavailable remains distinct",
+      "current_related_source_receipts": [
+        "Semantic366; shared current source/class owner"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "semantic_tokens::tests::cross_file_constructor_dispatch_resolves",
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "source_failure_line": 7661,
+      "actual_failure": "cross-file `[::Pin new] configure` should resolve; got [(0, 1, 5, 1, 0), (0, 7, 3, 3, 0), (0, 12, 9, 3, 0), (0, 22, 5, 3, 0), (0, 28, 1, 4, 0)]",
+      "current_source_sha256": "142156c62d4bbc9d6b99b7dd99e64953a37d2b914762d6f035de99d8b9cf63be",
+      "classification": "Genuine factory/collection/loop or current receiver source receipt; imported canonical class unavailable remains distinct",
+      "current_related_source_receipts": [
+        "Semantic366; shared current source/class owner"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "semantic_tokens::tests::tcloo_dispatch_pattern_fixture",
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "source_failure_line": 7632,
+      "actual_failure": "TclOO dispatch fixture regressions:\n  bare_self_receiver: `mrun` expected to resolve but did not\n  self_object_receiver: `mrun` expected to resolve but did not\n  configurable_property: `configure` expected to resolve but did not\n  dict_collection: `mrun` expected to resolve but did not\n  foreach_loopvar: `mrun` expected to resolve but did not\n  my_self_call: `helper` expected to resolve but did not\n  snit_self_call: `helper` expected to resolve but did not\n  itcl_this_call: `helper` expected to resolve but did not\n  snit_install_component: `draw` expected to resolve but did not\n  snit_bare_constructor: `run` expected to resolve but did not\n  oo_define_added: `added` expected to resolve but did not\n  registry_class: `Xaxis` expected to resolve but did not\n  widget_bareword: `instate` expected to resolve but did not\n  widget_var_captured: `curselection` expected to resolve but did not\n  snit_named_object: `smeth` expected to resolve but did not",
+      "current_source_sha256": "142156c62d4bbc9d6b99b7dd99e64953a37d2b914762d6f035de99d8b9cf63be",
+      "classification": "Genuine factory/collection/loop or current receiver source receipt; imported canonical class unavailable remains distinct",
+      "current_related_source_receipts": [
+        "Semantic366; shared current source/class owner"
+      ],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    },
+    {
+      "selector": "tk_preview::tests::supplied_tk_preview_keeps_actual_availability_and_refuses_withheld_source",
+      "path": "rust/tcl-lsp-core/src/tk_preview.rs",
+      "source_failure_line": 1564,
+      "actual_failure": "assertion `left == right` failed\n  left: []\n right: [\".kept\", \".new\"]",
+      "current_source_sha256": "972a15a4d21f7b042e8c48f5c13ee90c54a8c7942ef9ecd4bdb24696f1909162",
+      "classification": "Current complete source/selected declaration query; shared cause not yet measured",
+      "current_related_source_receipts": [],
+      "current_outcome": "Unexecuted current image; older Source320 failure remains recorded, with no credit from source changes"
+    }
+  ],
+  "limits": [
+    "Current source changes are not assertion outcomes.",
+    "Readonly Logical/source schemas never supply Native allocation, identity, cell/cache effect or edit authority.",
+    "No nominal reporting map or relaxed frame/store/generation equality is proposed.",
+    "Fresh Root-owned current target ELF/list/assertions must precede residual attribution."
+  ]
+}

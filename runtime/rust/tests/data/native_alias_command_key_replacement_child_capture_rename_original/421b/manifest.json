@@ -1,0 +1,130 @@
+{
+  "packet": "ConsumerNativeAliasCommandKeyRequest421b",
+  "status": "Launch-ready source request after bounded static review; not compiled or run.",
+  "request": {
+    "path": "/workspace/.proofs/consumer-native-alias-key-request421b/request.json",
+    "sha256": "97b490fd1a7493985bcfbb4a82c2cb509ed87867cb2e8915cd1632340da93fb2"
+  },
+  "artifacts": [
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/probe.c",
+      "sha256": "a2935621a5f013d922df37a517ddc31aa9e4d090fbd29c9220a43fd0f7a5cc1c"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/launch.py",
+      "sha256": "dcfcdfc05f268681222dc355557215e58f66adaec993091e0415588cbe30106e"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/request.json",
+      "sha256": "97b490fd1a7493985bcfbb4a82c2cb509ed87867cb2e8915cd1632340da93fb2"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/README.md",
+      "sha256": "022f99014eb6df52c8078c371a192dc9d049dc9fda7a72b98b894dd33e723ea6"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/successor-audit.json",
+      "sha256": "ea9eda6b87c7da7f6f9b35df4f9a43ed900a8057f92156292ebc48da4bf034c4"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/source-windows/8.6.18/AliasCreate.txt",
+      "sha256": "02a92472879ae00d0b0b80d82049d82f44347c9e121f99d8a26fd3aae9ae14dc"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/source-windows/8.6.18/NRChildCmd.txt",
+      "sha256": "d285fd9256df89a564feb782f898a29a6a5f467b6a4f65843234034473e463ec"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/source-windows/9.1.0/TclAliasCreate.txt",
+      "sha256": "b2a103e65f8e7e46fd69b0774918496cc5cbcbbb848b327f1201ac744f5032b2"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/source-windows/9.1.0/NRChildCmd.txt",
+      "sha256": "1a7503b525401e5754c234ee09ec2e76bac6d071f6e9f4f8834795630b3d4947"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/source-windows/8.4.20/SlaveObjCmd.txt",
+      "sha256": "5a5dd2ef4b80252cdf9c62d223e86ba8dda0c23684264d56c8c7e2e262bfc469"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/source-windows/8.4.20/AliasCreate.txt",
+      "sha256": "e4f6365928667a2f76b146a2c644ab0181d59bc91dcf44d61e17b8de0957388b"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/source-windows/9.0.4/TclAliasCreate.txt",
+      "sha256": "9aa11ba352d314e8baee024abc0261b18ea86d02af418f9a14194d8d713aaeb2"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/source-windows/9.0.4/NRChildCmd.txt",
+      "sha256": "3195796bf763a14827e4f72d14169dcbba5fa5610941f5d925bf382db65594bd"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/source-windows/8.5.19/SlaveObjCmd.txt",
+      "sha256": "308fd9f8d03899a29022a9439739d3ca72409b7fbfc5c62d67bd6428b7bb1171"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/source-windows/8.5.19/AliasCreate.txt",
+      "sha256": "85df5cd546d56faf5c713450cad098e398903ffda59f46697edad8163cb76663"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/source-windows/jim/Jim_ReplaceHashEntry.txt",
+      "sha256": "7e625bda60c7cca4119f78f2ce291ef6c6f55cf5d9d9308e6b8baa1b85f28352"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/source-windows/jim/JimInterpAliasProc.txt",
+      "sha256": "c17e254088d471f99fd63eeeee6969c2685e4f8a5bf1887d5a370eaa48af1f74"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/source-windows/jim/Jim_DeleteCommand.txt",
+      "sha256": "2278788ee8b8472e2d8b949c2609f03d3f3d4426f1245b80375b63eea616dcdf"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/source-windows/jim/Jim_AliasCoreCommand.txt",
+      "sha256": "eaf1da3fc71ec64eb25865718d74a98c94b5a723df9c5bd4a7818f741b4ea0fc"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/source-windows/jim/Jim_RegisterCommand.txt",
+      "sha256": "3e5737a3ace018aca088e60e69557390bd34fc4b4cdf5318f3e9233ce3aac96e"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/source-windows/jim/interp_cmd_alias.txt",
+      "sha256": "e7f7c592491865c40507994c7cf0e6b5ba798a60a5d55329c8b1b9870331d018"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/source-windows/jim/Jim_RegisterCmd.txt",
+      "sha256": "4875e01869e5390a5771d9bcf244112136a34257806ed3452ba4aac98982f068"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/source-windows/jim/JimObjectHTKeyValDup.txt",
+      "sha256": "72b7a0b6caa6ea65a131fdf44f0344771b4fdb92bde85b615c5ba8e0b221b7ba"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/source-windows/jim/Jim_RenameCommand.txt",
+      "sha256": "a7d9b6bef355eb8c28b4db36d5c51ece22f60d1ae091e4555c90a0c05f6b22ab"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-request421b/source-windows/jim/JimCreateCommand.txt",
+      "sha256": "2641f3e7e94a6f889b56cef32d0f7a3f47f453b2f4d7b62699e263fc3df5ba7d"
+    }
+  ],
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "cases": [
+    1,
+    7,
+    8,
+    9,
+    10
+  ],
+  "static_review": {
+    "reviewer": "/root/receiver_finish",
+    "scope": "Held names/query member lifetime, real child public API, C callback/count distinction, actual State lifetime. No blocker; streaming hash and five-case receipt prose corrected in421b.",
+    "status": "Bounded static source review only; no launch/Native/provider/software result."
+  }
+}

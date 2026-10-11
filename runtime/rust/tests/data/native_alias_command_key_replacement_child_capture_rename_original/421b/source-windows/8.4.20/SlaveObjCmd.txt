@@ -1,0 +1,165 @@
+1862:  *
+1863:  *----------------------------------------------------------------------
+1864:  */
+1865: 
+1866: static int
+1867: SlaveObjCmd(clientData, interp, objc, objv)
+1868:     ClientData clientData;	/* Slave interpreter. */
+1869:     Tcl_Interp *interp;		/* Current interpreter. */
+1870:     int objc;			/* Number of arguments. */
+1871:     Tcl_Obj *CONST objv[];	/* Argument objects. */
+1872: {
+1873:     Tcl_Interp *slaveInterp;
+1874:     int index;
+1875:     static CONST char *options[] = {
+1876:         "alias",	"aliases",	"eval",		"expose",
+1877:         "hide",		"hidden",	"issafe",	"invokehidden",
+1878:         "marktrusted",	"recursionlimit", NULL
+1879:     };
+1880:     enum options {
+1881: 	OPT_ALIAS,	OPT_ALIASES,	OPT_EVAL,	OPT_EXPOSE,
+1882: 	OPT_HIDE,	OPT_HIDDEN,	OPT_ISSAFE,	OPT_INVOKEHIDDEN,
+1883: 	OPT_MARKTRUSTED, OPT_RECLIMIT
+1884:     };
+1885:     
+1886:     slaveInterp = (Tcl_Interp *) clientData;
+1887:     if (slaveInterp == NULL) {
+1888: 	panic("SlaveObjCmd: interpreter has been deleted");
+1889:     }
+1890: 
+1891:     if (objc < 2) {
+1892:         Tcl_WrongNumArgs(interp, 1, objv, "cmd ?arg ...?");
+1893:         return TCL_ERROR;
+1894:     }
+1895:     if (Tcl_GetIndexFromObj(interp, objv[1], options, "option", 0,
+1896: 	    &index) != TCL_OK) {
+1897: 	return TCL_ERROR;
+1898:     }
+1899: 
+1900:     switch ((enum options) index) {
+1901: 	case OPT_ALIAS: {
+1902: 	    if (objc > 2) {
+1903: 		if (objc == 3) {
+1904: 		    return AliasDescribe(interp, slaveInterp, objv[2]);
+1905: 		}
+1906: 		if (Tcl_GetString(objv[3])[0] == '\0') {
+1907: 		    if (objc == 4) {
+1908: 			return AliasDelete(interp, slaveInterp, objv[2]);
+1909: 		    }
+1910: 		} else {
+1911: 		    return AliasCreate(interp, slaveInterp, interp, objv[2],
+1912: 			    objv[3], objc - 4, objv + 4);
+1913: 		}
+1914: 	    }
+1915: 	    Tcl_WrongNumArgs(interp, 2, objv,
+1916: 		    "aliasName ?targetName? ?args..?");
+1917:             return TCL_ERROR;
+1918: 	}
+1919: 	case OPT_ALIASES: {
+1920: 	    if (objc != 2) {
+1921: 		Tcl_WrongNumArgs(interp, 2, objv, (char *) NULL);
+1922: 		return TCL_ERROR;
+1923: 	    }
+1924: 	    return AliasList(interp, slaveInterp);
+1925: 	}
+1926: 	case OPT_EVAL: {
+1927: 	    if (objc < 3) {
+1928: 		Tcl_WrongNumArgs(interp, 2, objv, "arg ?arg ...?");
+1929: 		return TCL_ERROR;
+1930: 	    }
+1931: 	    return SlaveEval(interp, slaveInterp, objc - 2, objv + 2);
+1932: 	}
+1933:         case OPT_EXPOSE: {
+1934: 	    if ((objc < 3) || (objc > 4)) {
+1935: 		Tcl_WrongNumArgs(interp, 2, objv, "hiddenCmdName ?cmdName?");
+1936: 		return TCL_ERROR;
+1937: 	    }
+1938:             return SlaveExpose(interp, slaveInterp, objc - 2, objv + 2);
+1939: 	}
+1940: 	case OPT_HIDE: {
+1941: 	    if ((objc < 3) || (objc > 4)) {
+1942: 		Tcl_WrongNumArgs(interp, 2, objv, "cmdName ?hiddenCmdName?");
+1943: 		return TCL_ERROR;
+1944: 	    }
+1945:             return SlaveHide(interp, slaveInterp, objc - 2, objv + 2);
+1946: 	}
+1947:         case OPT_HIDDEN: {
+1948: 	    if (objc != 2) {
+1949: 		Tcl_WrongNumArgs(interp, 2, objv, NULL);
+1950: 		return TCL_ERROR;
+1951: 	    }
+1952:             return SlaveHidden(interp, slaveInterp);
+1953: 	}
+1954:         case OPT_ISSAFE: {
+1955: 	    if (objc != 2) {
+1956: 		Tcl_WrongNumArgs(interp, 2, objv, (char *) NULL);
+1957: 		return TCL_ERROR;
+1958: 	    }
+1959: 	    Tcl_SetIntObj(Tcl_GetObjResult(interp), Tcl_IsSafe(slaveInterp));
+1960: 	    return TCL_OK;
+1961: 	}
+1962:         case OPT_INVOKEHIDDEN: {
+1963: 	    int global, i, index;
+1964: 	    static CONST char *hiddenOptions[] = {
+1965: 		"-global",	"--",		NULL
+1966: 	    };
+1967: 	    enum hiddenOption {
+1968: 		OPT_GLOBAL,	OPT_LAST
+1969: 	    };
+1970: 	    global = 0;
+1971: 	    for (i = 2; i < objc; i++) {
+1972: 		if (Tcl_GetString(objv[i])[0] != '-') {
+1973: 		    break;
+1974: 		}
+1975: 		if (Tcl_GetIndexFromObj(interp, objv[i], hiddenOptions,
+1976: 			"option", 0, &index) != TCL_OK) {
+1977: 		    return TCL_ERROR;
+1978: 		}
+1979: 		if (index == OPT_GLOBAL) {
+1980: 		    global = 1;
+1981: 		} else {
+1982: 		    i++;
+1983: 		    break;
+1984: 		}
+1985: 	    }
+1986: 	    if (objc - i < 1) {
+1987: 		Tcl_WrongNumArgs(interp, 2, objv,
+1988: 			"?-global? ?--? cmd ?arg ..?");
+1989: 		return TCL_ERROR;
+1990: 	    }
+1991: 	    return SlaveInvokeHidden(interp, slaveInterp, global, objc - i,
+1992: 		    objv + i);
+1993: 	}
+1994: 	case OPT_MARKTRUSTED: {
+1995: 	    if (objc != 2) {
+1996: 		Tcl_WrongNumArgs(interp, 2, objv, NULL);
+1997: 		return TCL_ERROR;
+1998: 	    }
+1999:             return SlaveMarkTrusted(interp, slaveInterp);
+2000: 	}
+2001: 	case OPT_RECLIMIT: {
+2002: 	    if (objc != 2 && objc != 3) {
+2003: 		Tcl_WrongNumArgs(interp, 2, objv, "?newlimit?");
+2004: 		return TCL_ERROR;
+2005: 	    }
+2006: 	    return SlaveRecursionLimit(interp, slaveInterp, objc - 2, objv + 2);
+2007: 	}
+2008:     }
+2009: 
+2010:     return TCL_ERROR;
+2011: }
+2012: 
+2013: /*
+2014:  *----------------------------------------------------------------------
+2015:  *
+2016:  * SlaveObjCmdDeleteProc --
+2017:  *
+2018:  *	Invoked when an object command for a slave interpreter is deleted;
+2019:  *	cleans up all state associated with the slave interpreter and destroys
+2020:  *	the slave interpreter.
+2021:  *
+2022:  * Results:
+2023:  *	None.
+2024:  *
+2025:  * Side effects:
+2026:  *	Cleans up all state associated with the slave interpreter and

@@ -1,0 +1,23 @@
+{
+  "format": "gzip",
+  "stored_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen324/sealed-own-core-image/pinned-core324.elf.gz",
+  "stored_sha256": "627ae5c83e2c83240f4b77651830fb262a62aa9a64baa59162ee825cf9314f0c",
+  "stored_bytes": 31329998,
+  "original_sha256": "fd6b0ae996287c9e4567a0cba61d8acbca1ad8273c4a13e31eb0eeb92a86d4db",
+  "original_bytes": 174022912,
+  "original_mode": 448,
+  "original_recorded_executable": "/tmp/naming-owned324/pinned-core324.elf",
+  "original_mtime_ns": 1791687877158021265,
+  "pin_metadata_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen324/sealed-own-core-image/pinned-core324.json",
+  "pin_metadata_sha256": "843f4fd0c92edbce487a1c6dbfd4960743dd4026bc0ce89edd03edf1ef00cac6",
+  "build_receipt_id": "rust.frozen324.integration-core-own-test-build324",
+  "build_receipt_sha256": "5b805eefa7f0b62c7838b38f7176404cc6a5300f069f41a636e4d80f133a926d",
+  "source_snapshot": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen324/integration-compiler-own-test-build324/source-snapshot.json.gz",
+    "sha256": "daa7896bce7680e0b5c7f34b6511ba59b52cc828f8a2112bf68fc550e45038a4",
+    "compression": "gzip",
+    "uncompressed_sha256": "9b43cb76b4b144f8bc41747f20633081441134cca8ff0f4b51c1b2fca60e1c32"
+  },
+  "verification": "Independent successful own Core no-run producer, actual fresh:false library-test Cargo artifact with features[], strict original pin and complete immutable source association. Full gzip decompression byte SHA/size and unchanged original mode/inode/times/nlink verified. Original executable remains untouched; no raw duplicate, replacement, retirement or assertion launch.",
+  "restoration": "Verify stored compressed SHA/size, then full decompressed original SHA/size before writing an independent destination. Apply original recorded mode. Restore the exact recorded original executable path before replaying its original command; never replace an active executable."
+}

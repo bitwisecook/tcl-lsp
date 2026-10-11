@@ -1,0 +1,22 @@
+{
+  "command": [
+    "python3",
+    "/workspace/.proofs/consumer-native-alias-key-request421b/launch.py"
+  ],
+  "cwd": "/workspace/.proofs/consumer-native-alias-key-request421b",
+  "started_ns": 1791689005994334594,
+  "ended_ns": 1791689012344923446,
+  "exit_code": 0,
+  "manifest_sha256": "3c5a8b75b847cb7e600db6736371877e47ac114ebc0dfc04423e4c2ee833b5b4",
+  "request_sha256": "97b490fd1a7493985bcfbb4a82c2cb509ed87867cb2e8915cd1632340da93fb2",
+  "stdout": {
+    "path": "/workspace/.proofs/native-alias-key421b-outer.stdout",
+    "sha256": "02485e6804e551563bbe6eb814a9f2c29cc49fbaa6327542960224ab1ad017b5"
+  },
+  "stderr": {
+    "path": "/workspace/.proofs/native-alias-key421b-outer.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "manifest_unchanged": true,
+  "manifested_inputs_unchanged": true
+}

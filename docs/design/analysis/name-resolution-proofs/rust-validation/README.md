@@ -3770,3 +3770,70 @@ Source320 strict Compiler image. The canonical full source snapshot and
 lossless image are reused by whole hash; no new raw executable is copied.
 All original Native/provider answers and other closed command outcomes remain
 unchanged.
+
+## Core324 own producer, inventory and selected assertions
+
+The independent own Core324 library-test no-run producer succeeds after
+157.82230181599152 seconds with uniform source `true`. Its actual Cargo
+artifact is `fresh: false`, with features `[]`. The exact strict image
+lists 2,948 unique tests after 0.04774934099987149 seconds. These two
+commands execute no assertions and supply no executable credit to the
+independently failed Compiler324 producer.
+
+The separately admitted 58-selector command closes after
+97.28901534501347 seconds with **10 passed, 48 failed, 0 ignored and
+2,890 filtered**. This is a selected result, not the whole Core suite.
+The three new formatting/minifier controls pass within that selection:
+complete parent configuration and nested BOM content in formatter body
+parsing, the selected mid-file range prologue purpose, and minifier
+body/document configuration correspondence. Their exact bodies and
+results grant no body execution or external-provider outcome. The other
+seven passes and all 48 failures remain independently recorded.
+
+| Closed operation | Exact result | Original receipt | Whole log |
+| --- | --- | --- | --- |
+| `integration-core-own-test-build324` | own build only; no assertions | [lossless original](frozen324/integration-core-own-test-build324/receipt.json.gz) | [whole log](frozen324/integration-core-own-test-build324/tests.log) |
+| `integration-core-owned-list324` | 2948-test listing; no assertions | [lossless original](frozen324/integration-core-owned-list324/receipt.json.gz) | [whole log](frozen324/integration-core-owned-list324/tests.log) |
+| `integration-core-failures-and-parser-controls324` | 10 passed / 48 failed; 2890 filtered | [lossless original](frozen324/integration-core-failures-and-parser-controls324/receipt.json.gz) | [whole log](frozen324/integration-core-failures-and-parser-controls324/tests.log) |
+
+The [complete original source snapshot](frozen324/integration-compiler-own-test-build324/source-snapshot.json.gz) retains
+the 35,932-leaf immutable Source324 input and actual compile root
+`naming-current-validation323`. It is reused by its whole compressed and
+decompressed hashes; all original source leaves match its retained map.
+The [actual selection request](frozen324/selections/current-core-failures-and-parser-controls324-request.json),
+[listing admission](frozen324/selections/current-core-failures-and-parser-controls324-admission.json) and
+[58 original outcomes and source meanings](frozen324/selections/selected-58-outcomes-and-source-purpose.json)
+retain the exact original argv, independent input roles and per-test
+results. Current repairs do not alter these measured source boundaries.
+
+The [strict original metadata](frozen324/sealed-own-core-image/pinned-core324.json)
+and [lossless executable map](frozen324/sealed-own-core-image/lossless-core-image-storage.json)
+join the independently successful own producer and exact original
+174,022,912-byte ELF. Whole gzip roundtrip SHA/size, original mode and
+unchanged original allocation/times are verified. The original image is
+untouched; no extra raw executable copy is created.
+
+Restore a separate copy only after both whole-payload integrity checks;
+this snippet launches no assertion:
+
+```python
+from pathlib import Path
+import gzip, hashlib, json
+base = Path("docs/design/analysis/name-resolution-proofs/rust-validation/frozen324/sealed-own-core-image")
+record = json.loads((base / "lossless-core-image-storage.json").read_text())
+packed = (base / "pinned-core324.elf.gz").read_bytes()
+assert len(packed) == record["stored_bytes"]
+assert hashlib.sha256(packed).hexdigest() == record["stored_sha256"]
+original = gzip.decompress(packed)
+assert len(original) == record["original_bytes"]
+assert hashlib.sha256(original).hexdigest() == record["original_sha256"]
+restored = Path("/tmp/restored-core324.elf")
+restored.write_bytes(original)
+restored.chmod(record["original_mode"])
+```
+
+Original argv replay requires restoration to its exact recorded executable
+path before launching that command. Restoration must preserve any active
+image. Neither the own producer nor the listing extends the selected
+result to current source, complete Core coverage, Native parity or a
+combined validation gate.

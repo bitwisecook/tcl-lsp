@@ -1,0 +1,18 @@
+{
+  "packet": "ConsumerNativeAliasKeyInterpretation421b",
+  "status": "Read-only interpretation of actual Root-owned original capture; no Rust assertion outcome.",
+  "artifacts": [
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-interpretation421b/interpretation.json",
+      "sha256": "b7476fa8db62ab8287c301660af0515df370b45857744b9413be9be457a15e37"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-interpretation421b/README.md",
+      "sha256": "c42fde5f9b6f19384db6eabd4df9314b339521a9330a0a12cf5b7a2c49751a5b"
+    },
+    {
+      "path": "/workspace/.proofs/consumer-native-alias-key-interpretation421b/interpret.py",
+      "sha256": "4dbeef23fe9dbd5a81278d686a47462aca7791e0437ddd2301af267b4e1f709e"
+    }
+  ]
+}

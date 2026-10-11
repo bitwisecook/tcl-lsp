@@ -1,0 +1,165 @@
+1860:  *
+1861:  *----------------------------------------------------------------------
+1862:  */
+1863: 
+1864: int
+1865: TclAliasCreate(
+1866:     Tcl_Interp *interp,		/* Interp for error reporting. */
+1867:     Tcl_Interp *childInterp,	/* Interp where alias cmd will live or from
+1868: 				 * which alias will be deleted. */
+1869:     Tcl_Interp *parentInterp,	/* Interp in which target command will be
+1870: 				 * invoked. */
+1871:     Tcl_Obj *namePtr,		/* Name of alias cmd. */
+1872:     Tcl_Obj *targetCmdPtr,	/* Name of target cmd. */
+1873:     Tcl_Size objc,		/* Additional arguments to store */
+1874:     Tcl_Obj *const *objv)	/* with alias. */
+1875: {
+1876:     Alias *aliasPtr;
+1877:     Tcl_HashEntry *hPtr;
+1878:     Target *targetPtr;
+1879:     Child *childPtr;
+1880:     Parent *parentPtr;
+1881:     Tcl_Obj **prefv;
+1882:     int isNew;
+1883:     Tcl_Size i;
+1884: 
+1885:     aliasPtr = (Alias *) Tcl_Alloc(sizeof(Alias) + objc * sizeof(Tcl_Obj *));
+1886:     aliasPtr->token = namePtr;
+1887:     Tcl_IncrRefCount(aliasPtr->token);
+1888:     aliasPtr->targetInterp = parentInterp;
+1889: 
+1890:     aliasPtr->objc = objc + 1;
+1891:     prefv = &aliasPtr->objPtr;
+1892: 
+1893:     *prefv = targetCmdPtr;
+1894:     Tcl_IncrRefCount(targetCmdPtr);
+1895:     for (i = 0; i < objc; i++) {
+1896: 	*(++prefv) = objv[i];
+1897: 	Tcl_IncrRefCount(objv[i]);
+1898:     }
+1899: 
+1900:     Tcl_Preserve(childInterp);
+1901:     Tcl_Preserve(parentInterp);
+1902: 
+1903:     if (childInterp == parentInterp) {
+1904: 	aliasPtr->childCmd = Tcl_NRCreateCommand2(childInterp,
+1905: 		TclGetString(namePtr), TclLocalAliasObjCmd, AliasNRCmd,
+1906: 		aliasPtr, AliasObjCmdDeleteProc);
+1907:     } else {
+1908: 	aliasPtr->childCmd = Tcl_CreateObjCommand2(childInterp,
+1909: 		TclGetString(namePtr), TclAliasObjCmd, aliasPtr,
+1910: 		AliasObjCmdDeleteProc);
+1911:     }
+1912: 
+1913:     if (TclPreventAliasLoop(interp, childInterp,
+1914: 	    aliasPtr->childCmd) != TCL_OK) {
+1915: 	/*
+1916: 	 * Found an alias loop! The last call to Tcl_CreateObjCommand made the
+1917: 	 * alias point to itself. Delete the command and its alias record. Be
+1918: 	 * careful to wipe out its client data first, so the command doesn't
+1919: 	 * try to delete itself.
+1920: 	 */
+1921: 
+1922: 	Command *cmdPtr;
+1923: 
+1924: 	Tcl_DecrRefCount(aliasPtr->token);
+1925: 	Tcl_DecrRefCount(targetCmdPtr);
+1926: 	for (i = 0; i < objc; i++) {
+1927: 	    Tcl_DecrRefCount(objv[i]);
+1928: 	}
+1929: 
+1930: 	cmdPtr = (Command *) aliasPtr->childCmd;
+1931: 	cmdPtr->clientData = NULL;
+1932: 	cmdPtr->deleteProc = NULL;
+1933: 	cmdPtr->deleteData = NULL;
+1934: 	Tcl_DeleteCommandFromToken(childInterp, aliasPtr->childCmd);
+1935: 
+1936: 	Tcl_Free(aliasPtr);
+1937: 
+1938: 	/*
+1939: 	 * The result was already set by TclPreventAliasLoop.
+1940: 	 */
+1941: 
+1942: 	Tcl_Release(childInterp);
+1943: 	Tcl_Release(parentInterp);
+1944: 	return TCL_ERROR;
+1945:     }
+1946: 
+1947:     /*
+1948:      * Make an entry in the alias table. If it already exists, retry.
+1949:      */
+1950: 
+1951:     childPtr = &INTERP_INFO(childInterp)->child;
+1952:     while (1) {
+1953: 	Tcl_Obj *newToken;
+1954: 	const char *string;
+1955: 
+1956: 	string = TclGetString(aliasPtr->token);
+1957: 	hPtr = Tcl_CreateHashEntry(&childPtr->aliasTable, string, &isNew);
+1958: 	if (isNew != 0) {
+1959: 	    break;
+1960: 	}
+1961: 
+1962: 	/*
+1963: 	 * The alias name cannot be used as unique token, it is already taken.
+1964: 	 * We can produce a unique token by prepending "::" repeatedly. This
+1965: 	 * algorithm is a stop-gap to try to maintain the command name as
+1966: 	 * token for most use cases, fearful of possible backwards compat
+1967: 	 * problems. A better algorithm would produce unique tokens that need
+1968: 	 * not be related to the command name.
+1969: 	 *
+1970: 	 * ATTENTION: the tests in interp.test and possibly safe.test depend
+1971: 	 * on the precise definition of these tokens.
+1972: 	 */
+1973: 
+1974: 	TclNewLiteralStringObj(newToken, "::");
+1975: 	Tcl_AppendObjToObj(newToken, aliasPtr->token);
+1976: 	Tcl_DecrRefCount(aliasPtr->token);
+1977: 	aliasPtr->token = newToken;
+1978: 	Tcl_IncrRefCount(aliasPtr->token);
+1979:     }
+1980: 
+1981:     aliasPtr->aliasEntryPtr = hPtr;
+1982:     Tcl_SetHashValue(hPtr, aliasPtr);
+1983: 
+1984:     /*
+1985:      * Create the new command. We must do it after deleting any old command,
+1986:      * because the alias may be pointing at a renamed alias, as in:
+1987:      *
+1988:      * interp alias {} foo {} bar		# Create an alias "foo"
+1989:      * rename foo zop				# Now rename the alias
+1990:      * interp alias {} foo {} zop		# Now recreate "foo"...
+1991:      */
+1992: 
+1993:     targetPtr = (Target *) Tcl_Alloc(sizeof(Target));
+1994:     targetPtr->childCmd = aliasPtr->childCmd;
+1995:     targetPtr->childInterp = childInterp;
+1996: 
+1997:     parentPtr = &INTERP_INFO(parentInterp)->parent;
+1998:     targetPtr->nextPtr = parentPtr->targetsPtr;
+1999:     targetPtr->prevPtr = NULL;
+2000:     if (parentPtr->targetsPtr != NULL) {
+2001: 	parentPtr->targetsPtr->prevPtr = targetPtr;
+2002:     }
+2003:     parentPtr->targetsPtr = targetPtr;
+2004:     aliasPtr->targetPtr = targetPtr;
+2005: 
+2006:     Tcl_SetObjResult(interp, aliasPtr->token);
+2007: 
+2008:     Tcl_Release(childInterp);
+2009:     Tcl_Release(parentInterp);
+2010:     return TCL_OK;
+2011: }
+2012: 
+2013: /*
+2014:  *----------------------------------------------------------------------
+2015:  *
+2016:  * AliasDelete --
+2017:  *
+2018:  *	Deletes the given alias from the child interpreter given.
+2019:  *
+2020:  * Results:
+2021:  *	A standard Tcl result.
+2022:  *
+2023:  * Side effects:
+2024:  *	Deletes the alias from the child interpreter.

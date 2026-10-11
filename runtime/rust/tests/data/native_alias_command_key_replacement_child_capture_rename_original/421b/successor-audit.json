@@ -1,0 +1,12 @@
+{
+  "predecessor_manifest": {
+    "path": "/workspace/.proofs/consumer-native-alias-key-request421/manifest.json",
+    "sha256": "be6fb8ae9eecf317a5153c3083b85f21ef131c83f8885453cd49ec6eac9cfc97"
+  },
+  "corrections": [
+    "Streaming SHA256 for actual library/ELF inputs in launch.py",
+    "required_receipts states the actual five cases, preserving all six providers"
+  ],
+  "probe_unchanged_sha256": "a2935621a5f013d922df37a517ddc31aa9e4d090fbd29c9220a43fd0f7a5cc1c",
+  "original_packet_unchanged": true
+}

@@ -1,0 +1,647 @@
+{
+  "original_request_sha256": "062c518a494fc73e597fb5a65e9900601df4b134d28ddfa0e447efc700a670da",
+  "actual_admission_sha256": "9065301f3361cc40e2329129a9f0f970cbc2f97454e256e5a04be57add74a665",
+  "original_run_receipt_sha256": "b3ba2884800be7f434d0a779a8d7213d7eeb0d01b74699d64c18a8b242facc14",
+  "whole_log_sha256": "c68f9674e1e1f04b5e9d829f12d804817515a6a4bf062f6ae908eb39518b8cb1",
+  "strict_image_sha256": "fd6b0ae996287c9e4567a0cba61d8acbca1ad8273c4a13e31eb0eeb92a86d4db",
+  "source_snapshot_sha256": "9b43cb76b4b144f8bc41747f20633081441134cca8ff0f4b51c1b2fca60e1c32",
+  "result": {
+    "passed": 10,
+    "failed": 48,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 2890
+  },
+  "tests": [
+    {
+      "selector": "call_hierarchy::original_source_context_tests::original_method_hierarchy_uses_selected_helpers_and_same_source_frame",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/call_hierarchy.rs",
+      "original_source_sha256": "1da5eaaf83b5c955488f981d42e449f3ebd08e9b47d445df22060c9862264c8e",
+      "test_body_sha256": "98708686c7fc167c4234f8824d3e4be4ebc82bc0c3c079a3eef93769a054808b",
+      "proof_ids": [
+        "naming.core.original-dispatch-region-context"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "caller_frame::original_binding_region_purpose_tests::original_binding_regions_keep_selected_frame_body_and_whole_file_purposes",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "original_source_sha256": "f27182baa0464af6955e2686feefecbc818f1e09b60db65241a38e2ec383ebd0",
+      "test_body_sha256": "66b24b0c46e3fce7d728503d0286009dc8847476ce7e41d62106a21a9af20b0b",
+      "proof_ids": [
+        "naming.source.original-configured-script-completeness"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "code_actions::diagnostic_context::tests::original_context_diagnostic_currency_keeps_the_complete_availability_owner",
+      "status": "passed",
+      "source_path": "rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs",
+      "original_source_sha256": "5ca2607384a9a76f951326b85d9e2d7f47340affd6254c85191847a58435357c",
+      "test_body_sha256": "8ea5dfda5be006181f71fdd53d37b2998c7c2f5d553d87539576374d6909217e",
+      "proof_ids": [
+        "naming.editor.original-diagnostic-edit-currency"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "code_actions::diagnostic_context::tests::original_diagnostic_actions_keep_typed_sink_and_source_when_prose_changes",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs",
+      "original_source_sha256": "5ca2607384a9a76f951326b85d9e2d7f47340affd6254c85191847a58435357c",
+      "test_body_sha256": "8651008e8dd8e577c10b74ce3cea348ce68f05f5b6d37b169e18565313609ae0",
+      "proof_ids": [
+        "naming.consumer.original-diagnostic-source-actions"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "code_actions::diagnostic_context::tests::original_diagnostic_actions_refuse_stale_source_configuration_registry_and_range",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs",
+      "original_source_sha256": "5ca2607384a9a76f951326b85d9e2d7f47340affd6254c85191847a58435357c",
+      "test_body_sha256": "49459f87ef1f56567deef200e324533c284a95561f5c4ba4680520a02cb18299",
+      "proof_ids": [
+        "naming.consumer.original-diagnostic-source-actions"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "declaration::original_declaration_region_purpose_tests::original_declaration_regions_keep_actual_parent_config_and_nested_bom_geometry",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/declaration.rs",
+      "original_source_sha256": "015b2f41a443ab7b91fda07ef054516316d355ec16411cbd38f0ec50b0f62134",
+      "test_body_sha256": "90b2654f8acfa529c0981ba4aa62e7c6279ea78ce671e69656bd534bb7a68061",
+      "proof_ids": [
+        "naming.source.original-configured-script-completeness"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "declaration::tests::declaration_scan_uses_the_declared_local_tail_of_a_global_name",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/declaration.rs",
+      "original_source_sha256": "015b2f41a443ab7b91fda07ef054516316d355ec16411cbd38f0ec50b0f62134",
+      "test_body_sha256": "dec86e4906ef26731696722da5a5c1c4397e415f7fcdc873b89c8d32dce05e5a",
+      "proof_ids": [],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "declaration::tests::global_declaration_in_proc_body",
+      "status": "passed",
+      "source_path": "rust/tcl-lsp-core/src/declaration.rs",
+      "original_source_sha256": "015b2f41a443ab7b91fda07ef054516316d355ec16411cbd38f0ec50b0f62134",
+      "test_body_sha256": "fa4cc5b59a4f3978bc6322fc63cd6ad0ae994e3968bbc54c0c245e7cbaf55783",
+      "proof_ids": [],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "declaration::tests::global_declared_inside_apply_lambda_body_is_found",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/declaration.rs",
+      "original_source_sha256": "015b2f41a443ab7b91fda07ef054516316d355ec16411cbd38f0ec50b0f62134",
+      "test_body_sha256": "080a8c45b1e8daa77bb8b41caf494ca64115d06e04ead500a4e78a64a3728439",
+      "proof_ids": [],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "declaration::tests::global_declared_inside_control_flow_body_is_found",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/declaration.rs",
+      "original_source_sha256": "015b2f41a443ab7b91fda07ef054516316d355ec16411cbd38f0ec50b0f62134",
+      "test_body_sha256": "2d4e28e7c07ddd97e13c0b67d35c9382dd74b25ec6b6184753cbac7e7e399817",
+      "proof_ids": [],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "declaration::tests::original_alias_declaration_navigation_keeps_the_independent_local_operand",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/declaration.rs",
+      "original_source_sha256": "015b2f41a443ab7b91fda07ef054516316d355ec16411cbd38f0ec50b0f62134",
+      "test_body_sha256": "ef3e083151d17bda01935ebde6f10976465c76965c278f72d73fafde01afe379",
+      "proof_ids": [],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "declaration::tests::original_logical_declarations_join_global_aliases_without_local_root_stripping",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/declaration.rs",
+      "original_source_sha256": "015b2f41a443ab7b91fda07ef054516316d355ec16411cbd38f0ec50b0f62134",
+      "test_body_sha256": "b64140a162fece4ad2925140e733f28f0fd2c5f5c2fb854131be4d493e4db017",
+      "proof_ids": [
+        "naming.core.original-declaration-navigation"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "declaration::tests::original_logical_declarations_keep_qualified_targets_and_current_source_owners",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/declaration.rs",
+      "original_source_sha256": "015b2f41a443ab7b91fda07ef054516316d355ec16411cbd38f0ec50b0f62134",
+      "test_body_sha256": "66135e3639a0ed536713eea6f02a4d4d4b0cfb54263091ee072870b8bda74870",
+      "proof_ids": [
+        "naming.core.original-declaration-navigation"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "declaration::tests::upvar_local_alias_is_a_declaration",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/declaration.rs",
+      "original_source_sha256": "015b2f41a443ab7b91fda07ef054516316d355ec16411cbd38f0ec50b0f62134",
+      "test_body_sha256": "9e0c5b99f8c899a30592423011f29e24c6549e498e70d67b92a729174ac5bfc4",
+      "proof_ids": [],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "definition::original_next_source_context_tests::original_next_definition_uses_captured_target_and_selected_availability",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/definition.rs",
+      "original_source_sha256": "9a007866a6ef2779b4535505e5ff36fff9d98866862ca8a8c09259324a56c5c8",
+      "test_body_sha256": "5d9f5d24aad8bd328746fafb4794ec070fd16bd021ce0514782ee4fd8ca5d53f",
+      "proof_ids": [
+        "naming.core.original-dispatch-region-context"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "definition::tests::original_external_visibility_keeps_variable_and_object_names_separate_from_self_dispatch",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/definition.rs",
+      "original_source_sha256": "9a007866a6ef2779b4535505e5ff36fff9d98866862ca8a8c09259324a56c5c8",
+      "test_body_sha256": "377a28ca8158d60c86badd404cfce8c2e03999e29eaa3dd509e5344e59a6f96f",
+      "proof_ids": [
+        "naming.core.original-dispatch-region-context"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "definition::tests::original_source_visibility_keeps_full_lexer_input_and_conditional_mask_purpose",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/definition.rs",
+      "original_source_sha256": "9a007866a6ef2779b4535505e5ff36fff9d98866862ca8a8c09259324a56c5c8",
+      "test_body_sha256": "d4a310de433bbdb689bf2ba18d1d41a446e45aa2cdc821971a45729f04d252d6",
+      "proof_ids": [
+        "naming.core.original-dispatch-region-context"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "diagnostic_report::tests::supplied_policy_rewrites_keep_actual_source_config_and_refresh_directives",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/diagnostic_report.rs",
+      "original_source_sha256": "974c439e34d9964b42f0c971718f3ec23ab85f1512b2f0c4dd3951ef110a7ad1",
+      "test_body_sha256": "431954ec85e8e2fb5b9031654b301c887c14bbdf5cd3c6db57f094d2aa14a1f1",
+      "proof_ids": [
+        "naming.compiler.original-analysis-metadata-context"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "document_links::original_hosted_document_link_tests::original_source_path_links_use_selected_operations_and_authentic_bound_values",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/document_links.rs",
+      "original_source_sha256": "ecb09ac2fdf86b5740dbd68a23f8d6dd2dbadc9c8c1d5ff835f6dc62308e3057",
+      "test_body_sha256": "9dac77699c809c38889da56bab47606e72373762264ef86a899c5760f48718c2",
+      "proof_ids": [
+        "naming.navigation.retained-path-source-inventory"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "document_links::tests::original_source_links_use_actual_selected_navigation_and_decline_shadows_or_stale_input",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/document_links.rs",
+      "original_source_sha256": "ecb09ac2fdf86b5740dbd68a23f8d6dd2dbadc9c8c1d5ff835f6dc62308e3057",
+      "test_body_sha256": "4bd8df4fe1937e4efa311062da4190faa2709782aa87ea8d86f6f2553dd2898a",
+      "proof_ids": [
+        "naming.navigation.retained-path-source-inventory"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "formatting::engine::tests::original_formatter_body_parsing_keeps_bom_content_and_complete_parent_config",
+      "status": "passed",
+      "source_path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+      "original_source_sha256": "0f824bd15a65de6e1bf7967af535f14fd71350b69ac56a6c417a0edba19a8701",
+      "test_body_sha256": "f0898b6530eaf76476cae01fdfc22d1c17ee9b68989f338f81426015b050b844",
+      "proof_ids": [
+        "naming.source.original-configured-script-completeness"
+      ],
+      "meaning": "Retained complete FirstClose configuration and nested body BOM content across proc/apply/switch formatting; the selected body parser keeps BOM content while the file prologue remains a separate purpose."
+    },
+    {
+      "selector": "formatting::engine::tests::original_formatter_range_uses_the_selected_script_prologue_purpose",
+      "status": "passed",
+      "source_path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+      "original_source_sha256": "0f824bd15a65de6e1bf7967af535f14fd71350b69ac56a6c417a0edba19a8701",
+      "test_body_sha256": "55e4129af4711a7a77c5d3320a8de97de2ca086fa3973346a4b62a16c0eac974",
+      "proof_ids": [
+        "naming.editor.original-source-whitespace-geometry"
+      ],
+      "meaning": "Mid-file range formatting keeps the selected statement BOM as content and preserves the original range geometry; this is the selected script prologue purpose, not body execution."
+    },
+    {
+      "selector": "formatting::tests::analysed_formatting_member_vocabulary_precedes_same_spelling_global_alias",
+      "status": "passed",
+      "source_path": "rust/tcl-lsp-core/src/formatting/mod.rs",
+      "original_source_sha256": "9a6945ec3a0c4ab9fe6910f3474fbc1553d234fd973033d8d8377ecf7a45ce0f",
+      "test_body_sha256": "4e005c3c3e30cd872b9cedcaab95f46f3ec3b2edacf847c1b889b74692ac04f4",
+      "proof_ids": [
+        "naming.editor.original-source-formatting"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "formatting::tests::analysed_formatting_retains_selected_definition_parent_body_geometry",
+      "status": "passed",
+      "source_path": "rust/tcl-lsp-core/src/formatting/mod.rs",
+      "original_source_sha256": "9a6945ec3a0c4ab9fe6910f3474fbc1553d234fd973033d8d8377ecf7a45ce0f",
+      "test_body_sha256": "af1f9ed355b8d126671151f11e1f600017f588b35756e24a7740514e7177b53e",
+      "proof_ids": [
+        "naming.editor.original-source-formatting"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "hover::original_registry::tests::original_registry_hover_keeps_current_context_and_conditional_shadow_barriers",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/hover/original_registry.rs",
+      "original_source_sha256": "d4d9299afcf70f14249bb86f14197e908de293a8f62b3dc6d97ae7c92b252459",
+      "test_body_sha256": "186027ec30a3e02ecc8f2f4d0ae330ddb3c53767ad8f6de25a99be70011d1b3b",
+      "proof_ids": [
+        "naming.core.original-registry-source-hover"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "inlay_hints::retained_hint_context_tests::original_inlay_hints_keep_retained_profile_registry_and_whole_source",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "original_source_sha256": "a5e7236f82d302ef563ff4d2148f1389e5fb46c68c6be45a6e7875e7afeabfc1",
+      "test_body_sha256": "029822f18649d1b1ead163e748995dc5d346d8310e1c0c98fcb85b5bbfc1cd9f",
+      "proof_ids": [
+        "naming.core.original-inlay-retained-context"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "linked_editing_range::original_linked_tests::original_linked_editing_keeps_qualified_unicode_tail_and_refuses_stale_source",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/linked_editing_range.rs",
+      "original_source_sha256": "40e7a51d3b4e90268ea0983192230b498f02c09f778d732a3ee9918e4dec3821",
+      "test_body_sha256": "7e119bdb1d8a0962cc464fda13ef2fb7a36167ce7bb1a1ba7ffcea02e28bca05",
+      "proof_ids": [
+        "naming.consumer.original-linked-editing"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "minify::tests::original_minifier_body_parsing_keeps_bom_content_and_complete_parent_config",
+      "status": "passed",
+      "source_path": "rust/tcl-lsp-core/src/minify.rs",
+      "original_source_sha256": "2c897523ba2f03ae7133d737b8c60091986a100eaab25eaab2e8770243dc3e00",
+      "test_body_sha256": "31a04791f50e9fd2ec497fd776ef5a490e3ad832723286e7923f440b8bcd247c",
+      "proof_ids": [
+        "naming.source.original-configured-script-completeness"
+      ],
+      "meaning": "Retained complete FirstClose analysis input and source/configuration correspondence across nested bodies and command substitution; nested BOM content is distinct from a document-leading prologue."
+    },
+    {
+      "selector": "namespace_rename::tests::namespace_hazard_keeps_original_roles_and_unavailable_owner_refusal",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+      "original_source_sha256": "f901bd24edf5ad22c26f33e4431ae401ea8c6c54f2b97edc4d8e47a8c3047264",
+      "test_body_sha256": "36eff4f5aa6b932fcfd5f73e598f1f5218367e2f7840398925c3501a6acb927a",
+      "proof_ids": [
+        "naming.core.original-dispatch-region-context"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "original_context::tests::supplied_editor_entries_do_not_use_logical_purpose_as_source_currency",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/original_context.rs",
+      "original_source_sha256": "e95dea7d3e93b9f3ee01004255dc76400081874a6e7eafe1f3df3fe5e460a37b",
+      "test_body_sha256": "a7107b755fd740f05fff03fe32f904a81445a0d883d66a057153fe663be7c469",
+      "proof_ids": [
+        "naming.core.original-dispatch-region-context"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "package_resolver::original_names::original_index_body_purpose_tests::original_auto_index_stored_script_keeps_body_bom_distinct_from_file_prologue",
+      "status": "passed",
+      "source_path": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+      "original_source_sha256": "b6a618342ef3ac5aa30819d03aa1c5aa4bea5d1812c718707c3f07ef5b731527",
+      "test_body_sha256": "6c98e1137daedd32960d690d4db2af8709bd4ae57405196a253b9b8476934fd0",
+      "proof_ids": [
+        "naming.package.original-reachability-source-controls"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "package_resolver::reachability::original::original_package_region_purpose_tests::original_package_body_words_keep_parent_image_and_nested_bom_geometry",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs",
+      "original_source_sha256": "bca9478b0a8784bbd1eaeb1eee9754f2b2e68ddf8f4c959781f7e441897cf7f7",
+      "test_body_sha256": "ddbf955339e640b58ebddd01981e0db0822c63006dea00105fc534bcfa53de26",
+      "proof_ids": [
+        "naming.package.original-reachability-source-controls"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "receiver_identity::tests::captured_prefix_references_require_actual_capture_and_deferred_registration",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/receiver_identity.rs",
+      "original_source_sha256": "db46e174fcef0ea57f181c7ed5eb7d21acbd0b25a3eb9c24a7cbf34954c41dcf",
+      "test_body_sha256": "39d276e13880287e86b14b8be2e2eade3654d40ad3b60d3a2792a7feee38a8f4",
+      "proof_ids": [],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "receiver_identity::tests::original_receiver_entry_is_shared_by_navigation_hover_and_rename",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/receiver_identity.rs",
+      "original_source_sha256": "db46e174fcef0ea57f181c7ed5eb7d21acbd0b25a3eb9c24a7cbf34954c41dcf",
+      "test_body_sha256": "f23b06581e0843bfcb19be2da39b31281c8587c8d5762a6b44a7a7a48bdb43a1",
+      "proof_ids": [],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "receiver_identity::tests::original_receiver_navigation_joins_allocations_without_reporting_maps",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/receiver_identity.rs",
+      "original_source_sha256": "db46e174fcef0ea57f181c7ed5eb7d21acbd0b25a3eb9c24a7cbf34954c41dcf",
+      "test_body_sha256": "037854b3e76976b946096dd3364efa174333210c5a390acc6d454671212315ba",
+      "proof_ids": [],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "refactor::extract_proc::selected_source_variable_tests::original_extraction_uses_retained_brace_grammar_and_withdraws_changed_owners",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/refactor/extract_proc.rs",
+      "original_source_sha256": "f8adbc1bf25328cb4c92478431d5877e0065b042e3e7d9d6c0294ff38545e532",
+      "test_body_sha256": "66eac473d644bc439caddc8940545f4bfd483bca3cf29941e36e0a4ddca9cc04",
+      "proof_ids": [
+        "naming.refactor.original-frame-traversal"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "refactor::extract_variable::tests::logical_complete_value_words_keep_explicit_compatibility_behaviour",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/refactor/extract_variable.rs",
+      "original_source_sha256": "7b7c344cba091ffd30934ea72f212ae1a06642989862bc850c2b727915b21797",
+      "test_body_sha256": "cffe419d0601209aae55d1d051f52c251ed58696bada2edcb128c0b618d1d3c0",
+      "proof_ids": [
+        "naming.refactor.logical-single-word-extraction"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "refactor::extract_variable::tests::logical_extraction_keeps_supplied_availability_and_source_configuration",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/refactor/extract_variable.rs",
+      "original_source_sha256": "7b7c344cba091ffd30934ea72f212ae1a06642989862bc850c2b727915b21797",
+      "test_body_sha256": "a9094d0a7e17b924d5aa929e51844210619fc29126e0e6da2b54f082b3eb24c5",
+      "proof_ids": [
+        "naming.compiler.original-analysis-metadata-context"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "refactor::extract_variable::tests::logical_invalid_multiword_value_never_becomes_a_four_argument_set",
+      "status": "passed",
+      "source_path": "rust/tcl-lsp-core/src/refactor/extract_variable.rs",
+      "original_source_sha256": "7b7c344cba091ffd30934ea72f212ae1a06642989862bc850c2b727915b21797",
+      "test_body_sha256": "4e77c581e494b39a7d73553003a7aca8ad7bf82c7e91cf79ffba204c8244e333",
+      "proof_ids": [
+        "naming.refactor.logical-single-word-extraction"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "refactor::extract_variable::tests::logical_one_line_body_insertion_remains_inside_the_original_body",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/refactor/extract_variable.rs",
+      "original_source_sha256": "7b7c344cba091ffd30934ea72f212ae1a06642989862bc850c2b727915b21797",
+      "test_body_sha256": "5714113ddc8b8e941f94211def776e67086e8404d126e9f87fd8ef28df0a0a5d",
+      "proof_ids": [
+        "naming.refactor.logical-single-word-extraction"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "refactor::inline_variable::tests::original_inline_variable_requires_exact_definition_and_unobserved_read_without_ui_maps",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/refactor/inline_variable.rs",
+      "original_source_sha256": "a456a2eab5d830a739f30271c56be1e5544eb21e746107f7664d8a7d9d473325",
+      "test_body_sha256": "a1b4963f62e9cedc9f6545a76932012fb70fc5800057d200fb2562872332ba60",
+      "proof_ids": [
+        "naming.refactor.original-variable-inline-permission",
+        "naming.refactor.variable-inline-literal-source-values"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "refactor::source_rewrite::tests::original_source_rewrites_require_current_handler_and_distinct_permissions",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/refactor/source_rewrite.rs",
+      "original_source_sha256": "036b4e721620e7ba1b9331dd3dce9e5d7b7d73190264547d0ebdd4cc46da3f05",
+      "test_body_sha256": "0f46231f308173eb22ff1418eeee7beb2ad6718fe770edadd7dd814d417b3b16",
+      "proof_ids": [
+        "naming.refactor.original-source-rewrite-permissions"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "refactor::source_rewrite::tests::source_rewrites_keep_actual_availability_and_command_horizons",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/refactor/source_rewrite.rs",
+      "original_source_sha256": "036b4e721620e7ba1b9331dd3dce9e5d7b7d73190264547d0ebdd4cc46da3f05",
+      "test_body_sha256": "61a123360fceeacc3049df565c1eb71f8afcc66b445f3fae91d0f397712980bc",
+      "proof_ids": [
+        "naming.compiler.original-analysis-metadata-context"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/references/member_metadata.rs",
+      "original_source_sha256": "71d7d4ee88ebcbdcd47fba95ebbd99ce0ad7bfb9b7b3d573b6171fdf28bb3d61",
+      "test_body_sha256": "b372f5911546a1d381e3af473344b7c91d2999cc3be66245b4b1e0e310aa7847",
+      "proof_ids": [
+        "naming.core.original-member-reference-hazard"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "references::member_metadata::tests::member_hazards_refuse_stale_missing_and_unowned_class_metadata",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/references/member_metadata.rs",
+      "original_source_sha256": "71d7d4ee88ebcbdcd47fba95ebbd99ce0ad7bfb9b7b3d573b6171fdf28bb3d61",
+      "test_body_sha256": "823cf2d0a505c3730b0178988bed34c7141f1f3fd2e69cc1b143581dbd9f56ec",
+      "proof_ids": [
+        "naming.core.original-member-reference-hazard"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/references/member_metadata.rs",
+      "original_source_sha256": "71d7d4ee88ebcbdcd47fba95ebbd99ce0ad7bfb9b7b3d573b6171fdf28bb3d61",
+      "test_body_sha256": "e17fa60f2aa9b57597f83d340bdc430fb5cdb59bff73fbd7ede1495ea80e3ae2",
+      "proof_ids": [
+        "naming.core.original-member-reference-hazard"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "references::original_dispatch_parser_purpose_tests::original_dispatch_body_scans_keep_bom_content_and_selected_full_config",
+      "status": "passed",
+      "source_path": "rust/tcl-lsp-core/src/references.rs",
+      "original_source_sha256": "6d3a7dc093693049da7e519ed39772d525c6efe084b22207602bca583e1020cb",
+      "test_body_sha256": "3996f5bf63a7a8965216753e7335e2ffcf823a009d4786ad4ff6cab9b7b42aa5",
+      "proof_ids": [
+        "naming.core.original-dispatch-region-context"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "references::tests::callback_source_roles_keep_actual_availability_and_original_builder_geometry",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/references.rs",
+      "original_source_sha256": "6d3a7dc093693049da7e519ed39772d525c6efe084b22207602bca583e1020cb",
+      "test_body_sha256": "aa242743bfe56ef6313f5d3bd83333f712fd7afef5ba6fd1a45abcf8dc6a25d9",
+      "proof_ids": [
+        "naming.core.original-dispatch-region-context"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "references::tests::method_dispatch_scan_uses_retained_custom_schema_and_script_purpose",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/references.rs",
+      "original_source_sha256": "6d3a7dc093693049da7e519ed39772d525c6efe084b22207602bca583e1020cb",
+      "test_body_sha256": "1c351ab3bd955869287316567f45fc1e9294c1a2d44d6ca24c01b93047641e35",
+      "proof_ids": [
+        "naming.core.original-dispatch-region-context"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "references::tests::method_source_dispatch_keeps_actual_store_availability_and_lookup_barriers",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/references.rs",
+      "original_source_sha256": "6d3a7dc093693049da7e519ed39772d525c6efe084b22207602bca583e1020cb",
+      "test_body_sha256": "88b96285b933e849af7da39ec3ee2d8a801d66b8d144af2126e08b8d49b5e956",
+      "proof_ids": [
+        "naming.core.original-dispatch-region-context"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "rename_safety::original_hazard_context_tests::original_self_hazards_use_selected_helpers_and_captured_selector_positions",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/rename_safety.rs",
+      "original_source_sha256": "5c631c680702efd7bc0d0f0b76a9fe8e7eaf313c000a80e473367fa6c78bf25d",
+      "test_body_sha256": "0715e104098290355508a31ba673ebaf1ca238e4fd097f9a4c0c26ac55a331f2",
+      "proof_ids": [
+        "naming.core.original-dispatch-region-context"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "rename_safety::tests::original_dynamic_name_value_narrowing_stays_in_its_logical_purpose",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/rename_safety.rs",
+      "original_source_sha256": "5c631c680702efd7bc0d0f0b76a9fe8e7eaf313c000a80e473367fa6c78bf25d",
+      "test_body_sha256": "38f903fdbc2504ebdebfab426b8a1ef592518fb72cffe2c7394c2ee52c5f4360",
+      "proof_ids": [
+        "naming.core.original-dynamic-name-value-purpose"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "semantic_tokens::receiver_source::tests::original_registry_and_collection_receivers_keep_selected_child_operands",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/semantic_tokens/receiver_source/tests.rs",
+      "original_source_sha256": "430d5c68ed990e5b7ab75039ae21b07df27e5f6edcdf5b733a7c2f6580c6e207",
+      "test_body_sha256": "be857228a3d777d9c71d7d5bc0c25277ce08f8a8106f28050ac6c3775a1f2399",
+      "proof_ids": [
+        "naming.core.original-inlay-retained-context"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "semantic_tokens::selected_source_token_tests::original_loop_handle_advice_keeps_actual_availability_captures_and_inert_data",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "original_source_sha256": "142156c62d4bbc9d6b99b7dd99e64953a37d2b914762d6f035de99d8b9cf63be",
+      "test_body_sha256": "caa52bee4836d895488ed224ccbb871862df7c35d20d6ad66a1250a689a0e144",
+      "proof_ids": [
+        "naming.core.original-inlay-retained-context"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "semantic_tokens::selected_source_token_tests::original_member_handle_advice_uses_the_genuine_factory_member_body",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "original_source_sha256": "142156c62d4bbc9d6b99b7dd99e64953a37d2b914762d6f035de99d8b9cf63be",
+      "test_body_sha256": "352b04316027442399ff9f22ead474f8f10bd57e6f7145cb0ec35c2dae65e3f4",
+      "proof_ids": [
+        "naming.core.original-inlay-retained-context"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "semantic_tokens::tests::cross_file_constructor_dispatch_resolves",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "original_source_sha256": "142156c62d4bbc9d6b99b7dd99e64953a37d2b914762d6f035de99d8b9cf63be",
+      "test_body_sha256": "95dfec8695467d5928fbe2f674e11947c88114eaddf5fc14a58eb3467aaadaa1",
+      "proof_ids": [],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "semantic_tokens::tests::tcloo_dispatch_pattern_fixture",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "original_source_sha256": "142156c62d4bbc9d6b99b7dd99e64953a37d2b914762d6f035de99d8b9cf63be",
+      "test_body_sha256": "73474e3924f7dd2e82dfc243d252b7f245c4faed4c30e482400ee20c5d03c345",
+      "proof_ids": [],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    },
+    {
+      "selector": "tk_preview::tests::supplied_tk_preview_keeps_actual_availability_and_refuses_withheld_source",
+      "status": "failed",
+      "source_path": "rust/tcl-lsp-core/src/tk_preview.rs",
+      "original_source_sha256": "972a15a4d21f7b042e8c48f5c13ee90c54a8c7942ef9ecd4bdb24696f1909162",
+      "test_body_sha256": "0620dabe2b424ae74a632fa32dd06ee5de865610b663bf49d975c9d6a5bbdb85",
+      "proof_ids": [
+        "naming.core.original-tk-source-context"
+      ],
+      "meaning": "Exact original Source324 assertion admitted through its own strict image and listing. The retained source body and independently closed outcome delimit this selected software check; no whole-Core, current repair or external-provider result is inferred."
+    }
+  ],
+  "request_inputs": [
+    {
+      "original_path": "/workspace/.proofs/consumer-core320-current-owner-audit/audit.json",
+      "original_sha256": "919e457e634dc5b66faf28bb269e2957e56c1ac7f77bc8bbd6027584705a8def",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen324/selections/input-consumer-core320-current-owner-audit-audit.json"
+    },
+    {
+      "original_path": "/workspace/.proofs/grammar-parser-purpose-validation480/tcl-lsp-core-lib.json",
+      "original_sha256": "18262d47c190dfd3249560ae81b4d00ce07a961241de02243d5e4412f58660e8",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen324/selections/input-grammar-parser-purpose-validation480-tcl-lsp-core-lib.json"
+    }
+  ],
+  "scope": "One exact 58-selector run; every outcome belongs to the independently owned original Core324 image. Three new formatting/minifier controls pass. Other passed controls and all48 failures remain separate complete outcomes. No full Core or current owner/parser repair result is inferred."
+}

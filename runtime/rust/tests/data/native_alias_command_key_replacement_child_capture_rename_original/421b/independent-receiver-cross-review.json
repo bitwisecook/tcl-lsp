@@ -1,0 +1,122 @@
+{
+  "status": "Independent read-only process/raw field/source-owner cross-review; no Rust assertion or overall Native equivalence",
+  "outer_sha256": "ef0d99776df3bdd31491667d396fd392e6cc00f358fa93999d29da34acb1c18a",
+  "closure_sha256": "cb46a6bfd9c89a159e7c8d4d24c90b099ed45bad34e2eee1caae82f09d57c801",
+  "interpretation_sha256": "b7476fa8db62ab8287c301660af0515df370b45857744b9413be9be457a15e37",
+  "reviewed_raw": [
+    {
+      "provider": "8.4.20",
+      "stream_sha256": "a5c061c4d1a48be432786cad518c14113ce15c53b761159a4fcddcb4803e5657",
+      "five_cases_closed": true,
+      "two_original_calls_per_case": true,
+      "replacement_name_refs": [
+        1,
+        2
+      ],
+      "rename_name_refs": [
+        2,
+        1
+      ],
+      "child_replacement_name_refs": [
+        1,
+        2
+      ]
+    },
+    {
+      "provider": "8.5.19",
+      "stream_sha256": "4bf964dfff66cae6c6342d62d8aebdaf38e6868efe8b48a94eaa831e402d7374",
+      "five_cases_closed": true,
+      "two_original_calls_per_case": true,
+      "replacement_name_refs": [
+        1,
+        2
+      ],
+      "rename_name_refs": [
+        2,
+        1
+      ],
+      "child_replacement_name_refs": [
+        1,
+        2
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "stream_sha256": "02fe7bc32d4b78819b708e7ee0906dd8dfd7c9535397606b0b0a991a889289ef",
+      "five_cases_closed": true,
+      "two_original_calls_per_case": true,
+      "replacement_name_refs": [
+        1,
+        2
+      ],
+      "rename_name_refs": [
+        2,
+        1
+      ],
+      "child_replacement_name_refs": [
+        1,
+        2
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "stream_sha256": "ceaca95418f323bfff6326e6b9c751c588576fba47aec402a7f1a370754bdfd3",
+      "five_cases_closed": true,
+      "two_original_calls_per_case": true,
+      "replacement_name_refs": [
+        1,
+        2
+      ],
+      "rename_name_refs": [
+        2,
+        1
+      ],
+      "child_replacement_name_refs": [
+        1,
+        2
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "stream_sha256": "8b05e1576745d2344fc75e4d0a239c0136a2e86234f8e8102335bf7fc4a4c536",
+      "five_cases_closed": true,
+      "two_original_calls_per_case": true,
+      "replacement_name_refs": [
+        1,
+        2
+      ],
+      "rename_name_refs": [
+        2,
+        1
+      ],
+      "child_replacement_name_refs": [
+        1,
+        2
+      ]
+    },
+    {
+      "provider": "jim",
+      "stream_sha256": "348e2bb11f2faefa618672021381c7825e77426fd6e8c11b89cdb37ce13bdba9",
+      "five_cases_closed": true,
+      "two_original_calls_per_case": true,
+      "replacement_name_refs": [
+        2,
+        1
+      ],
+      "rename_name_refs": [
+        1,
+        2
+      ],
+      "child_replacement_name_refs": [
+        1,
+        1
+      ]
+    }
+  ],
+  "scope": [
+    "C core alias record versus Jim occupied command-table key roles are separate.",
+    "Jim child RegisterCmd makes a fresh independent key and has actual Guest info-alias query unavailability.",
+    "Native caller/alias/List/query roles and phase-bounded public getters are retained; no address-generation identity or Rust Host/frame grant."
+  ],
+  "blockers": []
+}
