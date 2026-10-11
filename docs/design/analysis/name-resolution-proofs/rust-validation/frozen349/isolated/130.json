@@ -1,0 +1,19 @@
+{
+  "ordinal": 130,
+  "selector": "cmd_oo::tests::inheritance_and_next",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_oo::tests::inheritance_and_next",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 2.259154418017715,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 2.25s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/130.log",
+  "log_sha256": "44bc317307fca40c0a5900a923e7b8c7c73e36a2a2ecd50604a2499b8a56d35a"
+}

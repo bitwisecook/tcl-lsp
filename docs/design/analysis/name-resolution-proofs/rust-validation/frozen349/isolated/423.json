@@ -1,0 +1,19 @@
+{
+  "ordinal": 423,
+  "selector": "interp::tests::the_backing_report_says_what_the_handler_table_holds",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::tests::the_backing_report_says_what_the_handler_table_holds",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 101,
+  "seconds": 3.0579361770069227,
+  "passed_exact_assertion": false,
+  "summaries": [
+    "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 3.00s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/423.log",
+  "log_sha256": "80a062d8a3cdc5d7b5c4dafc326c409cf8e80b913f3b2bc028c71c149bd15bac"
+}

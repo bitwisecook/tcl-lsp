@@ -5498,3 +5498,15 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 Restore the exact independent request/probe/launcher/source/header/config/library/input mapping and original output paths only after full hash verification; decompress measured ELF after checking compressed SHA and original whole SHA/size/mode. Independently supply exact external system compiler/header/link/runtime inputs. Each new process uses fresh output paths; original captured directories cannot be overwritten. Preserve global versus setup-local operand scope, C84 observer NA, Jim distribution helper and actual unavailable axes, all Guest failures, callback/public result phases and produced-byte construction. Do not splice independent runs or infer Rust/Native application authority. Partial499b outer failure is a reported actual tool observation, not a retained original stderr/receipt.
+
+
+## Exact original-source349 software outcomes
+
+These finite results belong to the original source349 body/question/document pairs and the owned Runtime executable. Passing, failing, aborted/incomplete and unstarted selections retain their separate meanings. They establish no outcome for another source image or external provider.
+
+| Original selection | Passed | Failed | Aborted or incomplete | Not started |
+| --- | ---: | ---: | ---: | ---: |
+| `grouped` | 0 | 2 | 0 | 0 |
+| `isolated` | 0 | 2 | 0 | 0 |
+
+[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.

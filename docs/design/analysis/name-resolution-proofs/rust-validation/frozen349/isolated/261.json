@@ -1,0 +1,19 @@
+{
+  "ordinal": 261,
+  "selector": "interp::native_body_artifact::tests::original_procedure_artifact_executes_indexed_slots_and_reuses_original_cache",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::native_body_artifact::tests::original_procedure_artifact_executes_indexed_slots_and_reuses_original_cache",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 9.764979020983446,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 9.72s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/261.log",
+  "log_sha256": "3e75dccbcd669e422c4b371e2f815230b25b3a71b7059737b106b0a26519f33e"
+}

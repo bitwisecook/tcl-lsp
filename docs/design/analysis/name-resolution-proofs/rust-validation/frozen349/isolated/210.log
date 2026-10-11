@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::bootstrap_context_tests::original_native_bootstrap_stops_after_each_reached_host_callback_mutates_context ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 1.78s
+

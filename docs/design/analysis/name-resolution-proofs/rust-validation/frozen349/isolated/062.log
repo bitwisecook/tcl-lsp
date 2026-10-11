@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_error::tests::jim_catch_switches_and_process_exit_use_native_completion_protocol ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 7.59s
+

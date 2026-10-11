@@ -1,0 +1,19 @@
+{
+  "ordinal": 84,
+  "selector": "cmd_info::tests::math_enumeration_tracks_the_registry_selected_runtime_surface",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_info::tests::math_enumeration_tracks_the_registry_selected_runtime_surface",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 101,
+  "seconds": 8.796812264976325,
+  "passed_exact_assertion": false,
+  "summaries": [
+    "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 8.78s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/084.log",
+  "log_sha256": "c417bd0de22ae9a4703cf8544a358286eb0b54fdc44dbce244b67c2fd6b7db98"
+}

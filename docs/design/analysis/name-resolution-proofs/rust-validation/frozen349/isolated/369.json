@@ -1,0 +1,19 @@
+{
+  "ordinal": 369,
+  "selector": "interp::tests::every_registered_builtin_with_an_intrinsic_is_attested_for_all_of_them",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::tests::every_registered_builtin_with_an_intrinsic_is_attested_for_all_of_them",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 101,
+  "seconds": 3.3779919729859103,
+  "passed_exact_assertion": false,
+  "summaries": [
+    "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 3.36s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/369.log",
+  "log_sha256": "03c50b69a71ea8d552bb38f3c497a749cc5409452bd6400f56f8cfffe40c92ca"
+}

@@ -1,0 +1,19 @@
+{
+  "ordinal": 62,
+  "selector": "cmd_error::tests::jim_catch_switches_and_process_exit_use_native_completion_protocol",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_error::tests::jim_catch_switches_and_process_exit_use_native_completion_protocol",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 7.618479318014579,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 7.59s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/062.log",
+  "log_sha256": "ace89c4bc42fd812ddd6527584b45b20d239db508ecb2c34bd80a4f2de5f0eef"
+}

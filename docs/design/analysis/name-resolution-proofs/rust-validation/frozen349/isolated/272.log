@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::native_error_headers::original_prepared_stack_tests::original_prepared_stack_members_retire_outside_borrows_and_stop_on_episode_aba ... 
+thread 'interp::native_error_headers::original_prepared_stack_tests::original_prepared_stack_members_retire_outside_borrows_and_stop_on_episode_aba' (1338449) panicked at src/interp/native_error_headers.rs:1282:25:
+assertion `left == right` failed: tcl8.5 op0 mode0
+  left: []
+ right: [(0, 0)]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_error_headers::original_prepared_stack_tests::original_prepared_stack_members_retire_outside_borrows_and_stop_on_episode_aba
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 1.21s
+

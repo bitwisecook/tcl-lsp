@@ -1,0 +1,19 @@
+{
+  "ordinal": 180,
+  "selector": "cmd_switch::tests::switch_exact_glob_default_fallthrough",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_switch::tests::switch_exact_glob_default_fallthrough",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 2.130095397995319,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 2.12s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/180.log",
+  "log_sha256": "977d2aae971c6be8d3e8d82467aaf1f728f32021f53f49b006493a8fb31e1fc6"
+}

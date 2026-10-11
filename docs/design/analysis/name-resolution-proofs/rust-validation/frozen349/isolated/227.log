@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_body_artifact::native_coroutine::tests::original_coroutine_channel_retains_yield_resume_and_creation_headers ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 4.47s
+

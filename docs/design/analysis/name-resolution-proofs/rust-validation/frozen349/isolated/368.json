@@ -1,0 +1,19 @@
+{
+  "ordinal": 368,
+  "selector": "interp::tests::direct_dispatch_resets_the_prior_result_at_the_central_boundary",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::tests::direct_dispatch_resets_the_prior_result_at_the_central_boundary",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 4.537326177989598,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 4.50s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/368.log",
+  "log_sha256": "b3ee2d03c2566e325f6e3e24c547e4779ca2f1ec33d2e0b2d013daaf6a827e1c"
+}

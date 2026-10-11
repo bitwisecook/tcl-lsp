@@ -112,3 +112,15 @@ Recorded argument vector:
 ```
 
 Build against each exact manifest version/header/library and run the produced executable in a fresh process. Require completed exit 0 and exact full stdout equality with the corresponding evidence TSV (reset episodes excludes only the aggregate version prefix/header). Match retained source/library/header SHA before interpreting any difference. Original captures are retained; a new execution/build availability is not claimed.
+
+
+## Exact original-source349 software outcomes
+
+These finite results belong to the original source349 body/question/document pairs and the owned Runtime executable. Passing, failing, aborted/incomplete and unstarted selections retain their separate meanings. They establish no outcome for another source image or external provider.
+
+| Original selection | Passed | Failed | Aborted or incomplete | Not started |
+| --- | ---: | ---: | ---: | ---: |
+| `grouped` | 1 | 0 | 0 | 0 |
+| `isolated` | 1 | 0 | 0 | 0 |
+
+[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.

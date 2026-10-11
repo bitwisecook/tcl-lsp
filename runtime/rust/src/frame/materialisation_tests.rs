@@ -55,8 +55,7 @@ fn effect(original: *mut TclObj) {
     else {
         return;
     };
-    assert!(interpreter.frames.try_borrow_mut().is_ok());
-    assert!(interpreter.namespaces.try_borrow_mut().is_ok());
+    assert!(interpreter.original_variable_storage_borrows_are_available());
     if STAGE.with(Counter::get) == 0 {
         assert!(matches!(
             interpreter.frames.borrow().compiled_slot_var(0).as_deref(),

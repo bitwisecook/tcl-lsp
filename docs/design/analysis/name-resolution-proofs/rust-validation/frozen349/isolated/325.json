@@ -1,0 +1,19 @@
+{
+  "ordinal": 325,
+  "selector": "interp::native_return_instruction::original_syntax_transport_tests::original_syntax_literal_action_transports_reached_header_retirement_refusal",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::native_return_instruction::original_syntax_transport_tests::original_syntax_literal_action_transports_reached_header_retirement_refusal",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 2.2411739630042575,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 2.23s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/325.log",
+  "log_sha256": "f38ff9e6a848dc6813b8104042dec7ab264a6df7cfac4544be206dd7989aa3bd"
+}

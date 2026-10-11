@@ -123,3 +123,15 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 No new native run or Rust execution result is claimed. Replay must compile the retained exact probe against independently identified release headers/libraries and preserve separate compile/process status and raw streams before comparing the attached original hashes. Original absolute compile paths are capture metadata, not a portable executable command. No evaluator/source/parser or native allocation authority may be obtained by matching display text. Probe code is input/observer code; absent native source excerpts supply no implementation explanation.
+
+
+## Exact original-source349 software outcomes
+
+These finite results belong to the original source349 body/question/document pairs and the owned Runtime executable. Passing, failing, aborted/incomplete and unstarted selections retain their separate meanings. They establish no outcome for another source image or external provider.
+
+| Original selection | Passed | Failed | Aborted or incomplete | Not started |
+| --- | ---: | ---: | ---: | ---: |
+| `grouped` | 1 | 0 | 0 | 0 |
+| `isolated` | 1 | 0 | 0 | 0 |
+
+[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.

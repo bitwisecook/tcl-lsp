@@ -1,0 +1,19 @@
+{
+  "ordinal": 8,
+  "selector": "cmd_array::tests::jim_dictionary_array_reads_keep_static_copies_and_selected_frames",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_array::tests::jim_dictionary_array_reads_keep_static_copies_and_selected_frames",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 0.5998312039882876,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 0.58s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/008.log",
+  "log_sha256": "96921ae11cd8026a572bdbd2d4b79e93304f0bd8084e9493d4c3c20efa1d6162"
+}

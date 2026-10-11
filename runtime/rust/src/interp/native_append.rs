@@ -234,7 +234,7 @@ impl Interp {
                 };
                 let published = crate::obj::NativeObjectLifetime::retain(selected);
                 let borrowed = RuntimeAppendValue::borrowed(selected);
-                let mut check = || {
+                let check = || {
                     self.check_counted_c_append_receiver(currency, &captured)?;
                     crate::obj::check_native_liveness(published.as_ptr())
                         .map_err(|error| self.clone().refuse_completion_value_access(error))?;

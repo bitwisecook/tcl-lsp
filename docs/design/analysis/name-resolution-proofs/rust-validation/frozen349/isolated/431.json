@@ -1,0 +1,19 @@
+{
+  "ordinal": 431,
+  "selector": "interp::tests::unbounded_proc_recursion_errors_instead_of_crashing",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::tests::unbounded_proc_recursion_errors_instead_of_crashing",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 3.216945266991388,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 3.18s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/431.log",
+  "log_sha256": "1399916ebc68b33ee4edd32f4e463a0b93d90964a3d7d3e1c0407779eb82813a"
+}

@@ -1,0 +1,19 @@
+{
+  "ordinal": 453,
+  "selector": "return_options::tests::return_and_catch_keep_original_custom_option_objects",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "return_options::tests::return_and_catch_keep_original_custom_option_objects",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 1.5509114429878537,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 1.54s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/453.log",
+  "log_sha256": "22869fda4876b97b9cbf0de12ba6fb103247f2fa92e6b7b78de6fc6ee0ac5607"
+}

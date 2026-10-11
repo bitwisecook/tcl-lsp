@@ -1,0 +1,19 @@
+{
+  "ordinal": 46,
+  "selector": "cmd_dict::tests::read_only_dict_path_uses_the_dict_noun_fragment_and_error_code",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_dict::tests::read_only_dict_path_uses_the_dict_noun_fragment_and_error_code",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 4.361417576001259,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 4.32s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/046.log",
+  "log_sha256": "c71851aa9072f654fd2ed70fed30f2c7e2f4310a3f16b5c909ff380007bfa585"
+}

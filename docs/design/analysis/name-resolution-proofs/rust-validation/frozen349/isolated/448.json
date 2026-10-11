@@ -1,0 +1,19 @@
+{
+  "ordinal": 448,
+  "selector": "list::tests::original_backing_survives_shimmer_without_extra_child_owners",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "list::tests::original_backing_survives_shimmer_without_extra_child_owners",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 0.00826870699529536,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 0.00s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/448.log",
+  "log_sha256": "d49a18597a691b9e17f828cd290210a4c85578ac6806c5d9ba78264eec7906eb"
+}

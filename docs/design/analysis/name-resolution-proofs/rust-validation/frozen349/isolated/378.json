@@ -1,0 +1,19 @@
+{
+  "ordinal": 378,
+  "selector": "interp::tests::identities_come_from_the_pinned_generation_never_an_overlay",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::tests::identities_come_from_the_pinned_generation_never_an_overlay",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 7.496366861014394,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 7.37s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/378.log",
+  "log_sha256": "b5c237c7efdf332c3e6b05ba60b37d2993f1313e26e776d31e94e5b00b2a548a"
+}

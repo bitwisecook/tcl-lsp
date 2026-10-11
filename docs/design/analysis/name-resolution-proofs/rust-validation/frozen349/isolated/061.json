@@ -1,0 +1,19 @@
+{
+  "ordinal": 61,
+  "selector": "cmd_error::tests::jim_automatic_stack_uses_evaluation_receipts_before_unwinding",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_error::tests::jim_automatic_stack_uses_evaluation_receipts_before_unwinding",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 3.7181720020016655,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 3.68s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/061.log",
+  "log_sha256": "b5bce166967eb5aac7c26d259c479d4aecd44a24eb26ef5825ba5f35dc2970f0"
+}

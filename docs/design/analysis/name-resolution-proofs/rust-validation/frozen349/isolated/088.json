@@ -1,0 +1,19 @@
+{
+  "ordinal": 88,
+  "selector": "cmd_namespace::original_argument_tests::original_namespace_patterns_match_reached_jim_getter_and_public_effect_windows",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_namespace::original_argument_tests::original_namespace_patterns_match_reached_jim_getter_and_public_effect_windows",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 101,
+  "seconds": 0.6036228840239346,
+  "passed_exact_assertion": false,
+  "summaries": [
+    "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 0.59s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/088.log",
+  "log_sha256": "082b9cf8658bf917c39d4757e5b3d3d620c99bb1d4c537f47453e5fd45251751"
+}

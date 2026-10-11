@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::tests::a_pin_to_a_release_without_the_command_leaves_it_unattested ... 
+thread 'interp::tests::a_pin_to_a_release_without_the_command_leaves_it_unattested' (1339389) panicked at src/interp.rs:20213:13:
+assertion `left == right` failed
+  left: Ok(GuardToken(2))
+ right: Err(IdentityUnavailable)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::tests::a_pin_to_a_release_without_the_command_leaves_it_unattested
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 8.80s
+

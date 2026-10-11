@@ -1,0 +1,19 @@
+{
+  "ordinal": 190,
+  "selector": "dict::tests::delimiter_errors_keep_their_dict_wording_and_fragment",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "dict::tests::delimiter_errors_keep_their_dict_wording_and_fragment",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 0.00797156899352558,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 0.00s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/190.log",
+  "log_sha256": "ea19388613f175036cd3d6cf7573a21c524f13943510d32ad730865534256859"
+}

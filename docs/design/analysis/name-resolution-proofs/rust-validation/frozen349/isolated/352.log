@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::tests::c84_direct_invalid_expression_preserves_code_until_eval ... 
+thread 'interp::tests::c84_direct_invalid_expression_preserves_code_until_eval' (1339470) panicked at src/interp.rs:18589:17:
+assertion `left == right` failed
+  left: [78, 79, 78, 69]
+ right: [80, 82, 79, 66, 69, 32, 66, 69, 70, 79, 82, 69]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::tests::c84_direct_invalid_expression_preserves_code_until_eval
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 6.06s
+

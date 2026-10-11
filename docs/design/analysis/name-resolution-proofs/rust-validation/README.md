@@ -4280,3 +4280,19 @@ The initial Source345 list admission is unentered: strict target-name selection 
 Source344 focused admission retains source-request SHA `3dfb8ab3dd2d0cb7deab3e94a75a2bb42887ac2f98f92d00e8c9996862ed0d1c` as a hash-only prerequisite. The request payload/path is unavailable in this publication; its 239 exact admitted names, inventory, image and run argv remain explicit. Source345 joins its exact retained request, all 19 admitted names, original 600-procedure source and unchanged assertion body.
 
 [Exact operations, original-source test bodies and authored question pairs](compiler-owned341345-experiments.json) retain the complete per-selector outcomes. [Bounded publication checks](compiler-owned341345-fragment-verification.json) verify every payload digest and each recorded admission against its own inventory/image. Those publication checks execute no Rust assertion. Restore original executable paths, full bytes and available metadata from each retained lossless journal before replay; original inode identity and unrecorded metadata cannot be inferred.
+
+
+## Owning Runtime source349 experiments
+
+The original source349 map contains 39,666 leaves at head `80617625e8cbdc42724fb3bbc049e509aa44c2f8`. The actual owning Runtime `tcl_runtime` test executable has SHA256 `a58849dbb5e0faf84d5caaf7e8a89fdbd2b1d6de26c36872c9e4520ef5534d82`, uses the `engine` feature and lists 1,802 tests. Producer and inventory operations execute no assertions.
+
+| Original operation | Actual result |
+| --- | --- |
+| Owning producer | Exit 0; one owning test executable |
+| Owning inventory | Exit 0; 1,802 literal tests |
+| Grouped 454 selection | SIGABRT/-6 after 307 passes and 16 failures; one active test lacks a terminal result and 130 were unstarted; no final harness summary |
+| Separate 454 exact processes | 422 passes, 29 harness failures, 3 SIGABRT/-6 aborts |
+
+Three required `#[cfg(not(have_tommath))]` controls are absent from this image and remain unadmitted and untested. The `engine` feature does not substitute for that build capability. Each isolated outcome derives from its exact child receipt and anchored raw harness output; summary strings printed inside the outer driver JSON are not harness rows.
+
+[Full original receipts, streams, requests, source maps and owned executable retention](frozen349/experiment-index.json) preserve these exact experiments. [Original body/question/document correspondence](frozen349/question-body-outcomes.json) bounds each per-question software result. Later source definitions and Native Tcl/Jim/BIG-IP scopes remain independent.

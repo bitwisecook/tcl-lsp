@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::native_trace_result::settlement_tests::c84_host_trace_settlement_uses_only_the_selected_script_saved_state ... 
+thread 'interp::native_trace_result::settlement_tests::c84_host_trace_settlement_uses_only_the_selected_script_saved_state' (1339250) panicked at src/interp/native_trace_result.rs:522:13:
+assertion `left == right` failed
+  left: Err(NameProtocolUnavailable)
+ right: Err(TraceError)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_trace_result::settlement_tests::c84_host_trace_settlement_uses_only_the_selected_script_saved_state
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 1.32s
+

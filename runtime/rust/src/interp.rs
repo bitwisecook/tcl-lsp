@@ -5987,6 +5987,11 @@ impl Interp {
         Ok(())
     }
 
+    #[cfg(test)]
+    pub(crate) fn original_variable_storage_borrows_are_available(&self) -> bool {
+        self.frames.try_borrow_mut().is_ok() && self.namespaces.try_borrow_mut().is_ok()
+    }
+
     /// The namespace tree (read) — for the `namespace` builtin's queries. The
     /// returned `Ref` must not be held across a call that mutably borrows the
     /// namespaces (it would panic); callers use it for a single query.

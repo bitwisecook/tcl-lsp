@@ -1,0 +1,19 @@
+{
+  "ordinal": 114,
+  "selector": "cmd_oo::tests::destructor_error_propagation_and_renamed_my_teardown",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_oo::tests::destructor_error_propagation_and_renamed_my_teardown",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 101,
+  "seconds": 3.664305660990067,
+  "passed_exact_assertion": false,
+  "summaries": [
+    "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 3.63s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/114.log",
+  "log_sha256": "17457ac92ddfb80c787b709b44d061c5b37d1f581e6a3ca86454236caf592ff0"
+}

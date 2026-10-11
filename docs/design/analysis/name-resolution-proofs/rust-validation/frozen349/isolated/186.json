@@ -1,0 +1,19 @@
+{
+  "ordinal": 186,
+  "selector": "cmd_switch::tests::switch_regexp_and_matchvars",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_switch::tests::switch_regexp_and_matchvars",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 2.74682114602183,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 2.74s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/186.log",
+  "log_sha256": "660763a2d3a66554dc3a175e95bbc20b36400fec20e677dc3cd05ec5135ea026"
+}

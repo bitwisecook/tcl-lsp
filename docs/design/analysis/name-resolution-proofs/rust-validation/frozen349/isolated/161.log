@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_oo::tests::original_renamed_definition_matches_native_source_and_raw_return_boundaries ... 
+thread 'cmd_oo::tests::original_renamed_definition_matches_native_source_and_raw_return_boundaries' (1337628) panicked at src/cmd_oo.rs:10455:13:
+assertion `left == right` failed: tcl8.6
+  left: 2
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_oo::tests::original_renamed_definition_matches_native_source_and_raw_return_boundaries
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 4.43s
+

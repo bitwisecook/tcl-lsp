@@ -84,3 +84,15 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 Linked Rust tests are coverage obligations, not executed interpreter observations.
+
+
+## Exact original-source349 software outcomes
+
+These finite results belong to the original source349 body/question/document pairs and the owned Runtime executable. Passing, failing, aborted/incomplete and unstarted selections retain their separate meanings. They establish no outcome for another source image or external provider.
+
+| Original selection | Passed | Failed | Aborted or incomplete | Not started |
+| --- | ---: | ---: | ---: | ---: |
+| `grouped` | 1 | 0 | 0 | 0 |
+| `isolated` | 1 | 0 | 0 | 0 |
+
+[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.

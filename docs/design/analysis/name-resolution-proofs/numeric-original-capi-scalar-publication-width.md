@@ -1937,3 +1937,15 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 Restore exact recorded absolute input paths from recorded-path-map.json and reproduce the independently recorded provider compile, CLI-version and live/null argv/environment for each physical image. The unchanged first Jim link failure is retained; linked-jim458 includes its own standard link dependencies and successful executable. Original request/probe, all raw streams, compiler/version records,355 input associations, prior build input receipts and generated observer executables remain complete. No original launcher source was captured and none is invented. New ABI/provider or replay execution is a new observation; no Rust assertion result or application issuer follows.
+
+
+## Exact original-source349 software outcomes
+
+These finite results belong to the original source349 body/question/document pairs and the owned Runtime executable. Passing, failing, aborted/incomplete and unstarted selections retain their separate meanings. They establish no outcome for another source image or external provider.
+
+| Original selection | Passed | Failed | Aborted or incomplete | Not started |
+| --- | ---: | ---: | ---: | ---: |
+| `grouped` | 1 | 0 | 0 | 1 |
+| `isolated` | 1 | 1 | 0 | 0 |
+
+[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.

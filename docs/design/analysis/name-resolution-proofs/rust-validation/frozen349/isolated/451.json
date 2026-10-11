@@ -1,0 +1,19 @@
+{
+  "ordinal": 451,
+  "selector": "list::tests::string_to_list_shimmer",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "list::tests::string_to_list_shimmer",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 0.007847728993510827,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 0.00s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/451.log",
+  "log_sha256": "6e0f4ccb3b8cad704d2483b98637f8ac18d6765837167deb7d272cf27f083ca0"
+}

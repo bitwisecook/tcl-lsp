@@ -664,3 +664,15 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 Named tests bind current authored software assertions without claiming that they ran. Genuine test artifacts and closed verification receipts record their independent outcomes. Native ABI publication/getter/completion experiments remain separately scoped and are not replayed or promoted here.
+
+
+## Exact original-source349 software outcomes
+
+These finite results belong to the original source349 body/question/document pairs and the owned Runtime executable. Passing, failing, aborted/incomplete and unstarted selections retain their separate meanings. They establish no outcome for another source image or external provider.
+
+| Original selection | Passed | Failed | Aborted or incomplete | Not started |
+| --- | ---: | ---: | ---: | ---: |
+| `grouped` | 50 | 5 | 1 | 14 |
+| `isolated` | 59 | 8 | 3 | 0 |
+
+[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.

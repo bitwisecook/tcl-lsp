@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_oo::tests::destructor_error_propagation_and_renamed_my_teardown ... 
+thread 'cmd_oo::tests::destructor_error_propagation_and_renamed_my_teardown' (1337369) panicked at src/cmd_oo.rs:8419:9:
+assertion `left == right` failed: residual objs/bufs
+  left: 2
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_oo::tests::destructor_error_propagation_and_renamed_my_teardown
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 3.63s
+

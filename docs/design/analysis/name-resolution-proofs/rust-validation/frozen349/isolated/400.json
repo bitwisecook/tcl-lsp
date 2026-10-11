@@ -1,0 +1,19 @@
+{
+  "ordinal": 400,
+  "selector": "interp::tests::numeric_nul_expression_observations_match_every_selected_native_engine",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::tests::numeric_nul_expression_observations_match_every_selected_native_engine",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 101,
+  "seconds": 62.4443551430013,
+  "passed_exact_assertion": false,
+  "summaries": [
+    "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 62.37s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/400.log",
+  "log_sha256": "4090b8cbfb70d25eeb7cdfbaf24b27a877764442f85186b5115c47d31da6ed45"
+}

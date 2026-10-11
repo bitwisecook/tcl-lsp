@@ -1,0 +1,19 @@
+{
+  "ordinal": 30,
+  "selector": "cmd_dict::native_path_publication_tests::original_path_missing_variable_publication_matches_all_15_available_native_windows",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_dict::native_path_publication_tests::original_path_missing_variable_publication_matches_all_15_available_native_windows",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 101,
+  "seconds": 7.214447292004479,
+  "passed_exact_assertion": false,
+  "summaries": [
+    "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 7.20s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/030.log",
+  "log_sha256": "1b0b5ba2dd6d2fc21d0c455a305039cb5d5ab4367e022b251dccd5d727e640d5"
+}

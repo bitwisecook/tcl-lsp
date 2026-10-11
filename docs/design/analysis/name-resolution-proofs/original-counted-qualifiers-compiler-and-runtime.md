@@ -1174,3 +1174,15 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 Native replay requires the exact retained probe, provider build/source/header and input channels recorded by capture.py. The immutable provider receipts and raw streams retain the actual finite captures. The named Rust selectors are linked coverage, with no passing Rust execution receipt attached; fixed ASCII procedure source and counted object-vector operands remain separate channels.
+
+
+## Exact original-source349 software outcomes
+
+These finite results belong to the original source349 body/question/document pairs and the owned Runtime executable. Passing, failing, aborted/incomplete and unstarted selections retain their separate meanings. They establish no outcome for another source image or external provider.
+
+| Original selection | Passed | Failed | Aborted or incomplete | Not started |
+| --- | ---: | ---: | ---: | ---: |
+| `grouped` | 1 | 0 | 0 | 0 |
+| `isolated` | 1 | 0 | 0 | 0 |
+
+[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.

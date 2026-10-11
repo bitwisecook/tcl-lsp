@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::tests::release_hidden_alias_target_uses_unknown_under_tcl84 ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 12.11s
+

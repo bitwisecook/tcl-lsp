@@ -1,0 +1,19 @@
+{
+  "ordinal": 195,
+  "selector": "dict::tests::string_to_dict_shimmer",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "dict::tests::string_to_dict_shimmer",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 0.006919406994711608,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 0.00s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/195.log",
+  "log_sha256": "5035f9f90dd92e5f9aad601ca46ec7ab54bfb422f211f81c1adfe876d128afca"
+}

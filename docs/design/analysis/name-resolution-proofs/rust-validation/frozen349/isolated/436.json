@@ -1,0 +1,19 @@
+{
+  "ordinal": 436,
+  "selector": "interp::tests::visibility_safety_and_topology_mutations_stale_interpreter_guards",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::tests::visibility_safety_and_topology_mutations_stale_interpreter_guards",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 2.108058444020571,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 2.07s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/436.log",
+  "log_sha256": "d35acd62596fb59e2cda0503cb6e2d07126b5d2c68c82124881c166af370cbb2"
+}

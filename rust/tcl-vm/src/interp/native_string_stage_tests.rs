@@ -2,13 +2,14 @@
 //! Software formatter callback boundaries, with actual original VM and Value owners.
 
 use super::*;
-use crate::TclError;
+use crate::{Code, TclError};
 use std::cell::{Cell, RefCell};
 use tcl_platform::{
     NativeIntegerFormatter, NativeIntegerFormatterBuild, NativeIntegerFormatterUnavailable,
     NativeIntegerKind,
 };
 use tcl_syntax::native_string::NativeStringProtocol;
+use tcl_syntax::number;
 use tcl_syntax::scalar_getter::NativeScalarCache;
 
 type Call = (&'static str, Option<(NativeIntegerKind, i64)>);

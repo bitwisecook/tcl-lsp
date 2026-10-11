@@ -126,3 +126,15 @@ Recorded argument vector:
 ```
 
 The verifier checks retained exact input/provider/stream associations and launches no native provider. The copied capture runner requires its recorded external environment and original absolute source/shell paths. Native executable/library/header/configure artifacts are not included. Numeric output units and materialised binary values supply no raw resident-string, direct counted API, cache or Rust execution claim.
+
+
+## Exact original-source349 software outcomes
+
+These finite results belong to the original source349 body/question/document pairs and the owned Runtime executable. Passing, failing, aborted/incomplete and unstarted selections retain their separate meanings. They establish no outcome for another source image or external provider.
+
+| Original selection | Passed | Failed | Aborted or incomplete | Not started |
+| --- | ---: | ---: | ---: | ---: |
+| `grouped` | 1 | 0 | 0 | 0 |
+| `isolated` | 1 | 0 | 0 | 0 |
+
+[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.

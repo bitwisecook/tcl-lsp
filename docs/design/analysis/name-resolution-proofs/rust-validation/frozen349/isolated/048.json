@@ -1,0 +1,19 @@
+{
+  "ordinal": 48,
+  "selector": "cmd_dict::tests::selected_dictionary_completion_and_scripted_worker_lookup",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_dict::tests::selected_dictionary_completion_and_scripted_worker_lookup",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 8.459522924007615,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 8.37s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/048.log",
+  "log_sha256": "9a47e94513e82e88404e1222e9fc7a25d73bde94243ec23b6e5ef0d638f33036"
+}

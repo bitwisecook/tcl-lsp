@@ -1,0 +1,19 @@
+{
+  "ordinal": 346,
+  "selector": "interp::tests::an_imported_hidden_builtin_keeps_its_release_gate",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::tests::an_imported_hidden_builtin_keeps_its_release_gate",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 101,
+  "seconds": 13.597690955008147,
+  "passed_exact_assertion": false,
+  "summaries": [
+    "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 13.48s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/346.log",
+  "log_sha256": "ec17c4fa6d83368e93f4846285eaf854cf588cd43c433f80494b82ab66acace6"
+}

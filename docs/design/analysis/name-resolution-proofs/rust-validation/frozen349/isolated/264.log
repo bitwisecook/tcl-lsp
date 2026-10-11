@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_body_artifact::tests::registered_return_artifacts_match_44_native_controls ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 9.20s
+

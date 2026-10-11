@@ -1,0 +1,19 @@
+{
+  "ordinal": 110,
+  "selector": "cmd_oo::tests::define_single_command_wrong_args_names_whole_command",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_oo::tests::define_single_command_wrong_args_names_whole_command",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 2.9522211639850866,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 2.89s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/110.log",
+  "log_sha256": "ac41b9f5cc25535b923faeda6b97a0a4a28816e569556162fda4462d98c17b3b"
+}

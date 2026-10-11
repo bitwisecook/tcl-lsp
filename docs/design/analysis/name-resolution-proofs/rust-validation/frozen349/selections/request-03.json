@@ -1,0 +1,563 @@
+{
+  "name": "tcl-runtime-lib",
+  "package": "tcl-runtime",
+  "target": "lib",
+  "source_manifest": "runtime/rust/Cargo.toml",
+  "source_manifest_sha256": "a86fd0e9c18a2ceb79b349de4774034f69bc8f64d789943d9afd3af1a40aae05",
+  "root_owned_build_selector_arguments": [
+    "--manifest-path",
+    "runtime/rust/Cargo.toml",
+    "--features",
+    "engine",
+    "--lib"
+  ],
+  "selectors": [
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/cmd_info.rs",
+      "line": 1153,
+      "source_sha256": "898b73dd39e43e1cbc00c7c47b48ea6ee7561c47e668bdae390dbdd16b05d2c7",
+      "selector": "cmd_info::tests::original_info_complete_retains_checked_string_worker_and_selected_runtime_grammar",
+      "scope": "Six captured scalar String observation windows per provider, input formed through original format%c producer; actual Runtime checked String gateway. No raw input/header/entry contract.",
+      "category": "GrammarCompletenessConsumers456",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "body_sha256": "5f9fbf705260159ad516ad69e668324f84425f5ab70abe2bdb860e3c765e12e7"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/cmd_namespace/original_argument_tests.rs",
+      "line": 259,
+      "source_sha256": "a7f8141b5118c55ebc87ff4f96e839c09ac13aa9b53cc9b819d03161902cc3b4",
+      "selector": "cmd_namespace::original_argument_tests::original_namespace_patterns_match_reached_jim_getter_and_public_effect_windows",
+      "scope": "Original Jim getter/public windows retain unchanged comparators; shared fixture diagnostic separates entry refusal from worker comparisons. No execution outcome in request.",
+      "category": "GrammarJimNamespaceFixtureTrace509",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "body_sha256": "f78efe355be4d7e5d3f5e8c25dc7cf88ae4d52680309ae2c0ef007274a28484a"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/cmd_proc/original_argument_tests.rs",
+      "line": 82,
+      "source_sha256": "1a52e1c8709e3d0cd3ed7f23dc970e7b980598926c80e1e95cdfd587cde1c9b9",
+      "selector": "cmd_proc::original_argument_tests::original_procedure_definition_matches_jim_formal_name_and_deferred_body_getters",
+      "scope": "Original Jim getter/public windows retain unchanged comparators; shared fixture diagnostic separates entry refusal from worker comparisons. No execution outcome in request.",
+      "category": "GrammarJimNamespaceFixtureTrace509",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "body_sha256": "c7a43b5a0265d9b2b27990efc740e6564dc89d58c6f68c741c87062d2798906e"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/engine.rs",
+      "selector": "engine::tests::original_object_view_and_logical_native_receipts_refuse_explicitly",
+      "scope": "Actual iRules profile ingress plus explicitly selected authored Tcl84 naming provider; original native receipt refusal, compatibility command registration and OriginalObjects execution refusal assertions retained. No Native production change.",
+      "category": "GrammarEngineLogicalFixture499",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 1727,
+      "source_sha256": "fd986cfdcaf22555643412eaea72bbe5d847354465771ce1e02f227c6eb0cbea",
+      "body_sha256": "db261a0c073cbbc8d2e6a1f00cb445f27bb2056617ee5f3c8b8613d91cb40fc3"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/expr_float_tests.rs",
+      "selector": "expr::float_error_tests::c84_cached_resident_double_normalizes_without_fresh_c_call",
+      "scope": "Actual queried ABI with unavailable conversion/state environment; original resident cache/header independence and zero state query assertion unchanged.",
+      "category": "GrammarRecordedFloatAbi498",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 128,
+      "source_sha256": "7b1976b71b10e2c065d877251903fe92a9bfaa0bc6bb7bfd273522cd1fcd35e5",
+      "body_sha256": "bac54387e0dcfc66aafb13678b34fe9c049631f7fb89491e73bbf17a6aaa4edd"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/expr_float_tests.rs",
+      "selector": "expr::float_error_tests::c84_cached_resident_primary_refuses_missing_recorded_abi_without_fresh_conversion",
+      "scope": "New software source/API control withdraws only ABI, asserts exact typed ScalarNumericInputUnavailable in both expression and retained command error, unchanged original cache/String/header snapshot and zero state query.",
+      "category": "GrammarRecordedFloatAbi498",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 149,
+      "source_sha256": "7b1976b71b10e2c065d877251903fe92a9bfaa0bc6bb7bfd273522cd1fcd35e5",
+      "body_sha256": "4fdf0a0d6fbe72cf1619a1fd8b5d68c3834a349b1c391d0865b0230a3a892029"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/expr_float_tests.rs",
+      "selector": "expr::float_error_tests::c84_normalization_matches_six_original_float_error_windows",
+      "scope": "All six original errno/message/error-code/String/cache/query comparisons unchanged, supplied genuine queried C integer ABI; unavailable state error asserted via full exact structured CmdError.",
+      "category": "GrammarRecordedFloatAbi498",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 39,
+      "source_sha256": "7b1976b71b10e2c065d877251903fe92a9bfaa0bc6bb7bfd273522cd1fcd35e5",
+      "body_sha256": "29488f401ca6af5593280db8c1f89f425a1ed9636f8facb3f17e7248adc9caf7"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/bootstrap_context_tests.rs",
+      "selector": "interp::bootstrap_context_tests::original_bootstrap_and_setter_preserve_prior_host_refusal_without_callbacks",
+      "scope": "Real Host callback, original bootstrap/currency/storage/report/retirement boundary; no external provider or all-Host closure.",
+      "category": "GrammarNativeBootstrap500",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 334,
+      "source_sha256": "1285f767b05b0249620fa8a8558eea98f37b03347dd69db4ca3690e6d7d708ea",
+      "body_sha256": "ba863b67a6c11d05a9b12aab7c61aebd738e69d3181913c9ab34fd576b8be827"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/bootstrap_context_tests.rs",
+      "selector": "interp::bootstrap_context_tests::original_bootstrap_reporting_retirement_preserves_the_reached_first_cause",
+      "scope": "Real Host callback, original bootstrap/currency/storage/report/retirement boundary; no external provider or all-Host closure.",
+      "category": "GrammarNativeBootstrap500",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 577,
+      "source_sha256": "1285f767b05b0249620fa8a8558eea98f37b03347dd69db4ca3690e6d7d708ea",
+      "body_sha256": "be49d8fe051a26d13a1bd1fda7afdc2629d69148389993255d07ec7aaa6a5c06"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/bootstrap_context_tests.rs",
+      "selector": "interp::bootstrap_context_tests::original_hidden_error_shell_installer_refuses_stale_entry_without_retirement",
+      "scope": "Real Host callback, original bootstrap/currency/storage/report/retirement boundary; no external provider or all-Host closure.",
+      "category": "GrammarNativeBootstrap500",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 414,
+      "source_sha256": "1285f767b05b0249620fa8a8558eea98f37b03347dd69db4ca3690e6d7d708ea",
+      "body_sha256": "ab39bde54c15bf44a71bf48ad9c207152288b5ccfb40b3c82d6bca596690d74d"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/bootstrap_context_tests.rs",
+      "selector": "interp::bootstrap_context_tests::original_host_setter_preserves_old_globals_when_a_reached_callback_changes_host",
+      "scope": "Real Host callback, original bootstrap/currency/storage/report/retirement boundary; no external provider or all-Host closure.",
+      "category": "GrammarNativeBootstrap500",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 295,
+      "source_sha256": "1285f767b05b0249620fa8a8558eea98f37b03347dd69db4ca3690e6d7d708ea",
+      "body_sha256": "6741bed53c7715d983a7615a00e60b5f0ba5875e3e6a2fa7b3ca2fd350dfa90c"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/bootstrap_context_tests.rs",
+      "selector": "interp::bootstrap_context_tests::original_native_bootstrap_current_write_observers_keep_stored_value_and_result",
+      "scope": "Actual software native-core root publication/selected observer/currency and original result/cache owners; external Tcl/C constructor chronology remains independent.",
+      "category": "GrammarBootstrapSelectedWriteObservers511",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 612,
+      "source_sha256": "1285f767b05b0249620fa8a8558eea98f37b03347dd69db4ca3690e6d7d708ea",
+      "body_sha256": "d28fbb1349a8081de511f0c0639472436b7bc95de3fae952b78254e20f957efa"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/bootstrap_context_tests.rs",
+      "selector": "interp::bootstrap_context_tests::original_native_bootstrap_guest_write_failure_keeps_store_and_stops_later_stages",
+      "scope": "Actual software native-core root publication/selected observer/currency and original result/cache owners; external Tcl/C constructor chronology remains independent.",
+      "category": "GrammarBootstrapSelectedWriteObservers511",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 674,
+      "source_sha256": "1285f767b05b0249620fa8a8558eea98f37b03347dd69db4ca3690e6d7d708ea",
+      "body_sha256": "f47cb081b9fae1bdb89f1e2641e4671dc6ac19ce38af3a6d07825bdad1c614df"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/bootstrap_context_tests.rs",
+      "selector": "interp::bootstrap_context_tests::original_native_bootstrap_keeps_reached_write_and_stops_after_its_host_observer",
+      "scope": "Real Host callback, original bootstrap/currency/storage/report/retirement boundary; no external provider or all-Host closure.",
+      "category": "GrammarNativeBootstrap500",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 495,
+      "source_sha256": "1285f767b05b0249620fa8a8558eea98f37b03347dd69db4ca3690e6d7d708ea",
+      "body_sha256": "585970b8058186a924b7ba6051b4edc0cbb5275625f224e10b77463c0fb880ce"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/bootstrap_context_tests.rs",
+      "selector": "interp::bootstrap_context_tests::original_native_bootstrap_list_publication_reaches_observer_without_string_conversion",
+      "scope": "Actual software native-core root publication/selected observer/currency and original result/cache owners; external Tcl/C constructor chronology remains independent.",
+      "category": "GrammarBootstrapSelectedWriteObservers511",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 803,
+      "source_sha256": "1285f767b05b0249620fa8a8558eea98f37b03347dd69db4ca3690e6d7d708ea",
+      "body_sha256": "1f1b5779c66172ee1614d6193da4abbbddb97a7c17739689d6afbff1bbef0621"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/bootstrap_context_tests.rs",
+      "selector": "interp::bootstrap_context_tests::original_native_bootstrap_reports_storage_failure_and_stops_later_installation",
+      "scope": "Real Host callback, original bootstrap/currency/storage/report/retirement boundary; no external provider or all-Host closure.",
+      "category": "GrammarNativeBootstrap500",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 392,
+      "source_sha256": "1285f767b05b0249620fa8a8558eea98f37b03347dd69db4ca3690e6d7d708ea",
+      "body_sha256": "8dea5120df3885c49cea4ee27f98f7543788bc2547f19e8d0576c3c7c479d9e9"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/bootstrap_context_tests.rs",
+      "selector": "interp::bootstrap_context_tests::original_native_bootstrap_stops_after_each_reached_host_callback_mutates_context",
+      "scope": "Real Host callback, original bootstrap/currency/storage/report/retirement boundary; no external provider or all-Host closure.",
+      "category": "GrammarNativeBootstrap500",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 244,
+      "source_sha256": "1285f767b05b0249620fa8a8558eea98f37b03347dd69db4ca3690e6d7d708ea",
+      "body_sha256": "9a89c71a3e781671f84e6c41a3a52712d85f984c8c274f78457793a8c1f1c3ab"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/bootstrap_context_tests.rs",
+      "selector": "interp::bootstrap_context_tests::original_native_bootstrap_write_observer_uses_root_cell_inside_actual_procedure",
+      "scope": "Actual software native-core root publication/selected observer/currency and original result/cache owners; external Tcl/C constructor chronology remains independent.",
+      "category": "GrammarBootstrapSelectedWriteObservers511",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 735,
+      "source_sha256": "1285f767b05b0249620fa8a8558eea98f37b03347dd69db4ca3690e6d7d708ea",
+      "body_sha256": "bee895c6d49e86b906c4af41384406b59cc34c153269bb9ed69aef3b8aaeaf25"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/bootstrap_context_tests.rs",
+      "selector": "interp::bootstrap_context_tests::original_native_constructor_keeps_selected_inventory_and_checked_host_values",
+      "scope": "Real Host callback, original bootstrap/currency/storage/report/retirement boundary; no external provider or all-Host closure.",
+      "category": "GrammarNativeBootstrap500",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 194,
+      "source_sha256": "1285f767b05b0249620fa8a8558eea98f37b03347dd69db4ca3690e6d7d708ea",
+      "body_sha256": "4add485efe8d391a936c5a884aa81a95e8ee8fbda10feb30ec3e66d046bb31b1"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/bootstrap_context_tests.rs",
+      "selector": "interp::bootstrap_context_tests::original_ordinary_host_bootstrap_updates_snapshot_globals_without_refusal",
+      "scope": "Real Host callback, original bootstrap/currency/storage/report/retirement boundary; no external provider or all-Host closure.",
+      "category": "GrammarNativeBootstrap500",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 364,
+      "source_sha256": "1285f767b05b0249620fa8a8558eea98f37b03347dd69db4ca3690e6d7d708ea",
+      "body_sha256": "6cd36fc75440f5ca03cbcc2c22cc5bb63003722f554d4c35b50635929c8288b9"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/bootstrap_context_tests.rs",
+      "selector": "interp::bootstrap_context_tests::original_previous_host_retirement_cannot_refresh_the_outer_setter_entry",
+      "scope": "Real Host callback, original bootstrap/currency/storage/report/retirement boundary; no external provider or all-Host closure.",
+      "category": "GrammarNativeBootstrap500",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 433,
+      "source_sha256": "1285f767b05b0249620fa8a8558eea98f37b03347dd69db4ca3690e6d7d708ea",
+      "body_sha256": "0ec56690954d3f70f65fc6ea068f634257973710ad323a59156ba562ae5fe0b9"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/native_precision/original_stage_tests.rs",
+      "selector": "interp::native_precision::original_stage_tests::original_precision_absent_value_keeps_the_selected_null_getter_worker",
+      "scope": "Selected software precision/original cache/entered context controls; external Tcl/Jim records and target Tcl32 recipes remain separate.",
+      "category": "GrammarSelectedPrecisionStages512",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "canonical_question": "naming.embedding.original-host-publication-and-fact-transport",
+      "line": 607,
+      "source_sha256": "911a4e344a956906f94147c01a401bbc3d51d02358925bcd483a96dffc3b3e64",
+      "body_sha256": "5df7d7ae85be042546164e9f9358faca61b5adbf17b8b5f61c732754fb5b8188"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/native_precision/original_stage_tests.rs",
+      "selector": "interp::native_precision::original_stage_tests::original_precision_c84_decimal_worker_keeps_c_int_narrowing_and_no_reset",
+      "scope": "Selected software precision/original cache/entered context controls; external Tcl/Jim records and target Tcl32 recipes remain separate.",
+      "category": "GrammarSelectedPrecisionStages512",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "canonical_question": "naming.embedding.original-host-publication-and-fact-transport",
+      "line": 339,
+      "source_sha256": "911a4e344a956906f94147c01a401bbc3d51d02358925bcd483a96dffc3b3e64",
+      "body_sha256": "de384aeb06d51ae3960bb3448221096f53dd1781e8934eac5709e494044eb7b6"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/native_precision/original_stage_tests.rs",
+      "selector": "interp::native_precision::original_stage_tests::original_precision_c84_restore_keeps_reached_cell_and_first_retirement_cause",
+      "scope": "Selected software precision/original cache/entered context controls; external Tcl/Jim records and target Tcl32 recipes remain separate.",
+      "category": "GrammarSelectedPrecisionStages512",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "canonical_question": "naming.embedding.original-host-publication-and-fact-transport",
+      "line": 420,
+      "source_sha256": "911a4e344a956906f94147c01a401bbc3d51d02358925bcd483a96dffc3b3e64",
+      "body_sha256": "c0f0ebcbf06e38c877252577a14b41ab15715ef2a8635128ffb4b791a1a4165c"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/native_precision/original_stage_tests.rs",
+      "selector": "interp::native_precision::original_stage_tests::original_precision_missing_environment_and_prior_cause_remain_outer_refusals",
+      "scope": "Selected software precision/original cache/entered context controls; external Tcl/Jim records and target Tcl32 recipes remain separate.",
+      "category": "GrammarSelectedPrecisionStages512",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "canonical_question": "naming.embedding.original-host-publication-and-fact-transport",
+      "line": 459,
+      "source_sha256": "911a4e344a956906f94147c01a401bbc3d51d02358925bcd483a96dffc3b3e64",
+      "body_sha256": "c35aa263f4e5e5eee6ac46be65d9597aab9124656fe7c89a1d27f905c236f4f8"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/native_precision/original_stage_tests.rs",
+      "selector": "interp::native_precision::original_stage_tests::original_precision_modern_int_uses_cache_and_rejects_double_without_string",
+      "scope": "Selected software precision/original cache/entered context controls; external Tcl/Jim records and target Tcl32 recipes remain separate.",
+      "category": "GrammarSelectedPrecisionStages512",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "canonical_question": "naming.embedding.original-host-publication-and-fact-transport",
+      "line": 288,
+      "source_sha256": "911a4e344a956906f94147c01a401bbc3d51d02358925bcd483a96dffc3b3e64",
+      "body_sha256": "9edadaabe8be5315f2f7d8d9585e96d04a2a25a48e5121fa8c301f9251353161"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/native_precision/original_stage_tests.rs",
+      "selector": "interp::native_precision::original_stage_tests::original_precision_read_ignores_guest_array_store_without_promoting_host_failure",
+      "scope": "Selected software precision/original cache/entered context controls; external Tcl/Jim records and target Tcl32 recipes remain separate.",
+      "category": "GrammarSelectedPrecisionStages512",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "canonical_question": "naming.embedding.original-host-publication-and-fact-transport",
+      "line": 513,
+      "source_sha256": "911a4e344a956906f94147c01a401bbc3d51d02358925bcd483a96dffc3b3e64",
+      "body_sha256": "70dddd6df9cbac06d911a8c7f002db6cf1fade4f94a4c35f13900987bf6d2dcf"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/native_precision/original_stage_tests.rs",
+      "selector": "interp::native_precision::original_stage_tests::original_precision_safe_write_precedes_string_and_numeric_stages",
+      "scope": "Selected software precision/original cache/entered context controls; external Tcl/Jim records and target Tcl32 recipes remain separate.",
+      "category": "GrammarSelectedPrecisionStages512",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "canonical_question": "naming.embedding.original-host-publication-and-fact-transport",
+      "line": 247,
+      "source_sha256": "911a4e344a956906f94147c01a401bbc3d51d02358925bcd483a96dffc3b3e64",
+      "body_sha256": "5ab811f7dec69454185d040c1e4569bd0e180d48aa36996da1a601ef81038892"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/native_precision/original_stage_tests.rs",
+      "selector": "interp::native_precision::original_stage_tests::original_precision_string_and_numeric_callbacks_stop_before_publication_on_aba",
+      "scope": "Selected software precision/original cache/entered context controls; external Tcl/Jim records and target Tcl32 recipes remain separate.",
+      "category": "GrammarSelectedPrecisionStages512",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "canonical_question": "naming.embedding.original-host-publication-and-fact-transport",
+      "line": 390,
+      "source_sha256": "911a4e344a956906f94147c01a401bbc3d51d02358925bcd483a96dffc3b3e64",
+      "body_sha256": "4dbe49ed237d98a0f478f55e4d64834264d80fa0cfe9ab3a12283045adf0d4aa"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/native_precision/original_stage_tests.rs",
+      "selector": "interp::native_precision::original_stage_tests::original_precision_string_getter_keeps_the_borrowed_cell_reference_role",
+      "scope": "Selected software precision/original cache/entered context controls; external Tcl/Jim records and target Tcl32 recipes remain separate.",
+      "category": "GrammarSelectedPrecisionStages512",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "canonical_question": "naming.embedding.original-host-publication-and-fact-transport",
+      "line": 642,
+      "source_sha256": "911a4e344a956906f94147c01a401bbc3d51d02358925bcd483a96dffc3b3e64",
+      "body_sha256": "85f01fa29048dc961bf0bb9007ad1948ffbeac2fc7f5e4412557da478cd767e6"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/native_precision/original_stage_tests.rs",
+      "selector": "interp::native_precision::original_stage_tests::original_precision_unsigned_long_default_absence_cannot_borrow_another_worker",
+      "scope": "Selected software precision/original cache/entered context controls; external Tcl/Jim records and target Tcl32 recipes remain separate.",
+      "category": "GrammarSelectedPrecisionStages512",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "canonical_question": "naming.embedding.original-host-publication-and-fact-transport",
+      "line": 535,
+      "source_sha256": "911a4e344a956906f94147c01a401bbc3d51d02358925bcd483a96dffc3b3e64",
+      "body_sha256": "fabffeb3cf99ec1ba180cf8bcb3f1f6506f250f091a415067071c8e89c8f9e58"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp/native_precision.rs",
+      "selector": "interp::native_precision::tests::original_precision_unset_matches_all_six_native_sources",
+      "scope": "Selected software precision/original cache/entered context controls; external Tcl/Jim records and target Tcl32 recipes remain separate.",
+      "category": "GrammarSelectedPrecisionStages512",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "canonical_question": "naming.variable.original-precision-unset-publication",
+      "line": 350,
+      "source_sha256": "5e89f4bc82fe4bcb695f1784ff08c802f5aa732d480f7e4ba40168be9f3ba174",
+      "body_sha256": "b37c59b1cd996b776e11547cce85317c086819d714290c408673c763b9bbe309"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp.rs",
+      "selector": "interp::tests::native_core_root_cells_match_six_original_constructor_inventories",
+      "scope": "Original native constructor inventory or selected Host globals regression; assertions unchanged.",
+      "category": "GrammarNativeBootstrap500Required",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 18988,
+      "source_sha256": "6793e998d8865986c97cf68490a83478c0b1ee2e96113562a542d69aa0ff2921",
+      "body_sha256": "761f79985d6699677d2b64d83a5e90bdb7be0ffd526b5dab0d062675ebf278ef"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp.rs",
+      "selector": "interp::tests::native_jim_core_keeps_only_constructor_empty_roles",
+      "scope": "Original native constructor inventory or selected Host globals regression; assertions unchanged.",
+      "category": "GrammarNativeBootstrap500Required",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 18970,
+      "source_sha256": "6793e998d8865986c97cf68490a83478c0b1ee2e96113562a542d69aa0ff2921",
+      "body_sha256": "e7b41a41a98e666e624e3e3761bba532cfa8139bcc9ad79697aecae72e3a46be"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "path": "runtime/rust/src/interp.rs",
+      "selector": "interp::tests::selected_host_bootstrap_and_rebind_replace_all_host_globals",
+      "scope": "Original native constructor inventory or selected Host globals regression; assertions unchanged.",
+      "category": "GrammarNativeBootstrap500Required",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 19142,
+      "source_sha256": "6793e998d8865986c97cf68490a83478c0b1ee2e96113562a542d69aa0ff2921",
+      "body_sha256": "ad1d24626bd665274f9df7c36868e61585ba904a719f385140c6f09aec9d5638"
+    }
+  ],
+  "expected_selected_inventory_count": 35,
+  "freshness_requirement": "Root matching immutable own producer and strict own target list must admit every literal selector before execution",
+  "test_execution": "Not launched by Grammar",
+  "status": "Immutable current source-only request; no owned image/list/assertion credit",
+  "package_manifest": "runtime/rust/Cargo.toml",
+  "package_manifest_sha256": "a86fd0e9c18a2ceb79b349de4774034f69bc8f64d789943d9afd3af1a40aae05",
+  "own_image_admission": "Root successful own target build, strict complete --list, every exact selector count1; no dependency image or zero-test admission",
+  "features": [
+    "engine"
+  ],
+  "feature_scope": "Engine499 fixture needs the explicit engine feature; no wasm_stdlib/WASI/browser or guest grant."
+}

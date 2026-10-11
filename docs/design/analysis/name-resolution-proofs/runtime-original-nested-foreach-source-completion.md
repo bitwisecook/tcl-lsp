@@ -162,3 +162,15 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 Complete unchanged original request/driver/source, actual compile/run receipts/commands, counted public hex rows, whole stdout/stderr, environment overrides and executable/static-library/header/Makefile/source pins remain retained. Other inherited environment and compiler binary version are unrecorded. Launcher uses absolute external paths/prior receipts; no portable replay is promised. Replay generates new observations. Publication launches no native/compiler/Rust process.
+
+
+## Exact original-source349 software outcomes
+
+These finite results belong to the original source349 body/question/document pairs and the owned Runtime executable. Passing, failing, aborted/incomplete and unstarted selections retain their separate meanings. They establish no outcome for another source image or external provider.
+
+| Original selection | Passed | Failed | Aborted or incomplete | Not started |
+| --- | ---: | ---: | ---: | ---: |
+| `grouped` | 0 | 0 | 0 | 1 |
+| `isolated` | 1 | 0 | 0 | 0 |
+
+[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.

@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::native_return_instruction::original_syntax_transport_tests::original_syntax_shared_info_copy_checks_real_duplicate_before_adoption ... 
+thread 'interp::native_return_instruction::original_syntax_transport_tests::original_syntax_shared_info_copy_checks_real_duplicate_before_adoption' (1339244) panicked at src/interp/native_return_instruction.rs:999:21:
+assertion `left == right` failed
+  left: 1
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_return_instruction::original_syntax_transport_tests::original_syntax_shared_info_copy_checks_real_duplicate_before_adoption
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 1.34s
+

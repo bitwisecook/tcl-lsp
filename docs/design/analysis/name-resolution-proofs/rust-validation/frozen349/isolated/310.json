@@ -1,0 +1,19 @@
+{
+  "ordinal": 310,
+  "selector": "interp::native_precision::original_stage_tests::original_precision_c84_decimal_worker_keeps_c_int_narrowing_and_no_reset",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::native_precision::original_stage_tests::original_precision_c84_decimal_worker_keeps_c_int_narrowing_and_no_reset",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 1.7440253419918008,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 1.68s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/310.log",
+  "log_sha256": "c59b6913318b8c15bc1461aed6c0697256b9c4245bbd0b3f6b6705b5ff1ddb40"
+}

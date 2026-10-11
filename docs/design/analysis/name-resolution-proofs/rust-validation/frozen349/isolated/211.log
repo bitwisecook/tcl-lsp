@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::bootstrap_context_tests::original_native_bootstrap_write_observer_uses_root_cell_inside_actual_procedure ... 
+thread 'interp::bootstrap_context_tests::original_native_bootstrap_write_observer_uses_root_cell_inside_actual_procedure' (1337809) panicked at src/interp/bootstrap_context_tests.rs:759:5:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::bootstrap_context_tests::original_native_bootstrap_write_observer_uses_root_cell_inside_actual_procedure
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 2.84s
+

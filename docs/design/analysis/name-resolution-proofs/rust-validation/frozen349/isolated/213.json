@@ -1,0 +1,19 @@
+{
+  "ordinal": 213,
+  "selector": "interp::bootstrap_context_tests::original_ordinary_host_bootstrap_updates_snapshot_globals_without_refusal",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::bootstrap_context_tests::original_ordinary_host_bootstrap_updates_snapshot_globals_without_refusal",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 2.375779681984568,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 2.34s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/213.log",
+  "log_sha256": "b6bc1e1ecf6e241604ec139104c55a44c44db59fa022b4739c254fc78a1a9f01"
+}

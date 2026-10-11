@@ -1,0 +1,19 @@
+{
+  "ordinal": 55,
+  "selector": "cmd_error::tests::catch_success_and_error_codes",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_error::tests::catch_success_and_error_codes",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 5.645236035983544,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 5.54s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/055.log",
+  "log_sha256": "fd6b6c86c2d4c486810b3032197a15da0200bb9936c506fe8254a64383c3f304"
+}

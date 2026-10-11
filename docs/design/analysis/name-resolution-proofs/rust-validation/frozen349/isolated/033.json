@@ -1,0 +1,19 @@
+{
+  "ordinal": 33,
+  "selector": "cmd_dict::tests::deeply_nested_dict_path_set_and_unset_survive",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "cmd_dict::tests::deeply_nested_dict_path_set_and_unset_survive",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 1.654177938005887,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 1.64s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/033.log",
+  "log_sha256": "ef779a43a14dfe81b5bf5388b7d5176ff2f5175af47c19942d64ec0b426fef57"
+}

@@ -1,0 +1,19 @@
+{
+  "ordinal": 191,
+  "selector": "dict::tests::duplicate_keys_canonicalise_like_the_shared_owner",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "dict::tests::duplicate_keys_canonicalise_like_the_shared_owner",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 0.012493813002947718,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 0.00s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/191.log",
+  "log_sha256": "e50332b54670f8affb90c1eab93be79cc597802e6358e47da494d86f73975936"
+}

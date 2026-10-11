@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_error_headers::original_carried_option_tests::original_saved_option_cleanup_finishes_result_restore_after_host_or_context_withdrawal ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 8.59s
+

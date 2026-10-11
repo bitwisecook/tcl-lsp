@@ -1,0 +1,19 @@
+{
+  "ordinal": 390,
+  "selector": "interp::tests::missing_alias_target_uses_custom_unknown_with_target_and_args",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::tests::missing_alias_target_uses_custom_unknown_with_target_and_args",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 3.9644236500025727,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 3.95s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/390.log",
+  "log_sha256": "1da333c6b25e760ef121eb9731e26183c3237b63a5d7377065c4d9c3838782ae"
+}

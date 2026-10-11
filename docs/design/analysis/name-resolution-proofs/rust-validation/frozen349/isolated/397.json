@@ -1,0 +1,19 @@
+{
+  "ordinal": 397,
+  "selector": "interp::tests::native_core_root_cells_match_six_original_constructor_inventories",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::tests::native_core_root_cells_match_six_original_constructor_inventories",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "seconds": 12.073334182990948,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 11.99s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/397.log",
+  "log_sha256": "60eed22e58a63e8f5630544bd1d514a1c110aa3c2e5298e70e3387c7f1998647"
+}

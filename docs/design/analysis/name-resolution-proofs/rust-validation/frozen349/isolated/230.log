@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_body_artifact::native_error::tests::original_error_artifacts_match_native_guest_result_and_local_order ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 5.70s
+

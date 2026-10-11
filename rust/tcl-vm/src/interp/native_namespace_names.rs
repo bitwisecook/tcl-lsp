@@ -830,7 +830,7 @@ mod tests {
                 cache.reference().is_some(),
                 version == tcl_dialect::TclVersion::V8_4
             );
-            let unrelated = actual_vm(release);
+            let mut unrelated = actual_vm(release);
             assert_eq!(unrelated.namespace_object_lookup(&original).unwrap(), None);
             assert_eq!(
                 vm.namespace_object_lookup(&original).unwrap(),

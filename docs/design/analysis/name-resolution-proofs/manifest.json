@@ -7157,6 +7157,14 @@
           "sha256": "3b9ed9bc574a16b1f86c989cf3eb59c6d69d00f6b1bcc840548ba6fed2e4d64a",
           "description": "Exact LF-only full-source/snippet join for array_cmd_unset; source version/revision unrecorded and no native launch/outcome inferred.",
           "json_pointer": "/source_anchors/2/snippet"
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.array.jim-original-dictionary-runtime-enumeration"
         }
       ],
       "source_anchors": [
@@ -15930,6 +15938,14 @@
           "path": "rust/tcl-registry/tests/data/native_bootstrap/core-roots.tsv",
           "sha256": "9311ac43348a859b82f2fcb3da180bca59e4f72e26c7cbdd35a86c8c1ef671bb",
           "description": "Constructor root cells in retained native bucket order; defined and C-array flags."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.bootstrap.original-root-cells"
         }
       ],
       "source_anchors": [],
@@ -22305,6 +22321,14 @@
           "path": "rust/tcl-registry/tests/data/native_oo_renamed_definition321/source.tcl",
           "sha256": "7bdf32aee19dafbe50953b8d4f675d2c78f91aa006b4633d9e65c5fac8152da0",
           "description": "Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.class.original-renamed-definition-error-context"
         }
       ],
       "source_anchors": [],
@@ -29356,6 +29380,14 @@
           "path": "rust/tcl-registry/tests/data/native_introspection_compilation/run.py",
           "sha256": "0876a5bb3f49935ae05312f927528b3c56b9cef7351e5123975e62385f5226b3",
           "description": "Exact retained input/program bytes; purpose is limited to this question."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.compiler.introspection-source-and-effect-frontiers"
         }
       ],
       "source_anchors": [],
@@ -82480,6 +82512,14 @@
           "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/source-inspection/request.json",
           "sha256": "c7611fa375bef4b8a0ff6521f70974fcd5ea39fe65ff8b9152bfa4d551a7993c",
           "description": "Exact independent original Jim worker source or source-inspection request; interpretation is separate from measured public output."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.dictionary.original-path-missing-variable-publication"
         }
       ],
       "source_anchors": [
@@ -112901,6 +112941,14 @@
           "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/9.1.0.txt",
           "sha256": "afef4104c313d2d67a680d0eef5dacbdd8ff26b38617f3f5062d95986eecc229",
           "description": "Original retained full stream; provider answer selects only this question's relevant windows."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.expression.original-direct-arithmetic-error-stage"
         }
       ],
       "source_anchors": [],
@@ -125261,6 +125309,14 @@
           "sha256": "47dbfe265c0a08fceeeae75ec1ae25c23751ca46c58c06d68bdd90f251878d21",
           "json_pointer": "/source_rows/3/snippet",
           "description": "Exact independently inspected C 9.1.0 InfoFunctionsCmd script-construction prefix; source/library execution association is not inferred."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.info.functions-native-script"
         }
       ],
       "source_anchors": [
@@ -127432,6 +127488,14 @@
           "path": "rust/tcl-cmd-core/tests/data/native_info_functions_loaded/jim/version.stderr",
           "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
           "description": "Exact jim version.stderr from the independent source-file shell capture."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.info.loaded-original-interpreter-path"
         }
       ],
       "source_anchors": [],
@@ -143765,6 +143829,14 @@
           "sha256": "ed3e08891bafdf1de830c539a445598c02c083f8e9bbc9119fd47ea6f28c644b",
           "role": "provider",
           "description": "Exact independent current Jim CLI reported-version association and shared static library/header pins; the API probe does not query its own version."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.jim.dictionary-core-versus-stdlib-bootstrap"
         }
       ],
       "source_anchors": [],
@@ -149850,6 +149922,14 @@
           "path": "rust/tcl-registry/tests/data/native_list_index_compilation/9.1.0.txt",
           "sha256": "f810a08941b7a67cd473a33a09e0ea8bd3573d8e4ff58f0fff6da1e145e354b4",
           "description": "Full19-row source-native compilation/result stream; selected case IDs [12, 13, 17, 18]."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.list-index.expansion-and-abrupt-child-boundaries"
         }
       ],
       "source_anchors": [],
@@ -150046,6 +150126,14 @@
           "path": "rust/tcl-registry/tests/data/native_list_index_compilation/9.1.0.txt",
           "sha256": "f810a08941b7a67cd473a33a09e0ea8bd3573d8e4ff58f0fff6da1e145e354b4",
           "description": "Full19-row source-native compilation/result stream; selected case IDs [0, 1, 5, 6, 7, 8, 9, 10, 11, 14]."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.list-index.literal-native-instruction-coordinates"
         }
       ],
       "source_anchors": [],
@@ -150242,6 +150330,14 @@
           "path": "rust/tcl-registry/tests/data/native_list_index_compilation/9.1.0.txt",
           "sha256": "f810a08941b7a67cd473a33a09e0ea8bd3573d8e4ff58f0fff6da1e145e354b4",
           "description": "Full19-row source-native compilation/result stream; selected case IDs [2, 3, 4, 15, 16]."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.list-index.multi-path-and-empty-validation"
         }
       ],
       "source_anchors": [],
@@ -150438,6 +150534,14 @@
           "path": "rust/tcl-registry/tests/data/native_list_index_original_objects/9.1.0.txt",
           "sha256": "823fd3746162cc54bc2329c149545752ea2cf84667ec5f6815e10a367f475b09",
           "description": "Full9-row original stream; selected case IDs [0, 1, 2, 6, 7]."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.list-index.original-integer-and-end-offset-headers"
         }
       ],
       "source_anchors": [],
@@ -150628,6 +150732,14 @@
           "path": "rust/tcl-registry/tests/data/native_list_index_original_objects/9.1.0.txt",
           "sha256": "823fd3746162cc54bc2329c149545752ea2cf84667ec5f6815e10a367f475b09",
           "description": "Full9-row original stream; selected case IDs [3, 4, 5, 8]."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.list-index.original-list-path-and-invalid-conversion"
         }
       ],
       "source_anchors": [],
@@ -152312,6 +152424,14 @@
           "role": "observation",
           "sha256": "e3c71f0276164549be3980f8ebc9e272997c7f3c0b3197ce089d7411a5b65992",
           "description": "Exact Jim four missing-first results and original snapshots; no C object trace API measured."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.list.assignment-interleaved-target-effects"
         }
       ],
       "source_anchors": [
@@ -154857,6 +154977,14 @@
           "role": "observation",
           "sha256": "c6d78db36f9a442da2b02d3fe2ea86512765ef332732d16774d1c536d26ca528",
           "description": "Selected cases [11, 12, 13, 14, 23, 28] within exact full original stream; other operation rows belong to independent questions."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.list.original-assign-objects-and-instructions"
         }
       ],
       "source_anchors": [
@@ -156454,6 +156582,14 @@
           "role": "observation",
           "sha256": "c6d78db36f9a442da2b02d3fe2ea86512765ef332732d16774d1c536d26ca528",
           "description": "Selected cases [0, 1, 2, 3, 4, 24] within exact full original stream; other operation rows belong to independent questions."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.list.original-range-objects-and-instructions"
         }
       ],
       "source_anchors": [
@@ -169932,6 +170068,14 @@
           "path": "rust/tcl-registry/tests/data/native_jim_flat_namespace_original/jim/stderr",
           "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
           "description": "Exact complete raw stderr bytes for the original process; catch/setup observations are distinct from outer process status."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.namespace.jim-flat-command-context-source-controls"
         }
       ],
       "source_anchors": [],
@@ -177111,6 +177255,14 @@
           "path": "rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim/stderr",
           "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
           "description": "Actual empty stderr for the retained successful process."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.namespace.original-counted-qualifiers-compiler-and-runtime"
         }
       ],
       "source_anchors": [
@@ -177920,6 +178072,14 @@
           "sha256": "6861df1dee6d7d985c66b6d408f4aaed6eafc862eaeb1d1ddbddb8c7e326992f",
           "description": "tcl9.1 direct Tail CString scan and actual append/new-string producer.",
           "json_pointer": "/source_anchors/16/snippet"
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.namespace.original-counted-tail-compiler-and-runtime"
         }
       ],
       "source_anchors": [
@@ -187307,6 +187467,14 @@
           "path": "rust/tcl-syntax/tests/data/native_scalar_getters/errors/jim-error-state.txt",
           "sha256": "582df48b9f8982ab85c1cfad0d0df62b26a6d61e275c658f28b0bc5da0a34131",
           "description": "Original retained full stream; provider answer selects only this question's relevant windows."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.numeric.seeded-wide-frontier"
         }
       ],
       "source_anchors": [],
@@ -222608,6 +222776,14 @@
           "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
           "role": "observation",
           "description": "Whole exact empty process stderr."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.runtime.original-command-source-extent"
         }
       ],
       "source_anchors": [],
@@ -222770,6 +222946,14 @@
           "path": "rust/tcl-vm/src/literal_pool.rs",
           "sha256": "b9ae6506d187a2e9b683b3d08e65f9ba6f0cf38b17a63a65e240616f484539a7",
           "description": "Current source/API owner and software assertion definition; no executed Rust or native provider result."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.runtime.original-literal-owner-retirement"
         }
       ],
       "source_anchors": [],
@@ -223597,6 +223781,14 @@
           "path": "rust/tcl-registry/tests/data/native_nested_foreach_source214/capture.py",
           "sha256": "6168f87846544bfb71da50942e678411349dd8421777162b524fa98a8d3d7c81",
           "description": "Exact Root-executed external C API launcher with actual compile/control commands and required pin/stream checks."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.runtime.original-nested-foreach-source-completion"
         }
       ],
       "source_anchors": [],
@@ -224186,7 +224378,16 @@
           "evidence": []
         }
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.runtime.original-root-command-context"
+        }
+      ],
       "source_anchors": [],
       "tests": [
         {
@@ -228388,6 +228589,14 @@
           "sha256": "3d9b96a5213219a9ba932288336c535479cb257ed0dedd9672a12cb87084e14c",
           "json_pointer": "/2/snippet",
           "description": "Original Jim_EvalObj parser/evaluation capture boundary, exact LF/full-source/snippet association; source inspection only."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.source.jim-original-source-entry"
         }
       ],
       "source_anchors": [
@@ -240376,6 +240585,14 @@
           "path": "docs/design/analysis/name-resolution-proofs/substitution-offline-checks.json",
           "sha256": "38a5fdb1e81ba1c2e153ba4a54dc378ca2cfb356927e9bd50d3f82baf11180e5",
           "description": "Actual six-variant verify-only checks of30 configured source/header/library/flags/stream associations; no compiler, native executable or Rust assertion was launched."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.substitution.counted-template-completions"
         }
       ],
       "source_anchors": [],
@@ -242498,6 +242715,14 @@
           "path": "docs/design/analysis/name-resolution-proofs/substitution-offline-checks.json",
           "sha256": "38a5fdb1e81ba1c2e153ba4a54dc378ca2cfb356927e9bd50d3f82baf11180e5",
           "description": "Actual six-variant verify-only checks of30 configured source/header/library/flags/stream associations; no compiler, native executable or Rust assertion was launched."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.substitution.original-cache-fields"
         }
       ],
       "source_anchors": [],
@@ -255176,6 +255401,14 @@
           "path": "rust/tcl-registry/tests/data/native_oo_context296/superclass.tcl",
           "sha256": "8c9cec1f986adfb206bfe9bf82e944977d8c610c7e4e32852b26c90107931fff",
           "description": "Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.tcloo.original-constant-link-introspection"
         }
       ],
       "source_anchors": [],
@@ -255667,6 +255900,14 @@
           "path": "rust/tcl-registry/tests/data/native_oo_variable_header300/request.json",
           "sha256": "b3b12b3bb6d18c5151f99b63b8ac1f9e13cdf6a999ca63a617e8572c2e269b9b",
           "description": "Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.tcloo.original-counted-variable-header"
         }
       ],
       "source_anchors": [],
@@ -256992,6 +257233,14 @@
           "path": "rust/tcl-registry/tests/data/native_oo_context296/superclass.tcl",
           "sha256": "8c9cec1f986adfb206bfe9bf82e944977d8c610c7e4e32852b26c90107931fff",
           "description": "Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.tcloo.original-definition-context-self"
         }
       ],
       "source_anchors": [],
@@ -257883,6 +258132,14 @@
           "path": "rust/tcl-registry/tests/data/native_oo_context296/superclass.tcl",
           "sha256": "8c9cec1f986adfb206bfe9bf82e944977d8c610c7e4e32852b26c90107931fff",
           "description": "Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.tcloo.original-definitionnamespace-source-control"
         }
       ],
       "source_anchors": [],
@@ -259854,6 +260111,14 @@
           "path": "rust/tcl-registry/tests/data/native_oo_context296/superclass.tcl",
           "sha256": "8c9cec1f986adfb206bfe9bf82e944977d8c610c7e4e32852b26c90107931fff",
           "description": "Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.tcloo.original-nonclass-superclass-mixin-errors"
         }
       ],
       "source_anchors": [],
@@ -267772,6 +268037,14 @@
           "sha256": "949e5e675050462385848d43cce5b90479d55a0b31395a19ef9d713c7b349385",
           "json_pointer": "/window/snippet",
           "description": "Exact pinned time handler window, original script object reuse and abrupt completion propagation. Source inspection only."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.time.original-script-object-evaluation"
         }
       ],
       "source_anchors": [
@@ -269029,6 +269302,14 @@
           "path": "rust/tcl-registry/tests/data/native_each_try_compilation/probe.c",
           "sha256": "d94eb349ae2638672110fd183d15ca719c7b98d4d3039cd939a5158209902edf",
           "description": "Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.try-original-compiler-topology"
         }
       ],
       "source_anchors": [],
@@ -278177,6 +278458,14 @@
           "role": "observation",
           "sha256": "6e8fd61d87f2f87ec975d4dd09d64f2f881388fe6b8539c0e547645361614df8",
           "description": "Exact 18 hexadecimal source/result rows; no physical object/cache claim."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.variable.dictionary-missing-receiver-and-array-default-phases"
         }
       ],
       "source_anchors": [],
@@ -279978,6 +280267,14 @@
           "path": "rust/tcl-registry/tests/data/native_error_variables/9.1.0.tsv",
           "sha256": "5ce398c7dc280ad30a4a17ae5cbf73515289ad3570c1ae2d4dfc829123072a3e",
           "description": "Exact native result/state/callback rows for 9.1.0"
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.variable.error-globals-bootstrap-and-legacy-copy"
         }
       ],
       "source_anchors": [],
@@ -280165,6 +280462,14 @@
           "path": "rust/tcl-registry/tests/data/native_error_variables/9.1.0-info-append.tsv",
           "sha256": "d4c34c2232955a9b0b62e67fdc0246ba56918a9bf3189e436e9c9665f6951346",
           "description": "Exact native result/state/callback rows for 9.1.0"
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.variable.error-info-append-original-object"
         }
       ],
       "source_anchors": [],
@@ -280352,6 +280657,14 @@
           "path": "rust/tcl-registry/tests/data/native_error_variables/9.1.0-producers.tsv",
           "sha256": "d06adeabd57ec85e2435248b12fd3e91c667e214c4a4a1a424f2058d1e2488a6",
           "description": "Exact native result/state/callback rows for 9.1.0"
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.variable.error-producer-reset-callback-order"
         }
       ],
       "source_anchors": [],
@@ -280539,6 +280852,14 @@
           "path": "rust/tcl-registry/tests/data/native_error_variables/9.1.0-producer-script-traces.tsv",
           "sha256": "cd203679a572343a5bb21205ed9963d3c5acdec565793896b28f75bf042a7aad",
           "description": "Exact native result/state/callback rows for 9.1.0"
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.variable.error-producer-script-trace-reset-order"
         }
       ],
       "source_anchors": [],
@@ -280726,6 +281047,14 @@
           "path": "rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv",
           "sha256": "9646fcdfe5c93cbd36f3b4c6ec03f3dffe724a86fedaaa20e6e787ca98a0f4f8",
           "description": "Exact native result/state/callback rows for 9.1.0"
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.variable.error-reset-distinct-episodes"
         }
       ],
       "source_anchors": [],
@@ -293436,6 +293765,14 @@
           "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
           "role": "observation",
           "description": "Whole original empty process stderr."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.variable.jim-dict-update-reference-controls"
         }
       ],
       "source_anchors": [],
@@ -302725,6 +303062,14 @@
           "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
           "role": "observation",
           "description": "Whole exact empty process stderr."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.variable.original-eval-container-storage-columns"
         }
       ],
       "source_anchors": [],
@@ -307655,6 +308000,14 @@
           "path": "rust/tcl-registry/tests/data/native_precision_unset319/unrelated.tcl",
           "sha256": "25dc37764fdf7cf3698f6ffcc0e1057c56ff46bd0c2614dd9f3f70520df00e82",
           "description": "Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.variable.original-precision-unset-publication"
         }
       ],
       "source_anchors": [],
@@ -309382,6 +309735,14 @@
           "path": "rust/tcl-registry/tests/data/native_array_traced_root345/source.tcl",
           "sha256": "4ffc50f2014c35f4bf451199b9916153f104e79fdf153b28c7280db8ea75177b",
           "description": "Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.variable.original-traced-array-root-materialisation"
         }
       ],
       "source_anchors": [],
@@ -311114,6 +311475,14 @@
           "role": "observation",
           "sha256": "93a44c635222267d858586ef1c020a5b5bd39c9ad574f0dd9bb51f5f2b23bebf",
           "description": "All 28 completion/opcode rows and four header observation rows, including guest failures."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.variable.original-upvar-and-exists-completion-and-name-windows"
         }
       ],
       "source_anchors": [],
@@ -320123,6 +320492,14 @@
           "path": "rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/jim/stderr",
           "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
           "description": "Empty stderr for the completed native program."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.word-and-subst.original-concatenation"
         }
       ],
       "source_anchors": [],
@@ -321205,6 +321582,14 @@
           "sha256": "d63aac17962edb5e12f0f97498a72335bb5175366cbff67143f1b9974eb08f67",
           "role": "implementation",
           "description": "Lossless scalar/storage transport definitions with two canonical comment markers; all non-comment bytes unchanged. No native cache production is asserted."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.embedding.original-host-publication-and-fact-transport"
         }
       ],
       "source_anchors": [],
@@ -352691,6 +353076,14 @@
           "path": "rust/tcl-registry/tests/data/native_capi_scalar_publication_original/recorded-path-map.json",
           "sha256": "0eeda34efb3d36408fa3fd8f239c467d7ac366f4b4dadcdd5d54ba537f8dc24a",
           "description": "355 exact recorded per-image/per-provider original input associations with publication paths; all current bytes verified."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.numeric.original-capi-scalar-publication-width"
         }
       ],
       "source_anchors": [
@@ -365397,6 +365790,14 @@
           "sha256": "903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c",
           "description": "Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.",
           "json_pointer": "/exact_question_body_outcomes"
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.source.original-configured-script-completeness"
         }
       ],
       "source_anchors": [
@@ -399667,6 +400068,14 @@
           "sha256": "da491e60f89f9754f32e229ecc497dc55f609e7794a36d3c706186e0ef63c066",
           "role": "source-anchor",
           "description": "Immutable independent source/phase interpretation, whole-hash and every ROW/EVENT joined to the already retained originals. This is not additional execution."
+        },
+        {
+          "id": "own-source349-runtime-software-outcomes",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+          "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+          "description": "Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.",
+          "json_pointer": "/by_question/naming.invocation.original-naming-argument-getter-and-effect-order"
         }
       ],
       "source_anchors": [

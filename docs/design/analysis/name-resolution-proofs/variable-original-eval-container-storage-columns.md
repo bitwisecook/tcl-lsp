@@ -284,3 +284,15 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 Original exact isolated commands, recorded environment overrides, whole raw streams and complete executable/required-artifact associations remain unchanged. Other inherited environment variables are unrecorded. Version association is the exact source187 receipt and same executable digest, not a version print by these controls. The actual launcher depends on original source187 receipts/external SDK paths and refuses existing outputs. Re-running creates new observations. Existing columns, source187/188 observations, Runtime assertion outcomes and any later assertion image remain independent. No native/Rust process is launched by publication.
+
+
+## Exact original-source349 software outcomes
+
+These finite results belong to the original source349 body/question/document pairs and the owned Runtime executable. Passing, failing, aborted/incomplete and unstarted selections retain their separate meanings. They establish no outcome for another source image or external provider.
+
+| Original selection | Passed | Failed | Aborted or incomplete | Not started |
+| --- | ---: | ---: | ---: | ---: |
+| `grouped` | 1 | 0 | 0 | 0 |
+| `isolated` | 1 | 0 | 0 | 0 |
+
+[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.

@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::command_publication_tests::original_publication_receipt_refuses_a_replacement_from_registration_temporary_cleanup ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 2.25s
+

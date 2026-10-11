@@ -1,0 +1,19 @@
+{
+  "ordinal": 290,
+  "selector": "interp::native_jim_namespace::tests::jim_flat_command_context_and_helper_enumeration_match_native_controls",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::native_jim_namespace::tests::jim_flat_command_context_and_helper_enumeration_match_native_controls",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 101,
+  "seconds": 4.652826024976093,
+  "passed_exact_assertion": false,
+  "summaries": [
+    "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 4.64s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/290.log",
+  "log_sha256": "61a147040bb89f6b6fcb67f4b77e21cfd1d9b5790d51ede67c94a26622cfed54"
+}

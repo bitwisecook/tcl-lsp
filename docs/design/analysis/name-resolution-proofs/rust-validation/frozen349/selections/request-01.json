@@ -1,0 +1,119 @@
+[
+  {
+    "package": "tcl-runtime",
+    "target": "runtime",
+    "target_kind": "lib",
+    "features": [
+      "engine"
+    ],
+    "selector": "interp::command_publication_tests::original_proc_binding_retires_resources_outside_table_borrow_while_query_views_survive",
+    "source": "runtime/rust/src/interp/command_publication_tests.rs",
+    "body_sha256": "11fa936d7f582d5fef91ec347341edc33cc6268fa03a51537559d44d7fc308db",
+    "qid": "naming.embedding.original-host-publication-and-fact-transport",
+    "document": "docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md"
+  },
+  {
+    "package": "tcl-runtime",
+    "target": "runtime",
+    "target_kind": "lib",
+    "features": [
+      "engine"
+    ],
+    "selector": "interp::command_publication_tests::original_proc_replacement_checks_retirement_and_holder_before_incoming_adoption",
+    "source": "runtime/rust/src/interp/command_publication_tests.rs",
+    "body_sha256": "ad7e78d4f20bb22c13e04963f7f596914507b7b103285c96c617f2e733788039",
+    "qid": "naming.embedding.original-host-publication-and-fact-transport",
+    "document": "docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md"
+  },
+  {
+    "package": "tcl-runtime",
+    "target": "runtime",
+    "target_kind": "lib",
+    "features": [
+      "engine"
+    ],
+    "selector": "interp::command_publication_tests::original_jim_registration_temporary_retires_before_outer_publication_settlement",
+    "source": "runtime/rust/src/interp/command_publication_tests.rs",
+    "body_sha256": "c3fefb50fb52223d0fc9211fedb5d091e08e3458a3ae9107ad4e641d28c0f0b9",
+    "qid": "naming.embedding.original-host-publication-and-fact-transport",
+    "document": "docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md"
+  },
+  {
+    "package": "tcl-runtime",
+    "target": "runtime",
+    "target_kind": "lib",
+    "features": [
+      "engine"
+    ],
+    "selector": "interp::command_publication_tests::original_ensemble_replacement_uses_shared_retirement_before_token_activation",
+    "source": "runtime/rust/src/interp/command_publication_tests.rs",
+    "body_sha256": "808dc80a0a51a4d31193516cd109d52de52ab55feaed0e26d04d87e7ec096f21",
+    "qid": "naming.embedding.original-host-publication-and-fact-transport",
+    "document": "docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md"
+  },
+  {
+    "package": "tcl-runtime",
+    "target": "runtime",
+    "target_kind": "lib",
+    "features": [
+      "engine"
+    ],
+    "selector": "interp::command_publication_tests::original_namespace_drain_finishes_each_existing_proc_role_after_first_refusal",
+    "source": "runtime/rust/src/interp/command_publication_tests.rs",
+    "body_sha256": "1a0d4ecb1faacd35025868449296196932eaf004e80317df9d7a7d1c81e5efd9",
+    "qid": "naming.embedding.original-host-publication-and-fact-transport",
+    "document": "docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md"
+  },
+  {
+    "package": "tcl-runtime",
+    "target": "runtime",
+    "target_kind": "lib",
+    "features": [
+      "engine"
+    ],
+    "selector": "interp::command_publication_tests::original_compiler_header_keeps_the_published_proc_binding_between_actual_getters",
+    "source": "runtime/rust/src/interp/command_publication_tests.rs",
+    "body_sha256": "125cc77885ddee441a6639b4ab353f71ef8f47ba4027d4b79ca7a97772ebd1aa",
+    "qid": "naming.embedding.original-host-publication-and-fact-transport",
+    "document": "docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md"
+  },
+  {
+    "package": "tcl-runtime",
+    "target": "runtime",
+    "target_kind": "lib",
+    "features": [
+      "engine"
+    ],
+    "selector": "interp::command_publication_tests::original_publication_receipt_refuses_a_replacement_from_registration_temporary_cleanup",
+    "source": "runtime/rust/src/interp/command_publication_tests.rs",
+    "body_sha256": "c4719328308a0a001827cbf5e1efd4094849de765686286af6d71b72ef18dc6e",
+    "qid": "naming.embedding.original-host-publication-and-fact-transport",
+    "document": "docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md"
+  },
+  {
+    "package": "tcl-runtime",
+    "target": "runtime",
+    "target_kind": "lib",
+    "features": [
+      "engine"
+    ],
+    "selector": "cmd_oo::original_namespace_copy_tests::original_namespace_copy_checks_duplicate_cleanup_before_original_holder_publication",
+    "source": "runtime/rust/src/cmd_oo/original_namespace_copy_tests.rs",
+    "body_sha256": "d1dae63a5b832c5b1c3d5803e59107ab9b290b73834188853bb6fbb82416323b",
+    "qid": "naming.embedding.original-host-publication-and-fact-transport",
+    "document": "docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md"
+  },
+  {
+    "package": "tcl-runtime",
+    "target": "runtime",
+    "target_kind": "lib",
+    "features": [
+      "engine"
+    ],
+    "selector": "cmd_oo::original_namespace_copy_tests::original_namespace_copy_propagates_reached_ordinary_store_failure",
+    "source": "runtime/rust/src/cmd_oo/original_namespace_copy_tests.rs",
+    "body_sha256": "a860c36cbf03a8957867b066b3c9c1bc2daa93ff676665a6d0946e493f8b4e43",
+    "qid": "naming.embedding.original-host-publication-and-fact-transport",
+    "document": "docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md"
+  }
+]

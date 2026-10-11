@@ -1,0 +1,19 @@
+{
+  "ordinal": 331,
+  "selector": "interp::native_trace_result::settlement_tests::original_script_and_native_trace_settlement_separate_host_from_guest_failure",
+  "argv": [
+    "/workspace/.pins/naming-owned349/pinned-runtime349.elf",
+    "--exact",
+    "interp::native_trace_result::settlement_tests::original_script_and_native_trace_settlement_separate_host_from_guest_failure",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 101,
+  "seconds": 0.8787874650151934,
+  "passed_exact_assertion": false,
+  "summaries": [
+    "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1801 filtered out; finished in 0.82s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated349/331.log",
+  "log_sha256": "50ab260c93dc610366d5c2399a7431b3632f559b962f17c9cbd1922df8b16419"
+}
