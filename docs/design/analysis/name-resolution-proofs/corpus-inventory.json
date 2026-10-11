@@ -213334,6 +213334,1612 @@
         "naming.list.original-stride-primitive-and-results"
       ],
       "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/cli-version.stdout",
+      "sha256": "c4a268983bec029286482df6caa3aaae81571c33d467c0a13f258e335da5954f",
+      "bytes": 7,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/execute.stdout",
+      "sha256": "3f8550728381dff0a2d1a23f4d176a978529d6389480146ec07f6d932801e24c",
+      "bytes": 9991,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/observations.json",
+      "sha256": "bcdfa41e210d8e2265e083a0f257b306129948c862e08f3b340c8d5b4c0dafba",
+      "bytes": 25410,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/probe.elf.gz",
+      "sha256": "545633777319514e5cdd361628257369175c2f409a2e0aae82b1f61d79b993fe",
+      "bytes": 386930,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/receipt.json",
+      "sha256": "37cc822682c7bbeeadde3b9c886d5973aa54512ed5d2f819abc39ad3bec9410a",
+      "bytes": 39364,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/same-library-version/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/same-library-version/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/same-library-version/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/same-library-version/execute.stdout",
+      "sha256": "ef18d09813e9c05fbd397154e6f786ea0221f2ce8981597665e917a08a5c5d7f",
+      "bytes": 50,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/same-library-version/receipt.json",
+      "sha256": "fcf59c5bfd494b1028df7bae3e6e115a67b997907bd18950129dc5e89f450a0b",
+      "bytes": 37900,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/same-library-version/version.elf.gz",
+      "sha256": "8a3b4c38f1918491ec0883a1d3ccde4ea44e14c74df748ae2fb61ad7784b43ed",
+      "bytes": 385780,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/cli-version.stdout",
+      "sha256": "6b58793c92a3db92926bdacbe0a52a520d417fe876aaa7cf8c29fed54a1fea71",
+      "bytes": 7,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/execute.stdout",
+      "sha256": "6d53603789c40062f4fcdfd52714452b929d48e4e2fc3a35aa1b5c75169f4456",
+      "bytes": 13483,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/observations.json",
+      "sha256": "2383738009d598066c41b5153ee5e2bc8740e1cdeca7624a3328ca6409faae98",
+      "bytes": 28902,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/probe.elf.gz",
+      "sha256": "192bb7d58d287bd78244d89bb71f569a8792d24b71792e03f5f95c2ecbd0b823",
+      "bytes": 567222,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/receipt.json",
+      "sha256": "5cde5fe66bc2a4333d7a9d95f81f76bb6339e167a84bcbe3828a0569170752e0",
+      "bytes": 139522,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/same-library-version/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/same-library-version/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/same-library-version/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/same-library-version/execute.stdout",
+      "sha256": "1bd253489464d3ed255f286efdc8deb3768100a5b873e0a062f5026291fcf9bb",
+      "bytes": 50,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/same-library-version/receipt.json",
+      "sha256": "51d00af4c334cc902ddfa7cf214cbeb5f3008ded767f7643db11587c652a0798",
+      "bytes": 138057,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/same-library-version/version.elf.gz",
+      "sha256": "2d8775e9f83cf6aa04a1828414a4bda495cdbf17f08726d8d93f1acad82bc525",
+      "bytes": 565106,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/cli-version.stdout",
+      "sha256": "7523e113df6c321e18099a10ec22086db746e2fcc31a879e16d961e5d3878d01",
+      "bytes": 7,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/execute.stdout",
+      "sha256": "870f84ddd82f83a76dca7cff9154f134b16cd69f882444314130594aa09a96ae",
+      "bytes": 13483,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/observations.json",
+      "sha256": "431c1a6bb50f5482e4b7e4596c41b553e5c3a39cd5da8fe3e5f96c8c3be1fb6e",
+      "bytes": 28902,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/probe.elf.gz",
+      "sha256": "3a2ac1b391ae7687e6490f0bdc1b0f4ce19dd2028aff7fdf7ec69cdd4ade6f43",
+      "bytes": 809038,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/receipt.json",
+      "sha256": "9a70c06f16be9aa5d9ae7aeeb9c14719fccc467efcb7358105f6465d14052ce5",
+      "bytes": 143727,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/same-library-version/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/same-library-version/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/same-library-version/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/same-library-version/execute.stdout",
+      "sha256": "dd12d5dc76bfc80ae3033ac87b1932541f275a888adf9e03dabbcb5878b0df8c",
+      "bytes": 50,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/same-library-version/receipt.json",
+      "sha256": "f782223aa90ce4bfcb02623e4174aa96c01a05dbd8a05cd33c8d473d9e1c2aa4",
+      "bytes": 142264,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/same-library-version/version.elf.gz",
+      "sha256": "6f71e6ebe17fc3e0577d6e801a4373f671f603101605c60f6c0d2ac484375ce4",
+      "bytes": 807629,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/cli-version.stdout",
+      "sha256": "b83920bac1b2d47c3840f588f95bee9dc69b85e26117f471541cdf85d7da52a2",
+      "bytes": 6,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/execute.stdout",
+      "sha256": "91b8a78fea58146fda99c491703692b8955b7e360175e83063ef878322a45480",
+      "bytes": 13893,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/observations.json",
+      "sha256": "c9cde94e128f49210b8112b0ec9cdac97d8fc66dd65c5e44c2a47155ec12043c",
+      "bytes": 29312,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/probe.elf.gz",
+      "sha256": "c308b502e63e1e5f791b7f9f9f7bd1944a76c09e9748f105441e9cf11068138f",
+      "bytes": 959513,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/receipt.json",
+      "sha256": "a29e93c27e0202806a72291e454bb1312e1685178f4affec266ab8adccf79f06",
+      "bytes": 145463,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/same-library-version/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/same-library-version/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/same-library-version/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/same-library-version/execute.stdout",
+      "sha256": "d016aed0da5636f83bfe6d76f7c26b06e30ce7951203b5d3543001780eb51a2c",
+      "bytes": 48,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/same-library-version/receipt.json",
+      "sha256": "5b1d72369c29734f33e6fe8d64670a4cdcef61b0d4edc1ca3cbb885cb641e89c",
+      "bytes": 144011,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/same-library-version/version.elf.gz",
+      "sha256": "8fdd7305d16a18c0a91bef13b78c64e80bf59a50dd5f7968e31ce41b7b8de5c2",
+      "bytes": 958303,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/cli-version.stdout",
+      "sha256": "077ee5b3a3a7fc2622ceff6466fea0c28f3fb08b24653dcc7f4baab29b9aef36",
+      "bytes": 6,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/execute.stdout",
+      "sha256": "32d3f8733028139d981f27e438844e269d94a987491c42188a978428b846db68",
+      "bytes": 13893,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/observations.json",
+      "sha256": "964f3413265b177745a959b931f108592cc40fd1c08e0009fbb0e55c9f691a2c",
+      "bytes": 29312,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/probe.elf.gz",
+      "sha256": "83ca742573401fae3ebdcdbd96308df8f20373da258f09bc7929a56e842022f3",
+      "bytes": 1027757,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/receipt.json",
+      "sha256": "2e866e65c0e7048dd19395fa1873cc64340eb7703ef6345136fc125516275b24",
+      "bytes": 145609,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/same-library-version/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/same-library-version/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/same-library-version/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/same-library-version/execute.stdout",
+      "sha256": "b225f15b75641002abfa4f29d4d1be66051123c85bc897b9a7234b22317ea071",
+      "bytes": 48,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/same-library-version/receipt.json",
+      "sha256": "3a602fe131aa36d70fb5776d8151ddb68a27ba57b6c0097e93ae9947cb329778",
+      "bytes": 144158,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/same-library-version/version.elf.gz",
+      "sha256": "3c9c625700c96e4b5c0c524c855396985985846a78c574dc37ba81ce19e49717",
+      "bytes": 1025681,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/cli-version.stdout",
+      "sha256": "f9752899fa012cf994a528e0250402609067a6f67a144a1172644a9329386803",
+      "bytes": 16,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/execute.stdout",
+      "sha256": "a7c6258a0f7caf511cb26412856cbe91af21cd9eabff79e10edbe32002b84dae",
+      "bytes": 16459,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/observations.json",
+      "sha256": "99ad167755299f486b4da0cf44d9908ba97b6799ebec3ff956640d189e4c2153",
+      "bytes": 31878,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/probe.elf.gz",
+      "sha256": "9e6de30dde111a296321e50d645c3a1552b16ed4fe226920899b690047e13712",
+      "bytes": 187599,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/provider-revision.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/provider-revision.stdout",
+      "sha256": "d6871c3697d0a50df0677833206c147f4873986bb59a4317c8509cb433365243",
+      "bytes": 41,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/receipt.json",
+      "sha256": "d723e7ef3c18f6b7af89110bbc17f49652950e296a03d3523439db1fe91abbb7",
+      "bytes": 18910,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/same-library-version/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/same-library-version/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/same-library-version/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/same-library-version/execute.stdout",
+      "sha256": "d7ce62ac8c979a247ad4edf0a43c9133dc8b547cdfc8e5b540fccd9bbe848166",
+      "bytes": 34,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/same-library-version/receipt.json",
+      "sha256": "654052a8eed20369ade32ea3b3fa851d6fd463f8e3152edf9f17be29326b786d",
+      "bytes": 17211,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/same-library-version/version.elf.gz",
+      "sha256": "ca6b1f5d09512a0cf8de1bf7208c6b9b3daa33c1f425921365291bfcded3896d",
+      "bytes": 102447,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/README.md",
+      "sha256": "42771719361bc78b563fe63ed9ac07460c97aafca9149e7c34962929920cf397",
+      "bytes": 1524,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/REPLAY-PATH-ADAPTATION.json",
+      "sha256": "0b74954c5bf1cb988488d1265755c5ec7f64f14dacbd175a48469cafcb44b393",
+      "bytes": 1306,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/SOURCE-JOINS.json",
+      "sha256": "5e4c90ed6940a693bc86dbbdc682ca7090547410d6e48ccff88c54a657c4d702",
+      "bytes": 14916,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/cases.json",
+      "sha256": "9e43554c1e0f8eb516d9ab2360f69ee97dcb60c7fa30af859685526e7de11799",
+      "bytes": 2445,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/compiler-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/compiler-version.stdout",
+      "sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+      "bytes": 252,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/compiler.json",
+      "sha256": "ce99a334ccb23cd96ed7779ea2313fc175e9f6037afc02df9c5f66eab07fe6d1",
+      "bytes": 812,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/input-manifest.json",
+      "sha256": "04d67eb4fef84e0c70967b22be08bd4aa23e0295a8471cf8f5a99f82c5afec97",
+      "bytes": 5544,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/interpretation.json",
+      "sha256": "15a2e5008192957642661f8e70ab8f18c827c53b5ecfb3b9436c9ddff1fb97b0",
+      "bytes": 237732,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/library-version-results.json",
+      "sha256": "d0d29f047149b6502641d54cfe2776c5d446e3cfe9f3ff52480f46d06af283a2",
+      "bytes": 1149,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/library-version.c",
+      "sha256": "1fd6edce16eb4275c0e08e86d6a489fd966d10794d89dc7068ee1a4a733280df",
+      "bytes": 929,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/manifest.json",
+      "sha256": "04d67eb4fef84e0c70967b22be08bd4aa23e0295a8471cf8f5a99f82c5afec97",
+      "bytes": 5544,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/native-providers-jim.c-Jim_SourceCoreCommand.txt",
+      "sha256": "06f50ddd7d96c6cf52b7de221ead820052a94493441f3e1f3d016bb7708981b5",
+      "bytes": 201,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/pinned-input-bytes.tar.gz",
+      "sha256": "6895a900e636f60d0bb604ec7f21766e82e49ee4e98faf4967fc31800825ae14",
+      "bytes": 21983384,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/pinned-input-map.json",
+      "sha256": "a953e193261c1fc75f6caa5f089986834d013826662bddeaaedc451b18f513a3",
+      "bytes": 578795,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/probe.c",
+      "sha256": "7f7c2c4bc91f2305ff5ad12036a44a078fbcdf6acbf40968a559b5c0ae2e8f39",
+      "bytes": 5124,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/protocol/run-encoding-library-version643.py",
+      "sha256": "a94b425d183b75c81ce6c26d525d04136bf10c1d0772599c776d829d26221ef7",
+      "bytes": 3204,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/protocol/run-native-encoding-source643.py",
+      "sha256": "c595b47bc044d021d318ee8b6fd99358d3211400c9eeb357dd0937c7c24b2c9e",
+      "bytes": 8078,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/request.json",
+      "sha256": "21cd13c419f677a78feacb7055c844ff68754f4d12da0d711b2bbc762f064704",
+      "bytes": 3263,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/results.json",
+      "sha256": "fd84aff2ce623d746f71db1fe041882cdff327034042d77b0bacb407ea573e94",
+      "bytes": 1866,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/retention.json",
+      "sha256": "2781ce2e0da477979b3acc62902d0140a322a00900f8e06dc254f5811f61d544",
+      "bytes": 75135,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/run.py",
+      "sha256": "6a480c7aced64d87a110d7a308b2de499f05fa3de4b13e679aae77bc2d951bc7",
+      "bytes": 1867,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-existing.tcl",
+      "sha256": "cdaaef7587b816c22bd7b78ff9c021d288afebf82978477fc698692e20e8b4a6",
+      "bytes": 50,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/source-windows.json",
+      "sha256": "732e1b290f1bdcc1fcc3f50e11dffe4b64c0c3ee65eb556ce7080a5af3c2311d",
+      "bytes": 82554,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl8.4.20-tclCmdAH.c-Tcl_EncodingObjCmd.txt",
+      "sha256": "2199d10f6fa5dbab66299360fc4b966c60dcce589e50384d535bcf3709670489",
+      "bytes": 2604,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl8.4.20-tclCmdMZ.c-Tcl_SourceObjCmd.txt",
+      "sha256": "80de1b70d48625832263c3f6e20b399261beb02b8599d9bcbb595bf6ae7ce8dd",
+      "bytes": 372,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl8.4.20-tclEncoding.c-LoadEncodingFile.txt",
+      "sha256": "7d9f330d72b641f9646fa7f978ba9bbb882a10543581cee4306a3e7cb04a2244",
+      "bytes": 1759,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl8.4.20-tclEncoding.c-Tcl_GetEncoding.txt",
+      "sha256": "9b604f69fa14f45ce33484f29de83022bdc7e517762a429cee35f2e096948adb",
+      "bytes": 726,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl8.4.20-tclEncoding.c-Tcl_SetSystemEncoding.txt",
+      "sha256": "c78933322d4ad52d756b53adffd6a81befab2c610d3703fd48bd119a448db9f1",
+      "bytes": 735,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl8.5.19-tclCmdAH.c-Tcl_EncodingObjCmd.txt",
+      "sha256": "400fc03cb450abdcd8d861af8f35e3b158847f0b4789698228dc46473a2dca6d",
+      "bytes": 2618,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl8.5.19-tclCmdMZ.c-Tcl_SourceObjCmd.txt",
+      "sha256": "9043e538bce92348d2adf6272ef579201f852415b8be5381f75edf8d0bae8c1f",
+      "bytes": 748,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl8.5.19-tclEncoding.c-LoadEncodingFile.txt",
+      "sha256": "240dcc946f4585295ae84fd4b84df5e20fd7512935591fad9bc0cf0f78af6f16",
+      "bytes": 1135,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl8.5.19-tclEncoding.c-Tcl_GetEncoding.txt",
+      "sha256": "d4911812488dc4e170490c52250191cbad1bfcecfe0ee3bf8e11a1be8044fa6d",
+      "bytes": 714,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl8.5.19-tclEncoding.c-Tcl_SetSystemEncoding.txt",
+      "sha256": "896b4dbffba6ad0496f5f82a9a750c19374b956ca385d13bade59cae3f7edeaf",
+      "bytes": 722,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl8.5.19-tclIOUtil.c-Tcl_FSEvalFileEx.txt",
+      "sha256": "c72fbb10de3ee199a7d63037bc78d1f2419e0ecbdeb854503cbf70d1a8c3e738",
+      "bytes": 3685,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl8.6.18-tclCmdAH.c-EncodingSystemObjCmd.txt",
+      "sha256": "8b10aa1b064765bc4ffffd1bc000875d2d19b84dd0bb0240ef84502f80c97f33",
+      "bytes": 527,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl8.6.18-tclCmdMZ.c-TclNRSourceObjCmd.txt",
+      "sha256": "7e90d5fcad7d151b938fba44889b4e0812424f7a8dfb248bc63c2ba1a4658122",
+      "bytes": 752,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl8.6.18-tclEncoding.c-LoadEncodingFile.txt",
+      "sha256": "19b943118f80f7c8fd2c0fa8f5d514bb61deb522ceadd24d9d1f75bec9a1d65a",
+      "bytes": 1204,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl8.6.18-tclEncoding.c-Tcl_GetEncoding.txt",
+      "sha256": "87a2edabb834ba3feaa55988d2f9dad4438d39e287e8b68ad6918fd0f3f8210a",
+      "bytes": 713,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl8.6.18-tclEncoding.c-Tcl_SetSystemEncoding.txt",
+      "sha256": "41d196054cc62afa3fd8e255d4feddbea6647c7f668527ac7fcd303865fdc2b3",
+      "bytes": 753,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl8.6.18-tclIOUtil.c-Tcl_FSEvalFileEx.txt",
+      "sha256": "99708366d088e82ca8ec9adf808d926816f676cbfc3a1944439346f19288601a",
+      "bytes": 3732,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl9.0.4-tclCmdAH.c-EncodingSystemObjCmd.txt",
+      "sha256": "a3520d93f7c6c81c13f5a3395fe8b3915e31c747534de653019bca8a5fa27aaf",
+      "bytes": 509,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl9.0.4-tclCmdMZ.c-TclNRSourceObjCmd.txt",
+      "sha256": "0a690aa7c36dc4393d6eae55827a952cf5f4197178d5c4679a6ec0b2f4f993f2",
+      "bytes": 1530,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl9.0.4-tclEncoding.c-LoadEncodingFile.txt",
+      "sha256": "7a86210ebc3cabc74903d59cffcc1e3754551237092cea0b44b9fe26f18fc4bd",
+      "bytes": 1209,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl9.0.4-tclEncoding.c-Tcl_GetEncoding.txt",
+      "sha256": "87a2edabb834ba3feaa55988d2f9dad4438d39e287e8b68ad6918fd0f3f8210a",
+      "bytes": 713,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl9.0.4-tclEncoding.c-Tcl_SetSystemEncoding.txt",
+      "sha256": "ad5352fb15b1ed2323a95b6c27046504150b46c214e3329224b05b9c4b4b1a30",
+      "bytes": 1059,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl9.0.4-tclIOUtil.c-Tcl_FSEvalFileEx.txt",
+      "sha256": "ad8317f27808f6fc0469edab8bcbed953f0982e409c93f4b70aa9d731778e93d",
+      "bytes": 3726,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl9.1.0-tclCmdAH.c-EncodingSystemObjCmd.txt",
+      "sha256": "ed9e2cfa7a2e1767b8587a1793d30f883b584c2d9030038c0905382662ebbd1d",
+      "bytes": 505,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl9.1.0-tclCmdMZ.c-TclNRSourceObjCmd.txt",
+      "sha256": "f17dd80b646a218b4a9e91bd3a6909741b527ebd3096290e6f1de7ba2dd5bda4",
+      "bytes": 1533,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl9.1.0-tclEncoding.c-LoadEncodingFile.txt",
+      "sha256": "7a86210ebc3cabc74903d59cffcc1e3754551237092cea0b44b9fe26f18fc4bd",
+      "bytes": 1209,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl9.1.0-tclEncoding.c-Tcl_GetEncoding.txt",
+      "sha256": "87a2edabb834ba3feaa55988d2f9dad4438d39e287e8b68ad6918fd0f3f8210a",
+      "bytes": 713,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl9.1.0-tclEncoding.c-Tcl_SetSystemEncoding.txt",
+      "sha256": "4defff683f856608ffe2088a108e9c43d67b79eb6231f6733366bb09c7a6d5df",
+      "bytes": 1054,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/tcl9.1.0-tclIOUtil.c-Tcl_FSEvalFileEx.txt",
+      "sha256": "ad8317f27808f6fc0469edab8bcbed953f0982e409c93f4b70aa9d731778e93d",
+      "bytes": 3726,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/version.tcl",
+      "sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+      "bytes": 23,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
     }
   ]
 }
