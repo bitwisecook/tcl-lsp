@@ -361,7 +361,7 @@ impl SourceInvocationBinding {
         let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
             &selected,
             region.start(),
-            row.config,
+            row.config.nested(),
         )?;
         let [command] = commands.as_slice() else {
             return None;

@@ -974,7 +974,7 @@ pub(super) fn declaration_tokens(
     let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
         &image,
         first.start(),
-        observation.config,
+        observation.config.nested(),
     )?;
     let [segment] = segments.as_slice() else {
         return None;

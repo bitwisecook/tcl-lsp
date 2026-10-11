@@ -174,9 +174,12 @@ pub(crate) fn with_source_argument_words<T>(
     let first = tcl_lexer::word_span_at(source, arg_tokens.first()?.span);
     let last = tcl_lexer::word_span_at(source, arg_tokens.last()?.span);
     let text = source.get(first.start() as usize..last.end() as usize)?;
-    let mut segments =
-        crate::segmenter::segment_commands_with_offset_and_config(text, first.start(), config)
-            .into_iter();
+    let mut segments = crate::segmenter::segment_commands_with_offset_and_config(
+        text,
+        first.start(),
+        config.nested(),
+    )
+    .into_iter();
     let segment = segments.next()?;
     if segments.next().is_some() || segment.argv.len() != arg_tokens.len() || segment.is_partial {
         return None;
@@ -10017,5 +10020,61 @@ mod tests {
         returning.source_binding = None;
         assert!(advisory_value_assignments_in_context(&generation, &assignment).is_empty());
         assert!(advisory_return_values_in_context(&generation, &returning).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod original_argument_slice_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_argument_slices_keep_bom_values_and_selected_variable_geometry() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Lexical argument values/counts only; no handler or physical argv grant.
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let config = tcl_lexer::LexerConfig {
+                leading_bom: bom,
+                strict_quoting: true,
+                braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+                ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+            };
+            let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+            for (source, expected) in [
+                ("cmd \u{feff}one two", [Some("\u{feff}one"), Some("two")]),
+                ("cmd \u{feff}one ${a{b}", [Some("\u{feff}one"), None]),
+            ] {
+                let parent =
+                    crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+                assert_eq!(parent.len(), 1);
+                let tokens = &parent[0].argv[1..];
+                let values =
+                    with_source_argument_words(source, tokens, config, dialect, |arguments| {
+                        (
+                            arguments.exact_argv_len(),
+                            [
+                                arguments.literal_at(0).map(str::to_owned),
+                                arguments.literal_at(1).map(str::to_owned),
+                            ],
+                        )
+                    })
+                    .unwrap();
+                assert_eq!(values.0, Some(2));
+                assert_eq!(values.1, expected.map(|value| value.map(str::to_owned)));
+                let plan = tcl_lexer::native_script_words_in(
+                    tcl_lexer::SourceImage::document(source),
+                    tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                    config,
+                )
+                .unwrap();
+                assert!(
+                    plan.commands[0]
+                        .words
+                        .iter()
+                        .all(|word| word.config() == config)
+                );
+            }
+        }
     }
 }

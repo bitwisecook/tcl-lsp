@@ -2086,8 +2086,11 @@ fn original_site_layout_advice(
         original.as_bytes(),
         site.source.source_image().channel(),
     );
-    let segments =
-        crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)?;
+    let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
+        &image,
+        0,
+        config.nested(),
+    )?;
     let [segment] = segments.as_slice() else {
         return None;
     };

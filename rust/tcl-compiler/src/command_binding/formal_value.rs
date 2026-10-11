@@ -612,7 +612,7 @@ impl SourceCommandBindings {
         let segmented = crate::segmenter::segment_commands_with_offset_and_config(
             text.get(offset as usize..end as usize)?,
             offset,
-            config,
+            config.nested(),
         )
         .into_iter()
         .next()?;
@@ -651,10 +651,13 @@ impl SourceCommandBindings {
             .max()?;
         let command = text.get(offset as usize..end as usize)?;
         let config = self.lexer_config?;
-        let segmented =
-            crate::segmenter::segment_commands_with_offset_and_config(command, offset, config)
-                .into_iter()
-                .next()?;
+        let segmented = crate::segmenter::segment_commands_with_offset_and_config(
+            command,
+            offset,
+            config.nested(),
+        )
+        .into_iter()
+        .next()?;
         let mut tokens =
             CommandTokens::from_segmented(&tcl_lexer::SourceMap::new(text), config, &segmented);
         self.stamp_original_tokens(&mut tokens);
@@ -687,7 +690,7 @@ impl SourceCommandBindings {
         let segment = crate::segmenter::segment_commands_with_offset_and_config(
             text.get(relative..)?,
             offset,
-            first.config,
+            first.config.nested(),
         )
         .into_iter()
         .next()?;

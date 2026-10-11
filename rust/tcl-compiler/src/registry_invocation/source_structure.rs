@@ -1158,7 +1158,7 @@ pub fn source_registry_words_at(
         segment
     } else {
         let tail = source.get(usize::try_from(offset).ok()?..)?;
-        crate::segmenter::segment_commands_with_offset_and_config(tail, offset, config)
+        crate::segmenter::segment_commands_with_offset_and_config(tail, offset, config.nested())
             .into_iter()
             .next()?
     };
@@ -1427,10 +1427,13 @@ fn registered_original_words_at<'a>(
         // The original tape remains the body/source-role authority below.
         // Parsing a suffix only supplies unchanged word geometry for that join.
         let tail = source.get(usize::try_from(offset).ok()?..)?;
-        let segment =
-            crate::segmenter::segment_commands_with_offset_and_config(tail, offset, config)
-                .into_iter()
-                .next()?;
+        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+            tail,
+            offset,
+            config.nested(),
+        )
+        .into_iter()
+        .next()?;
         let tokens = crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::new(source),
             config,
@@ -1961,7 +1964,7 @@ pub(crate) fn original_segment_for_tokens(
     let end = native.last()?.span().end();
     let text = source.get(usize::try_from(start).ok()?..usize::try_from(end).ok()?)?;
     let mut segments =
-        crate::segmenter::segment_commands_with_offset_and_config(text, start, config);
+        crate::segmenter::segment_commands_with_offset_and_config(text, start, config.nested());
     if segments.len() != 1 {
         return None;
     }
@@ -2075,7 +2078,7 @@ pub fn original_logical_registry_words_for_command(
     let mut segments = crate::segmenter::segment_commands_with_offset_and_config(
         text,
         command.span.start(),
-        config,
+        config.nested(),
     );
     if segments.len() != 1 {
         return None;
@@ -2382,7 +2385,7 @@ pub(crate) fn source_transition_words_from_advice(
     let mut segments = crate::segmenter::segment_commands_with_offset_and_config(
         source.get(span.as_range())?,
         span.start(),
-        config,
+        config.nested(),
     );
     if segments.len() != 1 {
         return None;
@@ -2840,7 +2843,7 @@ pub fn selected_vendor_registry_words_at(
     let end = words.last()?.span().end();
     let text = source.get(start as usize..end as usize)?;
     let mut commands =
-        crate::segmenter::segment_commands_with_offset_and_config(text, start, config);
+        crate::segmenter::segment_commands_with_offset_and_config(text, start, config.nested());
     if commands.len() != 1 {
         return None;
     }
@@ -4293,5 +4296,103 @@ mod retained_image_geometry_tests {
             matching_document_image(source, &tcl_lexer::SourceImage::native(source.as_bytes()))
                 .is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod original_selected_command_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_selected_commands_keep_the_parent_prologue_and_complete_vector_separate() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Original Document geometry and conditional source schema, not Native entry.
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        for (source, bom, offset, head) in [
+            (
+                "\u{feff}\u{feff}puts value",
+                tcl_lexer::LeadingBom::Skip,
+                3,
+                "\u{feff}puts",
+            ),
+            (
+                "\u{feff}puts value",
+                tcl_lexer::LeadingBom::Content,
+                0,
+                "\u{feff}puts",
+            ),
+            ("\u{feff}puts value", tcl_lexer::LeadingBom::Skip, 3, "puts"),
+            (
+                "rename puts \u{feff}puts; \u{feff}puts value",
+                tcl_lexer::LeadingBom::Skip,
+                21,
+                "\u{feff}puts",
+            ),
+        ] {
+            let config = tcl_lexer::LexerConfig {
+                leading_bom: bom,
+                strict_quoting: true,
+                braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+                ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+            };
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                tcl_registry::model::ingress::resolve_environment("tcl9.0")
+                    .default_context_registry(),
+                config,
+            );
+            let analysis = crate::analyser::Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, profile.name);
+            let realm = analysis.retained_command_realm().unwrap();
+            let parent =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+            let actual = parent.last().unwrap();
+            assert_eq!(actual.argv[0].span.start(), offset, "{source:?}");
+            let image = tcl_lexer::SourceImage::document(source);
+            let tokens = realm
+                .retained_original_tokens(&image, config, offset, &actual.argv)
+                .unwrap();
+            let (segment, native) =
+                original_segment_for_tokens(source, &analysis, &tokens).unwrap();
+            assert_eq!(segment.texts[0], head, "{source:?}");
+            assert_eq!(segment.argv, actual.argv);
+            assert_eq!(tokens.argv_texts[0], head);
+            assert!(
+                native.iter().all(
+                    |word| word.image().bytes() == source.as_bytes() && word.config() == config
+                )
+            );
+            assert_eq!(
+                tokens
+                    .source_binding
+                    .as_ref()
+                    .and_then(|binding| binding.original_lexer_config_for_tokens(&tokens)),
+                Some(config)
+            );
+            assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
+            if !head.starts_with('\u{feff}') || source.starts_with("rename ") {
+                let selected = original_registry_words_for_tokens(source, &analysis, &tokens)
+                    .expect("actual original conditional handler keeps its full vector");
+                assert_eq!(selected.head_source().unwrap().word(), native.first());
+                assert!(selected.matches_source(&image, config));
+            } else {
+                assert!(original_registry_words_for_tokens(source, &analysis, &tokens).is_none());
+            }
+            assert!(
+                original_segment_for_tokens(&format!("{source} "), &analysis, &tokens).is_none()
+            );
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(original_registry_words_for_tokens(source, &missing, &tokens).is_none());
+            let mut changed = analysis.clone();
+            changed.body_lexer_config = Some(tcl_lexer::LexerConfig {
+                strict_quoting: !config.strict_quoting,
+                ..config
+            });
+            assert!(original_segment_for_tokens(source, &changed, &tokens).is_none());
+        }
     }
 }
