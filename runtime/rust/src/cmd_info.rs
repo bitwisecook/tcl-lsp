@@ -568,7 +568,11 @@ fn info_cmd_original(
             if argv.len() != 2 {
                 return interp.wrong_args_for_prefix(argv, 2, b"");
             }
-            interp.set_result_bytes(&interp.jim_stacktrace());
+            let trace = match interp.jim_stacktrace() {
+                Ok(trace) => trace,
+                Err(first) => return interp.refuse_native_execution(first),
+            };
+            interp.set_result_bytes(&trace);
             Code::Ok
         }
         b"errorstack" => {

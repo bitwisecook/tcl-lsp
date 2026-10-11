@@ -4,6 +4,8 @@
 
 //! Jim's error capture over evaluation frames, independent of variable frames.
 
+use std::rc::{Rc, Weak};
+
 /// Selected native automatic-error presentation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NativeErrorStackProtocol {
@@ -117,10 +119,33 @@ pub enum JimErrorTrace<T> {
 
 /// Interpreter-local Jim trace cache. Starting a new evaluation marks capture
 /// pending while keeping the last trace available to `info stacktrace`.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct JimErrorStack<T> {
     trace: Option<JimErrorTrace<T>>,
     pending: bool,
+    owner: Rc<()>,
+    episode: Rc<()>,
+}
+
+/// Immutable observation of one actual pending capture episode. It grants no
+/// frame, source, value or Native execution authority.
+#[derive(Debug, Clone)]
+pub struct JimErrorCaptureTicket {
+    owner: Weak<()>,
+    episode: Weak<()>,
+}
+
+impl<T: Clone> Clone for JimErrorStack<T> {
+    fn clone(&self) -> Self {
+        // A copied cache is a distinct stack owner, including saved cleanup.
+        // Its native values retain only the pre-existing Clone role.
+        Self {
+            trace: self.trace.clone(),
+            pending: self.pending,
+            owner: Rc::new(()),
+            episode: Rc::new(()),
+        }
+    }
 }
 
 impl<T> Default for JimErrorStack<T> {
@@ -128,48 +153,103 @@ impl<T> Default for JimErrorStack<T> {
         Self {
             trace: None,
             pending: true,
+            owner: Rc::new(()),
+            episode: Rc::new(()),
         }
     }
 }
 
 impl<T> JimErrorStack<T> {
     /// Begin a selected native script/catch evaluation, retaining cached data.
-    pub const fn mark_reset(&mut self) {
+    pub fn mark_reset(&mut self) {
         self.pending = true;
+        self.episode = Rc::new(());
     }
 
     /// Replace the trace with an unvalidated explicit native value.
     pub fn adopt_explicit(&mut self, value: T) {
-        self.trace = Some(JimErrorTrace::Explicit(value));
+        drop(self.replace_explicit(value));
+    }
+
+    /// Publish the actual explicit trace and return its displaced owner. An
+    /// adapter releases that owner after leaving its interpreter-state borrow.
+    pub fn replace_explicit(&mut self, value: T) -> Option<JimErrorTrace<T>> {
+        let retired = self.trace.replace(JimErrorTrace::Explicit(value));
         self.pending = false;
+        self.episode = Rc::new(());
+        retired
+    }
+
+    /// Observe the pending episode before constructing its genuine trace.
+    /// A later reset, adoption, capture or copied owner cannot revive it.
+    #[must_use]
+    pub fn capture_ticket(&self) -> Option<JimErrorCaptureTicket> {
+        self.pending.then(|| JimErrorCaptureTicket {
+            owner: Rc::downgrade(&self.owner),
+            episode: Rc::downgrade(&self.episode),
+        })
+    }
+
+    /// Publish one prepared original capture only into its unchanged pending
+    /// episode. Both displaced and declined traces remain caller-owned so their
+    /// retirement can occur outside any interpreter-state borrow.
+    pub fn publish_capture(
+        &mut self,
+        ticket: &JimErrorCaptureTicket,
+        trace: JimErrorTrace<T>,
+    ) -> Result<Option<JimErrorTrace<T>>, JimErrorTrace<T>> {
+        if !self.pending
+            || !Weak::ptr_eq(&ticket.owner, &Rc::downgrade(&self.owner))
+            || !Weak::ptr_eq(&ticket.episode, &Rc::downgrade(&self.episode))
+        {
+            return Err(trace);
+        }
+        let retired = self.trace.replace(trace);
+        self.pending = false;
+        self.episode = Rc::new(());
+        Ok(retired)
     }
 
     /// Capture once, before unwinding. Incomplete frame evidence leaves the
     /// episode pending instead of presenting a fabricated stack.
     pub fn capture(&mut self, capture: impl FnOnce() -> Option<Vec<JimErrorFrame<T>>>) -> bool {
-        if !self.pending {
+        let Some(ticket) = self.capture_ticket() else {
             return false;
-        }
+        };
         let Some(frames) = capture() else {
             return false;
         };
-        self.trace = Some(JimErrorTrace::Automatic(frames));
-        self.pending = false;
-        true
+        match self.publish_capture(&ticket, JimErrorTrace::Automatic(frames)) {
+            Ok(retired) => {
+                drop(retired);
+                true
+            }
+            Err(declined) => {
+                drop(declined);
+                false
+            }
+        }
     }
 
     /// Capture the actual stack-trace object once while evaluation argv is live.
     /// The adapter constructs its native list storage without a later reconstruction.
     pub fn capture_object(&mut self, capture: impl FnOnce() -> Option<T>) -> bool {
-        if !self.pending {
+        let Some(ticket) = self.capture_ticket() else {
             return false;
-        }
+        };
         let Some(value) = capture() else {
             return false;
         };
-        self.trace = Some(JimErrorTrace::Explicit(value));
-        self.pending = false;
-        true
+        match self.publish_capture(&ticket, JimErrorTrace::Explicit(value)) {
+            Ok(retired) => {
+                drop(retired);
+                true
+            }
+            Err(declined) => {
+                drop(declined);
+                false
+            }
+        }
     }
 
     /// Last captured or explicit trace, including a previous evaluation's data.

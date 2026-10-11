@@ -1100,3 +1100,247 @@ fn original_saved_error_cleanup_refuses_foreign_target_before_any_state_install(
     assert_eq!(crate::counters::finalize(), 0);
     assert_eq!(crate::counters::double_free_count(), 0);
 }
+
+#[test]
+fn original_jim_trace_replacement_retires_outside_borrow_before_checked_readers() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Actual software callbacks/roles, without a Jim callback chronology claim.
+    for mode in 0..3 {
+        leak_free(|interpreter| {
+            interpreter.set_dialect_profile(
+                tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
+            );
+            interpreter.set_result_bytes(b"PRIOR RESULT");
+            interpreter.exc.borrow_mut().code = b"STAMP BEFORE".to_vec();
+            let (old, calls, observed) = original(interpreter, mode);
+            interpreter
+                .adopt_jim_stacktrace(obj::Owned::fresh(old))
+                .unwrap();
+            assert_eq!(unsafe { (*old).ref_count }, 1);
+            let fresh = obj::Owned::fresh(new_string(b"REPLACEMENT TRACE"));
+            let pointer = fresh.as_ptr();
+            let prior = interpreter.result_obj();
+            let scope =
+                native_operation_currency::NativeOperationScope::enter(interpreter).unwrap();
+            let reached = interpreter.adopt_jim_stacktrace(fresh);
+            assert_eq!(calls.get(), 1);
+            assert_eq!(&*observed.borrow(), b"STAMP BEFORE");
+            assert_eq!(unsafe { (*pointer).ref_count }, 1);
+            assert_eq!(interpreter.result_obj(), prior);
+            let stored = {
+                let stack = interpreter.jim_error_stack.borrow();
+                let Some(JimErrorTrace::Explicit(value)) = stack.trace() else {
+                    panic!("actual published Jim trace missing");
+                };
+                value.as_ptr()
+            };
+            assert_eq!(stored, pointer);
+            if mode == 0 {
+                assert_eq!(reached, Ok(()));
+                let queried = interpreter.jim_stacktrace_object().unwrap();
+                assert_eq!(queried.as_ptr(), pointer);
+                assert_eq!(unsafe { (*pointer).ref_count }, 2);
+                drop(queried);
+                assert_eq!(interpreter.jim_stacktrace().unwrap(), b"REPLACEMENT TRACE");
+            } else {
+                let first = interpreter.native_execution_refusal().unwrap();
+                assert_eq!(reached, Err(first.clone()));
+                assert!(
+                    matches!(interpreter.jim_stacktrace_object(), Err(error) if error == first)
+                );
+                assert_eq!(interpreter.jim_stacktrace(), Err(first));
+                assert_eq!(unsafe { (*pointer).ref_count }, 1);
+                assert_refusal(interpreter, mode);
+            }
+            drop(scope);
+            assert_eq!(interpreter.entered_native_operation_count(), 0);
+        });
+    }
+}
+
+struct JimCaptureMutation {
+    interpreter: WeakInterp,
+    calls: Rc<Cell<usize>>,
+    mode: u8,
+}
+
+extern "C" fn mutate_jim_capture_episode(value: *mut TclObj) {
+    // SAFETY: one actual extension allocation owns this observer.
+    let state =
+        unsafe { Box::from_raw(obj::internal_rep(value) as usize as *mut JimCaptureMutation) };
+    let interpreter = state.interpreter.upgrade().unwrap();
+    state.calls.set(state.calls.get() + 1);
+    match state.mode {
+        0 => interpreter.jim_error_stack.borrow_mut().mark_reset(),
+        1 => {
+            let value = obj::Owned::fresh(new_string(b"REENTRANT ADOPT"));
+            let retired = interpreter
+                .jim_error_stack
+                .borrow_mut()
+                .replace_explicit(value);
+            drop(retired);
+        }
+        _ => {
+            let ticket = interpreter
+                .jim_error_stack
+                .borrow()
+                .capture_ticket()
+                .unwrap();
+            let value = obj::Owned::fresh(new_string(b"REENTRANT CAPTURE"));
+            let retired = interpreter
+                .jim_error_stack
+                .borrow_mut()
+                .publish_capture(&ticket, JimErrorTrace::Explicit(value));
+            drop(retired);
+        }
+    }
+}
+
+static JIM_CAPTURE_MUTATION: obj::TclObjType = obj::TclObjType {
+    name: c"originalJimCaptureMutation".as_ptr(),
+    free_int_rep_proc: Some(mutate_jim_capture_episode),
+    dup_int_rep_proc: None,
+    update_string_proc: None,
+    set_from_any_proc: None,
+};
+
+#[test]
+fn original_jim_capture_episode_refuses_reentrant_reset_adopt_and_capture() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // A reached original destructor changes this real cache during preparation.
+    for mode in 0..3 {
+        leak_free(|interpreter| {
+            interpreter.set_dialect_profile(
+                tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
+            );
+            interpreter
+                .adopt_jim_stacktrace(obj::Owned::fresh(new_string(b"BEFORE")))
+                .unwrap();
+            interpreter.reset_jim_error_capture();
+            let ticket = interpreter
+                .jim_error_stack
+                .borrow()
+                .capture_ticket()
+                .unwrap();
+            let scope =
+                native_operation_currency::NativeOperationScope::enter(interpreter).unwrap();
+            let calls = Rc::new(Cell::new(0));
+            let state = Box::new(JimCaptureMutation {
+                interpreter: interpreter.downgrade(),
+                calls: calls.clone(),
+                mode,
+            });
+            let temporary = obj::Owned::fresh(obj::alloc_typed(
+                &JIM_CAPTURE_MUTATION,
+                Box::into_raw(state) as usize as u64,
+            ));
+            let prepared = obj::Owned::fresh(new_string(b"STALE PREPARED"));
+            let prepared_pointer = prepared.as_ptr();
+            drop(temporary);
+            assert_eq!(calls.get(), 1);
+            scope.currency().ensure_current_or_refuse().unwrap();
+            let declined = interpreter
+                .jim_error_stack
+                .borrow_mut()
+                .publish_capture(&ticket, JimErrorTrace::Explicit(prepared));
+            let Err(JimErrorTrace::Explicit(original)) = declined else {
+                panic!("old capture episode overwrote reached mutation");
+            };
+            assert_eq!(original.as_ptr(), prepared_pointer);
+            assert_eq!(unsafe { (*prepared_pointer).ref_count }, 1);
+            drop(original);
+            let expected = [
+                b"BEFORE".as_slice(),
+                b"REENTRANT ADOPT",
+                b"REENTRANT CAPTURE",
+            ][usize::from(mode)];
+            assert_eq!(interpreter.jim_stacktrace().unwrap(), expected);
+            if mode == 0 {
+                let current = interpreter
+                    .jim_error_stack
+                    .borrow()
+                    .capture_ticket()
+                    .unwrap();
+                let fresh = obj::Owned::fresh(new_string(b"CURRENT CAPTURE"));
+                let retired = interpreter
+                    .jim_error_stack
+                    .borrow_mut()
+                    .publish_capture(&current, JimErrorTrace::Explicit(fresh));
+                assert!(retired.is_ok());
+                drop(retired);
+                assert_eq!(interpreter.jim_stacktrace().unwrap(), b"CURRENT CAPTURE");
+            } else {
+                assert!(interpreter
+                    .jim_error_stack
+                    .borrow()
+                    .capture_ticket()
+                    .is_none());
+            }
+            assert!(interpreter.native_execution_refusal().is_none());
+            drop(scope);
+        });
+    }
+}
+
+#[test]
+fn original_jim_consumed_trace_cleanup_keeps_the_failed_entry_during_destructor_reentry() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Actual software consumed-owner cleanup, without a Jim callback-order claim.
+    leak_free(|interpreter| {
+        interpreter.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
+        );
+        interpreter.set_result_bytes(b"PRIOR RESULT");
+        interpreter.exc.borrow_mut().code = b"STAMP BEFORE".to_vec();
+        interpreter
+            .adopt_jim_stacktrace(obj::Owned::fresh(new_string(b"EXISTING TRACE")))
+            .unwrap();
+        let existing = {
+            let stack = interpreter.jim_error_stack.borrow();
+            let Some(JimErrorTrace::Explicit(value)) = stack.trace() else {
+                panic!("existing original trace missing");
+            };
+            value.as_ptr()
+        };
+        let observation = SavedCleanupObservation {
+            calls: Rc::new(Cell::new(0)),
+            entered: Rc::new(Cell::new(0)),
+            observed: Rc::new(RefCell::new(Vec::new())),
+            nested: Rc::new(RefCell::new(None)),
+            engine: Rc::new(RefCell::new(None)),
+        };
+        let state = Box::new(SavedCleanupRetirement {
+            interpreter: interpreter.downgrade(),
+            observation: observation.clone(),
+            mode: 0,
+        });
+        let value = obj::Owned::fresh(obj::alloc_typed(
+            &SAVED_CLEANUP_RETIREMENT,
+            Box::into_raw(state) as usize as u64,
+        ));
+        let memory = obj::NativeObjectLifetime::retain(value.as_ptr());
+        assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 1);
+        interpreter.refuse_host_command("original consumed trace refusal");
+        let first = interpreter.native_execution_refusal().unwrap();
+        assert_eq!(interpreter.adopt_jim_stacktrace(value), Err(first.clone()));
+        assert_eq!(observation.calls.get(), 1);
+        assert!(observation.entered.get() >= 1);
+        assert_eq!(&*observation.observed.borrow(), b"STAMP BEFORE");
+        assert_eq!(*observation.nested.borrow(), Some(Err(first.clone())));
+        assert_eq!(*observation.engine.borrow(), Some(Err(first.clone())));
+        assert!(!obj::allocation_is_live(memory.as_ptr()));
+        let stack = interpreter.jim_error_stack.borrow();
+        let Some(JimErrorTrace::Explicit(value)) = stack.trace() else {
+            panic!("refusal changed stored trace");
+        };
+        assert_eq!(value.as_ptr(), existing);
+        assert_eq!(unsafe { (*existing).ref_count }, 1);
+        drop(stack);
+        assert_eq!(obj::bytes_of(interpreter.result_obj()), b"PRIOR RESULT");
+        assert_eq!(interpreter.native_execution_refusal(), Some(first));
+        assert_eq!(interpreter.entered_native_operation_count(), 0);
+    });
+}

@@ -1276,16 +1276,16 @@ mod tests {
         let interp = Interp::new();
         let trace = obj::Owned::fresh(obj::new_string_bytes(b"TRACE\xff\0tail"));
         let original = trace.as_ptr();
-        interp.adopt_jim_stacktrace(trace);
+        interp.adopt_jim_stacktrace(trace).unwrap();
         interp.publish_coro_probe_error(interp.snapshot_error());
-        interp.adopt_jim_stacktrace(obj::Owned::fresh(obj::new_string_bytes(b"OTHER")));
+        interp.adopt_jim_stacktrace(obj::Owned::fresh(obj::new_string_bytes(b"OTHER"))).unwrap();
         let snapshot = interp
             .take_coro_probe_error()
             .expect("published probe receipt");
         assert!(interp.take_coro_probe_error().is_none());
         interp.restore_error(snapshot).unwrap();
-        assert_eq!(interp.jim_stacktrace_object().as_ptr(), original);
-        assert_eq!(interp.jim_stacktrace(), b"TRACE\xff\0tail");
+        assert_eq!(interp.jim_stacktrace_object().unwrap().as_ptr(), original);
+        assert_eq!(interp.jim_stacktrace().unwrap(), b"TRACE\xff\0tail");
     }
 
     // Needs the numeric tower: the coroutine body parks in `while`.

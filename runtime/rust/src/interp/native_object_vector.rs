@@ -371,7 +371,7 @@ mod tests {
         // JimAddStackFrame retains the same argv in its invocation List after
         // Jim_EvalObjVector releases its temporary invocation references.
         assert_eq!(unsafe { (*argument.as_ptr()).ref_count }, 2);
-        let trace = interp.jim_stacktrace_object();
+        let trace = interp.jim_stacktrace_object().unwrap();
         let invocation = crate::list::list_index(trace.as_ptr(), 3).unwrap().unwrap();
         assert_eq!(
             crate::list::list_index(invocation, 1).unwrap().unwrap(),

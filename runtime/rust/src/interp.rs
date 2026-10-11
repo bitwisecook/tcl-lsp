@@ -10589,9 +10589,12 @@ impl Interp {
             return Code::Error;
         }
         if self.uses_jim_error_stack() {
-            self.jim_error_stack
-                .borrow_mut()
-                .adopt_explicit(obj::Owned::fresh(new_string(info)));
+            if self
+                .adopt_jim_stacktrace(obj::Owned::fresh(new_string(info)))
+                .is_err()
+            {
+                return Code::Error;
+            }
         }
         if scope.currency().ensure_current_or_refuse().is_err() {
             return Code::Error;
@@ -10662,9 +10665,12 @@ impl Interp {
         };
         if self.uses_jim_error_stack() {
             if let Some(info) = errorinfo {
-                self.jim_error_stack
-                    .borrow_mut()
-                    .adopt_explicit(obj::Owned::fresh(new_string(info)));
+                if self
+                    .adopt_jim_stacktrace(obj::Owned::fresh(new_string(info)))
+                    .is_err()
+                {
+                    return;
+                }
             }
         }
         if scope.currency().ensure_current_or_refuse().is_err() {
@@ -10746,7 +10752,7 @@ impl Interp {
         };
         self.propagate_error_stage();
         if self.uses_jim_error_stack() {
-            self.capture_jim_error_stack();
+            let _ = self.capture_jim_error_stack();
             return;
         }
         // Already logged deeper in the same script (e.g. an inner `[cmd]` subst,
@@ -10819,7 +10825,13 @@ impl Interp {
             {
                 self.publish_traced_native_error_info();
             } else {
-                let info = self.error_info();
+                let info = match self.error_info() {
+                    Ok(info) => info,
+                    Err(first) => {
+                        self.refuse_native_execution(first);
+                        return;
+                    }
+                };
                 let ei = new_string(&info);
                 if self.var_set(b"::errorInfo", ei).is_err() {
                     drop_fresh(ei);
@@ -11135,19 +11147,46 @@ impl Interp {
         obj::Owned::fresh(self.new_list_object(&pointers))
     }
 
-    fn capture_jim_error_stack(&self) {
-        if self.host_refusal_pending() {
-            return;
-        }
-        self.jim_error_stack.borrow_mut().capture_object(|| {
-            let frames = self.materialized_jim_evaluation_frames();
-            let empty = obj::Owned::fresh(new_string(b""));
-            capture_jim_error_frames(self.jim_procedure_level.get(), &frames, None, &empty)
-                .map(|frames| self.jim_trace_object(frames))
-        });
+    fn capture_jim_error_stack(&self) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        self.capture_jim_error_stack_at(None)
     }
 
-    fn capture_jim_script_parse_failure(&self) {
+    fn capture_jim_error_stack_at(
+        &self,
+        script: Option<&JimScriptLocation<obj::Owned>>,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let ticket = self.jim_error_stack.borrow().capture_ticket();
+        let Some(ticket) = ticket else {
+            return Ok(());
+        };
+        let frames = self.materialized_jim_evaluation_frames();
+        let empty = obj::Owned::fresh(new_string(b""));
+        let captured =
+            capture_jim_error_frames(self.jim_procedure_level.get(), &frames, script, &empty)
+                .map(|frames| self.jim_trace_object(frames));
+        drop(frames);
+        drop(empty);
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            drop(captured);
+            let _ = scope.currency().ensure_current_or_refuse();
+            return Err(self.native_execution_refusal().unwrap_or(first));
+        }
+        if let Some(captured) = captured {
+            let retired = self
+                .jim_error_stack
+                .borrow_mut()
+                .publish_capture(&ticket, JimErrorTrace::Explicit(captured));
+            // Both old and declined original traces retire outside the borrow.
+            drop(retired);
+        }
+        scope.currency().ensure_current_or_refuse()
+    }
+
+    fn capture_jim_script_parse_failure(
+        &self,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
         let script = self
             .cmd_frames
             .borrow()
@@ -11160,60 +11199,101 @@ impl Interp {
                 file: obj::Owned::fresh(new_string(b"")),
                 line: 1,
             });
-        self.jim_error_stack.borrow_mut().capture_object(|| {
-            let frames = self.materialized_jim_evaluation_frames();
-            let empty = obj::Owned::fresh(new_string(b""));
-            capture_jim_error_frames(
-                self.jim_procedure_level.get(),
-                &frames,
-                Some(&script),
-                &empty,
-            )
-            .map(|frames| self.jim_trace_object(frames))
-        });
+        let reached = self.capture_jim_error_stack_at(Some(&script));
+        drop(script);
+        scope.currency().ensure_current_or_refuse()?;
+        reached
     }
 
-    pub(crate) fn jim_stacktrace_object(&self) -> obj::Owned {
-        match self.jim_error_stack.borrow().trace() {
-            Some(JimErrorTrace::Explicit(value)) => value.clone(),
-            Some(JimErrorTrace::Automatic(frames)) => self.jim_trace_object(frames.clone()),
+    pub(crate) fn jim_stacktrace_object(
+        &self,
+    ) -> Result<obj::Owned, tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let trace = self.jim_error_stack.borrow().trace().cloned();
+        let value = match trace {
+            Some(JimErrorTrace::Explicit(value)) => value,
+            Some(JimErrorTrace::Automatic(frames)) => self.jim_trace_object(frames),
             None => obj::Owned::fresh(self.new_list_object(&[])),
+        };
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            drop(value);
+            let _ = scope.currency().ensure_current_or_refuse();
+            return Err(self.native_execution_refusal().unwrap_or(first));
         }
+        Ok(value)
     }
 
-    pub(crate) fn jim_stacktrace(&self) -> Vec<u8> {
-        obj_bytes(self.jim_stacktrace_object().as_ptr())
+    pub(crate) fn jim_stacktrace(&self) -> Result<Vec<u8>, tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let original = self.jim_stacktrace_object()?;
+        let reached = self.native_object_string_bytes(original.as_ptr());
+        let checked = scope.currency().ensure_current_or_refuse();
+        drop(original);
+        scope.currency().ensure_current_or_refuse()?;
+        checked?;
+        reached
+            .map(|bytes| bytes.to_vec())
+            .map_err(|error| self.clone().refuse_completion_value_access(error))
     }
 
     pub(crate) fn reset_jim_error_capture(&self) {
         self.jim_error_stack.borrow_mut().mark_reset();
     }
 
-    pub(crate) fn adopt_jim_stacktrace(&self, original: obj::Owned) {
-        self.jim_error_stack.borrow_mut().adopt_explicit(original);
+    pub(crate) fn adopt_jim_stacktrace(
+        &self,
+        original: obj::Owned,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let saved = native_operation_currency::SavedNativeOperationCurrency::capture(self);
+        let cleanup =
+            native_operation_currency::NativeOperationScope::enter_saved_cleanup(&saved, self)?;
+        if let Err(first) = cleanup.check() {
+            // The consumed original argument still has mandatory retirement.
+            // Keep its actual failed entry attached through that callback.
+            drop(original);
+            let _ = cleanup.check();
+            return Err(self.native_execution_refusal().unwrap_or(first));
+        }
+        let retired = self.jim_error_stack.borrow_mut().replace_explicit(original);
+        drop(retired);
+        cleanup.check()
     }
 
     pub(crate) fn jim_return_receipt(
         &self,
-    ) -> tcl_runtime_api::jim_return_state::JimReturnReceipt<obj::Owned> {
-        tcl_runtime_api::jim_return_state::JimReturnReceipt {
+    ) -> Result<
+        tcl_runtime_api::jim_return_state::JimReturnReceipt<obj::Owned>,
+        tcl_runtime_api::NativeExecutionError,
+    > {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let error_code = self.var_get_at(b"::errorCode", 0).map(obj::Owned::retain);
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            drop(error_code);
+            let _ = scope.currency().ensure_current_or_refuse();
+            return Err(self.native_execution_refusal().unwrap_or(first));
+        }
+        let stack_trace = match self.jim_stacktrace_object() {
+            Ok(value) => value,
+            Err(first) => {
+                drop(error_code);
+                let _ = scope.currency().ensure_current_or_refuse();
+                return Err(self.native_execution_refusal().unwrap_or(first));
+            }
+        };
+        Ok(tcl_runtime_api::jim_return_state::JimReturnReceipt {
             pending: tcl_runtime_api::jim_return_state::JimReturnState {
                 code: self.return_code.get().as_int() as i32,
                 level: i64::try_from(self.return_level.get()).unwrap_or(i64::MAX),
             },
-            error_code: self.var_get_at(b"::errorCode", 0).map(obj::Owned::retain),
-            stack_trace: self.jim_stacktrace_object(),
-        }
+            error_code,
+            stack_trace,
+        })
     }
 
     /// The current accumulated `errorInfo` (for `catch`'s `-errorinfo`): the
     /// trace if any frame was logged, else the bare error message.
-    pub(crate) fn error_info(&self) -> Vec<u8> {
-        if self.uses_jim_error_stack() {
-            return self.jim_stacktrace();
-        }
-        let info = self.exc.borrow().info.clone();
-        info.unwrap_or_else(|| self.result_bytes())
+    pub(crate) fn error_info(&mut self) -> Result<Vec<u8>, tcl_runtime_api::NativeExecutionError> {
+        self.completion_error_info_bytes_checked()
     }
 
     /// Capture the error trace state (`errorInfo`/`errorCode` accumulation), so a
@@ -11446,8 +11526,7 @@ impl Interp {
             return Err(error);
         }
         if self.uses_jim_error_stack() {
-            let original = self.jim_stacktrace_object();
-            return self.completion_object_bytes_checked(original.as_ptr());
+            return self.jim_stacktrace();
         }
         let accumulated = self.exc.borrow().info.clone();
         match accumulated {
@@ -11948,7 +12027,9 @@ impl Interp {
         .flatten();
         if let Some(message) = failure {
             last = self.error(message.as_bytes());
-            self.capture_jim_script_parse_failure();
+            if let Err(first) = self.capture_jim_script_parse_failure() {
+                return self.refuse_native_execution(first);
+            }
         }
         if commands.is_empty() {
             // A script with no commands (empty / whitespace / comments only)
@@ -13372,7 +13453,9 @@ impl Interp {
                 return Code::Error;
             }
             if code == Code::Error && self.uses_jim_error_stack() {
-                self.capture_jim_error_stack();
+                if let Err(first) = self.capture_jim_error_stack() {
+                    return self.refuse_native_execution(first);
+                }
             }
             code
         })();
@@ -18069,7 +18152,7 @@ mod tests {
             if expected == Code::Ok {
                 assert!(unsafe { (*argv[1]).bytes.is_null() });
             } else {
-                assert_eq!(interp.jim_stacktrace(), b"{} {} 1 {probe 42}");
+                assert_eq!(interp.jim_stacktrace().unwrap(), b"{} {} 1 {probe 42}");
             }
             release_all(&argv);
             interp.set_result_bytes(b"");

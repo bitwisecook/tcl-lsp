@@ -241,7 +241,10 @@ pub(crate) fn command(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return Code::Error;
     }
     interp.reset_jim_error_capture();
-    let body_error_code = interp.jim_return_receipt().error_code;
+    let body_error_code = match interp.jim_return_receipt() {
+        Ok(receipt) => receipt.error_code,
+        Err(first) => return interp.refuse_native_execution(first),
+    };
     let (handler, finally) = match clauses(
         interp,
         &mut ops,
@@ -273,7 +276,10 @@ pub(crate) fn command(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             .is_none_or(|name| bind(interp, name, &result));
         let options_bound = if result_bound {
             if let Some(name) = handler.vars.get(1) {
-                let mut receipt = interp.jim_return_receipt();
+                let mut receipt = match interp.jim_return_receipt() {
+                    Ok(receipt) => receipt,
+                    Err(first) => return interp.refuse_native_execution(first),
+                };
                 receipt.error_code = body_error_code;
                 let options = match crate::cmd_error::jim_options_object(interp, receipt, code) {
                     Ok(options) => options,
@@ -346,9 +352,9 @@ mod tests {
         );
         let trace = Owned::fresh(crate::list::new_list_obj(&[]));
         let code = Owned::fresh(crate::list::new_list_obj(&[]));
-        interp.adopt_jim_stacktrace(trace.clone());
+        interp.adopt_jim_stacktrace(trace.clone()).unwrap();
         interp.var_set(b"::errorCode", code.as_ptr()).unwrap();
-        let receipt = interp.jim_return_receipt();
+        let receipt = interp.jim_return_receipt().unwrap();
         assert_eq!(receipt.stack_trace.as_ptr(), trace.as_ptr());
         assert_eq!(receipt.error_code.unwrap().as_ptr(), code.as_ptr());
     }

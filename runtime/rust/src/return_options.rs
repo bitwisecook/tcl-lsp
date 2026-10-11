@@ -221,7 +221,11 @@ pub(crate) fn publish(
     if code == Code::Error && ops.protocol == ReturnOptionsProtocol::Jim084 {
         for pair in &prepared.options {
             match pair.name_in(ops.protocol) {
-                b"-errorinfo" => interp.adopt_jim_stacktrace(pair.value.clone()),
+                b"-errorinfo" => {
+                    if let Err(first) = interp.adopt_jim_stacktrace(pair.value.clone()) {
+                        return interp.refuse_native_execution(first);
+                    }
+                }
                 b"-errorcode" => {
                     let _ = interp.var_set(b"::errorCode", pair.value.as_ptr());
                     if interp.host_refusal_pending() {

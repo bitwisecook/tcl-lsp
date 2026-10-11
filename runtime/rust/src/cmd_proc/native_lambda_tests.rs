@@ -90,7 +90,7 @@ fn lambda_conversion_errors_match_original_counted_values_and_parameter_frames()
                 );
                 if label == "DIRECT_PARAM_BODY_RAW_ZERO" {
                     let frame = b"\n    (parsing lambda expression \"{{a b c}} {x\")";
-                    let actual = interp.error_info();
+                    let actual = interp.error_info().unwrap();
                     assert!(
                         actual.windows(frame.len()).any(|part| part == frame),
                         "{engine}/CString parameter frame"

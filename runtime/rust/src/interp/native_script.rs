@@ -64,7 +64,9 @@ impl Interp {
         };
         if let Some(message) = missing_message(script.objects.missing) {
             let code = self.error(message);
-            self.capture_original_jim_parse_failure(script);
+            if let Err(first) = self.capture_original_jim_parse_failure(script) {
+                return self.refuse_native_execution(first);
+            }
             return code;
         }
         self.set_result(context.empty_object().as_ptr());
@@ -114,7 +116,9 @@ impl Interp {
             if code == Code::Error {
                 // Capture while the actual Script frame and procedure level are
                 // live. Failed lookup has no selected invocation argv.
-                self.capture_jim_error_stack();
+                if let Err(first) = self.capture_jim_error_stack() {
+                    break self.refuse_native_execution(first);
+                }
             }
             if code != Code::Ok {
                 break code;
@@ -127,24 +131,18 @@ impl Interp {
     fn capture_original_jim_parse_failure(
         &self,
         script: &tcl_syntax::native_jim_substitution::JimOrdinaryScript<Owned>,
-    ) {
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
         // naming.source.jim-original-source-entry
         // docs/design/analysis/name-resolution-proofs/jim-original-source-entry.md
-        self.jim_error_stack.borrow_mut().capture_object(|| {
-            let frames = self.materialized_jim_evaluation_frames();
-            let empty = Owned::fresh(crate::obj::new_string_bytes(b""));
-            let location = tcl_runtime_api::jim_error_stack::JimScriptLocation {
-                file: script.filename.clone(),
-                line: u32::from_ne_bytes(script.linenr.get().to_ne_bytes()),
-            };
-            tcl_runtime_api::jim_error_stack::capture_jim_error_frames(
-                self.jim_procedure_level.get(),
-                &frames,
-                Some(&location),
-                &empty,
-            )
-            .map(|frames| self.jim_trace_object(frames))
-        });
+        let scope = super::native_operation_currency::NativeOperationScope::enter(self)?;
+        let location = tcl_runtime_api::jim_error_stack::JimScriptLocation {
+            file: script.filename.clone(),
+            line: u32::from_ne_bytes(script.linenr.get().to_ne_bytes()),
+        };
+        let reached = self.capture_jim_error_stack_at(Some(&location));
+        drop(location);
+        scope.currency().ensure_current_or_refuse()?;
+        reached
     }
 
     fn eval_native_jim_words(
@@ -327,7 +325,7 @@ mod tests {
         .unwrap();
         assert_eq!(interp.eval_control_body(body.as_ptr()), Code::Error);
         assert!(!interp.host_refusal_pending());
-        let trace = interp.jim_stacktrace_object();
+        let trace = interp.jim_stacktrace_object().unwrap();
         let fields = crate::list::list_elements_native_checked(
             trace.as_ptr(),
             tcl_syntax::native_string::NativeStringProtocol::Jim084,

@@ -248,7 +248,8 @@ pub(crate) fn completion_options(
         return Err(error);
     }
     if interp.uses_jim_error_stack() {
-        return jim_options_raw(interp, interp.jim_return_receipt(), code);
+        let receipt = interp.jim_return_receipt()?;
+        return jim_options_raw(interp, receipt, code);
     }
     // Tcl_GetReturnOptions reaches Tcl_AddObjErrorInfo with an empty suffix
     // on an ERROR result. In particular, this re-arms legacy publication
@@ -413,8 +414,13 @@ fn error_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     if protocol == tcl_registry::invocation_words::NativeErrorArguments::JimStackTrace {
         interp.set_result(argv[1]);
+        if let Err(first) = interp.check_entered_native_operation() {
+            return interp.refuse_native_execution(first);
+        }
         if let Some(&trace) = argv.get(2) {
-            interp.adopt_jim_stacktrace(obj::Owned::retain(trace));
+            if let Err(first) = interp.adopt_jim_stacktrace(obj::Owned::retain(trace)) {
+                return interp.refuse_native_execution(first);
+            }
         }
         return interp.set_error_state(b"NONE");
     }
