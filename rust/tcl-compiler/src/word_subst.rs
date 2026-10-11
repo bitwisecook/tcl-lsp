@@ -1274,8 +1274,14 @@ mod tests {
         let mut prepared = crate::analyser::Analyser::new();
         let base_input = prepared.prepare_analysis_input("tcl9.1").unwrap();
         for leading_bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
-            let mut input = base_input.clone();
-            input.config.leading_bom = leading_bom;
+            let mut config = base_input.lexer_config();
+            config.leading_bom = leading_bom;
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                base_input.analyser_profile(),
+                base_input.unit_profile(),
+                base_input.context_registry(),
+                config,
+            );
             let config = input.lexer_config();
             let registry = input.borrowed_context_registry().commands();
             let source = "puts [\u{feff}unknown argument]";

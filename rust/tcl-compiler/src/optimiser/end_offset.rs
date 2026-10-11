@@ -112,6 +112,21 @@ impl EndOffsetSource<'_> {
     }
 }
 
+/// A collected IR statement is an extracted region of the retained document.
+/// Its local parser keeps a leading mark as content, even at document offset zero.
+fn statement_commands(
+    source: &str,
+    span: Span,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<SegmentedCommand>> {
+    let text = source.get(span.start() as usize..span.end() as usize)?;
+    Some(segment_commands_with_offset_and_config(
+        text,
+        span.start(),
+        config.nested(),
+    ))
+}
+
 /// Run the O128 end-offset detection over the whole compilation unit.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // Copy the source reference so the immutable slice borrow does not
@@ -136,10 +151,10 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         collect_statement_spans(&proc.body, &mut spans, 0);
     }
     for (span, script, tokens) in spans {
-        let Some(slice) = source.get(span.start() as usize..span.end() as usize) else {
+        let Some(commands) = statement_commands(source, span, config) else {
             continue;
         };
-        for cmd in segment_commands_with_offset_and_config(slice, span.start(), config) {
+        for cmd in commands {
             apply_to_command(
                 ctx,
                 &cmd,
@@ -663,6 +678,58 @@ mod tests {
 
     fn registry() -> CommandRegistry {
         CommandRegistry::build_default()
+    }
+
+    #[test]
+    fn original_statement_projection_preserves_nested_marks_and_module_tokens() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Parser geometry only; this does not establish an executable rewrite.
+        let reg = registry();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..tcl_lexer::LexerConfig::default()
+        };
+        let source = "\u{feff}proc p {} {\u{feff}unknown argument}\nset outside 1";
+        let unit = CompilationUnit::build_for_with_config(source, &reg, false, config);
+        assert_eq!(unit.ir_module.lexer_config, config);
+        let body = &unit.ir_module.procedures.get("::p").unwrap().body;
+        let mut spans = Vec::new();
+        collect_statement_spans(body, &mut spans, 0);
+        let (span, script, tokens) = spans
+            .into_iter()
+            .find(|(span, _, _)| source[span.start() as usize..].starts_with('\u{feff}'))
+            .unwrap();
+        let commands = statement_commands(source, span, config).unwrap();
+        let [command] = commands.as_slice() else {
+            panic!("one original marked statement");
+        };
+        assert_eq!(command.texts, ["\u{feff}unknown", "argument"]);
+        assert_eq!(command.argv[0].span, tokens.argv[0]);
+        let proof = EndOffsetSource {
+            tokens,
+            script,
+            config,
+            metadata: None,
+            parser: None,
+        };
+        assert_eq!(proof.config, config);
+        assert_eq!(
+            proof.command_tokens(source, command).unwrap().argv,
+            tokens.argv
+        );
+        let reparsed_as_file = segment_commands_with_offset_and_config(
+            &source[span.start() as usize..span.end() as usize],
+            span.start(),
+            config,
+        );
+        assert_ne!(reparsed_as_file[0].argv[0].span, tokens.argv[0]);
+        let marked = "\u{feff}unknown argument";
+        let zero = statement_commands(marked, Span::new(0, marked.len() as u32), config).unwrap();
+        assert_eq!(zero[0].texts[0], "\u{feff}unknown");
+        assert!(statement_commands(source, Span::new(1, 2), config).is_none());
+        assert_eq!(unit.ir_module.lexer_config, config);
     }
 
     fn run_pass(source: &str) -> Vec<Optimisation> {
