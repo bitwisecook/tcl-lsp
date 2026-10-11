@@ -231,6 +231,76 @@ impl NativeIndexOps for Vm {
             })
         })
     }
+    fn original_list_number(
+        &mut self,
+        original: &Value,
+        command: tcl_cmd_core::native_option_index::OptionCommand,
+        kind: tcl_cmd_core::index::ListNumericKind,
+    ) -> Result<Option<tcl_cmd_core::index::ListNumber>, CmdError> {
+        use tcl_cmd_core::index::{ListNumber, ListNumericKind};
+        use tcl_cmd_core::native_option_index::OptionCommand;
+        use tcl_registry::native_numeric_error::NativeNumericCommandPurpose as Purpose;
+        use tcl_syntax::scalar_getter::NativeScalarGetterValue;
+        let purpose = match (command, kind) {
+            (OptionCommand::Search, ListNumericKind::Integer) => Purpose::ListSearchInteger,
+            (OptionCommand::Search, ListNumericKind::Real) => Purpose::ListSearchReal,
+            (OptionCommand::Sort, ListNumericKind::Integer) => Purpose::ListSortInteger,
+            (OptionCommand::Sort, ListNumericKind::Real) => Purpose::ListSortReal,
+        };
+        use crate::expr::original_numeric_context::{
+            original_numeric_command_ops, with_original_numeric_command,
+        };
+        with_original_numeric_command(self, CmdError::from, |vm, context| {
+            original_numeric_command_ops(vm, context, purpose, |numeric, selected| {
+                let reached = numeric.getter(original, selected.getter_kind());
+                if let Err(first) = &reached {
+                    numeric.retain_failure(first);
+                }
+                numeric.current_for_value(original)?;
+                let number = match reached? {
+                    NativeScalarGetterValue::Wide(integer) if kind == ListNumericKind::Integer => {
+                        ListNumber::Integer(integer)
+                    }
+                    NativeScalarGetterValue::Double(real) if kind == ListNumericKind::Real => {
+                        ListNumber::Real(real)
+                    }
+                    _ => return Err(ValueError::ScalarNumericInputUnavailable.into()),
+                };
+                Ok(Some(number))
+            })
+        })
+    }
+    fn index_c84_sort_member_hold(&mut self, original: &Value) -> Result<VmIndexKey, CmdError> {
+        let scope = NativeOperationScope::enter(self)?;
+        scope.check(self)?;
+        original.check_native_header()?;
+        if self.index_c_version() != Some(tcl_dialect::TclVersion::V8_4) {
+            return Err(
+                ValueError::CommandProtocolUnavailable("original C84 sort member role").into(),
+            );
+        }
+        let held = VmIndexKey::borrowed(original);
+        *held.0.result.borrow_mut() = Some(original.clone());
+        Ok(held)
+    }
+    fn index_jim_sort_selected(&self) -> bool {
+        self.actual_native_invocation_dialect()
+            .native_scalar_getter_protocol()
+            .is_some_and(|selected| selected.is_jim084())
+    }
+    fn index_native_sort<E>(
+        &mut self,
+        indices: &mut [usize],
+        compare: &mut impl FnMut(&mut Self, usize, usize) -> Result<core::cmp::Ordering, E>,
+    ) -> Result<(), tcl_cmd_core::index::NativeSortError<E>> {
+        let host = self.host_rc();
+        let environment = host.native_list_sorting_environment().ok_or_else(|| {
+            tcl_cmd_core::index::NativeSortError::Operation(CmdError::from(
+                ValueError::CommandProtocolUnavailable("original local C list sorting capability"),
+            ))
+        })?;
+        tcl_cmd_core::index::native_sort_with_host(self, environment, indices, compare)
+    }
     fn original_c_index(
         &mut self,
         original: &Value,

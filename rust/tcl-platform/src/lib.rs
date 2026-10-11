@@ -40,11 +40,13 @@
 //! process-spawn code at all.
 
 pub mod integer_formatter;
+pub mod native_list_sort;
 pub mod numeric_environment;
 pub use integer_formatter::{
     NativeIntegerFormatter, NativeIntegerFormatterBuild, NativeIntegerFormatterUnavailable,
     NativeIntegerKind,
 };
+pub use native_list_sort::{NativeListSortFailure, NativeListSortingEnvironment};
 pub use numeric_environment::{
     CheckedNumericEnvironment, DoubleNumericConversion, NativeCIntegerAbi, NumericEnvironment,
     NumericEnvironmentUnavailable, NumericErrorState, SignedNumericConversion,
@@ -423,6 +425,12 @@ pub trait Host {
     /// Independently supplied C thread numeric state and conversion effects.
     /// Restricted hosts can omit it; absence is not a range-free baseline.
     fn numeric_environment(&self) -> Option<&dyn NumericEnvironment> {
+        None
+    }
+
+    /// Independently supplied local C list sorting producer.
+    /// Absence supplies no replacement algorithm or comparator chronology.
+    fn native_list_sorting_environment(&self) -> Option<&dyn NativeListSortingEnvironment> {
         None
     }
 

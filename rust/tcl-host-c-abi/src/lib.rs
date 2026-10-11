@@ -8,7 +8,9 @@ use tcl_platform::{
 };
 
 mod integer_formatter;
+mod native_list_sort;
 pub use integer_formatter::LoadedNativeIntegerFormatter;
+pub use native_list_sort::NativeListSortingEnvironment;
 
 /// Stateless access to this compiled target's current C numeric environment.
 /// WASIp1 uses its own linked guest libc and errno cell, independently of any

@@ -10,6 +10,9 @@ repository.workspace = true
 authors.workspace = true
 description = "Safe native thread numeric environment access over the host C ABI"
 
+[build-dependencies]
+cc = "1"
+
 [dependencies]
 libc = "0.2"
 sha2 = "0.11"

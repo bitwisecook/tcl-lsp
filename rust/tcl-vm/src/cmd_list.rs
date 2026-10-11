@@ -468,6 +468,13 @@ fn cmd_lsort(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     use tcl_cmd_core::lsort::{Lsort, build_command, prepare, sort_command};
     let mut job = match prepare(vm, args) {
         Ok(Lsort::Done(v)) => return ok(v),
+        Ok(Lsort::Original(result)) => {
+            let (tcl_cmd_core::index::IndexResult::Borrowed(value)
+            | tcl_cmd_core::index::IndexResult::Created(value)
+            | tcl_cmd_core::index::IndexResult::Detached(value)
+            | tcl_cmd_core::index::IndexResult::ReturnedOwnedTransport(value)) = result;
+            return ok(value);
+        }
         Ok(Lsort::Command(job)) => job,
         Err(error) => {
             if let Some(command_error) = error.command_error {
@@ -912,3 +919,6 @@ mod native_original_option_index_controls;
 
 #[cfg(test)]
 mod native_original_stride_controls;
+
+#[cfg(test)]
+mod native_original_numeric_controls;

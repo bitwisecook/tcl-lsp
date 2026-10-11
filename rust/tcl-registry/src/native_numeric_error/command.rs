@@ -19,6 +19,14 @@ pub enum NativeNumericCommandPurpose {
     UuencodeLineLength,
     /// Interpreter debug frame switch.
     DebugFrame,
+    /// Reached original numeric search pattern or key.
+    ListSearchInteger,
+    /// Reached original floating search pattern or key.
+    ListSearchReal,
+    /// Reached original numeric sort key.
+    ListSortInteger,
+    /// Reached original floating sort key.
+    ListSortReal,
     /// Original list search group length.
     ListSearchStride,
     /// Original list sort group length.
@@ -75,6 +83,9 @@ impl crate::InvocationDialect {
             return None;
         }
         match purpose {
+            Purpose::ListSearchInteger | Purpose::ListSearchReal if version.is_none() => {
+                return None;
+            }
             Purpose::ListSearchStride
                 if matches!(
                     version,
@@ -118,6 +129,18 @@ impl NativeNumericCommandProtocol {
         use NativeScalarGetterKind as Kind;
         match self.purpose {
             Purpose::DebugFrame => Kind::Boolean,
+            Purpose::ListSearchReal | Purpose::ListSortReal => Kind::Double,
+            Purpose::ListSearchInteger
+                if matches!(self.version, Some(TclVersion::V8_4 | TclVersion::V8_5)) =>
+            {
+                Kind::Int
+            }
+            Purpose::ListSortInteger
+                if matches!(self.version, Some(TclVersion::V8_4 | TclVersion::V8_5)) =>
+            {
+                Kind::Long
+            }
+            Purpose::ListSearchInteger | Purpose::ListSortInteger => Kind::Wide,
             Purpose::ListSearchStride | Purpose::ListSortStride if self.version.is_none() => {
                 Kind::Long
             }
@@ -508,6 +531,76 @@ mod tests {
                 .unwrap()
                 .invalid_list_stride_error(0),
             None
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_list_numeric_purpose_controls {
+    use super::*;
+    #[test]
+    fn list_numeric_recipes_select_original_search_sort_widths_and_jim_option_support() {
+        // naming.list.original-numeric-pattern-key-getters-and-results
+        // docs/design/analysis/name-resolution-proofs/list-original-numeric-pattern-key-getters-and-results.md
+        // Source-selected primitive recipes; native645 Glob and647 Exact rows
+        // bound separate original public effects, not general callback scheduling.
+        use NativeNumericCommandPurpose as P;
+        use NativeScalarGetterKind as K;
+        for version in [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            let dialect = crate::InvocationDialect::for_version(version);
+            let search = if version <= TclVersion::V8_5 {
+                K::Int
+            } else {
+                K::Wide
+            };
+            let sort = if version <= TclVersion::V8_5 {
+                K::Long
+            } else {
+                K::Wide
+            };
+            for (purpose, kind) in [
+                (P::ListSearchInteger, search),
+                (P::ListSortInteger, sort),
+                (P::ListSearchReal, K::Double),
+                (P::ListSortReal, K::Double),
+            ] {
+                assert_eq!(
+                    dialect
+                        .native_numeric_command_protocol(purpose)
+                        .unwrap()
+                        .getter_kind(),
+                    kind
+                );
+            }
+        }
+        let jim = crate::InvocationDialect::of_profile(
+            crate::model::resolve_environment("jim").unit_profile(),
+        );
+        assert!(
+            jim.native_numeric_command_protocol(P::ListSearchInteger)
+                .is_none()
+        );
+        assert!(
+            jim.native_numeric_command_protocol(P::ListSearchReal)
+                .is_none()
+        );
+        assert_eq!(
+            jim.native_numeric_command_protocol(P::ListSortInteger)
+                .unwrap()
+                .getter_kind(),
+            K::Wide
+        );
+        assert_eq!(
+            jim.native_numeric_command_protocol(P::ListSortReal)
+                .unwrap()
+                .getter_kind(),
+            K::Double
         );
     }
 }

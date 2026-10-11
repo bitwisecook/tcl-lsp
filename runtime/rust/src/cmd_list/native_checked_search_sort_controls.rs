@@ -132,11 +132,97 @@ fn checked_original_search_sort_key_and_pattern_refusals_keep_first_cause_and_re
             let cause = ops.native_execution_refusal().unwrap();
             assert_eq!(ops.get_obj_result(), prior.as_ptr());
             assert_eq!(LATER.get(), 0);
-            assert_eq!(REFS.get(), if operation == 2 { 1 } else { 2 });
+            assert_eq!(REFS.get(), if operation == 2 { 1 } else if profile == "tcl8.4" && operation == 0 { 3 } else { 2 });
             // SAFETY: actual observerref1 plus containingList hold, no temporary Native+1.
             assert_eq!(
                 unsafe { (*first.as_ptr()).ref_count },
                 if operation == 2 { 1 } else { 2 }
+            );
+            drop(container);
+            drop(first);
+            assert_eq!(FREED.get(), 1);
+            assert_eq!(ops.native_execution_refusal(), Some(cause));
+            ACTUAL.set(None);
+        }
+    }
+}
+
+#[test]
+fn original_numeric_primitives_preserve_first_refusal_before_keys_and_mandatory_cleanup() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Real software extension + selected primitive owners; native645/647 contain
+    // no callbacks. Getter counts are actual local software roles, not donated
+    // EvalObjv/private provider references. Jim numeric search is unsupported.
+    for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+        for operation in 0..3 {
+            if profile == "jim" && operation != 0 {
+                continue;
+            }
+            let mut ops = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(profile),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            ACTUAL.set(Some(ops.clone()));
+            LATER.set(0);
+            FREED.set(0);
+            REFS.set(0);
+            let protocol = ops
+                .native_invocation_dialect()
+                .native_string_protocol()
+                .unwrap();
+            let first = obj::Owned::fresh(obj::alloc_typed(&FIRST, 0));
+            let last = obj::Owned::fresh(obj::alloc_typed(&LAST, 0));
+            let plain = obj::Owned::fresh(obj::new_string_bytes(b"1"));
+            // The first failed primitive's updater returns a String but its
+            // full original Host refusal outranks any subsequent Guest parsing.
+            let members = if operation == 2 {
+                vec![last.as_ptr(), plain.as_ptr()]
+            } else {
+                vec![first.as_ptr(), last.as_ptr()]
+            };
+            let container = obj::Owned::fresh(list::new_list_obj_native(&members, protocol));
+            let name = obj::Owned::fresh(obj::new_string_bytes(if operation == 0 {
+                b"lsort"
+            } else {
+                b"lsearch"
+            }));
+            let integer = obj::Owned::fresh(obj::new_string_bytes(b"-integer"));
+            let exact = obj::Owned::fresh(obj::new_string_bytes(b"-exact"));
+            let mut argv = vec![name.as_ptr(), integer.as_ptr()];
+            if operation != 0 {
+                argv.push(exact.as_ptr());
+            }
+            argv.push(container.as_ptr());
+            if operation != 0 {
+                argv.push(if operation == 2 {
+                    first.as_ptr()
+                } else {
+                    plain.as_ptr()
+                });
+            }
+            let prior = obj::Owned::fresh(obj::new_string_bytes(b"PRIOR"));
+            ops.set_result(prior.as_ptr());
+            let code = if operation == 0 {
+                super::lsort(&mut ops, &argv)
+            } else {
+                super::lsearch(&mut ops, &argv)
+            };
+            assert_eq!(code, crate::interp::Code::Error);
+            let cause = ops.native_execution_refusal().unwrap();
+            assert_eq!(ops.get_obj_result(), prior.as_ptr());
+            assert_eq!(LATER.get(), 0);
+            assert_eq!(
+                REFS.get(),
+                if operation == 2 {
+                    1
+                } else if profile == "tcl8.4" && operation == 0 {
+                    3
+                } else {
+                    2
+                }
             );
             drop(container);
             drop(first);

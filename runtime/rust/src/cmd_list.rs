@@ -739,6 +739,14 @@ fn lsort(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result(v);
             return Code::Ok;
         }
+        Ok(Lsort::Original(result)) => {
+            let (tcl_cmd_core::index::IndexResult::Borrowed(value)
+            | tcl_cmd_core::index::IndexResult::Created(value)
+            | tcl_cmd_core::index::IndexResult::Detached(value)
+            | tcl_cmd_core::index::IndexResult::ReturnedOwnedTransport(value)) = result;
+            interp.set_result(value);
+            return Code::Ok;
+        }
         Ok(Lsort::Command(job)) => job,
         Err(e) => {
             if let Some(error) = e.native_access_refusal {
@@ -1712,3 +1720,6 @@ mod native_original_stride_controls;
 
 #[cfg(all(test, have_tommath))]
 mod native_checked_search_sort_controls;
+
+#[cfg(test)]
+mod native_original_numeric_controls;

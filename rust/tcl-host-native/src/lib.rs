@@ -132,6 +132,15 @@ impl Host for NativeHost {
             .then_some(&ENVIRONMENT as &dyn tcl_platform::NumericEnvironment)
     }
 
+    fn native_list_sorting_environment(
+        &self,
+    ) -> Option<&dyn tcl_platform::NativeListSortingEnvironment> {
+        static SORTING: tcl_host_c_abi::NativeListSortingEnvironment =
+            tcl_host_c_abi::NativeListSortingEnvironment;
+        tcl_host_c_abi::NativeListSortingEnvironment::supported()
+            .then_some(&SORTING as &dyn tcl_platform::NativeListSortingEnvironment)
+    }
+
     fn native_integer_formatter(&self) -> Option<&dyn tcl_platform::NativeIntegerFormatter> {
         self.integer_formatter.as_deref()
     }

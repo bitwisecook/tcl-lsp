@@ -169,13 +169,6 @@ fn not_integer(s: &[u8]) -> LsearchError {
     LsearchError::msg(m)
 }
 
-fn not_real(s: &[u8]) -> LsearchError {
-    let mut m = b"expected floating-point number but got \"".to_vec();
-    m.extend_from_slice(s);
-    m.push(b'"');
-    LsearchError::msg(m)
-}
-
 /// The parsed `lsearch` options.
 struct Opts {
     mode: SearchMode,
@@ -566,6 +559,7 @@ struct SearchInput<'a, V> {
     group_offset: usize,
     key_path: Path<'a>,
     pattern: Option<&'a [u8]>,
+    number: Option<crate::native_list_numeric::NumericKey>,
 }
 
 fn lsearch_with<O: NativeIndexOps, R>(
@@ -641,7 +635,30 @@ fn lsearch_with<O: NativeIndexOps, R>(
             start = s - (s % o.group);
         }
 
-        let pattern = if o.mode != SearchMode::Regexp {
+        let numeric_kind = if matches!(o.mode, SearchMode::Exact | SearchMode::Sorted) {
+            match o.dtype {
+                SortMode::Integer => Some(index::ListNumericKind::Integer),
+                SortMode::Real => Some(index::ListNumericKind::Real),
+                _ => None,
+            }
+        } else {
+            None
+        };
+        let number = numeric_kind
+            .map(|kind| {
+                crate::native_list_numeric::number(ops, &args[n - 1], OptionCommand::Search, kind)
+            })
+            .transpose()
+            .map_err(LsearchError::from_command)?;
+        // Original numeric conversion can shimmer the input container itself.
+        // The selected C command restores its actual List view after the pattern.
+        let elems = if number.is_some() && ops.index_c_version().is_some() {
+            ops.index_list_elements(&args[n - 2])
+                .map_err(LsearchError::from_command)?
+        } else {
+            elems
+        };
+        let pattern = if o.mode != SearchMode::Regexp && number.is_none() {
             Some(
                 index::checked_operand_bytes(ops, &args[n - 1])
                     .map_err(LsearchError::from_command)?
@@ -650,19 +667,6 @@ fn lsearch_with<O: NativeIndexOps, R>(
         } else {
             None
         };
-        // For numeric exact/sorted search, the pattern must parse as that type.
-        if matches!(o.mode, SearchMode::Exact | SearchMode::Sorted) {
-            if o.dtype == SortMode::Integer
-                && sort::parse_wide(pattern.as_deref().expect("numeric pattern")).is_none()
-            {
-                return Err(not_integer(pattern.as_deref().expect("numeric pattern")));
-            }
-            if o.dtype == SortMode::Real
-                && sort::parse_real(pattern.as_deref().expect("numeric pattern")).is_none()
-            {
-                return Err(not_real(pattern.as_deref().expect("numeric pattern")));
-            }
-        }
         let input = SearchInput {
             elems: &elems,
             options: &o,
@@ -670,6 +674,7 @@ fn lsearch_with<O: NativeIndexOps, R>(
             group_offset,
             key_path,
             pattern: pattern.as_deref(),
+            number,
         };
         if o.mode == SearchMode::Sorted && !o.all && !o.not {
             sorted_search(ops, &input)
@@ -711,11 +716,12 @@ fn sorted_search<O: NativeIndexOps>(
         let mut mid = (lower + upper) / 2;
         mid -= mid % o.group as isize;
         let key = select_key(ops, elems, mid as usize, group_offset, key_path)?;
-        let ord = elem_cmp(
+        let ord = ordered_elem_cmp(
             ops,
             o.dtype,
             o.nocase,
-            pattern.expect("ordered pattern"),
+            pattern,
+            input.number,
             index::key_value::<O>(&key),
         )?;
         match ord {
@@ -782,11 +788,12 @@ fn linear_search<O: NativeIndexOps, R>(
                 re.as_mut().expect("compiled original pattern"),
                 index::key_value::<O>(&key),
             )?,
-            SearchMode::Exact | SearchMode::Sorted => elem_cmp(
+            SearchMode::Exact | SearchMode::Sorted => ordered_elem_cmp(
                 ops,
                 o.dtype,
                 o.nocase,
-                pattern.expect("ordered pattern"),
+                pattern,
+                input.number,
                 index::key_value::<O>(&key),
             )?
             .is_eq(),
@@ -833,6 +840,34 @@ fn select_by_index<O: NativeIndexOps>(
 
 /// Compare the search `pattern` against key `obj` under `dtype` (`-exact`/
 /// `-sorted` ordering).
+fn ordered_elem_cmp<O: NativeIndexOps>(
+    ops: &mut O,
+    dtype: SortMode,
+    nocase: bool,
+    pattern: Option<&[u8]>,
+    number: Option<crate::native_list_numeric::NumericKey>,
+    obj: &O::Value,
+) -> Result<Ordering, LsearchError> {
+    if let Some(pattern) = number {
+        let kind = if dtype == SortMode::Integer {
+            index::ListNumericKind::Integer
+        } else {
+            index::ListNumericKind::Real
+        };
+        let key = crate::native_list_numeric::number(ops, obj, OptionCommand::Search, kind)
+            .map_err(LsearchError::from_command)?;
+        return Ok(crate::native_list_numeric::search_order(pattern, key));
+    }
+    elem_cmp(
+        ops,
+        dtype,
+        nocase,
+        pattern.expect("String comparison pattern"),
+        obj,
+    )
+}
+
+// Original pure String comparison API is also used by the existing Unicode controls.
 fn elem_cmp<O: NativeIndexOps>(
     ops: &mut O,
     dtype: SortMode,
@@ -843,16 +878,8 @@ fn elem_cmp<O: NativeIndexOps>(
     let ob = index::checked_operand_bytes(ops, obj).map_err(LsearchError::from_command)?;
     Ok(match dtype {
         SortMode::Dictionary => sort::dictionary_compare(pattern, &ob),
-        SortMode::Integer => {
-            let o = sort::parse_wide(&ob).ok_or_else(|| not_integer(&ob))?;
-            sort::parse_wide(pattern).unwrap_or(0).cmp(&o)
-        }
-        SortMode::Real => {
-            let o = sort::parse_real(&ob).ok_or_else(|| not_real(&ob))?;
-            sort::parse_real(pattern)
-                .unwrap_or(0.0)
-                .partial_cmp(&o)
-                .unwrap_or(Ordering::Equal)
+        SortMode::Integer | SortMode::Real => {
+            unreachable!("numeric comparisons use their original scalar owner")
         }
         SortMode::Ascii => {
             if nocase {

@@ -30,6 +30,26 @@ use tcl_syntax::value::{ValueError, ValueOps};
 
 use crate::error::CmdError;
 
+/// Numeric search/sort primitive, separate from Index spelling and String bytes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ListNumericKind {
+    Integer,
+    Real,
+}
+
+/// Exact primitive output returned by the selected original scalar owner.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ListNumber {
+    Integer(i64),
+    Real(f64),
+}
+
+/// Actual local sorting refuses independently of comparator completion.
+pub enum NativeSortError<E> {
+    Operation(CmdError),
+    Comparison(E),
+}
+
 /// Original index conversion at the command boundary, with full Host causes.
 /// Portable adapters explicitly use the neutral default; physical Jim adapters
 /// select their original-object worker independently of the numeral grammar.
@@ -265,6 +285,49 @@ pub trait NativeIndexOps: ValueOps {
         _command: crate::native_option_index::OptionCommand,
     ) -> Result<Option<i64>, CmdError> {
         Ok(None)
+    }
+
+    /// Read the same original numeric pattern/key through the independently
+    /// selected search/sort Int/Long/Wide/Double owner. None denotes only an
+    /// explicit neutral adapter; physical unavailable purposes refuse.
+    fn original_list_number(
+        &mut self,
+        _original: &Self::Value,
+        _command: crate::native_option_index::OptionCommand,
+        _kind: ListNumericKind,
+    ) -> Result<Option<ListNumber>, CmdError> {
+        Ok(None)
+    }
+
+    /// C84's SortElement record holds every original input member before the
+    /// first comparator. This temporary role is distinct from a result hold.
+    fn index_c84_sort_member_hold(
+        &mut self,
+        _original: &Self::Value,
+    ) -> Result<Self::IndexKeyOwner, CmdError> {
+        Err(ValueError::CommandProtocolUnavailable("original C84 sort member hold").into())
+    }
+
+    /// True only for the actual selected Jim command producer, independent of
+    /// neutral Index grammar. This read-only fact grants no host or getter.
+    fn index_jim_sort_selected(&self) -> bool {
+        false
+    }
+
+    /// Reach the actual local C sorting producer with original operation checks.
+    /// Comparison errors remain complete caller-owned completions. This default
+    /// cannot claim a native producer; neutral consumers use their pure route.
+    fn index_native_sort<E>(
+        &mut self,
+        _indices: &mut [usize],
+        _compare: &mut impl FnMut(&mut Self, usize, usize) -> Result<core::cmp::Ordering, E>,
+    ) -> Result<(), NativeSortError<E>>
+    where
+        Self: Sized,
+    {
+        Err(NativeSortError::Operation(
+            ValueError::CommandProtocolUnavailable("original local C list sorting producer").into(),
+        ))
     }
 
     /// Original C ListIndex worker, including its source-selected owner/copy order.
@@ -537,6 +600,69 @@ pub fn original_list_stride<O: NativeIndexOps>(
     command: crate::native_option_index::OptionCommand,
 ) -> Result<Option<i64>, CmdError> {
     run_index_metadata(ops, |ops| ops.original_list_stride(original, command))
+}
+
+/// Read the original search/sort primitive without a preliminary String getter.
+/// Neutral callers alone receive None and can choose their independent parser.
+///
+/// # Errors
+/// Exact original primitive Guest or complete original Host cause.
+pub fn original_list_number<O: NativeIndexOps>(
+    ops: &mut O,
+    original: &O::Value,
+    command: crate::native_option_index::OptionCommand,
+    kind: ListNumericKind,
+) -> Result<Option<ListNumber>, CmdError> {
+    run_index_metadata(ops, |ops| ops.original_list_number(original, command, kind))
+}
+
+/// Shared entered-operation bridge to the independently supplied actual host.
+/// The host sorts metadata only; every reached comparator checks the same
+/// original currency before and after, and no subsequent getter runs on refusal.
+/// Callers retain intrinsic full causes before returning comparator completion.
+pub fn native_sort_with_host<O: NativeIndexOps, E>(
+    ops: &mut O,
+    environment: &dyn tcl_platform::NativeListSortingEnvironment,
+    indices: &mut [usize],
+    compare: &mut impl FnMut(&mut O, usize, usize) -> Result<core::cmp::Ordering, E>,
+) -> Result<(), NativeSortError<E>> {
+    let original = ops
+        .enter_index_operation()
+        .map_err(NativeSortError::Operation)?;
+    let mut first = None;
+    let sorted = environment.sort_indices(indices, &mut |left, right| {
+        if let Err(error) = ops.check_index_operation(&original) {
+            ops.retain_index_failure(&error);
+            first = Some(NativeSortError::Operation(error));
+            return Err(());
+        }
+        let reached = compare(ops, left, right);
+        if let Err(error) = ops.check_index_operation(&original) {
+            ops.retain_index_failure(&error);
+            first = Some(NativeSortError::Operation(error));
+            return Err(());
+        }
+        match reached {
+            Ok(order) => Ok(order),
+            Err(error) => {
+                first = Some(NativeSortError::Comparison(error));
+                Err(())
+            }
+        }
+    });
+    ops.check_index_operation(&original)
+        .map_err(NativeSortError::Operation)?;
+    if let Some(error) = first {
+        return Err(error);
+    }
+    sorted.map_err(|_| {
+        NativeSortError::Operation(
+            ValueError::CommandProtocolUnavailable(
+                "original local C sorting producer or error frontier",
+            )
+            .into(),
+        )
+    })
 }
 
 /// Convert Jim's encoded absolute/end-relative index against this container.

@@ -22,7 +22,7 @@
 //! Implements the behaviour of C's `Tcl_LsortObjCmd` (`tclCmdIL.c`): the option set
 //! (`-ascii`/`-dictionary`/`-integer`/`-real`/`-nocase`, `-increasing`/
 //! `-decreasing`, `-unique`, `-indices`, `-index` *path*, `-stride`, `-command`),
-//! the up-front numeric-key validation, mode-aware `-unique`, and the stride /
+//! the selected original numeric-key stages, mode-aware `-unique`, and the stride /
 //! `-indices` result shapes. The non-command comparison is the shared
 //! [`crate::sort`] core.
 //!
@@ -35,7 +35,7 @@
 //! evaluates against isn't double-borrowed); [`build_command`] builds the result
 //! with `ValueOps` afterwards. Three sequential calls, no borrow conflict.
 //!
-//! Semantics follow tclsh 9.0.
+//! Primitive and reached schedules select the actual C release or Jim producer.
 
 use crate::index::NativeIndexOps;
 use crate::native_option_index::{OptionCommand, PreparedPath};
@@ -114,17 +114,12 @@ fn not_integer(s: &[u8]) -> LsortError {
     LsortError::msg(m)
 }
 
-fn not_real(s: &[u8]) -> LsortError {
-    let mut m = b"expected floating-point number but got \"".to_vec();
-    m.extend_from_slice(s);
-    m.push(b'"');
-    LsortError::msg(m)
-}
-
 /// The outcome of [`prepare`].
 pub enum Lsort<V, K> {
     /// A non-`-command` sort: the finished result list.
     Done(V),
+    /// Jim's actual zero/one-element input result, with its explicit borrowed role.
+    Original(index::IndexResult<V>),
     /// A `-command` sort: hand to [`sort_command`] then [`build_command`].
     Command(CommandJob<V, K>),
 }
@@ -143,6 +138,8 @@ pub struct CommandJob<V, K> {
     indices_out: bool,
     /// The `-command` prefix value (the adapter's comparator evaluates it).
     pub cmd_prefix: V,
+    /// Exact C84 SortElement member references; key metadata clones add no holds.
+    _temporary_members: Vec<K>,
 }
 
 /// Parse + key-extract (and, for the non-command modes, fully sort+build).
@@ -385,6 +382,16 @@ pub fn prepare<O: NativeIndexOps>(
                 .index_list_elements(&args[last])
                 .map_err(|e| LsortError::from_command(e.into()))?;
             let len = elems.len();
+            let jim = ops.index_jim_sort_selected();
+            if jim && len <= 1 {
+                let borrowed = ops
+                    .index_borrowed_key(&args[last])
+                    .map_err(LsortError::from_command)?;
+                return ops
+                    .index_key_result(&borrowed, false, false)
+                    .map(Lsort::Original)
+                    .map_err(LsortError::from_command);
+            }
             if len == 0 {
                 return Ok(Lsort::Done(ops.new_list(Vec::new())));
             }
@@ -416,6 +423,16 @@ pub fn prepare<O: NativeIndexOps>(
             }
             let logical = len / group;
 
+            let temporary_members = if ops.index_c_version() == Some(tcl_dialect::TclVersion::V8_4)
+            {
+                elems
+                    .iter()
+                    .map(|member| ops.index_c84_sort_member_hold(member))
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(LsortError::from_command)?
+            } else {
+                Vec::new()
+            };
             if command {
                 // Extract the key *values* (the comparator receives them); the merge sort
                 // happens in `sort_command` over the adapter's callback.
@@ -440,54 +457,114 @@ pub fn prepare<O: NativeIndexOps>(
                     group,
                     indices_out,
                     cmd_prefix: cmd_prefix.expect("set with -command"),
+                    _temporary_members: temporary_members,
                 }));
             }
 
-            // Non-command: extract the key *bytes*, validate, sort, unique, build.
-            let mut items: Vec<(usize, Vec<u8>)> = Vec::with_capacity(logical);
-            for l in 0..logical {
-                let base = l * group;
-                let key = match &jim_path {
-                    Some(path) => index::drill_original_jim(ops, &elems[base + group_offset], path),
-                    None => key_path.drill(ops, &elems[base + group_offset]),
-                }
-                .map_err(LsortError::from_command)?;
-                let bytes = index::checked_operand_bytes(ops, index::key_value::<O>(&key))
-                    .map_err(LsortError::from_command)?;
-                items.push((base, bytes.to_vec()));
-            }
-            // Validate numeric keys up front (Tcl errors on the first non-number).
-            if mode == SortMode::Integer
-                && let Some((_, k)) = items.iter().find(|(_, k)| sort::parse_wide(k).is_none())
-            {
-                return Err(not_integer(k));
-            } else if mode == SortMode::Real
-                && let Some((_, k)) = items.iter().find(|(_, k)| sort::parse_real(k).is_none())
-            {
-                return Err(not_real(k));
-            }
-            items.sort_by(|a, b| {
-                let ord = sort::key_compare(mode, nocase, &a.1, &b.1);
-                if increasing { ord } else { ord.reverse() }
-            });
-            if unique {
-                // Keep the *last* of each equal run (C's `MergeLists` keeps the right
-                // element), so two inputs that compare equal but render differently
-                // yield the later one — `lsort -nocase -unique {A a}` → `a`,
-                // `lsort -integer -unique {01 1}` → `1`. `Vec::dedup_by` keeps the
-                // first, which is the wrong end.
-                let mut deduped: Vec<(usize, Vec<u8>)> = Vec::with_capacity(items.len());
-                for it in items.drain(..) {
-                    if let Some(prev) = deduped.last()
-                        && sort::key_compare(mode, nocase, &prev.1, &it.1).is_eq()
-                    {
-                        deduped.pop();
+            // C84 and Jim convert keys only inside the selected comparator.
+            // Jim also resolves -index there; the local C qsort supplies actual
+            // reached callback order, independently of Rust's sorting algorithms.
+            let lazy = jim || ops.index_c_version() == Some(tcl_dialect::TclVersion::V8_4);
+            let bases = if lazy {
+                let mut order: Vec<usize> = (0..logical).collect();
+                let mut compare = |ops: &mut O, left: usize, right: usize| {
+                    let left = sort_key(
+                        ops,
+                        &elems[left * group + group_offset],
+                        key_path,
+                        jim_path.as_deref(),
+                    )?;
+                    let right = sort_key(
+                        ops,
+                        &elems[right * group + group_offset],
+                        key_path,
+                        jim_path.as_deref(),
+                    )?;
+                    let reached = compare_original_keys(
+                        ops,
+                        index::key_value::<O>(&left),
+                        index::key_value::<O>(&right),
+                        mode,
+                        nocase,
+                        jim,
+                    );
+                    if let Err(first) = &reached {
+                        ops.retain_index_failure(first);
                     }
-                    deduped.push(it);
+                    reached.map(|order| if increasing { order } else { order.reverse() })
+                };
+                if jim {
+                    ops.index_native_sort(&mut order, &mut compare).map_err(
+                        |error| match error {
+                            index::NativeSortError::Operation(error)
+                            | index::NativeSortError::Comparison(error) => {
+                                LsortError::from_command(error)
+                            }
+                        },
+                    )?;
+                    if unique {
+                        let mut kept = Vec::with_capacity(order.len());
+                        for position in order {
+                            if let Some(&prior) = kept.last() {
+                                if compare(ops, prior, position)
+                                    .map_err(LsortError::from_command)?
+                                    .is_eq()
+                                {
+                                    kept.pop();
+                                }
+                            }
+                            kept.push(position);
+                        }
+                        order = kept;
+                    }
+                } else {
+                    // Native C84 MergeSort merges binary buckets and marks equal
+                    // left nodes during that same comparator pass, without a later
+                    // uniqueness getter pass. Metadata copies grant no native refs.
+                    order = c84_merge_order(order.len(), unique, |left, right| {
+                        compare(ops, left, right)
+                    })
+                    .map_err(LsortError::from_command)?;
                 }
-                items = deduped;
-            }
-            let bases: Vec<usize> = items.iter().map(|(b, _)| *b).collect();
+                order
+                    .into_iter()
+                    .map(|position| position * group)
+                    .collect::<Vec<_>>()
+            } else {
+                // C85+ prepares each original numeric key in input order; a typed
+                // key reaches its primitive without a preceding String projection.
+                let mut items = Vec::with_capacity(logical);
+                for position in 0..logical {
+                    let base = position * group;
+                    let key = sort_key(
+                        ops,
+                        &elems[base + group_offset],
+                        key_path,
+                        jim_path.as_deref(),
+                    )
+                    .map_err(LsortError::from_command)?;
+                    let prepared = prepare_key(ops, index::key_value::<O>(&key), mode)
+                        .map_err(LsortError::from_command)?;
+                    items.push((base, prepared));
+                }
+                items.sort_by(|left, right| {
+                    let order = prepared_compare(&left.1, &right.1, mode, nocase);
+                    if increasing { order } else { order.reverse() }
+                });
+                if unique {
+                    let mut kept: Vec<(usize, PreparedKey)> = Vec::with_capacity(items.len());
+                    for item in items {
+                        if let Some(prior) = kept.last() {
+                            if prepared_compare(&prior.1, &item.1, mode, nocase).is_eq() {
+                                kept.pop();
+                            }
+                        }
+                        kept.push(item);
+                    }
+                    items = kept;
+                }
+                items.into_iter().map(|(base, _)| base).collect::<Vec<_>>()
+            };
             Ok(Lsort::Done(build_result(
                 ops,
                 &bases,
@@ -498,12 +575,149 @@ pub fn prepare<O: NativeIndexOps>(
         },
         |ops, output| match output {
             Lsort::Done(created) => ops.discard_owned_index_result(created),
+            Lsort::Original(result) => match result {
+                index::IndexResult::Borrowed(value) => drop(value),
+                index::IndexResult::Created(value)
+                | index::IndexResult::Detached(value)
+                | index::IndexResult::ReturnedOwnedTransport(value) => {
+                    ops.discard_owned_index_result(value)
+                }
+            },
             // Key guards retain constructor cleanup independently of borrowed
             // members; merge copies add no native object references.
             Lsort::Command(job) => drop(job),
         },
         LsortError::from_command,
     )
+}
+
+enum PreparedKey {
+    Bytes(Vec<u8>),
+    Number(crate::native_list_numeric::NumericKey),
+}
+fn prepare_key<O: NativeIndexOps>(
+    ops: &mut O,
+    original: &O::Value,
+    mode: SortMode,
+) -> Result<PreparedKey, crate::CmdError> {
+    let kind = match mode {
+        SortMode::Integer => Some(index::ListNumericKind::Integer),
+        SortMode::Real => Some(index::ListNumericKind::Real),
+        _ => None,
+    };
+    if let Some(kind) = kind {
+        return crate::native_list_numeric::number(ops, original, OptionCommand::Sort, kind)
+            .map(PreparedKey::Number);
+    }
+    index::checked_operand_bytes(ops, original).map(|bytes| PreparedKey::Bytes(bytes.to_vec()))
+}
+fn prepared_compare(
+    left: &PreparedKey,
+    right: &PreparedKey,
+    mode: SortMode,
+    nocase: bool,
+) -> core::cmp::Ordering {
+    match (left, right) {
+        (PreparedKey::Bytes(left), PreparedKey::Bytes(right)) => {
+            sort::key_compare(mode, nocase, left, right)
+        }
+        (PreparedKey::Number(left), PreparedKey::Number(right)) => {
+            crate::native_list_numeric::sort_order(*left, *right, false)
+                .expect("C/neutral comparator uses no signed subtraction")
+        }
+        _ => unreachable!("one selected sort mode"),
+    }
+}
+fn sort_key<O: NativeIndexOps>(
+    ops: &mut O,
+    value: &O::Value,
+    path: crate::native_option_index::Path<'_>,
+    jim_path: Option<&[O::Value]>,
+) -> Result<index::IndexedKey<O::IndexKeyOwner>, crate::CmdError> {
+    let reached = match jim_path {
+        Some(path) => index::drill_original_jim(ops, value, path),
+        None => path.drill(ops, value),
+    };
+    if let Err(first) = &reached {
+        ops.retain_index_failure(first);
+    }
+    reached
+}
+fn compare_original_keys<O: NativeIndexOps>(
+    ops: &mut O,
+    left: &O::Value,
+    right: &O::Value,
+    mode: SortMode,
+    nocase: bool,
+    jim: bool,
+) -> Result<core::cmp::Ordering, crate::CmdError> {
+    let left = prepare_key(ops, left, mode)?;
+    let right = prepare_key(ops, right, mode)?;
+    match (left, right) {
+        (PreparedKey::Number(left), PreparedKey::Number(right)) => {
+            crate::native_list_numeric::sort_order(left, right, jim)
+        }
+        (left, right) => Ok(prepared_compare(&left, &right, mode, nocase)),
+    }
+}
+
+// C84 NUM_LISTS=30 and source MergeLists left<=right ordering. This is a
+// software schedule joined to the actual pinned source, not a measured native
+// callback chronology. Equal-left marks belong to that comparison, not a rerun.
+fn c84_merge_order<E>(
+    length: usize,
+    unique: bool,
+    mut compare: impl FnMut(usize, usize) -> Result<core::cmp::Ordering, E>,
+) -> Result<Vec<usize>, E> {
+    fn merge<E>(
+        left: Vec<usize>,
+        right: Vec<usize>,
+        duplicate: &mut [bool],
+        compare: &mut impl FnMut(usize, usize) -> Result<core::cmp::Ordering, E>,
+    ) -> Result<Vec<usize>, E> {
+        let mut out = Vec::with_capacity(left.len() + right.len());
+        let (mut l, mut r) = (0, 0);
+        while l < left.len() && r < right.len() {
+            let order = compare(left[l], right[r])?;
+            if order.is_gt() {
+                out.push(right[r]);
+                r += 1;
+            } else {
+                if order.is_eq() {
+                    duplicate[left[l]] = true;
+                }
+                out.push(left[l]);
+                l += 1;
+            }
+        }
+        out.extend_from_slice(&left[l..]);
+        out.extend_from_slice(&right[r..]);
+        Ok(out)
+    }
+    let mut buckets: [Option<Vec<usize>>; 30] = core::array::from_fn(|_| None);
+    let mut duplicate = vec![false; length];
+    for position in 0..length {
+        let mut node = vec![position];
+        let mut level = 0;
+        while level < 30 {
+            let Some(left) = buckets[level].take() else {
+                break;
+            };
+            node = merge(left, node, &mut duplicate, &mut compare)?;
+            level += 1;
+        }
+        buckets[level.min(29)] = Some(node);
+    }
+    let mut ordered = Vec::new();
+    for bucket in buckets {
+        if let Some(left) = bucket {
+            ordered = merge(left, ordered, &mut duplicate, &mut compare)?;
+        }
+    }
+    if unique {
+        ordered.retain(|&position| !duplicate[position]);
+    }
+    Ok(ordered)
 }
 
 /// Run the `-command` stable merge sort over `cmp` (which returns the comparison
