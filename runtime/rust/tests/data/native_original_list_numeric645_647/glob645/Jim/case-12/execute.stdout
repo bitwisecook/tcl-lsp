@@ -1,0 +1,26 @@
+provider	Jim
+case	12	search-real-one-counted-nul-key
+operation	lsearch
+mode	real
+extra	absent
+input-key0	counted-string	312e30007461696c
+input-key1	absent
+input-pattern	counted-string	312e30
+input-roles	key-holds=containing-list-only	additional-observer-native-holds=0	argv-explicit-caller-hold=1	input-list-length=1
+before-key0	none	1	1	8
+before-key1	absent
+before-pattern	none	1	1	3
+before-container	list	0	1	0
+code	1
+reached-key0	none	1	1	8
+reached-key1	absent
+reached-pattern	none	1	2	3
+reached-container	list	0	2	0
+reached-result	string	1	1	117
+result-alias	key0=0	key1=0	pattern=0	container=0
+result-bytes	626164206f7074696f6e20222d7265616c223a206d757374206265202d616c6c2c202d626f6f6c2c202d636f6d6d616e642c202d65786163742c202d676c6f622c202d696e6465782c202d696e6c696e652c202d6e6f636173652c202d6e6f742c202d7265676578702c206f72202d737472696465
+materialised-result	string	1	1	117
+after-result-getter-key0	none	1	1	8
+after-result-getter-key1	absent
+after-result-getter-pattern	none	1	2	3
+after-result-getter-container	list	0	2	0

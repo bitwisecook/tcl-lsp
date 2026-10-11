@@ -1,0 +1,24 @@
+{
+  "argv": [
+    "/workspace/.proofs/root-native-list-numeric645/8.4.20/probe.elf",
+    "14"
+  ],
+  "cwd": "/workspace/.proofs/root-native-list-numeric645/8.4.20/case-14",
+  "environment": {
+    "PATH": "/usr/bin:/bin",
+    "LC_ALL": "C",
+    "LANG": "C",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  "timeout_seconds": 30,
+  "timed_out": false,
+  "exit": 0,
+  "seconds": 0.005159875028766692,
+  "stdout": "/workspace/.proofs/root-native-list-numeric645/8.4.20/case-14/execute.stdout",
+  "stdout_sha256": "150e80fea5f7cbe64c3aa5237a83579757985fbaa8db62d8a13b983b82c90bb0",
+  "stderr": "/workspace/.proofs/root-native-list-numeric645/8.4.20/case-14/execute.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "case": 14,
+  "executable_sha256_before": "730164a4d6606ed0893ca8f3e4b556e3d6d3e0a8f9cbcda9cd3c7173fc12d439",
+  "executable_sha256_after": "730164a4d6606ed0893ca8f3e4b556e3d6d3e0a8f9cbcda9cd3c7173fc12d439"
+}

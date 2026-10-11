@@ -1,0 +1,16 @@
+{
+  "packet": "OriginalListNumericKeyPatternNativeRequest",
+  "files": [
+    {
+      "path": "probe.c",
+      "sha256": "9341b2d4c7660658526842b2c4f7f0a102e9f16187b5dcd1fc7c817208bbceb5"
+    },
+    {
+      "path": "request.json",
+      "sha256": "422369defce0e5e5a7544f3620511190cd823b03c4dc02fdc8f8ac67daaaf9da"
+    }
+  ],
+  "case_count": 32,
+  "providers": 6,
+  "scope": "Private original source/question request only; Root is the sole Native launcher. No measured outcome or software pass claim."
+}

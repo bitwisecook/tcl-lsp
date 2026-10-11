@@ -1,0 +1,26 @@
+provider	C-Tcl
+case	30	search-real-one-typed-double-key-pattern
+operation	lsearch
+mode	real
+extra	absent
+input-key0	typed-double	1.5
+input-key1	absent
+input-pattern	typed-double	1.5
+input-roles	key-holds=containing-list-only	additional-observer-native-holds=0	argv-explicit-caller-hold=1	input-list-length=1
+before-key0	double	0	1	-1
+before-key1	absent
+before-pattern	double	0	1	-1
+before-container	list	0	1	0
+code	0
+reached-key0	double	1	1	3
+reached-key1	absent
+reached-pattern	double	1	1	3
+reached-container	list	0	1	0
+reached-result	int	0	1	131072
+result-alias	key0=0	key1=0	pattern=0	container=0
+result-bytes	30
+materialised-result	int	1	1	1
+after-result-getter-key0	double	1	1	3
+after-result-getter-key1	absent
+after-result-getter-pattern	double	1	1	3
+after-result-getter-container	list	0	1	0

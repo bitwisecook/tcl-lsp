@@ -1,0 +1,20 @@
+{
+  "packet": "OriginalListNumericKeyPatternExactNativeRequest647",
+  "files": [
+    {
+      "path": "SOURCE_MODE_CONTRACT.json",
+      "sha256": "b1022dab73ad31d934b6566ed366ad49323803d734d78e3dadf15d3c9de05127"
+    },
+    {
+      "path": "probe.c",
+      "sha256": "51632b167c2ab7f01cee53d2704bc188edd70e0f053d41fd6cb605e3ee7f58f3"
+    },
+    {
+      "path": "request.json",
+      "sha256": "b678b86bbaf6e66bad1809061a62b367c8c4fe682083279ad71290a919d971ed"
+    }
+  ],
+  "case_count": 32,
+  "providers": 6,
+  "scope": "Private original explicit Exact/Sorted source/question request only; Root sole Native launcher. No measured outcome or software pass claim."
+}

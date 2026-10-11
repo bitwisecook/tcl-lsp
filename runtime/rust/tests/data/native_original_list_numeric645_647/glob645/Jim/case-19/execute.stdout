@@ -1,0 +1,26 @@
+provider	Jim
+case	19	sort-integer-two-second-invalid-key
+operation	lsort
+mode	integer
+extra	absent
+input-key0	counted-string	31
+input-key1	counted-string	312b30
+input-pattern	absent
+input-roles	key-holds=containing-list-only	additional-observer-native-holds=0	argv-explicit-caller-hold=1	input-list-length=2
+before-key0	none	1	1	1
+before-key1	none	1	1	3
+before-pattern	absent
+before-container	list	0	1	0
+code	1
+reached-key0	int	1	1	1
+reached-key1	none	1	1	3
+reached-pattern	absent
+reached-container	list	0	2	0
+reached-result	none	1	1	30
+result-alias	key0=0	key1=0	pattern=0	container=0
+result-bytes	657870656374656420696e74656765722062757420676f742022312b3022
+materialised-result	none	1	1	30
+after-result-getter-key0	int	1	1	1
+after-result-getter-key1	none	1	1	3
+after-result-getter-pattern	absent
+after-result-getter-container	list	0	2	0

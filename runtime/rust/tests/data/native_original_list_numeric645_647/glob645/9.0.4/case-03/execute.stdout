@@ -1,0 +1,26 @@
+provider	C-Tcl
+case	3	search-integer-one-unsigned-int-boundary
+operation	lsearch
+mode	integer
+extra	absent
+input-key0	counted-string	32313437343833363438
+input-key1	absent
+input-pattern	counted-string	32313437343833363438
+input-roles	key-holds=containing-list-only	additional-observer-native-holds=0	argv-explicit-caller-hold=1	input-list-length=1
+before-key0	none	1	1	10
+before-key1	absent
+before-pattern	none	1	1	10
+before-container	list	0	1	0
+code	0
+reached-key0	none	1	1	10
+reached-key1	absent
+reached-pattern	none	1	1	10
+reached-container	list	0	1	0
+reached-result	int	0	1	131072
+result-alias	key0=0	key1=0	pattern=0	container=0
+result-bytes	30
+materialised-result	int	1	1	1
+after-result-getter-key0	none	1	1	10
+after-result-getter-key1	absent
+after-result-getter-pattern	none	1	1	10
+after-result-getter-container	list	0	1	0

@@ -1,0 +1,26 @@
+provider	C-Tcl
+case	23	sort-real-two-infinities
+operation	lsort
+mode	real
+extra	absent
+input-key0	counted-string	2b496e66
+input-key1	counted-string	2d496e66
+input-pattern	absent
+input-roles	key-holds=containing-list-only	additional-observer-native-holds=0	argv-explicit-caller-hold=1	input-list-length=2
+before-key0	none	1	1	4
+before-key1	none	1	1	4
+before-pattern	absent
+before-container	list	0	1	0
+code	0
+reached-key0	double	1	2	4
+reached-key1	double	1	2	4
+reached-pattern	absent
+reached-container	list	0	1	0
+reached-result	list	0	1	0
+result-alias	key0=0	key1=0	pattern=0	container=0
+result-bytes	2d496e66202b496e66
+materialised-result	list	1	1	9
+after-result-getter-key0	double	1	2	4
+after-result-getter-key1	double	1	2	4
+after-result-getter-pattern	absent
+after-result-getter-container	list	0	1	0
