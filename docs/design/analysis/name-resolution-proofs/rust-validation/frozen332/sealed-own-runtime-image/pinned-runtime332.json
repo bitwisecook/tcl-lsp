@@ -1,0 +1,7 @@
+{
+  "executable": "/tmp/naming-owned332/pinned-runtime332.elf",
+  "sha256": "052a559e419e69feef17e8f5488769cbe926a640cfc59da2b189bbd00c6d1d81",
+  "build_receipt": "/workspace/.proofs/integration-runtime-own-test-build332.json",
+  "build_receipt_sha256": "4192c905d977800cf3011757e1430f0838b20852ea9e2de805fcc3bd712eb404",
+  "source_snapshot_sha256": "221fc61adea1dc0f07e56b94618c8bfd8e865328974ee69a665b5775f5e7a0c5"
+}

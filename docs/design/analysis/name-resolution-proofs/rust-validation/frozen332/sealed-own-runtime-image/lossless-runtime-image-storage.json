@@ -1,0 +1,23 @@
+{
+  "format": "gzip",
+  "stored_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen332/sealed-own-runtime-image/pinned-runtime332.elf.gz",
+  "stored_sha256": "4e034943e8c27dc7b53eb659064398e6a55fa860725b65e4df6c8c57f5ff02f3",
+  "stored_bytes": 14187185,
+  "original_sha256": "052a559e419e69feef17e8f5488769cbe926a640cfc59da2b189bbd00c6d1d81",
+  "original_bytes": 70943344,
+  "original_mode": 448,
+  "original_recorded_executable": "/tmp/naming-owned332/pinned-runtime332.elf",
+  "original_mtime_ns": 1791695214648965197,
+  "pin_metadata_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen332/sealed-own-runtime-image/pinned-runtime332.json",
+  "pin_metadata_sha256": "667d70c448cae87079274a5bbbbe819c9590b41a12050dd5c6c189ef76d996ec",
+  "build_receipt_id": "rust.frozen332.integration-runtime-own-test-build332",
+  "build_receipt_sha256": "4192c905d977800cf3011757e1430f0838b20852ea9e2de805fcc3bd712eb404",
+  "source_snapshot": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen332/source-snapshot.json.gz",
+    "sha256": "c55b3d0dca1c9fecfe9f9c0a8744edd40284eabbb0e91be14d01dbac1093c0f2",
+    "compression": "gzip",
+    "uncompressed_sha256": "221fc61adea1dc0f07e56b94618c8bfd8e865328974ee69a665b5775f5e7a0c5"
+  },
+  "verification": "Successful independent Runtime engine own no-run producer; one fresh:false test artifact. Whole original and actual producer executable SHA match the strict pin. Every decompressed gzip byte equals the original image. Original mode/inode/size/nlink/mtime/ctime remain unchanged. The active original image is neither replaced nor retired; no assertion is launched by this archive.",
+  "restoration": "Verify compressed SHA/size and complete decompressed original SHA/size, then write an independent destination with recorded mode. Restore the exact recorded original executable path before original-command replay; never replace an active executable."
+}

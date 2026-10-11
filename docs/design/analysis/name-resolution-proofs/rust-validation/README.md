@@ -4051,3 +4051,56 @@ and actual compile-root identities. Its source object equals the immutable
 at `/source/source` has the same whole source object. That reuse transfers
 source provenance only; the Python suite supplies no Compiler build,
 executable or assertion result.
+
+## Source332 Runtime image, inventory and grouped abort
+
+The independent Runtime `--features engine --lib --no-run` producer closes
+exit `0` after 83.81372461499996 seconds with uniform source `true`. Its
+[original build log](frozen332/integration-runtime-own-test-build332/build.log)
+contains one fresh `tcl_runtime` test executable with feature `engine`.
+The [strict Runtime image](frozen332/sealed-own-runtime-image/pinned-runtime332.elf.gz)
+matches that producer's executable and original pin by whole SHA. Full gzip
+decompression equals every original byte; the active raw image retains its
+mode, inode, size and timestamps and is neither replaced nor retired.
+
+The independently closed [executable inventory](frozen332/integration-runtime-own-inventory332/inventory.log)
+lists 1,620 unique tests and zero benchmarks. The [exact admitted request](frozen332/runtime-admitted-union332.json)
+contains 291 distinct existing selectors and zero unmatched filters.
+No-run and listing establish no assertion or external-provider result.
+
+The [grouped original run](frozen332/integration-runtime-exact-consumer-tests332/tests.log)
+closes `SIGABRT` (exit `-6`) after 22.35909255599836 seconds with uniform
+source `true` and no final test summary. Nine terminal failures and all
+terminal passes are retained as [partial libtest events](frozen332/integration-runtime-exact-consumer-tests332/partial-libtest-events.json).
+The entered array-for control reports scope-drop assertions followed by
+`panic in a destructor during cleanup` and a non-unwinding panic. It has no
+terminal assertion event; unentered selected controls remain incomplete.
+These observed partial events establish no aggregate Runtime result.
+The isolated driver's open operation supplies no result for this grouped run.
+
+Each whole original receipt retains its command, source and process outcome.
+All three source objects equal the [exact 37,809-leaf Source332 snapshot](frozen332/source-snapshot.json.gz),
+with the recorded HEAD, actual compile root and immutable archive identities.
+The Runtime image and partial assertion events supply no Compiler image,
+later-source acceptance, whole-suite success or new external Native observation.
+
+## Source332 own Compiler compilation failure
+
+The exact `tcl-compiler --lib --no-run` producer closes exit `101`
+after 166.3506435980089 seconds with uniform source `true`.
+Its [whole original log](frozen332/integration-compiler-own-test-build332/build.log)
+retains six VM library error diagnostic events: duplicate `array_set`, missing
+`completion_from_cmd_error`, a type mismatch, private `var_arena`, and two
+operations on the never type. These diagnostics are not six failing assertions.
+
+This operation has no executable creation event, admitted own Compiler image,
+executable inventory or assertion summary. Ordinary dependency/library events
+establish no own Compiler executable or behavior.
+
+The [whole closed receipt](frozen332/integration-compiler-own-test-build332/receipt.json.gz)
+round-trips to its exact original bytes and retains complete command, source,
+HEAD and actual compile-root identities. Its source object equals the common
+[37,809-leaf Source332 snapshot](frozen332/source-snapshot.json.gz).
+That source reuse transfers no Runtime build, inventory or partial assertion
+outcome to Compiler; external Native observations establish no result for this
+failed producer.

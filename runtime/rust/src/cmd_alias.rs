@@ -3145,6 +3145,17 @@ pub(crate) mod original_operand_tests {
             Update::Normal => unreachable!(),
         }
     }
+    /// Inspect the reached storage without starting another native name operation.
+    /// A pending first Host intentionally makes `var_get` terminal.
+    pub(crate) fn reached_variable(interp: &Interp, name: &[u8]) -> *mut TclObj {
+        crate::vars::get(
+            &interp.frames.borrow(),
+            &interp.namespaces(),
+            interp.current_ns(),
+            name,
+        )
+        .expect("actual earlier callback variable effect remains")
+    }
     pub(crate) fn seed(interp: &mut Interp) -> Owned {
         interp.set_result_bytes(b"PRIOR\0\xff");
         interp.set_return_state(2, Code::Other(7));
@@ -3315,14 +3326,27 @@ pub(crate) mod original_operand_tests {
                 let count = unsafe { (*failed.as_ptr()).ref_count };
                 let before = interp.namespaces().native_command_generations();
                 assert_eq!(interp.dispatch(&[owned[3].as_ptr()]), Code::Error);
-                let prior = INVOCATION_PRIOR.with(|slot| slot.borrow_mut().take().unwrap());
+                let prior = INVOCATION_PRIOR.with(|slot| slot.borrow_mut().take()).unwrap_or_else(|| {
+                    let mode = match mode {
+                        Update::Host => "Host",
+                        Update::Restore => "Restore",
+                        Update::Normal => "Normal",
+                    };
+                    let result = interp.get_obj_result();
+                    let resident_result = obj::has_string_rep(result).then(|| obj::bytes_of(result));
+                    panic!(
+                        "actual alias target callback was not reached: version={version}, mode={mode}, first={:?}, resident_result={resident_result:?}, first_getters={}, later_getters={}",
+                        interp.native_execution_refusal(), FIRST.with(Cell::get), LATER.with(Cell::get),
+                    );
+                });
                 unchanged(&interp, &prior, mode);
                 assert_eq!(interp.namespaces().native_command_generations(), before);
                 assert_eq!(unsafe { (*failed.as_ptr()).ref_count }, count);
                 assert_eq!(obj::bytes_of(failed.as_ptr()), b"reached\0\xff");
                 assert!(!obj::has_string_rep(unread.as_ptr()));
+                assert!(interp.var_get(b"original_argument_effect").is_none());
                 assert_eq!(
-                    obj::bytes_of(interp.var_get(b"original_argument_effect").unwrap()),
+                    obj::bytes_of(reached_variable(&interp, b"original_argument_effect")),
                     b"REACHED"
                 );
             }
@@ -3576,8 +3600,9 @@ pub(crate) mod original_operand_tests {
                         assert!(owner.native_execution_refusal().is_none());
                     })
                     .unwrap();
+                assert!(interp.var_get(b"original_argument_effect").is_none());
                 assert_eq!(
-                    obj::bytes_of(interp.var_get(b"original_argument_effect").unwrap()),
+                    obj::bytes_of(reached_variable(&interp, b"original_argument_effect")),
                     b"REACHED",
                 );
             }
@@ -3669,9 +3694,13 @@ mod original_rename_operation_tests {
                         interp.resolve_cmd_token(b"original_rename_moved").is_some(),
                         !deleting
                     );
-                    let effect = interp
-                        .var_get(b"original_rename_effect")
-                        .expect("actual callback variable effect remains");
+                    if !matches!(mode, Callback::Normal) {
+                        assert!(interp.var_get(b"original_rename_effect").is_none());
+                    }
+                    let effect = super::original_operand_tests::reached_variable(
+                        &interp,
+                        b"original_rename_effect",
+                    );
                     assert_eq!(obj::bytes_of(effect), b"REACHED\0\xff");
                     assert_eq!(
                         argv.iter()
@@ -3757,6 +3786,14 @@ mod original_alias_storage_tests {
         // SAFETY: this actual registered command receives its live owner/argv.
         let interp = unsafe { &mut *interp };
         let argv = unsafe { std::slice::from_raw_parts(argv, usize::try_from(count).unwrap()) };
+        capture_original(interp, argv).as_int() as i32
+    }
+    // Jim's public command registration owns a fresh CString key; it does not
+    // borrow the C CreateObjCommand publication address or callback ABI.
+    fn capture_jim(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+        capture_original(interp, argv)
+    }
+    fn capture_original(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         assert_eq!(argv.len(), 4);
         MEMBERS.with(|members| assert_eq!(&argv[..3], members.borrow().as_slice()));
         CALLBACK_REFS.with(|rows| {
@@ -3770,14 +3807,14 @@ mod original_alias_storage_tests {
         CALLS.with(|calls| calls.set(calls.get() + 1));
         let arguments = match OriginalArguments::enter(interp, argv) {
             Ok(arguments) => arguments,
-            Err(error) => return interp.report_cmd_error(error).as_int() as i32,
+            Err(error) => return interp.report_cmd_error(error),
         };
         for index in [2, 1] {
             let bytes = arguments.bytes(index).expect("original callback getter");
             assert_eq!(bytes.as_ref(), PAYLOADS[index + 1]);
         }
         interp.set_result_bytes(b"SEEN");
-        arguments.finish(Code::Ok).as_int() as i32
+        arguments.finish(Code::Ok)
     }
     fn reset() {
         UPDATES.with(|v| *v.borrow_mut() = [0; 4]);
@@ -3898,12 +3935,17 @@ mod original_alias_storage_tests {
                 }
                 reset();
                 let mut interp = super::original_operand_tests::native(version);
-                interp
-                    .create_obj_command(
-                        b"capture",
-                        ObjCommand::new(capture, std::ptr::null_mut(), None),
-                    )
-                    .expect("actual original object command");
+                if version == "jim" {
+                    interp.register_builtin(b"capture", capture_jim);
+                    assert!(interp.native_execution_refusal().is_none());
+                } else {
+                    interp
+                        .create_obj_command(
+                            b"capture",
+                            ObjCommand::new(capture, std::ptr::null_mut(), None),
+                        )
+                        .expect("actual original C object command");
+                }
                 let child = case == 6;
                 if child {
                     assert_eq!(interp.eval_str(b"interp create child"), Code::Ok);
@@ -4148,12 +4190,17 @@ mod original_alias_storage_tests {
             reset();
             let jim = version == "jim";
             let mut interp = super::original_operand_tests::native(version);
-            interp
-                .create_obj_command(
-                    b"capture",
-                    ObjCommand::new(capture, std::ptr::null_mut(), None),
-                )
-                .expect("actual parent object command");
+            if jim {
+                interp.register_builtin(b"capture", capture_jim);
+                assert!(interp.native_execution_refusal().is_none());
+            } else {
+                interp
+                    .create_obj_command(
+                        b"capture",
+                        ObjCommand::new(capture, std::ptr::null_mut(), None),
+                    )
+                    .expect("actual parent C object command");
+            }
             let child = if jim {
                 interp.create_jim_child()
             } else {
