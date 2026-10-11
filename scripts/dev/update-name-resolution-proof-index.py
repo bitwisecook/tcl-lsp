@@ -96,7 +96,12 @@ def render(record):
     if not record["source_anchors"]:
         text += "No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.\n"
     for anchor in record["source_anchors"]:
-        text += f"{anchor['provider']} {anchor['version']}, revision `{anchor['revision']}`, `{anchor['original_path']}`, function `{anchor['function']}`, lines {anchor['lines'][0]}–{anchor['lines'][1]}. Full-source SHA-256 `{anchor['source_sha256']}`; snippet SHA-256 `{anchor['snippet_sha256']}`; retained evidence `{anchor['evidence']}`.\n\n```text\n{anchor['snippet']}\n```\n\n"
+        geometry = ""
+        if "line_unit" in anchor:
+            geometry += f" Line unit: {anchor['line_unit']}."
+        if "byte_range" in anchor:
+            geometry += f" Original byte range [{anchor['byte_range'][0]}, {anchor['byte_range'][1]})."
+        text += f"{anchor['provider']} {anchor['version']}, revision `{anchor['revision']}`, `{anchor['original_path']}`, function `{anchor['function']}`, lines {anchor['lines'][0]}–{anchor['lines'][1]}.{geometry} Full-source SHA-256 `{anchor['source_sha256']}`; snippet SHA-256 `{anchor['snippet_sha256']}`; retained evidence `{anchor['evidence']}`.\n\n```text\n{anchor['snippet']}\n```\n\n"
     text += "\n## Consumer bindings\n\n"
     for owner in record["owners"]:
         text += f"- [{owner['path']}](../../../../{owner['path']}), `{owner['symbol']}`: {owner['purpose']}\n"

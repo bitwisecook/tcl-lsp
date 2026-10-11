@@ -209262,21 +209262,21 @@
           "id": "check-name-resolution-proofs",
           "role": "implementation",
           "path": "scripts/dev/check-name-resolution-proofs.py",
-          "sha256": "7910594539d1d3abea108c9e316573e64ee55bc1952e4049560b0c938fe4c850",
+          "sha256": "ecb7350b720b90da729816241fa5b68b2ee26d214e5f05de3f45220bbb03c808",
           "description": "Exact proof-validator or fixed negative-control source; not a native capture."
         },
         {
           "id": "test_name_resolution_proofs",
           "role": "implementation",
           "path": "scripts/dev/test_name_resolution_proofs.py",
-          "sha256": "cee1631f5899a3b84134f37e9fbcce8b260e6e1d18e2e524173be0a674724da9",
+          "sha256": "695880f9d547fa3ae1fbef7567e1c66c05cade1e51de411824014286f6c129cd",
           "description": "Exact proof-validator or fixed negative-control source; not a native capture."
         },
         {
           "id": "reviewed-classification-merger",
           "role": "implementation",
           "path": "scripts/dev/update-name-resolution-proof-index.py",
-          "sha256": "f9164f81a1a6c46e904193337fc370023d466986a23d55c5dd8cfc66e7d39368",
+          "sha256": "51b2dc7e96729fffa3a25c8dfd38254d097075836c836c0d93c9863ec1f54f33",
           "description": "Every candidate classification is validated against exact current artifact bytes and issued question IDs before any census update."
         },
         {
@@ -209341,6 +209341,27 @@
           "path": "docs/design/analysis/name-resolution-proofs/rust-validation/proof-complete-check398/original.log",
           "sha256": "9993144d66dc343511d608175fab53c93e2ed023525ee381842538709ea105b2",
           "description": "The actual complete proof checker exited1 with479 structural errors on its exact original inputs:124 missing body bindings,179 current implementation digests,two owner declarations and174 corpus paths. Zero pending candidates/unlinked tests did not establish structural completion. No Rust or Native assertion executes in this check."
+        },
+        {
+          "id": "actual-counted-source-geometry-receipt-json",
+          "role": "reconfirmation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/proof-source-geometry/receipt.json",
+          "sha256": "d3026c14abd871c714a7694e0929137b8d1e8f8866cde2bfae675276e4f0ab5e",
+          "description": "Actual22-control Python execution with exact checker/test/renderer/schema/interpreter pins and unchanged input checks; no whole catalogue, Rust or external-provider result."
+        },
+        {
+          "id": "actual-counted-source-geometry-stderr",
+          "role": "reconfirmation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/proof-source-geometry/stderr",
+          "sha256": "b6fd684e50cea8012f1bd20ae8b8540b0083dec4a6780e32c30f160016d76e4c",
+          "description": "Complete actual22-control unittest output; distinct from the independent full proof gate."
+        },
+        {
+          "id": "actual-counted-source-geometry-stdout",
+          "role": "reconfirmation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/proof-source-geometry/stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Complete actual unittest standard output, retained independently of standard error."
         }
       ],
       "source_anchors": [],
@@ -209446,6 +209467,36 @@
           "selector": "test_measured_environment_cannot_issue_a_native_provider_answer",
           "assertion": "Observed and failed environment fixtures remain valid with all native providers not-tested; neither can donate observed, unsupported or inspected provider answers or be presented as a native-observation record.",
           "status": "linked"
+        },
+        {
+          "path": "scripts/dev/test_name_resolution_proofs.py",
+          "selector": "test_counted_source_anchor_uses_bytes_and_physical_lf_lines",
+          "status": "linked",
+          "assertion": "Counted UTF-8 snippet byte extent and physical LF lines remain separate from character count, carriage return, form feed and NUL; reversed/short/shifted extents are refused. This pure Python helper control does not establish whole original source offset correspondence."
+        },
+        {
+          "path": "scripts/dev/test_name_resolution_proofs.py",
+          "selector": "test_counted_source_anchor_requires_paired_units",
+          "status": "linked",
+          "assertion": "Explicit counted source geometry requires both byte and line units; legacy anchors retain their separately recorded geometry."
+        },
+        {
+          "path": "scripts/dev/test_name_resolution_proofs.py",
+          "selector": "test_plain_annotation_requires_the_actual_catalog_test_pair",
+          "status": "linked",
+          "assertion": "The actual plain question annotation requires its matching source path and selector binding; an adjacent or other catalog pair cannot supply it."
+        },
+        {
+          "path": "scripts/dev/test_name_resolution_proofs.py",
+          "selector": "test_plain_unknown_question_is_rejected_without_literal_or_helper_donation",
+          "status": "linked",
+          "assertion": "Unknown actual plain question comments are rejected independently of unrelated helper and string literal occurrences."
+        },
+        {
+          "path": "scripts/dev/test_name_resolution_proofs.py",
+          "selector": "test_actual_body_requires_its_own_matching_document_comment",
+          "status": "linked",
+          "assertion": "Each actual test body requires the exact question document comment; neighboring comments cannot supply it."
         }
       ],
       "owners": [
@@ -209463,6 +209514,11 @@
           "path": "scripts/dev/check-name-resolution-proofs.py",
           "symbol": "marked_questions",
           "purpose": "Requires an indexed question for each explicit Rust proof annotation."
+        },
+        {
+          "path": "scripts/dev/check-name-resolution-proofs.py",
+          "symbol": "source_anchor_geometry_errors",
+          "purpose": "Validate explicitly paired source byte/physical-LF snippet extents without inferring unrecorded original source bytes or executed provider authority."
         }
       ],
       "replay": {

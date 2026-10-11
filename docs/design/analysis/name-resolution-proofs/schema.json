@@ -69,6 +69,8 @@
       "properties":{
         "provider":{"$ref":"#/$defs/text"},"version":{"$ref":"#/$defs/text"},"revision":{"$ref":"#/$defs/text"},"original_path":{"$ref":"#/$defs/text"},"function":{"$ref":"#/$defs/text"},
         "lines":{"type":"array","items":{"type":"integer","minimum":1},"minItems":2,"maxItems":2},
+        "line_unit":{"const":"physical LF only"},
+        "byte_range":{"type":"array","items":{"type":"integer","minimum":0},"minItems":2,"maxItems":2},
         "source_sha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},"snippet":{"$ref":"#/$defs/text"},"snippet_sha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},"evidence":{"$ref":"#/$defs/text"}
       }
     },

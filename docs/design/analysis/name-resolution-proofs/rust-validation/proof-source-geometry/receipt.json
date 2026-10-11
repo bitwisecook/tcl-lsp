@@ -1,0 +1,26 @@
+{
+  "command": [
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "scripts/dev",
+    "-p",
+    "test_name_resolution_proofs.py"
+  ],
+  "cwd": "/workspace/tcl-lsp",
+  "exit": 0,
+  "seconds": 0.18136912799673155,
+  "complete_input_pins": {
+    "/workspace/tcl-lsp/scripts/dev/check-name-resolution-proofs.py": "ecb7350b720b90da729816241fa5b68b2ee26d214e5f05de3f45220bbb03c808",
+    "/workspace/tcl-lsp/scripts/dev/test_name_resolution_proofs.py": "695880f9d547fa3ae1fbef7567e1c66c05cade1e51de411824014286f6c129cd",
+    "/workspace/tcl-lsp/scripts/dev/update-name-resolution-proof-index.py": "51b2dc7e96729fffa3a25c8dfd38254d097075836c836c0d93c9863ec1f54f33",
+    "/workspace/tcl-lsp/docs/design/analysis/name-resolution-proofs/schema.json": "dcb9802e93dea6f300b83a9423397a9e10f63585d036c1daf273ac5439828693",
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3.12": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7"
+  },
+  "input_pins_unchanged": true,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "b6fd684e50cea8012f1bd20ae8b8540b0083dec4a6780e32c30f160016d76e4c",
+  "scope": "Actual 22 fixed Python validator assertions only. These assertions certify neither the current complete repository proof gate nor Rust/Native/BIG-IP outcomes. The source geometry controls validate counted snippet length and LF-relative extent, not an unrecorded whole-source byte-offset correspondence."
+}

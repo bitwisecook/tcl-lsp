@@ -148,7 +148,7 @@ Measured C Tcl and Jim objects do not establish a BIG-IP/TMM storage or executio
 
 ## Source inspection
 
-tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdMZ.c`, function `Tcl_StringObjCmd STR_INDEX case`, lines 1456–1500. Full-source SHA-256 `b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc`; snippet SHA-256 `b119f73d1d3441e0239f186e4a4c49606df2171c034014e8a55055721efb6b79`; retained evidence `source-window-0`.
+tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdMZ.c`, function `Tcl_StringObjCmd STR_INDEX case`, lines 1456–1500. Line unit: physical LF only. Original byte range [40373, 41584). Full-source SHA-256 `b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc`; snippet SHA-256 `b119f73d1d3441e0239f186e4a4c49606df2171c034014e8a55055721efb6b79`; retained evidence `source-window-0`.
 
 ```text
 	case STR_INDEX: {
@@ -199,7 +199,7 @@ tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tm
 
 ```
 
-tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdMZ.c`, function `Tcl_StringObjCmd STR_RANGE case`, lines 2084–2134. Full-source SHA-256 `b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc`; snippet SHA-256 `6077fb2fb30a674c6a706adaedac4273776a8249bc59099792c5be6026703d66`; retained evidence `source-window-1`.
+tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdMZ.c`, function `Tcl_StringObjCmd STR_RANGE case`, lines 2084–2134. Line unit: physical LF only. Original byte range [57197, 58454). Full-source SHA-256 `b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc`; snippet SHA-256 `6077fb2fb30a674c6a706adaedac4273776a8249bc59099792c5be6026703d66`; retained evidence `source-window-1`.
 
 ```text
 	case STR_RANGE: {
@@ -256,7 +256,7 @@ tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tm
 
 ```
 
-tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclStringObj.c`, function `Tcl_GetUniChar`, lines 482–522. Full-source SHA-256 `a86bf9f649ce6de16363984f1d8af398c464984e7d5677543f279ed87e35e62c`; snippet SHA-256 `2fa8da230e5d84d5c47792180f78ccdbd46236efde83d03494fd596e674402a9`; retained evidence `source-window-2`.
+tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclStringObj.c`, function `Tcl_GetUniChar`, lines 482–522. Line unit: physical LF only. Original byte range [16457, 17473). Full-source SHA-256 `a86bf9f649ce6de16363984f1d8af398c464984e7d5677543f279ed87e35e62c`; snippet SHA-256 `2fa8da230e5d84d5c47792180f78ccdbd46236efde83d03494fd596e674402a9`; retained evidence `source-window-2`.
 
 ```text
 Tcl_GetUniChar(objPtr, index)
@@ -303,7 +303,7 @@ Tcl_GetUniChar(objPtr, index)
 
 ```
 
-tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 651–704. Full-source SHA-256 `a86bf9f649ce6de16363984f1d8af398c464984e7d5677543f279ed87e35e62c`; snippet SHA-256 `e43875efbb18819c72e458f8fabcc5949f3bc35c642a794f4294cce5f5a11dc0`; retained evidence `source-window-3`.
+tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 651–704. Line unit: physical LF only. Original byte range [21100, 22520). Full-source SHA-256 `a86bf9f649ce6de16363984f1d8af398c464984e7d5677543f279ed87e35e62c`; snippet SHA-256 `e43875efbb18819c72e458f8fabcc5949f3bc35c642a794f4294cce5f5a11dc0`; retained evidence `source-window-3`.
 
 ```text
 Tcl_GetRange(objPtr, first, last)
@@ -363,7 +363,7 @@ Tcl_GetRange(objPtr, first, last)
 
 ```
 
-tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclStringObj.c`, function `Tcl_GetCharLength`, lines 402–462. Full-source SHA-256 `a86bf9f649ce6de16363984f1d8af398c464984e7d5677543f279ed87e35e62c`; snippet SHA-256 `8a0345123a3d160661109480c1af6ac553c74297ec37d58b5f5533aadfa90ee6`; retained evidence `source-window-4`.
+tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclStringObj.c`, function `Tcl_GetCharLength`, lines 402–462. Line unit: physical LF only. Original byte range [14356, 15994). Full-source SHA-256 `a86bf9f649ce6de16363984f1d8af398c464984e7d5677543f279ed87e35e62c`; snippet SHA-256 `8a0345123a3d160661109480c1af6ac553c74297ec37d58b5f5533aadfa90ee6`; retained evidence `source-window-4`.
 
 ```text
 Tcl_GetCharLength(objPtr)
@@ -430,7 +430,7 @@ Tcl_GetCharLength(objPtr)
 
 ```
 
-tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclStringObj.c`, function `Tcl_NewUnicodeObj`, lines 371–382. Full-source SHA-256 `a86bf9f649ce6de16363984f1d8af398c464984e7d5677543f279ed87e35e62c`; snippet SHA-256 `d81d8c46a110edd94eeea725b80b3b2efb68139bb08d35828c12857839c0a6cf`; retained evidence `source-window-5`.
+tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclStringObj.c`, function `Tcl_NewUnicodeObj`, lines 371–382. Line unit: physical LF only. Original byte range [13600, 13926). Full-source SHA-256 `a86bf9f649ce6de16363984f1d8af398c464984e7d5677543f279ed87e35e62c`; snippet SHA-256 `d81d8c46a110edd94eeea725b80b3b2efb68139bb08d35828c12857839c0a6cf`; retained evidence `source-window-5`.
 
 ```text
 Tcl_NewUnicodeObj(unicode, numChars)
@@ -448,7 +448,7 @@ Tcl_NewUnicodeObj(unicode, numChars)
 
 ```
 
-tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclUtil.c`, function `TclGetIntForIndex`, lines 2331–2381. Full-source SHA-256 `26a0bb5644999077e8a6a82a7ab1bbcf73787f889a35d7ede5369788c66d2e4c`; snippet SHA-256 `c5e3e71cdf92aebc7d1b3d26977965108fe533b9b65063cf629c812bb80709a2`; retained evidence `source-window-6`.
+tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclUtil.c`, function `TclGetIntForIndex`, lines 2331–2381. Line unit: physical LF only. Original byte range [62656, 64092). Full-source SHA-256 `26a0bb5644999077e8a6a82a7ab1bbcf73787f889a35d7ede5369788c66d2e4c`; snippet SHA-256 `c5e3e71cdf92aebc7d1b3d26977965108fe533b9b65063cf629c812bb80709a2`; retained evidence `source-window-6`.
 
 ```text
 TclGetIntForIndex(interp, objPtr, endValue, indexPtr)
@@ -505,7 +505,7 @@ TclGetIntForIndex(interp, objPtr, endValue, indexPtr)
 
 ```
 
-tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h`, function `TclUtfToUniChar macro`, lines 2604–2623. Full-source SHA-256 `f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a`; snippet SHA-256 `ff3d12fec44694ddea1f35014764627fceb043f0776786a22960fc401b18fa61`; retained evidence `source-window-7`.
+tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h`, function `TclUtfToUniChar macro`, lines 2604–2623. Line unit: physical LF only. Original byte range [106143, 106974). Full-source SHA-256 `f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a`; snippet SHA-256 `ff3d12fec44694ddea1f35014764627fceb043f0776786a22960fc401b18fa61`; retained evidence `source-window-7`.
 
 ```text
 #define TclUtfToUniChar(str, chPtr) \
@@ -531,7 +531,7 @@ tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tm
 
 ```
 
-tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdMZ.c`, function `StringIndexCmd`, lines 1331–1381. Full-source SHA-256 `fe2c67a2097ece2e07d9345a5edf416b5fbc891276349e360f9c25da1cc8f348`; snippet SHA-256 `cf43d50641dd32ef8c6ba51ce2762089cf71a970e74be22e8f25363c6d068b9d`; retained evidence `source-window-8`.
+tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdMZ.c`, function `StringIndexCmd`, lines 1331–1381. Line unit: physical LF only. Original byte range [32691, 34104). Full-source SHA-256 `fe2c67a2097ece2e07d9345a5edf416b5fbc891276349e360f9c25da1cc8f348`; snippet SHA-256 `cf43d50641dd32ef8c6ba51ce2762089cf71a970e74be22e8f25363c6d068b9d`; retained evidence `source-window-8`.
 
 ```text
 StringIndexCmd(
@@ -588,7 +588,7 @@ StringIndexCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdMZ.c`, function `StringRangeCmd`, lines 2071–2128. Full-source SHA-256 `fe2c67a2097ece2e07d9345a5edf416b5fbc891276349e360f9c25da1cc8f348`; snippet SHA-256 `9c60c1a66b64e366234348ff685ef65caed36f33654b1d5ae6ff0cd74c61e476`; retained evidence `source-window-9`.
+tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdMZ.c`, function `StringRangeCmd`, lines 2071–2128. Line unit: physical LF only. Original byte range [51436, 52881). Full-source SHA-256 `fe2c67a2097ece2e07d9345a5edf416b5fbc891276349e360f9c25da1cc8f348`; snippet SHA-256 `9c60c1a66b64e366234348ff685ef65caed36f33654b1d5ae6ff0cd74c61e476`; retained evidence `source-window-9`.
 
 ```text
 StringRangeCmd(
@@ -652,7 +652,7 @@ StringRangeCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclStringObj.c`, function `Tcl_GetUniChar`, lines 478–516. Full-source SHA-256 `d014bc85fc8f0d12abbd60116f403f9131dd4e933580833d2b02610e211ab449`; snippet SHA-256 `aa3356a708540a9fd641aba2d9ca112310fe86d924098eb6f70bb437e762d66d`; retained evidence `source-window-10`.
+tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclStringObj.c`, function `Tcl_GetUniChar`, lines 478–516. Line unit: physical LF only. Original byte range [16509, 17507). Full-source SHA-256 `d014bc85fc8f0d12abbd60116f403f9131dd4e933580833d2b02610e211ab449`; snippet SHA-256 `aa3356a708540a9fd641aba2d9ca112310fe86d924098eb6f70bb437e762d66d`; retained evidence `source-window-10`.
 
 ```text
 Tcl_GetUniChar(
@@ -697,7 +697,7 @@ Tcl_GetUniChar(
 
 ```
 
-tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 645–696. Full-source SHA-256 `d014bc85fc8f0d12abbd60116f403f9131dd4e933580833d2b02610e211ab449`; snippet SHA-256 `f21bc1e9040b3317a3cae4978a935112f7d5e3c38877bf1549957a3fdd0fb427`; retained evidence `source-window-11`.
+tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 645–696. Line unit: physical LF only. Original byte range [21100, 22483). Full-source SHA-256 `d014bc85fc8f0d12abbd60116f403f9131dd4e933580833d2b02610e211ab449`; snippet SHA-256 `f21bc1e9040b3317a3cae4978a935112f7d5e3c38877bf1549957a3fdd0fb427`; retained evidence `source-window-11`.
 
 ```text
 Tcl_GetRange(
@@ -755,7 +755,7 @@ Tcl_GetRange(
 
 ```
 
-tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclStringObj.c`, function `Tcl_GetCharLength`, lines 395–458. Full-source SHA-256 `d014bc85fc8f0d12abbd60116f403f9131dd4e933580833d2b02610e211ab449`; snippet SHA-256 `dc5437a179e5f3dc28b8590347693274e9a4d531f82b9194c164ff41d0985f7a`; retained evidence `source-window-12`.
+tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclStringObj.c`, function `Tcl_GetCharLength`, lines 395–458. Line unit: physical LF only. Original byte range [14378, 16047). Full-source SHA-256 `d014bc85fc8f0d12abbd60116f403f9131dd4e933580833d2b02610e211ab449`; snippet SHA-256 `dc5437a179e5f3dc28b8590347693274e9a4d531f82b9194c164ff41d0985f7a`; retained evidence `source-window-12`.
 
 ```text
 Tcl_GetCharLength(
@@ -825,7 +825,7 @@ Tcl_GetCharLength(
 
 ```
 
-tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclStringObj.c`, function `Tcl_NewUnicodeObj`, lines 364–375. Full-source SHA-256 `d014bc85fc8f0d12abbd60116f403f9131dd4e933580833d2b02610e211ab449`; snippet SHA-256 `5106fe8044b31c6e7e3f121b0787b6fd7dc564e2b5f60cf07f18d4c0a05fb007`; retained evidence `source-window-13`.
+tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclStringObj.c`, function `Tcl_NewUnicodeObj`, lines 364–375. Line unit: physical LF only. Original byte range [13641, 13949). Full-source SHA-256 `d014bc85fc8f0d12abbd60116f403f9131dd4e933580833d2b02610e211ab449`; snippet SHA-256 `5106fe8044b31c6e7e3f121b0787b6fd7dc564e2b5f60cf07f18d4c0a05fb007`; retained evidence `source-window-13`.
 
 ```text
 Tcl_NewUnicodeObj(
@@ -843,7 +843,7 @@ Tcl_NewUnicodeObj(
 
 ```
 
-tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclUtil.c`, function `TclGetIntForIndex`, lines 3234–3325. Full-source SHA-256 `67be2e4aed576288b31069a98a1ddacf8354c87ca1a8c8e85e53421364a989cd`; snippet SHA-256 `a7968238557112ae80779f5b5ade88692a05399b891743a618062eb81edf7b56`; retained evidence `source-window-14`.
+tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclUtil.c`, function `TclGetIntForIndex`, lines 3234–3325. Line unit: physical LF only. Original byte range [92509, 94743). Full-source SHA-256 `67be2e4aed576288b31069a98a1ddacf8354c87ca1a8c8e85e53421364a989cd`; snippet SHA-256 `a7968238557112ae80779f5b5ade88692a05399b891743a618062eb81edf7b56`; retained evidence `source-window-14`.
 
 ```text
 TclGetIntForIndex(
@@ -941,7 +941,7 @@ TclGetIntForIndex(
 
 ```
 
-tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h`, function `TclUtfToUniChar macro`, lines 3670–3708. Full-source SHA-256 `72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa`; snippet SHA-256 `fccd790ea7cdcbc2cd7a1a0518a75f44fa6f0f8a0a717f5b9ac0c9c175b8cfc4`; retained evidence `source-window-15`.
+tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h`, function `TclUtfToUniChar macro`, lines 3670–3708. Line unit: physical LF only. Original byte range [141500, 143213). Full-source SHA-256 `72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa`; snippet SHA-256 `fccd790ea7cdcbc2cd7a1a0518a75f44fa6f0f8a0a717f5b9ac0c9c175b8cfc4`; retained evidence `source-window-15`.
 
 ```text
 #define TclUtfToUniChar(str, chPtr) \
@@ -986,7 +986,7 @@ tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tm
 
 ```
 
-tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdMZ.c`, function `StringIndexCmd`, lines 1381–1423. Full-source SHA-256 `c2fe2deb95449c94c2719dca830d4e57ec4a436741199da39122d772888e849e`; snippet SHA-256 `8f56884c0c122c9c107a1fa785cda8e51ae78ff2e6d53c7aee8f19ab01789316`; retained evidence `source-window-16`.
+tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdMZ.c`, function `StringIndexCmd`, lines 1381–1423. Line unit: physical LF only. Original byte range [34868, 35899). Full-source SHA-256 `c2fe2deb95449c94c2719dca830d4e57ec4a436741199da39122d772888e849e`; snippet SHA-256 `8f56884c0c122c9c107a1fa785cda8e51ae78ff2e6d53c7aee8f19ab01789316`; retained evidence `source-window-16`.
 
 ```text
 StringIndexCmd(
@@ -1035,7 +1035,7 @@ StringIndexCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdMZ.c`, function `StringRangeCmd`, lines 2161–2196. Full-source SHA-256 `c2fe2deb95449c94c2719dca830d4e57ec4a436741199da39122d772888e849e`; snippet SHA-256 `3af80b13196f9690c9f503fcdebe658ebb4735233f43dedccf88577cdb366d7b`; retained evidence `source-window-17`.
+tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdMZ.c`, function `StringRangeCmd`, lines 2161–2196. Line unit: physical LF only. Original byte range [54494, 55397). Full-source SHA-256 `c2fe2deb95449c94c2719dca830d4e57ec4a436741199da39122d772888e849e`; snippet SHA-256 `3af80b13196f9690c9f503fcdebe658ebb4735233f43dedccf88577cdb366d7b`; retained evidence `source-window-17`.
 
 ```text
 StringRangeCmd(
@@ -1077,7 +1077,7 @@ StringRangeCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclStringObj.c`, function `Tcl_GetUniChar`, lines 515–570. Full-source SHA-256 `d5cae88e9008d6b9a6101f4c00d7e489fc66fb3d51c86b3b0eb13f7fd8e469b9`; snippet SHA-256 `eb4561c41cbc60ce9bc68c63fc943cca7d3545f31a682cdd9309336f2f43f0a4`; retained evidence `source-window-18`.
+tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclStringObj.c`, function `Tcl_GetUniChar`, lines 515–570. Line unit: physical LF only. Original byte range [16001, 17254). Full-source SHA-256 `d5cae88e9008d6b9a6101f4c00d7e489fc66fb3d51c86b3b0eb13f7fd8e469b9`; snippet SHA-256 `eb4561c41cbc60ce9bc68c63fc943cca7d3545f31a682cdd9309336f2f43f0a4`; retained evidence `source-window-18`.
 
 ```text
 Tcl_GetUniChar(
@@ -1139,7 +1139,7 @@ Tcl_GetUniChar(
 
 ```
 
-tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 741–829. Full-source SHA-256 `d5cae88e9008d6b9a6101f4c00d7e489fc66fb3d51c86b3b0eb13f7fd8e469b9`; snippet SHA-256 `3233dcf7e82eabc6d832cbd7cc7afc8e9f57871d1b08de1a46353eb9458dc80e`; retained evidence `source-window-19`.
+tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 741–829. Line unit: physical LF only. Original byte range [21606, 23971). Full-source SHA-256 `d5cae88e9008d6b9a6101f4c00d7e489fc66fb3d51c86b3b0eb13f7fd8e469b9`; snippet SHA-256 `3233dcf7e82eabc6d832cbd7cc7afc8e9f57871d1b08de1a46353eb9458dc80e`; retained evidence `source-window-19`.
 
 ```text
 Tcl_GetRange(
@@ -1234,7 +1234,7 @@ Tcl_GetRange(
 
 ```
 
-tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclStringObj.c`, function `Tcl_GetCharLength`, lines 402–453. Full-source SHA-256 `d5cae88e9008d6b9a6101f4c00d7e489fc66fb3d51c86b3b0eb13f7fd8e469b9`; snippet SHA-256 `2eb391d5c09386d8ab2c714a78697dee02310bdded451a8cb9400f76c4c3d07f`; retained evidence `source-window-20`.
+tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclStringObj.c`, function `Tcl_GetCharLength`, lines 402–453. Line unit: physical LF only. Original byte range [13279, 14616). Full-source SHA-256 `d5cae88e9008d6b9a6101f4c00d7e489fc66fb3d51c86b3b0eb13f7fd8e469b9`; snippet SHA-256 `2eb391d5c09386d8ab2c714a78697dee02310bdded451a8cb9400f76c4c3d07f`; retained evidence `source-window-20`.
 
 ```text
 Tcl_GetCharLength(
@@ -1292,7 +1292,7 @@ Tcl_GetCharLength(
 
 ```
 
-tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclStringObj.c`, function `Tcl_NewUnicodeObj`, lines 371–382. Full-source SHA-256 `d5cae88e9008d6b9a6101f4c00d7e489fc66fb3d51c86b3b0eb13f7fd8e469b9`; snippet SHA-256 `5106fe8044b31c6e7e3f121b0787b6fd7dc564e2b5f60cf07f18d4c0a05fb007`; retained evidence `source-window-21`.
+tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclStringObj.c`, function `Tcl_NewUnicodeObj`, lines 371–382. Line unit: physical LF only. Original byte range [12542, 12850). Full-source SHA-256 `d5cae88e9008d6b9a6101f4c00d7e489fc66fb3d51c86b3b0eb13f7fd8e469b9`; snippet SHA-256 `5106fe8044b31c6e7e3f121b0787b6fd7dc564e2b5f60cf07f18d4c0a05fb007`; retained evidence `source-window-21`.
 
 ```text
 Tcl_NewUnicodeObj(
@@ -1310,7 +1310,7 @@ Tcl_NewUnicodeObj(
 
 ```
 
-tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclUtil.c`, function `TclGetIntForIndex`, lines 3634–3714. Full-source SHA-256 `452b96a108330de9bf79c52a6266634127b468b704512ffb93e0dc66685df372`; snippet SHA-256 `4afd7808861ad1c1108aded9122cad8a8a0879b96160adb8579cdf9d8b222812`; retained evidence `source-window-22`.
+tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclUtil.c`, function `TclGetIntForIndex`, lines 3634–3714. Line unit: physical LF only. Original byte range [101826, 103787). Full-source SHA-256 `452b96a108330de9bf79c52a6266634127b468b704512ffb93e0dc66685df372`; snippet SHA-256 `4afd7808861ad1c1108aded9122cad8a8a0879b96160adb8579cdf9d8b222812`; retained evidence `source-window-22`.
 
 ```text
 TclGetIntForIndex(
@@ -1397,7 +1397,7 @@ TclGetIntForIndex(
 
 ```
 
-tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclUtil.c`, function `GetEndOffsetFromObj`, lines 3772–3786. Full-source SHA-256 `452b96a108330de9bf79c52a6266634127b468b704512ffb93e0dc66685df372`; snippet SHA-256 `68ea1d9b31b30e07aa171f045c4144ce5be95da386aae27f5e8e5ecb2f489036`; retained evidence `source-window-23`.
+tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclUtil.c`, function `GetEndOffsetFromObj`, lines 3772–3786. Line unit: physical LF only. Original byte range [105138, 105708). Full-source SHA-256 `452b96a108330de9bf79c52a6266634127b468b704512ffb93e0dc66685df372`; snippet SHA-256 `68ea1d9b31b30e07aa171f045c4144ce5be95da386aae27f5e8e5ecb2f489036`; retained evidence `source-window-23`.
 
 ```text
 GetEndOffsetFromObj(
@@ -1418,7 +1418,7 @@ GetEndOffsetFromObj(
 
 ```
 
-tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdMZ.c`, function `StringIndexCmd`, lines 1399–1445. Full-source SHA-256 `080e201d1a09760aad4fedd9835e2091fd663d405d32d034f32dd0918d9006cc`; snippet SHA-256 `90cef86ead0e37d95bddb09fb40076f39feac97f6ed36db6453e1bf6c9ea84cc`; retained evidence `source-window-24`.
+tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdMZ.c`, function `StringIndexCmd`, lines 1399–1445. Line unit: physical LF only. Original byte range [36397, 37452). Full-source SHA-256 `080e201d1a09760aad4fedd9835e2091fd663d405d32d034f32dd0918d9006cc`; snippet SHA-256 `90cef86ead0e37d95bddb09fb40076f39feac97f6ed36db6453e1bf6c9ea84cc`; retained evidence `source-window-24`.
 
 ```text
 StringIndexCmd(
@@ -1471,7 +1471,7 @@ StringIndexCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdMZ.c`, function `StringRangeCmd`, lines 2286–2315. Full-source SHA-256 `080e201d1a09760aad4fedd9835e2091fd663d405d32d034f32dd0918d9006cc`; snippet SHA-256 `878a80fbc714c3a804e3cd310890e541f7f67c29dcaa18d9f4a38c7bfdaba894`; retained evidence `source-window-25`.
+tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdMZ.c`, function `StringRangeCmd`, lines 2286–2315. Line unit: physical LF only. Original byte range [58732, 59522). Full-source SHA-256 `080e201d1a09760aad4fedd9835e2091fd663d405d32d034f32dd0918d9006cc`; snippet SHA-256 `878a80fbc714c3a804e3cd310890e541f7f67c29dcaa18d9f4a38c7bfdaba894`; retained evidence `source-window-25`.
 
 ```text
 StringRangeCmd(
@@ -1507,7 +1507,7 @@ StringRangeCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclStringObj.c`, function `Tcl_GetUniChar`, lines 532–589. Full-source SHA-256 `d44c80d7de637da41ac841c6c55c25c4ee302efc774c2c4cfe5d8ff73193b7b4`; snippet SHA-256 `0adf65b1842f583608923976258c985d80a5229ad2257b604978082a4e579e7c`; retained evidence `source-window-26`.
+tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclStringObj.c`, function `Tcl_GetUniChar`, lines 532–589. Line unit: physical LF only. Original byte range [16892, 18182). Full-source SHA-256 `d44c80d7de637da41ac841c6c55c25c4ee302efc774c2c4cfe5d8ff73193b7b4`; snippet SHA-256 `0adf65b1842f583608923976258c985d80a5229ad2257b604978082a4e579e7c`; retained evidence `source-window-26`.
 
 ```text
 Tcl_GetUniChar(
@@ -1571,7 +1571,7 @@ Tcl_GetUniChar(
 
 ```
 
-tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 725–802. Full-source SHA-256 `d44c80d7de637da41ac841c6c55c25c4ee302efc774c2c4cfe5d8ff73193b7b4`; snippet SHA-256 `d36a3c13a434922d1818009f1e44331371e6af564d609516708f5db2e60ff251`; retained evidence `source-window-27`.
+tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 725–802. Line unit: physical LF only. Original byte range [21719, 23746). Full-source SHA-256 `d44c80d7de637da41ac841c6c55c25c4ee302efc774c2c4cfe5d8ff73193b7b4`; snippet SHA-256 `d36a3c13a434922d1818009f1e44331371e6af564d609516708f5db2e60ff251`; retained evidence `source-window-27`.
 
 ```text
 Tcl_GetRange(
@@ -1655,7 +1655,7 @@ Tcl_GetRange(
 
 ```
 
-tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclStringObj.c`, function `Tcl_GetCharLength`, lines 378–427. Full-source SHA-256 `d44c80d7de637da41ac841c6c55c25c4ee302efc774c2c4cfe5d8ff73193b7b4`; snippet SHA-256 `c6abedf2bf8abac93b0289e8d2031f2092f8ebbb3d47eb1807f9a63ad7928598`; retained evidence `source-window-28`.
+tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclStringObj.c`, function `Tcl_GetCharLength`, lines 378–427. Line unit: physical LF only. Original byte range [12857, 14260). Full-source SHA-256 `d44c80d7de637da41ac841c6c55c25c4ee302efc774c2c4cfe5d8ff73193b7b4`; snippet SHA-256 `c6abedf2bf8abac93b0289e8d2031f2092f8ebbb3d47eb1807f9a63ad7928598`; retained evidence `source-window-28`.
 
 ```text
 Tcl_GetCharLength(
@@ -1711,7 +1711,7 @@ Tcl_GetCharLength(
 
 ```
 
-tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclStringObj.c`, function `Tcl_NewUnicodeObj`, lines 347–358. Full-source SHA-256 `d44c80d7de637da41ac841c6c55c25c4ee302efc774c2c4cfe5d8ff73193b7b4`; snippet SHA-256 `46108912ae8807a53ab4e976f0544a4cb283f328400dfd84fc84519e26911dd5`; retained evidence `source-window-29`.
+tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclStringObj.c`, function `Tcl_NewUnicodeObj`, lines 347–358. Line unit: physical LF only. Original byte range [12110, 12423). Full-source SHA-256 `d44c80d7de637da41ac841c6c55c25c4ee302efc774c2c4cfe5d8ff73193b7b4`; snippet SHA-256 `46108912ae8807a53ab4e976f0544a4cb283f328400dfd84fc84519e26911dd5`; retained evidence `source-window-29`.
 
 ```text
 Tcl_NewUnicodeObj(
@@ -1729,7 +1729,7 @@ Tcl_NewUnicodeObj(
 
 ```
 
-tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclUtil.c`, function `Tcl_GetIntForIndex`, lines 3470–3500. Full-source SHA-256 `13df44c0c262d3445b5c5db138d14c6e45e4993b076387f6e4f272f89d62bcf4`; snippet SHA-256 `78756b3cdf9bac765d88a74ef22ef2de5f69fe66e3db11c68dd4a89c7f548a57`; retained evidence `source-window-30`.
+tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclUtil.c`, function `Tcl_GetIntForIndex`, lines 3470–3500. Line unit: physical LF only. Original byte range [97702, 98838). Full-source SHA-256 `13df44c0c262d3445b5c5db138d14c6e45e4993b076387f6e4f272f89d62bcf4`; snippet SHA-256 `78756b3cdf9bac765d88a74ef22ef2de5f69fe66e3db11c68dd4a89c7f548a57`; retained evidence `source-window-30`.
 
 ```text
 Tcl_GetIntForIndex(
@@ -1766,7 +1766,7 @@ Tcl_GetIntForIndex(
 
 ```
 
-tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclUtil.c`, function `GetEndOffsetFromObj`, lines 3532–3770. Full-source SHA-256 `13df44c0c262d3445b5c5db138d14c6e45e4993b076387f6e4f272f89d62bcf4`; snippet SHA-256 `8b9c41fda6225b676a897a3b0bc631e4a523655bd99859c8ec877d94fa7d18b1`; retained evidence `source-window-31`.
+tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclUtil.c`, function `GetEndOffsetFromObj`, lines 3532–3770. Line unit: physical LF only. Original byte range [99708, 106500). Full-source SHA-256 `13df44c0c262d3445b5c5db138d14c6e45e4993b076387f6e4f272f89d62bcf4`; snippet SHA-256 `8b9c41fda6225b676a897a3b0bc631e4a523655bd99859c8ec877d94fa7d18b1`; retained evidence `source-window-31`.
 
 ```text
 GetEndOffsetFromObj(
@@ -2011,7 +2011,7 @@ GetEndOffsetFromObj(
 
 ```
 
-tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdMZ.c`, function `StringIndexCmd`, lines 1464–1510. Full-source SHA-256 `62be408d1faa29a35d3e30eacc4986fd9f1a973f7efcd474b3a2a9082ded512f`; snippet SHA-256 `221469366523bdb3c10889585247e221941606b04fde1952a008d2521fb39e96`; retained evidence `source-window-32`.
+tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdMZ.c`, function `StringIndexCmd`, lines 1464–1510. Line unit: physical LF only. Original byte range [39626, 40684). Full-source SHA-256 `62be408d1faa29a35d3e30eacc4986fd9f1a973f7efcd474b3a2a9082ded512f`; snippet SHA-256 `221469366523bdb3c10889585247e221941606b04fde1952a008d2521fb39e96`; retained evidence `source-window-32`.
 
 ```text
 StringIndexCmd(
@@ -2064,7 +2064,7 @@ StringIndexCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdMZ.c`, function `StringRangeCmd`, lines 2351–2380. Full-source SHA-256 `62be408d1faa29a35d3e30eacc4986fd9f1a973f7efcd474b3a2a9082ded512f`; snippet SHA-256 `0967cdbc006e0fcfb4d8e977f99a5a8b9e9c287d4bc8e623c9a52ac941f9884f`; retained evidence `source-window-33`.
+tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdMZ.c`, function `StringRangeCmd`, lines 2351–2380. Line unit: physical LF only. Original byte range [61981, 62774). Full-source SHA-256 `62be408d1faa29a35d3e30eacc4986fd9f1a973f7efcd474b3a2a9082ded512f`; snippet SHA-256 `0967cdbc006e0fcfb4d8e977f99a5a8b9e9c287d4bc8e623c9a52ac941f9884f`; retained evidence `source-window-33`.
 
 ```text
 StringRangeCmd(
@@ -2100,7 +2100,7 @@ StringRangeCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclStringObj.c`, function `Tcl_GetUniChar`, lines 535–592. Full-source SHA-256 `d1ecd65e375cee3b1ab86111cf5b90fb6bf4d7b5e71448cd361e4026d32a4bf8`; snippet SHA-256 `461be8e0a8670fac6d1dd2515e8804d1c791026bfe54a177b9781b75fd14af4a`; retained evidence `source-window-34`.
+tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclStringObj.c`, function `Tcl_GetUniChar`, lines 535–592. Line unit: physical LF only. Original byte range [16905, 18198). Full-source SHA-256 `d1ecd65e375cee3b1ab86111cf5b90fb6bf4d7b5e71448cd361e4026d32a4bf8`; snippet SHA-256 `461be8e0a8670fac6d1dd2515e8804d1c791026bfe54a177b9781b75fd14af4a`; retained evidence `source-window-34`.
 
 ```text
 Tcl_GetUniChar(
@@ -2164,7 +2164,7 @@ Tcl_GetUniChar(
 
 ```
 
-tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 728–805. Full-source SHA-256 `d1ecd65e375cee3b1ab86111cf5b90fb6bf4d7b5e71448cd361e4026d32a4bf8`; snippet SHA-256 `d36a3c13a434922d1818009f1e44331371e6af564d609516708f5db2e60ff251`; retained evidence `source-window-35`.
+tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 728–805. Line unit: physical LF only. Original byte range [21720, 23747). Full-source SHA-256 `d1ecd65e375cee3b1ab86111cf5b90fb6bf4d7b5e71448cd361e4026d32a4bf8`; snippet SHA-256 `d36a3c13a434922d1818009f1e44331371e6af564d609516708f5db2e60ff251`; retained evidence `source-window-35`.
 
 ```text
 Tcl_GetRange(
@@ -2248,7 +2248,7 @@ Tcl_GetRange(
 
 ```
 
-tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclStringObj.c`, function `Tcl_GetCharLength`, lines 381–430. Full-source SHA-256 `d1ecd65e375cee3b1ab86111cf5b90fb6bf4d7b5e71448cd361e4026d32a4bf8`; snippet SHA-256 `c6abedf2bf8abac93b0289e8d2031f2092f8ebbb3d47eb1807f9a63ad7928598`; retained evidence `source-window-36`.
+tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclStringObj.c`, function `Tcl_GetCharLength`, lines 381–430. Line unit: physical LF only. Original byte range [12869, 14272). Full-source SHA-256 `d1ecd65e375cee3b1ab86111cf5b90fb6bf4d7b5e71448cd361e4026d32a4bf8`; snippet SHA-256 `c6abedf2bf8abac93b0289e8d2031f2092f8ebbb3d47eb1807f9a63ad7928598`; retained evidence `source-window-36`.
 
 ```text
 Tcl_GetCharLength(
@@ -2304,7 +2304,7 @@ Tcl_GetCharLength(
 
 ```
 
-tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclStringObj.c`, function `Tcl_NewUnicodeObj`, lines 350–361. Full-source SHA-256 `d1ecd65e375cee3b1ab86111cf5b90fb6bf4d7b5e71448cd361e4026d32a4bf8`; snippet SHA-256 `46108912ae8807a53ab4e976f0544a4cb283f328400dfd84fc84519e26911dd5`; retained evidence `source-window-37`.
+tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclStringObj.c`, function `Tcl_NewUnicodeObj`, lines 350–361. Line unit: physical LF only. Original byte range [12122, 12435). Full-source SHA-256 `d1ecd65e375cee3b1ab86111cf5b90fb6bf4d7b5e71448cd361e4026d32a4bf8`; snippet SHA-256 `46108912ae8807a53ab4e976f0544a4cb283f328400dfd84fc84519e26911dd5`; retained evidence `source-window-37`.
 
 ```text
 Tcl_NewUnicodeObj(
@@ -2322,7 +2322,7 @@ Tcl_NewUnicodeObj(
 
 ```
 
-tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclUtil.c`, function `Tcl_GetIntForIndex`, lines 3535–3565. Full-source SHA-256 `509c893e8aef8f1ae70d0d1e279bbefc60baa758a56d1be184421794f6868e64`; snippet SHA-256 `8213f51c4bcb466aa11daa1bf3d4ebb4ad64bbb722df17d78952db2224fc3f69`; retained evidence `source-window-38`.
+tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclUtil.c`, function `Tcl_GetIntForIndex`, lines 3535–3565. Line unit: physical LF only. Original byte range [100090, 101224). Full-source SHA-256 `509c893e8aef8f1ae70d0d1e279bbefc60baa758a56d1be184421794f6868e64`; snippet SHA-256 `8213f51c4bcb466aa11daa1bf3d4ebb4ad64bbb722df17d78952db2224fc3f69`; retained evidence `source-window-38`.
 
 ```text
 Tcl_GetIntForIndex(
@@ -2359,7 +2359,7 @@ Tcl_GetIntForIndex(
 
 ```
 
-tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclUtil.c`, function `GetEndOffsetFromObj`, lines 3597–3835. Full-source SHA-256 `509c893e8aef8f1ae70d0d1e279bbefc60baa758a56d1be184421794f6868e64`; snippet SHA-256 `8b9c41fda6225b676a897a3b0bc631e4a523655bd99859c8ec877d94fa7d18b1`; retained evidence `source-window-39`.
+tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclUtil.c`, function `GetEndOffsetFromObj`, lines 3597–3835. Line unit: physical LF only. Original byte range [102089, 108881). Full-source SHA-256 `509c893e8aef8f1ae70d0d1e279bbefc60baa758a56d1be184421794f6868e64`; snippet SHA-256 `8b9c41fda6225b676a897a3b0bc631e4a523655bd99859c8ec877d94fa7d18b1`; retained evidence `source-window-39`.
 
 ```text
 GetEndOffsetFromObj(
@@ -2604,7 +2604,7 @@ GetEndOffsetFromObj(
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `JimStringGetRange`, lines 2706–2719. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `a706ac09e3b9a5c1722d4044c1378d854fe033d6e81792f288bbd26ce7f94354`; retained evidence `source-window-40`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `JimStringGetRange`, lines 2706–2719. Line unit: physical LF only. Original byte range [79361, 79839). Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `a706ac09e3b9a5c1722d4044c1378d854fe033d6e81792f288bbd26ce7f94354`; retained evidence `source-window-40`.
 
 ```text
 static int JimStringGetRange(Jim_Interp *interp, Jim_Obj *firstObjPtr, Jim_Obj *lastObjPtr,
@@ -2624,7 +2624,7 @@ static int JimStringGetRange(Jim_Interp *interp, Jim_Obj *firstObjPtr, Jim_Obj *
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_StringRangeObj`, lines 2741–2768. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `beee166c4a381a4041f5a2808af0bdcf2a289589396f338ae16f1a8056b96598`; retained evidence `source-window-41`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_StringRangeObj`, lines 2741–2768. Line unit: physical LF only. Original byte range [80361, 81177). Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `beee166c4a381a4041f5a2808af0bdcf2a289589396f338ae16f1a8056b96598`; retained evidence `source-window-41`.
 
 ```text
 Jim_Obj *Jim_StringRangeObj(Jim_Interp *interp,
@@ -2658,7 +2658,7 @@ Jim_Obj *Jim_StringRangeObj(Jim_Interp *interp,
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_StringByteRangeObj`, lines 2721–2739. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `bc8b322ce5dd70de6b42cf7246ca7d09ac5e4b629c7f7752307f6be5cf4f4feb`; retained evidence `source-window-42`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_StringByteRangeObj`, lines 2721–2739. Line unit: physical LF only. Original byte range [79840, 80360). Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `bc8b322ce5dd70de6b42cf7246ca7d09ac5e4b629c7f7752307f6be5cf4f4feb`; retained evidence `source-window-42`.
 
 ```text
 Jim_Obj *Jim_StringByteRangeObj(Jim_Interp *interp,
@@ -2683,7 +2683,7 @@ Jim_Obj *Jim_StringByteRangeObj(Jim_Interp *interp,
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_GetIndex`, lines 8326–8344. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `e69392d845af7ada0d169c8703b7ec2127156f90f1755797a93e0b0ba85152d9`; retained evidence `source-window-43`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_GetIndex`, lines 8326–8344. Line unit: physical LF only. Original byte range [259686, 260276). Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `e69392d845af7ada0d169c8703b7ec2127156f90f1755797a93e0b0ba85152d9`; retained evidence `source-window-43`.
 
 ```text
 int Jim_GetIndex(Jim_Interp *interp, Jim_Obj *objPtr, int *indexPtr)
@@ -2708,7 +2708,7 @@ int Jim_GetIndex(Jim_Interp *interp, Jim_Obj *objPtr, int *indexPtr)
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `SetIndexFromAny`, lines 8254–8324. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `efadbb2defc05a6d97ac2f56086add8851119ab90cf80ba8ea74824380f8be00`; retained evidence `source-window-44`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `SetIndexFromAny`, lines 8254–8324. Line unit: physical LF only. Original byte range [257892, 259685). Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `efadbb2defc05a6d97ac2f56086add8851119ab90cf80ba8ea74824380f8be00`; retained evidence `source-window-44`.
 
 ```text
 static int SetIndexFromAny(Jim_Interp *interp, Jim_Obj *objPtr)
@@ -2785,7 +2785,7 @@ static int SetIndexFromAny(Jim_Interp *interp, Jim_Obj *objPtr)
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_Utf8Length`, lines 2491–2503. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `42b7da0bec907380a4163c0c1d18622cacbf844fa007c0a7af4ed7ebd5888076`; retained evidence `source-window-45`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_Utf8Length`, lines 2491–2503. Line unit: physical LF only. Original byte range [73003, 73369). Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `42b7da0bec907380a4163c0c1d18622cacbf844fa007c0a7af4ed7ebd5888076`; retained evidence `source-window-45`.
 
 ```text
 int Jim_Utf8Length(Jim_Interp *interp, Jim_Obj *objPtr)
@@ -2804,7 +2804,7 @@ int Jim_Utf8Length(Jim_Interp *interp, Jim_Obj *objPtr)
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_StringCoreCommand OPT_RANGE case`, lines 14962–14979. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `7a49dbdc64977f03b18f5cad0defbbfbb51f085bb44d2e238d00d45619965159`; retained evidence `source-window-46`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_StringCoreCommand OPT_RANGE case`, lines 14962–14979. Line unit: physical LF only. Original byte range [473428, 474034). Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `7a49dbdc64977f03b18f5cad0defbbfbb51f085bb44d2e238d00d45619965159`; retained evidence `source-window-46`.
 
 ```text
         case OPT_RANGE:{
@@ -2828,7 +2828,7 @@ jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/work
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_StringCoreCommand OPT_INDEX case`, lines 15029–15053. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `c33188ea103aa42e528c1e810678099a965926c32fda51a8ebb40b1e21812229`; retained evidence `source-window-47`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_StringCoreCommand OPT_INDEX case`, lines 15029–15053. Line unit: physical LF only. Original byte range [475600, 476521). Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `c33188ea103aa42e528c1e810678099a965926c32fda51a8ebb40b1e21812229`; retained evidence `source-window-47`.
 
 ```text
         case OPT_INDEX:{
@@ -2859,7 +2859,7 @@ jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/work
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/utf8.c`, function `utf8_strlen`, lines 63–77. Full-source SHA-256 `905a2ffed3671332e014f5964560c98462cd45483f5f1b9bdfd03109e0ddf526`; snippet SHA-256 `13cdf8195f1c948c31d8e1758dccd9e35654c319632b64b2db969f49e371a510`; retained evidence `source-window-48`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/utf8.c`, function `utf8_strlen`, lines 63–77. Line unit: physical LF only. Original byte range [1330, 1628). Full-source SHA-256 `905a2ffed3671332e014f5964560c98462cd45483f5f1b9bdfd03109e0ddf526`; snippet SHA-256 `13cdf8195f1c948c31d8e1758dccd9e35654c319632b64b2db969f49e371a510`; retained evidence `source-window-48`.
 
 ```text
 int utf8_strlen(const char *str, int bytelen)
@@ -2880,7 +2880,7 @@ int utf8_strlen(const char *str, int bytelen)
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/utf8.c`, function `utf8_index`, lines 79–86. Full-source SHA-256 `905a2ffed3671332e014f5964560c98462cd45483f5f1b9bdfd03109e0ddf526`; snippet SHA-256 `7e1134644e87f15b1ccd3f9e89c4e9adc092d35a9430cb1d5f5231f3940e3dba`; retained evidence `source-window-49`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/utf8.c`, function `utf8_index`, lines 79–86. Line unit: physical LF only. Original byte range [1629, 1780). Full-source SHA-256 `905a2ffed3671332e014f5964560c98462cd45483f5f1b9bdfd03109e0ddf526`; snippet SHA-256 `7e1134644e87f15b1ccd3f9e89c4e9adc092d35a9430cb1d5f5231f3940e3dba`; retained evidence `source-window-49`.
 
 ```text
 int utf8_index(const char *str, int index)
@@ -2894,7 +2894,7 @@ int utf8_index(const char *str, int index)
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/utf8.c`, function `utf8_tounicode`, lines 109–148. Full-source SHA-256 `905a2ffed3671332e014f5964560c98462cd45483f5f1b9bdfd03109e0ddf526`; snippet SHA-256 `ae10829cddca29646acfb3c2ffdb42425cdff5e5c6aa3600e5914f4376be7916`; retained evidence `source-window-50`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/utf8.c`, function `utf8_tounicode`, lines 109–148. Line unit: physical LF only. Original byte range [2207, 3429). Full-source SHA-256 `905a2ffed3671332e014f5964560c98462cd45483f5f1b9bdfd03109e0ddf526`; snippet SHA-256 `ae10829cddca29646acfb3c2ffdb42425cdff5e5c6aa3600e5914f4376be7916`; retained evidence `source-window-50`.
 
 ```text
 int utf8_tounicode(const char *str, int *uc)

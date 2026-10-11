@@ -20,6 +20,38 @@ DIRECTORY = gate.DIRECTORY
 
 
 class ProofGateTests(unittest.TestCase):
+    def test_counted_source_anchor_uses_bytes_and_physical_lf_lines(self):
+        # Implementation contract: naming.proof-records.exact-evidence-and-coverage
+        # docs/design/analysis/name-resolution-proofs/exact-evidence-and-coverage.md
+        snippet = "é\r\n\f\x00tail\n"
+        anchor = {
+            "snippet": snippet,
+            "lines": [9, 10],
+            "line_unit": "physical LF only",
+            "byte_range": [41, 41 + len(snippet.encode())],
+        }
+        self.assertEqual(gate.source_anchor_geometry_errors(anchor, "fixture"), [])
+        for changed in [
+            {"byte_range": [41, 41 + len(snippet)]},
+            {"byte_range": [42, 41]},
+            {"lines": [9, 11]},
+            {"lines": [10, 9]},
+        ]:
+            with self.subTest(changed=changed):
+                self.assertTrue(gate.source_anchor_geometry_errors(anchor | changed, "fixture"))
+
+    def test_counted_source_anchor_requires_paired_units(self):
+        # Implementation contract: naming.proof-records.exact-evidence-and-coverage
+        # docs/design/analysis/name-resolution-proofs/exact-evidence-and-coverage.md
+        anchor = {"snippet": "line", "lines": [1, 1]}
+        self.assertEqual(gate.source_anchor_geometry_errors(anchor, "fixture"), [])
+        for changed in [
+            {"line_unit": "physical LF only"},
+            {"byte_range": [0, 4]},
+        ]:
+            with self.subTest(changed=changed):
+                self.assertTrue(gate.source_anchor_geometry_errors(anchor | changed, "fixture"))
+
     def fixture(self, root):
         directory = root / DIRECTORY
         directory.mkdir(parents=True)

@@ -208912,6 +208912,83 @@
         "naming.list.original-option-index-path-preparation-and-results"
       ],
       "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/proof-source-geometry/receipt.json",
+      "sha256": "d3026c14abd871c714a7694e0929137b8d1e8f8866cde2bfae675276e4f0ab5e",
+      "bytes": 1574,
+      "candidate": true,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.proof-records.exact-evidence-and-coverage"
+      ],
+      "reason": "Exact original Python proof-validator input and execution retention; no full repository certification or native result."
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/proof-source-geometry/sources/docs/design/analysis/name-resolution-proofs/schema.json",
+      "sha256": "dcb9802e93dea6f300b83a9423397a9e10f63585d036c1daf273ac5439828693",
+      "bytes": 6417,
+      "candidate": true,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.proof-records.exact-evidence-and-coverage"
+      ],
+      "reason": "Exact original Python proof-validator input and execution retention; no full repository certification or native result."
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/proof-source-geometry/sources/scripts/dev/check-name-resolution-proofs.py",
+      "sha256": "ecb7350b720b90da729816241fa5b68b2ee26d214e5f05de3f45220bbb03c808",
+      "bytes": 37792,
+      "candidate": false,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.proof-records.exact-evidence-and-coverage"
+      ],
+      "reason": "Exact original Python proof-validator input and execution retention; no full repository certification or native result."
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/proof-source-geometry/sources/scripts/dev/test_name_resolution_proofs.py",
+      "sha256": "695880f9d547fa3ae1fbef7567e1c66c05cade1e51de411824014286f6c129cd",
+      "bytes": 36242,
+      "candidate": false,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.proof-records.exact-evidence-and-coverage"
+      ],
+      "reason": "Exact original Python proof-validator input and execution retention; no full repository certification or native result."
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/proof-source-geometry/sources/scripts/dev/update-name-resolution-proof-index.py",
+      "sha256": "51b2dc7e96729fffa3a25c8dfd38254d097075836c836c0d93c9863ec1f54f33",
+      "bytes": 10029,
+      "candidate": false,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.proof-records.exact-evidence-and-coverage"
+      ],
+      "reason": "Exact original Python proof-validator input and execution retention; no full repository certification or native result."
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/proof-source-geometry/stderr",
+      "sha256": "b6fd684e50cea8012f1bd20ae8b8540b0083dec4a6780e32c30f160016d76e4c",
+      "bytes": 121,
+      "candidate": false,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.proof-records.exact-evidence-and-coverage"
+      ],
+      "reason": "Exact original Python proof-validator input and execution retention; no full repository certification or native result."
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/proof-source-geometry/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.proof-records.exact-evidence-and-coverage"
+      ],
+      "reason": "Exact original Python proof-validator input and execution retention; no full repository certification or native result."
     }
   ]
 }

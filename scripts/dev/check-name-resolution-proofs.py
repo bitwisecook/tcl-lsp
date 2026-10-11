@@ -214,6 +214,28 @@ def inventory(root: Path, previous: dict | None = None) -> dict:
     }
 
 
+def source_anchor_geometry_errors(anchor: dict, label: str) -> list[str]:
+    """Check explicitly counted snippet geometry without inferring source bytes."""
+    errors = []
+    first, last = anchor["lines"]
+    if first > last:
+        errors.append(f"{label}: source line range is reversed")
+    if "line_unit" not in anchor and "byte_range" not in anchor:
+        return errors
+    if "line_unit" not in anchor or "byte_range" not in anchor:
+        errors.append(f"{label}: counted source geometry needs both line and byte units")
+        return errors
+    data = anchor["snippet"].encode()
+    begin, end = anchor["byte_range"]
+    if begin > end or end - begin != len(data):
+        errors.append(f"{label}: source byte range differs from counted snippet")
+    # CR, form feed, NUL and non-ASCII code points are not physical LF lines.
+    count = data.count(b"\n") + int(bool(data) and not data.endswith(b"\n"))
+    if last - first + 1 != count:
+        errors.append(f"{label}: source line range differs from physical LF snippet")
+    return errors
+
+
 def normalized(text: str) -> str:
     return " ".join(text.replace("\\|", "|").split())
 
@@ -648,6 +670,7 @@ def validate(root: Path, structure_only: bool = False) -> tuple[list[str], dict]
         ):
             errors.append(f"{label}: source inspection has no inspected provider")
         for anchor in record["source_anchors"]:
+            errors.extend(source_anchor_geometry_errors(anchor, label))
             actual = hashlib.sha256(anchor["snippet"].encode()).hexdigest()
             if actual != anchor["snippet_sha256"]:
                 errors.append(f"{label}: source snippet digest changed")

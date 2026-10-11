@@ -37,6 +37,12 @@ remain in the census with their reason and original digest. A different source
 or observation is retained separately even when it answers the same question.
 Artifact counts are not question counts.
 
+Source anchors can carry `line_unit: "physical LF only"` with an original half-open
+`byte_range`. The checker validates their paired units, counted UTF-8 snippet length
+and physical LF extent. This local geometry check does not establish an unrecorded
+whole-source offset correspondence; that join requires the retained complete source
+and independently checked excerpt bytes.
+
 Captured source and runner files retain their complete original bytes, including
 Python files. `Makefile`'s `PY_FILES` excludes native/authored fixture scripts,
 canonical proof evidence and the exact input-pinned
