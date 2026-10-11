@@ -624,20 +624,40 @@ pub(crate) fn native_scalar_getter_with_environment_and_currency(
     environment: Option<&dyn tcl_platform::NumericEnvironment>,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
 ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterValue, tcl_syntax::value::ValueError> {
+    native_scalar_getter_with_stage_check(value, dialect, kind, environment, currency, None)
+}
+
+/// Reuse the same probe and reached failure presentation with an original
+/// consumer's independent physical frame/storage guard at every stage.
+pub(crate) fn native_scalar_getter_with_stage_check(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
+    environment: Option<&dyn tcl_platform::NumericEnvironment>,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+    stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
+) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterValue, tcl_syntax::value::ValueError> {
     use tcl_syntax::value::ValueError;
-    match native_scalar_probe_with_environment_and_currency(
+    match native_scalar_probe_with_stage_check(
         value,
         dialect,
         kind,
         environment,
         currency,
+        stage_check,
     )? {
         Ok(result) => Ok(result),
         Err(failure) => {
-            let record = native_scalar_failure_presentation_with_currency(
-                value, dialect, kind, failure, currency,
+            let record = native_scalar_failure_presentation_with_stage_check(
+                value,
+                dialect,
+                kind,
+                failure,
+                currency,
+                stage_check,
             )?;
             scalar_object_stage_current(value, currency)?;
+            stage_check.map_or(Ok(()), |check| check())?;
             Err(ValueError::NativeScalarGetter(Box::new(record)))
         }
     }

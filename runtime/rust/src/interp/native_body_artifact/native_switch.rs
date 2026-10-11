@@ -44,180 +44,254 @@ impl Interp {
         execution: &mut BodyExecution,
     ) -> Result<Code, Code> {
         use tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand;
-        let original = match &switch.recipe.subject {
-            NativeCompilerWordOperand::Original(index) => {
-                self.body_word(artifact, &command.words[*index], execution)?
+        let operation = native_list_conversion::BodyObjectOperation::capture(self)
+            .map_err(|error| self.report_cmd_error(error))?;
+        let reached = (|| {
+            let original = match &switch.recipe.subject {
+                NativeCompilerWordOperand::Original(index) => {
+                    self.body_word(artifact, &command.words[*index], execution)?
+                }
+                NativeCompilerWordOperand::LiteralExpansion { .. } => obj::Owned::retain(
+                    artifact
+                        .literals
+                        .original(switch.subject_literal.expect("expanded subject"))
+                        .expect("registered subject"),
+                ),
+            };
+            operation
+                .check(self)
+                .map_err(|error| self.report_cmd_error(error))?;
+            if execution.done {
+                drop(original);
+                operation
+                    .check(self)
+                    .map_err(|error| self.report_cmd_error(error))?;
+                return Ok(Code::Ok);
             }
-            NativeCompilerWordOperand::LiteralExpansion { .. } => obj::Owned::retain(
-                artifact
-                    .literals
-                    .original(switch.subject_literal.expect("expanded subject"))
-                    .expect("registered subject"),
-            ),
-        };
-        let mut selected = None;
-        let mut transformed = None;
-        match switch.recipe.mode {
-            NativeSwitchMode::Exact => {
-                let bytes = ValueOps::native_string_bytes(self, &original.as_ptr())
-                    .map_err(|error| self.report_cmd_error(error.into()))?;
-                let key = if switch.recipe.nocase {
-                    let lowered = tcl_syntax::native_glob::lower_c_string_bytes(
-                        switch.recipe.version,
-                        &bytes,
-                    );
-                    if obj::is_shared(original.as_ptr()) {
-                        let copy = obj::Owned::fresh(new_string(&lowered));
-                        let materialization = self
-                            .native_invocation_dialect()
-                            .native_string_materialization(None)
-                            .ok_or(ValueError::CommandProtocolUnavailable(
-                                "compiled string lower issuer",
-                            ))
-                            .map_err(|error| self.report_cmd_error(error.into()))?;
-                        obj::retain_native_string_representation(copy.as_ptr(), materialization)
-                            .map_err(|error| self.report_cmd_error(error.into()))?;
-                        transformed = Some(copy);
-                    } else {
-                        let canonical = obj::has_canonical_empty_string(original.as_ptr());
-                        obj::change_type(original.as_ptr(), core::ptr::null(), 0);
-                        obj::invalidate_string(original.as_ptr());
-                        // SAFETY: the original live, unshared header owns the replaced string.
-                        unsafe {
-                            obj::set_native_updater_string_rep(
-                                original.as_ptr(),
-                                &lowered,
-                                canonical && lowered.is_empty(),
-                            )
-                        };
-                    }
-                    lowered
-                } else {
-                    tcl_core_types::c_string_extent(&bytes).to_vec()
-                };
-                for (index, arm) in switch.recipe.arms.iter().enumerate() {
-                    if switch.recipe.terminal_default && index + 1 == switch.recipe.arms.len() {
-                        selected = Some(arm.target);
-                        break;
-                    }
-                    let pattern = if switch.recipe.nocase {
-                        tcl_syntax::native_glob::lower_c_string_bytes(
+            let mut selected = None;
+            let mut transformed = None;
+            match switch.recipe.mode {
+                NativeSwitchMode::Exact => {
+                    let (key, lowered) = self
+                        .body_switch_exact_key(
+                            &operation,
+                            original.as_ptr(),
                             switch.recipe.version,
-                            &arm.pattern,
+                            switch.recipe.nocase,
                         )
-                    } else {
-                        tcl_core_types::c_string_extent(&arm.pattern).to_vec()
+                        .map_err(|error| self.report_cmd_error(error))?;
+                    transformed = lowered;
+                    for (index, arm) in switch.recipe.arms.iter().enumerate() {
+                        if switch.recipe.terminal_default && index + 1 == switch.recipe.arms.len() {
+                            selected = Some(arm.target);
+                            break;
+                        }
+                        let pattern = if switch.recipe.nocase {
+                            tcl_syntax::native_glob::lower_c_string_bytes(
+                                switch.recipe.version,
+                                &arm.pattern,
+                            )
+                        } else {
+                            tcl_core_types::c_string_extent(&arm.pattern).to_vec()
+                        };
+                        if key == pattern {
+                            selected = Some(arm.target);
+                            break;
+                        }
+                    }
+                }
+                NativeSwitchMode::Integer => {
+                    let number = operation
+                        .scalar(
+                            self,
+                            original.as_ptr(),
+                            tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide,
+                        )
+                        .map_err(|error| self.report_cmd_error(error))?;
+                    let tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(number) = number
+                    else {
+                        return Err(self.report_cmd_error(
+                            operation.refuse(ValueError::ScalarNumericInputUnavailable),
+                        ));
                     };
-                    if key == pattern {
-                        selected = Some(arm.target);
-                        break;
+                    for (index, arm) in switch.recipe.arms.iter().enumerate() {
+                        if (switch.recipe.terminal_default && index + 1 == switch.recipe.arms.len())
+                            || arm.integer == Some(number)
+                        {
+                            selected = Some(arm.target);
+                            break;
+                        }
                     }
                 }
-            }
-            NativeSwitchMode::Integer => {
-                let number = ValueOps::as_int(self, &original.as_ptr())
-                    .map_err(|error| self.report_cmd_error(error.into()))?;
-                for (index, arm) in switch.recipe.arms.iter().enumerate() {
-                    if (switch.recipe.terminal_default && index + 1 == switch.recipe.arms.len())
-                        || arm.integer == Some(number)
-                    {
-                        selected = Some(arm.target);
-                        break;
-                    }
-                }
-            }
-            _ => {
-                for (index, arm) in switch.recipe.arms.iter().enumerate() {
-                    let matched = match &arm.matcher {
-                        NativeSwitchMatch::Always => {
-                            if let Some(literal) = switch.patterns[index] {
-                                ValueOps::as_bool(
-                                    self,
-                                    &artifact
-                                        .literals
-                                        .original(literal)
-                                        .expect("registered empty-regexp Boolean"),
-                                )
-                                .map_err(|error| self.report_cmd_error(error.into()))?
-                            } else {
-                                true
+                _ => {
+                    for (index, arm) in switch.recipe.arms.iter().enumerate() {
+                        let matched = match &arm.matcher {
+                            NativeSwitchMatch::Always => {
+                                if let Some(literal) = switch.patterns[index] {
+                                    let value = operation.scalar(
+                                        self,
+                                        artifact
+                                            .literals
+                                            .original(literal)
+                                            .expect("registered empty-regexp Boolean"),
+                                        tcl_syntax::scalar_getter::NativeScalarGetterKind::Boolean,
+                                    );
+                                    value.and_then(|value| match value {
+                                        tcl_syntax::scalar_getter::NativeScalarGetterValue::Boolean(value) => Ok(value.is_true()),
+                                        _ => Err(operation.refuse(ValueError::ScalarNumericInputUnavailable)),
+                                    })
+                                } else {
+                                    Ok(true)
+                                }
                             }
+                            NativeSwitchMatch::Equal(_) => {
+                                let pattern = artifact
+                                    .literals
+                                    .original(switch.patterns[index].expect("compiled pattern"))
+                                    .unwrap();
+                                tcl_cmd_core::switch::compiled_equal(
+                                    self,
+                                    &pattern,
+                                    &original.as_ptr(),
+                                    switch.recipe.version,
+                                )
+                            }
+                            NativeSwitchMatch::Glob(_) => {
+                                let pattern = artifact
+                                    .literals
+                                    .original(switch.patterns[index].expect("compiled pattern"))
+                                    .unwrap();
+                                tcl_cmd_core::switch::compiled_glob(
+                                    self,
+                                    &pattern,
+                                    &original.as_ptr(),
+                                    switch.recipe.version,
+                                    switch.recipe.nocase,
+                                )
+                            }
+                            NativeSwitchMatch::Regexp(_) => {
+                                let pattern = artifact
+                                    .literals
+                                    .original(switch.patterns[index].expect("compiled pattern"))
+                                    .unwrap();
+                                let mut flags = tcl_cmd_core::regex::RegexFlags::for_release(
+                                    switch.recipe.version,
+                                );
+                                flags.nocase = switch.recipe.nocase;
+                                tcl_cmd_core::regex::compiled_match_original::<
+                                    Interp,
+                                    crate::cmd_regex::AreEngine,
+                                >(
+                                    self,
+                                    &pattern,
+                                    &original.as_ptr(),
+                                    flags,
+                                    switch.recipe.version,
+                                )
+                                .map_err(|error| error.into_cmd_error())
+                            }
+                            _ => unreachable!("chained switch matcher"),
+                        };
+                        let matched = matched.map_err(|error| operation.retain(error));
+                        operation
+                            .check(self)
+                            .map_err(|error| self.report_cmd_error(error))?;
+                        let matched = matched.map_err(|error| self.report_cmd_error(error))?;
+                        if matched {
+                            selected = Some(arm.target);
+                            break;
                         }
-                        NativeSwitchMatch::Equal(_) => {
-                            let pattern = artifact
-                                .literals
-                                .original(switch.patterns[index].expect("compiled pattern"))
-                                .unwrap();
-                            tcl_cmd_core::switch::compiled_equal(
-                                self,
-                                &pattern,
-                                &original.as_ptr(),
-                                switch.recipe.version,
-                            )
-                            .map_err(|error| self.report_cmd_error(error))?
-                        }
-                        NativeSwitchMatch::Glob(_) => {
-                            let pattern = artifact
-                                .literals
-                                .original(switch.patterns[index].expect("compiled pattern"))
-                                .unwrap();
-                            tcl_cmd_core::switch::compiled_glob(
-                                self,
-                                &pattern,
-                                &original.as_ptr(),
-                                switch.recipe.version,
-                                switch.recipe.nocase,
-                            )
-                            .map_err(|error| self.report_cmd_error(error))?
-                        }
-                        NativeSwitchMatch::Regexp(_) => {
-                            let pattern = artifact
-                                .literals
-                                .original(switch.patterns[index].expect("compiled pattern"))
-                                .unwrap();
-                            let mut flags =
-                                tcl_cmd_core::regex::RegexFlags::for_release(switch.recipe.version);
-                            flags.nocase = switch.recipe.nocase;
-                            tcl_cmd_core::regex::compiled_match_original::<
-                                Interp,
-                                crate::cmd_regex::AreEngine,
-                            >(
-                                self,
-                                &pattern,
-                                &original.as_ptr(),
-                                flags,
-                                switch.recipe.version,
-                            )
-                            .map_err(|error| self.report_cmd_error(error.into_cmd_error()))?
-                        }
-                        _ => unreachable!("chained switch matcher"),
-                    };
-                    if matched {
-                        selected = Some(arm.target);
-                        break;
                     }
                 }
             }
+            // The native POP/JUMP_TABLE retires the subject before entering body.
+            drop(transformed);
+            drop(original);
+            operation
+                .check(self)
+                .map_err(|error| self.report_cmd_error(error))?;
+            if let Some(index) = selected {
+                Ok(self.execute_body_region(
+                    artifact,
+                    switch.recipe.arms[index]
+                        .body
+                        .expect("real fallthrough target"),
+                    execution,
+                ))
+            } else {
+                self.set_result(
+                    artifact
+                        .literals
+                        .original(switch.empty.expect("implicit default"))
+                        .expect("registered empty"),
+                );
+                Ok(Code::Ok)
+            }
+        })();
+        operation
+            .check(self)
+            .map_err(|error| self.report_cmd_error(error))?;
+        reached
+    }
+
+    /// The existing Exact/nocase stage, with original retirement checked before
+    /// its unshared String mutation. Shared inputs keep their actual stack role.
+    fn body_switch_exact_key(
+        &mut self,
+        operation: &native_list_conversion::BodyObjectOperation,
+        original: *mut TclObj,
+        version: tcl_dialect::TclVersion,
+        nocase: bool,
+    ) -> Result<(Vec<u8>, Option<obj::Owned>), tcl_cmd_core::CmdError> {
+        let bytes = operation.bytes(self, original)?;
+        if !nocase {
+            return Ok((tcl_core_types::c_string_extent(&bytes).to_vec(), None));
         }
-        // The native POP/JUMP_TABLE retires the subject before entering body.
-        drop(transformed);
-        drop(original);
-        if let Some(index) = selected {
-            Ok(self.execute_body_region(
-                artifact,
-                switch.recipe.arms[index]
-                    .body
-                    .expect("real fallthrough target"),
-                execution,
-            ))
+        let lowered = tcl_syntax::native_glob::lower_c_string_bytes(version, &bytes);
+        let header = crate::interp::native_arguments::OriginalArguments::enter(self, &[original])?;
+        let current = || {
+            operation.check(self)?;
+            header.check_original_for(self, 0, original)
+        };
+        current()?;
+        if obj::is_shared(original) {
+            let copy = obj::Owned::fresh(new_string(&lowered));
+            let reached: Result<(), tcl_cmd_core::CmdError> = (|| {
+                let materialization = self
+                    .native_invocation_dialect()
+                    .native_string_materialization(None)
+                    .ok_or_else(|| {
+                        operation.refuse(ValueError::CommandProtocolUnavailable(
+                            "compiled string lower issuer",
+                        ))
+                    })?;
+                obj::retain_native_string_representation(copy.as_ptr(), materialization)
+                    .map_err(|error| operation.refuse(error))?;
+                current()?;
+                Ok(())
+            })();
+            if let Err(error) = reached {
+                drop(copy);
+                operation.check(self)?;
+                return Err(error);
+            }
+            Ok((lowered, Some(copy)))
         } else {
-            self.set_result(
-                artifact
-                    .literals
-                    .original(switch.empty.expect("implicit default"))
-                    .expect("registered empty"),
-            );
-            Ok(Code::Ok)
+            let canonical = obj::has_canonical_empty_string(original);
+            obj::change_type_with_stage_check(original, core::ptr::null(), 0, &mut || current())
+                .map_err(|error| operation.retain(error))?;
+            current()?;
+            obj::invalidate_string(original);
+            // SAFETY: the same checked live, unshared header owns its String.
+            unsafe {
+                obj::set_native_updater_string_rep(
+                    original,
+                    &lowered,
+                    canonical && lowered.is_empty(),
+                )
+            };
+            current()?;
+            Ok((lowered, None))
         }
     }
 }
@@ -361,3 +435,7 @@ mod tests {
         assert_eq!(compared, 56);
     }
 }
+
+#[cfg(test)]
+#[path = "native_switch/original_stages_tests.rs"]
+mod original_stages_tests;

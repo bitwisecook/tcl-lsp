@@ -150,8 +150,11 @@ impl BodyObjectOperation {
     pub(super) fn check(&self, actual: &Interp) -> Result<(), CmdError> {
         self.frame.check(actual, &self.arguments)
     }
+    pub(super) fn retain(&self, error: CmdError) -> CmdError {
+        self.arguments.retain_refusal(error)
+    }
     pub(super) fn refuse(&self, error: ValueError) -> CmdError {
-        self.arguments.retain_refusal(error.into())
+        self.retain(error.into())
     }
     pub(super) fn bytes(
         &self,
@@ -178,6 +181,42 @@ impl BodyObjectOperation {
             },
             &|error| self.refuse(error),
         )
+    }
+    /// Selected scalar primitive under the same earliest compiled operation.
+    /// The compatibility ValueError is inspected only after the exact retained
+    /// operation/frame/header cause, including a reached Guest failure.
+    pub(super) fn scalar(
+        &self,
+        actual: &Interp,
+        original: *mut TclObj,
+        kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
+    ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterValue, CmdError> {
+        self.check(actual)?;
+        let header = OriginalArguments::enter(actual, &[original])?;
+        let current = || {
+            self.check(actual)?;
+            header.check_original_for(actual, 0, original)
+        };
+        current()?;
+        let dialect = actual.native_invocation_dialect();
+        dialect
+            .native_scalar_getter_protocol()
+            .ok_or_else(|| self.refuse(ValueError::ScalarNumericInputUnavailable))?;
+        let host = actual.host();
+        let environment = host.numeric_environment();
+        current()?;
+        let stage = || current().map_err(|_| ValueError::ScalarNumericInputUnavailable);
+        let reached = crate::typed_value::native_scalar_getter_with_stage_check(
+            original,
+            dialect,
+            kind,
+            environment,
+            Some(self.arguments.currency()),
+            Some(&stage),
+        )
+        .map_err(|error| self.refuse(error));
+        current()?;
+        reached
     }
     pub(super) fn members(
         &self,
