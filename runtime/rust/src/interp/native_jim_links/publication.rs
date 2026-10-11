@@ -2,6 +2,7 @@
 //! Jim's local detachment and incoming/old/assignment stages under one receipt.
 use super::*;
 use crate::interp::native_arguments::OriginalArguments;
+use crate::obj::Owned;
 use crate::vars::{CapturedJimAliasTarget, PreparedJimAliasLocal};
 use std::rc::Weak;
 use tcl_cmd_core::CmdError;

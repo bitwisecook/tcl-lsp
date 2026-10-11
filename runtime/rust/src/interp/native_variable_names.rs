@@ -770,11 +770,12 @@ impl Interp {
         if let Err(error) = source.check(self, operation.currency()) {
             return self.report_cmd_error(error);
         }
-        let target = match crate::vars::OriginalAliasTargetObservation::capture(
-            &self.frames.borrow(),
-            &self.namespaces(),
-            &link,
-        ) {
+        let target_receipt = {
+            let frames = self.frames.borrow();
+            let namespaces = self.namespaces();
+            crate::vars::OriginalAliasTargetObservation::capture(&frames, &namespaces, &link)
+        };
+        let target = match target_receipt {
             Ok(target) => target,
             Err(_) => {
                 return self.report_cmd_error(
@@ -1342,12 +1343,12 @@ impl Interp {
         reached.map_err(|error| {
             self.original_c_lookup_var_error(original, NativeVariableNameLookupPurpose::Link, error)
         })?;
-        let observed = crate::vars::OriginalAliasTargetObservation::capture(
-            &self.frames.borrow(),
-            &self.namespaces(),
-            &target,
-        )
-        .map_err(|error| {
+        let target_receipt = {
+            let frames = self.frames.borrow();
+            let namespaces = self.namespaces();
+            crate::vars::OriginalAliasTargetObservation::capture(&frames, &namespaces, &target)
+        };
+        let observed = target_receipt.map_err(|error| {
             self.original_c_lookup_var_error(original, NativeVariableNameLookupPurpose::Link, error)
         })?;
         let target = OriginalCLinkTarget {
