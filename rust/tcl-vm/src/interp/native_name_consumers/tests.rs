@@ -368,3 +368,86 @@ fn original_name_consumer_info_boundary_preserves_the_reached_getter_cause_and_r
     assert_eq!(vm.execution_refusal.as_ref(), Some(&first));
     unchanged_result(&vm, &result);
 }
+
+#[test]
+fn original_jim_namespace_eval_uses_its_actual_holder_without_c_tree_registration() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let mut vm = crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jim"));
+    let outer =
+        super::super::native_operation_currency::NativeOperationScope::enter(&mut vm).unwrap();
+    let completion = vm.eval_source("namespace eval originalJimHolder {set value HELD}; namespace eval originalJimHolder {set value}").unwrap();
+    assert_eq!(completion.code, tcl_runtime_api::Code::Ok);
+    assert_eq!(
+        completion.result.resident_string_bytes().unwrap().as_ref(),
+        b"HELD"
+    );
+    let namespace = vm
+        .namespace_object_lookup(&Value::new_native_string_bytes(
+            b"originalJimHolder".as_slice(),
+        ))
+        .unwrap()
+        .unwrap();
+    assert!(vm.native_namespace_token_has_owner(namespace));
+    let world = vm.name_world.borrow();
+    assert!(world.jim_namespace_objects.contains_key(&namespace));
+    assert!(
+        !world
+            .namespaces
+            .contains(&world.ns_arena[namespace.0 as usize])
+    );
+    drop(world);
+    outer.check(&mut vm).unwrap();
+    assert!(vm.execution_refusal.is_none());
+}
+
+#[test]
+fn original_jim_namespace_holder_withdrawal_refuses_invalid_and_retired_births() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
+    let namespace = vm.intern_jim_namespace_object(b"originalJimHolder");
+    assert!(vm.native_namespace_token_has_owner(namespace));
+    assert!(!vm.native_namespace_token_has_owner(tcl_core_types::NsId(u32::MAX)));
+    let held_world = Rc::clone(&vm.name_world);
+    vm.name_world
+        .borrow_mut()
+        .jim_namespace_objects
+        .remove(&namespace);
+    assert!(!vm.native_namespace_token_has_owner(namespace));
+    let replacement = vm.intern_jim_namespace_object(b"originalJimHolder");
+    assert_ne!(namespace, replacement);
+    assert!(!vm.native_namespace_token_has_owner(namespace));
+    assert!(vm.native_namespace_token_has_owner(replacement));
+    held_world.borrow_mut().retire();
+    assert!(!vm.native_namespace_token_has_owner(replacement));
+}
+
+#[test]
+fn original_jim_namespace_consumer_rejects_foreign_world_with_same_numeric_slot() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
+    let foreign = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
+    let scope = OriginalNameConsumerScope::enter(&mut vm).unwrap();
+    let original_world = Rc::clone(&vm.name_world);
+    vm.name_world = Rc::clone(&foreign.name_world);
+    // Root slots genuinely coincide; the retained owner, not the integer,
+    // distinguishes the two current command/namespace worlds.
+    assert!(vm.native_namespace_token_has_owner(tcl_core_types::ROOT_NS));
+    let original = Value::new_native_string_bytes(b"QUIET".as_slice());
+    let before = original.native_object_snapshot();
+    let error = scope.read(&mut vm, &original).unwrap_err();
+    let first = vm.execution_refusal.clone().unwrap();
+    assert_eq!(error.native_execution_refusal(), Some(&first));
+    vm.name_world = original_world;
+    assert_eq!(
+        scope
+            .finish(&mut vm)
+            .unwrap_err()
+            .native_execution_refusal(),
+        Some(&first)
+    );
+    assert_eq!(original.native_object_snapshot(), before);
+    assert_eq!(original.native_object_reference_count(), 1);
+}

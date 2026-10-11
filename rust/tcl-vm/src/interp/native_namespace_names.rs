@@ -100,6 +100,15 @@ impl Vm {
         let Some(path) = world.ns_arena.get(namespace.0 as usize) else {
             return false;
         };
+        if self
+            .actual_native_invocation_dialect()
+            .native_name_protocol()
+            == Some(tcl_syntax::naming::NativeNameProtocol::Jim084)
+        {
+            // Jim publishes an original namespace object holder, independently
+            // of C namespace tree registration. NsId births are never reused.
+            return world.is_live() && world.jim_namespace_objects.contains_key(&namespace);
+        }
         world.is_live()
             && ((world.namespaces.contains(path) && world.ns_intern.get(path) == Some(&namespace))
                 || world.dying_namespaces.contains(&namespace)
