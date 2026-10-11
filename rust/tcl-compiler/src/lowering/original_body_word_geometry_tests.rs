@@ -326,7 +326,7 @@ fn original_body_geometry_is_absent_without_namespace_descent_or_retained_owner(
     let script = lowerer.lower_into_script_with_bindings(
         fixture.body.try_text().unwrap(),
         fixture.body.base(),
-        fixture.namespace.display().unwrap(),
+        &fixture.namespace.display().unwrap(),
         selected,
     );
     let tokens = script
