@@ -205,25 +205,62 @@ fn collect_original_expression_calls(
         )
     };
     let (roles, traits) = if let Some(invocation) = invocation {
-        if !invocation.facts.arg_roles_complete {
-            return None;
-        }
-        // Captured expression operands have a distinct original producer.
-        // This caller-word inventory cannot manufacture that producer's body.
+        let roles = if metadata.permits_logical_source_names() {
+            let realm = tokens
+                .source_binding
+                .as_ref()?
+                .original_source_realm_for_input(
+                    tokens,
+                    metadata.source_analysis_input()?,
+                    registry,
+                )?;
+            let projection =
+                invocation.with_metadata_schema(registry, metadata, realm, |schema| {
+                    schema.authored_logical_source_role_projection()
+                })?;
+            if projection.selection_unknown() {
+                return None;
+            }
+            // Captured Expr words belong to their original producer, rather
+            // than this caller's written braced-word inventory.
+            if projection.argument_roles().iter().any(|(argument, role)| {
+                *role == tcl_registry::ArgRole::Expr
+                    && invocation.effective.written_argument(*argument).is_none()
+            }) {
+                return None;
+            }
+            projection
+                .argument_roles()
+                .iter()
+                .filter_map(|(argument, role)| {
+                    invocation
+                        .effective
+                        .written_argument(*argument)
+                        .map(|written| (written, *role))
+                })
+                .collect()
+        } else {
+            // Native inventory keeps its separate complete-role permission.
+            if !invocation.facts.arg_roles_complete {
+                return None;
+            }
+            invocation.written_argument_roles()
+        };
         if !invocation.effective.binding_prefix.is_empty()
             && (invocation
                 .facts
                 .traits
                 .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
-                || invocation
-                    .facts
-                    .arg_roles
-                    .iter()
-                    .any(|(_, role)| *role == tcl_registry::ArgRole::Expr))
+                || (!metadata.permits_logical_source_names()
+                    && invocation
+                        .facts
+                        .arg_roles
+                        .iter()
+                        .any(|(_, role)| *role == tcl_registry::ArgRole::Expr)))
         {
             return None;
         }
-        (invocation.written_argument_roles(), invocation.facts.traits)
+        (roles, invocation.facts.traits)
     } else if let Some(invocation) = (!metadata.permits_logical_source_names())
         .then(|| {
             crate::registry_invocation::logical_structured_invocation_with_metadata_context(
@@ -259,7 +296,12 @@ fn collect_original_expression_calls(
         let base = source.span.start().checked_add(1)?;
         let end = usize::try_from(base).ok()?.checked_add(text.len())?;
         if source.provenance != Provenance::Source
-            || site.source.source_image().bytes().get(usize::try_from(base).ok()?..end) != Some(text.as_bytes())
+            || site
+                .source
+                .source_image()
+                .bytes()
+                .get(usize::try_from(base).ok()?..end)
+                != Some(text.as_bytes())
         {
             return None;
         }
@@ -1457,6 +1499,145 @@ mod tests {
             )
             .is_none()
         );
+    }
+
+    #[test]
+    fn original_logical_inventory_uses_source_roles_without_native_role_completion() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Conditional original geometry; no Native frame/handler or result.
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl").unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let config = input.lexer_config();
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            registry, &input,
+        )
+        .unwrap();
+        let tokens = original_logical_tokens("uplevel #0 {puts VALUE}", &input);
+        let selected = crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(registry, metadata, &tokens).unwrap();
+        assert!(
+            !selected.facts.arg_roles_complete,
+            "Native frame grammar is independently unavailable"
+        );
+        let realm = tokens
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .original_source_realm_for_input(&tokens, &input, registry)
+            .unwrap();
+        let roles = selected
+            .with_metadata_schema(registry, metadata, realm, |schema| {
+                schema.authored_logical_source_role_projection()
+            })
+            .unwrap();
+        assert!(
+            roles
+                .argument_roles()
+                .contains(&(1, tcl_registry::ArgRole::Body))
+        );
+        assert!(
+            checked_original_lifted_calls_with_metadata_context(
+                &tokens, config, registry, metadata
+            )
+            .unwrap()
+            .is_empty()
+        );
+        assert!(selected.dialect.unwrap().native_name_protocol().is_none());
+
+        // The genuine written Expr producer retains its original child receipt.
+        let tokens = original_logical_tokens("expr {[dict size DATA]}", &input);
+        let calls = checked_original_lifted_calls_with_metadata_context(
+            &tokens, config, registry, metadata,
+        )
+        .unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].command, "dict");
+        assert_eq!(calls[0].args, ["size", "DATA"]);
+        assert_eq!(calls[0].span.start(), 6);
+        assert_eq!(
+            calls[0]
+                .tokens
+                .as_ref()
+                .unwrap()
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .invocation_site()
+                .unwrap()
+                .source
+                .source_image()
+                .bytes(),
+            b"expr {[dict size DATA]}"
+        );
+    }
+
+    #[test]
+    fn original_logical_inventory_keeps_alias_ordinals_and_uncertain_geometry_refusals() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl").unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let config = input.lexer_config();
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            registry, &input,
+        )
+        .unwrap();
+        for (source, expected) in [
+            (
+                "interp alias {} calculate {} expr; calculate {[dict size DATA]}",
+                true,
+            ),
+            (
+                "interp alias {} calculate {} expr {[dict size DATA]}; calculate",
+                false,
+            ),
+            ("proc expr args {}; expr {[dict size DATA]}", false),
+            ("switch $option $cmd {foo {[dict size DATA]}}", false),
+            ("regexp $option PATTERN TEXT", false),
+            ("expr {*}$arguments", false),
+        ] {
+            let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
+                .with_resolved_analysis_input(input.clone());
+            let module = lowerer.lower(source);
+            let script = &module.top_level;
+            let tokens = script
+                .retained_source_tokens_for_statement(script.statements.last().unwrap())
+                .unwrap();
+            let calls = checked_original_lifted_calls_with_metadata_context(
+                tokens, config, registry, metadata,
+            );
+            assert_eq!(calls.is_some(), expected, "{source}");
+            if expected {
+                let calls = calls.unwrap();
+                assert_eq!(calls.len(), 1);
+                assert_eq!(calls[0].command, "dict");
+                assert_eq!(
+                    calls[0]
+                        .tokens
+                        .as_ref()
+                        .unwrap()
+                        .source_binding
+                        .as_ref()
+                        .unwrap()
+                        .invocation_site()
+                        .unwrap()
+                        .source
+                        .source_image()
+                        .bytes(),
+                    source.as_bytes()
+                );
+                let mut missing = tokens.clone();
+                missing.nested_bindings.clear();
+                assert!(
+                    checked_original_lifted_calls_with_metadata_context(
+                        &missing, config, registry, metadata
+                    )
+                    .is_none()
+                );
+            }
+        }
     }
 
     #[test]

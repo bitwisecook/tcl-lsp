@@ -7576,11 +7576,13 @@ impl Analyser {
             ) else {
                 return InvocationCompletion::Unknown;
             };
-            let Some(realm) = tokens
-                .source_binding
-                .as_ref()
-                .and_then(crate::command_binding::SourceInvocationBinding::invocation_realm)
-            else {
+            let Some(realm) = tokens.source_binding.as_ref().and_then(|binding| {
+                binding.original_source_realm_for_input(
+                    &tokens,
+                    metadata.source_analysis_input()?,
+                    registry,
+                )
+            }) else {
                 return InvocationCompletion::Unknown;
             };
             let Some(completion) =

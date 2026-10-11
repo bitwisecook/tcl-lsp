@@ -3192,7 +3192,21 @@ fn walk_unknown_stmt(
     if MAX_UNKNOWN_STMT_WALK_DEPTH.exceeded(depth) {
         return;
     }
-    let case = metadata.and_then(|metadata| {
+    // Select the purpose only after this original carrier agrees with the
+    // complete supplied source owner. Availability-only metadata cannot turn
+    // an original Logical carrier into the Native route.
+    let source_metadata = metadata.and_then(|metadata| {
+        let tokens = script.retained_source_tokens_for_statement(stmt)?;
+        tokens
+            .source_binding
+            .as_ref()?
+            .original_invocation_metadata_for_input(
+                tokens,
+                metadata.source_analysis_input()?,
+                context.commands(),
+            )
+    });
+    let case = source_metadata.and_then(|metadata| {
         if metadata.permits_logical_source_names() {
             crate::registry_invocation::source_structure::original_logical_source_case_for_tokens(
                 script.retained_source_tokens_for_statement(stmt)?,
@@ -3245,7 +3259,7 @@ fn walk_unknown_stmt(
             // docs/design/analysis/name-resolution-proofs/compiler-original-unknown-handler-source-context.md
             // Logical source advice describes the exact selected operation;
             // Native execution still needs its independent proved target.
-            let invocation = metadata.and_then(|metadata| {
+            let invocation = source_metadata.and_then(|metadata| {
                 if metadata.permits_logical_source_names() {
                     crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
                         context.commands(), metadata, stmt.tokens()?,
@@ -6199,6 +6213,68 @@ _original_unknown $cmd $args";
                 .extract_unknown_proc_info(source, &[param("cmd")])
                 .has_auto_load
         );
+    }
+
+    #[test]
+    fn original_unknown_operation_purpose_requires_the_complete_original_source_input() {
+        // naming.compiler.original-unknown-handler-source-context
+        // docs/design/analysis/name-resolution-proofs/compiler-original-unknown-handler-source-context.md
+        let input = logical_unknown_analyser().resolved_input.unwrap();
+        let context = input.context_registry();
+        let source = "interp alias {} ensure {} package require; ensure Tcl";
+        let mut lowerer =
+            crate::lowering::Lowerer::with_config(context.commands(), input.lexer_config())
+                .with_resolved_analysis_input(input.clone());
+        let script = lowerer.lower(source).top_level.clone();
+        let statement = script.statements.last().unwrap();
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            context.commands(),
+            &input,
+        )
+        .unwrap();
+        let mut selected = UnknownProcInfo::default();
+        walk_unknown_stmt(
+            statement,
+            &script,
+            &context,
+            Some(metadata),
+            "cmd",
+            &mut selected,
+            0,
+        );
+        assert!(selected.has_auto_load);
+        let native_profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let native_input = super::super::ResolvedAnalysisInput::new(
+            native_profile,
+            native_profile,
+            std::sync::Arc::clone(&context),
+            input.lexer_config(),
+        );
+        assert!(!native_input.has_logical_source_name_context());
+        for metadata in [
+            None,
+            Some(context.as_ref().into()),
+            crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                context.commands(),
+                &native_input,
+            ),
+        ] {
+            let mut refused = UnknownProcInfo::default();
+            walk_unknown_stmt(
+                statement,
+                &script,
+                &context,
+                metadata,
+                "cmd",
+                &mut refused,
+                0,
+            );
+            assert!(!refused.has_auto_load);
+            assert!(!refused.has_exec);
+            assert!(!refused.chains_original);
+            assert!(refused.dispatch_targets.is_empty());
+        }
     }
 
     #[test]

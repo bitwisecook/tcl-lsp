@@ -181,6 +181,37 @@ impl SourceInvocationBinding {
         )
     }
 
+    /// Descriptive realm of this complete original source vector under the
+    /// current supplied input. A reached owner keeps its independently checked
+    /// realm and cannot fall back on refusal. Only an absent reached owner may
+    /// use positively Logical, closed, sealed original-declaration advice.
+    /// This supplies no reached lookup, Native handler, body entry or frame.
+    pub(crate) fn original_source_realm_for_input(
+        &self,
+        tokens: &CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &CommandRegistry,
+    ) -> Option<tcl_dialect::model::InvocationRealm> {
+        let metadata = self.original_invocation_metadata_for_input(tokens, input, registry)?;
+        if let Some(point) = &self.lookup_state {
+            return Some(point.realm);
+        }
+        metadata.permits_logical_source_names().then_some(())?;
+        let advice = self
+            .declaration_operand_layout_advice(tokens)
+            .or_else(|| self.original_compilation_lookup_advice(tokens))?;
+        if !advice.closed_logical_source_lookup()
+            || advice
+                .original_declaration_metadata_context(registry, tokens)
+                .ok()??
+                .source_analysis_input()
+                != metadata.source_analysis_input()
+        {
+            return None;
+        }
+        Some(advice.realm())
+    }
+
     /// Check the request's existing tagged owner against this original point.
     /// `Ok(None)` is possible only when both owners explicitly retain Standalone.
     /// Missing, availability-only, stale or foreign supplied ownership is an error,
@@ -2160,6 +2191,104 @@ mod tests {
             .expect("actual analysis retains its original source world")
             .stamp_original_tokens(&mut tokens);
         (analysis, tokens)
+    }
+
+    #[test]
+    fn original_source_realm_keeps_sealed_declaration_and_reached_owners_independent() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Readonly source realm; no reached lookup or body/frame permission.
+        let context = logical_script_context();
+        let source = "interp alias {} shared {} run-script; shared {set local VALUE}";
+        let (analysis, tokens) = logical_original_tokens(source, &context);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(binding.lookup_state.is_none());
+        let advice = binding.declaration_operand_layout_advice(&tokens).unwrap();
+        assert!(advice.closed_logical_source_lookup());
+        assert_eq!(
+            binding.original_source_realm_for_input(&tokens, input, context.commands()),
+            Some(advice.realm())
+        );
+        assert!(binding.lookup_state.is_none());
+        assert!(advice.dialect().native_name_protocol().is_none());
+
+        let mut missing = tokens.clone();
+        missing
+            .source_binding
+            .as_mut()
+            .unwrap()
+            .declaration_layout_observations = None;
+        assert!(
+            missing
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_source_realm_for_input(&missing, input, context.commands())
+                .is_none()
+        );
+        let mut changed = tokens.clone();
+        changed.word_exprs.pop();
+        assert!(
+            binding
+                .original_source_realm_for_input(&changed, input, context.commands())
+                .is_none()
+        );
+        let older_context = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(context.commands())),
+        );
+        assert!(Arc::ptr_eq(context.commands(), older_context.commands()));
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        let mut foreign_store = tcl_registry::CommandRegistry::build_default();
+        foreign_store.insert(tcl_registry::CommandSpec {
+            name: "foreign_source_realm_axis",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let foreign_context = Arc::new(context.with_command_store(Arc::new(foreign_store)));
+        let native = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        for changed_input in [
+            ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                older_context,
+                input.lexer_config(),
+            ),
+            ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                Arc::clone(&context),
+                config,
+            ),
+            ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                foreign_context,
+                input.lexer_config(),
+            ),
+            ResolvedAnalysisInput::new(native, native, Arc::clone(&context), input.lexer_config()),
+        ] {
+            assert!(
+                binding
+                    .original_source_realm_for_input(&tokens, &changed_input, context.commands())
+                    .is_none()
+            );
+        }
+        // Present reached ownership is terminal even with valid declaration rows.
+        let mut invalid = tokens.clone();
+        let mut point = advice.snapshot.as_ref().clone();
+        Arc::make_mut(&mut point.state.baseline).metadata_context =
+            crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
+        invalid.source_binding.as_mut().unwrap().lookup_state = Some(Arc::new(point));
+        assert!(
+            invalid
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_source_realm_for_input(&invalid, input, context.commands())
+                .is_none()
+        );
     }
 
     #[test]

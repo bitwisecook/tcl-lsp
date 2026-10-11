@@ -14997,9 +14997,17 @@ impl ModuleCommandBindings {
             .and_then(|(left, right)| left.joined(right));
         let pool_changed = self.ordinary_literal_pool != pool;
         self.ordinary_literal_pool = pool;
-        let before_objects = Arc::clone(&self.object_instances);
-        Arc::make_mut(&mut self.object_instances).join(&other.object_instances);
-        let mut changed = pool_changed || self.object_instances != before_objects;
+        // naming.command.shared-noop-source-joins
+        // docs/design/analysis/name-resolution-proofs/shared-noop-source-joins.md
+        // The enclosing join requires one original baseline. Skip only a pure
+        // collection self-join authenticated by its actual immutable Arc;
+        // the literal-pool currency query above still runs independently.
+        let mut changed = pool_changed;
+        if !Arc::ptr_eq(&self.object_instances, &other.object_instances) {
+            let before_objects = Arc::clone(&self.object_instances);
+            Arc::make_mut(&mut self.object_instances).join(&other.object_instances);
+            changed |= self.object_instances != before_objects;
+        }
         for (site, incoming) in other.allocation_counts.iter() {
             let current = self.allocation_counts.get(site).copied().unwrap_or(0);
             if *incoming > current {
@@ -15019,21 +15027,32 @@ impl ModuleCommandBindings {
                 changed = true;
             }
         }
-        let before = self.class_definitions.len();
-        Arc::make_mut(&mut self.class_definitions).retain(|identity, definition| {
-            other.class_definitions.get(identity) == Some(definition)
-        });
-        changed |= before != self.class_definitions.len();
-        let before = self.bounded_constructions.len();
-        Arc::make_mut(&mut self.bounded_constructions).retain(|identity, construction| {
-            other.bounded_constructions.get(identity) == Some(construction)
-        });
-        changed |= before != self.bounded_constructions.len();
-        changed |= Arc::make_mut(&mut self.command_observers).join(&other.command_observers);
-        let before = self.tainted_object_dispatch.len();
-        Arc::make_mut(&mut self.tainted_object_dispatch)
-            .extend(other.tainted_object_dispatch.iter().cloned());
-        changed |= before != self.tainted_object_dispatch.len();
+        if !Arc::ptr_eq(&self.class_definitions, &other.class_definitions) {
+            let before = self.class_definitions.len();
+            Arc::make_mut(&mut self.class_definitions).retain(|identity, definition| {
+                other.class_definitions.get(identity) == Some(definition)
+            });
+            changed |= before != self.class_definitions.len();
+        }
+        if !Arc::ptr_eq(&self.bounded_constructions, &other.bounded_constructions) {
+            let before = self.bounded_constructions.len();
+            Arc::make_mut(&mut self.bounded_constructions).retain(|identity, construction| {
+                other.bounded_constructions.get(identity) == Some(construction)
+            });
+            changed |= before != self.bounded_constructions.len();
+        }
+        if !Arc::ptr_eq(&self.command_observers, &other.command_observers) {
+            changed |= Arc::make_mut(&mut self.command_observers).join(&other.command_observers);
+        }
+        if !Arc::ptr_eq(
+            &self.tainted_object_dispatch,
+            &other.tainted_object_dispatch,
+        ) {
+            let before = self.tainted_object_dispatch.len();
+            Arc::make_mut(&mut self.tainted_object_dispatch)
+                .extend(other.tainted_object_dispatch.iter().cloned());
+            changed |= before != self.tainted_object_dispatch.len();
+        }
         if self.source_variables != other.source_variables {
             let mut joined = self.source_variables.as_ref().clone();
             joined.join(&other.source_variables);
@@ -15055,10 +15074,14 @@ impl ModuleCommandBindings {
     fn join_lookup_support(&mut self, other: &Self) -> bool {
         let mut changed = false;
         changed |= join_alternatives(&mut self.objects, &other.objects);
-        changed |= Arc::make_mut(&mut self.namespace_exports)
-            .join_with_default(&other.namespace_exports, &Vec::new());
-        changed |= Arc::make_mut(&mut self.namespace_paths)
-            .join_with_default(&other.namespace_paths, &Vec::new());
+        if !Arc::ptr_eq(&self.namespace_exports, &other.namespace_exports) {
+            changed |= Arc::make_mut(&mut self.namespace_exports)
+                .join_with_default(&other.namespace_exports, &Vec::new());
+        }
+        if !Arc::ptr_eq(&self.namespace_paths, &other.namespace_paths) {
+            changed |= Arc::make_mut(&mut self.namespace_paths)
+                .join_with_default(&other.namespace_paths, &Vec::new());
+        }
         changed |= join_alternatives_with_default(
             &mut self.packages,
             &other.packages,
@@ -15092,9 +15115,11 @@ impl ModuleCommandBindings {
                 &other.unknown_export_namespaces,
             ),
         ] {
-            let before = destination.len();
-            Arc::make_mut(destination).extend(incoming.iter().cloned());
-            changed |= destination.len() != before;
+            if !Arc::ptr_eq(destination, incoming) {
+                let before = destination.len();
+                Arc::make_mut(destination).extend(incoming.iter().cloned());
+                changed |= destination.len() != before;
+            }
         }
         for (destination, incoming) in [
             (&mut self.revoked_loaders, &other.revoked_loaders),
@@ -15103,9 +15128,11 @@ impl ModuleCommandBindings {
                 &other.tainted_provider_state,
             ),
         ] {
-            let before = destination.len();
-            Arc::make_mut(destination).extend(incoming.iter().cloned());
-            changed |= destination.len() != before;
+            if !Arc::ptr_eq(destination, incoming) {
+                let before = destination.len();
+                Arc::make_mut(destination).extend(incoming.iter().cloned());
+                changed |= destination.len() != before;
+            }
         }
         changed
     }
@@ -22780,5 +22807,148 @@ mod original_definition_body_purpose_tests {
             ));
             assert!(nested.source_binding.is_none());
         }
+    }
+}
+
+#[cfg(test)]
+mod shared_noop_source_join_tests {
+    use super::*;
+
+    fn original(source: &str) -> SourceCommandBindings {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let profile = registry.profile().unwrap();
+        SourceCommandBindings::analyse_with_options(
+            source,
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            registry,
+            SourceAnalysisOptions {
+                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                ..Default::default()
+            },
+        )
+    }
+
+    #[test]
+    fn actual_same_owner_join_keeps_shared_storage_and_complete_semantics() {
+        // naming.command.shared-noop-source-joins
+        // docs/design/analysis/name-resolution-proofs/shared-noop-source-joins.md
+        // Original model snapshot storage only; no external interpreter or
+        // Native currency/handler/read/write authority is asserted here.
+        let bindings = original("namespace eval N {variable value 1}; proc helper {} {}");
+        let actual = bindings.final_state.as_ref();
+        let mut branch = actual.clone();
+        let before = branch.clone();
+        assert!(Arc::ptr_eq(&branch.baseline, &actual.baseline));
+        assert!(Arc::ptr_eq(
+            branch.current_source_origin.as_ref().unwrap(),
+            actual.current_source_origin.as_ref().unwrap()
+        ));
+        assert!(!branch.join(actual));
+        assert_eq!(branch, before);
+        assert!(Arc::ptr_eq(
+            &branch.object_instances,
+            &actual.object_instances
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.class_definitions,
+            &actual.class_definitions
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.bounded_constructions,
+            &actual.bounded_constructions
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.command_observers,
+            &actual.command_observers
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.tainted_object_dispatch,
+            &actual.tainted_object_dispatch
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.namespace_exports,
+            &actual.namespace_exports
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.namespace_paths,
+            &actual.namespace_paths
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.unknown_lookup_namespaces,
+            &actual.unknown_lookup_namespaces
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.unknown_namespace_paths,
+            &actual.unknown_namespace_paths
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.namespace_unknown_handlers,
+            &actual.namespace_unknown_handlers
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.unknown_export_namespaces,
+            &actual.unknown_export_namespaces
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.revoked_loaders,
+            &actual.revoked_loaders
+        ));
+        assert!(Arc::ptr_eq(
+            &branch.tainted_provider_state,
+            &actual.tainted_provider_state
+        ));
+    }
+
+    #[test]
+    fn genuine_different_observer_and_namespace_owners_still_join_without_mutating_snapshots() {
+        // naming.command.shared-noop-source-joins
+        // docs/design/analysis/name-resolution-proofs/shared-noop-source-joins.md
+        let source = "proc helper {} {}; trace add execution helper enter {list}";
+        let observed = original(source);
+        let site = u32::try_from(source.find("trace add").unwrap()).unwrap();
+        let previous = &observed.dispatch_points_at(site).next().unwrap().state;
+        let actual = observed.final_state.as_ref();
+        assert!(Arc::ptr_eq(&previous.baseline, &actual.baseline));
+        assert_ne!(previous.command_observers, actual.command_observers);
+        assert!(!Arc::ptr_eq(
+            &previous.command_observers,
+            &actual.command_observers
+        ));
+        let old = actual.clone();
+        let mut joined = actual.clone();
+        assert!(joined.join(previous));
+        assert_ne!(joined.command_observers, actual.command_observers);
+        assert_ne!(joined.command_observers, previous.command_observers);
+        assert_eq!(actual, &old);
+        let stable = joined.clone();
+        assert!(!joined.join(previous));
+        assert_eq!(joined, stable);
+
+        let source = "namespace eval N {}; namespace delete N";
+        let removed = original(source);
+        let site = u32::try_from(source.find("namespace delete").unwrap()).unwrap();
+        let previous = &removed.dispatch_points_at(site).next().unwrap().state;
+        let actual = removed.final_state.as_ref();
+        let removed_namespaces = previous
+            .namespaces
+            .iter()
+            .filter(|namespace| !actual.namespaces.contains(namespace))
+            .cloned()
+            .collect::<Vec<_>>();
+        assert_eq!(
+            removed_namespaces.len(),
+            1,
+            "the actual namespace transition removes one typed owner"
+        );
+        let namespace = &removed_namespaces[0];
+        assert!(previous.namespaces.contains(namespace));
+        assert!(!actual.namespaces.contains(namespace));
+        let old = previous.clone();
+        let mut joined = previous.clone();
+        assert!(joined.join(actual));
+        assert!(!joined.namespaces.contains(namespace));
+        assert_eq!(previous, &old);
+        assert!(previous.namespaces.contains(namespace));
     }
 }

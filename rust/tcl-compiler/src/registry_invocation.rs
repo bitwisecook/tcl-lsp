@@ -367,11 +367,11 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
             .or_else(|| original_declared_structured_invocation(registry, context, tokens))?;
     let source_roles = if context.permits_logical_source_names() {
         let binding = tokens.source_binding.as_ref()?;
-        let realm = binding.invocation_realm().or_else(|| {
-            binding
-                .declaration_operand_layout_advice(tokens)
-                .map(|advice| advice.realm())
-        })?;
+        let realm = binding.original_source_realm_for_input(
+            tokens,
+            context.source_analysis_input()?,
+            registry,
+        )?;
         selected.with_metadata_schema(registry, context, realm, |schema| {
             schema.authored_logical_source_role_projection()
         })
@@ -523,11 +523,19 @@ pub(crate) fn conditional_option_arguments_with_metadata_context(
                 resolved_handler_invocation_with_metadata_context(registry, Some(context), tokens)
             })
             .or_else(|| original_declared_structured_invocation(registry, context, tokens))?;
-    let realm = binding.invocation_realm().or_else(|| {
-        binding
-            .declaration_operand_layout_advice(tokens)
-            .map(|advice| advice.realm())
-    })?;
+    let realm = if context.permits_logical_source_names() {
+        binding.original_source_realm_for_input(
+            tokens,
+            context.source_analysis_input()?,
+            registry,
+        )?
+    } else {
+        binding.invocation_realm().or_else(|| {
+            binding
+                .declaration_operand_layout_advice(tokens)
+                .map(|advice| advice.realm())
+        })?
+    };
     let options = invocation.with_metadata_schema(registry, context, realm, |schema| {
         schema.authored_source_possible_option_arguments()
     })?;

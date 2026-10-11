@@ -1921,17 +1921,17 @@ fn original_folded_case_subject(
     } else {
         original_native_handler_for_case_source(child, registry, child_metadata)?
     };
-    let value = selected.with_metadata_schema(
-        registry,
-        child_metadata,
-        binding.invocation_realm()?,
-        |schema| {
-            (schema.semantics.byte_array_effect == tcl_registry::ByteArrayEffect::CaseFolds
-                && schema.words.arguments().exact_argv_len()
-                    == schema.semantics.argument_offset.checked_add(1))
-            .then_some(schema.semantics.argument_offset)
-        },
-    )?;
+    let realm = if metadata.permits_logical_source_names() {
+        binding.original_source_realm_for_input(child, input, registry)?
+    } else {
+        binding.invocation_realm()?
+    };
+    let value = selected.with_metadata_schema(registry, child_metadata, realm, |schema| {
+        (schema.semantics.byte_array_effect == tcl_registry::ByteArrayEffect::CaseFolds
+            && schema.words.arguments().exact_argv_len()
+                == schema.semantics.argument_offset.checked_add(1))
+        .then_some(schema.semantics.argument_offset)
+    })?;
     let written = selected.effective.written_argument(value)?;
     Some(child.words().get(written + 1)?.clone())
 }
@@ -2895,6 +2895,103 @@ mod tests {
                 assert!(child.command().span.start() > operand.span().start());
                 assert!(child.command().span.end() < operand.span().end());
             }
+        }
+    }
+
+    #[test]
+    fn original_case_fold_child_keeps_declaration_realm_and_refuses_foreign_source_owners() {
+        // naming.compiler.original-unknown-handler-source-context
+        // docs/design/analysis/name-resolution-proofs/compiler-original-unknown-handler-source-context.md
+        // Original conditional child syntax, not a Native folded value or body entry.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let input = logical_schema_input(std::sync::Arc::clone(&context));
+        let source = "proc f {cmd} {puts [string tolower $cmd]}";
+        let mut lowerer =
+            crate::lowering::Lowerer::with_config(context.commands(), input.lexer_config())
+                .with_resolved_analysis_input(input.clone());
+        let module = lowerer.lower(source);
+        let body = &module.procedures.get("::f").unwrap().body;
+        let tokens = body
+            .retained_source_tokens_for_statement(&body.statements[0])
+            .unwrap();
+        let metadata =
+            super::super::InvocationMetadataContext::for_analysis_input(context.commands(), &input)
+                .unwrap();
+        let subject = &tokens.words()[1];
+        let folded = original_folded_case_subject(tokens, subject, context.commands(), metadata)
+            .expect("original Logical declaration child retains its selected schema realm");
+        assert!(
+            matches!(folded, crate::ir::WordExpr::Variable { ref spelling, .. } if spelling == "$cmd")
+        );
+        assert_eq!(
+            folded.source().span.start(),
+            u32::try_from(source.find("$cmd").unwrap()).unwrap()
+        );
+        let calls = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+            tokens,
+            input.lexer_config(),
+            context.commands(),
+            metadata,
+        )
+        .unwrap();
+        assert_eq!(calls.len(), 1);
+        let child = calls[0].tokens.as_ref().unwrap();
+        let binding = child.source_binding.as_ref().unwrap();
+        assert!(
+            binding.invocation_realm().is_none(),
+            "conditional declaration is not a reached child"
+        );
+        assert!(
+            binding
+                .original_source_realm_for_input(child, &input, context.commands())
+                .is_some()
+        );
+        assert!(
+            binding
+                .original_source_word_dialect_for_tokens(child)
+                .unwrap()
+                .native_name_protocol()
+                .is_none()
+        );
+        let mut missing = tokens.clone();
+        missing.nested_bindings.clear();
+        assert!(
+            original_folded_case_subject(
+                &missing,
+                &missing.words()[1],
+                context.commands(),
+                metadata
+            )
+            .is_none()
+        );
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        let mut foreign_store = tcl_registry::CommandRegistry::build_default();
+        foreign_store.insert(tcl_registry::CommandSpec {
+            name: "foreign_case_child_axis",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let foreign =
+            std::sync::Arc::new(context.with_command_store(std::sync::Arc::new(foreign_store)));
+        for changed in [
+            crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                std::sync::Arc::clone(&context),
+                config,
+            ),
+            logical_schema_input(foreign),
+        ] {
+            let metadata = super::super::InvocationMetadataContext::for_analysis_input(
+                changed.borrowed_context_registry().commands(),
+                &changed,
+            )
+            .unwrap();
+            assert!(
+                original_folded_case_subject(tokens, subject, context.commands(), metadata)
+                    .is_none()
+            );
         }
     }
 
