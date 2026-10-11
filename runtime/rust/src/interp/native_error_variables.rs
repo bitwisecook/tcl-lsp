@@ -2,6 +2,7 @@
 
 use super::{new_string, Interp, TraceAccess, GLOBAL};
 use crate::obj;
+use tcl_syntax::value::ValueError;
 use tcl_registry::special_vars::{NativeErrorStorageVariable as Variable, NativeErrorVariableRead};
 
 #[derive(Default, Clone)]
