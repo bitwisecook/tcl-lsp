@@ -15536,6 +15536,30 @@ impl Vm {
         reached
     }
 
+    fn original_trace_failure_message(
+        &mut self,
+        original: &Value,
+        native_result: bool,
+        scope: &native_operation_currency::NativeOperationScope,
+    ) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError> {
+        scope.check(self)?;
+        let reached = if native_result {
+            let protocol = self
+                .actual_native_invocation_dialect()
+                .native_string_protocol()
+                .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original variable trace result String protocol",
+                ))?;
+            let objects = native_numeric_ops::OriginalNumericOps::in_original_scope(self, scope)?;
+            objects.string(original, protocol)
+        } else {
+            // Authored presentation retains its independently selected value semantics.
+            Ok(original.string_bytes())
+        };
+        scope.check(self)?;
+        reached
+    }
+
     fn present_variable_trace_failure(
         &mut self,
         mut failure: Completion<Value>,
@@ -15544,6 +15568,44 @@ impl Vm {
         name: &[u8],
         scope: &native_operation_currency::NativeOperationScope,
     ) -> Result<Completion<Value>, tcl_runtime_api::NativeExecutionError> {
+        scope.check_native(self)?;
+        let native_result = self
+            .native_c_variable_name_protocol()
+            .is_some_and(|protocol| protocol.version() >= tcl_dialect::TclVersion::V8_5);
+        if native_result {
+            // TclCallVarTraces first installs the actual returned trace result.
+            let reached = self.adopt_native_interp_result(failure.result.clone());
+            scope.check_native(self)?;
+            let original =
+                reached.map_err(|error| self.retain_variable_trace_value_error(error))?;
+            self.observe_native_error_result(original.value());
+            drop(original);
+            scope.check_native(self)?;
+        }
+        if native_result
+            && self
+                .native_errors
+                .error_info
+                .as_ref()
+                .is_none_or(Vec::is_empty)
+        {
+            let reached =
+                self.original_trace_failure_message(&failure.result, native_result, scope);
+            let original_message = match reached {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    return match self.variable_trace_command_error(error) {
+                        Ok(guest) => Ok(guest),
+                        Err(first) => Err(first),
+                    };
+                }
+            };
+            // Tcl_AddErrorInfo("") initializes from the already published result.
+            self.seed_error_info_frame(&original_message, b"");
+        } else if native_result {
+            // The actual script callback's existing episode owns its metadata.
+            self.seed_error_info_frame(b"", b"");
+        }
         scope.check_native(self)?;
         let was_error = failure.code == Code::Error;
         if !was_error && let Some(command) = command {
@@ -15564,8 +15626,16 @@ impl Vm {
         let mut message = format!("can't {verb} \"").into_bytes();
         message.extend_from_slice(name);
         message.extend_from_slice(b"\": ");
-        let original_message = failure.result.string_bytes();
-        scope.check_native(self)?;
+        let original_message =
+            match self.original_trace_failure_message(&failure.result, native_result, scope) {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    return match self.variable_trace_command_error(error) {
+                        Ok(guest) => Ok(guest),
+                        Err(first) => Err(first),
+                    };
+                }
+            };
         message.extend_from_slice(&original_message);
         failure.code = Code::Error;
         failure.result = Value::from_string_bytes(message);
@@ -15618,6 +15688,13 @@ impl Vm {
                 }
                 Err(crate::error::TclError::Guest(completion)) => return Ok(completion),
             };
+        }
+        if native_result {
+            let reached = self.adopt_native_interp_result(failure.result.clone());
+            scope.check_native(self)?;
+            let original =
+                reached.map_err(|error| self.retain_variable_trace_value_error(error))?;
+            drop(original);
         }
         scope.check_native(self)?;
         Ok(failure)

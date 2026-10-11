@@ -435,3 +435,131 @@ fn original_saved_trace_cleanup_keeps_changed_currency_and_refuses_foreign_targe
         }
     }
 }
+
+#[test]
+fn original_native_observer_guest_initializes_error_info_before_its_trace_frame() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Real observer/VM owner stages; no Native callback chronology/count equivalence.
+    for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        for operation in [
+            NativeVariableTraceOperation::Read,
+            NativeVariableTraceOperation::Write,
+        ] {
+            let mut vm = native(profile);
+            vm.set_var_bytes(b"x", Value::int(1)).unwrap();
+            let reached = Rc::new(RefCell::new(Vec::new()));
+            add(&mut vm, b"x", operation, &reached, 1, Action::Complete);
+            add(&mut vm, b"x", operation, &reached, 2, Action::Guest);
+            vm.adopt_native_interp_result(Value::new_native_string_bytes(b"BEFORE".as_slice()))
+                .unwrap();
+            assert!(vm.native_errors.error_info.is_none());
+            assert!(vm.native_errors.native_error_info.is_none());
+            let op = if operation == NativeVariableTraceOperation::Read {
+                "read"
+            } else {
+                "write"
+            };
+            let failure = Traces::fire_bytes(&mut vm, b"x", op).unwrap().unwrap_err();
+            let expected = format!(
+                "can't {} \"x\": actual callback Guest error",
+                if op == "read" { "read" } else { "set" }
+            );
+            let info = format!("actual callback Guest error\n    ({op} trace on \"x\")");
+            assert_eq!(failure.code, crate::Code::Error, "{profile}/{op}");
+            assert_eq!(failure.result.string_bytes().as_ref(), expected.as_bytes());
+            assert_eq!(
+                vm.native_errors.error_info.as_deref(),
+                Some(info.as_bytes())
+            );
+            vm.with_native_interp_result(|result| {
+                assert!(result.is_same_object(&failure.result));
+            })
+            .unwrap();
+            assert_eq!(*reached.borrow(), [2]);
+            assert!(
+                vm.execution_refusal.is_none(),
+                "{profile}/{op}: {:?}",
+                vm.execution_refusal
+            );
+            assert!(vm.active_traces.is_empty());
+            assert!(!vm.has_entered_native_operation());
+        }
+    }
+}
+
+#[test]
+fn original_script_trace_guest_keeps_its_existing_error_episode_through_presentation() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let mut vm = native(profile);
+        let completion = vm.try_eval_source(
+            "proc original_trace_stop {args} {error STOP SCRIPT_MARKER}; trace add variable x write original_trace_stop; set x changed"
+        ).unwrap();
+        assert_eq!(completion.code, crate::Code::Error, "{profile}");
+        assert_eq!(
+            completion.result.string_bytes().as_ref(),
+            b"can't set \"x\": STOP"
+        );
+        let info = vm.native_errors.error_info.as_ref().unwrap();
+        assert!(info.starts_with(b"SCRIPT_MARKER"));
+        assert!(
+            info.windows(b"(write trace on \"x\")".len())
+                .any(|part| part == b"(write trace on \"x\")")
+        );
+        assert!(vm.execution_refusal.is_none());
+        assert!(vm.active_traces.is_empty());
+        assert!(!vm.has_entered_native_operation());
+    }
+}
+
+#[test]
+fn original_quiet_trace_guest_restores_the_selected_result_without_new_error_info() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    for profile in RELEASES {
+        let mut vm = native(profile);
+        let name = Value::new_native_string_bytes(b"x".as_slice());
+        vm.set_var_bytes(b"x", Value::int(1)).unwrap();
+        let reached = Rc::new(RefCell::new(Vec::new()));
+        add(
+            &mut vm,
+            b"x",
+            NativeVariableTraceOperation::Write,
+            &reached,
+            1,
+            Action::Guest,
+        );
+        let before = vm
+            .adopt_native_interp_result(Value::new_native_string_bytes(b"BEFORE".as_slice()))
+            .unwrap();
+        let captured = vm.capture_update_cell(b"x", None).unwrap();
+        let failure = vm
+            .with_variable_operation(&captured.cell, |vm| {
+                vm.store_captured_update_with_original_and_errors(
+                    b"x",
+                    None,
+                    &captured,
+                    Value::new_native_string_bytes(b"changed".as_slice()),
+                    Some(&name),
+                    false,
+                )
+            })
+            .unwrap_err();
+        assert_eq!(failure.code, crate::Code::Error);
+        assert!(failure.result.string_bytes().is_empty());
+        vm.with_native_interp_result(|result| assert!(result.is_same_object(before.value())))
+            .unwrap();
+        assert!(vm.native_errors.error_info.is_none());
+        assert!(vm.native_errors.native_error_info.is_none());
+        assert_eq!(*reached.borrow(), [1]);
+        assert_eq!(
+            vm.get_var_bytes(b"x").unwrap().string_bytes().as_ref(),
+            b"changed"
+        );
+        assert!(vm.execution_refusal.is_none());
+        assert!(vm.active_traces.is_empty());
+        assert!(!vm.has_entered_native_operation());
+    }
+}
