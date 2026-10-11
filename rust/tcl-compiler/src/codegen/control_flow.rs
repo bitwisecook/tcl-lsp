@@ -398,7 +398,7 @@ impl CodegenCtx<'_> {
     /// A malformed tail emits the same parse failure as native bracket scripts
     /// after the complete prefix, inside the surrounding live exception range.
     fn emit_segmented_inline_body(&mut self, body: &str, emitter: InlineBodyEmitter) {
-        let config = self.lexer_config();
+        let config = self.lexer_config().nested();
         let Ok(segmented) = crate::lowering::command_at_time_script_image(
             &tcl_lexer::SourceImage::native(body.as_bytes()),
             config,
@@ -514,7 +514,7 @@ impl CodegenCtx<'_> {
             return Some(tokens.clone());
         }
         if let Some(offset) = offset {
-            let config = self.lexer_config();
+            let config = self.lexer_config().nested();
             let segments =
                 crate::segmenter::segment_commands_with_offset_and_config(command, offset, config);
             if let [segment] = segments.as_slice()
@@ -1958,6 +1958,87 @@ mod tests {
     use super::*;
     use crate::cfg::Block;
     use tcl_registry::CommandRegistry;
+
+    #[test]
+    fn original_inline_body_tokens_keep_nested_bom_and_parent_point_correspondence() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Original source geometry only; this control supplies no Native compilation admission.
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let source = "catch {\u{feff}unknown argument}";
+        let bindings =
+            crate::realm::document_realm_bindings_with_resolved_input(source, &input, None);
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            input.lexer_config(),
+        )
+        .pop()
+        .unwrap();
+        let mut parent = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            input.lexer_config(),
+            &command,
+        );
+        bindings
+            .source_bindings_ref()
+            .stamp_original_tokens(&mut parent);
+        let body = "\u{feff}unknown argument";
+        let mut context = CodegenCtx::new(true, &[], registry);
+        context.ingress_lexer_config = Some(input.lexer_config());
+        context.set_source_image(tcl_lexer::SourceImage::document(source));
+        context.inline_body_source_base = Some(7);
+        context.with_invocation_tokens(Some(&parent), |context| {
+            let child = context.inline_body_command_tokens(body, 0).unwrap();
+            assert_eq!(child.argv_texts, ["\u{feff}unknown", "argument"]);
+            assert_eq!(child.argv[0].start(), 7);
+            assert_eq!(
+                source.get(child.argv[0].as_range()),
+                Some("\u{feff}unknown")
+            );
+            let site = child
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .invocation_site()
+                .unwrap();
+            assert_eq!(site.offset, 7);
+            assert_eq!(site.source.source_image().bytes(), source.as_bytes());
+            assert_eq!(context.ingress_lexer_config, Some(input.lexer_config()));
+        });
+        // A real foreign parent cannot lend its child point to equal-position
+        // text from this body's source instance.
+        let other = "catch {foreign argument}";
+        let bindings =
+            crate::realm::document_realm_bindings_with_resolved_input(other, &input, None);
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            other,
+            0,
+            input.lexer_config(),
+        )
+        .pop()
+        .unwrap();
+        let mut foreign = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(other),
+            input.lexer_config(),
+            &command,
+        );
+        bindings
+            .source_bindings_ref()
+            .stamp_original_tokens(&mut foreign);
+        context.with_invocation_tokens(Some(&foreign), |context| {
+            let child = context.inline_body_command_tokens(body, 0).unwrap();
+            assert!(
+                child
+                    .source_binding
+                    .as_ref()
+                    .and_then(|binding| binding.original_lexer_config_for_tokens(&child))
+                    .is_none()
+            );
+        });
+    }
 
     #[test]
     fn original_try_handler_argument_emission_keeps_the_child_source_scope() {

@@ -569,7 +569,7 @@ fn collect_surface_text_with_surface(
         out.incomplete = true;
         return;
     }
-    let Ok(tokens) = tcl_lexer::Lexer::with_config(text, config).tokenise_all() else {
+    let Ok(tokens) = tcl_lexer::Lexer::with_config(text, config.nested()).tokenise_all() else {
         out.incomplete = true;
         return;
     };
@@ -899,6 +899,7 @@ pub fn nested_command_words(
     } else {
         0
     };
+    let config = config.nested();
     let segments = crate::segmenter::segment_commands_with_offset_and_config(inner, base, config);
     let [segment] = segments.as_slice() else {
         return Err(NestedWordsDecline::Unmodelled);
@@ -1263,6 +1264,110 @@ mod tests {
         let mut tokens = CommandTokens::from_segmented(&image.source_map(), config, segment);
         bindings.stamp_original_tokens(&mut tokens);
         tokens
+    }
+
+    #[test]
+    fn original_nested_word_parser_keeps_body_bom_parent_metadata_and_child_geometry() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Conditional original geometry/inventory, never Native child dispatch or result.
+        let mut prepared = crate::analyser::Analyser::new();
+        let base_input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        for leading_bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let mut input = base_input.clone();
+            input.config.leading_bom = leading_bom;
+            let config = input.lexer_config();
+            let registry = input.borrowed_context_registry().commands();
+            let source = "puts [\u{feff}unknown argument]";
+            let tokens = original_logical_tokens(source, &input);
+            let metadata =
+                crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                    registry, &input,
+                )
+                .unwrap();
+            let calls = checked_original_lifted_calls_with_metadata_context(
+                &tokens, config, registry, metadata,
+            )
+            .unwrap();
+            assert_eq!(calls.len(), 1);
+            assert_eq!(calls[0].command, "\u{feff}unknown");
+            let child = calls[0].tokens.as_ref().unwrap();
+            assert_eq!(child.argv_texts, ["\u{feff}unknown", "argument"]);
+            assert_eq!(child.argv[0].start(), 6);
+            assert_eq!(
+                source.get(child.argv[0].as_range()),
+                Some("\u{feff}unknown")
+            );
+            let site = child
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .invocation_site()
+                .unwrap();
+            assert_eq!(site.offset, 6);
+            assert_eq!(site.source.source_image().bytes(), source.as_bytes());
+            let mut changed = config;
+            changed.strict_quoting = !changed.strict_quoting;
+            assert!(
+                checked_original_lifted_calls_with_metadata_context(
+                    &tokens, changed, registry, metadata
+                )
+                .is_none()
+            );
+            let mut missing = tokens.clone();
+            missing.nested_bindings.clear();
+            assert!(
+                checked_original_lifted_calls_with_metadata_context(
+                    &missing, config, registry, metadata
+                )
+                .is_none()
+            );
+        }
+        // The explicit opaque utility keeps selected non-BOM grammar axes;
+        // a span alone cannot manufacture an original source point.
+        let spelling = "[\u{feff}unknown ${outer{inner}}]";
+        let site = SourceSite::opaque(Span::new(0, u32::try_from(spelling.len()).unwrap()));
+        let nested = nested_command_words(spelling, &site, base_input.lexer_config()).unwrap();
+        assert!(matches!(nested.words()[1], WordExpr::Variable { .. }));
+        let config = tcl_lexer::LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..base_input.lexer_config()
+        };
+        let first_close = nested_command_words(spelling, &site, config).unwrap();
+        assert!(matches!(first_close.words()[1], WordExpr::Template { .. }));
+        assert!(first_close.source_binding.is_none());
+        assert!(
+            first_close
+                .words()
+                .iter()
+                .all(|word| word.source().provenance == Provenance::Opaque)
+        );
+    }
+
+    #[test]
+    fn original_extracted_surface_keeps_bom_before_comment_and_no_point_receipt() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Lexical extracted-surface utility; no original point/ExprBool/Normal receipt.
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let surface = DocumentCommandSurface::new(registry, None);
+        let whole = "expr {\u{feff}# [dict size DATA]}";
+        let text = whole
+            .strip_prefix("expr {")
+            .unwrap()
+            .strip_suffix('}')
+            .unwrap();
+        let calls = lifted_calls_in_text(text, Some(6), input.lexer_config(), &surface);
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].command, "dict");
+        assert_eq!(calls[0].args, ["size", "DATA"]);
+        assert_eq!(
+            whole.get(calls[0].span.as_range()),
+            Some("[dict size DATA]")
+        );
+        assert!(calls[0].tokens.as_ref().unwrap().source_binding.is_none());
     }
 
     #[test]

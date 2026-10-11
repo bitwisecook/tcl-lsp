@@ -664,7 +664,7 @@ fn body_increment(
     registry: BoundsMetadataContext<'_>,
     lexer_config: tcl_lexer::LexerConfig,
 ) -> Option<i64> {
-    let mut steps = segment_commands_with_offset_and_config(body, 0, lexer_config)
+    let mut steps = segment_commands_with_offset_and_config(body, 0, lexer_config.nested())
         .into_iter()
         .filter_map(|cmd| command_increment(&cmd, var, registry, lexer_config));
     let step = steps.next()?;
@@ -958,8 +958,11 @@ fn flip_comparison(op: &str) -> &str {
 /// The single command in `fragment` (after stripping an enclosing brace
 /// pair), or `None` when it segments to zero or more than one command.
 fn sole_command(fragment: &str, lexer_config: tcl_lexer::LexerConfig) -> Option<SegmentedCommand> {
-    let mut cmds =
-        segment_commands_with_offset_and_config(strip_braces(fragment).trim(), 0, lexer_config);
+    let mut cmds = segment_commands_with_offset_and_config(
+        strip_braces(fragment).trim(),
+        0,
+        lexer_config.nested(),
+    );
     match cmds.len() {
         1 => cmds.pop(),
         _ => None,
@@ -2937,6 +2940,42 @@ mod tests {
 #[cfg(test)]
 mod original_body_parser_purpose_tests {
     use super::*;
+
+    #[test]
+    fn original_loop_body_and_step_parsers_keep_bom_as_command_content() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Retained conditional schema/body syntax; no executed loop/cell effect proof.
+        let mut analyser = crate::analyser::Analyser::new();
+        let input = analyser.prepare_analysis_input("tcl9.1").unwrap();
+        let metadata = BoundsMetadataContext::Retained(input.borrowed_context_registry());
+        assert_eq!(
+            body_increment("incr counter", "counter", metadata, input.lexer_config()),
+            Some(1)
+        );
+        assert_eq!(
+            body_increment(
+                "\u{feff}incr counter",
+                "counter",
+                metadata,
+                input.lexer_config()
+            ),
+            None
+        );
+        assert_eq!(
+            sole_command("incr counter", input.lexer_config())
+                .unwrap()
+                .texts[0],
+            "incr"
+        );
+        assert_eq!(
+            sole_command("\u{feff}incr counter", input.lexer_config())
+                .unwrap()
+                .texts[0],
+            "\u{feff}incr"
+        );
+        assert!(sole_command("incr counter; incr counter", input.lexer_config()).is_none());
+    }
 
     #[test]
     fn original_body_walk_keeps_leading_bom_as_command_content_at_each_depth() {

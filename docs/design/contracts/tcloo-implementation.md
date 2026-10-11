@@ -363,3 +363,22 @@ Reference results captured from real tclsh 8.4–9.0 are queryable via the
 | `rust/tcl-compiler/src/analyser/class_hierarchy.rs` | Owner-aware hierarchy index + one-hop class resolution |
 | `rust/tcl-registry/src/definer.rs` | Definer body grammars (TclOO / snit / itcl as data) |
 | `rust/tcl-lsp-core/src/oo_body.rs` | Shared member walker (folding, semantic tokens) |
+
+### Original forward prefixes
+
+Runtime TclOO forwards retain an `obj::Owned` native List of the original
+prefix members. Definition builds that List after the selected method-name
+stage; it does not read each member's String. `info ... forward` returns the
+same List, and declaration cloning shares its retained List owner. Invocation
+uses the existing selected List accessor and
+`Interp::dispatch_in_lookup_namespace` with the object's actual namespace.
+The caller's variable frame remains in force and the prefix headers are not
+reconstructed from reported bytes. Currency checks and header leases remain
+independent of OO identity, namespace and List-protocol admission.
+
+The original C 8.6.18, 9.0.4 and 9.1.0 controls in
+[the OO operand-stage proof](../analysis/name-resolution-proofs/tcloo-original-operand-string-and-prefix-stages.md)
+separate declaration, raw List access, explicit presentation and invocation
+reads. They cover the fixed observed inputs. The initialized C 8.4.20, C 8.5.19
+and Jim providers have no TclOO command in those controls. No unsupported OO
+execution follows from their availability records.

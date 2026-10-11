@@ -82,6 +82,9 @@ pub(crate) mod native_scalar_context;
 mod native_script;
 mod native_substitution;
 mod native_variable_names;
+#[cfg(test)]
+#[path = "interp/native_eval_object_tests.rs"]
+mod native_eval_object_tests;
 mod native_variable_observers;
 mod native_variable_teardown;
 mod stock_ensembles;
@@ -2136,17 +2139,30 @@ impl Interp {
         &mut self,
         original: *mut TclObj,
     ) -> Result<Vec<u8>, tcl_syntax::value::ValueError> {
+        let check = || {
+            self.check_entered_native_operation().map_err(|_| {
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "entered original script-object String getter",
+                )
+            })?;
+            obj::check_native_liveness(original)
+        };
+        check()?;
+        let _original_lifetime = obj::NativeObjectLifetime::retain(original);
         let dialect = self.eval_frame_dialect();
         let protocol = dialect.native_string_protocol().ok_or(
             tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "native script-object string materialisation",
             ),
         )?;
-        crate::dict::native_object_bytes_with_integer_formatter(
-            original,
-            protocol,
-            self.host().native_integer_formatter(),
-        )
+        let host = self.host();
+        let formatter = host.native_integer_formatter();
+        check()?;
+        let result =
+            crate::dict::native_object_bytes_with_integer_formatter(original, protocol, formatter);
+        // Preserve reached getter effects and its first refusal even on Err.
+        check()?;
+        result
     }
 
     /// Install source-word materialisation independently of physical object

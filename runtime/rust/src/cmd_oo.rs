@@ -123,7 +123,7 @@ enum Method {
         procedure: crate::interp::NativeCallableProcedure,
     },
     Forward {
-        prefix: Vec<Vec<u8>>,
+        prefix: obj::Owned,
     },
     Builtin(NativeMethod),
     /// Native C91 GetterType/SetterType clientData without a Tcl proc frame.
@@ -1342,7 +1342,10 @@ fn install_slot_instances(interp: &mut Interp) {
                 drop(o.methods.insert(
                     b"--default-operation".to_vec(),
                     Method::Forward {
-                        prefix: vec![b"my".to_vec(), b"-set".to_vec()],
+                        prefix: obj::Owned::fresh(interp.new_list_object(&[
+                            obj::new_string_bytes(b"my"),
+                            obj::new_string_bytes(b"-set"),
+                        ])),
                     },
                 ));
                 o.unexported.insert(b"--default-operation".to_vec());
@@ -2574,15 +2577,10 @@ fn def_forward(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         if argv.len() < 3 {
             return wrong_args(interp, b"forward name cmdName ?arg ...?");
         }
-        let mut prefix = Vec::with_capacity(argv.len() - 2);
-        for index in 2..argv.len() {
-            prefix.push(oo_original_bytes!(interp, originals, index));
-        }
-        install_method(
-            interp,
-            oo_original_bytes!(interp, originals, 1),
-            Method::Forward { prefix },
-        )
+        let name = oo_original_bytes!(interp, originals, 1);
+        let prefix = obj::Owned::fresh(interp.new_list_object(&argv[2..]));
+        oo_original_check!(interp, originals);
+        install_method(interp, name, Method::Forward { prefix })
     })
 }
 
@@ -3857,25 +3855,39 @@ fn info_forward(interp: &mut Interp, id: OoId, argv: &[*mut TclObj], class: bool
             return wrong_args(interp, u);
         }
         let name = oo_original_bytes!(interp, originals, 4);
-        let m = {
+        let method_owner = {
             let oo = interp.oo.borrow();
             if class {
-                oo.classes.get(&id).and_then(|c| c.methods.get(&name))
+                oo.classes
+                    .get(&id)
+                    .and_then(|c| c.methods.owner(name.as_ref()))
             } else {
-                oo.objects.get(&id).and_then(|o| o.methods.get(&name))
+                oo.objects
+                    .get(&id)
+                    .and_then(|o| o.methods.owner(name.as_ref()))
             }
         };
-        match m {
+        let method = method_owner.as_ref().map(|owner| owner.borrow().clone());
+        let code = match method {
             Some(Method::Forward { prefix }) => {
-                set_list(interp, &prefix);
-                Code::Ok
+                let members = interp.list_elements(&prefix.as_ptr());
+                oo_original_check!(interp, originals);
+                match members {
+                    Ok(_) => {
+                        interp.set_result(prefix.as_ptr());
+                        Code::Ok
+                    }
+                    Err(error) => interp.report_cmd_error(error.into()),
+                }
             }
             Some(_) => err(
                 interp,
                 b"prefix argument list not available for this kind of method",
             ),
             None => unknown_method_named(interp, &name),
-        }
+        };
+        drop(method_owner);
+        code
     })
 }
 
@@ -6120,29 +6132,6 @@ impl Interp {
     /// namespace (e.g. the per-object `my`/`myclass`), return its fully-qualified
     /// form so it resolves while the command still runs in the caller's context;
     /// otherwise return `word` unchanged (resolves globally).
-    fn qualify_in_object_ns(&self, obj: OoId, word: &[u8]) -> Vec<u8> {
-        if word.starts_with(b"::") {
-            return word.to_vec();
-        }
-        let var_ns = self.oo.borrow().objects.get(&obj).map(|o| o.var_ns);
-        if let Some(ns) = var_ns {
-            // Resolve the word as a command in the object's namespace. Only a
-            // command whose home lies *within* the object's namespace subtree
-            // (the per-object `my`/`myclass`, or a proc the object put in a child
-            // namespace — oo-6.6) gets qualified; one merely visible via the
-            // global fallback is left bare so it keeps its caller-context vars.
-            let mut prefix = self.namespaces().qualified_name(ns);
-            if prefix != b"::" {
-                prefix.extend_from_slice(b"::");
-            }
-            if let Some(fqn) = self.namespaces().resolve_fqn(ns, word) {
-                if fqn.starts_with(&prefix) {
-                    return fqn;
-                }
-            }
-        }
-        word.to_vec()
-    }
 
     /// Whether the provider `prov` (object FQN or class FQN) defines `method`
     /// (or a constructor, when `ctor`).
@@ -6383,25 +6372,35 @@ impl Interp {
         // A forward: build `prefix + args` and dispatch (with the OO context so a
         // forwarded `my`/`self` still works).
         if let Method::Forward { prefix } = &m {
-            let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(prefix.len() + args.len());
-            // The forwarded command resolves in the object's namespace, so a bare
-            // `my`/`myclass` works; but the command then *runs* in the caller's
-            // context (variables resolve there). Achieve both by qualifying the
-            // first word with the object namespace only when it resolves there.
-            for (i, p) in prefix.iter().enumerate() {
-                let word = if i == 0 {
-                    self.qualify_in_object_ns(obj, p)
-                } else {
-                    p.clone()
+            let members = self.list_elements(&prefix.as_ptr());
+            if let Err(first) = self.check_entered_native_operation() {
+                return self
+                    .report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(first));
+            }
+            let members = match members {
+                Ok(members) => members,
+                Err(error) => return self.report_cmd_error(error.into()),
+            };
+            let namespace = {
+                self.oo
+                    .borrow()
+                    .objects
+                    .get(&obj)
+                    .map(|object| object.var_ns)
+            };
+            let Some(namespace) = namespace else {
+                return self.set_error(b"forwarded object has been deleted");
+            };
+            let mut new_argv = Vec::with_capacity(members.len() + args.len());
+            new_argv.extend_from_slice(&members);
+            new_argv.extend_from_slice(args);
+            // The original List owns its members. This borrowed invocation adds
+            // no native child references and preserves the exact member headers.
+            let originals =
+                match crate::interp::native_arguments::OriginalArguments::enter(self, &new_argv) {
+                    Ok(originals) => originals,
+                    Err(error) => return self.report_cmd_error(error),
                 };
-                let o = obj::new_string_bytes(&word);
-                unsafe { obj::incr_ref_count(o) };
-                new_argv.push(o);
-            }
-            for &a in args {
-                unsafe { obj::incr_ref_count(a) };
-                new_argv.push(a);
-            }
             // The method this forward (possibly via a chain of forwards /
             // ensembles) leads to reports `wrong # args` against the *original*
             // invocation, not the forwarded command (C's ensemble rewrite). The
@@ -6424,7 +6423,7 @@ impl Interp {
             ];
             source.extend(args.iter().map(|&word| crate::obj::Owned::retain(word)));
             // `obj method` (2 words) is replaced by the forward `prefix`.
-            let is_root = self.begin_ensemble_rewrite(source, 2, prefix.len());
+            let is_root = self.begin_ensemble_rewrite(source, 2, members.len());
             let name_owner = self.oo_name_owner(obj);
             self.oo.borrow_mut().call_stack.push(OoFrame {
                 name_owner,
@@ -6435,7 +6434,7 @@ impl Interp {
                 target: target.to_vec(),
                 external,
             });
-            let code = self.dispatch_invoke(&new_argv);
+            let code = self.dispatch_in_lookup_namespace(namespace, &new_argv);
             self.oo.borrow_mut().call_stack.pop();
             if is_root {
                 self.clear_ensemble_rewrite();
@@ -6443,10 +6442,8 @@ impl Interp {
             // Clear the rewrite if the forwarded command was not a method body
             // (which would have consumed it).
             self.oo.borrow_mut().fwd_usage = None;
-            for a in new_argv {
-                unsafe { obj::decr_ref_count(a) };
-            }
-            return code;
+            drop(m);
+            return originals.finish(code);
         }
 
         let Method::Body { procedure } = m else {
