@@ -138,6 +138,8 @@ fn compiler_dict_create_fold(args: &[&str]) -> Option<String> {
     tcl_compiler::const_subst::ConstSubstCtx {
         registry: tcl_registry::default_registry(),
         resolution_namespace: "::",
+        // Independent registry folding supplies no original executable namespace.
+        namespace_context: None,
         version: Some(TclVersion::V9_0),
         defining_class: None,
         trusts: &trusts,
