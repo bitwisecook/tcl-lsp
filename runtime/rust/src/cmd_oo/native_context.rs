@@ -88,7 +88,10 @@ fn unknown_definition(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let Some((_, operands)) = argv.get(1..).and_then(|args| args.split_first()) else {
             return interp.set_error(b"bad call of unknown handler");
         };
-        let requested_bytes = oo_original_bytes!(interp, originals, 1);
+        let requested_bytes = match originals.bytes(1) {
+            Ok(bytes) => bytes,
+            Err(error) => return interp.report_cmd_error(error),
+        };
         let Some(head) = interp.oo_definition_head(&requested_bytes) else {
             return interp.invalid_command(&requested_bytes);
         };
@@ -195,7 +198,10 @@ impl Interp {
         let mut original_argv = vec![requested];
         original_argv.extend_from_slice(operands);
         with_original_arguments(self, &original_argv, |interp, originals| {
-            let bytes = oo_original_bytes!(interp, originals, 0);
+            let bytes = match originals.bytes(0) {
+                Ok(bytes) => bytes,
+                Err(error) => return interp.report_cmd_error(error),
+            };
             let head = interp
                 .oo_definition_head(&bytes)
                 .unwrap_or_else(|| obj::Owned::retain(requested));
@@ -638,7 +644,7 @@ mod original_forward_prefix_tests {
         let mut interpreter =
             OWNER.with(|owner| owner.borrow().as_ref().unwrap().upgrade().unwrap());
         match MODE.with(Cell::get) {
-            1 => interpreter.refuse_host_command("first original forward member updater"),
+            1 => { interpreter.refuse_host_command("first original forward member updater"); }
             2 => {
                 let original = interpreter.runtime_context();
                 let mut changed = original.clone();
