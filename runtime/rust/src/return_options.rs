@@ -253,6 +253,9 @@ pub(crate) fn publish(
             }
         }
         interp.process_return_error(info.as_deref(), errorcode.as_deref(), stack.as_deref());
+        if interp.host_refusal_pending() {
+            return Code::Error;
+        }
         for pair in &prepared.options {
             match pair.name_in(ops.protocol) {
                 b"-errorinfo" if info.as_ref().is_some_and(|bytes| !bytes.is_empty()) => {

@@ -607,3 +607,228 @@ fn original_bootstrap_reporting_retirement_preserves_the_reached_first_cause() {
     assert_eq!(root(&interp, b"env"), Some(scalar.as_ptr()));
     assert_eq!(interp.entered_native_operation_count(), 0);
 }
+
+#[test]
+fn original_native_bootstrap_current_write_observers_keep_stored_value_and_result() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Actual software publication/observer stages, not external constructor timing.
+    use tcl_runtime_api::native_variable_trace::NativeVariableTraceOperation;
+    let mut interp = native(CallbackHost::new("current"), "tcl8.6");
+    let selected = protocol(&interp);
+    let name = crate::obj::Owned::fresh(super::new_string(b"env"));
+    let first = Rc::new(Cell::new(0));
+    let later = Rc::new(Cell::new(0));
+    for calls in [later.clone(), first.clone()] {
+        interp
+            .add_native_variable_observer(
+                name.as_ptr(),
+                &[NativeVariableTraceOperation::Write],
+                Rc::new(BootstrapObserver {
+                    replacement: CallbackHost::new("unused"),
+                    calls,
+                    changes_host: false,
+                }),
+            )
+            .unwrap();
+    }
+    interp.set_result_bytes(b"ORIGINAL RESULT");
+    let result = interp.get_obj_result();
+    assert_eq!(
+        interp.bootstrap_native_core(selected, &NativeBootstrapInputs::default()),
+        Ok(())
+    );
+    assert_eq!(first.get(), 1);
+    assert_eq!(later.get(), 1);
+    assert_eq!(
+        super::obj_bytes(element(&interp, b"env", b"BOOTSTRAP_USER").unwrap()),
+        b"current"
+    );
+    assert_eq!(interp.get_obj_result(), result);
+    assert!(interp.native_execution_refusal().is_none());
+    assert_eq!(interp.entered_native_operation_count(), 0);
+}
+
+struct BootstrapGuestObserver(Rc<Cell<usize>>);
+impl tcl_runtime_api::native_variable_trace::NativeVariableObserver<Interp>
+    for BootstrapGuestObserver
+{
+    type Error = tcl_cmd_core::CmdError;
+    fn observe(
+        &self,
+        _: &mut Interp,
+        access: tcl_runtime_api::native_variable_trace::NativeVariableTraceAccess<'_>,
+    ) -> Result<(), Self::Error> {
+        assert_eq!(access.name1, b"env");
+        assert_eq!(access.name2, b"BOOTSTRAP_USER");
+        assert_eq!(
+            access.operation,
+            tcl_runtime_api::native_variable_trace::NativeVariableTraceOperation::Write
+        );
+        self.0.set(self.0.get() + 1);
+        Err(tcl_cmd_core::CmdError::new("BOOTSTRAP OBSERVER"))
+    }
+}
+
+#[test]
+fn original_native_bootstrap_guest_write_failure_keeps_store_and_stops_later_stages() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    use tcl_runtime_api::native_variable_trace::NativeVariableTraceOperation;
+    let mut interp = native(CallbackHost::new("guest"), "tcl8.6");
+    let selected = protocol(&interp);
+    let name = crate::obj::Owned::fresh(super::new_string(b"env"));
+    let later = Rc::new(Cell::new(0));
+    let failing = Rc::new(Cell::new(0));
+    interp
+        .add_native_variable_observer(
+            name.as_ptr(),
+            &[NativeVariableTraceOperation::Write],
+            Rc::new(BootstrapObserver {
+                replacement: CallbackHost::new("unused"),
+                calls: later.clone(),
+                changes_host: false,
+            }),
+        )
+        .unwrap();
+    interp
+        .add_native_variable_observer(
+            name.as_ptr(),
+            &[NativeVariableTraceOperation::Write],
+            Rc::new(BootstrapGuestObserver(failing.clone())),
+        )
+        .unwrap();
+    let platform = element(&interp, b"tcl_platform", b"user").unwrap();
+    let errors = interp.native_error_cells.borrow().clone();
+    let precision = interp.native_precision_cell.get();
+    assert_eq!(
+        interp.bootstrap_native_core(selected, &NativeBootstrapInputs::default()),
+        Err(Code::Error)
+    );
+    assert_eq!(failing.get(), 1);
+    assert_eq!(later.get(), 0);
+    assert_eq!(
+        super::obj_bytes(element(&interp, b"env", b"BOOTSTRAP_USER").unwrap()),
+        b"guest"
+    );
+    assert_eq!(element(&interp, b"tcl_platform", b"user"), Some(platform));
+    assert_eq!(*interp.native_error_cells.borrow(), errors);
+    assert_eq!(interp.native_precision_cell.get(), precision);
+    assert_eq!(
+        super::obj_bytes(interp.get_obj_result()),
+        b"can't set \"env\": BOOTSTRAP OBSERVER"
+    );
+    assert!(interp.native_execution_refusal().is_none());
+    assert_eq!(interp.entered_native_operation_count(), 0);
+}
+
+fn bootstrap_in_actual_procedure(interp: &mut Interp, _: &[*mut crate::obj::TclObj]) -> Code {
+    assert!(interp.frames.borrow().current_level() > 0);
+    let selected = protocol(interp);
+    match interp.bootstrap_native_core(selected, &NativeBootstrapInputs::default()) {
+        Ok(()) => Code::Ok,
+        Err(code) => code,
+    }
+}
+
+#[test]
+fn original_native_bootstrap_write_observer_uses_root_cell_inside_actual_procedure() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // The actual native procedure supplies a distinct local env cell; bootstrap
+    // publication retains frame zero without borrowing the ambient local frame.
+    use tcl_runtime_api::native_variable_trace::NativeVariableTraceOperation;
+    let mut interp = native(CallbackHost::new("root"), "tcl8.6");
+    interp.register_builtin(
+        b"bootstrap_in_actual_procedure",
+        bootstrap_in_actual_procedure,
+    );
+    let name = crate::obj::Owned::fresh(super::new_string(b"env"));
+    let calls = Rc::new(Cell::new(0));
+    interp
+        .add_native_variable_observer(
+            name.as_ptr(),
+            &[NativeVariableTraceOperation::Write],
+            Rc::new(BootstrapObserver {
+                replacement: CallbackHost::new("unused"),
+                calls: calls.clone(),
+                changes_host: false,
+            }),
+        )
+        .unwrap();
+    assert_eq!(
+        interp
+            .eval_str(b"proc p {} {set env LOCAL; bootstrap_in_actual_procedure; return $env}; p"),
+        Code::Ok
+    );
+    assert_eq!(calls.get(), 1);
+    assert_eq!(super::obj_bytes(interp.get_obj_result()), b"LOCAL");
+    assert_eq!(
+        super::obj_bytes(element(&interp, b"env", b"BOOTSTRAP_USER").unwrap()),
+        b"root"
+    );
+    assert!(interp.native_execution_refusal().is_none());
+    assert_eq!(interp.entered_native_operation_count(), 0);
+}
+
+struct BootstrapListObserver(Rc<Cell<usize>>);
+impl tcl_runtime_api::native_variable_trace::NativeVariableObserver<Interp>
+    for BootstrapListObserver
+{
+    type Error = tcl_cmd_core::CmdError;
+    fn observe(
+        &self,
+        interp: &mut Interp,
+        access: tcl_runtime_api::native_variable_trace::NativeVariableTraceAccess<'_>,
+    ) -> Result<(), Self::Error> {
+        assert_eq!(access.name1, b"tcl_pkgPath");
+        assert_eq!(access.name2, b"");
+        assert_eq!(
+            access.operation,
+            tcl_runtime_api::native_variable_trace::NativeVariableTraceOperation::Write
+        );
+        let value = root(interp, b"tcl_pkgPath").unwrap();
+        let snapshot = crate::obj::native_object_snapshot(value).unwrap();
+        assert_eq!(snapshot.resident, None);
+        assert!(matches!(
+            snapshot.cache,
+            tcl_syntax::native_object::NativeObjectCacheSnapshot::List { length: 2, .. }
+        ));
+        self.0.set(self.0.get() + 1);
+        Ok(())
+    }
+}
+
+#[test]
+fn original_native_bootstrap_list_publication_reaches_observer_without_string_conversion() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Readonly header/backing observations do not measure an external Tcl getter.
+    use tcl_runtime_api::native_variable_trace::NativeVariableTraceOperation;
+    let mut interp = native(CallbackHost::new("list"), "tcl8.6");
+    let selected = protocol(&interp);
+    let name = crate::obj::Owned::fresh(super::new_string(b"tcl_pkgPath"));
+    let calls = Rc::new(Cell::new(0));
+    interp
+        .add_native_variable_observer(
+            name.as_ptr(),
+            &[NativeVariableTraceOperation::Write],
+            Rc::new(BootstrapListObserver(calls.clone())),
+        )
+        .unwrap();
+    let inputs = NativeBootstrapInputs {
+        package_path: b"/one {/two space}".to_vec(),
+        ..NativeBootstrapInputs::default()
+    };
+    assert_eq!(interp.bootstrap_native_core(selected, &inputs), Ok(()));
+    assert_eq!(calls.get(), 1);
+    let snapshot =
+        crate::obj::native_object_snapshot(root(&interp, b"tcl_pkgPath").unwrap()).unwrap();
+    assert_eq!(snapshot.resident, None);
+    assert!(matches!(
+        snapshot.cache,
+        tcl_syntax::native_object::NativeObjectCacheSnapshot::List { length: 2, .. }
+    ));
+    assert!(interp.native_execution_refusal().is_none());
+    assert_eq!(interp.entered_native_operation_count(), 0);
+}

@@ -5798,15 +5798,14 @@ impl Interp {
                         .currency()
                         .ensure_current_or_refuse()
                         .map_err(|first| self.refuse_native_execution(first))?;
-                    let written = self.var_set_at(name, value.as_ptr(), 0);
+                    let written = self.publish_host_bootstrap_object(
+                        scope.currency(),
+                        name,
+                        None,
+                        value.as_ptr(),
+                    );
                     drop(value);
                     drop(members);
-                    scope
-                        .currency()
-                        .ensure_current_or_refuse()
-                        .map_err(|first| self.refuse_native_execution(first))?;
-                    let written =
-                        written.map_err(|error| crate::builtins::var_error(self, name, error));
                     self.checked_bootstrap_outcome(scope.currency(), written)?;
                 }
                 V::AutoPath => self.publish_host_bootstrap_value(
@@ -5928,16 +5927,95 @@ impl Interp {
             .ensure_current_or_refuse()
             .map_err(|first| self.refuse_native_execution(first))?;
         let value = obj::Owned::fresh(new_string(bytes));
-        let written = match element {
-            Some(element) => self.var_set_elem_at(name, element, value.as_ptr(), 0),
-            None => self.var_set_at(name, value.as_ptr(), 0),
-        };
+        let written = self.publish_host_bootstrap_object(currency, name, element, value.as_ptr());
         drop(value);
+        self.checked_bootstrap_outcome(currency, written)
+    }
+
+    /// Publish a caller-held original object into its root bootstrap cell.
+    /// The addressed store and selected C Write observer are distinct stages;
+    /// the latter holds the original receiver through callback retirement.
+    fn publish_host_bootstrap_object(
+        &mut self,
+        currency: &native_operation_currency::NativeOperationCurrency,
+        name: &[u8],
+        element: Option<&[u8]>,
+        value: *mut TclObj,
+    ) -> Result<(), Code> {
         currency
             .ensure_current_or_refuse()
             .map_err(|first| self.refuse_native_execution(first))?;
-        let written = written.map_err(|error| crate::builtins::var_error(self, name, error));
-        self.checked_bootstrap_outcome(currency, written)
+        let selected = if self.has_variable_traces()
+            && self.native_c_variable_name_protocol().is_some()
+        {
+            if self.store_escapes_at(name, 0) {
+                let refused = Err(crate::builtins::var_error(self, name, VarError::Confined));
+                return self.checked_bootstrap_outcome(currency, refused);
+            }
+            let input = self.separate_variable_input(name, element);
+            currency
+                .ensure_current_or_refuse()
+                .map_err(|first| self.refuse_native_execution(first))?;
+            let input = input.map_err(|error| crate::builtins::var_error(self, name, error));
+            let input = self.checked_bootstrap_outcome(currency, input)?;
+            let root = input.root().selected().to_vec();
+            let member = input.element().map(|element| element.selected().to_vec());
+            let captured = crate::vars::capture_variable_store_receiver_at(
+                &mut self.frames.borrow_mut(),
+                &mut self.namespaces.borrow_mut(),
+                &root,
+                member.clone(),
+                0,
+            );
+            currency
+                .ensure_current_or_refuse()
+                .map_err(|first| self.refuse_native_execution(first))?;
+            let captured = captured.map_err(|error| crate::builtins::var_error(self, name, error));
+            let captured = self.checked_bootstrap_outcome(currency, captured)?;
+            let (receiver, home) = captured.ok_or_else(|| {
+                self.refuse_native_access(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "native bootstrap store receiver",
+                    ),
+                )
+            })?;
+            Some((receiver, home, root, member))
+        } else {
+            None
+        };
+        let outcome = (|| {
+            let written = match &selected {
+                Some((receiver, _, _, _)) => receiver.store(value),
+                None => match element {
+                    Some(element) => self.var_set_elem_at(name, element, value, 0),
+                    None => self.var_set_at(name, value, 0),
+                },
+            };
+            currency
+                .ensure_current_or_refuse()
+                .map_err(|first| self.refuse_native_execution(first))?;
+            let written = written.map_err(|error| crate::builtins::var_error(self, name, error));
+            self.checked_bootstrap_outcome(currency, written)?;
+            if let Some((_, home, root, member)) = &selected {
+                let access = self.trace_access(name, root, member.as_deref(), home, false);
+                let traced = self.fire_var_trace_resolved(home, &access, b"write");
+                currency
+                    .ensure_current_or_refuse()
+                    .map_err(|first| self.refuse_native_execution(first))?;
+                let traced = traced.map_err(|first| self.refuse_native_execution(first))?;
+                match traced {
+                    VariableTraceGuestOutcome::Complete => {}
+                    VariableTraceGuestOutcome::GuestError => {
+                        let failed =
+                            Err(crate::builtins::var_error(self, name, VarError::TraceError));
+                        return self.checked_bootstrap_outcome(currency, failed);
+                    }
+                }
+            }
+            Ok(())
+        })();
+        drop(selected);
+        self.checked_bootstrap_outcome(currency, outcome)
     }
 
     /// Keep the original first cause after reached error reporting or cleanup.
@@ -9928,12 +10006,15 @@ impl Interp {
     ///
     /// Arbitrary result bytes carry the neutral `NONE` error-code identity.
     pub(crate) fn error(&mut self, msg: &[u8]) -> Code {
-        if self.host_refusal_pending() {
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return Code::Error;
+        };
+        self.set_result_bytes(msg);
+        if scope.currency().ensure_current_or_refuse().is_err() {
             return Code::Error;
         }
-        self.set_result_bytes(msg);
         let code = b"NONE";
-        *self.exc.borrow_mut() = ExceptionState {
+        let state = ExceptionState {
             native: Default::default(),
             info: None,
             code: code.to_vec(),
@@ -9942,7 +10023,13 @@ impl Interp {
             primitive_getter: None,
             expression_error_stage: None,
         };
-        self.capture_native_error_objects();
+        if self
+            .replace_exception_state_checked(scope.currency(), state)
+            .and_then(|()| self.capture_native_error_objects_checked(scope.currency()))
+            .is_err()
+        {
+            return Code::Error;
+        }
         Code::Error
     }
 
@@ -9950,11 +10037,14 @@ impl Interp {
     /// still builds up as the error unwinds). For commands that mirror C's
     /// richer error codes (`TCL LOOKUP INDEX …`, `TCL OO …`).
     pub(crate) fn error_with_code(&mut self, msg: &[u8], code: &[u8]) -> Code {
-        if self.host_refusal_pending() {
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return Code::Error;
+        };
+        self.set_result_bytes(msg);
+        if scope.currency().ensure_current_or_refuse().is_err() {
             return Code::Error;
         }
-        self.set_result_bytes(msg);
-        *self.exc.borrow_mut() = ExceptionState {
+        let state = ExceptionState {
             native: Default::default(),
             info: None,
             code: code.to_vec(),
@@ -9963,7 +10053,13 @@ impl Interp {
             primitive_getter: None,
             expression_error_stage: None,
         };
-        self.capture_native_error_objects();
+        if self
+            .replace_exception_state_checked(scope.currency(), state)
+            .and_then(|()| self.capture_native_error_objects_checked(scope.currency()))
+            .is_err()
+        {
+            return Code::Error;
+        }
         Code::Error
     }
 
@@ -10357,13 +10453,22 @@ impl Interp {
     /// re-logged — `ERR_ALREADY_LOGGED`), and `-errorcode` is `code`. Returns
     /// [`Code::Error`].
     pub(crate) fn raise_with_info(&mut self, msg: &[u8], info: &[u8], code: &[u8]) -> Code {
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return Code::Error;
+        };
         self.set_result_bytes(msg);
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return Code::Error;
+        }
         if self.uses_jim_error_stack() {
             self.jim_error_stack
                 .borrow_mut()
                 .adopt_explicit(obj::Owned::fresh(new_string(info)));
         }
-        *self.exc.borrow_mut() = ExceptionState {
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return Code::Error;
+        }
+        let state = ExceptionState {
             native: Default::default(),
             info: Some(info.to_vec()),
             code: code.to_vec(),
@@ -10372,7 +10477,13 @@ impl Interp {
             primitive_getter: None,
             expression_error_stage: None,
         };
-        self.capture_native_error_objects();
+        if self
+            .replace_exception_state_checked(scope.currency(), state)
+            .and_then(|()| self.capture_native_error_objects_checked(scope.currency()))
+            .is_err()
+        {
+            return Code::Error;
+        }
         self.exc.borrow_mut().native.legacy_copy = true;
         Code::Error
     }
@@ -10381,7 +10492,10 @@ impl Interp {
     /// `-errorcode` `code` and an empty trace (it accumulates as the error
     /// unwinds). Used by `error msg`/`throw`. Returns [`Code::Error`].
     pub(crate) fn set_error_state(&mut self, code: &[u8]) -> Code {
-        *self.exc.borrow_mut() = ExceptionState {
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return Code::Error;
+        };
+        let state = ExceptionState {
             native: Default::default(),
             info: None,
             code: code.to_vec(),
@@ -10390,7 +10504,13 @@ impl Interp {
             primitive_getter: None,
             expression_error_stage: None,
         };
-        self.capture_native_error_objects();
+        if self
+            .replace_exception_state_checked(scope.currency(), state)
+            .and_then(|()| self.capture_native_error_objects_checked(scope.currency()))
+            .is_err()
+        {
+            return Code::Error;
+        }
         Code::Error
     }
 
@@ -10409,6 +10529,9 @@ impl Interp {
         errorcode: Option<&[u8]>,
         errorstack: Option<&[u8]>,
     ) {
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
         if self.uses_jim_error_stack() {
             if let Some(info) = errorinfo {
                 self.jim_error_stack
@@ -10416,11 +10539,14 @@ impl Interp {
                     .adopt_explicit(obj::Owned::fresh(new_string(info)));
             }
         }
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
+        }
         let (info, already_logged) = match errorinfo {
             Some(i) if !i.is_empty() => (Some(i.to_vec()), true),
             _ => (None, false),
         };
-        *self.exc.borrow_mut() = ExceptionState {
+        let state = ExceptionState {
             native: Default::default(),
             info,
             code: errorcode.unwrap_or(b"NONE").to_vec(),
@@ -10429,13 +10555,20 @@ impl Interp {
             primitive_getter: None,
             expression_error_stage: None,
         };
-        self.capture_native_error_objects();
+        if self
+            .replace_exception_state_checked(scope.currency(), state)
+            .and_then(|()| self.capture_native_error_objects_checked(scope.currency()))
+            .is_err()
+        {
+            return;
+        }
         self.exc.borrow_mut().native.legacy_copy = true;
         if let Some(es) = errorstack.filter(|_| self.runtime_version().has_error_stack()) {
             if let Ok(parts) = validate_error_stack(crate::parse::split_list(es)) {
                 let _ = self.error_stack.borrow_mut().adopt(parts);
             }
         }
+        let _ = scope.currency().ensure_current_or_refuse();
     }
 
     /// Append one `while executing` / `invoked from within` frame for the command

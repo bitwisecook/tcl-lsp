@@ -225,3 +225,260 @@ fn original_error_snapshot_restoration_retires_native_options_after_full_state_p
         }
     }
 }
+
+fn write_byte_error(interpreter: &mut Interp, writer: u8) {
+    match writer {
+        0 => assert_eq!(interpreter.error(b"FRESH RESULT"), Code::Error),
+        1 => assert_eq!(
+            interpreter.error_with_code(b"FRESH RESULT", b"FRESH CODE"),
+            Code::Error
+        ),
+        2 => assert_eq!(
+            interpreter.raise_with_info(b"FRESH RESULT", b"FRESH INFO", b"FRESH CODE"),
+            Code::Error
+        ),
+        3 => assert_eq!(interpreter.set_error_state(b"FRESH CODE"), Code::Error),
+        4 => interpreter.process_return_error(
+            Some(b"FRESH INFO"),
+            Some(b"FRESH CODE"),
+            Some(b"CALL {FRESH STACK}"),
+        ),
+        _ => unreachable!(),
+    }
+}
+
+#[test]
+fn original_byte_error_authors_retire_displaced_options_outside_the_exception_borrow() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Actual software role retirement; no selected native cleanup schedule claim.
+    for writer in 0..5 {
+        for info in [false, true] {
+            for mode in 0..3 {
+                leak_free(|interpreter| {
+                    interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+                    interpreter.set_result_bytes(b"SEEDED RESULT");
+                    let prior_result = interpreter.get_obj_result();
+                    interpreter.set_c_error_code(b"STAMP BEFORE");
+                    let (value, calls, observed) = original(interpreter, mode);
+                    let memory = obj::NativeObjectLifetime::retain(value);
+                    interpreter.retain_native_error_option(info, value);
+                    assert_eq!(unsafe { (*value).ref_count }, 1);
+                    write_byte_error(interpreter, writer);
+                    assert_eq!(calls.get(), 1, "writer={writer}, info={info}, mode={mode}");
+                    assert!(!obj::allocation_is_live(memory.as_ptr()));
+                    let code = if writer == 0 {
+                        b"NONE".as_slice()
+                    } else {
+                        b"FRESH CODE"
+                    };
+                    assert_eq!(&*observed.borrow(), code);
+                    assert_eq!(interpreter.snapshot_error().code_bytes(), code);
+                    if writer <= 2 {
+                        assert_eq!(obj::bytes_of(interpreter.get_obj_result()), b"FRESH RESULT");
+                    } else {
+                        assert_eq!(interpreter.get_obj_result(), prior_result);
+                    }
+                    let state = interpreter.exc.borrow();
+                    assert_eq!(state.code_explicit, writer == 4);
+                    assert_eq!(state.already_logged, writer == 2 || writer == 4);
+                    assert_eq!(state.native.code.is_some(), mode == 0);
+                    assert_eq!(
+                        state.native.info.is_some(),
+                        mode == 0 && (writer == 2 || writer == 4)
+                    );
+                    assert_eq!(
+                        state.native.legacy_copy,
+                        mode == 0 && (writer == 2 || writer == 4)
+                    );
+                    drop(state);
+                    assert_refusal(interpreter, mode);
+                    assert_eq!(interpreter.entered_native_operation_count(), 0);
+                });
+            }
+        }
+    }
+}
+
+#[test]
+fn original_byte_error_authors_leave_all_effects_unreached_after_a_pending_host() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    for writer in 0..5 {
+        leak_free(|interpreter| {
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            interpreter.set_result_bytes(b"SEEDED RESULT");
+            interpreter.set_c_error_code(b"STAMP BEFORE");
+            let result = interpreter.get_obj_result();
+            let (value, calls, _) = original(interpreter, 0);
+            interpreter.retain_native_error_option(false, value);
+            interpreter.refuse_host_command("first pending refusal");
+            let first = interpreter.native_execution_refusal();
+            write_byte_error(interpreter, writer);
+            assert_eq!(interpreter.get_obj_result(), result);
+            assert_eq!(interpreter.snapshot_error().code_bytes(), b"STAMP BEFORE");
+            assert_eq!(
+                interpreter
+                    .exc
+                    .borrow()
+                    .native
+                    .code
+                    .as_ref()
+                    .unwrap()
+                    .as_ptr(),
+                value
+            );
+            assert_eq!(calls.get(), 0);
+            assert_eq!(interpreter.native_execution_refusal(), first);
+            assert_eq!(interpreter.entered_native_operation_count(), 0);
+            let retired = interpreter.exc.take();
+            drop(retired);
+            assert_eq!(calls.get(), 1);
+            assert_eq!(interpreter.native_execution_refusal(), first);
+        });
+    }
+}
+
+struct CaptureRetirement {
+    interpreter: WeakInterp,
+    events: Rc<RefCell<Vec<(u8, Vec<u8>)>>>,
+    role: u8,
+    mode: u8,
+}
+
+extern "C" fn retire_capture(value: *mut TclObj) {
+    // SAFETY: this actual backing owns the single record installed below.
+    let state =
+        unsafe { Box::from_raw(obj::internal_rep(value) as usize as *mut CaptureRetirement) };
+    let mut interpreter = state.interpreter.upgrade().unwrap();
+    state.events.borrow_mut().push((
+        state.role,
+        interpreter.snapshot_error().code_bytes().to_vec(),
+    ));
+    match state.mode {
+        1 => {
+            interpreter.refuse_host_command("original error retirement refusal");
+        }
+        2 => {
+            let original = interpreter.runtime_context();
+            let mut changed = original.clone();
+            changed.packages = vec![("error-retirement".into(), "1.0".into())];
+            interpreter.pin_context(&changed).unwrap();
+            interpreter.pin_context(&original).unwrap();
+        }
+        _ => {}
+    }
+}
+
+static CAPTURE_RETIREMENT: obj::TclObjType = obj::TclObjType {
+    name: c"originalCaptureRetirement".as_ptr(),
+    free_int_rep_proc: Some(retire_capture),
+    dup_int_rep_proc: None,
+    update_string_proc: None,
+    set_from_any_proc: None,
+};
+
+#[test]
+fn original_error_capture_checks_each_retired_role_before_the_next_projection() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    for fail_role in 0..2 {
+        for mode in 0..3 {
+            leak_free(|interpreter| {
+                interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+                interpreter.set_c_error_code(b"STAMP BEFORE");
+                let events = Rc::new(RefCell::new(Vec::new()));
+                let mut originals = Vec::new();
+                let mut leases = Vec::new();
+                for role in 0..2 {
+                    let state = Box::new(CaptureRetirement {
+                        interpreter: interpreter.downgrade(),
+                        events: events.clone(),
+                        role,
+                        mode: if role == fail_role { mode } else { 0 },
+                    });
+                    let value =
+                        obj::alloc_typed(&CAPTURE_RETIREMENT, Box::into_raw(state) as usize as u64);
+                    unsafe { obj::set_string_rep(value, b"OLD") };
+                    leases.push(obj::NativeObjectLifetime::retain(value));
+                    interpreter.retain_native_error_option(role == 1, value);
+                    assert_eq!(unsafe { (*value).ref_count }, 1);
+                    originals.push(value);
+                }
+                interpreter.exc.borrow_mut().code = b"FRESH CODE".to_vec();
+                interpreter.exc.borrow_mut().info = Some(b"FRESH INFO".to_vec());
+                let scope =
+                    native_operation_currency::NativeOperationScope::enter(interpreter).unwrap();
+                let captured = interpreter.capture_native_error_objects_checked(scope.currency());
+                assert_eq!(captured.is_ok(), mode == 0);
+                let stopped_after_code = mode != 0 && fail_role == 0;
+                let expected = if stopped_after_code {
+                    vec![(0, b"FRESH CODE".to_vec())]
+                } else {
+                    vec![(0, b"FRESH CODE".to_vec()), (1, b"FRESH CODE".to_vec())]
+                };
+                assert_eq!(&*events.borrow(), &expected);
+                assert!(!obj::allocation_is_live(leases[0].as_ptr()));
+                assert_eq!(
+                    obj::allocation_is_live(leases[1].as_ptr()),
+                    stopped_after_code
+                );
+                let state = interpreter.exc.borrow();
+                assert_ne!(state.native.code.as_ref().unwrap().as_ptr(), originals[0]);
+                if stopped_after_code {
+                    assert_eq!(state.native.info.as_ref().unwrap().as_ptr(), originals[1]);
+                    assert_eq!(state.native.info_len, 3);
+                } else {
+                    assert_eq!(
+                        obj::bytes_of(state.native.info.as_ref().unwrap().as_ptr()),
+                        b"FRESH INFO"
+                    );
+                    assert_eq!(state.native.info_len, b"FRESH INFO".len());
+                }
+                drop(state);
+                assert_refusal(interpreter, mode);
+                let retired = interpreter.exc.take();
+                drop(retired);
+                drop(scope);
+                assert_eq!(events.borrow().len(), 2);
+                assert_eq!(interpreter.entered_native_operation_count(), 0);
+            });
+        }
+    }
+}
+
+#[test]
+fn original_return_error_retirement_refuses_before_prepared_result_and_options_publication() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    for mode in 1..3 {
+        leak_free(|interpreter| {
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            interpreter.set_result_bytes(b"SEEDED RESULT");
+            let result = interpreter.get_obj_result();
+            let (value, calls, observed) = original(interpreter, mode);
+            interpreter.retain_native_error_option(false, value);
+            let words = [
+                b"-code".as_slice(),
+                b"error",
+                b"-errorcode",
+                b"FRESH CODE",
+                b"LATER RESULT",
+            ];
+            let owners: Vec<_> = words
+                .into_iter()
+                .map(|word| obj::Owned::fresh(new_string(word)))
+                .collect();
+            let args: Vec<_> = owners.iter().map(obj::Owned::as_ptr).collect();
+            assert_eq!(
+                crate::return_options::command(interpreter, &args),
+                Code::Error
+            );
+            assert_eq!(calls.get(), 1);
+            assert_eq!(&*observed.borrow(), b"FRESH CODE");
+            assert_eq!(interpreter.get_obj_result(), result);
+            assert!(interpreter.pending_return_option_objects().is_empty());
+            assert_refusal(interpreter, mode);
+        });
+    }
+}

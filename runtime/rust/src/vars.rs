@@ -2730,6 +2730,30 @@ pub(crate) fn capture_variable_receiver_at(
     element: Option<Vec<u8>>,
     level: usize,
 ) -> Result<Option<(crate::frame::VariableReceiver, TraceHome)>, VarError> {
+    capture_variable_receiver_at_with_creation(frames, ns, name, element, level, false)
+}
+
+/// Select the actual addressed store cell before publication and callbacks.
+/// This supplies receiver/trace identity only; the caller owns naming, entered
+/// currency and the independently selected observer operation.
+pub(crate) fn capture_variable_store_receiver_at(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    name: &[u8],
+    element: Option<Vec<u8>>,
+    level: usize,
+) -> Result<Option<(crate::frame::VariableReceiver, TraceHome)>, VarError> {
+    capture_variable_receiver_at_with_creation(frames, ns, name, element, level, true)
+}
+
+fn capture_variable_receiver_at_with_creation(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    name: &[u8],
+    element: Option<Vec<u8>>,
+    level: usize,
+    create: bool,
+) -> Result<Option<(crate::frame::VariableReceiver, TraceHome)>, VarError> {
     if frames.table(level).is_none() {
         return Err(VarError::NameProtocolUnavailable);
     }
@@ -2743,7 +2767,7 @@ pub(crate) fn capture_variable_receiver_at(
         }
         place.elem = Some(separate_element(ns, name, &element)?);
     }
-    capture_resolved_receiver(frames, ns, place, false)
+    capture_resolved_receiver(frames, ns, place, create)
 }
 
 fn capture_resolved_receiver(

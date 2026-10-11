@@ -303,27 +303,64 @@ impl Interp {
         }
     }
 
+    /// Publish the complete new state before retiring its genuine old owners.
+    /// No exception borrow survives a native header's destructor callback.
+    pub(super) fn replace_exception_state_checked(
+        &self,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+        state: super::ExceptionState,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        currency.ensure_current_or_refuse()?;
+        let retired = self.exc.replace(state);
+        drop(retired);
+        currency.ensure_current_or_refuse()
+    }
+
+    // Compatibility port for actual callers which already check their Scope.
     pub(super) fn capture_native_error_objects(&self) {
+        let Ok(scope) = super::native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
+        let _ = self.capture_native_error_objects_checked(scope.currency());
+    }
+
+    /// Capture each byte-authored private role at its original reached stage.
+    /// Code retirement finishes before reading and publishing the info role.
+    pub(super) fn capture_native_error_objects_checked(
+        &self,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        currency.ensure_current_or_refuse()?;
         if self
             .native_invocation_dialect()
             .native_error_variable_protocol()
             .is_none()
         {
-            return;
+            return Ok(());
         }
-        let mut exc = self.exc.borrow_mut();
-        exc.native.code = Some(self.native_default_error_code(
+        let code = {
+            let exc = self.exc.borrow();
             if exc.code.is_empty() && !exc.code_explicit {
-                b"NONE"
+                b"NONE".to_vec()
             } else {
-                &exc.code
-            },
-        ));
-        exc.native.info_len = exc.info.as_ref().map_or(0, Vec::len);
-        exc.native.info = exc
-            .info
+                exc.code.clone()
+            }
+        };
+        let original = self.native_default_error_code(&code);
+        let retired = self.exc.borrow_mut().native.code.replace(original);
+        drop(retired);
+        currency.ensure_current_or_refuse()?;
+        let info = self.exc.borrow().info.clone();
+        let original = info
             .as_deref()
             .map(|bytes| obj::Owned::fresh(new_string(bytes)));
+        let retired = {
+            let mut exc = self.exc.borrow_mut();
+            exc.native.info_len = info.as_ref().map_or(0, Vec::len);
+            std::mem::replace(&mut exc.native.info, original)
+        };
+        drop(retired);
+        currency.ensure_current_or_refuse()
     }
 
     pub(crate) fn update_native_error_info(&mut self) {
