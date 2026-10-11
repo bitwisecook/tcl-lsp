@@ -3424,3 +3424,13 @@ headers are checked before and after String, cleanup and cache publication.
 Dictionary key conversion does not acquire a fresh formatter or a new operation
 receipt. Full Host refusal precedes Guest dictionary parsing or command result
 publication. Allocation-only root views preserve the original COW observation.
+
+VM method invocation requires the originally retained Method record. An
+ownerless descriptive context supplies no implementation lookup; the synthetic
+object-eval reporting context remains separate and cannot enter a later chain
+step. Same-name replacement preserves the actual record allocation and current
+payload. The shared table and compiled-body replacement workers extract old
+payloads under short Method borrows and release them after those borrows end.
+Unnamed slot replacement creates its genuine new record while entered original
+chains retain their earlier record. These software roles do not provide a
+Native MethodType callback or physical reference-count equivalence.

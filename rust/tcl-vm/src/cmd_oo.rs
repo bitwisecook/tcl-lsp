@@ -1932,25 +1932,18 @@ fn run_step_inner(
     call_identity: Vec<Value>,
 ) -> Completion<Value> {
     let step = chain[index].clone();
-    // Resolve the method body for this step.
-    let m = if let Some(owner) = &step.method_owner {
-        Some(owner.borrow().clone())
-    } else if chain.report_role() == NativeTclooMethodReportRole::Constructor {
-        vm.oo
-            .classes
-            .get(&step.provider)
-            .and_then(|c| c.constructor.get())
-    } else if chain.report_role() == NativeTclooMethodReportRole::Destructor {
-        vm.oo
-            .classes
-            .get(&step.provider)
-            .and_then(|c| c.destructor.get())
-    } else {
-        vm.oo.step_method(&step, &method)
+    // Only the originally entered record can supply this implementation.
+    // An ownerless descriptive context cannot acquire a mutable table record.
+    let Some(owner) = &step.method_owner else {
+        return crate::command::completion_from_cmd_error(
+            vm,
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original TclOO selected method record",
+            )
+            .into(),
+        );
     };
-    let Some(m) = m else {
-        return err("no such method");
-    };
+    let m = owner.borrow().clone();
 
     if let Some(intrinsic) = m.intrinsic {
         use tcl_runtime_api::native_oo::NativeOoIntrinsicMethod;
@@ -2135,29 +2128,18 @@ fn run_step_inner(
     if !cache_is_current {
         let mut refreshed = m.clone();
         refreshed.compiled_body = Some((obj_ns, proc.body.clone()));
-        if let Some(owner) = &step.method_owner {
+        let retired = {
             let mut current = owner.borrow_mut();
             if current.body_src.native_object_identity() == m.body_src.native_object_identity()
                 && current.forward.is_none()
                 && current.property.is_none()
             {
-                current.compiled_body = refreshed.compiled_body;
+                std::mem::replace(&mut current.compiled_body, refreshed.compiled_body)
+            } else {
+                None
             }
-        } else if chain.report_role() == NativeTclooMethodReportRole::Constructor {
-            if let Some(class) = vm.oo.classes.get_mut(&step.provider) {
-                class.constructor.install(refreshed);
-            }
-        } else if chain.report_role() == NativeTclooMethodReportRole::Destructor {
-            if let Some(class) = vm.oo.classes.get_mut(&step.provider) {
-                class.destructor.install(refreshed);
-            }
-        } else if step.is_object {
-            if let Some(object) = vm.oo.objects.get_mut(&step.provider) {
-                object.methods.insert(method.clone(), refreshed);
-            }
-        } else if let Some(class) = vm.oo.classes.get_mut(&step.provider) {
-            class.methods.insert(method.clone(), refreshed);
-        }
+        };
+        drop(retired);
     }
     let frame = OoFrame {
         name_owner: Rc::clone(&vm.oo.objects[&obj_key].cached_name),
@@ -4752,3 +4734,6 @@ mod native_original_holder_tests;
 
 #[cfg(test)]
 mod native_method_report_tests;
+
+#[cfg(test)]
+mod original_method_retirement_tests;

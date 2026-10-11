@@ -77,11 +77,14 @@ impl MethodTable {
     }
     pub(super) fn insert(&mut self, key: String, method: Method) {
         self.1 = true;
-        if let Some(owner) = self.0.get(&key) {
-            *owner.borrow_mut() = method;
+        let retired = if let Some(owner) = self.0.get(&key) {
+            let mut current = owner.borrow_mut();
+            Some(std::mem::replace(&mut *current, method))
         } else {
             self.0.insert(key, Rc::new(RefCell::new(method)));
-        }
+            None
+        };
+        drop(retired);
     }
     pub(super) fn remove(&mut self, key: &str) -> Option<MethodOwner> {
         self.0.remove(key)
