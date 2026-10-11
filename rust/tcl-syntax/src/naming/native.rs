@@ -644,6 +644,44 @@ impl NativeNameProtocol {
         self.rename_destination_projection(context, original)
             .map(NativeCommandSlotProjection::into_slot)
     }
+    /// C8.4/8.5's original `interp alias` reaches the target String getter
+    /// before retaining the alias operands. Later C recipes retain and publish
+    /// first, then reach the target during loop lookup. Jim's core alias does
+    /// not read the target at definition. This is stage data, not admission.
+    #[must_use]
+    pub const fn alias_target_string_precedes_capture(self) -> bool {
+        matches!(self, Self::C(TclVersion::V8_4 | TclVersion::V8_5))
+    }
+
+    /// The empty-target pretest belongs only to the selected C8.4/8.5 stage.
+    /// `None` means that operation is absent, not a guessed nonempty target.
+    #[must_use]
+    pub fn alias_pretested_target_is_empty(self, original: &[u8]) -> Option<bool> {
+        self.alias_target_string_precedes_capture()
+            .then(|| c_string_extent(original).is_empty())
+    }
+
+    /// C reaches the original target after publication to reject alias loops;
+    /// Jim admits loops and leaves all target/prefix Strings lazy until use.
+    #[must_use]
+    pub const fn alias_publication_checks_original_target(self) -> bool {
+        matches!(self, Self::C(_))
+    }
+
+    /// C query creates a fresh List retaining the original members. Jim's
+    /// `info alias` returns its stored List header and therefore its own cache.
+    #[must_use]
+    pub const fn alias_query_returns_original_list(self) -> bool {
+        matches!(self, Self::Jim084)
+    }
+
+    /// Jim sets the original name result before registering the command;
+    /// C returns its retained registration token after successful publication.
+    #[must_use]
+    pub const fn alias_result_precedes_name_registration(self) -> bool {
+        matches!(self, Self::Jim084)
+    }
+
     ///
     /// # Errors
     /// Returns an error for a missing actual Jim namespace object or an unaudited engine operation.

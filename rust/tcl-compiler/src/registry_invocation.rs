@@ -32,11 +32,9 @@ pub(crate) use original_procedure_call::{
     original_procedure_scalar_bindings,
 };
 mod metadata_context;
+pub(crate) use metadata_context::retained_module_metadata_context;
 pub use metadata_context::{
     InvocationMetadataContext, InvocationMetadataInput, OwnedInvocationMetadataContext,
-};
-pub(crate) use metadata_context::{
-    retained_module_metadata_context, retained_source_metadata_context,
 };
 mod symbol_advice;
 pub(crate) use symbol_advice::{

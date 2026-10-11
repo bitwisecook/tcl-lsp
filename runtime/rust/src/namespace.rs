@@ -93,6 +93,13 @@ pub(crate) struct RenamePublication {
     pub(crate) generation: u64,
 }
 
+/// Actual temporary placement, independent of the original target getter.
+pub(crate) struct AliasRenameProbe {
+    pub(crate) destination: (NsId, Vec<u8>),
+    binding: CommandBinding,
+    displaced: Option<CommandBinding>,
+}
+
 /// One command token and the interpreter-unique generation that owns all of
 /// its sidecars. Placements may move between namespace and hidden tables, but
 /// this pair moves intact.
@@ -1943,84 +1950,81 @@ impl Namespaces {
         Some((ns, simple.to_vec()))
     }
 
-    /// C's `TclPreventAliasLoop` (`tclInterp.c`) on the alias bound at
-    /// `(ns, simple)`: follow the chain — each hop resolves the alias's stored
-    /// target name **anchored at the global namespace**, exactly as dispatch
-    /// does — and report whether it comes back to the alias we started from.
-    /// An unresolvable target ends the chain (legal: aliases late-bind), and so
-    /// does a target that is not itself an alias.
-    ///
-    /// Every alias already in the table passed this same gate when it was
-    /// defined or renamed, so the chain holds no pre-existing cycle; the
-    /// visited list bounds the walk regardless, so no table state can spin it.
-    pub(crate) fn alias_chain_loops(&self, ns: NsId, simple: &[u8]) -> bool {
-        tcl_syntax::naming::alias_chain_loops((ns, simple.to_vec()), |hop| {
-            let Some(Command::Alias { target, .. }) = self.command_in(hop.0, &hop.1) else {
-                return Ok::<_, std::convert::Infallible>(None);
-            };
-            Ok(self.home_of(GLOBAL, &target))
-        })
-        .unwrap_or_else(|error| match error {})
-    }
-
-    /// C's `TclPreventAliasLoop` on the *rename* path (`TclRenameCommand` moves
-    /// the command, checks, and puts it back on a hit): would moving the command
-    /// bound to `old` onto `new` close an alias loop? The chain can only close
-    /// on the alias once it is visible at its destination, so the move is made
-    /// tentatively here and undone again — including any command it displaced —
-    /// leaving the caller to perform the real rename when this returns `false`.
-    pub(crate) fn rename_creates_alias_loop(
+    /// Place only the tentative destination for C's alias-loop check. The
+    /// caller runs original target getters after releasing this table borrow.
+    /// The old entry still refers to the actual same command token.
+    pub(crate) fn begin_alias_rename_probe(
         &mut self,
         current: NsId,
         old: &[u8],
         new: &[u8],
-    ) -> bool {
+    ) -> Option<AliasRenameProbe> {
         if new.is_empty()
             || self
                 .variable_name_protocol
                 .is_some_and(|protocol| protocol.is_jim084())
         {
-            return false;
+            return None;
         }
-        let Some((old_ns, old_simple)) = self.home_of(current, old) else {
-            return false;
-        };
-        if !matches!(
-            self.command_in(old_ns, &old_simple),
-            Some(Command::Alias { .. })
-        ) {
-            return false; // renaming a non-alias is always allowed
-        }
-        let Some((dest_ns, dest_simple)) = self.destination_of(current, new) else {
-            return false;
-        };
-        if (dest_ns, dest_simple.as_slice()) == (old_ns, old_simple.as_slice()) {
-            return false; // a self-rename moves nothing
-        }
-        // C creates the destination's hash entry for the probe and deletes it
-        // again on a refusal, and never touches the source's entry at all
-        // (`TclRenameCommand` deletes `oldHPtr` only once the check passes).
-        // The tentative move therefore carries the slot values only.
-        let Some(moving) = self.arena[old_ns].commands.take_slot(&old_simple) else {
-            return false;
-        };
-        let displaced = self.arena[dest_ns]
+        let (old_ns, old_simple) = self.home_of(current, old)?;
+        let binding = self.arena[old_ns]
             .commands
-            .restore_slot(dest_simple.clone(), moving);
-        let loops = self.alias_chain_loops(dest_ns, &dest_simple);
-        let moved = self.arena[dest_ns].commands.take_slot(&dest_simple);
-        match displaced {
-            Some(displaced) => {
-                self.arena[dest_ns]
-                    .commands
-                    .restore_slot(dest_simple, displaced);
+            .entries
+            .get(&old_simple)?
+            .clone();
+        if !matches!(binding.command, Command::Alias { .. }) {
+            return None;
+        }
+        let (destination_ns, destination_simple) = self.destination_of(current, new)?;
+        if destination_ns == old_ns && destination_simple == old_simple {
+            return None;
+        }
+        let displaced = self.arena[destination_ns]
+            .commands
+            .restore_slot(destination_simple.clone(), binding.clone());
+        Some(AliasRenameProbe {
+            destination: (destination_ns, destination_simple),
+            binding,
+            displaced,
+        })
+    }
+
+    /// Restore only the actual tentative slot. A reached getter may have
+    /// replaced it; such a Guest mutation is retained. Returned owners must
+    /// retire after the namespace borrow ends.
+    pub(crate) fn restore_alias_rename_probe(
+        &mut self,
+        probe: AliasRenameProbe,
+    ) -> Vec<CommandBinding> {
+        let (namespace, simple) = probe.destination;
+        let mut retired = Vec::new();
+        let owns_probe = self.arena[namespace]
+            .commands
+            .entries
+            .get(&simple)
+            .is_some_and(|binding| {
+                binding.generation == probe.binding.generation
+                    && binding.command.is_same_binding(&probe.binding.command)
+            });
+        if owns_probe {
+            if let Some(binding) = self.arena[namespace].commands.take_slot(&simple) {
+                retired.push(binding);
             }
-            None => self.arena[dest_ns].commands.drop_entry(&dest_simple),
+            if let Some(displaced) = probe.displaced {
+                if let Some(binding) = self.arena[namespace]
+                    .commands
+                    .restore_slot(simple, displaced)
+                {
+                    retired.push(binding);
+                }
+            } else {
+                self.arena[namespace].commands.drop_entry(&simple);
+            }
+        } else if let Some(displaced) = probe.displaced {
+            retired.push(displaced);
         }
-        if let Some(moved) = moved {
-            self.arena[old_ns].commands.restore_slot(old_simple, moved);
-        }
-        loops
+        retired.push(probe.binding);
+        retired
     }
 
     /// Rewrite redirects retaining one exact source generation. The FQN is a
@@ -3124,7 +3128,7 @@ impl Namespaces {
     ///   from `::outer` reaches `::inner::p` even when the namespace
     ///   `::outer::inner` exists but holds no `p` (tclsh 8.6/9.0
     ///   confirmed).
-    fn home_of(&self, current: NsId, name: &[u8]) -> Option<(NsId, Vec<u8>)> {
+    pub(crate) fn home_of(&self, current: NsId, name: &[u8]) -> Option<(NsId, Vec<u8>)> {
         if let Some(protocol) = self
             .variable_name_protocol
             .filter(|protocol| protocol.is_jim084())

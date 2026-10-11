@@ -267,18 +267,6 @@ impl<'a> From<&'a ContextRegistry> for InvocationMetadataContext<'a> {
     }
 }
 
-/// Retain complete supplied source availability only for its actual command store.
-/// Missing and foreign inputs remain unavailable, independently of profile labels.
-pub(crate) fn retained_source_metadata_context(
-    registry: &CommandRegistry,
-    input: Option<&crate::analyser::ResolvedAnalysisInput>,
-) -> Option<std::sync::Arc<ContextRegistry>> {
-    let context = input?.context_registry();
-    InvocationMetadataContext::from(context.as_ref())
-        .matches_registry(registry)
-        .then_some(context)
-}
-
 /// Retain metadata only for this Module's actual source producer. The complete
 /// input remains owned by the Module even when this query refuses its use.
 pub(crate) fn retained_module_metadata_context(
