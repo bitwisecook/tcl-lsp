@@ -205,7 +205,7 @@ fn scalar_probe_using(
     tcl_syntax::value::ValueError,
 > {
     use tcl_syntax::value::ValueError;
-    let stage = || {
+    let stage = || -> Result<(), ValueError> {
         scalar_object_stage_current(value, currency)?;
         if let Some(check) = stage_check {
             obj::check_native_liveness(value)?;

@@ -693,9 +693,10 @@ impl RuntimeDictionaryObjects {
             .check()
     }
     pub(crate) fn original_refuse(&self, error: ValueError) -> tcl_cmd_core::CmdError {
-        self.original
-            .as_ref()
-            .map_or_else(|| error.clone().into(), |owner| (owner.refuse)(error))
+        match self.original.as_ref() {
+            Some(owner) => (owner.refuse)(error),
+            None => error.into(),
+        }
     }
     pub(crate) fn original_bytes(
         &self,

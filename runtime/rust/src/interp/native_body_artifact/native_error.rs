@@ -137,7 +137,6 @@ impl Interp {
 
 #[cfg(test)]
 mod tests {
-    use super::native_list_conversion::BodyObjectOperation;
     use super::*;
 
     #[test]
