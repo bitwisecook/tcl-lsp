@@ -684,6 +684,47 @@ pub(super) fn delete_method(
         ok(Value::empty())
     })
 }
+/// Observe the selected table record without retaining a Method/clientData role.
+struct OriginalMethodRenameSource {
+    class: bool,
+    target: OoId,
+    owner: Weak<RefCell<Method>>,
+}
+impl OriginalMethodRenameSource {
+    fn capture(state: &OoState, class: bool, target: OoId, key: &str) -> Option<Self> {
+        let table = if class {
+            &state.classes.get(&target)?.methods
+        } else {
+            &state.objects.get(&target)?.methods
+        };
+        let (_, owner) = table.get_key_value(key)?;
+        Some(Self {
+            class,
+            target,
+            owner: Rc::downgrade(owner),
+        })
+    }
+    fn check_at(
+        &self,
+        vm: &mut Vm,
+        original_names: &original_name_operands::OriginalOoNameScope,
+        key: &str,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        let table = if self.class {
+            vm.oo.classes.get(&self.target).map(|class| &class.methods)
+        } else {
+            vm.oo
+                .objects
+                .get(&self.target)
+                .map(|object| &object.methods)
+        };
+        let current = table
+            .and_then(|table| table.get_key_value(key))
+            .is_some_and(|(_, owner)| Rc::as_ptr(owner) == self.owner.as_ptr());
+        original_names.require_method_record(vm, current)
+    }
+}
+
 pub(super) fn rename_method(
     vm: &mut Vm,
     class: bool,
@@ -698,11 +739,19 @@ pub(super) fn rename_method(
             Ok(key) => key,
             Err(error) => return error,
         };
+        if let Err(error) = original_names.check_target(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        // Find the original source before any destination String getter, as the
+        // selected C worker does. This Weak observation adds no entered owner.
+        let Some(source) = OriginalMethodRenameSource::capture(&vm.oo, class, target, &from) else {
+            return err("method does not exist");
+        };
         let to = match native_method_key_for_target(vm, to, Some((class, target))) {
             Ok(key) => key,
             Err(error) => return error,
         };
-        if let Err(error) = original_names.check_target(vm) {
+        if let Err(error) = source.check_at(vm, original_names, &from) {
             return crate::command::completion_from_cmd_error(vm, error);
         }
         if from == to {
@@ -714,9 +763,7 @@ pub(super) fn rename_method(
         if table.contains_key(&to) {
             return err("method already exists");
         }
-        let Some(owner) = table.remove(&from) else {
-            return err("method does not exist");
-        };
+        let owner = table.remove(&from).expect("checked original method record");
         table.insert_owner(to.clone(), owner);
         let (exported, unexported) = if class {
             let class = vm.oo.classes.get_mut(&target).expect("retained class");
@@ -729,9 +776,12 @@ pub(super) fn rename_method(
             exported.insert(to.clone());
         }
         if unexported.remove(&from) {
-            unexported.insert(to);
+            unexported.insert(to.clone());
         }
         vm.native_property_structure_changed(target, class);
+        if let Err(error) = source.check_at(vm, original_names, &to) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
         ok(Value::empty())
     })
 }
@@ -912,3 +962,6 @@ mod tests {
 
 #[cfg(test)]
 mod owner_tests;
+
+#[cfg(test)]
+mod rename_tests;

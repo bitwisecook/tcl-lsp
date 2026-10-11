@@ -2734,6 +2734,15 @@ namespace failure reporting receives the actual operation, release and current
 namespace name; dictionary missing-key reporting receives the reached get or
 intermediate-unset operation and does not alter counted dictionary equality.
 
+VM method rename checks the original source table entry before reaching the
+destination Name getter. Its weak record observation carries the actual target
+and table facet and adds no entered Method or clientData owner. The same record
+must still occupy the source slot after conversion and the destination slot after
+splice and cache retirement. A recreated slot cannot continue the earlier
+selection; same-record payload changes remain visible. Checked Name and record
+currentness retain the original typed first cause. These VM allocation and table
+checks are separate from C record-name, table-key and physical reference roles.
+
 The VM's `cmd_oo::original_name_operands` owner retains the entered
 `OriginalNameConsumerScope` through checked Name getters and owned cleanup.
 Object selection captures the actual object name-owner allocation, creation ID

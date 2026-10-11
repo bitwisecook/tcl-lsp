@@ -126,6 +126,12 @@ impl OriginalOoNameScope {
         self.context
             .require(vm, declaring_current, "original OO Name declaring facet")
     }
+    /// A fixed method-table observation joins the existing target and currency.
+    pub(super) fn require_method_record(&self, vm: &mut Vm, current: bool) -> Result<(), CmdError> {
+        self.check_target(vm)?;
+        self.context
+            .require(vm, current, "original OO rename source record")
+    }
     pub(super) fn read(&self, vm: &mut Vm, original: &Value) -> Result<Rc<[u8]>, CmdError> {
         self.check_target(vm)?;
         let reached = self.context.read(vm, original);
