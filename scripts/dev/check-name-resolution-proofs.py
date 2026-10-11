@@ -219,9 +219,10 @@ def normalized(text: str) -> str:
 
 
 @lru_cache(maxsize=32)
-def rust_code(text: str) -> str:
-    """Mask source comments/literals while preserving declaration offsets."""
+def _rust_source(text: str) -> tuple[str, tuple[tuple[int, int], ...]]:
+    """Retain actual line-comment extents with the shared masked source."""
     chars = list(text)
+    comments = []
     index = 0
     raw_literal = re.compile(r'(?:br|r)(#*)"')
     character_literal = re.compile(
@@ -233,6 +234,7 @@ def rust_code(text: str) -> str:
             end = text.find("\n", index)
             if end < 0:
                 end = len(text)
+            comments.append((index, end))
         elif text.startswith("/*", index):
             depth, end = 1, index + 2
             while end < len(text) and depth:
@@ -272,7 +274,31 @@ def rust_code(text: str) -> str:
             index = end
         else:
             index += 1
-    return "".join(chars)
+    return "".join(chars), tuple(comments)
+
+
+def rust_code(text: str) -> str:
+    """Mask source comments/literals while preserving declaration offsets."""
+    return _rust_source(text)[0]
+
+
+@lru_cache(maxsize=32)
+def _rust_function_bodies(text: str) -> tuple[tuple[str, int, int, int], ...]:
+    """Use the maintained function-boundary recipe for every real declaration."""
+    masked = rust_code(text)
+    result = []
+    for match in re.finditer(r"\bfn\s+(\w+)\s*\([^)]*\)[^{]*\{", masked):
+        depth, end = 1, match.end()
+        while end < len(masked) and depth:
+            depth += (masked[end] == "{") - (masked[end] == "}")
+            end += 1
+        if depth:
+            continue
+        start = match.start()
+        prefix = text[:start]
+        boundary = max(prefix.rfind("}"), prefix.rfind(";")) + 1
+        result.append((match.group(1), boundary, start, end))
+    return tuple(result)
 
 
 def test_body(text: str, name: str, python: bool = False) -> str | None:
@@ -290,26 +316,61 @@ def test_body(text: str, name: str, python: bool = False) -> str | None:
         return "".join(
             text.splitlines(keepends=True)[node.lineno - 1 : node.end_lineno]
         )
-    # Function boundaries are checked without interpreting braces in comments or
-    # ordinary/raw Rust string literals. Identifiers inside them cannot issue a test.
-    masked = rust_code(text)
-    matches = list(
-        re.finditer(r"\bfn\s+" + re.escape(name) + r"\s*\([^)]*\)[^{]*\{", masked)
-    )
+    # Share declaration/comment/literal boundaries with the annotation census.
+    matches = [item for item in _rust_function_bodies(text) if item[0] == name]
     if len(matches) != 1:
         return None
-    match = matches[0]
-    depth, end = 1, match.end()
-    while end < len(masked) and depth:
-        depth += (masked[end] == "{") - (masked[end] == "}")
-        end += 1
-    if depth:
-        return None
-    # Include only the function's attached comments/attributes, not a prior test.
-    start = match.start()
-    prefix = text[:start]
-    boundary = max(prefix.rfind("}"), prefix.rfind(";")) + 1
+    _, boundary, _, end = matches[0]
     return text[boundary:end]
+
+
+def annotated_rust_tests(root: Path) -> list[tuple[str, str, str, str]]:
+    """Find proof IDs in actual test comments, excluding helpers and literals."""
+    result = []
+    question = re.compile(r"\b(naming\.[A-Za-z0-9_.-]+)")
+    test_attribute = re.compile(r"#\[\s*(?:tokio::)?test\b[^\]]*\][^{};]*$")
+    for parent in [root / "rust", root / "runtime/rust"]:
+        for path in parent.rglob("*.rs"):
+            if "target" in path.parts:
+                continue
+            text = path.read_text()
+            if "naming." not in text:
+                continue
+            masked, comment_ranges = _rust_source(text)
+            for name, boundary, start, end in _rust_function_bodies(text):
+                if not test_attribute.search(masked[boundary:start]):
+                    continue
+                comments = "\n".join(
+                    text[first:last]
+                    for first, last in comment_ranges
+                    if boundary <= first and last <= end
+                )
+                for identifier in sorted({
+                    match.group(1).rstrip(".") for match in question.finditer(comments)
+                }):
+                    result.append((path.relative_to(root).as_posix(), name, identifier, comments))
+    return result
+
+
+def test_annotation_errors(root: Path, proofs: list[dict]) -> list[str]:
+    """Require a known question, exact document and actual catalog test pair."""
+    records = {record["id"]: record for record in proofs}
+    bindings = {
+        (binding["path"], binding["selector"].split("::")[-1], record["id"])
+        for record in proofs
+        for binding in record["tests"]
+    }
+    errors = []
+    for path, name, identifier, comments in annotated_rust_tests(root):
+        record = records.get(identifier)
+        if record is None:
+            errors.append(f"test proof annotation is not indexed: {identifier}: {path}::{name}")
+            continue
+        if (path, name, identifier) not in bindings:
+            errors.append(f"test proof annotation has no catalog binding: {identifier}: {path}::{name}")
+        if record["document"] not in comments:
+            errors.append(f"test proof annotation has no matching document comment: {identifier}: {path}::{name}")
+    return errors
 
 
 def marked_questions(root: Path) -> list[tuple[str, str]]:
@@ -484,6 +545,7 @@ def validate(root: Path, structure_only: bool = False) -> tuple[list[str], dict]
     for path, identifier in marked_questions(root):
         if identifier not in identifiers:
             errors.append(f"test proof annotation is not indexed: {identifier}: {path}")
+    errors.extend(test_annotation_errors(root, proofs))
     pending_tests = 0
     hashes: dict[str, str] = {}
     for record in proofs:

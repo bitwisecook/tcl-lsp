@@ -10620,7 +10620,7 @@ mod original_child_script_purpose_tests {
         // naming.source.original-configured-script-completeness
         // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
         // Explicit independent registry utility; no original Module, frame or Native entry is issued.
-        let mut registry = tcl_registry::default_registry().clone();
+        let mut registry = tcl_registry::CommandRegistry::build_default();
         let original = registry.get("list").unwrap().clone();
         registry.insert(tcl_registry::CommandSpec {
             name: "\u{feff}list",

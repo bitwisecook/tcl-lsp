@@ -5,7 +5,7 @@ use super::{
     native_numeric::{kernel_operand, NumericOperation},
     ExprCtx, ExprError, Owned,
 };
-use crate::obj::{self, TclObj};
+use crate::obj::TclObj;
 use tcl_syntax::expr::mathfunc::{NativeMathProtocol, NumValue};
 use tcl_syntax::number::Number;
 
@@ -183,6 +183,7 @@ impl MathOperation {
 mod tests {
     use super::*;
     use crate::interp::{Code, Interp};
+    use crate::obj;
     use std::cell::Cell;
     use tcl_runtime_api::NativeExecutionError;
     thread_local! { static CALLS: Cell<usize> = const { Cell::new(0) }; }

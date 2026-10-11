@@ -645,7 +645,14 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // `info level N` of a lambda reports the actual invocation words
     // (`apply <lambdaExpr> ?arg ...?`), not the `apply lambdaExpr` usage prefix
     // used for `wrong # args` (C records `objv` verbatim for the lambda frame).
-    let level_words: Vec<Vec<u8>> = argv.iter().map(|&a| obj_bytes(a)).collect();
+    let level_words =
+        if CallMeta::original_frame_arguments(interp.native_invocation_dialect(), Some(argv))
+            .is_some()
+        {
+            None
+        } else {
+            Some(argv.iter().map(|&argument| obj_bytes(argument)).collect())
+        };
     let body = match ValueOps::native_string_bytes(interp, &parts[1].as_ptr()) {
         Ok(bytes) => bytes,
         Err(error) => return interp.report_cmd_error(error.into()),
@@ -672,7 +679,7 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             keep_loop_codes: false,
             same_level: false,
             usage_prefix: None,
-            level_words: Some(level_words),
+            level_words,
             quote_name: false,
             // A lambda has no definition to carry a compiled body on.
             native: None,
@@ -810,7 +817,14 @@ fn apply_native_c(
         Ok(body) => body,
         Err(error) => return interp.report_cmd_error(error.into()),
     };
-    let level_words = argv.iter().map(|&argument| obj_bytes(argument)).collect();
+    let level_words =
+        if CallMeta::original_frame_arguments(interp.native_invocation_dialect(), Some(argv))
+            .is_some()
+        {
+            None
+        } else {
+            Some(argv.iter().map(|&argument| obj_bytes(argument)).collect())
+        };
     interp.run_proc(
         &procedure.params,
         &body,
@@ -828,7 +842,7 @@ fn apply_native_c(
             keep_loop_codes: false,
             same_level: false,
             usage_prefix: None,
-            level_words: Some(level_words),
+            level_words,
             quote_name: false,
             native: None,
             statics: None,
@@ -1296,3 +1310,196 @@ mod native_apply_original_tests;
 
 #[cfg(test)]
 mod original_argument_tests;
+
+#[cfg(test)]
+mod original_apply_frame_tests {
+    use super::*;
+    use crate::obj;
+    use std::cell::{Cell, RefCell};
+    use tcl_runtime_api::NativeExecutionError;
+
+    thread_local! {
+        static OWNER: RefCell<Option<Interp>> = const { RefCell::new(None) };
+        static ORIGINALS: RefCell<Vec<*mut TclObj>> = const { RefCell::new(Vec::new()) };
+        static READS: Cell<usize> = const { Cell::new(0) };
+        static INSPECTIONS: Cell<usize> = const { Cell::new(0) };
+        static LATER: Cell<usize> = const { Cell::new(0) };
+        static QUERY: Cell<bool> = const { Cell::new(false) };
+        static REFUSAL: Cell<u8> = const { Cell::new(0) };
+        static FIRST: RefCell<Option<NativeExecutionError>> = const { RefCell::new(None) };
+    }
+
+    extern "C" fn update(original: *mut TclObj) {
+        READS.with(|reads| reads.set(reads.get() + 1));
+        // The original caller value is still live in its formal cell and the
+        // genuine info-level List. This is the reached physical String getter.
+        unsafe { obj::set_native_updater_string_rep(original, b"LAZY\0\xff", false) };
+        if REFUSAL.with(Cell::get) != 0 {
+            let mut interp = OWNER.with(|owner| owner.borrow().as_ref().unwrap().clone());
+            match REFUSAL.with(Cell::get) {
+                1 => {
+                    interp.refuse_host_command("original apply argument first cause");
+                    FIRST.with(|first| *first.borrow_mut() = interp.native_execution_refusal());
+                }
+                2 => {
+                    let current = interp.runtime_context();
+                    let mut changed = current.clone();
+                    changed.packages = vec![("original-apply-frame".to_owned(), "1.0".to_owned())];
+                    interp.pin_context(&changed).unwrap();
+                    interp.pin_context(&current).unwrap();
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    static TYPE: obj::TclObjType = obj::TclObjType {
+        name: c"originalApplyFrameArgument".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(update),
+        set_from_any_proc: None,
+    };
+
+    fn inspect(interp: &mut Interp, _: &[*mut TclObj]) -> Code {
+        INSPECTIONS.with(|calls| calls.set(calls.get() + 1));
+        let expected = ORIGINALS.with(|words| words.borrow().clone());
+        assert_eq!(
+            interp.frames.borrow().original_error_stack_argv(),
+            Some(expected.clone())
+        );
+        assert_eq!(READS.with(Cell::get), 0);
+        assert!(unsafe { (*expected[2]).bytes.is_null() });
+        assert_eq!(interp.var_get(b"x"), Some(expected[2]));
+        // Caller and actual formal storage own these two native references;
+        // the frame tape supplies only allocation safety.
+        assert_eq!(unsafe { (*expected[2]).ref_count }, 2);
+        assert_ne!(interp.current_ns(), crate::namespace::GLOBAL);
+        if !QUERY.with(Cell::get) {
+            interp.set_result_bytes(b"INSPECTED");
+            return Code::Ok;
+        }
+        assert_eq!(interp.eval_str(b"info level 0"), Code::Ok);
+        let reported = Owned::retain(interp.get_obj_result());
+        let members = ValueOps::list_elements(interp, &reported.as_ptr()).unwrap();
+        assert_eq!(members, expected);
+        assert_eq!(READS.with(Cell::get), 0);
+        assert!(unsafe { (*expected[2]).bytes.is_null() });
+        assert_eq!(unsafe { (*expected[2]).ref_count }, 3);
+        let prior = Owned::fresh(obj::new_string_bytes(b"PRIOR\0\xff"));
+        interp.set_result(prior.as_ptr());
+        let rendered = ValueOps::native_string_bytes(interp, &reported.as_ptr());
+        assert_eq!(READS.with(Cell::get), 1);
+        assert_eq!(interp.get_obj_result(), prior.as_ptr());
+        if REFUSAL.with(Cell::get) == 0 {
+            let rendered = rendered.unwrap();
+            assert!(rendered.windows(4).any(|bytes| bytes == b"LAZY"));
+            Code::Ok
+        } else {
+            let error = rendered.expect_err("original reached getter refuses further work");
+            let first = interp
+                .native_execution_refusal()
+                .expect("original typed first cause");
+            FIRST.with(|held| {
+                if let Some(expected) = held.borrow().as_ref() {
+                    assert_eq!(first, *expected);
+                }
+            });
+            FIRST.with(|held| *held.borrow_mut() = Some(first));
+            interp.report_cmd_error(error.into())
+        }
+    }
+
+    fn later(interp: &mut Interp, _: &[*mut TclObj]) -> Code {
+        LATER.with(|calls| calls.set(calls.get() + 1));
+        interp.set_result_bytes(b"LATER");
+        Code::Ok
+    }
+
+    fn run_case(version: tcl_dialect::TclVersion, query: bool, refusal: u8) {
+        OWNER.with(|owner| owner.borrow_mut().take());
+        ORIGINALS.with(|words| words.borrow_mut().clear());
+        READS.with(|reads| reads.set(0));
+        INSPECTIONS.with(|calls| calls.set(0));
+        LATER.with(|calls| calls.set(0));
+        QUERY.with(|flag| flag.set(query));
+        REFUSAL.with(|flag| flag.set(refusal));
+        FIRST.with(|first| first.borrow_mut().take());
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            tcl_registry::model::resolve_environment(version.dialect_name()).unit_profile(),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        assert_eq!(interp.eval_str(b"namespace eval applyCurrent {}"), Code::Ok);
+        interp.register_builtin(b"applyFrameInspect", inspect);
+        interp.register_builtin(b"applyFrameLater", later);
+        let command = Owned::fresh(obj::new_string_bytes(b"apply"));
+        let parameters = Owned::fresh(obj::new_string_bytes(b"x"));
+        let body = Owned::fresh(obj::new_string_bytes(
+            b"applyFrameInspect; applyFrameLater; return DONE",
+        ));
+        let namespace = Owned::fresh(obj::new_string_bytes(b"applyCurrent"));
+        let lambda = Owned::fresh(interp.new_list_object(&[
+            parameters.as_ptr(),
+            body.as_ptr(),
+            namespace.as_ptr(),
+        ]));
+        let argument = Owned::fresh(obj::alloc_typed(&TYPE, 0));
+        let argv = [command.as_ptr(), lambda.as_ptr(), argument.as_ptr()];
+        OWNER.with(|owner| *owner.borrow_mut() = Some(interp.clone()));
+        ORIGINALS.with(|words| *words.borrow_mut() = argv.to_vec());
+        let original_namespace = interp.current_ns();
+        let code = interp.dispatch(&argv);
+        assert_eq!(INSPECTIONS.with(Cell::get), 1, "{version:?}");
+        assert_eq!(interp.current_level(), 0);
+        assert_eq!(interp.current_ns(), original_namespace);
+        assert_eq!(interp.entered_native_operation_count(), 0);
+        assert_eq!(unsafe { (*argument.as_ptr()).ref_count }, 1);
+        if refusal == 0 {
+            assert_eq!(code, Code::Ok, "{version:?}");
+            assert_eq!(interp.result_bytes(), b"DONE");
+            assert_eq!(LATER.with(Cell::get), 1);
+            assert!(interp.native_execution_refusal().is_none());
+        } else {
+            assert_eq!(code, Code::Error, "{version:?}");
+            assert_eq!(LATER.with(Cell::get), 0);
+            assert_eq!(
+                interp.native_execution_refusal(),
+                FIRST.with(|first| first.borrow().clone())
+            );
+            assert_eq!(obj::bytes_of(interp.get_obj_result()), b"PRIOR\0\xff");
+        }
+        assert_eq!(READS.with(Cell::get), usize::from(query));
+        if !query {
+            assert!(unsafe { (*argument.as_ptr()).bytes.is_null() });
+        }
+        OWNER.with(|owner| owner.borrow_mut().take());
+        ORIGINALS.with(|words| words.borrow_mut().clear());
+    }
+
+    #[test]
+    fn original_apply_frame_keeps_unused_arguments_lazy_and_borrows_actual_tape() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // A real unused supplied value remains unread through lambda entry,
+        // body and pop. This proves the software frame transport, not a new
+        // original Tcl execution or opcode comparison.
+        for version in tcl_dialect::TclVersion::ALL {
+            run_case(version, false, 0);
+        }
+    }
+
+    #[test]
+    fn original_apply_level_query_keeps_members_and_reached_getter_first_cause() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual info-level List creation is separate from its reached String
+        // rendering; Host/ABA stops later body work and restores the real frame.
+        for version in tcl_dialect::TclVersion::ALL {
+            for refusal in [0, 1, 2] {
+                run_case(version, true, refusal);
+            }
+        }
+    }
+}

@@ -298,6 +298,20 @@ pub(crate) struct CallMeta<'a> {
     pub jim_namespace: Option<&'a Rc<obj::Owned>>,
 }
 
+impl<'a> CallMeta<'a> {
+    /// Borrow the genuine C invocation tape without reading argument Strings.
+    /// Other selected frame formats retain their independent rendered words.
+    pub(crate) fn original_frame_arguments(
+        dialect: tcl_registry::InvocationDialect,
+        original_argv: Option<&'a [*mut TclObj]>,
+    ) -> Option<&'a [*mut TclObj]> {
+        dialect
+            .native_string_protocol()
+            .filter(|protocol| protocol.tcl_version().is_some())
+            .and(original_argv)
+    }
+}
+
 /// One entry of the source-location stack (`cmdFramePtr`; PC-5) — the runtime
 /// state `info frame` reports. One is pushed per script-evaluation level Tcl
 /// tracks: the top-level script, a proc call, an `eval`/`uplevel` body, and a

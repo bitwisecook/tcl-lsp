@@ -374,6 +374,86 @@ class ProofGateTests(unittest.TestCase):
             gate.test_body("mod a { fn same() {} } mod b { fn same() {} }", "same")
         )
 
+    def test_plain_annotation_requires_the_actual_catalog_test_pair(self):
+        # Implementation contract: naming.proof-records.exact-evidence-and-coverage
+        # docs/design/analysis/name-resolution-proofs/exact-evidence-and-coverage.md
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record, _, census = self.fixture(root)
+            record["kind"] = "implementation-contract"
+            for provider in record["providers"]:
+                provider.update(status="not-tested", evidence=[])
+            source = root / "rust/tcl-syntax/src/fixture.rs"
+            source.parent.mkdir(parents=True)
+            source.write_text(
+                "#[test]\nfn result() {\n"
+                f"    // {record['id']}\n    // {record['document']}\n"
+                "    assert!(true);\n}\n"
+            )
+            errors = self.write_record_fixture(root, record, census)
+            self.assertTrue(any("no catalog binding" in error for error in errors))
+            record["tests"] = [{
+                "path": str(source.relative_to(root)),
+                "selector": "fixture::result",
+                "status": "linked",
+                "purpose": "Synthetic authored test-pair coverage only; no provider execution.",
+            }]
+            self.assertEqual(self.write_record_fixture(root, record, census), [])
+            self.assertTrue(all(provider["status"] == "not-tested" for provider in record["providers"]))
+            source.write_text(source.read_text() +
+                "#[test]\nfn another() {\n"
+                f"    // {record['id']}\n    // {record['document']}\n"
+                "    assert!(true);\n}\n")
+            self.assertTrue(any("another" in error and "no catalog binding" in error
+                                for error in gate.validate(root, True)[0]))
+
+    def test_plain_unknown_question_is_rejected_without_literal_or_helper_donation(self):
+        # Implementation contract: naming.proof-records.exact-evidence-and-coverage
+        # docs/design/analysis/name-resolution-proofs/exact-evidence-and-coverage.md
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record, _, census = self.fixture(root)
+            source = root / "rust/tcl-syntax/src/fixture.rs"
+            source.parent.mkdir(parents=True)
+            source.write_text(
+                "fn helper() {\n// naming.fixture.unknown\n}\n"
+                "#[test]\nfn result() { let template = r###\"\n"
+                "// naming.fixture.unknown\n#[test]\nfn fake() {}\n\"###; assert!(true); }\n"
+            )
+            self.assertEqual(self.write_record_fixture(root, record, census), [])
+            source.write_text("#[test]\nfn result() {\n// naming.fixture.unknown\n}\n")
+            self.assertTrue(any("annotation is not indexed" in error
+                                for error in gate.validate(root, True)[0]))
+
+    def test_actual_body_requires_its_own_matching_document_comment(self):
+        # Implementation contract: naming.proof-records.exact-evidence-and-coverage
+        # docs/design/analysis/name-resolution-proofs/exact-evidence-and-coverage.md
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record, _, census = self.fixture(root)
+            source = root / "rust/tcl-syntax/src/fixture.rs"
+            source.parent.mkdir(parents=True)
+            record["tests"] = [{
+                "path": str(source.relative_to(root)),
+                "selector": "fixture::result",
+                "status": "linked",
+                "purpose": "Synthetic comment-boundary correspondence only.",
+            }]
+            source.write_text(
+                "fn helper() {\n"
+                f"// {record['id']}\n// {record['document']}\n"
+                "}\n#[test]\nfn result() { assert!(true); }\n"
+            )
+            errors = self.write_record_fixture(root, record, census)
+            self.assertTrue(any("test comment is missing" in error for error in errors))
+            source.write_text(
+                "#[test]\nfn result() {\n"
+                f"// {record['id']}\n// {DIRECTORY}/different-question.md\n"
+                f"let text = \"{record['document']}\"; assert!(true);\n}}\n"
+            )
+            self.assertTrue(any("no matching document comment" in error
+                                for error in gate.validate(root, True)[0]))
+
     def test_missing_provider_and_native_donation_to_rust_contract_fail(self):
         # Implementation contract: naming.proof-records.exact-evidence-and-coverage
         # docs/design/analysis/name-resolution-proofs/exact-evidence-and-coverage.md

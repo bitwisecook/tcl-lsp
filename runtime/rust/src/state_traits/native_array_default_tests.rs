@@ -75,12 +75,12 @@ fn stored(interpreter: &Interp) -> Option<*mut TclObj> {
 }
 fn install(interpreter: &mut Interp, value: *mut TclObj) {
     let frame = Frames::current(interpreter);
-    assert_eq!(
+    assert!(matches!(
         interpreter
             .set_array_default_bytes(frame, b"::array", value)
             .unwrap(),
         Ok(())
-    );
+    ));
 }
 fn cleanup(interpreter: &mut Interp) {
     MODE.with(|mode| mode.set(0));
@@ -119,7 +119,7 @@ fn original_array_default_replacement_retires_outside_borrows_after_actual_publi
             let outcome = interpreter.set_array_default_bytes(frame, b"::array", next.as_ptr());
             assert_eq!(outcome.is_ok(), mode == 0);
             if mode == 0 {
-                assert_eq!(outcome.unwrap(), Ok(()));
+                assert!(matches!(outcome.unwrap(), Ok(())));
             }
             assert_eq!(FREES.with(Cell::get), 1);
             assert!(OUTSIDE.with(Cell::get));

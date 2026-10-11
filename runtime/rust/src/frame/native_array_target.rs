@@ -2,7 +2,7 @@
 //! Array operations select the original cell, independently of its name.
 
 use super::{CellContents, NativeScalarAliasEntry, RetainedArrayCell, Var, VarTable};
-use crate::obj::{self, TclObj};
+use crate::obj::TclObj;
 use std::{cell::RefCell, rc::Rc};
 use tcl_runtime_api::{ArrayDefaultState, VarId};
 
@@ -175,7 +175,7 @@ impl VarTable {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::obj::Owned;
+    use crate::obj::{self, Owned};
 
     #[test]
     fn scalar_alias_array_operations_keep_the_selected_duplicate_declaration() {

@@ -214493,6 +214493,59 @@
       "question_ids": [],
       "sealed_images": {},
       "limits": "This cargo check --lib --tests operation closes exit101 with one E0063 in the existing VM dict_canonicalisation_parity integration fixture at line138: ConstSubstCtx.namespace_context is absent. It is a five-package check-only request, not an own no-run test producer. There is no executable creation event, admitted test image, executable inventory or assertion summary. Complete source/head/actual compile-root identities are retained inside the original receipt. Other operations and external Native observations establish no result for this check."
+    },
+    {
+      "id": "rust.frozen330.integration-consumer-compile-check330",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen330/integration-consumer-compile-check330/receipt.json.gz",
+        "sha256": "a66393875fbcc754fd24815e778f2d9393b826b0640eaa2a2f249fd709db23ea",
+        "compression": "gzip",
+        "uncompressed_sha256": "db3449a73db816d8fc9c7bbc0873cf0e07e3d17ef92180ab6833166bd3a663c9"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen330/integration-consumer-compile-check330/check.log",
+        "sha256": "c27aecb7f6f9804ba06b8a5e77c0f68ae2b64784d7878ee6099696f0aad8750a"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "check",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-vm",
+        "-p",
+        "tcl-lsp-core",
+        "-p",
+        "tcl-explorer",
+        "-p",
+        "tcl-registry",
+        "--lib",
+        "--tests",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 69.47231070001726,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen330/integration-consumer-compile-check330/receipt.json.gz",
+        "sha256": "a66393875fbcc754fd24815e778f2d9393b826b0640eaa2a2f249fd709db23ea",
+        "compression": "gzip",
+        "uncompressed_sha256": "db3449a73db816d8fc9c7bbc0873cf0e07e3d17ef92180ab6833166bd3a663c9",
+        "json_pointer": "/source/source",
+        "authority": "Complete original37793-leaf Source330 inventory retained exactly inside the closed check receipt; receipt source equals the immutable snapshot. Actual compile root and original diagnostic source retain their recorded identities. No executable or assertion result is inferred from this cargo check operation."
+      },
+      "tests": [],
+      "question_ids": [],
+      "sealed_images": {},
+      "limits": "This cargo check --lib --tests operation closes exit101 with seven VM library-test configuration errors: one E0603 private module reference, two E0277 Rc byte-array conversions, two E0308 method-report types and two E0599 absent Value.as_bytes calls. It is a five-package check-only request, not an own no-run test producer. There is no executable creation event, admitted test image, executable inventory or assertion summary. Complete source/head/actual compile-root identities are retained inside the original receipt. The separate root-written freeze-incomplete-copy provenance record reports an ENOSPC archive-copy failure with no Cargo launch and no snapshot receipt; it is not the successful source330 capture or a check receipt. Other operations and external Native observations establish no result for this check."
     }
   ]
 }

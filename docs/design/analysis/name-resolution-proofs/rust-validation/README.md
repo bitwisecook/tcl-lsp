@@ -3928,3 +3928,31 @@ inside `/source/source`, HEAD `7e9cbd64cd428757635195538c7953fc250f01f8`, immuta
 Its source object equals the original immutable snapshot, and its diagnostic
 source retains the exact recorded whole-file SHA. The gzip copy round-trips to
 the complete original receipt bytes; no second source-catalogue copy is needed.
+
+## Source330 consumer check outcome
+
+The original five-package `cargo check --lib --tests` request closes exit
+`101` after 69.47231070001726 seconds with uniform source `true`.
+Its [whole original check log](frozen330/integration-consumer-compile-check330/check.log)
+records seven VM library-test configuration errors: one `E0603` private module
+reference, two `E0277` `Rc` byte-array conversions, two `E0308` method-report
+type mismatches, and two `E0599` absent `Value.as_bytes` calls. The complete
+original diagnostics retain their exact source paths and physical lines.
+
+This check-only operation has no executable creation event, admitted test
+image, executable inventory or assertion summary. It is not an own library-test
+no-run producer. Other operations and Native observations establish no outcome
+for this check.
+
+The [root-written incomplete-copy provenance record](frozen330/integration-consumer-compile-check330/freeze-incomplete-copy.json)
+reports an ENOSPC immutable archive-copy failure with no Cargo launch and no
+snapshot receipt. Its partial archive supplies no compilation or assertion
+credit. It is separate from the complete source capture retained by this check.
+
+The [exact closed receipt](frozen330/integration-consumer-compile-check330/receipt.json.gz)
+retains the actual command and complete original 37,793-leaf source inventory
+inside `/source/source`, HEAD `5253854bd0d1ab9f842c765f2305d82f548f5879`, immutable archive
+`naming330` and actual compile root `naming-current-validation323`.
+Its source object equals the original immutable snapshot, and its diagnostic
+source retains the exact recorded whole-file SHA. The gzip copy round-trips to
+the complete original receipt bytes; no second source-catalogue copy is needed.

@@ -2960,7 +2960,7 @@ mod original_recovered_source_purpose_tests {
     #[test]
     fn original_recovered_word_keeps_bom_and_supplied_input_through_nested_inventory() {
         // naming.compiler.original-analysis-metadata-context
-        // docs/design/analysis/name-resolution-proofs/compiler-original-analysis-metadata-context.md
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         // Conditional lexical inventory; no original child execution or Normal handler grant.
         let mut prepared = crate::analyser::Analyser::new();
         let base = prepared.prepare_analysis_input("tcl9.1").unwrap();

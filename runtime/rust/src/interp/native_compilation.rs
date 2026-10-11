@@ -1052,11 +1052,11 @@ impl Interp {
         // Record the invocation words for `info level N`: an OO constructor
         // supplies the `create`/`new` invocation words verbatim; otherwise the
         // invoked name plus the supplied arguments.
-        let words = if meta.original_argv.is_some()
-            && self
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .is_some_and(|protocol| protocol.tcl_version().is_some())
+        let words = if CallMeta::original_frame_arguments(
+            self.native_invocation_dialect(),
+            meta.original_argv,
+        )
+        .is_some()
         {
             // Native C borrows objc/objv. No argument string getter is reached
             // merely to install the frame's invocation transport.

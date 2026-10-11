@@ -22,6 +22,8 @@ The Runtime public expression adapter compares two exact original Jim direct API
 
 The current VM consumer has a bounded two-case Jim public-API comparison and independently checked original operand cache/String state before observation. Its actual selected core and result producer remain distinct from source interpretation or whole expression execution.
 
+The combined condition uses one original raw evaluation and one genuine result producer before truth. Owned Guest code/result/options and final loop ownership remain separate from successful truth output and cleanup.
+
 The table counts successful rows within each exact route; a successful host process includes all expected route errors.
 
 | Provider | Primitive | Expr Boolean API | Unary-not | Ternary | if | while |
@@ -32,8 +34,6 @@ The table counts successful rows within each exact route; a successful host proc
 | 9.0.4 | 32 / 36 | 32 / 36 | 32 / 36 | 32 / 36 | 32 / 36 | 32 / 36 |
 | 9.1.0 | 32 / 36 | 32 / 36 | 32 / 36 | 32 / 36 | 32 / 36 | 32 / 36 |
 | jim | 19 / 36 | 34 / 36 | 34 / 36 | 34 / 36 | 34 / 36 | 34 / 36 |
-
-The combined condition uses one original raw evaluation and one genuine result producer before truth. Owned Guest code/result/options and final loop ownership remain separate from successful truth output and cleanup.
 
 ## Scope
 
