@@ -4431,6 +4431,7 @@ dependencies = [
 name = "tcl-host-c-abi"
 version = "0.1.0"
 dependencies = [
+ "cc",
  "libc",
  "sha2 0.11.0",
  "tcl-platform",
