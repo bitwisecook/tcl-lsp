@@ -265,6 +265,7 @@ fn cross_file_call_site_evidence(
 
 /// The qualified names of every procedure `document` declares, from the same
 /// [`tcl_compiler::signature_scan`] the analyser and the LSP index use.
+/// The fresh complete-document ingress selects the actual file grammar.
 fn document_proc_names(
     document: &InputDocument,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -727,4 +728,29 @@ pub fn run_validate(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
     write_text_output(&target, &rendered)?;
     eprintln!("validation failed: {} error(s)", errors.len());
     Ok(1)
+}
+
+#[cfg(test)]
+mod original_document_signature_tests {
+    use super::*;
+
+    #[test]
+    fn cli_cross_file_procedure_discovery_keeps_the_document_bom_and_body_purpose() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Actual CLI discovery adapter; no interprocedural fold or interpreter execution claim.
+        let document = InputDocument {
+            label: "<original-document>".to_owned(),
+            source: "\u{feff}proc visible {} {}\rif 1 {\u{feff}proc hidden {} {}}\rif 1 {proc nested {} {}}".to_owned(),
+            path: None,
+            decode: tcl_lsp_core::source_decode::DecodeReport::default(),
+        };
+        let environment = tcl_registry::model::resolve_known_environment("tcl9.1").unwrap();
+        let names = document_proc_names(&document, environment.unit_profile());
+        assert!(names.iter().any(|name| name == "::visible"));
+        assert!(names.iter().any(|name| name == "::nested"));
+        assert!(!names.iter().any(|name| name == "::hidden"));
+        assert!(document.source.contains('\r'));
+        assert!(!document.analysis_source().contains('\r'));
+    }
 }

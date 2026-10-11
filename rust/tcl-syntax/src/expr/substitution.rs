@@ -176,9 +176,13 @@ pub fn command_substitution_spans(
     live_expression_substitutions(source, profile, lexer_config, surface_accepts).commands
 }
 
-/// Convert an inclusive expression-lexer pair into the public half-open span
-/// contract, only after proving it still slices the original UTF-8 source.
-fn expression_span(source: &str, start: u32, end: u32) -> Option<Span> {
+/// Convert an inclusive expression-lexer pair into a checked half-open span.
+///
+/// The complete extent must remain within `source` and on UTF-8 boundaries.
+/// This is source geometry only: a span supplies no original operand, source
+/// ancestry, grammar, selected command or execution receipt.
+#[must_use]
+pub fn expression_span(source: &str, start: u32, end: u32) -> Option<Span> {
     let start = usize::try_from(start).ok()?;
     let end = usize::try_from(end).ok()?.checked_add(1)?;
     source.get(start..end)?;
@@ -755,5 +759,38 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["[set inside $other]", "[set result $value]"],
         );
+    }
+}
+
+#[cfg(test)]
+mod original_expression_span_tests {
+    use super::expression_span;
+    use tcl_lexer::Span;
+
+    #[test]
+    fn inclusive_expression_extent_keeps_complete_multibyte_source_and_checked_boundaries() {
+        // naming.grammar.checked-expression-substitution-context
+        // docs/design/analysis/name-resolution-proofs/checked-expression-substitution-context.md
+        // Geometry only; no original operand or command selection is issued.
+        let command = "[regexp λ λ out]";
+        let end = u32::try_from(command.len())
+            .unwrap()
+            .checked_sub(1)
+            .unwrap();
+        let extent = expression_span(command, 0, end).unwrap();
+        assert_eq!(extent, Span::new(0, end + 1));
+        assert_eq!(command.get(extent.as_range()), Some(command));
+
+        let source = format!("λ prefix {command} suffix");
+        let base = u32::try_from(source.find(command).unwrap()).unwrap();
+        let extent = expression_span(&source, base, base.checked_add(end).unwrap()).unwrap();
+        assert_eq!(extent.start(), base);
+        assert_eq!(source.get(extent.as_range()), Some(command));
+        let lambda = u32::try_from(command.find('λ').unwrap()).unwrap();
+        assert!(expression_span(command, lambda + 1, end).is_none());
+        assert!(expression_span(command, 0, lambda).is_none());
+        assert!(expression_span(command, 0, u32::MAX).is_none());
+        assert!(expression_span(command, end + 2, end).is_none());
+        assert!(expression_span(command, 0, end + 1).is_none());
     }
 }

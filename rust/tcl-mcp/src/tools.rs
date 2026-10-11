@@ -34,8 +34,8 @@ use tcl_lsp_core::diagnostic_policy::{
     Directives, Finding, Policy, PolicyBuilder, PolicyLayer, Reason, Report, Shown,
 };
 use tcl_lsp_core::diagnostic_report::{
-    DocumentSource, SourcePass, StandaloneDocument, document_report_with_analysis,
-    optimise_under_policy, standalone_findings,
+    DocumentSource, SourcePass, StandaloneDocument, StandaloneFindings,
+    document_report_with_analysis, optimise_under_policy, standalone_findings,
 };
 use tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH;
 use tcl_registry::CommandRegistry;
@@ -231,10 +231,8 @@ struct Analysed {
     analysis_text: String,
     /// The source's dialect.
     dialect: &'static DialectProfile,
-    /// The analysis, for the tools that read its facts beside the report.
-    analysis: AnalysisResult,
-    /// The analyser's findings, then the compiler checks', converted.
-    produced: Vec<Finding>,
+    /// The analysis, findings and actual shared unit from one producer.
+    findings: StandaloneFindings,
     policy: Policy,
 }
 
@@ -250,7 +248,7 @@ impl Analysed {
     fn diagnostics_report(&self) -> Report {
         let mut policy = self.policy.clone();
         policy.optimiser.enabled = false;
-        let mut report = self.report_under(self.produced.clone(), &policy);
+        let mut report = self.report_under(self.findings.produced.clone(), &policy);
         report.declare_optimiser_skip(&policy);
         report
     }
@@ -259,7 +257,7 @@ impl Analysed {
     /// `rewrites`, under the policy as the layers resolve it, the optimiser
     /// switch included — the editor's lightbulb decides the same way.
     fn actions_report(&self, rewrites: Vec<Finding>) -> Report {
-        let mut produced = self.produced.clone();
+        let mut produced = self.findings.produced.clone();
         produced.extend(rewrites);
         self.report_under(produced, &self.policy)
     }
@@ -279,7 +277,7 @@ impl Analysed {
             },
             produced,
             policy,
-            Some(&self.analysis),
+            Some(&self.findings.analysis),
         );
         report.declare_analyser_skip(policy);
         report
@@ -334,8 +332,7 @@ fn analyse_under(source: &str, dialect: &str, inputs: &PolicyInputs) -> Analysed
         source: source.to_owned(),
         analysis_text,
         dialect: profile,
-        analysis: standalone.analysis,
-        produced: standalone.produced,
+        findings: standalone,
         policy,
     }
 }
@@ -868,11 +865,13 @@ fn analyze_with(args: &Value, inputs: &PolicyInputs) -> Value {
     let report = analysed.diagnostics_report();
     let sm = SourceMap::new(source);
     let diagnostics: Vec<Value> = report.shown().map(|d| diag_to_json(&d, &sm)).collect();
-    let symbols: Vec<Value> =
-        tcl_lsp_core::document_symbols::document_symbols_from_analysis(source, &analysed.analysis)
-            .iter()
-            .map(doc_symbol_to_json)
-            .collect();
+    let symbols: Vec<Value> = tcl_lsp_core::document_symbols::document_symbols_from_analysis(
+        source,
+        &analysed.findings.analysis,
+    )
+    .iter()
+    .map(doc_symbol_to_json)
+    .collect();
     json!({
         "analysis_context_unavailable": report.analysis_context_status_data(),
         "diagnostic_count": diagnostics.len(),
@@ -1287,11 +1286,15 @@ fn code_actions(args: &Value) -> Value {
 /// offered for a finding the document shows and for no other — and a shown
 /// rewrite is an offerable action, not only a diagnostic payload.
 fn code_actions_with(args: &Value, inputs: &PolicyInputs) -> Value {
-    use tcl_compiler::optimiser::optimise_with_dialect;
-
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
     let analysed = analyse_under(source, &dialect, inputs);
+    code_actions_from_analysis(args, &analysed)
+}
+
+/// Render actions from the already supplied producer. Optimisation reads its
+/// retained unit and complete current input rather than rebuilding a world.
+fn code_actions_from_analysis(args: &Value, analysed: &Analysed) -> Value {
     let range = LspRange {
         start_line: arg_u32(args, "start_line"),
         start_character: arg_u32(args, "start_character"),
@@ -1304,19 +1307,17 @@ fn code_actions_with(args: &Value, inputs: &PolicyInputs) -> Value {
     // the same policy, whose optimiser switch stays the layers'. Both run
     // over the analysis form, as the editor's lightbulb does, so a lone-`\r`
     // source's ranges are on the client's line model.
-    let rewrites: Vec<Finding> = optimise_with_dialect(
-        &analysed.analysis_text,
-        &registry(&dialect),
-        Some(analysed.dialect),
-    )
-    .into_iter()
-    .map(Finding::from)
-    .collect();
+    let rewrites: Vec<Finding> = analysed
+        .findings
+        .optimisation_candidates(&analysed.analysis_text)
+        .into_iter()
+        .map(Finding::from)
+        .collect();
     let report = analysed.actions_report(rewrites);
     let actions: Vec<Value> = tcl_lsp_core::code_actions::code_actions(
         &analysed.analysis_text,
         range,
-        Some(&analysed.analysis),
+        Some(&analysed.findings.analysis),
         &report,
     )
     .iter()
@@ -3190,6 +3191,116 @@ mod policy_tests {
         let lf_actions = actions_on_line(lf, 1, full);
         assert!(!lf_actions.is_empty(), "the `\\n` form offers actions");
         assert_eq!(actions_on_line(&cr, 1, full), lf_actions);
+    }
+
+    #[test]
+    fn original_code_action_candidates_retain_the_supplied_unit_and_refuse_changed_owners() {
+        // naming.consumer.original-mcp-refactor-context
+        // docs/design/analysis/name-resolution-proofs/original-mcp-refactor-context.md
+        let args = json!({
+            "source": FOLDING, "dialect": "tcl9.0",
+            "start_line": 0, "start_character": 0,
+            "end_line": 0, "end_character": 80,
+        });
+        let inputs = inputs(&args, "diagnostics", "[optimiser]\nprofile = full\n");
+        let mut analysed = analyse_under(FOLDING, "tcl9.0", &inputs);
+        let original = analysed.findings.analysis.clone();
+        let fold = |response: &Value| {
+            response["actions"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|action| {
+                    action["edits"]
+                        .as_array()
+                        .is_some_and(|edits| edits.iter().any(|edit| edit["new_text"] == "set x 3"))
+                })
+        };
+        let control = code_actions_from_analysis(&args, &analysed);
+        assert!(
+            fold(&control),
+            "actual code-action consumer offers the retained unit's fold: {control}"
+        );
+        assert_eq!(code_actions_with(&args, &inputs), control);
+        let input = original.resolved_input.as_ref().unwrap();
+        assert_eq!(
+            input.borrowed_context_registry().commands().snapshot(),
+            registry("tcl9.0").snapshot()
+        );
+        assert!(input.lexer_config() == original.body_lexer_config.unwrap());
+        analysed.findings.analysis.resolved_input = None;
+        assert!(!fold(&code_actions_from_analysis(&args, &analysed)));
+        analysed.findings.analysis = original.clone();
+        analysed.findings.analysis.analysis_context_unavailable =
+            Some(tcl_registry::model::OverlayMiss {
+                environment: "tcl9.0".to_owned(),
+                overlay: u64::MAX - 436,
+            });
+        assert!(!fold(&code_actions_from_analysis(&args, &analysed)));
+        analysed.findings.analysis = original.clone();
+        analysed
+            .findings
+            .analysis
+            .body_lexer_config
+            .as_mut()
+            .unwrap()
+            .strict_quoting ^= true;
+        assert!(!fold(&code_actions_from_analysis(&args, &analysed)));
+        let older = tcl_registry::model::resolve_environment("tcl8.4")
+            .default_context_registry()
+            .with_command_store(std::sync::Arc::clone(
+                input.borrowed_context_registry().commands(),
+            ));
+        let older_input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            std::sync::Arc::new(older),
+            input.lexer_config(),
+        );
+        assert!(std::sync::Arc::ptr_eq(
+            input.borrowed_context_registry().commands(),
+            older_input.borrowed_context_registry().commands()
+        ));
+        assert_ne!(input, &older_input);
+        analysed.findings.analysis = Analyser::new()
+            .with_resolved_input(older_input)
+            .analyse(FOLDING, input.analyser_profile().name);
+        assert!(analysed.findings.analysis.matches_original_source_image(
+            &tcl_lexer::SourceImage::document(FOLDING),
+            input.lexer_config()
+        ));
+        assert!(!fold(&code_actions_from_analysis(&args, &analysed)));
+        let mut foreign_store = CommandRegistry::build_default();
+        foreign_store.insert(tcl_registry::CommandSpec {
+            name: "foreignMcpCandidateStoreMarker",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        assert_ne!(
+            foreign_store.snapshot(),
+            input.borrowed_context_registry().commands().snapshot()
+        );
+        let foreign_context = input
+            .borrowed_context_registry()
+            .with_command_store(foreign_store.snapshot().shared_registry());
+        let foreign_input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            std::sync::Arc::new(foreign_context),
+            input.lexer_config(),
+        );
+        analysed.findings.analysis = Analyser::new()
+            .with_resolved_input(foreign_input)
+            .analyse(FOLDING, input.analyser_profile().name);
+        assert!(analysed.findings.analysis.matches_original_source_image(
+            &tcl_lexer::SourceImage::document(FOLDING),
+            input.lexer_config()
+        ));
+        assert!(!fold(&code_actions_from_analysis(&args, &analysed)));
+        analysed.findings.analysis = original.clone();
+        analysed.analysis_text = FOLDING.replace("1 + 2", "1 + 4");
+        assert!(!fold(&code_actions_from_analysis(&args, &analysed)));
+        analysed.analysis_text = FOLDING.to_owned();
+        assert_eq!(code_actions_from_analysis(&args, &analysed), control);
     }
 
     #[test]

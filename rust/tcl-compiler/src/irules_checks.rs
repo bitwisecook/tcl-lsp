@@ -492,9 +492,47 @@ impl<'a> IrulesSourceQuery<'a> {
         )
     }
 
+    /// Distinguish ordinary functions from an unavailable original event.
+    /// The actual map entry and lowering descriptor own identity; report names
+    /// select neither source bodies nor conditional event frame policy.
+    fn event(&self, function: &FunctionUnit) -> Option<Option<OriginalEvent<'_>>> {
+        let module = &self.unit.ir_module;
+        let Some((key, owned)) = self
+            .unit
+            .procedures
+            .iter()
+            .find(|(_, owned)| std::ptr::eq(*owned, function))
+        else {
+            return std::ptr::eq(function, &self.unit.top_level).then_some(None);
+        };
+        let Some(expected) = module.irules_event_bodies.get(key) else {
+            return owned.irules_event_body.is_none().then_some(None);
+        };
+        self.function_config(owned)?;
+        let body = owned.irules_event_body.as_ref()?;
+        let procedure = module.procedures.get(key)?;
+        if !std::sync::Arc::ptr_eq(body, expected)
+            || !body.owns_procedure(
+                procedure,
+                &module.source,
+                module.lexer_config,
+                self.registry,
+            )
+        {
+            return None;
+        }
+        Some(Some(OriginalEvent { body, procedure }))
+    }
+
     fn metadata(&self) -> Option<crate::registry_invocation::InvocationMetadataContext<'_>> {
         self.metadata
     }
+}
+
+/// Original conditional source event, without an executing event or worker.
+struct OriginalEvent<'a> {
+    body: &'a crate::ir::SourceIrulesEventBody,
+    procedure: &'a crate::ir::Procedure,
 }
 
 /// Select the actual function's complete config before choosing parser purpose.
@@ -531,7 +569,7 @@ fn unnormalised_getter_source_config(
 
 // IRULE5002 + IRULE5004 — unguarded drop / DNS::return
 //
-// Path-sensitive: each `::when::*` proc body is walked with each branch
+// Path-sensitive: each original event body is walked with each branch
 // of every `if` / `switch` / `try` tracked separately, emitting at
 // branch joins where the drop survived unguarded.
 
@@ -620,7 +658,7 @@ fn drop_flow_leaf(st: &DropFlowState, stmt: &Statement) -> DropFlowState {
 
 /// Path-sensitive IRULE5002 / IRULE5004 — an unguarded `drop`/`reject`/
 /// `discard` (no following `event disable all` / `return`) or a `DNS::return`
-/// without a following `return`, on at least one path through a `::when::*`
+/// without a following `return`, on at least one path through an original event
 /// body.
 #[must_use]
 pub fn find_unguarded_drop_warnings(
@@ -631,18 +669,22 @@ pub fn find_unguarded_drop_warnings(
     if !is_irules(dialect) {
         return out;
     }
+    let Some(source) = IrulesSourceQuery::capture(cu, cu.ir_module.resolved_registry()) else {
+        return out;
+    };
     let leaf = |st: &DropFlowState, stmt: &Statement, _out: &mut Vec<IrulesCheckWarning>| {
         drop_flow_leaf(st, stmt)
     };
     // Honour the complexity guard but walk the structured
-    // IR body of each analysable `::when::*` event handler.
+    // IR body of each analysable original event handler.
     for fu in cu.analysable_functions() {
-        if !fu.name.starts_with("::when::") {
-            continue;
-        }
-        let Some(proc) = cu.ir_module.procedures.get(&fu.name) else {
+        let Some(event) = source.event(fu) else {
+            return Vec::new();
+        };
+        let Some(event) = event else {
             continue;
         };
+        let proc = event.procedure;
         let unreached = unreached_statements(fu);
         let finals = walk_flow(
             &proc.body,
@@ -709,7 +751,7 @@ pub fn find_unguarded_drop_warnings(
 // IRULE1005 / IRULE1006 / IRULE1007 / IRULE1008 — collect/release/payload
 //
 // Cross-event analysis: classifies registry-declared collection operations
-// across every `::when::*` proc body, then emits:
+// across every original event body, then emits:
 //
 //   * IRULE1005 — `*_DATA` event handler exists but no matching
 //     `*::collect` for the corresponding protocol.
@@ -1139,22 +1181,23 @@ fn collect_flow_state(source: &IrulesSourceQuery<'_>) -> Option<(CollectFlowStat
     let mut events_seen = Vec::new();
     let events = EventRegistry::build();
     for fu in source.unit.analysable_functions() {
-        if let Some(event) = fu.name.strip_prefix("::when::") {
-            let bare = event.split('#').next().unwrap_or(event).to_string();
-            events_seen.push(bare.clone());
-            let Some(side) = events
-                .get_props(&bare)
-                .and_then(tcl_registry::events::EventProps::command_side)
-                .and_then(|side| match side {
-                    ConnectionSide::Client => Some("client"),
-                    ConnectionSide::Server => Some("server"),
-                    _ => None,
-                })
-            else {
-                continue;
-            };
-            scan_when_body_for_collect_flow(fu, &bare, side, &mut state, source)?;
-        }
+        let Some(event) = source.event(fu)? else {
+            continue;
+        };
+        let event = event.body.event();
+        events_seen.push(event.to_owned());
+        let Some(side) = events
+            .get_props(event)
+            .and_then(tcl_registry::events::EventProps::command_side)
+            .and_then(|side| match side {
+                ConnectionSide::Client => Some("client"),
+                ConnectionSide::Server => Some("server"),
+                _ => None,
+            })
+        else {
+            continue;
+        };
+        scan_when_body_for_collect_flow(fu, event, side, &mut state, source)?;
     }
     Some((state, events_seen))
 }
@@ -1226,11 +1269,16 @@ fn event_anchor_span(
     registry: &CommandRegistry,
     event: &str,
 ) -> Option<Span> {
-    cu.functions()
-        .filter_map(|fu| fu.irules_event_body.as_ref())
-        .filter(|body| body.event() == event)
-        .filter_map(|body| {
-            body.event_word(&cu.ir_module.source, cu.ir_module.lexer_config, registry)
+    let source = IrulesSourceQuery::capture(cu, registry)?;
+    source
+        .unit
+        .functions()
+        .filter_map(|fu| source.event(fu).flatten())
+        .filter(|owned| owned.body.event() == event)
+        .filter_map(|owned| {
+            owned
+                .body
+                .event_word(&cu.ir_module.source, cu.ir_module.lexer_config, registry)
         })
         .map(tcl_lexer::NativeWord::span)
         .min_by_key(|span| span.start())
@@ -1335,7 +1383,7 @@ fn emit_release_without_collect_warnings(
 // IRULE1201 / IRULE1202 — HTTP-after-respond / multi-respond
 //
 // Path-sensitive analysis of the *structured* IR body of each
-// `::when::HTTP*` procedure, tracking a set of per-path response states
+// original HTTP-profile event body, tracking a set of per-path response states
 // so that:
 //
 //   * IRULE1202 — a second `HTTP::respond` / `HTTP::redirect` / `redirect`
@@ -1367,24 +1415,27 @@ pub fn find_http_flow_warnings(
     if !is_irules(dialect) {
         return out;
     }
+    let Some(source) = IrulesSourceQuery::capture(cu, cu.ir_module.resolved_registry()) else {
+        return out;
+    };
     let events = EventRegistry::build();
     // Iterate the *analysable* functions (honouring the complexity
     // guard) but walk their structured IR body.
     for fu in cu.analysable_functions() {
-        let Some(event) = fu.name.strip_prefix("::when::") else {
+        let Some(event) = source.event(fu) else {
+            return Vec::new();
+        };
+        let Some(event) = event else {
             continue;
         };
-        // Strip priority index (`HTTP_REQUEST#1` → `HTTP_REQUEST`).
-        let bare_event = event.split('#').next().unwrap_or(event);
+        let bare_event = event.body.event();
         if !events
             .get_props(bare_event)
             .is_some_and(|props| props.implied_profiles.contains(&"HTTP"))
         {
             continue;
         }
-        let Some(proc) = cu.ir_module.procedures.get(&fu.name) else {
-            continue;
-        };
+        let proc = event.procedure;
         let unreached = unreached_statements(fu);
         let leaf = |st: &HttpFlowState, stmt: &Statement, out: &mut Vec<IrulesCheckWarning>| {
             match http_flow_stmt_command(stmt) {
@@ -1885,15 +1936,20 @@ pub fn find_hoistable_set_warnings(
     }
     let events = EventRegistry::build();
     let registry = cu.ir_module.resolved_registry();
-    let Some(write_counts) = event_mutation_counts(cu, registry) else {
+    let Some(source) = IrulesSourceQuery::capture(cu, registry) else {
+        return out;
+    };
+    let Some(write_counts) = event_mutation_counts(&source) else {
         return out;
     };
     for fu in cu.analysable_functions() {
-        let Some(event) = fu.name.strip_prefix("::when::") else {
+        let Some(event) = source.event(fu) else {
+            return Vec::new();
+        };
+        let Some(event) = event else {
             continue;
         };
-        let event = event.split('#').next().unwrap_or(event);
-        if !events.is_per_request(event) {
+        if !events.is_per_request(event.body.event()) {
             continue;
         }
         let Some(block) = fu.cfg.blocks.get(&fu.cfg.entry) else {
@@ -1901,7 +1957,7 @@ pub fn find_hoistable_set_warnings(
         };
         let contexts = crate::place_bridge::build_point_resolve_contexts_with_entry(
             &fu.cfg,
-            crate::connection_scope::event_resolve_context(event),
+            event.body.conditional_entry(),
             registry,
         );
         for (index, stmt) in block.statements.iter().enumerate() {
@@ -1949,18 +2005,17 @@ pub fn find_hoistable_set_warnings(
 /// Count physical mutations rather than displayed operands. An unbounded
 /// mutation cannot prove that another event leaves a proposed destination alone.
 fn event_mutation_counts(
-    cu: &CompilationUnit,
-    registry: &CommandRegistry,
+    source: &IrulesSourceQuery<'_>,
 ) -> Option<HashMap<crate::connection_scope::EventCell, usize>> {
     let mut counts = HashMap::new();
-    for fu in cu.functions() {
-        if !fu.name.starts_with("::when::") {
+    let registry = source.registry;
+    for fu in source.unit.functions() {
+        let Some(event) = source.event(fu)? else {
             continue;
-        }
-        let event = crate::ir::when_event_name(&fu.name);
+        };
         let contexts = crate::place_bridge::build_point_resolve_contexts_with_entry(
             &fu.cfg,
-            crate::connection_scope::event_resolve_context(event),
+            event.body.conditional_entry(),
             registry,
         );
         for (&id, block) in &fu.cfg.blocks {
@@ -2013,7 +2068,7 @@ fn hoistable_literal_assignment(
 
 // IRULE4002 — generic `static::` variable name that will collide
 //
-// Walks every `::when::` CFG body for statements that define a
+// Walks every original event CFG body for statements that define a
 // `static::` variable and flags bare names matching a set of generic
 // regex patterns. Deduplicated across events — the first occurrence's
 // span wins. The pattern set is configurable (`tclLsp.diagnostics.
@@ -2093,9 +2148,15 @@ pub fn find_generic_static_name_warnings(
     if compiled.is_empty() {
         return out;
     }
+    let Some(source) = IrulesSourceQuery::capture(cu, cu.ir_module.resolved_registry()) else {
+        return out;
+    };
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     for fu in cu.analysable_functions() {
-        if !fu.name.starts_with("::when::") {
+        let Some(event) = source.event(fu) else {
+            return Vec::new();
+        };
+        if event.is_none() {
             continue;
         }
         for bn in cfg_order(&fu.cfg) {
@@ -3934,5 +3995,280 @@ mod original_collection_source_tests {
         }
         let source = IrulesSourceQuery::capture(&wrong, context.commands()).unwrap();
         assert!(collect_flow_state(&source).is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_event_owner_tests {
+    use super::*;
+    use crate::compilation_unit::UnitBuildOptions;
+    use std::sync::Arc;
+
+    fn supplied(
+        text: &str,
+        custom_definer: bool,
+    ) -> (CompilationUnit, Arc<tcl_registry::model::ContextRegistry>) {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let context = if custom_definer {
+            let mut store = CommandRegistry::build_default()
+                .project_for_profile(environment.analyser_profile());
+            let selected = store.get("when").unwrap().clone();
+            store.insert(tcl_registry::CommandSpec {
+                name: "on",
+                ..selected
+            });
+            Arc::new(
+                environment
+                    .default_context_registry()
+                    .with_command_store(Arc::new(store)),
+            )
+        } else {
+            environment.default_context_registry()
+        };
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            base_line: 23,
+            ..tcl_lexer::LexerConfig::from_grammar(environment.grammar())
+        };
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            environment.unit_profile(),
+            Arc::clone(&context),
+            config,
+        );
+        let unit = CompilationUnit::build_with_analysis_input(
+            text,
+            UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(environment.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        (unit, context)
+    }
+
+    fn events(source: &IrulesSourceQuery<'_>) -> Option<Vec<String>> {
+        let mut names = Vec::new();
+        for function in source.unit.functions() {
+            if let Some(event) = source.event(function)? {
+                names.push(event.body.event().to_owned());
+            }
+        }
+        names.sort();
+        Some(names)
+    }
+
+    fn event_warnings(
+        unit: &CompilationUnit,
+        registry: &CommandRegistry,
+    ) -> Vec<IrulesCheckWarning> {
+        let surface = Some(SurfaceQuery::any_release(Family::F5Irules));
+        let mut warnings = find_unguarded_drop_warnings(unit, surface);
+        warnings.extend(find_collect_flow_warnings(unit, registry, surface));
+        warnings.extend(find_http_flow_warnings(unit, surface));
+        warnings.extend(find_hoistable_set_warnings(unit, surface));
+        warnings.extend(find_generic_static_name_warnings(unit, surface, None));
+        warnings
+    }
+
+    #[test]
+    fn ordinary_procedure_with_an_event_shaped_name_has_no_event_semantics() {
+        // naming.variable.registry-event-frame-identity
+        // docs/design/analysis/name-resolution-proofs/variable-registry-event-frame-identity.md
+        // Source classification only; this does not execute an iRule or Tcl proc.
+        let text = "namespace eval ::when {}; proc ::when::HTTP_REQUEST {} {\n\
+            HTTP::respond 200; HTTP::header insert X-Test yes; drop;\n\
+            set static::debug 1; set svc foo; HTTP::payload\n}";
+        let (unit, context) = supplied(text, false);
+        assert!(unit.procedures.contains_key("::when::HTTP_REQUEST"));
+        let source = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        assert_eq!(events(&source), Some(Vec::new()));
+        assert_eq!(event_mutation_counts(&source), Some(HashMap::new()));
+        assert!(collect_flow_state(&source).unwrap().1.is_empty());
+        assert!(event_warnings(&unit, context.commands()).is_empty());
+        assert!(event_anchor_span(&unit, context.commands(), "HTTP_REQUEST").is_none());
+    }
+
+    #[test]
+    fn selected_custom_event_definer_and_report_names_use_the_original_descriptor() {
+        // naming.variable.registry-event-frame-identity
+        // docs/design/analysis/name-resolution-proofs/variable-registry-event-frame-identity.md
+        // Event-table policy and source descriptor only, without entered event/TMM facts.
+        let text = "on ASM_RESPONSE_VIOLATION {HTTP::respond 200; HTTP::header insert X-Test yes}\n\
+            on HTTP_REQUEST {}\nwhen HTTP_REQUEST {}";
+        let (unit, context) = supplied(text, true);
+        let source = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        let expected = vec![
+            "ASM_RESPONSE_VIOLATION".to_owned(),
+            "HTTP_REQUEST".to_owned(),
+            "HTTP_REQUEST".to_owned(),
+        ];
+        assert_eq!(events(&source), Some(expected.clone()));
+        let baseline = event_warnings(&unit, context.commands());
+        assert!(
+            baseline
+                .iter()
+                .any(|warning| warning.code == DiagCode::Irule1201)
+        );
+        let anchor = event_anchor_span(&unit, context.commands(), "HTTP_REQUEST").unwrap();
+        assert_eq!(
+            &text[anchor.start() as usize..anchor.end() as usize],
+            "HTTP_REQUEST"
+        );
+        let mut labelled = unit.clone();
+        for (index, function) in labelled.procedures.values_mut().enumerate() {
+            function.name = format!("::ordinary::report{index}");
+        }
+        let source = IrulesSourceQuery::capture(&labelled, context.commands()).unwrap();
+        assert_eq!(events(&source), Some(expected));
+        assert_eq!(event_warnings(&labelled, context.commands()), baseline);
+        assert_eq!(
+            event_anchor_span(&labelled, context.commands(), "HTTP_REQUEST"),
+            Some(anchor)
+        );
+        for text in [
+            "rename on moved; moved HTTP_REQUEST {}",
+            "interp alias {} fire {} on; fire HTTP_REQUEST {}",
+        ] {
+            let (selected, context) = supplied(text, true);
+            let source = IrulesSourceQuery::capture(&selected, context.commands()).unwrap();
+            assert_eq!(events(&source), Some(vec!["HTTP_REQUEST".to_owned()]));
+        }
+        let function = source.unit.procedures.values().next().unwrap().clone();
+        assert!(
+            source.event(&function).is_none(),
+            "a copied FU is not the actual CU-owned function"
+        );
+    }
+
+    #[test]
+    fn event_projection_withdraws_changed_or_missing_complete_owners() {
+        // naming.variable.registry-event-frame-identity
+        // docs/design/analysis/name-resolution-proofs/variable-registry-event-frame-identity.md
+        let (unit, context) = supplied(
+            "when HTTP_REQUEST {drop; HTTP::payload; set static::debug 1}",
+            false,
+        );
+        let original = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        assert_eq!(events(&original), Some(vec!["HTTP_REQUEST".to_owned()]));
+        assert!(!event_warnings(&unit, context.commands()).is_empty());
+        for axis in 0..10 {
+            let mut changed = unit.clone();
+            match axis {
+                0 => changed.source.push_str("foreign"),
+                1 => changed.ir_module.source_metadata_input = None,
+                2 => changed.ir_module.retained_source_bindings = None,
+                3 => changed.ir_module.lexer_config.leading_bom = tcl_lexer::LeadingBom::Content,
+                4 => {
+                    changed.ir_module.lexer_config.strict_quoting =
+                        !changed.ir_module.lexer_config.strict_quoting
+                }
+                5 => changed
+                    .procedures
+                    .values_mut()
+                    .for_each(|function| function.source_metadata_input = None),
+                6 => changed.procedures.values_mut().for_each(|function| {
+                    function.source_config.strict_quoting = !function.source_config.strict_quoting
+                }),
+                7 => changed
+                    .procedures
+                    .values_mut()
+                    .for_each(|function| function.irules_event_body = None),
+                8 => changed.ir_module.irules_event_bodies.clear(),
+                _ => changed
+                    .ir_module
+                    .procedures
+                    .values_mut()
+                    .for_each(|procedure| procedure.body.statements.clear()),
+            }
+            let source = IrulesSourceQuery::capture(&changed, context.commands());
+            assert!(
+                source
+                    .as_ref()
+                    .is_none_or(|source| events(source).is_none()),
+                "axis {axis}"
+            );
+            assert!(
+                source
+                    .as_ref()
+                    .is_none_or(|source| collect_flow_state(source).is_none()),
+                "pairing axis {axis}"
+            );
+            assert!(
+                source
+                    .as_ref()
+                    .is_none_or(|source| event_mutation_counts(source).is_none()),
+                "mutations axis {axis}"
+            );
+            assert!(
+                event_warnings(&changed, context.commands()).is_empty(),
+                "warnings axis {axis}"
+            );
+            assert!(
+                event_anchor_span(&changed, context.commands(), "HTTP_REQUEST").is_none(),
+                "anchor axis {axis}"
+            );
+        }
+        let foreign = tcl_registry::model::resolve_known_environment("tcl9.1")
+            .unwrap()
+            .default_context_registry();
+        assert!(IrulesSourceQuery::capture(&unit, foreign.commands()).is_none());
+        let (other, _) = supplied("when CLIENT_ACCEPTED {drop}", false);
+        let mut donated = unit.clone();
+        donated
+            .procedures
+            .values_mut()
+            .next()
+            .unwrap()
+            .irules_event_body = other
+            .procedures
+            .values()
+            .next()
+            .unwrap()
+            .irules_event_body
+            .clone();
+        let source = IrulesSourceQuery::capture(&donated, context.commands()).unwrap();
+        assert!(events(&source).is_none());
+        assert!(event_warnings(&donated, context.commands()).is_empty());
+    }
+
+    #[test]
+    fn explicitly_standalone_source_retains_events_without_report_name_assistance() {
+        // naming.variable.registry-event-frame-identity
+        // docs/design/analysis/name-resolution-proofs/variable-registry-event-frame-identity.md
+        let (original, context) = supplied("when HTTP_REQUEST {drop}", false);
+        let mut unit = CompilationUnit::build_for_with_config(
+            &original.source,
+            context.commands(),
+            false,
+            original.ir_module.lexer_config,
+        );
+        for function in unit.procedures.values_mut() {
+            function.name = "::plain::report".to_owned();
+        }
+        let source = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        assert!(source.standalone);
+        assert_eq!(events(&source), Some(vec!["HTTP_REQUEST".to_owned()]));
+        assert!(
+            find_unguarded_drop_warnings(&unit, Some(SurfaceQuery::any_release(Family::F5Irules)))
+                .iter()
+                .any(|warning| warning.code == DiagCode::Irule5002)
+        );
+        unit.procedures
+            .values_mut()
+            .next()
+            .unwrap()
+            .irules_event_body = None;
+        let source = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        assert!(events(&source).is_none());
+        assert!(
+            find_unguarded_drop_warnings(&unit, Some(SurfaceQuery::any_release(Family::F5Irules)))
+                .is_empty()
+        );
     }
 }

@@ -7,6 +7,13 @@
 use crate::analyser::AnalysisResult;
 use tcl_registry::{CommandRegistry, InvocationArguments};
 
+#[cfg(test)]
+fn trace_original_child_guard(label: &str, offset: Option<u32>, passed: bool) {
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        eprintln!("ORIGINAL_CHILD_GUARD label={label} offset={offset:?} passed={passed}");
+    }
+}
+
 mod procedure;
 pub use procedure::{OriginalProcedureSourceDescriptor, original_procedure_source_descriptor};
 
@@ -977,12 +984,44 @@ pub fn source_registry_words(
     analysis: &AnalysisResult,
     segment: &crate::segmenter::SegmentedCommand,
 ) -> Option<OriginalRegistryWords> {
+    #[cfg(test)]
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        let offset = segment.argv.first().map(|word| word.span.start());
+        trace_original_child_guard(
+            "source.config",
+            offset,
+            analysis.body_lexer_config.is_some(),
+        );
+        trace_original_child_guard(
+            "source.realm",
+            offset,
+            analysis.retained_command_realm().is_some(),
+        );
+        trace_original_child_guard("source.input", offset, analysis.resolved_input.is_some());
+        trace_original_child_guard(
+            "source.registry",
+            offset,
+            analysis.resolved_registry().is_some(),
+        );
+    }
     let config = analysis.body_lexer_config?;
     let realm = analysis.retained_command_realm()?;
-    let image = retained_document_image(source, realm, config)?;
-    analysis
-        .matches_original_source_image(&image, config)
-        .then_some(())?;
+    let image = retained_document_image(source, realm, config);
+    #[cfg(test)]
+    trace_original_child_guard(
+        "source.image",
+        segment.argv.first().map(|word| word.span.start()),
+        image.is_some(),
+    );
+    let image = image?;
+    let matches_image = analysis.matches_original_source_image(&image, config);
+    #[cfg(test)]
+    trace_original_child_guard(
+        "source.image_config",
+        segment.argv.first().map(|word| word.span.start()),
+        matches_image,
+    );
+    matches_image.then_some(())?;
     let registry = analysis.resolved_registry()?;
     let input = analysis.resolved_input.as_ref()?;
     let mut tokens = crate::ir::CommandTokens::from_segmented(
@@ -991,7 +1030,14 @@ pub fn source_registry_words(
         segment,
     );
     realm.stamp_original_tokens(&mut tokens);
-    if realm.original_source_registry_barrier(&input.context_registry(), &tokens) {
+    let blocked = realm.original_source_registry_barrier(&input.context_registry(), &tokens);
+    #[cfg(test)]
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        let offset = segment.argv.first().map(|word| word.span.start());
+        trace_original_child_guard("source.barrier", offset, !blocked);
+        trace_original_child_guard("source.binding", offset, tokens.source_binding.is_some());
+    }
+    if blocked {
         return None;
     }
     if let Some(scoped) = original_scoped_registry_words(source, analysis, segment) {
@@ -2364,8 +2410,21 @@ fn source_transition_registry_words(
         segment,
     );
     realm.stamp_original_tokens(&mut tokens);
-    let advice = realm.original_source_transition_advice(context, &tokens)?;
-    source_transition_words_with_segment(source, config, context, segment, advice)
+    let advice = realm.original_source_transition_advice(context, &tokens);
+    #[cfg(test)]
+    trace_original_child_guard(
+        "transition.advice",
+        segment.argv.first().map(|word| word.span.start()),
+        advice.is_some(),
+    );
+    let result = source_transition_words_with_segment(source, config, context, segment, advice?);
+    #[cfg(test)]
+    trace_original_child_guard(
+        "transition.words",
+        segment.argv.first().map(|word| word.span.start()),
+        result.is_some(),
+    );
+    result
 }
 
 /// Project a sealed original source receipt through the same role/body owner.

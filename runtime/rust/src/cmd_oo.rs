@@ -50,6 +50,8 @@ mod original_publication_tests;
 #[cfg(test)]
 mod original_property_retirement_tests;
 pub(crate) mod native_variables;
+#[cfg(test)]
+mod original_property_reporting_tests;
 
 use tcl_registry::native_tcloo_method_definition::{
     NativeTclooMethodReportProtocol, NativeTclooMethodReportRole,
@@ -2454,8 +2456,12 @@ fn install_original_method_vis(
         return interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(first));
     }
     match target {
-        DefTarget::Class(id) => oo_checked!(interp, interp.native_property_method_created(id, true)),
-        DefTarget::Object(id) => oo_checked!(interp, interp.native_property_method_created(id, false)),
+        DefTarget::Class(id) => {
+            oo_checked!(interp, interp.native_property_method_created(id, true))
+        }
+        DefTarget::Object(id) => {
+            oo_checked!(interp, interp.native_property_method_created(id, false))
+        }
     }
     interp.set_result_bytes(b"");
     Code::Ok
@@ -2520,8 +2526,12 @@ fn def_deletemethod(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             oo_original_check!(interp, originals);
             if removed {
                 match &target {
-                    DefTarget::Class(id) => oo_checked!(interp, interp.native_property_structure_changed(*id, true)),
-                    DefTarget::Object(id) => oo_checked!(interp, interp.native_property_structure_changed(*id, false)),
+                    DefTarget::Class(id) => {
+                        oo_checked!(interp, interp.native_property_structure_changed(*id, true))
+                    }
+                    DefTarget::Object(id) => {
+                        oo_checked!(interp, interp.native_property_structure_changed(*id, false))
+                    }
                 }
             }
             if !removed {
@@ -2709,8 +2719,12 @@ fn def_renamemethod(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return original_method_entry_unavailable(interp);
         }
         match target {
-            DefTarget::Class(id) => oo_checked!(interp, interp.native_property_structure_changed(id, true)),
-            DefTarget::Object(id) => oo_checked!(interp, interp.native_property_structure_changed(id, false)),
+            DefTarget::Class(id) => {
+                oo_checked!(interp, interp.native_property_structure_changed(id, true))
+            }
+            DefTarget::Object(id) => {
+                oo_checked!(interp, interp.native_property_structure_changed(id, false))
+            }
         }
         oo_original_check!(interp, originals);
         oo_checked!(interp, target_owner.check(interp));
@@ -3320,8 +3334,12 @@ fn def_export(interp: &mut Interp, argv: &[*mut TclObj], export: bool) -> Code {
         };
         if changed {
             match target {
-                DefTarget::Class(id) => oo_checked!(interp, interp.native_property_structure_changed(id, true)),
-                DefTarget::Object(id) => oo_checked!(interp, interp.native_property_structure_changed(id, false)),
+                DefTarget::Class(id) => {
+                    oo_checked!(interp, interp.native_property_structure_changed(id, true))
+                }
+                DefTarget::Object(id) => {
+                    oo_checked!(interp, interp.native_property_structure_changed(id, false))
+                }
             }
         }
         interp.set_result_bytes(b"");
@@ -4152,7 +4170,10 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     return match interp.native_all_property_header(obj, false, writable) {
                         Ok(header) => {
                             interp.set_result(header.header);
-                            Code::Ok
+                            match header.check(interp) {
+                                Ok(()) => Code::Ok,
+                                Err(error) => interp.report_cmd_error(error),
+                            }
                         }
                         Err(error) => interp.report_cmd_error(error.into()),
                     };
@@ -4164,8 +4185,11 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 {
                     return match interp.native_declared_property_header(obj, false, writable) {
                         Ok(header) => {
-                            interp.set_result(header.as_ptr());
-                            Code::Ok
+                            interp.set_result(header.header);
+                            match header.check(interp) {
+                                Ok(()) => Code::Ok,
+                                Err(error) => interp.report_cmd_error(error),
+                            }
                         }
                         Err(error) => interp.report_cmd_error(error.into()),
                     };
@@ -4725,7 +4749,10 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     return match interp.native_all_property_header(cls, true, writable) {
                         Ok(header) => {
                             interp.set_result(header.header);
-                            Code::Ok
+                            match header.check(interp) {
+                                Ok(()) => Code::Ok,
+                                Err(error) => interp.report_cmd_error(error),
+                            }
                         }
                         Err(error) => interp.report_cmd_error(error.into()),
                     };
@@ -4737,8 +4764,11 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 {
                     return match interp.native_declared_property_header(cls, true, writable) {
                         Ok(header) => {
-                            interp.set_result(header.as_ptr());
-                            Code::Ok
+                            interp.set_result(header.header);
+                            match header.check(interp) {
+                                Ok(()) => Code::Ok,
+                                Err(error) => interp.report_cmd_error(error),
+                            }
                         }
                         Err(error) => interp.report_cmd_error(error.into()),
                     };

@@ -343,6 +343,14 @@ pub(super) struct NativeMethodWorld {
     tables: BTreeMap<OoId, BTreeMap<Vec<u8>, CacheEntry>>,
 }
 impl NativeMethodWorld {
+    /// Existing mutation facts only; this observation issues no method-cache purpose.
+    pub(super) fn mutation_stamp(&self, target: OoId) -> (Rc<()>, u64, u64) {
+        (
+            Rc::clone(&self.origin),
+            self.foundation,
+            self.epochs.get(&target).copied().unwrap_or(0),
+        )
+    }
     pub(super) fn instance_table_created(&mut self, target: OoId) {
         self.class_flags.insert(target, false);
     }

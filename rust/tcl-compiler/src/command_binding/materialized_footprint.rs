@@ -12,6 +12,13 @@ use crate::registry_invocation::InvocationMetadataContext;
 use tcl_lexer::LexerConfig;
 use tcl_registry::CommandRegistry;
 
+#[cfg(test)]
+fn trace_original_child_guard(label: &str, offset: Option<u32>, passed: bool) {
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        eprintln!("ORIGINAL_CHILD_GUARD label={label} offset={offset:?} passed={passed}");
+    }
+}
+
 /// Readonly source lookup for possible writes in a materialized script value.
 /// It supplies no authored child word/span, Native entry, frame or store.
 pub(crate) struct OriginalSourceMaterializedFootprint<'a> {
@@ -400,14 +407,47 @@ impl SourceInvocationBinding {
     ) -> Option<OriginalSourceMaterializedFootprint<'a>> {
         // naming.diagnostic.original-materialized-write-footprint
         // docs/design/analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+            let offset = tokens.argv.first().map(|span| span.start());
+            trace_original_child_guard(
+                "footprint.request",
+                offset,
+                metadata.is_some_and(|metadata| metadata.matches_registry(registry)),
+            );
+            trace_original_child_guard(
+                "footprint.request_input",
+                offset,
+                metadata.is_some_and(|metadata| metadata.source_analysis_input().is_some()),
+            );
+            trace_original_child_guard(
+                "footprint.reached_lookup",
+                offset,
+                self.lookup_state.is_some(),
+            );
+        }
         let metadata = metadata.filter(|metadata| metadata.matches_registry(registry))?;
         let input = metadata.source_analysis_input()?;
         if self.lookup_state.is_none() {
-            return self.original_logical_declaration_materialized_footprint(
+            let result = self.original_logical_declaration_materialized_footprint(
                 tokens, source, registry, metadata,
             );
+            #[cfg(test)]
+            trace_original_child_guard(
+                "footprint.declaration",
+                tokens.argv.first().map(|span| span.start()),
+                result.is_some(),
+            );
+            return result;
         }
-        let metadata = self.original_invocation_metadata_for_input(tokens, input, registry)?;
+        let metadata = self.original_invocation_metadata_for_input(tokens, input, registry);
+        #[cfg(test)]
+        trace_original_child_guard(
+            "footprint.point_metadata",
+            tokens.argv.first().map(|span| span.start()),
+            metadata.is_some(),
+        );
+        let metadata = metadata?;
         if metadata.source_analysis_input() != Some(input) {
             return None;
         }
@@ -415,6 +455,43 @@ impl SourceInvocationBinding {
         let site = self.invocation_site()?;
         let snapshot = self.lookup_state.as_ref()?;
         let state = &snapshot.state;
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+            let offset = Some(site.offset);
+            trace_original_child_guard("footprint.known", offset, !self.unknown);
+            trace_original_child_guard("footprint.present", offset, !self.may_be_absent);
+            trace_original_child_guard(
+                "footprint.closed_domain",
+                offset,
+                !state.has_opaque_domain(),
+            );
+            trace_original_child_guard(
+                "footprint.quiet",
+                offset,
+                state.command_observers.is_quiet(),
+            );
+            trace_original_child_guard("footprint.no_step", offset, !state.source_step_observed());
+            trace_original_child_guard(
+                "footprint.origin",
+                offset,
+                state.current_source_origin.as_ref() == Some(&site.source),
+            );
+            trace_original_child_guard(
+                "footprint.image",
+                offset,
+                site.source.source_image().try_text().ok() == Some(source),
+            );
+            trace_original_child_guard(
+                "footprint.store",
+                offset,
+                state.baseline.registry_snapshot == Some(registry.snapshot().semantic_key()),
+            );
+            trace_original_child_guard(
+                "footprint.config",
+                offset,
+                config.normalized() == input.lexer_config().normalized(),
+            );
+        }
         if self.unknown
             || self.may_be_absent
             || state.has_opaque_domain()
@@ -478,7 +555,20 @@ impl SourceInvocationBinding {
         if metadata.source_analysis_input() != Some(input) {
             return None;
         }
-        let advice = self.declaration_operand_layout_advice(tokens)?;
+        let advice = self.declaration_operand_layout_advice(tokens);
+        #[cfg(test)]
+        trace_original_child_guard(
+            "footprint.declaration_layout",
+            tokens.argv.first().map(|span| span.start()),
+            advice.is_some(),
+        );
+        let advice = advice?;
+        #[cfg(test)]
+        trace_original_child_guard(
+            "footprint.declaration_closed",
+            tokens.argv.first().map(|span| span.start()),
+            advice.closed_logical_source_lookup(),
+        );
         if !advice.closed_logical_source_lookup()
             || advice
                 .original_declaration_metadata_context(registry, tokens)
@@ -616,6 +706,26 @@ impl<'a> OriginalSourceMaterializedFootprint<'a> {
         };
         let context = input.context_registry();
         let words = body.source_words();
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+            let offset = Some(self.head.span().start());
+            trace_original_child_guard(
+                "body.head",
+                offset,
+                words.head_source().and_then(|head| head.word()) == Some(&self.head),
+            );
+            trace_original_child_guard(
+                "body.image_config",
+                offset,
+                body.matches_source(self.head.image(), input.lexer_config()),
+            );
+            trace_original_child_guard("body.context", offset, body.matches_context(&context));
+            trace_original_child_guard(
+                "body.content",
+                offset,
+                body.original_container().content_span().ok() == Some(body.content_span()),
+            );
+        }
         if words.head_source().and_then(|head| head.word()) != Some(&self.head)
             || !body.matches_source(self.head.image(), input.lexer_config())
             || !body.matches_context(&context)
@@ -628,6 +738,12 @@ impl<'a> OriginalSourceMaterializedFootprint<'a> {
                 std::str::from_utf8(words.arguments().get(ordinal)?.literal_bytes()?).ok()
             }) == tcl_registry::InterpreterScope::Current
         });
+        #[cfg(test)]
+        trace_original_child_guard(
+            "body.current_interpreter",
+            Some(self.head.span().start()),
+            current == Some(true),
+        );
         if current != Some(true) {
             return unavailable();
         }

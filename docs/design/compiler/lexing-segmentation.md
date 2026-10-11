@@ -222,3 +222,11 @@ Statement::AssignValue { name: "y", value: "${x}", .. }
 - [Data structure reference](../../../docs/design/compiler/example-walkthroughs.md#data-structure-reference)
 - [error-recovery.md](error-recovery.md)
 - [compiler-pipeline-overview.md](compiler-pipeline-overview.md)
+
+### Signature input purpose
+
+`signature_scan::extract_signatures` accepts an independently supplied complete document. It selects `LexerConfig::for_file_grammar` from the actual Registry profile, including that grammar's leading-BOM rule. The signature walker selects `NestedScript` for original child bodies, where a leading BOM is content. The CLI's cross-file procedure-name discovery uses this same document ingress on `InputDocument::analysis_source`, including its line-ending policy.
+
+`extract_signatures_with_config` retains the caller's complete explicit policy for a separately supplied script. `extract_signatures_with_original_bindings` retains the existing original image/configuration/inventory checks. Consumers which already own analysis input and retained source bindings pass those actual owners; they do not select a default document grammar from a report label. Signature source geometry and conditional declarations supply no procedure execution or Native implementation receipt.
+
+Finite source/API controls reference [source-original-configured-script-completeness](../analysis/name-resolution-proofs/source-original-configured-script-completeness.md). Each provider's script-loading and parser behaviour remains independently recorded by its corresponding proof.

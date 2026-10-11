@@ -518,3 +518,21 @@ readable and writable cached Lists before either member array as inspected in
 `TclOOReleasePropertyStorage`. Unissued compatibility storage uses ordinary
 ownership cleanup. This selected source order conveys no header or invocation
 authority and carries no external teardown callback measurement.
+
+Property report construction retains the original operation, target, Foundation
+epoch, existing method-world mutation facts and selected member identities. It
+pins allocations without adding native references, sorts and reads private
+variable operands outside OO borrows, and stops later getters after refusal.
+Private-variable comparison also checks the original declaration headers and
+names because declaration replacement need not change method mutation facts.
+Cached List replacement releases extracted owners before adoption; a changed
+world cannot be stamped onto a report still being constructed.
+
+A materialized property report retains its original operation, target and header
+lifetime while ordinary accessor mutations remain legal. Read-all owns the
+source-authentic working List reference and traverses that frozen snapshot. A
+multi-write name table keeps its original copied List and frozen Strings; each
+later old-table index selects the corresponding member of the current property
+header, as the selected C worker does. Neither role derives fresh authority for
+an old table. Both report phases transport full structured errors through every
+actual consumer and result transfer.

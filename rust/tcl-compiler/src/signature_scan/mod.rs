@@ -82,17 +82,25 @@ use tcl_registry::CommandRegistry;
 use ctx::ScanCtx;
 pub use types::SignatureScanResult;
 
-/// Extract a lightweight [`SignatureScanResult`] for a Tcl source.
+/// Extract a lightweight [`SignatureScanResult`] for an independently supplied
+/// complete Tcl document, selecting file grammar from the actual Registry.
+/// Configured scripts use [`extract_signatures_with_config`]; retained source
+/// queries use [`extract_signatures_with_original_bindings`].
 ///
-/// The public entry point for the signature scanner. Runs the main
+/// The complete-document entry point for the signature scanner. Runs the main
 /// walker (with segmenter-level error recovery seeded from the
 /// registry's command names), then resolves factory-wrapper
 /// synthetic procs.
 #[must_use]
 pub fn extract_signatures(source: &str, registry: &CommandRegistry) -> SignatureScanResult {
+    let grammar = registry
+        .profile()
+        .map_or_else(tcl_dialect::LexerGrammar::default, |profile| {
+            profile.grammar
+        });
     extract_signatures_in(
         source,
-        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+        tcl_lexer::LexerConfig::for_file_grammar(grammar),
         registry,
         None,
     )
@@ -779,5 +787,81 @@ p\uD801";
         .unwrap();
         assert!(lookup.original_name_key().is_none());
         assert!(lookup.original_name_input().is_some());
+    }
+}
+
+#[cfg(test)]
+mod original_document_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn complete_document_signature_ingress_keeps_root_and_nested_bom_roles_dialect_aware() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Source declarations/geometry only, without procedure creation or execution.
+        let source = "\u{feff}proc visible {} {}\nif 1 {\u{feff}proc hidden {} {}}\nif 1 {proc nested {} {}}";
+        for name in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "jim",
+            "f5-irules",
+            "f5-iapps",
+            "f5-tmsh",
+        ] {
+            let environment = tcl_registry::model::resolve_known_environment(name).expect(name);
+            let context = environment.default_context_registry();
+            let registry = context.commands();
+            let grammar = registry.profile().expect("actual selected profile").grammar;
+            let scan = extract_signatures(source, registry);
+            assert_eq!(
+                scan.procs.contains_key("::visible"),
+                grammar.script_skips_leading_bom,
+                "{name}"
+            );
+            assert!(
+                !scan.procs.contains_key("::hidden"),
+                "{name}: nested BOM is content"
+            );
+            let nested = scan.procs.get("::nested").expect(name);
+            assert_eq!(source.get(nested.name_range.as_range()), Some("nested"));
+            if grammar.script_skips_leading_bom {
+                let visible = scan.procs.get("::visible").unwrap();
+                assert_eq!(source.get(visible.name_range.as_range()), Some("visible"));
+            }
+        }
+    }
+
+    #[test]
+    fn configured_signature_ingress_retains_explicit_content_and_custom_full_policy() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        let environment = tcl_registry::model::resolve_known_environment("tcl9.1").unwrap();
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let parent = tcl_lexer::LexerConfig {
+            strict_quoting: true,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            base_line: 17,
+            ..tcl_lexer::LexerConfig::for_file_grammar(environment.grammar())
+        };
+        let source = "\u{feff}proc visible {} {}\nif 1 {\u{feff}proc hidden {} {}}\nif 1 {proc nested {} {}}";
+        let document = extract_signatures_with_config(source, parent, registry);
+        assert!(document.procs.contains_key("::visible"));
+        assert!(!document.procs.contains_key("::hidden"));
+        assert!(document.procs.contains_key("::nested"));
+        let child_config = tcl_lexer::SourceSegmentationPurpose::NestedScript.config(parent);
+        let script = extract_signatures_with_config(source, child_config, registry);
+        assert!(!script.procs.contains_key("::visible"));
+        assert!(!script.procs.contains_key("::hidden"));
+        assert!(script.procs.contains_key("::nested"));
+        let original = script
+            .command_invocations
+            .iter()
+            .find(|call| call.name == "\u{feff}proc" && call.range.start() == 0)
+            .unwrap();
+        assert_eq!(source.get(original.range.as_range()), Some("\u{feff}proc"));
     }
 }

@@ -45,7 +45,7 @@ use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
 use tcl_compiler::compiler_checks::run_all_checks;
 use tcl_compiler::optimiser::{
     Optimisation, optimise_source_multipass_admitting,
-    optimise_source_multipass_admitting_with_analysis_input,
+    optimise_source_multipass_admitting_with_analysis_input, optimise_unit,
 };
 use tcl_compiler::unit_scope::CallSiteEvidence;
 use tcl_core_types::{DiagCode, Severity};
@@ -191,6 +191,46 @@ pub struct StandaloneFindings {
     /// The analyser's findings, the O111 hints over them
     /// ([`brace_expr_hints`]), then the compiler checks', converted.
     pub produced: Vec<Finding>,
+    /// The actual unit shared by these producers; absence is terminal.
+    unit: Option<Arc<CompilationUnit>>,
+}
+
+impl StandaloneFindings {
+    /// Single-pass optimisation candidates from the unit that produced this
+    /// document analysis. Source, complete input, grammar and command-store
+    /// currency must still match; refusal returns no candidates. This does
+    /// not rebuild from a dialect label or grant rewrite/execution authority.
+    #[must_use]
+    pub fn optimisation_candidates(&self, source: &str) -> Vec<Optimisation> {
+        let Some(current) =
+            crate::original_context::CurrentSourceContext::capture(source, &self.analysis)
+        else {
+            return Vec::new();
+        };
+        let Some(unit) = &self.unit else {
+            return Vec::new();
+        };
+        let Some(input) = self.analysis.resolved_input.as_ref() else {
+            return Vec::new();
+        };
+        let module = &unit.ir_module;
+        if unit.source != source
+            || module.source != tcl_lexer::SourceImage::document(source)
+            || module.lexer_config != current.config()
+            || module.dialect_profile != Some(input.unit_profile())
+            || module.source_metadata_input.as_ref() != Some(input)
+            || module.registry_snapshot.as_ref() != Some(&current.registry().snapshot())
+        {
+            return Vec::new();
+        }
+        // Enrich the retained source unit, preserving its independent entry
+        // and original metadata. No source re-lowering occurs here.
+        let unit = unit
+            .as_ref()
+            .clone()
+            .with_interprocedural(current.registry(), Some(input.unit_profile()));
+        optimise_unit(&unit, current.registry(), Some(input.unit_profile()))
+    }
 }
 
 /// The analyser under `skip` — the policy's production skip — the O111
@@ -227,6 +267,7 @@ pub fn standalone_findings(
             return StandaloneFindings {
                 analysis,
                 produced: Vec::new(),
+                unit: None,
             };
         }
     };
@@ -280,7 +321,11 @@ pub fn standalone_findings(
             .into_iter()
             .map(Finding::from),
     );
-    StandaloneFindings { analysis, produced }
+    StandaloneFindings {
+        analysis,
+        produced,
+        unit: Some(unit),
+    }
 }
 
 /// The O111 producer over the unbraced-expression fact: one finding at the
@@ -565,6 +610,163 @@ mod tests {
             assert!(result.applied.is_empty());
             assert_eq!(result.iterations, 0);
         }
+    }
+
+    #[test]
+    fn original_standalone_candidates_keep_the_shared_unit_and_source_currency() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Conditional source candidates preserve their separate edit obligations.
+        let source = "proc subject {} {if {1} {puts retained} else {puts omitted}}";
+        let profile = DialectProfile::plain_tcl();
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "originalCandidateStoreMarker",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let mut findings = standalone_findings(
+            &StandaloneDocument {
+                source,
+                file_path: Some("original-candidates.tcl"),
+                dialect: profile,
+                registry: &registry,
+                pack_overlay: 0,
+                external_call_sites: None,
+            },
+            &BTreeSet::new(),
+        );
+        let input = findings.analysis.resolved_input.as_ref().unwrap().clone();
+        let unit = Arc::clone(findings.unit.as_ref().unwrap());
+        assert_eq!(unit.ir_module.source_metadata_input.as_ref(), Some(&input));
+        assert_eq!(
+            unit.ir_module.registry_snapshot.as_ref(),
+            Some(&registry.snapshot())
+        );
+        assert!(
+            findings
+                .analysis
+                .resolved_registry()
+                .unwrap()
+                .get("originalCandidateStoreMarker")
+                .is_some()
+        );
+        let candidates = findings.optimisation_candidates(source);
+        let branch = candidates
+            .iter()
+            .find(|row| row.code == DiagCode::O100)
+            .expect("the shared current Logical unit produces branch advice");
+        assert!(source.get(branch.span.as_range()).is_some());
+        assert!(branch.replacement.contains("retained"));
+        assert!(!branch.replacement.contains("omitted"));
+        assert!(
+            findings
+                .optimisation_candidates(&source.replace("retained", "changed"))
+                .is_empty()
+        );
+        findings.unit = None;
+        assert!(findings.analysis.resolved_input.is_some());
+        assert!(findings.optimisation_candidates(source).is_empty());
+        findings.unit = Some(unit);
+        let original = findings.analysis.clone();
+        findings.analysis.resolved_input = None;
+        assert!(findings.optimisation_candidates(source).is_empty());
+        findings.analysis = original.clone();
+        findings.analysis.body_lexer_config = None;
+        assert!(findings.optimisation_candidates(source).is_empty());
+        findings.analysis = original.clone();
+        findings.analysis.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+            environment: "tcl".to_owned(),
+            overlay: u64::MAX - 436,
+        });
+        assert!(findings.optimisation_candidates(source).is_empty());
+        findings.analysis = original;
+        assert_eq!(findings.optimisation_candidates(source), candidates);
+    }
+
+    #[test]
+    fn original_standalone_candidates_refuse_current_foreign_availability_config_and_store() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let source = "proc subject {} {if {1} {puts retained} else {puts omitted}}";
+        let profile = DialectProfile::plain_tcl();
+        let registry = CommandRegistry::build_default();
+        let mut findings = standalone_findings(
+            &StandaloneDocument {
+                source,
+                file_path: None,
+                dialect: profile,
+                registry: &registry,
+                pack_overlay: 0,
+                external_call_sites: None,
+            },
+            &BTreeSet::new(),
+        );
+        assert!(
+            findings
+                .optimisation_candidates(source)
+                .iter()
+                .any(|row| row.code == DiagCode::O100)
+        );
+        let original = findings.analysis.clone();
+        let input = original.resolved_input.as_ref().unwrap();
+        let older = tcl_registry::model::resolve_environment("tcl8.4")
+            .default_context_registry()
+            .with_command_store(Arc::clone(input.borrowed_context_registry().commands()));
+        let older_input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            Arc::new(older),
+            input.lexer_config(),
+        );
+        assert!(Arc::ptr_eq(
+            input.borrowed_context_registry().commands(),
+            older_input.borrowed_context_registry().commands()
+        ));
+        assert_ne!(input, &older_input);
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        let changed_config = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            config,
+        );
+        let mut foreign_store = CommandRegistry::build_default();
+        foreign_store.insert(tcl_registry::CommandSpec {
+            name: "foreignCandidateStoreMarker",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        assert_ne!(foreign_store.snapshot(), registry.snapshot());
+        let foreign_context = input
+            .borrowed_context_registry()
+            .with_command_store(foreign_store.snapshot().shared_registry());
+        let changed_store = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            Arc::new(foreign_context),
+            input.lexer_config(),
+        );
+        for changed in [older_input, changed_config, changed_store] {
+            findings.analysis = Analyser::new()
+                .with_resolved_input(changed)
+                .analyse(source, profile.name);
+            assert!(
+                crate::original_context::CurrentSourceContext::capture(source, &findings.analysis)
+                    .is_some(),
+                "the replacement analysis is genuine and current for its own input"
+            );
+            assert!(
+                findings.optimisation_candidates(source).is_empty(),
+                "a current replacement analysis cannot borrow the retained unit's owner"
+            );
+        }
+        findings.analysis = original;
+        assert!(
+            findings
+                .optimisation_candidates(source)
+                .iter()
+                .any(|row| row.code == DiagCode::O100)
+        );
     }
 
     #[test]

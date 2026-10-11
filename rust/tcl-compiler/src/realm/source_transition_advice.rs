@@ -11,6 +11,13 @@ use crate::command_binding::{
 use std::sync::{Arc, Mutex};
 use tcl_registry::model::{ContextRegistry, ResolvedContext};
 
+#[cfg(test)]
+fn trace_original_child_guard(label: &str, offset: Option<u32>, passed: bool) {
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        eprintln!("ORIGINAL_CHILD_GUARD label={label} offset={offset:?} passed={passed}");
+    }
+}
+
 type SourceAdviceCacheEntry = (
     ResolvedContext,
     Arc<Option<OriginalSourceTransitionAdviceTape>>,
@@ -606,6 +613,29 @@ impl super::CommandBindingRealm {
     ) -> Option<OriginalSourceCommandTransitionAdvice> {
         let binding = tokens.source_binding.as_ref()?;
         let logical = self.bindings.original_logical_source_name_advice_input();
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+            let offset = tokens
+                .words()
+                .first()
+                .map(|word| word.source().span.start());
+            trace_original_child_guard("retained.logical", offset, logical.is_some());
+            trace_original_child_guard(
+                "retained.input_context",
+                offset,
+                logical.is_none_or(|input| {
+                    self.matches_resolved_analysis_input(input)
+                        && std::ptr::eq(Arc::as_ptr(&input.context_registry()), context)
+                }),
+            );
+            trace_original_child_guard(
+                "retained.reached_lookup",
+                offset,
+                binding.lookup_state.is_some(),
+            );
+            trace_original_child_guard("retained.unknown", offset, binding.unknown);
+            trace_original_child_guard("retained.targets", offset, !binding.targets.is_empty());
+        }
         if let Some(input) = logical
             && (!self.matches_resolved_analysis_input(input)
                 || !std::ptr::eq(Arc::as_ptr(&input.context_registry()), context))
@@ -626,16 +656,59 @@ impl super::CommandBindingRealm {
             tokens.words(),
             offset,
             config,
-        )?;
+        );
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+            trace_original_child_guard(
+                "retained.tape",
+                Some(offset),
+                prepared.as_ref().as_ref().is_some(),
+            );
+            trace_original_child_guard("retained.native_vector", Some(offset), original.is_some());
+        }
+        let original = original?;
         let advice = match prepared.as_ref().as_ref()?.lookup(offset) {
-            OriginalSourceTransitionAdviceLookup::Advice(advice) => advice.clone(),
-            OriginalSourceTransitionAdviceLookup::Refused => return None,
+            OriginalSourceTransitionAdviceLookup::Advice(advice) => {
+                #[cfg(test)]
+                trace_original_child_guard("retained.represented_advice", Some(offset), true);
+                advice.clone()
+            }
+            OriginalSourceTransitionAdviceLookup::Refused => {
+                #[cfg(test)]
+                trace_original_child_guard("retained.represented_refusal", Some(offset), false);
+                return None;
+            }
             OriginalSourceTransitionAdviceLookup::Unrepresented => {
+                #[cfg(test)]
+                trace_original_child_guard("retained.unrepresented", Some(offset), false);
                 logical?;
                 self.bindings
                     .original_logical_declaration_advice(context, &original)?
             }
         };
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+            trace_original_child_guard(
+                "retained.advice_context",
+                Some(offset),
+                advice.matches_context(context),
+            );
+            trace_original_child_guard(
+                "retained.advice_source",
+                Some(offset),
+                advice.matches_source(image, config),
+            );
+            trace_original_child_guard(
+                "retained.advice_vector",
+                Some(offset),
+                original.as_slice() == advice.original_words(),
+            );
+            trace_original_child_guard(
+                "retained.target_match",
+                Some(offset),
+                logical.is_none() || logical_targets_match_advice(context, binding, &advice),
+            );
+        }
         if !advice.matches_context(context)
             || !advice.matches_source(image, config)
             || crate::registry_invocation::original_native_compiler_words(

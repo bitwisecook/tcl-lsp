@@ -2,6 +2,7 @@
 //! Real C9.1 property metadata owners and native List cache headers.
 use super::*;
 use crate::interp::native_arguments::OriginalArguments;
+use crate::interp::native_operation_currency::NativeOperationScope;
 use tcl_cmd_core::CmdError;
 use tcl_registry::native_property_lookup::{
     NativePropertyGraphDependents, NativePropertyInvalidation,
@@ -14,18 +15,184 @@ pub(super) struct NativePropertyCache {
     readable: Option<obj::Owned>,
     writable: Option<obj::Owned>,
 }
+/// A report retains its actual operation through the caller's result transfer.
+struct PropertyReportOwner {
+    scope: NativeOperationScope,
+    target: native_context::OriginalOoTarget,
+    object: OoId,
+    class: bool,
+    writable: bool,
+    all: bool,
+    epoch: u64,
+    mutation: (Rc<()>, u64, u64),
+    members: BTreeMap<Vec<u8>, *mut TclObj>,
+    deriving: std::cell::Cell<bool>,
+}
+impl PropertyReportOwner {
+    fn enter(
+        interpreter: &Interp,
+        object: OoId,
+        class: bool,
+        writable: bool,
+        all: bool,
+    ) -> Result<Self, CmdError> {
+        let scope = NativeOperationScope::enter(interpreter)?;
+        let target = native_context::OriginalOoTarget::capture(interpreter, object, class)?;
+        let state = interpreter.oo.borrow();
+        let members = property_members(&state, object, class, writable, all)?;
+        Ok(Self {
+            scope,
+            target,
+            object,
+            class,
+            writable,
+            all,
+            epoch: state.property_foundation_epoch,
+            mutation: state.native_methods.mutation_stamp(object),
+            members,
+            deriving: std::cell::Cell::new(true),
+        })
+    }
+    fn check(&self, interpreter: &Interp) -> Result<(), CmdError> {
+        self.scope.currency().ensure_current_or_refuse()?;
+        self.target.check(interpreter)?;
+        if !self.deriving.get() {
+            return Ok(());
+        }
+        let state = interpreter.oo.borrow();
+        let mutation = state.native_methods.mutation_stamp(self.object);
+        if state.property_foundation_epoch != self.epoch
+            || !Rc::ptr_eq(&self.mutation.0, &mutation.0)
+            || self.mutation.1 != mutation.1
+            || self.mutation.2 != mutation.2
+            || property_members(&state, self.object, self.class, self.writable, self.all)?
+                != self.members
+        {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "changed original property report world",
+            )
+            .into());
+        }
+        Ok(())
+    }
+    fn freeze(&self) {
+        self.deriving.set(false);
+    }
+
+    fn leases(&self) -> Result<Vec<obj::NativeObjectLifetime>, CmdError> {
+        self.members
+            .values()
+            .map(|&original| {
+                obj::check_native_liveness(original)?;
+                Ok(obj::NativeObjectLifetime::retain(original))
+            })
+            .collect()
+    }
+}
+
 pub(super) struct PropertyHeaderLease {
     pub(super) header: *mut TclObj,
     _lifetime: obj::NativeObjectLifetime,
+    _owned: Option<obj::Owned>,
+    report: Option<Rc<PropertyReportOwner>>,
 }
 impl PropertyHeaderLease {
     fn new(header: *mut TclObj) -> Self {
         Self {
             header,
             _lifetime: obj::NativeObjectLifetime::retain(header),
+            _owned: None,
+            report: None,
+        }
+    }
+    pub(super) fn check(&self, interpreter: &Interp) -> Result<(), CmdError> {
+        obj::check_native_liveness(self.header)?;
+        match &self.report {
+            Some(report) => report.check(interpreter),
+            None => interpreter
+                .check_entered_native_operation()
+                .map_err(CmdError::from_execution_refusal),
         }
     }
 }
+
+fn property_members(
+    state: &OoState,
+    target: OoId,
+    class: bool,
+    writable: bool,
+    all: bool,
+) -> Result<BTreeMap<Vec<u8>, *mut TclObj>, ValueError> {
+    let mut members = BTreeMap::new();
+    if !all {
+        if let Some(originals) = state.property_members.get(&(target, class, writable)) {
+            members.extend(
+                originals
+                    .iter()
+                    .map(|(name, original)| (name.clone(), original.as_ptr())),
+            );
+        }
+    } else if class {
+        state.collect_native_class_properties(
+            target,
+            writable,
+            &mut BTreeSet::new(),
+            &mut members,
+        )?;
+    } else {
+        let object = state
+            .objects
+            .get(&target)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native property object",
+            ))?;
+        state.collect_native_declared_properties(
+            target,
+            false,
+            writable,
+            if writable {
+                &object.writable_properties
+            } else {
+                &object.readable_properties
+            },
+            &mut members,
+        )?;
+        let mut seen = BTreeSet::new();
+        for mixin in &object.mixins {
+            state.collect_native_class_properties(*mixin, writable, &mut seen, &mut members)?;
+        }
+        state.collect_native_class_properties(object.class, writable, &mut seen, &mut members)?;
+    }
+    Ok(members)
+}
+
+fn sorted_property_members(
+    interpreter: &Interp,
+    owner: &PropertyReportOwner,
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+) -> Result<Vec<*mut TclObj>, CmdError> {
+    let _leases = owner.leases()?;
+    let mut members: Vec<_> = owner.members.values().copied().collect();
+    let mut first = None;
+    members.sort_by(|a, b| {
+        if first.is_some() {
+            return std::cmp::Ordering::Equal;
+        }
+        match compare_original_members(*a, *b, protocol, &|| owner.check(interpreter)) {
+            Ok(order) => order,
+            Err(error) => {
+                first = Some(error);
+                std::cmp::Ordering::Equal
+            }
+        }
+    });
+    owner.check(interpreter)?;
+    match first {
+        Some(first) => Err(first),
+        None => Ok(members),
+    }
+}
+
 impl OoState {
     fn apply_property_invalidation(
         &mut self,
@@ -305,12 +472,17 @@ impl Interp {
     ) -> Result<(), CmdError> {
         originals.check()?;
         owner.check(self)?;
-        let recipe = self.native_invocation_dialect().native_property_lookup_protocol()
-            .ok_or(ValueError::CommandProtocolUnavailable("property metadata origin"))?;
+        let recipe = self
+            .native_invocation_dialect()
+            .native_property_lookup_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "property metadata origin",
+            ))?;
         let retired = {
             let mut oo = self.oo.borrow_mut();
             oo.property_origins.entry((target, class)).or_insert(recipe);
-            oo.property_members.insert((target, class, writable), members)
+            oo.property_members
+                .insert((target, class, writable), members)
         };
         // A reentrant definition can have published its own new members.
         drop(retired);
@@ -322,138 +494,155 @@ impl Interp {
         target: OoId,
         class: bool,
         writable: bool,
-    ) -> Result<PropertyHeaderLease, ValueError> {
-        let recipe = self
-            .native_invocation_dialect()
-            .native_property_lookup_protocol()
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "native property List issuer",
-            ))?;
-        let epoch = self.oo.borrow().property_foundation_epoch;
-        {
-            let oo = self.oo.borrow();
-            if let Some(cache) = oo.property_caches.get(&(target, class)) {
-                if cache.epoch == epoch {
-                    if let Some(header) = if writable {
-                        &cache.writable
-                    } else {
-                        &cache.readable
-                    } {
-                        return Ok(PropertyHeaderLease::new(header.as_ptr()));
-                    }
-                }
-            }
-        }
-        let header = {
-            let oo = self.oo.borrow();
-            let mut members = BTreeMap::new();
-            let mut seen = BTreeSet::new();
-            if class {
-                oo.collect_native_class_properties(target, writable, &mut seen, &mut members)?;
-            } else {
-                let object =
-                    oo.objects
-                        .get(&target)
-                        .ok_or(ValueError::CommandProtocolUnavailable(
-                            "native property object",
-                        ))?;
-                oo.collect_native_declared_properties(
-                    target,
-                    false,
-                    writable,
-                    if writable {
-                        &object.writable_properties
-                    } else {
-                        &object.readable_properties
-                    },
-                    &mut members,
-                )?;
-                for mixin in &object.mixins {
-                    oo.collect_native_class_properties(*mixin, writable, &mut seen, &mut members)?;
-                }
-                oo.collect_native_class_properties(
-                    object.class,
-                    writable,
-                    &mut seen,
-                    &mut members,
-                )?;
-            }
-            let mut members: Vec<_> = members.into_iter().collect();
-            let mut failure = None;
-            members.sort_by(|(_, a), (_, b)| {
-                match compare_original_members(*a, *b, recipe.strings()) {
-                    Ok(order) => order,
-                    Err(error) => {
-                        failure = Some(error);
-                        std::cmp::Ordering::Equal
-                    }
-                }
-            });
-            if let Some(error) = failure {
-                return Err(error);
-            }
-            let members: Vec<_> = members.into_iter().map(|(_, original)| original).collect();
-            obj::Owned::fresh(crate::list::new_list_obj_native(&members, recipe.strings()))
-        };
-        drop(crate::list::list_elements_native_checked(
-            header.as_ptr(),
-            recipe.strings(),
+    ) -> Result<PropertyHeaderLease, CmdError> {
+        let report = Rc::new(PropertyReportOwner::enter(
+            self, target, class, writable, true,
         )?);
-        let lease = PropertyHeaderLease::new(header.as_ptr());
-        let mut oo = self.oo.borrow_mut();
-        oo.property_origins.entry((target, class)).or_insert(recipe);
-        let cache = oo.property_caches.entry((target, class)).or_default();
-        if cache.epoch != epoch {
-            cache.readable = None;
-            cache.writable = None;
-            cache.epoch = epoch;
-        }
-        if writable {
-            cache.writable = Some(header);
-        } else {
-            cache.readable = Some(header);
-        }
-        Ok(lease)
+        let outcome = (|| -> Result<PropertyHeaderLease, CmdError> {
+            let recipe = self
+                .native_invocation_dialect()
+                .native_property_lookup_protocol()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "native property List issuer",
+                ))?;
+            let cached = {
+                let state = self.oo.borrow();
+                state
+                    .property_caches
+                    .get(&(target, class))
+                    .filter(|cache| cache.epoch == report.epoch)
+                    .and_then(|cache| {
+                        if writable {
+                            cache.writable.as_ref()
+                        } else {
+                            cache.readable.as_ref()
+                        }
+                    })
+                    .map(|header| PropertyHeaderLease::new(header.as_ptr()))
+            };
+            if let Some(mut cached) = cached {
+                report.check(self)?;
+                report.freeze();
+                cached.report = Some(Rc::clone(&report));
+                return Ok(cached);
+            }
+            let member_leases = report.leases()?;
+            let members = sorted_property_members(self, &report, recipe.strings())?;
+            let header =
+                obj::Owned::fresh(crate::list::new_list_obj_native(&members, recipe.strings()));
+            let prepared = crate::list::list_elements_native_with_currency(
+                header.as_ptr(),
+                recipe.strings(),
+                Some(report.scope.currency()),
+            );
+            report.check(self)?;
+            drop(prepared?);
+            drop(member_leases);
+            report.check(self)?;
+            let stale = {
+                let mut state = self.oo.borrow_mut();
+                if state
+                    .property_caches
+                    .get(&(target, class))
+                    .is_some_and(|cache| cache.epoch != report.epoch)
+                {
+                    state.property_caches.remove(&(target, class))
+                } else {
+                    None
+                }
+            };
+            drop(stale);
+            report.check(self)?;
+            // A reentrant reporting getter can have installed a current cache.
+            let displaced = {
+                let mut state = self.oo.borrow_mut();
+                state
+                    .property_caches
+                    .get_mut(&(target, class))
+                    .and_then(|cache| {
+                        if writable {
+                            cache.writable.take()
+                        } else {
+                            cache.readable.take()
+                        }
+                    })
+            };
+            drop(displaced);
+            report.check(self)?;
+            let mut lease = PropertyHeaderLease::new(header.as_ptr());
+            {
+                let mut state = self.oo.borrow_mut();
+                state
+                    .property_origins
+                    .entry((target, class))
+                    .or_insert(recipe);
+                let cache = state.property_caches.entry((target, class)).or_default();
+                cache.epoch = report.epoch;
+                if writable {
+                    cache.writable = Some(header);
+                } else {
+                    cache.readable = Some(header);
+                }
+            }
+            report.check(self)?;
+            report.freeze();
+            lease.report = Some(Rc::clone(&report));
+            Ok(lease)
+        })();
+        report.check(self)?;
+        outcome
     }
-}
 
-impl Interp {
     pub(super) fn native_declared_property_header(
         &mut self,
         target: OoId,
         class: bool,
         writable: bool,
-    ) -> Result<obj::Owned, ValueError> {
-        let protocol = self
-            .native_invocation_dialect()
-            .native_property_lookup_protocol()
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "native property metadata issuer",
-            ))?
-            .strings();
-        let oo = self.oo.borrow();
-        let mut members: Vec<_> = oo
-            .property_members
-            .get(&(target, class, writable))
-            .map(|members| members.values().map(obj::Owned::as_ptr).collect())
-            .unwrap_or_default();
-        let mut failure = None;
-        members.sort_by(|a, b| match compare_original_members(*a, *b, protocol) {
-            Ok(order) => order,
-            Err(error) => {
-                failure = Some(error);
-                std::cmp::Ordering::Equal
-            }
-        });
-        if let Some(error) = failure {
-            return Err(error);
-        }
-        let header = obj::Owned::fresh(crate::list::new_list_obj_native(&members, protocol));
-        drop(crate::list::list_elements_native_checked(
-            header.as_ptr(),
-            protocol,
+    ) -> Result<PropertyHeaderLease, CmdError> {
+        let report = Rc::new(PropertyReportOwner::enter(
+            self, target, class, writable, false,
         )?);
-        Ok(header)
+        let outcome = (|| -> Result<PropertyHeaderLease, CmdError> {
+            let recipe = self
+                .native_invocation_dialect()
+                .native_property_lookup_protocol()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "native property metadata issuer",
+                ))?;
+            let member_leases = report.leases()?;
+            let members = sorted_property_members(self, &report, recipe.strings())?;
+            let header =
+                obj::Owned::fresh(crate::list::new_list_obj_native(&members, recipe.strings()));
+            let prepared = crate::list::list_elements_native_with_currency(
+                header.as_ptr(),
+                recipe.strings(),
+                Some(report.scope.currency()),
+            );
+            report.check(self)?;
+            drop(prepared?);
+            drop(member_leases);
+            report.check(self)?;
+            let mut lease = PropertyHeaderLease::new(header.as_ptr());
+            lease._owned = Some(header);
+            report.freeze();
+            lease.report = Some(Rc::clone(&report));
+            Ok(lease)
+        })();
+        report.check(self)?;
+        outcome
+    }
+}
+
+pub(super) struct RetainedPropertyTable {
+    header: obj::Owned,
+    report: Rc<PropertyReportOwner>,
+    words: Vec<Rc<[u8]>>,
+}
+impl RetainedPropertyTable {
+    fn check(&self, interpreter: &Interp) -> Result<(), CmdError> {
+        self.report.check(interpreter)?;
+        obj::check_native_liveness(self.header.as_ptr())?;
+        Ok(())
     }
 }
 
@@ -462,68 +651,99 @@ pub(super) fn lookup_property(
     target: OoId,
     original: *mut TclObj,
     writable: bool,
-    table: &mut Option<obj::Owned>,
+    table: &mut Option<RetainedPropertyTable>,
     retain_table: bool,
-) -> Result<PropertyHeaderLease, Code> {
+) -> Result<PropertyHeaderLease, CmdError> {
+    let originals = OriginalArguments::enter(interp, &[original])?;
     let recipe = interp
         .native_invocation_dialect()
         .native_property_lookup_protocol()
         .ok_or(ValueError::CommandProtocolUnavailable(
             "native property lookup issuer",
-        ))
-        .map_err(|e| interp.report_cmd_error(e.into()))?;
-    recipe
-        .validate_index_origin(obj::native_index::cache(original).map(|(_, origin)| origin))
-        .map_err(|e| interp.report_cmd_error(e.into()))?;
-    let header = interp
-        .native_all_property_header(target, false, writable)
-        .map_err(|e| interp.report_cmd_error(e.into()))?;
-    if retain_table && table.is_none() {
-        *table = Some(
-            crate::list::native_list_copy(header.header, recipe.strings())
-                .map_err(|e| interp.report_cmd_error(e.into()))?,
-        );
+        ))?;
+    recipe.validate_index_origin(obj::native_index::cache(original).map(|(_, origin)| origin))?;
+    if let Some(table) = table.as_ref() {
+        table.check(interp)?;
     }
-    let names = crate::list::list_elements_native_checked(
-        table.as_ref().map_or(header.header, obj::Owned::as_ptr),
-        recipe.strings(),
-    )
-    .map_err(|e| interp.report_cmd_error(e.into()))?;
-    let bytes = interp
-        .native_object_string_bytes(original)
-        .map_err(|e| interp.report_cmd_error(e.into()))?;
-    let words: Vec<_> = names
-        .iter()
-        .map(|&name| interp.native_object_string_bytes(name))
-        .collect::<Result<_, _>>()
-        .map_err(|e| interp.report_cmd_error(e.into()))?;
+    let header = interp.native_all_property_header(target, false, writable)?;
+    let observer = interp.clone();
+    let check = || -> Result<(), CmdError> {
+        originals.check()?;
+        header.check(&observer)
+    };
+    let words = if let Some(table) = table.as_ref() {
+        table.check(interp)?;
+        table.words.clone()
+    } else {
+        let names = crate::list::list_elements_native_with_currency(
+            header.header,
+            recipe.strings(),
+            Some(originals.currency()),
+        );
+        check()?;
+        let names = names?;
+        let member_arguments = OriginalArguments::enter(interp, &names)?;
+        let mut words = Vec::new();
+        for index in 0..names.len() {
+            let word = member_arguments.bytes(index);
+            check()?;
+            words.push(word?);
+        }
+        if retain_table {
+            let copied = crate::list::native_list_copy(header.header, recipe.strings());
+            check()?;
+            *table = Some(RetainedPropertyTable {
+                header: copied?,
+                report: Rc::clone(header.report.as_ref().ok_or(
+                    ValueError::CommandProtocolUnavailable("original property table report owner"),
+                )?),
+                words: words.clone(),
+            });
+        }
+        words
+    };
+    let bytes = originals.bytes(0)?;
+    check()?;
     let borrowed: Vec<_> = words.iter().map(|word| word.as_ref()).collect();
-    match recipe.lookup(&bytes, &borrowed) {
+    let verdict = recipe.lookup(&bytes, &borrowed);
+    check()?;
+    match verdict {
         Ok(index) => {
-            let current =
-                crate::list::list_elements_native_checked(header.header, recipe.strings())
-                    .map_err(|e| interp.report_cmd_error(e.into()))?;
-            let selected = current.get(index).ok_or_else(|| {
-                interp.report_cmd_error(
-                    ValueError::CommandProtocolUnavailable(
-                        "property callback changed native table extent",
-                    )
-                    .into(),
-                )
-            })?;
-            Ok(PropertyHeaderLease::new(*selected))
+            let current = crate::list::list_elements_native_with_currency(
+                header.header,
+                recipe.strings(),
+                Some(originals.currency()),
+            );
+            check()?;
+            let current = current?;
+            let selected = *current
+                .get(index)
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "property callback changed native table extent",
+                ))?;
+            let mut selected = PropertyHeaderLease::new(selected);
+            selected.report = header.report.clone();
+            Ok(selected)
         }
         Err(message) => {
-            let other = interp
-                .native_all_property_header(target, false, !writable)
-                .map_err(|e| interp.report_cmd_error(e.into()))?;
-            let other = crate::list::list_elements_native_checked(other.header, recipe.strings())
-                .map_err(|e| interp.report_cmd_error(e.into()))?;
-            let other_words: Vec<_> = other
-                .iter()
-                .map(|&name| interp.native_object_string_bytes(name))
-                .collect::<Result<_, _>>()
-                .map_err(|e| interp.report_cmd_error(e.into()))?;
+            let other = interp.native_all_property_header(target, false, !writable)?;
+            check()?;
+            let other_members = crate::list::list_elements_native_with_currency(
+                other.header,
+                recipe.strings(),
+                Some(originals.currency()),
+            );
+            check()?;
+            other.check(interp)?;
+            let other_members = other_members?;
+            let other_arguments = OriginalArguments::enter(interp, &other_members)?;
+            let mut other_words = Vec::new();
+            for index in 0..other_members.len() {
+                let word = other_arguments.bytes(index);
+                check()?;
+                other.check(interp)?;
+                other_words.push(word?);
+            }
             let other_borrowed: Vec<_> = other_words.iter().map(|word| word.as_ref()).collect();
             let mut error = message;
             if let Ok(index) = recipe.lookup(&bytes, &other_borrowed) {
@@ -538,14 +758,14 @@ pub(super) fn lookup_property(
             let protocol = interp
                 .native_invocation_dialect()
                 .native_index_lookup_protocol()
-                .expect("selected C91 property Index recipe");
-            Err(interp.report_cmd_error(
-                tcl_cmd_core::CmdError::with_error_code_bytes(
-                    error,
-                    protocol.error_code(b"property", &bytes),
-                )
-                .with_native_string_result(recipe.strings()),
-            ))
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "selected C91 property Index recipe",
+                ))?;
+            check()?;
+            Err(
+                CmdError::with_error_code_bytes(error, protocol.error_code(b"property", &bytes))
+                    .with_native_string_result(recipe.strings()),
+            )
         }
     }
 }
@@ -742,28 +962,47 @@ pub(super) fn set_property_slot(
     result
 }
 
+fn property_stage<T>(
+    check: &impl Fn() -> Result<(), CmdError>,
+    result: Result<T, ValueError>,
+) -> Result<T, CmdError> {
+    check()?;
+    result.map_err(Into::into)
+}
+
 fn compare_original_members(
     a: *mut TclObj,
     b: *mut TclObj,
     protocol: tcl_syntax::native_string::NativeStringProtocol,
-) -> Result<std::cmp::Ordering, ValueError> {
+    check: &impl Fn() -> Result<(), CmdError>,
+) -> Result<std::cmp::Ordering, CmdError> {
+    check()?;
     use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
     if a == b {
         return Ok(std::cmp::Ordering::Equal);
     }
-    let sa = obj::native_object_snapshot(a)?;
-    let sb = obj::native_object_snapshot(b)?;
+    let sa = property_stage(check, obj::native_object_snapshot(a))?;
+    let sb = property_stage(check, obj::native_object_snapshot(b))?;
     if matches!(sa.cache, Cache::String { .. }) && matches!(sb.cache, Cache::String { .. }) {
         let representation=tcl_registry::native_string_length::NativeStringLengthRepresentation::PureProperByteArray;
-        let ca = obj::native_character_count(a, protocol, representation)?;
-        let cb = obj::native_character_count(b, protocol, representation)?;
+        let ca = property_stage(
+            check,
+            obj::native_character_count(a, protocol, representation),
+        )?;
+        let cb = property_stage(
+            check,
+            obj::native_character_count(b, protocol, representation),
+        )?;
         if sa.resident.as_ref().is_some_and(|bytes| bytes.len() == ca)
             && sb.resident.as_ref().is_some_and(|bytes| bytes.len() == cb)
         {
             return Ok(sa.resident.cmp(&sb.resident));
         }
         return Ok(
-            obj::native_unicode_units(a, protocol)?.cmp(&obj::native_unicode_units(b, protocol)?)
+            property_stage(check, obj::native_unicode_units(a, protocol))?.cmp(&property_stage(
+                check,
+                obj::native_unicode_units(b, protocol),
+            )?),
         );
     }
     if let (Cache::ByteArray { bytes: a, .. }, Cache::ByteArray { bytes: b, .. }) =
@@ -773,8 +1012,8 @@ fn compare_original_members(
             return Ok(a.cmp(b));
         }
     }
-    let a = crate::dict::native_object_bytes(a, protocol)?;
-    let b = crate::dict::native_object_bytes(b, protocol)?;
+    let a = property_stage(check, crate::dict::native_object_bytes(a, protocol))?;
+    let b = property_stage(check, crate::dict::native_object_bytes(b, protocol))?;
     let version = protocol
         .tcl_version()
         .ok_or(ValueError::CommandProtocolUnavailable(
@@ -785,42 +1024,60 @@ fn compare_original_members(
 }
 
 pub(super) fn configure_all(interp: &mut Interp, target: OoId) -> Code {
-    let header = match interp.native_all_property_header(target, false, false) {
-        Ok(header) => header,
-        Err(e) => return interp.report_cmd_error(e.into()),
-    };
-    let header = obj::Owned::retain(header.header);
-    let protocol = interp
-        .native_invocation_dialect()
-        .native_property_lookup_protocol()
-        .expect("selected properties")
-        .strings();
-    let names = match crate::list::list_elements_native_checked(header.as_ptr(), protocol) {
-        Ok(names) => names,
-        Err(e) => return interp.report_cmd_error(e.into()),
-    };
-    let mut owned = Vec::new();
-    let mut pairs = Vec::new();
-    for original in names {
-        let code = read_original_property(interp, target, original);
-        if code != Code::Ok {
-            return code;
+    native_context::with_original_arguments(interp, &[], |interp, _originals| {
+        configure_all_original(interp, target)
+    })
+}
+fn configure_all_original(interp: &mut Interp, target: OoId) -> Code {
+    let outcome: Result<Code, CmdError> = (|| {
+        let header = interp.native_all_property_header(target, false, false)?;
+        let working = obj::Owned::retain(header.header);
+        let recipe = interp
+            .native_invocation_dialect()
+            .native_property_lookup_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "selected property configure",
+            ))?;
+        let names = crate::list::list_elements_native_with_currency(
+            header.header,
+            recipe.strings(),
+            header.report.as_ref().map(|report| report.scope.currency()),
+        );
+        header.check(interp)?;
+        let names = names?;
+        let originals = OriginalArguments::enter(interp, &names)?;
+        let mut owned = Vec::new();
+        let mut pairs = Vec::new();
+        for original in names {
+            header.check(interp)?;
+            let code = read_original_property(interp, target, original);
+            originals.check()?;
+            header.check(interp)?;
+            if code != Code::Ok {
+                return Ok(code);
+            }
+            let value = obj::Owned::retain(interp.get_obj_result());
+            owned.push(obj::Owned::retain(original));
+            pairs.push((original, value.as_ptr()));
+            owned.push(value);
         }
-        let value = obj::Owned::retain(interp.get_obj_result());
-        owned.push(obj::Owned::retain(original));
-        pairs.push((original, value.as_ptr()));
-        owned.push(value);
-    }
-    if pairs.is_empty() {
-        interp.set_result_bytes(b"");
-        return Code::Ok;
-    }
-    match crate::dict::new_dict_obj_native(&pairs, None, protocol) {
-        Ok(value) => {
-            interp.set_result(value);
-            Code::Ok
+        if pairs.is_empty() {
+            interp.set_result_bytes(b"");
+        } else {
+            let value = crate::dict::new_dict_obj_native(&pairs, None, recipe.strings());
+            originals.check()?;
+            header.check(interp)?;
+            interp.set_result(value?);
         }
-        Err(e) => interp.report_cmd_error(e.into()),
+        drop(owned);
+        drop(working);
+        originals.check()?;
+        header.check(interp)?;
+        Ok(Code::Ok)
+    })();
+    match outcome {
+        Ok(code) => code,
+        Err(error) => interp.report_cmd_error(error),
     }
 }
 
@@ -843,7 +1100,9 @@ fn default_storage_name(
     target: OoId,
     original: *mut TclObj,
     strings: tcl_syntax::native_string::NativeStringProtocol,
-) -> Result<Option<Vec<u8>>, ValueError> {
+) -> Result<Option<Vec<u8>>, CmdError> {
+    let originals = OriginalArguments::enter(interp, &[original])?;
+    let target_owner = native_context::OriginalOoTarget::capture(interp, target, false)?;
     let activation = interp.frames.borrow().current_activation();
     let scope = {
         let state = interp.oo.borrow();
@@ -874,36 +1133,93 @@ fn default_storage_name(
             return Ok(None);
         }
     }
-    let state = interp.oo.borrow();
-    let variables = if is_object {
-        state
+    let provider_owner = native_context::OriginalOoTarget::capture(interp, provider, !is_object)?;
+    let (creation, mutation, variables) = {
+        let state = interp.oo.borrow();
+        let source = if is_object {
+            state
+                .objects
+                .get(&provider)
+                .map(|object| &object.private_variables)
+        } else {
+            state
+                .classes
+                .get(&provider)
+                .map(|class| &class.private_variables)
+        };
+        let variables = source
+            .into_iter()
+            .flatten()
+            .map(|variable| {
+                obj::check_native_liveness(variable.original.as_ptr())?;
+                Ok((
+                    variable.original.as_ptr(),
+                    variable.name.clone(),
+                    obj::NativeObjectLifetime::retain(variable.original.as_ptr()),
+                ))
+            })
+            .collect::<Result<Vec<_>, ValueError>>()?;
+        let creation = state
             .objects
             .get(&provider)
-            .map(|object| &object.private_variables)
-    } else {
-        state
-            .classes
-            .get(&provider)
-            .map(|class| &class.private_variables)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "private property variable provider",
+            ))?
+            .creation_id;
+        (
+            creation,
+            state.native_methods.mutation_stamp(provider),
+            variables,
+        )
     };
-    if let Some(variables) = variables {
-        for variable in variables {
-            if compare_original_members(variable.original.as_ptr(), original, strings)?
-                == std::cmp::Ordering::Equal
-            {
-                let creation = state
-                    .objects
-                    .get(&provider)
-                    .ok_or(ValueError::CommandProtocolUnavailable(
-                        "private property variable provider",
-                    ))?
-                    .creation_id;
-                let mut storage = format!("{creation} : ").into_bytes();
-                storage.extend_from_slice(&variable.name);
-                return Ok(Some(storage));
-            }
+    let check = || -> Result<(), CmdError> {
+        originals.check()?;
+        target_owner.check(interp)?;
+        provider_owner.check(interp)?;
+        let state = interp.oo.borrow();
+        let current = state.native_methods.mutation_stamp(provider);
+        let current_variables = if is_object {
+            state
+                .objects
+                .get(&provider)
+                .map(|owner| &owner.private_variables)
+        } else {
+            state
+                .classes
+                .get(&provider)
+                .map(|owner| &owner.private_variables)
+        };
+        let same_inventory = current_variables.is_some_and(|current| {
+            current
+                .iter()
+                .map(|variable| (variable.original.as_ptr(), variable.name.as_slice()))
+                .eq(variables
+                    .iter()
+                    .map(|(header, name, _)| (*header, name.as_slice())))
+        });
+        if !same_inventory
+            || !Rc::ptr_eq(&mutation.0, &current.0)
+            || mutation.1 != current.1
+            || mutation.2 != current.2
+        {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "changed original private property provider",
+            )
+            .into());
+        }
+        Ok(())
+    };
+    for (header, name, _lease) in &variables {
+        if compare_original_members(*header, original, strings, &check)?
+            == std::cmp::Ordering::Equal
+        {
+            let mut storage = format!("{creation} : ").into_bytes();
+            storage.extend_from_slice(name);
+            check()?;
+            return Ok(Some(storage));
         }
     }
+    check()?;
     Ok(None)
 }
 
@@ -913,6 +1229,21 @@ pub(super) fn invoke_default(
     accessor: &NativePropertyAccessor,
     args: &[*mut TclObj],
     original_argv: Option<&[*mut TclObj]>,
+) -> Code {
+    let mut words = Vec::with_capacity(args.len() + 1);
+    words.push(accessor.original.as_ptr());
+    words.extend_from_slice(args);
+    native_context::with_original_arguments(interp, &words, |interp, originals| {
+        invoke_default_original(interp, target, accessor, args, original_argv, originals)
+    })
+}
+fn invoke_default_original(
+    interp: &mut Interp,
+    target: OoId,
+    accessor: &NativePropertyAccessor,
+    args: &[*mut TclObj],
+    original_argv: Option<&[*mut TclObj]>,
+    originals: &OriginalArguments,
 ) -> Code {
     if args.len() != usize::from(accessor.writable) {
         let Some(words) = original_argv else {
@@ -941,7 +1272,7 @@ pub(super) fn invoke_default(
             ValueError::CommandProtocolUnavailable("native default property accessor").into(),
         );
     };
-    let bytes = match interp.native_object_string_bytes(accessor.original.as_ptr()) {
+    let bytes = match originals.bytes(0) {
         Ok(bytes) => bytes,
         Err(error) => return interp.report_cmd_error(error.into()),
     };
@@ -987,6 +1318,11 @@ pub(super) fn invoke_default(
 }
 
 pub(super) fn configure_native(interp: &mut Interp, target: OoId, args: &[*mut TclObj]) -> Code {
+    native_context::with_original_arguments(interp, args, |interp, _originals| {
+        configure_native_original(interp, target, args)
+    })
+}
+fn configure_native_original(interp: &mut Interp, target: OoId, args: &[*mut TclObj]) -> Code {
     if args.is_empty() {
         return configure_all(interp, target);
     }
@@ -997,15 +1333,16 @@ pub(super) fn configure_native(interp: &mut Interp, target: OoId, args: &[*mut T
     if args.len() == 1 {
         let property = match lookup_property(interp, target, args[0], false, &mut table, false) {
             Ok(property) => property,
-            Err(error) => return error,
+            Err(error) => return interp.report_cmd_error(error),
         };
         return read_original_property(interp, target, property.header);
     }
     for pair in args.chunks_exact(2) {
-        let property = match lookup_property(interp, target, pair[0], true, &mut table, true) {
-            Ok(property) => property,
-            Err(error) => return error,
-        };
+        let property =
+            match lookup_property(interp, target, pair[0], true, &mut table, args.len() > 2) {
+                Ok(property) => property,
+                Err(error) => return interp.report_cmd_error(error),
+            };
         let code = invoke_original_accessor(interp, target, property.header, true, Some(pair[1]));
         if code != Code::Ok {
             return code;
