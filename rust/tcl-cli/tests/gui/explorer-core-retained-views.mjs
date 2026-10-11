@@ -37,7 +37,7 @@ function absorbing(state) {
   });
 }
 function shippedFunction(shell, name) {
-  const match = shell.match(new RegExp('function ' + name + '\\(\\) \\{[\\s\\S]*?\\n\\}'));
+  const match = shell.match(new RegExp('function ' + name + '\\([^)]*\\) \\{[\\s\\S]*?\\n\\}'));
   if (!match) throw new Error('missing shipped function ' + name);
   return match[0];
 }
@@ -50,7 +50,7 @@ const report = {};
 for (let i = 0; i < shellNames.length; i++) {
   const panes = new Map();
   const badges = {};
-  const tabs = ['opt', 'callouts', 'event-order', 'optimiser-passes', 'irules-flow'].map(id => ({
+  const tabs = ['opt', 'callouts', 'event-order', 'optimiser-passes', 'irules-flow', 'cfg-post', 'gvn', 'shimmer', 'taint', 'bounds', 'asm', 'wasm'].map(id => ({
     dataset: { tab: id }, querySelector: () => null,
     appendChild: badge => { badges[id] = Number(badge.textContent); },
   }));
@@ -71,19 +71,20 @@ for (let i = 0; i < shellNames.length; i++) {
     instrCount: () => 0, renderEventFlowGraph: () => {}, eventRangeMap: {},
   });
   vm.runInContext(source, context, { filename: 'explorer-core.js' });
-  for (const render of ['renderStats', 'renderOpt', 'renderOptimiserPasses', 'renderEventOrder', 'renderCallouts']) {
+  vm.runInContext(shippedFunction(shellSources[i], 'renderShimmer'), context);
+  vm.runInContext(shippedFunction(shellSources[i], 'renderIrulesFlow'), context);
+  if (shellNames[i] === 'vscode') vm.runInContext(shippedFunction(shellSources[i], 'warningRow'), context);
+  for (const render of ['renderStats', 'renderOpt', 'renderOptimiserPasses', 'renderEventOrder', 'renderCallouts', 'renderCfgPost', 'renderGvn', 'renderTaint', 'renderBounds', 'renderAsm', 'renderWasm', 'renderShimmer']) {
     context[render]();
   }
   vm.runInContext(shippedFunction(shellSources[i], 'updateBadges'), context);
   context.updateBadges();
-  if (shellNames[i] === 'standalone') {
-    vm.runInContext(shippedFunction(shellSources[i], 'renderIrulesFlow'), context);
-    context.renderIrulesFlow();
-  }
+  context.renderIrulesFlow();
+  context.renderGenericExplorerView({ id: 'liveness' });
   report[shellNames[i]] = {
     panes: Object.fromEntries([...panes].map(([selector, pane]) => [selector, text(pane.state.html)])),
     badges,
-    arrayCounts: Object.fromEntries(['optimisations', 'annotations', 'eventOrder'].map(
+    arrayCounts: Object.fromEntries(['optimisations', 'annotations', 'eventOrder', 'asm', 'wasm', 'cfgPostSsa', 'shimmer', 'gvn', 'taintWarnings', 'liveness', 'irulesFlow', 'bounds'].map(
       field => [field, context.explorerArrayCount(payload[field]) ?? null])),
   };
 }

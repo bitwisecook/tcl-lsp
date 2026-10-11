@@ -596,3 +596,132 @@ fn retained_source_unavailable_payload_renders_without_empty_success_claims() {
         assert_eq!(rendered[shell]["arrayCounts"]["eventOrder"], 1);
     }
 }
+
+/// Shared actual-CU consumers preserve structural unavailable output through
+/// shipped core renderers and both shell hooks/counts. The DOM is a stand-in.
+#[test]
+fn remaining_actual_cu_unavailable_payload_renders_all_retained_views() {
+    // naming.source.retained-explorer-consumers
+    // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
+    if Command::new("node").arg("--version").output().is_err() {
+        skip("`node` is not on PATH");
+        return;
+    }
+    let mut result = tcl_explorer::run_pipeline("when HTTP_REQUEST {}", "f5-irules");
+    let current = tcl_explorer::serialise_result(&result);
+    let fields = [
+        "asm",
+        "wasm",
+        "cfgPostSsa",
+        "shimmer",
+        "gvn",
+        "taintWarnings",
+        "liveness",
+        "irulesFlow",
+        "bounds",
+    ];
+    for field in fields {
+        assert!(current[field].is_array(), "{field}");
+    }
+    result.unit.ir_module.retained_source_bindings = None;
+    let unavailable = tcl_explorer::serialise_result(&result);
+    for field in fields {
+        assert!(unavailable[field].is_null(), "{field}");
+    }
+    let out_dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
+    std::fs::create_dir_all(&out_dir).expect("create target tmp dir");
+    let render = |payload: &Value, name: &str| -> Value {
+        let file = out_dir.join(format!("explorer-actual-cu-{name}.json"));
+        std::fs::write(&file, serde_json::to_vec(payload).unwrap()).unwrap();
+        let output = Command::new("node")
+            .arg(manifest_dir().join("tests/gui/explorer-core-retained-views.mjs"))
+            .arg(manifest_dir().join("gui"))
+            .arg(manifest_dir().join("../../editors/vscode/src/compilerExplorerHtml.ts"))
+            .arg(&file)
+            .output()
+            .expect("spawn Node driver");
+        assert!(
+            output.status.success(),
+            "render failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        serde_json::from_slice(&output.stdout).expect("render report")
+    };
+    let rendered = render(&unavailable, "unavailable");
+    for shell in ["standalone", "vscode"] {
+        for pane in [
+            "#pane-asm",
+            "#pane-wasm",
+            "#pane-cfg-post",
+            "#pane-shimmer",
+            "#pane-gvn",
+            "#pane-taint",
+            "#pane-liveness",
+            "#pane-irules-flow",
+            "#pane-bounds",
+        ] {
+            assert_eq!(
+                rendered[shell]["panes"][pane], "This view is unavailable for this analysis",
+                "{shell}/{pane}"
+            );
+        }
+        for field in fields {
+            assert!(
+                rendered[shell]["arrayCounts"][field].is_null(),
+                "{shell}/{field}"
+            );
+        }
+        for badge in [
+            "asm",
+            "wasm",
+            "cfg-post",
+            "shimmer",
+            "gvn",
+            "taint",
+            "irules-flow",
+            "bounds",
+        ] {
+            assert!(
+                rendered[shell]["badges"][badge].is_null(),
+                "{shell}/{badge}"
+            );
+        }
+    }
+    // Warning unavailability does not erase independently retained tracking.
+    let mut tracking = unavailable.clone();
+    tracking["taintTracking"] = serde_json::json!([
+        {"name": "kept", "entries": [{"variable": "v", "version": 1, "taint": "external"}]}
+    ]);
+    let rendered = render(&tracking, "tracking");
+    for shell in ["standalone", "vscode"] {
+        let text = rendered[shell]["panes"]["#pane-taint"].as_str().unwrap();
+        assert!(text.contains("This view is unavailable for this analysis"));
+        assert!(text.contains("Taint Tracking") && text.contains("kept"));
+        assert!(rendered[shell]["badges"]["taint"].is_null());
+    }
+    let mut empty = current.clone();
+    for field in fields {
+        empty[field] = serde_json::json!([]);
+    }
+    empty["taintTracking"] = serde_json::json!([]);
+    empty["eventOrder"] = serde_json::json!([]);
+    empty["asmOptimised"] = Value::Null;
+    empty["wasmOptimised"] = Value::Null;
+    empty["cfgPostSsaOptimised"] = Value::Null;
+    let rendered = render(&empty, "empty");
+    for shell in ["standalone", "vscode"] {
+        for (pane, expected) in [
+            ("#pane-asm", "No assembly"),
+            ("#pane-wasm", "No WASM output"),
+            ("#pane-shimmer", "No shimmer warnings"),
+            ("#pane-gvn", "No redundant computations detected"),
+            ("#pane-taint", "No tainted data flows detected"),
+            ("#pane-bounds", "No provable out-of-range / divide-by-zero"),
+        ] {
+            assert_eq!(rendered[shell]["panes"][pane], expected, "{shell}/{pane}");
+        }
+        for field in fields {
+            assert_eq!(rendered[shell]["arrayCounts"][field], 0, "{shell}/{field}");
+        }
+    }
+}

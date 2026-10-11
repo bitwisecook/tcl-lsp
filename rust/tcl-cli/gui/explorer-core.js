@@ -212,6 +212,7 @@ function renderGenericExplorerView(view) {
   var pane = $('#pane-' + explorerPaneId(view.id));
   if (!pane) return;
   var value = data[view.payload || view.id];
+  if (value == null) { pane.innerHTML = explorerViewUnavailableHtml(); return; }
   var count = genericViewCount(value);
   pane.innerHTML = '<div class="section-header">' + esc(view.label || view.id)
     + ' <span class="badge">' + count + '</span></div>'
@@ -427,6 +428,7 @@ function renderSelections(func) {
 // CFG (post-SSA)
 function renderCfgPost() {
   var pane = $('#pane-cfg-post');
+  if (!Array.isArray(data.cfgPostSsa)) { pane.innerHTML = explorerViewUnavailableHtml(); return; }
   var optAvail = !!data.cfgPostSsaOptimised;
   var mode = optAvail ? (structOptState['pane-cfg-post'] || 'off') : 'off';
   var toolbar = renderOptToolbar('pane-cfg-post', optAvail);
@@ -718,6 +720,7 @@ function clearOptHighlights(container) {
 // GVN
 function renderGvn() {
   var pane=$('#pane-gvn');
+  if(!Array.isArray(data.gvn)){pane.innerHTML=explorerViewUnavailableHtml();return;}
   if(!data.gvn.length){pane.innerHTML='<div class="empty-state">No redundant computations detected</div>';return;}
   var html='';
   for(var w of data.gvn){
@@ -731,10 +734,11 @@ function renderGvn() {
 // Taint
 function renderTaint() {
   var pane=$('#pane-taint');
-  var hasWarnings=data.taintWarnings.length>0;
+  var warningsAvailable=Array.isArray(data.taintWarnings);
+  var hasWarnings=warningsAvailable&&data.taintWarnings.length>0;
   var hasTracking=data.taintTracking.length>0;
-  if(!hasWarnings&&!hasTracking){pane.innerHTML='<div class="empty-state">No tainted data flows detected</div>';return;}
-  var html='';
+  if(warningsAvailable&&!hasWarnings&&!hasTracking){pane.innerHTML='<div class="empty-state">No tainted data flows detected</div>';return;}
+  var html=warningsAvailable?'':explorerViewUnavailableHtml();
   if(hasWarnings){
     html+='<div class="section-header">Warnings</div>';
     for(var w of data.taintWarnings){
@@ -1185,7 +1189,8 @@ function renderIntervals() {
 // Interval-driven bounds / divide-by-zero findings
 function renderBounds() {
   var pane = $('#pane-bounds');
-  var fns = data.bounds || [];
+  if (!Array.isArray(data.bounds)) { pane.innerHTML = explorerViewUnavailableHtml(); return; }
+  var fns = data.bounds;
   if (!fns.reduce(function(n, f) { return n + f.findings.length + f.divzero.length; }, 0)) {
     pane.innerHTML = '<div class="empty-state">No provable out-of-range / divide-by-zero</div>'; return;
   }
@@ -1317,7 +1322,7 @@ function renderCallouts() {
 }
 
 // Assembly / WASM helpers
-function instrCount(arr) { return arr ? arr.reduce(function(n, f) { return n + (f.instrCount || 0); }, 0) : 0; }
+function instrCount(arr) { return Array.isArray(arr) ? arr.reduce(function(n, f) { return n + (f.instrCount || 0); }, 0) : undefined; }
 function funcListHtml(funcs) {
   var html = '';
   for (var func of funcs) {
@@ -1342,6 +1347,7 @@ function renderWasm() { renderDisassembly('pane-wasm', 'wasm'); }
 function renderDisassembly(paneId, kind) {
   var pane = $('#' + paneId);
   var origFuncs = kind === 'asm' ? data.asm : data.wasm;
+  if (!Array.isArray(origFuncs)) { pane.innerHTML = explorerViewUnavailableHtml(); return; }
   var optFuncs = kind === 'asm' ? data.asmOptimised : data.wasmOptimised;
   var emptyMsg = kind === 'asm' ? 'No assembly' : 'No WASM output';
   if (!origFuncs || !origFuncs.length) {
@@ -2332,6 +2338,7 @@ function hideVarTooltip(){if(activeTooltip){activeTooltip.remove();activeTooltip
 
 // CFG edge arrows
 function drawAllCfgEdges(pane, funcs) {
+  if (!Array.isArray(funcs)) return;
   for (var func of funcs) {
     var container = pane.querySelector('.cfg-edges-container[data-func="' + func.name + '"]');
     if (!container) continue;

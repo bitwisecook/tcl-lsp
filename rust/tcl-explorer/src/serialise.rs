@@ -39,7 +39,9 @@ use tcl_compiler::gvn::{
     find_loop_invariants_for_cu, find_partial_redundancies_for_cu, find_redundancies_for_cu,
 };
 use tcl_compiler::interprocedural::InterproceduralAnalysis;
-use tcl_compiler::interval_bounds::{find_divide_by_zero_with, find_interval_bounds_with};
+use tcl_compiler::interval_bounds::{
+    BoundsSemantics, find_divide_by_zero_with_entered_operands, find_interval_bounds_resolved,
+};
 use tcl_compiler::intervals::compute_intervals;
 use tcl_compiler::ir::{Module, Script, Statement};
 use tcl_compiler::irules_checks::{
@@ -83,7 +85,7 @@ use crate::views::{Severity, VIEW_META};
 
 /// Checked readonly source inputs from the actual compilation producer.
 /// Display labels cannot select a command store, profile or source owner.
-struct RetainedExplorerSource<'a> {
+pub(crate) struct RetainedExplorerSource<'a> {
     registry: &'a tcl_registry::CommandRegistry,
     input: &'a tcl_compiler::analyser::ResolvedAnalysisInput,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
@@ -91,7 +93,13 @@ struct RetainedExplorerSource<'a> {
     realm: tcl_compiler::realm::CommandBindingRealm,
 }
 
-fn retained_explorer_source<'a>(
+impl<'a> RetainedExplorerSource<'a> {
+    pub(crate) const fn registry(&self) -> &'a tcl_registry::CommandRegistry {
+        self.registry
+    }
+}
+
+pub(crate) fn retained_explorer_source<'a>(
     result: &'a ExplorerResult,
     source: &str,
 ) -> Option<RetainedExplorerSource<'a>> {
@@ -390,8 +398,10 @@ fn serialise_wasm_with_options(
 ) -> Value {
     use tcl_compiler::codegen::wasm::{WasmCodegenPlan, WasmSemanticDecline, compile_wasm};
 
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
+    let Some(retained) = retained_explorer_source(result, &result.source) else {
+        return Value::Null;
+    };
+    let registry = retained.registry;
     let mut wasm = compile_wasm(&result.unit, registry, options);
     let wat = wasm.to_wat();
 
@@ -972,8 +982,10 @@ fn shimmer_severity(code: &str) -> &'static str {
 /// differential harness.
 #[must_use]
 pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
+    let Some(retained) = retained_explorer_source(result, source) else {
+        return Value::Null;
+    };
+    let registry = retained.registry;
     let mut out: Vec<Value> = Vec::new();
     for w in find_shimmer_warnings_for_cu(&result.unit, registry) {
         out.push(json!({
@@ -1423,9 +1435,11 @@ fn serialise_world_ssa(result: &ExplorerResult) -> Value {
 /// derived, pinned by a Rust unit test.
 #[must_use]
 pub fn serialise_gvn(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
-    let dialect = crate::environment::known_profile_for_dialect(&result.dialect);
+    let Some(retained) = retained_explorer_source(result, source) else {
+        return Value::Null;
+    };
+    let registry = retained.registry;
+    let dialect = retained.dialect;
     let mut all = find_redundancies_for_cu(&result.unit, registry, dialect);
     all.extend(find_partial_redundancies_for_cu(
         &result.unit,
@@ -1474,9 +1488,11 @@ fn taint_severity(code: &str) -> &'static str {
 /// taint passes via `find_taint_warnings_for_cu`.
 #[must_use]
 pub fn serialise_taint(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
-    let dialect = crate::environment::known_profile_for_dialect(&result.dialect);
+    let Some(retained) = retained_explorer_source(result, source) else {
+        return Value::Null;
+    };
+    let registry = retained.registry;
+    let dialect = retained.dialect;
     let out: Vec<Value> = find_taint_warnings_for_cu(&result.unit, registry, dialect)
         .iter()
         .map(|w| {
@@ -1658,8 +1674,10 @@ fn ssa_value_detail(
 /// SCCP + the type lattice.
 #[must_use]
 pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
+    let Some(retained) = retained_explorer_source(result, source) else {
+        return Value::Null;
+    };
+    let registry = retained.registry;
     let funcs: Vec<Value> = result
         .all_snapshots()
         .iter()
@@ -2083,8 +2101,10 @@ pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> 
 /// authoritative dead-store result.
 #[must_use]
 pub fn serialise_liveness(result: &ExplorerResult) -> Value {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
+    let Some(retained) = retained_explorer_source(result, &result.source) else {
+        return Value::Null;
+    };
+    let registry = retained.registry;
     Value::Array(
         result
             .all_snapshots()
@@ -2648,9 +2668,32 @@ fn serialise_memory_ssa(memory: &MemorySsaFunction) -> Value {
 /// finders. Empty for non-iRules dialects (an empty list on the tcl corpus).
 #[must_use]
 pub fn serialise_irules_flow(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
-    let dialect = crate::environment::known_profile_for_dialect(&result.dialect);
+    let Some(retained) = retained_explorer_source(result, source) else {
+        return Value::Null;
+    };
+    let warnings = irules_flow_warnings(result, &retained);
+
+    let out: Vec<Value> = warnings
+        .iter()
+        .map(|w| {
+            json!({
+                "code": w.code.as_str(),
+                "message": w.message,
+                "range": range_dict(w.span, li, source),
+                "severity": "warning",
+            })
+        })
+        .collect();
+    Value::Array(out)
+}
+
+/// One actual-unit warning aggregation shared by the view and its count.
+fn irules_flow_warnings(
+    result: &ExplorerResult,
+    retained: &RetainedExplorerSource<'_>,
+) -> Vec<tcl_compiler::irules_checks::IrulesCheckWarning> {
+    let registry = retained.registry;
+    let dialect = retained.dialect;
     let cu = &result.unit;
     let mut warnings = find_unnormalised_getter_warnings(
         cu,
@@ -2675,18 +2718,7 @@ pub fn serialise_irules_flow(result: &ExplorerResult, li: &LineIndex, source: &s
         dialect.map(tcl_dialect::DialectProfile::surface_query),
     ));
 
-    let out: Vec<Value> = warnings
-        .iter()
-        .map(|w| {
-            json!({
-                "code": w.code.as_str(),
-                "message": w.message,
-                "range": range_dict(w.span, li, source),
-                "severity": "warning",
-            })
-        })
-        .collect();
-    Value::Array(out)
+    warnings
 }
 
 /// Serialise the retained cross-event connection scope, including each event
@@ -2775,27 +2807,33 @@ pub fn serialise_loops(result: &ExplorerResult) -> Value {
 /// `find_divide_by_zero_with` (W233 provably-`[0,0]` divisor).
 #[must_use]
 pub fn serialise_bounds(result: &ExplorerResult) -> Value {
-    // The document's own grammar and numerals: the bounds view re-lexes
-    // list and index text and must read it as the unit did.
-    let profile = crate::environment::profile_for_dialect(&result.dialect);
-    let numbers = tcl_dialect::NumberSyntax::of_profile(Some(profile));
-    let grammar = profile.grammar;
-    let funcs: Vec<Value> = result
+    let Some(retained) = retained_explorer_source(result, &result.source) else {
+        return Value::Null;
+    };
+    let funcs: Option<Vec<Value>> = result
         .all_snapshots()
         .iter()
         .map(|snap| {
-            let findings: Vec<Value> = find_interval_bounds_with(
+            let metadata = snap.unit.invocation_metadata_context_for_module(
+                retained.registry,
+                &result.unit.ir_module,
+            )?;
+            let input = snap.unit.source_metadata_input()?;
+            let profile = input.unit_profile();
+            let numbers = tcl_dialect::NumberSyntax::of_profile(Some(profile));
+            let semantics = BoundsSemantics {
+                registry: retained.registry,
+                context: Some(metadata),
+                grammar: snap.unit.source_lexer_config().grammar_over(profile.grammar),
+            };
+            let findings: Vec<Value> = find_interval_bounds_resolved(
                 &snap.unit.cfg,
                 &snap.unit.ssa,
-                (&snap.unit.sccp, &snap.unit.types),
+                (&snap.unit.sccp.values, (&snap.unit.sccp, &snap.unit.types)),
                 &snap.unit.sccp.executable_blocks,
-                snap.unit
-                    .semantic_facts
-                    .context()
-                    .map(tcl_registry::model::semantic::SemanticContext::environment_id)
-                    .and_then(crate::environment::catalogue_profile_for_dialect)
-                    .and_then(tcl_dialect::DialectProfile::character_model),
-             numbers, grammar,
+                profile.character_model(),
+                numbers,
+                semantics,
             )
             .iter()
             .map(|f| {
@@ -2810,21 +2848,21 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
                 })
             })
             .collect();
-            let divzero: Vec<Value> = find_divide_by_zero_with(
+            let divzero: Vec<Value> = find_divide_by_zero_with_entered_operands(
                 &snap.unit.cfg,
                 &snap.unit.ssa,
-                (&snap.unit.sccp, &snap.unit.types),
+                (&snap.unit.sccp.values, (&snap.unit.sccp, &snap.unit.types)),
                 &snap.unit.sccp.executable_blocks,
                 numbers,
-                grammar,
+                semantics,
             )
             .iter()
             .map(|d| json!({ "code": "W233", "op": d.op }))
             .collect();
-            json!({ "name": snap.name, "kind": snap.kind.as_str(), "findings": findings, "divzero": divzero })
+            Some(json!({ "name": snap.name, "kind": snap.kind.as_str(), "findings": findings, "divzero": divzero }))
         })
         .collect();
-    Value::Array(funcs)
+    funcs.map_or(Value::Null, Value::Array)
 }
 
 /// Serialise the `unitScope` view: who else can call this file's procedures.
@@ -3315,7 +3353,7 @@ fn serialise_stats(result: &ExplorerResult) -> Value {
         "shimmerWarnings": shimmer,
         "gvnWarnings": gvn.len(),
         "taintWarnings": taint,
-        "irulesFlowWarnings": 0,
+        "irulesFlowWarnings": irules_flow_warnings(result, &retained).len(),
     })
 }
 
@@ -5451,6 +5489,27 @@ mod retained_explorer_source_tests {
         );
     }
 
+    fn remaining_source_views(result: &ExplorerResult, source: &str) -> Vec<(&'static str, Value)> {
+        let li = LineIndex::new(source);
+        vec![
+            ("asm", crate::asm::serialise_asm(result, &li, source)),
+            (
+                "wasm",
+                serialise_wasm_with_options(
+                    result,
+                    tcl_compiler::codegen::wasm::WasmCompileOptions::hosted(),
+                ),
+            ),
+            ("shimmer", serialise_shimmer(result, &li, source)),
+            ("gvn", serialise_gvn(result, &li, source)),
+            ("taintWarnings", serialise_taint(result, &li, source)),
+            ("cfgPostSsa", serialise_cfg_post_ssa(result, &li, source)),
+            ("liveness", serialise_liveness(result)),
+            ("irulesFlow", serialise_irules_flow(result, &li, source)),
+            ("bounds", serialise_bounds(result)),
+        ]
+    }
+
     fn assert_retained_views_withdraw(result: &ExplorerResult, label: &str) {
         let line_index = LineIndex::new(&result.source);
         assert!(
@@ -5476,6 +5535,9 @@ mod retained_explorer_source_tests {
             "{label}"
         );
         assert!(optimised_result(result).is_none(), "{label}");
+        for (field, value) in remaining_source_views(result, &result.source) {
+            assert!(value.is_null(), "{label}/{field}");
+        }
     }
 
     #[test]
@@ -5604,5 +5666,100 @@ mod retained_explorer_source_tests {
             original.unit.ir_module.source
         );
         assert!(retained_explorer_source(&rewritten, &original.source).is_none());
+    }
+
+    #[test]
+    fn remaining_actual_cu_views_retain_profiles_and_ignore_display_labels() {
+        // naming.source.retained-explorer-consumers
+        // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
+        // Source/model agreement, independently of provider execution results.
+        for engine in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "jim",
+            "f5-irules",
+        ] {
+            let environment = tcl_registry::model::resolve_known_environment(engine).unwrap();
+            let registry = environment.default_context_registry();
+            let config = LexerConfig {
+                leading_bom: tcl_lexer::LeadingBom::Skip,
+                ..LexerConfig::from_grammar(environment.grammar())
+            };
+            let mut result = fixture(
+                "proc keep {v} {set copy $v; puts $copy}",
+                engine,
+                registry.commands(),
+                config,
+            );
+            let current = remaining_source_views(&result, &result.source);
+            for (field, value) in &current {
+                assert!(value.is_array(), "{engine}/{field}: {value}");
+            }
+            result.dialect = "unrecognised-presentation-label".to_owned();
+            assert_eq!(
+                remaining_source_views(&result, &result.source),
+                current,
+                "{engine}"
+            );
+        }
+    }
+
+    #[test]
+    fn remaining_source_range_consumers_refuse_foreign_source_arguments() {
+        let result = crate::run_pipeline("puts current", "tcl8.6");
+        let source = "puts foreign";
+        let li = LineIndex::new(source);
+        for (field, value) in [
+            ("asm", crate::asm::serialise_asm(&result, &li, source)),
+            ("shimmer", serialise_shimmer(&result, &li, source)),
+            ("gvn", serialise_gvn(&result, &li, source)),
+            ("taintWarnings", serialise_taint(&result, &li, source)),
+            ("cfgPostSsa", serialise_cfg_post_ssa(&result, &li, source)),
+            ("irulesFlow", serialise_irules_flow(&result, &li, source)),
+        ] {
+            assert!(value.is_null(), "{field}");
+        }
+    }
+
+    #[test]
+    fn retained_irules_warning_view_and_statistics_share_the_actual_count() {
+        let mut result = crate::run_pipeline("when HTTP_REQUEST {set u [HTTP::uri]}", "f5-irules");
+        let li = LineIndex::new(&result.source);
+        let warnings = serialise_irules_flow(&result, &li, &result.source);
+        let count = warnings
+            .as_array()
+            .expect("available warning inventory")
+            .len();
+        assert!(count > 0, "fixture must produce a real warning");
+        assert_eq!(serialise_stats(&result)["irulesFlowWarnings"], count);
+        result.dialect = "tcl9.1".to_owned();
+        assert_eq!(
+            serialise_irules_flow(&result, &li, &result.source),
+            warnings
+        );
+        assert_eq!(serialise_stats(&result)["irulesFlowWarnings"], count);
+    }
+
+    #[test]
+    fn bounds_withdraws_if_a_function_loses_its_actual_module_metadata() {
+        let environment = tcl_registry::model::resolve_known_environment("tcl8.6").unwrap();
+        let registry = environment.default_context_registry();
+        let config = LexerConfig::from_grammar(environment.grammar());
+        let mut result = fixture(
+            "proc keep {v} {puts $v}",
+            "tcl8.6",
+            registry.commands(),
+            config,
+        );
+        assert!(serialise_bounds(&result).is_array());
+        // The original Module still owns its full source. Replacing just the
+        // independently supplied function withdraws the required FU join.
+        let foreign = crate::run_pipeline("proc foreign {} {puts foreign}", "tcl9.1");
+        result.unit.top_level = foreign.unit.top_level;
+        assert!(retained_explorer_source(&result, &result.source).is_some());
+        assert!(serialise_bounds(&result).is_null());
     }
 }

@@ -7,8 +7,9 @@ replacement profile, lexer configuration or command registry.
 ## Ownership and selection
 
 `retained_explorer_source` is the common checked projection for event order,
-optimiser rewrites and passes, statistics, source annotations and rewritten
-Explorer results. It requires agreement between the result source, unit source,
+optimiser rewrites and passes, statistics, source annotations, ASM, WASM,
+shimmer, GVN, taint warnings, post-SSA CFG, liveness, iRules flow, bounds and
+rewritten Explorer results. It requires agreement between the result source, unit source,
 Module document image, original source interpretation, actual registry snapshot,
 complete resolved input and full lexer configuration. The existing positioned
 Module projection also checks entry, namespace and binding interpretation.
@@ -38,10 +39,43 @@ resolved input, configuration, profile and command store, and establishes its
 own source interpretation. It receives no execution receipt or old-image
 ownership from the source being rewritten.
 
+## Actual-unit consumer boundaries
+
+ASM uses the retained command registry while rebuilding its codegen CFG from
+the actual IR with faithful-exception transforms disabled. This is a separate
+codegen purpose over the same original Module, not another source ingress.
+WASM uses the actual unit and registry; its Native admission, selector,
+semantic-plan, layout and lowering guards remain independent.
+
+Shimmer retains its per-function `ShimmerContext` checks. GVN retains the
+function's target-neutral semantic sidecar and original site-legality checks.
+Taint retains the actual Module realm, function metadata and callback/operand
+checks. Post-SSA CFG and liveness retain the actual-unit SSA/def-use artefacts
+and the lower dead-store collector's place, observer and hidden-read checks.
+These row views do not grant execution or effect closure.
+
+iRules warning aggregation is shared by the warning view and its statistics
+count. Individual passes retain their own surface, reachability, event and
+operation checks. The unnormalised-getter collector retains the supplied
+Module's source interpretation and actual Module/FU metadata before selecting
+`NestedScript` over the function's full source config. Explicit standalone
+Module/CFG producers are a separate ingress. The existing advisory getter-form
+classifier does not establish a runtime getter or Normal completion.
+
+Bounds validates every required FU metadata join to the actual Module. It uses
+the actual function input's profile for numerals and character rules and
+`source_lexer_config().grammar_over(profile.grammar)` for lexical axes.
+`BoundsSemantics` retains that registry and metadata through the shared resolved
+bounds and entered-operand division queries. Missing FU ownership withdraws
+the view. Source grammar, conditional findings and runtime operation admission
+remain separate purposes.
+
 ## Serialization and rendering
 
 The retained fields `eventOrder`, `optimisations`, `optimiserPasses`, `stats`,
-`annotations` and `annotationsByLine` serialize as JSON `null` when their
+`annotations`, `annotationsByLine`, `asm`, `wasm`, `shimmer`, `gvn`,
+`taintWarnings`, `cfgPostSsa`, `liveness`, `irulesFlow` and `bounds` serialize
+as JSON `null` when their
 checked source owner is unavailable. An array, including `[]`, is a completed
 row inventory. Statistics use an object for an available result. Consumers must
 check this structural state before reading fields, counting rows or presenting
@@ -51,15 +85,19 @@ The shared browser renderers and Rust view trees show
 “This view is unavailable for this analysis” for unavailable retained views.
 Standalone and editor shell badges use the shared `explorerArrayCount` helper;
 unknown totals have no count. The combined iRules view retains independent
-warning rows while showing that its event section is unavailable. Completed
-empty arrays keep their existing empty-view presentation.
+event or warning rows while showing that its other section is unavailable.
+Taint tracking is a separately retained analysis artefact and remains visible
+when warning analysis is unavailable. Completed empty arrays keep their
+existing empty-view presentation.
 
 ## Controls and evidence
 
 The source-owner controls cover actual known C Tcl 8.4, 8.5, 8.6, 9.0 and 9.1,
 and Jim profile ingresses, custom lexer configuration, actual command-store
 selection, missing and foreign owners, changed source/channel/configuration,
-and independent rewritten-image ownership. Parser controls distinguish a
+independent rewritten-image ownership, actual-CU label independence,
+foreign range-source arguments, required FU withdrawal and warning/count
+agreement. Parser controls distinguish a
 leading U+FEFF under `WholeInput` and `NestedScript`; they establish parser
 configuration behavior, not BIG-IP configuration acceptance.
 

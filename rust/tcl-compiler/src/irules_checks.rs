@@ -348,9 +348,28 @@ pub fn find_unnormalised_getter_warnings(
     if !is_irules(dialect) {
         return out;
     }
-    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+    // naming.source.retained-explorer-consumers
+    // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
+    // Actual supplied source metadata is terminal; an explicit standalone
+    // Module/CFG remains a separate ingress. Neither grants getter execution.
+    let module = &cu.ir_module;
+    let standalone_module = module.source_entry.metadata_context.is_standalone()
+        && module.source_metadata_input.is_none();
+    if !standalone_module
+        && (crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)
+            .is_none()
+            || crate::realm::document_realm_bindings_for_module(module, registry).is_none())
+    {
+        return out;
+    }
 
     for fu in cu.analysable_functions() {
+        let Some(parent_config) =
+            unnormalised_getter_source_config(module, fu, registry, standalone_module)
+        else {
+            continue;
+        };
+        let config = tcl_lexer::SourceSegmentationPurpose::NestedScript.config(parent_config);
         for bn in cfg_order(&fu.cfg) {
             if !fu.sccp.executable_blocks.contains(&bn) {
                 continue;
@@ -433,6 +452,28 @@ pub fn find_unnormalised_getter_warnings(
     }
 
     out
+}
+
+/// Select the actual function's complete config before choosing parser purpose.
+/// Standalone assistance requires explicit standalone Module and CFG owners.
+fn unnormalised_getter_source_config(
+    module: &crate::ir::Module,
+    function: &FunctionUnit,
+    registry: &CommandRegistry,
+    standalone_module: bool,
+) -> Option<tcl_lexer::LexerConfig> {
+    if standalone_module {
+        if !module.source_entry.metadata_context.is_standalone()
+            || module.source_metadata_input.is_some()
+            || !function.cfg.metadata_context.is_standalone()
+            || function.source_metadata_input().is_some()
+        {
+            return None;
+        }
+    } else {
+        function.invocation_metadata_context_for_module(registry, module)?;
+    }
+    Some(function.source_lexer_config())
 }
 
 // IRULE5002 + IRULE5004 — unguarded drop / DNS::return
@@ -3534,6 +3575,116 @@ mod tests {
         assert!(
             ws.iter().any(|w| w.code == DiagCode::Irule4004),
             "expected IRULE4004 when no arm writes svc, got {ws:?}",
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_getter_source_config_tests {
+    use super::*;
+    use crate::analyser::ResolvedAnalysisInput;
+    use crate::compilation_unit::UnitBuildOptions;
+    use std::sync::Arc;
+
+    fn supplied(
+        config: tcl_lexer::LexerConfig,
+    ) -> (CompilationUnit, Arc<tcl_registry::model::ContextRegistry>) {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let context = environment.default_context_registry();
+        let input = ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            environment.unit_profile(),
+            Arc::clone(&context),
+            config,
+        );
+        let cu = CompilationUnit::build_with_analysis_input(
+            "when HTTP_REQUEST {set u [HTTP::uri]}",
+            UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(environment.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        (cu, context)
+    }
+
+    #[test]
+    fn getter_source_keeps_function_config_and_selects_nested_parser_purpose() {
+        // naming.source.retained-explorer-consumers
+        // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
+        // Actual source metadata and parser-purpose control, no BIG-IP execution.
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            base_line: 17,
+            ..tcl_lexer::LexerConfig::from_grammar(environment.grammar())
+        };
+        let (cu, context) = supplied(config);
+        let function = cu
+            .functions()
+            .find(|f| f.name.starts_with("::when::"))
+            .expect("event function");
+        let selected =
+            unnormalised_getter_source_config(&cu.ir_module, function, context.commands(), false)
+                .unwrap();
+        assert_eq!(selected, function.source_lexer_config());
+        assert_ne!(
+            selected,
+            tcl_lexer::LexerConfig::for_profile(context.commands().profile())
+        );
+        let local = tcl_lexer::SourceSegmentationPurpose::NestedScript.config(selected);
+        assert_eq!(local, selected.nested());
+        assert_eq!(local.leading_bom, tcl_lexer::LeadingBom::Content);
+        assert_eq!(selected.leading_bom, tcl_lexer::LeadingBom::Skip);
+        let warnings = find_unnormalised_getter_warnings(
+            &cu,
+            context.commands(),
+            Some(environment.unit_profile().surface_query()),
+        );
+        assert_eq!(warnings.len(), 1);
+        assert_eq!(warnings[0].code, DiagCode::Irule3102);
+    }
+
+    #[test]
+    fn getter_source_refuses_missing_foreign_and_changed_actual_owners() {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let (original, context) = supplied(config);
+        let query = Some(environment.unit_profile().surface_query());
+        assert_eq!(
+            find_unnormalised_getter_warnings(&original, context.commands(), query).len(),
+            1
+        );
+        for change in 0..4 {
+            let mut cu = original.clone();
+            match change {
+                0 => cu.ir_module.source_metadata_input = None,
+                1 => cu.ir_module.retained_source_bindings = None,
+                2 => cu.ir_module.source = tcl_lexer::SourceImage::document("foreign source"),
+                _ => cu.ir_module.lexer_config.leading_bom = tcl_lexer::LeadingBom::Skip,
+            }
+            assert!(
+                find_unnormalised_getter_warnings(&cu, context.commands(), query).is_empty(),
+                "Module axis {change}"
+            );
+        }
+        let mut cu = original.clone();
+        for function in cu.procedures.values_mut() {
+            function.source_metadata_input = None;
+        }
+        assert!(find_unnormalised_getter_warnings(&cu, context.commands(), query).is_empty());
+        let foreign = tcl_registry::model::resolve_known_environment("tcl9.1")
+            .unwrap()
+            .default_context_registry();
+        assert!(find_unnormalised_getter_warnings(&original, foreign.commands(), query).is_empty());
+        assert_eq!(
+            find_unnormalised_getter_warnings(&original, context.commands(), query).len(),
+            1
         );
     }
 }

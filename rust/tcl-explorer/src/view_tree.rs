@@ -717,6 +717,9 @@ fn build_sccp(d: &Value) -> Vec<ViewNode> {
 }
 
 fn build_liveness(d: &Value) -> Vec<ViewNode> {
+    if !d["liveness"].is_array() {
+        return unavailable_source_view();
+    }
     let mut out = Vec::new();
     for f in arr(d, "liveness") {
         let mut children = Vec::new();
@@ -906,6 +909,9 @@ fn build_intervals(d: &Value) -> Vec<ViewNode> {
 }
 
 fn build_bounds(d: &Value) -> Vec<ViewNode> {
+    if !d["bounds"].is_array() {
+        return unavailable_source_view();
+    }
     let mut out = Vec::new();
     for f in arr(d, "bounds") {
         let findings = arr(f, "findings");
@@ -1367,6 +1373,9 @@ fn build_optimiser_passes(d: &Value) -> Vec<ViewNode> {
 }
 
 fn build_gvn(d: &Value) -> Vec<ViewNode> {
+    if !d["gvn"].is_array() {
+        return unavailable_source_view();
+    }
     let out: Vec<ViewNode> = arr(d, "gvn")
         .iter()
         .map(|w| {
@@ -1392,6 +1401,9 @@ fn build_gvn(d: &Value) -> Vec<ViewNode> {
 }
 
 fn build_shimmer(d: &Value) -> Vec<ViewNode> {
+    if !d["shimmer"].is_array() {
+        return unavailable_source_view();
+    }
     let out: Vec<ViewNode> = arr(d, "shimmer")
         .iter()
         .map(|w| {
@@ -1423,6 +1435,9 @@ fn build_shimmer(d: &Value) -> Vec<ViewNode> {
 }
 
 fn build_taint(d: &Value) -> Vec<ViewNode> {
+    if !d["taintWarnings"].is_array() {
+        return unavailable_source_view();
+    }
     let mut out = Vec::new();
     for w in arr(d, "taintWarnings") {
         let mut detail = vec![
@@ -1529,7 +1544,7 @@ fn build_connection_scope(d: &Value) -> Vec<ViewNode> {
 }
 
 fn build_irules(d: &Value) -> Vec<ViewNode> {
-    let mut out = if d["eventOrder"].is_array() {
+    let mut out = if d["eventOrder"].is_array() && d["irulesFlow"].is_array() {
         Vec::new()
     } else {
         unavailable_source_view()
@@ -2009,7 +2024,13 @@ pub fn build_view(view: &str, data: &Value) -> Vec<ViewNode> {
     match view {
         "ir" => build_ir(data),
         "cfg" => build_cfg(arr(data, "cfgPreSsa"), false),
-        "ssa" => build_cfg(arr(data, "cfgPostSsa"), true),
+        "ssa" => {
+            if data["cfgPostSsa"].is_array() {
+                build_cfg(arr(data, "cfgPostSsa"), true)
+            } else {
+                unavailable_source_view()
+            }
+        }
         "worldSsa" => build_world_ssa(data),
         "aot" => build_aot(data),
         "dominators" => build_dominators(data),
@@ -2371,6 +2392,60 @@ mod retained_source_view_tests {
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0], unavailable_source_view()[0]);
         assert_eq!(rows[1].label, "W-test independent warning");
+        let empty = json!({"eventOrder": [], "irulesFlow": []});
+        assert_eq!(build_view("irules", &empty)[0].label, "(no iRules events)");
+    }
+}
+
+#[cfg(test)]
+mod actual_cu_unavailable_view_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn actual_cu_null_fields_do_not_render_as_empty_analysis() {
+        // naming.source.retained-explorer-consumers
+        // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
+        for (view, field) in [
+            ("ssa", "cfgPostSsa"),
+            ("shimmer", "shimmer"),
+            ("gvn", "gvn"),
+            ("taint", "taintWarnings"),
+            ("liveness", "liveness"),
+            ("bounds", "bounds"),
+        ] {
+            let mut unavailable = json!({});
+            unavailable[field] = Value::Null;
+            assert_eq!(
+                build_view(view, &unavailable),
+                unavailable_source_view(),
+                "{view}"
+            );
+            let missing = json!({});
+            assert_eq!(
+                build_view(view, &missing),
+                unavailable_source_view(),
+                "{view}"
+            );
+            unavailable[field] = json!([]);
+            assert_ne!(
+                build_view(view, &unavailable),
+                unavailable_source_view(),
+                "{view}"
+            );
+        }
+    }
+
+    #[test]
+    fn unavailable_irules_warning_section_preserves_available_event_rows() {
+        let data = json!({
+            "eventOrder": [{"event": "HTTP_REQUEST", "base_priority": 500, "priority_offset": 0}],
+            "irulesFlow": null,
+        });
+        let rows = build_view("irules", &data);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0], unavailable_source_view()[0]);
+        assert_eq!(rows[1].label, "HTTP_REQUEST eff=500");
         let empty = json!({"eventOrder": [], "irulesFlow": []});
         assert_eq!(build_view("irules", &empty)[0].label, "(no iRules events)");
     }
