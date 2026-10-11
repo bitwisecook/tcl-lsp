@@ -2436,10 +2436,24 @@ mod tests {
                 .unwrap();
             (slot, table.names[slot].as_ref().unwrap().as_ptr())
         };
+        // The genuine ordinal/cell and inherited operation are captured before
+        // either original primary can reach its free callback.
+        let operation = super::super::native_operation_currency::NativeOperationScope::enter(interp)
+            .expect("original canonical-name operation");
+        let selected = crate::vars::prepare_original_c_indexed_name_cell(
+            &mut interp.frames.borrow_mut(),
+            &interp.namespaces.borrow(),
+            slot,
+        )
+        .expect("actual selected canonical-name cell");
         obj::change_type(canonical, &NAME_FREE_TYPE, 0);
         let original = callback_name(b"value");
         reset_name_callback(3);
-        let result = interp.install_original_c_name_cache(original.as_ptr(), Some(slot));
+        let result = interp.install_original_c_name_cache(
+            original.as_ptr(),
+            &selected,
+            operation.currency(),
+        );
         assert!(result.is_err());
         assert!(obj::native_variable_name::with_local(original.as_ptr(), |_| ()).is_some());
         assert!(obj::obj_type_ptr(canonical).is_null());
