@@ -390,19 +390,27 @@ fn original_list(
     protocol: tcl_syntax::native_string::NativeStringProtocol,
     currency: &NativeOperationCurrency,
 ) -> Result<crate::NativeListItems, Completion<Value>> {
-    if protocol.is_jim084() {
-        let reached = vm.native_jim_object_context();
-        currency
-            .check(vm)
-            .map_err(|error| completion_from_cmd_error(vm, error))?;
-        original
-            .bind_native_jim_context(
-                &reached.map_err(|error| completion_from_cmd_error(vm, error.into()))?,
+    let scope = NativeOperationScope::current_entered(vm)
+        .map_err(|error| {
+            completion_from_cmd_error(vm, tcl_cmd_core::CmdError::from_execution_refusal(error))
+        })?
+        .ok_or_else(|| {
+            completion_from_cmd_error(
+                vm,
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original array List entry",
+                )
+                .into(),
             )
-            .map_err(|error| completion_from_cmd_error(vm, error.into()))?;
-    }
-    let reached =
-        original.native_object_list_elements_checked(protocol, &mut || currency.check(vm));
+        })?;
+    currency
+        .check(vm)
+        .map_err(|error| completion_from_cmd_error(vm, error))?;
+    let reached = (|| {
+        let ops =
+            crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(vm, &scope)?;
+        ops.list(original, protocol)
+    })();
     currency
         .check(vm)
         .map_err(|error| completion_from_cmd_error(vm, error))?;

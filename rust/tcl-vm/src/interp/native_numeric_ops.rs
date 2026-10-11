@@ -213,6 +213,56 @@ impl<'a> OriginalNumericOps<'a> {
         current()
     }
 
+    fn list_using<E: From<ValueError>>(
+        &self,
+        value: &Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        current: impl Fn(&Value) -> Result<(), E>,
+    ) -> Result<crate::NativeListItems, E> {
+        current(value)?;
+        if self.dialect.native_string_protocol() != Some(protocol) {
+            return Err(ValueError::CommandProtocolUnavailable("original VM List protocol").into());
+        }
+        self.bind_jim_using(value, || current(value))?;
+        let reached = value.native_object_list_elements_with_strings(
+            protocol,
+            &mut || current(value),
+            &mut |actual| self.string_using(actual, protocol, &current),
+        );
+        current(value)?;
+        reached
+    }
+
+    pub(crate) fn list(
+        &self,
+        value: &Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+    ) -> Result<crate::NativeListItems, CmdError> {
+        self.list_using(value, protocol, |actual| self.current_for_value(actual))
+    }
+
+    pub(crate) fn list_with_original_check(
+        &self,
+        value: &Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        additional: impl Fn() -> Result<(), CmdError>,
+    ) -> Result<crate::NativeListItems, CmdError> {
+        self.list_using(value, protocol, |actual| {
+            self.current_for_value(actual)?;
+            additional()
+        })
+    }
+
+    pub(crate) fn list_for_expression(
+        &self,
+        value: &Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+    ) -> Result<crate::NativeListItems, crate::error::TclError> {
+        self.list_using(value, protocol, |actual| {
+            self.arithmetic_current_for_value(actual)
+        })
+    }
+
     pub(crate) fn getter(
         &self,
         value: &Value,

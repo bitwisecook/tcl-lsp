@@ -551,3 +551,21 @@ not container Index grammar. The whole original argv receipt covers option,
 numeric, data and result stages. Primitive failure retains its structured
 error; only a successful negative integer selects the encoder line-length
 error. Descriptive width and currency do not supply another conversion purpose.
+
+
+Expression membership captures one original operation before List or String
+conversion. `OriginalNumericOps::list`, `list_with_original_check` and
+`list_for_expression` share the existing native object-List worker with the
+same node-aware String provider and primary retirement checks. The alias query
+retains its actual command/namespace owner checks; array conversion retains
+its original currency. These List/String facades issue no numeric getter or
+arithmetic purpose.
+
+The Native membership caller compares selected character, List and escape
+axes with the actual physical recipe before a Host query. Member equality is
+byte equality through the same original String owner. Parse errors retain the
+String already reached and never invoke another getter. List member views are
+allocation-only, and generation/currentness checks precede later members and
+results. The authored route keeps its configured parser and pure String policy;
+an inherited operation supplies currency only. Existing public neutral List
+conversion APIs keep their independent policies and role order.

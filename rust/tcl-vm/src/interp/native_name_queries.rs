@@ -219,10 +219,18 @@ impl Vm {
                     }
                 }
                 Some(Words::List(original)) => {
-                    let backing = original.value().native_object_list_elements_checked(
-                        tcl_syntax::native_string::NativeStringProtocol::Jim084,
-                        &mut || check(self),
-                    );
+                    let backing = {
+                        let ops = super::native_numeric_ops::OriginalNumericOps::in_original_scope(
+                            self, &scope,
+                        )?;
+                        let reached = ops.list_with_original_check(
+                            original.value(),
+                            tcl_syntax::native_string::NativeStringProtocol::Jim084,
+                            || ops.with_vm_for_value(original.value(), |vm| check(vm)),
+                        );
+                        ops.current_for_value(original.value())?;
+                        reached
+                    };
                     check(self)?;
                     original.value().check_native_header()?;
                     let backing = backing?;

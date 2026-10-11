@@ -6766,7 +6766,35 @@ impl Value {
         syntax: tcl_dialect::ListParse,
         escapes: tcl_dialect::EscapeSyntax,
     ) -> Result<crate::NativeListItems, list::ListError> {
+        self.native_list_elements_using::<ValueError>(syntax, escapes, &mut None, &mut None)
+            .map_err(|error| match error {
+                ValueError::ListParse { error, .. } => error,
+                _ => unreachable!("neutral configured List conversion has only parse failures"),
+            })
+    }
+
+    pub(crate) fn native_list_elements_with_strings<E: From<ValueError>>(
+        &self,
+        syntax: tcl_dialect::ListParse,
+        escapes: tcl_dialect::EscapeSyntax,
+        check: &mut dyn FnMut() -> Result<(), E>,
+        strings: &mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>,
+    ) -> Result<crate::NativeListItems, E> {
+        self.native_list_elements_using(syntax, escapes, &mut Some(check), &mut Some(strings))
+    }
+
+    fn native_list_elements_using<E: From<ValueError>>(
+        &self,
+        syntax: tcl_dialect::ListParse,
+        escapes: tcl_dialect::EscapeSyntax,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>>,
+    ) -> Result<crate::NativeListItems, E> {
+        Self::native_stage_check(check)?;
         if let IntRep::List { items, .. } = &*self.0.intrep.borrow() {
+            if check.is_some() {
+                items.check_generation()?;
+            }
             return Ok(items.lifetime_view());
         }
         let dict = match &*self.0.intrep.borrow() {
@@ -6781,8 +6809,18 @@ impl Value {
                     .collect(),
             )
         } else {
-            let bytes = self.string_bytes();
-            let elements = list::split_list_bytes_in(&bytes, syntax, escapes)?;
+            let reached = match strings.as_deref_mut() {
+                Some(strings) => strings(self),
+                None => Ok(self.string_bytes()),
+            };
+            Self::native_stage_check(check)?;
+            let bytes = reached?;
+            let elements = list::split_list_bytes_in(&bytes, syntax, escapes).map_err(|error| {
+                ValueError::ListParse {
+                    error,
+                    source: bytes.to_vec(),
+                }
+            })?;
             Rc::new(
                 elements
                     .into_iter()
@@ -6790,7 +6828,12 @@ impl Value {
                     .collect(),
             )
         };
-        *self.0.intrep.borrow_mut() = IntRep::native_list(items.as_ref().clone(), false, None);
+        let replacement = IntRep::native_list(items.as_ref().clone(), false, None);
+        if check.is_some() {
+            self.replace_primary_using(replacement, check)?;
+        } else {
+            *self.0.intrep.borrow_mut() = replacement;
+        }
         Ok(self
             .cached_list_representation()
             .expect("installed native List")
@@ -6807,21 +6850,32 @@ impl Value {
         &self,
         protocol: tcl_syntax::native_string::NativeStringProtocol,
     ) -> Result<crate::NativeListItems, ValueError> {
-        self.native_object_list_elements_using(protocol, &mut None)
+        self.native_object_list_elements_using(protocol, &mut None, &mut None)
     }
 
+    #[cfg(test)]
     pub(crate) fn native_object_list_elements_checked(
         &self,
         protocol: tcl_syntax::native_string::NativeStringProtocol,
         check: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
     ) -> Result<crate::NativeListItems, tcl_cmd_core::CmdError> {
-        self.native_object_list_elements_using(protocol, &mut Some(check))
+        self.native_object_list_elements_using(protocol, &mut Some(check), &mut None)
+    }
+
+    pub(crate) fn native_object_list_elements_with_strings<E: From<ValueError>>(
+        &self,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        check: &mut dyn FnMut() -> Result<(), E>,
+        strings: &mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>,
+    ) -> Result<crate::NativeListItems, E> {
+        self.native_object_list_elements_using(protocol, &mut Some(check), &mut Some(strings))
     }
 
     fn native_object_list_elements_using<E: From<ValueError>>(
         &self,
         protocol: tcl_syntax::native_string::NativeStringProtocol,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>>,
     ) -> Result<crate::NativeListItems, E> {
         Self::native_stage_check(check)?;
         self.check_native_header()?;
@@ -6859,10 +6913,14 @@ impl Value {
                 .as_ref()
                 .map(|context| self.pin_native_jim_source_info(context))
                 .transpose()?;
-            let reached = self
-                .native_string_bytes(protocol)
-                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
-                .map_err(ValueError::from);
+            let reached = match strings.as_deref_mut() {
+                Some(strings) => strings(self),
+                None => self
+                    .native_string_bytes(protocol)
+                    .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
+                    .map_err(ValueError::from)
+                    .map_err(E::from),
+            };
             Self::native_stage_check(check)?;
             let original = reached?;
             if protocol

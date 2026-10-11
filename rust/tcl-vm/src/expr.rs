@@ -27,6 +27,7 @@
 #![allow(clippy::cast_precision_loss)]
 
 mod native_boolean_truth;
+mod original_list_membership;
 mod original_numeric_context;
 pub(crate) use native_boolean_truth::{
     boolean_for_vm, expression_boolean_for_vm, logical_right_for_vm, logical_value_for_vm,
@@ -2023,25 +2024,7 @@ impl ExprOps for ExprEval<'_> {
     }
 
     fn in_list(&mut self, needle: &Value, list: &Value) -> Result<bool, TclError> {
-        let dialect = self.vm.native_invocation_dialect();
-        let items = list
-            .native_list_elements(
-                dialect.lexer_grammar.list_parse,
-                dialect.lexer_grammar.escapes,
-            )
-            .map_err(|error| {
-                TclError::from(tcl_syntax::value::ValueError::ListParse {
-                    error,
-                    source: list.string_bytes().to_vec(),
-                })
-            })?;
-        let model = dialect.characters;
-        for item in items.iter() {
-            if equal_string_bytes(model, needle, item)? {
-                return Ok(true);
-            }
-        }
-        Ok(false)
+        original_list_membership::in_list(self.vm, needle, list)
     }
 
     fn to_bool(&mut self, v: &Value) -> Result<bool, TclError> {
