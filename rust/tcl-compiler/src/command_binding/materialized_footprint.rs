@@ -14,12 +14,40 @@ use tcl_registry::CommandRegistry;
 /// It supplies no authored child word/span, Native entry, frame or store.
 pub(crate) struct OriginalSourceMaterializedFootprint<'a> {
     binding: &'a SourceInvocationBinding,
-    state: &'a ModuleCommandBindings,
-    namespace: &'a SourceNamespaceKey,
+    lookup: OriginalMaterializedSourceLookup<'a>,
     registry: &'a CommandRegistry,
     metadata: InvocationMetadataContext<'a>,
     config: LexerConfig,
     head: tcl_lexer::NativeWord,
+}
+
+/// Reached installer state and conditional declaration advice are different
+/// purposes. Retaining the latter never manufactures an execution snapshot.
+enum OriginalMaterializedSourceLookup<'a> {
+    Reached {
+        state: &'a ModuleCommandBindings,
+        namespace: &'a SourceNamespaceKey,
+    },
+    LogicalDeclaration {
+        snapshot: std::sync::Arc<super::SourceLookupSnapshot>,
+        namespace: SourceNamespaceKey,
+    },
+}
+
+impl OriginalMaterializedSourceLookup<'_> {
+    fn state(&self) -> &ModuleCommandBindings {
+        match self {
+            Self::Reached { state, .. } => state,
+            Self::LogicalDeclaration { snapshot, .. } => &snapshot.state,
+        }
+    }
+
+    fn namespace(&self) -> &SourceNamespaceKey {
+        match self {
+            Self::Reached { namespace, .. } => namespace,
+            Self::LogicalDeclaration { namespace, .. } => namespace,
+        }
+    }
 }
 
 impl SourceInvocationBinding {
@@ -293,6 +321,15 @@ impl SourceInvocationBinding {
         // docs/design/analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md
         let metadata = metadata.filter(|metadata| metadata.matches_registry(registry))?;
         let input = metadata.source_analysis_input()?;
+        if self.lookup_state.is_none() {
+            return self.original_logical_declaration_materialized_footprint(
+                tokens, source, registry, metadata,
+            );
+        }
+        let metadata = self.original_invocation_metadata_for_input(tokens, input, registry)?;
+        if metadata.source_analysis_input() != Some(input) {
+            return None;
+        }
         let config = self.original_lexer_config_for_tokens(tokens)?;
         let site = self.invocation_site()?;
         let snapshot = self.lookup_state.as_ref()?;
@@ -332,8 +369,92 @@ impl SourceInvocationBinding {
         let head = original.native_words().first()?.clone();
         Some(OriginalSourceMaterializedFootprint {
             binding: self,
-            state,
-            namespace: &self.lookup_namespace_key,
+            lookup: OriginalMaterializedSourceLookup::Reached {
+                state,
+                namespace: &self.lookup_namespace_key,
+            },
+            registry,
+            metadata,
+            config: config.nested(),
+            head,
+        })
+    }
+
+    /// Possible text names under a positively Logical original declaration.
+    /// The complete immutable source world and inert original operands retain
+    /// the installer horizon; no reached point, body entry or store is issued.
+    fn original_logical_declaration_materialized_footprint<'a>(
+        &'a self,
+        tokens: &CommandTokens,
+        source: &str,
+        registry: &'a CommandRegistry,
+        request: InvocationMetadataContext<'_>,
+    ) -> Option<OriginalSourceMaterializedFootprint<'a>> {
+        use super::declaration_layout::original_declaration_layouts;
+        request.permits_logical_source_names().then_some(())?;
+        let input = request.source_analysis_input()?;
+        let metadata = self.original_declaration_metadata_for_source(tokens, registry)?;
+        if metadata.source_analysis_input() != Some(input) {
+            return None;
+        }
+        let advice = self.declaration_operand_layout_advice(tokens)?;
+        if !advice.closed_logical_source_lookup()
+            || advice
+                .original_declaration_metadata_context(registry, tokens)
+                .ok()??
+                .source_analysis_input()
+                != Some(input)
+        {
+            return None;
+        }
+        let config = self.original_lexer_config_for_tokens(tokens)?;
+        let site = self.invocation_site()?;
+        let state = &advice.snapshot.state;
+        if config.normalized() != input.lexer_config().normalized()
+            || site.source.source_image().try_text().ok() != Some(source)
+            || state.current_source_origin.as_ref() != Some(&site.source)
+            || state.baseline.registry_snapshot.as_ref()
+                != Some(&registry.snapshot().semantic_key())
+            || state.baseline.metadata_context.source_analysis_input() != Some(input)
+            || state.has_opaque_domain()
+            || !state.command_observers.is_quiet()
+            || state.source_step_observed()
+        {
+            return None;
+        }
+        let rows = original_declaration_layouts(self.declaration_layout_observations.as_deref()?)?;
+        if !rows.clone().all(|row| {
+            row.entry.owns_source(&site.source, site.offset)
+                && row.words.as_ref() == tokens.words()
+                && row.config == config
+                && row.namespace == *advice.namespace()
+                && (std::sync::Arc::ptr_eq(&row.snapshot, &advice.snapshot)
+                    || row.snapshot.as_ref() == advice.snapshot.as_ref())
+                && advice.targets().iter().all(|target| {
+                    target.registry_backed
+                        && !row
+                            .snapshot
+                            .state
+                            .source_execution_observed(target.identity.as_ref())
+                        && !row
+                            .snapshot
+                            .state
+                            .runtime_execution_observed(target.identity.as_ref())
+                })
+                && self.original_operands_preserve_lookup(tokens, registry, row, 0)
+        }) {
+            return None;
+        }
+        let original = site
+            .source
+            .original_lexical_command(tokens.words(), site.offset, config)?;
+        let head = original.native_words().first()?.clone();
+        Some(OriginalSourceMaterializedFootprint {
+            binding: self,
+            lookup: OriginalMaterializedSourceLookup::LogicalDeclaration {
+                snapshot: advice.snapshot,
+                namespace: advice.namespace,
+            },
             registry,
             metadata,
             config: config.nested(),
@@ -351,9 +472,14 @@ fn original_module_origin(origin: &super::SourceOriginId, module: &crate::ir::Mo
 }
 
 impl<'a> OriginalSourceMaterializedFootprint<'a> {
-    /// The original installer snapshot, independently of final module state.
-    pub(crate) const fn bindings(&self) -> &ModuleCommandBindings {
-        self.state
+    /// The original installer world, independently of final Module state.
+    /// A Logical declaration world remains conditional source advice.
+    pub(crate) fn bindings(&self) -> &ModuleCommandBindings {
+        self.lookup.state()
+    }
+
+    fn namespace(&self) -> &SourceNamespaceKey {
+        self.lookup.namespace()
     }
 
     /// Actual complete point input and availability retained by the issuer.
@@ -376,7 +502,7 @@ impl<'a> OriginalSourceMaterializedFootprint<'a> {
             return None;
         }
         Some(crate::ir::ExecutionNamespace::SourceContext(
-            self.state.source_root_namespace_key()?,
+            self.bindings().source_root_namespace_key()?,
         ))
     }
 
@@ -386,8 +512,8 @@ impl<'a> OriginalSourceMaterializedFootprint<'a> {
         crate::ir_helpers::script_value_possible_writes_with_metadata_context(
             script,
             self.registry,
-            self.state,
-            &crate::ir::ExecutionNamespace::SourceContext(self.namespace.clone()),
+            self.bindings(),
+            &crate::ir::ExecutionNamespace::SourceContext(self.namespace().clone()),
             Some(self.metadata),
             self.config,
         )
@@ -445,8 +571,8 @@ impl<'a> OriginalSourceMaterializedFootprint<'a> {
         crate::ir_helpers::script_value_name_ownership_with_metadata_context(
             &value,
             self.registry,
-            self.state,
-            &crate::ir::ExecutionNamespace::SourceContext(self.namespace.clone()),
+            self.bindings(),
+            &crate::ir::ExecutionNamespace::SourceContext(self.namespace().clone()),
             self.metadata,
             self.config,
             crate::script_binds::Ownership::BindingsOrNameReads,
@@ -482,11 +608,11 @@ impl<'a> OriginalSourceMaterializedFootprint<'a> {
         );
         let mut selected = false;
         let mut accepted = true;
-        self.state.for_each_resolved_command_words(&words, self.namespace, |target, invocation| {
+        self.bindings().for_each_resolved_command_words(&words, self.namespace(), |target, invocation| {
             selected = true;
             if !target.registry_backed { accepted = false; return; }
             let resolution = tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
-                self.registry, Some(self.metadata.context()), invocation, self.state.invocation_realm(),
+                self.registry, Some(self.metadata.context()), invocation, self.bindings().invocation_realm(),
             );
             let Some(schema) = resolution.resolved() else { accepted = false; return; };
             let Some(argument) = written_argument.checked_add(target.prepended.len()) else {
@@ -506,8 +632,8 @@ impl<'a> OriginalSourceMaterializedFootprint<'a> {
             crate::ir_helpers::script_value_name_ownership_with_metadata_context(
                 &value,
                 self.registry,
-                self.state,
-                &crate::ir::ExecutionNamespace::SourceContext(self.namespace.clone()),
+                self.bindings(),
+                &crate::ir::ExecutionNamespace::SourceContext(self.namespace().clone()),
                 self.metadata,
                 config.nested(),
                 purpose,
@@ -583,8 +709,8 @@ impl<'a> OriginalSourceMaterializedFootprint<'a> {
             return crate::ir_helpers::command_possible_footprint_with_metadata_context(
                 &words,
                 self.registry,
-                self.state,
-                &crate::ir::ExecutionNamespace::SourceContext(self.namespace.clone()),
+                self.bindings(),
+                &crate::ir::ExecutionNamespace::SourceContext(self.namespace().clone()),
                 self.metadata,
                 self.config,
             );
@@ -592,8 +718,8 @@ impl<'a> OriginalSourceMaterializedFootprint<'a> {
         crate::ir_helpers::command_possible_reads_with_metadata_context(
             &words,
             self.registry,
-            self.state,
-            &crate::ir::ExecutionNamespace::SourceContext(self.namespace.clone()),
+            self.bindings(),
+            &crate::ir::ExecutionNamespace::SourceContext(self.namespace().clone()),
             self.metadata,
             self.config,
             include_invocation,
@@ -1994,6 +2120,426 @@ mod tests {
                 )
                 .is_none()
             );
+        }
+    }
+
+    fn logical_script_context() -> Arc<tcl_registry::model::ContextRegistry> {
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "run-script",
+            arity: tcl_registry::Arity::exact(1),
+            arg_roles: &[(0, tcl_registry::ArgRole::Body)],
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let environment = tcl_registry::model::ingress::resolve_environment("tcl");
+        Arc::new(
+            tcl_registry::model::context_for_profile(environment.analyser_profile())
+                .with_command_store(Arc::new(registry)),
+        )
+    }
+
+    fn logical_original_tokens(
+        source: &str,
+        context: &Arc<tcl_registry::model::ContextRegistry>,
+    ) -> (crate::analyser::AnalysisResult, crate::ir::CommandTokens) {
+        let profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = ResolvedAnalysisInput::new(profile, profile, Arc::clone(context), config);
+        assert!(input.has_logical_source_name_context());
+        let analysis = crate::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, "tcl");
+        let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            config,
+            segments.last().expect("actual final original command"),
+        );
+        analysis
+            .retained_command_realm()
+            .expect("actual analysis retains its original source world")
+            .stamp_original_tokens(&mut tokens);
+        (analysis, tokens)
+    }
+
+    #[test]
+    fn original_logical_materialized_names_keep_static_and_captured_source_horizons() {
+        // naming.diagnostic.original-materialized-write-footprint
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md
+        // Conditional MAY names; no reached handler, child entry or physical store.
+        let context = logical_script_context();
+        for source in [
+            "run-script {set {$literal} VALUE; set {café(open} VALUE; puts $read; set byname}",
+            "interp alias {} shared {} run-script {set {$literal} VALUE; set {café(open} VALUE; puts $read; set byname}; shared",
+        ] {
+            let (analysis, tokens) = logical_original_tokens(source, &context);
+            let binding = tokens
+                .source_binding
+                .as_ref()
+                .expect("original source binding");
+            assert!(
+                binding.lookup_state.is_none(),
+                "declaration-only Logical purpose"
+            );
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let advice = binding.declaration_operand_layout_advice(&tokens).unwrap();
+            assert!(advice.closed_logical_source_lookup());
+            assert!(advice.dialect().native_string_protocol().is_none());
+            let words =
+                crate::registry_invocation::source_structure::original_registry_words_for_tokens(
+                    source, &analysis, &tokens,
+                )
+                .expect("selected original source schema");
+            let bodies = words.source_script_bodies_for(
+                &context,
+                crate::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation,
+            );
+            assert_eq!(
+                bodies.len(),
+                1,
+                "original selected immediate body: {source}"
+            );
+            let footprint = binding
+                .original_materialized_footprint(
+                    &tokens,
+                    source,
+                    context.commands(),
+                    InvocationMetadataContext::for_analysis_input(context.commands(), input),
+                )
+                .expect("sealed Logical installer horizon");
+            let names = footprint.body_name_ownership(&bodies[0]);
+            assert!(!names.opaque, "{source}: {names:?}");
+            assert!(names.names.iter().any(|name| name == "$literal"));
+            assert!(names.names.iter().any(|name| name == "café(open"));
+            assert!(names.read_names.iter().any(|name| name == "byname"));
+            assert!(
+                !names
+                    .names
+                    .iter()
+                    .chain(&names.read_names)
+                    .any(|name| name == "read")
+            );
+            assert!(
+                binding.lookup_state.is_none(),
+                "query issues no reached point"
+            );
+        }
+    }
+
+    #[test]
+    fn original_logical_materialized_names_refuse_changed_and_missing_source_owners() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context = logical_script_context();
+        let source = "run-script {set x VALUE}";
+        let (analysis, tokens) = logical_original_tokens(source, &context);
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(binding.lookup_state.is_none());
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let metadata = InvocationMetadataContext::for_analysis_input(context.commands(), input);
+        assert!(
+            binding
+                .original_materialized_footprint(&tokens, source, context.commands(), metadata)
+                .is_some()
+        );
+        assert!(
+            binding
+                .original_materialized_footprint(&tokens, source, context.commands(), None)
+                .is_none()
+        );
+        assert!(
+            binding
+                .original_materialized_footprint(
+                    &tokens,
+                    "run-script {set x OTHER}",
+                    context.commands(),
+                    metadata
+                )
+                .is_none()
+        );
+
+        let older_context = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(context.commands())),
+        );
+        assert!(Arc::ptr_eq(context.commands(), older_context.commands()));
+        let older = ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            older_context,
+            input.lexer_config(),
+        );
+        assert!(
+            binding
+                .original_materialized_footprint(
+                    &tokens,
+                    source,
+                    context.commands(),
+                    InvocationMetadataContext::for_analysis_input(context.commands(), &older),
+                )
+                .is_none()
+        );
+        let changed = ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            Arc::clone(&context),
+            tcl_lexer::LexerConfig {
+                expand_syntax: !input.lexer_config().expand_syntax,
+                ..input.lexer_config()
+            },
+        );
+        assert!(
+            binding
+                .original_materialized_footprint(
+                    &tokens,
+                    source,
+                    context.commands(),
+                    InvocationMetadataContext::for_analysis_input(context.commands(), &changed),
+                )
+                .is_none()
+        );
+        let mut foreign_registry = tcl_registry::CommandRegistry::build_default();
+        foreign_registry.insert(tcl_registry::CommandSpec {
+            name: "foreign_materialized_source_axis",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let foreign_context = Arc::new(
+            tcl_registry::model::context_for_profile(input.analyser_profile())
+                .with_command_store(Arc::new(foreign_registry)),
+        );
+        let foreign = ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            Arc::clone(&foreign_context),
+            input.lexer_config(),
+        );
+        assert!(
+            binding
+                .original_materialized_footprint(
+                    &tokens,
+                    source,
+                    foreign_context.commands(),
+                    InvocationMetadataContext::for_analysis_input(
+                        foreign_context.commands(),
+                        &foreign
+                    ),
+                )
+                .is_none()
+        );
+
+        let native_profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        let native_input = ResolvedAnalysisInput::new(
+            native_profile,
+            native_profile,
+            Arc::clone(&context),
+            input.lexer_config(),
+        );
+        assert!(!native_input.has_logical_source_name_context());
+        assert!(
+            binding
+                .original_materialized_footprint(
+                    &tokens,
+                    source,
+                    context.commands(),
+                    InvocationMetadataContext::for_analysis_input(
+                        context.commands(),
+                        &native_input
+                    ),
+                )
+                .is_none()
+        );
+
+        let mut missing = binding.clone();
+        missing.declaration_layout_observations = None;
+        assert!(
+            missing
+                .original_materialized_footprint(&tokens, source, context.commands(), metadata)
+                .is_none()
+        );
+        let mut unavailable = binding.clone();
+        let mut rows = unavailable
+            .declaration_layout_observations
+            .as_deref()
+            .unwrap()
+            .to_vec();
+        for row in &mut rows {
+            let mut state = row.snapshot.state.clone();
+            Arc::make_mut(&mut state.baseline).metadata_context =
+                crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
+            row.snapshot = Arc::new(super::super::SourceLookupSnapshot::in_realm(
+                state,
+                row.snapshot.realm,
+            ));
+        }
+        unavailable.declaration_layout_observations = Some(Arc::from(rows));
+        let mut unavailable_tokens = tokens.clone();
+        unavailable_tokens.source_binding = Some(unavailable.clone());
+        assert!(
+            unavailable
+                .original_materialized_footprint(
+                    &unavailable_tokens,
+                    source,
+                    context.commands(),
+                    metadata
+                )
+                .is_none()
+        );
+
+        // Matching head targets do not identify a whole installer world.
+        // A second original row with a different nested setter table cannot
+        // donate the first row's materialized name facts.
+        let mut alternatives = binding.clone();
+        let original_row = super::super::declaration_layout::original_declaration_layouts(
+            binding.declaration_layout_observations.as_deref().unwrap(),
+        )
+        .unwrap()
+        .next()
+        .unwrap()
+        .clone();
+        let mut different = original_row.clone();
+        let mut state = different.snapshot.state.clone();
+        state.remove("::set");
+        different.snapshot = Arc::new(super::super::SourceLookupSnapshot::in_realm(
+            state,
+            different.snapshot.realm,
+        ));
+        alternatives.declaration_layout_observations =
+            Some(Arc::from(vec![original_row, different]));
+        let mut alternative_tokens = tokens.clone();
+        alternative_tokens.source_binding = Some(alternatives.clone());
+        assert!(
+            alternatives
+                .declaration_operand_layout_advice(&alternative_tokens)
+                .unwrap()
+                .closed_logical_source_lookup()
+        );
+        assert!(
+            alternatives
+                .original_materialized_footprint(
+                    &alternative_tokens,
+                    source,
+                    context.commands(),
+                    metadata
+                )
+                .is_none()
+        );
+
+        // A retained reached owner is authoritative even when stale. The
+        // earlier valid declaration cannot repair this explicit invalid point.
+        let mut invalid_point = binding.clone();
+        let point = advice_snapshot(binding, &tokens);
+        let mut state = point.state.clone();
+        Arc::make_mut(&mut state.baseline).metadata_context =
+            crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
+        invalid_point.lookup_state = Some(Arc::new(super::super::SourceLookupSnapshot::in_realm(
+            state,
+            point.realm,
+        )));
+        let mut invalid_tokens = tokens.clone();
+        invalid_tokens.source_binding = Some(invalid_point.clone());
+        assert!(
+            invalid_point
+                .original_materialized_footprint(
+                    &invalid_tokens,
+                    source,
+                    context.commands(),
+                    metadata
+                )
+                .is_none()
+        );
+    }
+
+    fn advice_snapshot(
+        binding: &super::SourceInvocationBinding,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Arc<super::super::SourceLookupSnapshot> {
+        binding
+            .declaration_operand_layout_advice(tokens)
+            .unwrap()
+            .snapshot
+    }
+
+    #[test]
+    fn original_logical_materialized_horizon_refuses_dynamic_expanded_and_invalid_vectors() {
+        // naming.diagnostic.original-materialized-write-footprint
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md
+        let context = logical_script_context();
+        for (source, expected) in [
+            ("run-script {set x VALUE}", true),
+            ("run-script $script", false),
+            ("run-script [unknown]", false),
+            ("run-script {*}{set x VALUE}", false),
+        ] {
+            let (analysis, tokens) = logical_original_tokens(source, &context);
+            let binding = tokens.source_binding.as_ref().unwrap();
+            let rows = super::super::declaration_layout::original_declaration_layouts(
+                binding.declaration_layout_observations.as_deref().unwrap(),
+            )
+            .expect("actual original declaration row");
+            assert!(rows.clone().all(|row| {
+                row.snapshot
+                    .state
+                    .source_variables
+                    .invocation_dialect
+                    .unwrap()
+                    .native_string_protocol()
+                    .is_none()
+            }));
+            assert_eq!(
+                rows.clone()
+                    .all(|row| binding.original_operands_preserve_lookup(
+                        &tokens,
+                        context.commands(),
+                        row,
+                        0
+                    )),
+                expected,
+                "{source}"
+            );
+            let input = analysis.resolved_input.as_ref().unwrap();
+            assert_eq!(
+                binding
+                    .original_materialized_footprint(
+                        &tokens,
+                        source,
+                        context.commands(),
+                        InvocationMetadataContext::for_analysis_input(context.commands(), input),
+                    )
+                    .is_some(),
+                expected,
+                "{source}"
+            );
+            if expected {
+                let mut altered = tokens.clone();
+                let crate::ir::WordExpr::BracedLiteral { text, .. } = &mut altered.word_exprs[1]
+                else {
+                    panic!("original whole braced body");
+                };
+                *text = "set fabricated VALUE".to_owned();
+                assert!(
+                    rows.clone()
+                        .all(|row| !binding.original_operands_preserve_lookup(
+                            &altered,
+                            context.commands(),
+                            row,
+                            0
+                        ))
+                );
+                assert!(
+                    binding
+                        .original_materialized_footprint(
+                            &altered,
+                            source,
+                            context.commands(),
+                            InvocationMetadataContext::for_analysis_input(
+                                context.commands(),
+                                input
+                            ),
+                        )
+                        .is_none()
+                );
+            }
         }
     }
 }

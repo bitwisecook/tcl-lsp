@@ -189,11 +189,7 @@ impl NestedLayoutSyntax {
         source: &ExecutedScriptSource,
         config: tcl_lexer::LexerConfig,
     ) -> Option<Arc<[NestedLayoutCommand]>> {
-        let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
-            &source.text,
-            source.base(),
-            config,
-        )?;
+        let segments = nested_layout_segments(source, config)?;
         Some(
             segments
                 .iter()
@@ -214,6 +210,20 @@ impl NestedLayoutSyntax {
                 .into(),
         )
     }
+}
+
+/// Local parser purpose for an authentic body value, including materialised
+/// scripts at offset zero. Parent token/metadata/cache configurations remain
+/// complete and unchanged; the lexical view supplies no selected invocation.
+fn nested_layout_segments(
+    source: &ExecutedScriptSource,
+    parent_config: tcl_lexer::LexerConfig,
+) -> Option<Vec<crate::segmenter::SegmentedCommand>> {
+    crate::segmenter::segment_commands_image_with_offset_and_config(
+        &source.text,
+        source.base(),
+        parent_config.nested(),
+    )
 }
 
 /// One original command layout in its complete immutable lookup world.
@@ -670,11 +680,7 @@ impl SourceCommandBindings {
         declaration: &DeclarationLayoutObservation,
         registry: &tcl_registry::CommandRegistry,
     ) {
-        let Some(segments) = crate::segmenter::segment_commands_image_with_offset_and_config(
-            &body.source.text,
-            body.source.base(),
-            declaration.config,
-        ) else {
+        let Some(segments) = nested_layout_segments(&body.source, declaration.config) else {
             return;
         };
         let mut state = declaration.snapshot.state.clone();
@@ -2686,5 +2692,72 @@ mod tests {
                 "{prefix}"
             );
         }
+    }
+    #[test]
+    fn original_declared_body_parser_keeps_bom_value_and_complete_parent_cache_key() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // A decoded original script value owns its derived origin. Lexical
+        // layout sharing provides no frame, entry, Native head or body execution.
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        assert_eq!(config.leading_bom, tcl_lexer::LeadingBom::Skip);
+        let source = "eval \"\\uFEFFputs done\"";
+        let image = tcl_lexer::SourceImage::document(source);
+        let segment =
+            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        let tokens = super::super::source_command_tokens_boxed(&image, 0, config, &segment);
+        let parent = CommandAllocationSite {
+            source: Arc::new(super::super::SourceOriginId::authored(&Arc::from(source))),
+            offset: 0,
+        };
+        let word = &tokens.words()[1];
+        let value = effective_invocation_word(
+            word,
+            config.escapes,
+            tcl_syntax::word_rules::WordValueRules::from_config(&config),
+        );
+        let value = std::str::from_utf8(value.literal_bytes().unwrap()).unwrap();
+        assert_eq!(value, "\u{feff}puts done");
+        let body = ExecutedScriptSource::from_word(parent.clone(), 0, word, value, config);
+        assert_eq!(
+            body.mapping,
+            super::super::ExecutedScriptMapping::Materialised
+        );
+        assert_eq!(body.base(), 0);
+        assert_ne!(body.origin, parent.source);
+        let mut syntax = NestedLayoutSyntax::default();
+        let first = syntax.commands(&body, config).unwrap();
+        assert_eq!(first[0].tokens.argv_texts, ["\u{feff}puts", "done"]);
+        assert_eq!(first[0].site.offset, 0);
+        assert_eq!(first[0].site.source, body.origin);
+        assert!(first[0].tokens.source_binding.is_none());
+        assert!(Arc::ptr_eq(
+            &first,
+            &syntax.commands(&body, config).unwrap()
+        ));
+        let mut content = config;
+        content.leading_bom = tcl_lexer::LeadingBom::Content;
+        let second = syntax.commands(&body, content).unwrap();
+        assert_eq!(second[0].tokens.argv_texts, first[0].tokens.argv_texts);
+        assert!(
+            !Arc::ptr_eq(&first, &second),
+            "complete parent configurations remain distinct keys"
+        );
+        assert!(syntax.commands.keys().any(|key| key.config == config));
+        assert!(syntax.commands.keys().any(|key| key.config == content));
+        let whole =
+            crate::segmenter::segment_commands_image_with_offset_and_config(&body.text, 0, config)
+                .unwrap();
+        assert_eq!(
+            whole[0].texts[0], "puts",
+            "the actual whole-file purpose is independent"
+        );
+        let mut first_close = config;
+        first_close.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+        let indexed = ExecutedScriptSource::materialised(parent, vec![0], "puts ${a{b}");
+        let selected = syntax.commands(&indexed, first_close).unwrap();
+        assert_eq!(selected[0].tokens.argv_texts, ["puts", "${a{b}"]);
+        assert!(syntax.commands(&indexed, config).unwrap().is_empty());
     }
 }

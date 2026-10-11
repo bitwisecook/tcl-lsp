@@ -3131,6 +3131,14 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
     external_variable_seeds: Option<&HashMap<String, TaintLattice>>,
 ) -> Vec<TaintWarning> {
     let mut out = Vec::new();
+    // naming.source.retained-positioned-command-realm
+    // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
+    // Missing original ownership is terminal for this whole-unit query.
+    let Some(identities) =
+        crate::realm::document_realm_bindings_for_module(&cu.ir_module, registry)
+    else {
+        return out;
+    };
     let solved = external_variable_seeds.map_or_else(
         || crate::taint_interproc::solve_interprocedural_taints(cu, registry, dialect),
         |seeds| {
@@ -3145,12 +3153,6 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
         has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
         deferred_writes: &cu.ir_module.deferred_writes,
     };
-    let identities = crate::realm::document_realm_bindings_with_source_entry(
-        &cu.source,
-        cu.ir_module.lexer_config,
-        registry,
-        &cu.ir_module.source_entry,
-    );
     // `analysable_body_function_units` (not `analysable_functions`) so a
     // sink inside a TclOO method body — or an `apply` lambda / `namespace
     // eval` body — is still checked; see its doc comment.
@@ -3373,8 +3375,8 @@ fn find_callback_substitution_warnings(
 ) -> Vec<TaintWarning> {
     let mut candidates = Vec::new();
     // Most files have no statically replayable command-substitution callback.
-    // Build the source-position command table only when one actually needs its
-    // builder head resolved, while still sharing the one map across candidates.
+    // Project the original positioned command owner only when a builder head
+    // needs it, sharing either its result or its refusal across candidates.
     let callback_head_identities = std::cell::OnceCell::new();
     let lexer_config = cu.ir_module.lexer_config;
 
@@ -3500,16 +3502,25 @@ fn find_callback_substitution_warnings(
                     let callback_span = tokens
                         .and_then(|tokens| tokens.argv.get(written_index + 1).copied())
                         .unwrap_or_else(|| stmt.span());
-                    let head_identities = source_is_command_substitution.then(|| {
-                        callback_head_identities.get_or_init(|| {
-                            crate::realm::document_realm_bindings_with_source_entry(
-                                &cu.source,
-                                lexer_config,
-                                registry,
-                                &cu.ir_module.source_entry,
-                            )
+                    // naming.source.retained-positioned-command-realm
+                    // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
+                    let head_identities = source_is_command_substitution
+                        .then(|| {
+                            callback_head_identities
+                                .get_or_init(|| {
+                                    crate::realm::document_realm_bindings_for_module(
+                                        &cu.ir_module,
+                                        registry,
+                                    )
+                                })
+                                .as_ref()
                         })
-                    });
+                        .flatten();
+                    if source_is_command_substitution && head_identities.is_none() {
+                        // No realm is a refusal, not unchanged-spelling builder
+                        // assistance. Do not allocate or compile a replay.
+                        continue;
+                    }
                     // Prove the callback can be materialised before choosing
                     // synthetic names. The probe is never compiled or
                     // evaluated, so it need not be collision-free; it only
@@ -3565,6 +3576,7 @@ fn find_callback_substitution_warnings(
                 dialect,
                 callback_head_identities
                     .get()
+                    .and_then(Option::as_ref)
                     .map(|identities| (identities, candidate.callback_span.start())),
             )
             .expect("callback replay preflight proved this script is static");
@@ -7983,6 +7995,37 @@ mod tests {
     }
 
     #[test]
+    fn whole_unit_warning_query_requires_its_retained_positioned_source_owner() {
+        // naming.source.retained-positioned-command-realm
+        // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
+        // Source-warning ownership only; no external evaluation is performed.
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = current.commands();
+        let (_owner, unit) = retained_warning_unit("regexp -- $payload haystack", &current);
+        let positive = find_taint_warnings_for_cu_base(&unit, registry, None);
+        assert!(
+            positive
+                .iter()
+                .any(|warning| { warning.code == DiagCode::T103 && warning.variable == "payload" }),
+            "the actual original source keeps its warning: {positive:?}"
+        );
+        let mut missing = unit.clone();
+        missing.ir_module.retained_source_bindings = None;
+        let mut changed = unit.clone();
+        changed.ir_module.source = tcl_lexer::SourceImage::document("regexp -- fixed haystack");
+        let mut missing_snapshot = unit.clone();
+        missing_snapshot.ir_module.registry_snapshot = None;
+        for refused in [missing, changed, missing_snapshot] {
+            assert!(find_taint_warnings_for_cu_base(&refused, registry, None).is_empty());
+        }
+        assert_eq!(
+            find_taint_warnings_for_cu_base(&unit, registry, None),
+            positive
+        );
+    }
+
+    #[test]
     fn actual_regexp_warning_refuses_missing_and_foreign_source_metadata() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
@@ -10706,6 +10749,40 @@ mod tests {
         )
         .with_interprocedural(&registry, None);
         (unit, registry)
+    }
+
+    #[test]
+    fn command_substitution_callbacks_stop_before_replay_when_original_owner_is_refused() {
+        // naming.source.retained-positioned-command-realm
+        // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
+        // The loaded fixture supplies Tk provenance. These are compiler replay
+        // controls, not claims about executing an external Tk event.
+        let (unit, registry) = loaded_tk_callback_unit(
+            "proc helper {value} {eval $value}\nentry .entry -validatecommand [list helper %P]",
+        );
+        reset_callback_replay_build_count();
+        reset_callback_replay_name_search_count();
+        let positive = find_callback_substitution_warnings(&unit, &registry, None, &[]);
+        assert!(
+            positive
+                .iter()
+                .any(|warning| warning.code == DiagCode::T100),
+            "the owned list-prefix callback remains replayable: {positive:?}"
+        );
+        assert_eq!(callback_replay_build_count(), 1);
+        assert_eq!(callback_replay_name_search_count(), 1);
+        let mut missing = unit.clone();
+        missing.ir_module.retained_source_bindings = None;
+        let mut changed = unit.clone();
+        changed.ir_module.source =
+            tcl_lexer::SourceImage::document("entry .entry -validatecommand {};");
+        for refused in [missing, changed] {
+            reset_callback_replay_build_count();
+            reset_callback_replay_name_search_count();
+            assert!(find_callback_substitution_warnings(&refused, &registry, None, &[]).is_empty());
+            assert_eq!(callback_replay_build_count(), 0);
+            assert_eq!(callback_replay_name_search_count(), 0);
+        }
     }
 
     #[test]

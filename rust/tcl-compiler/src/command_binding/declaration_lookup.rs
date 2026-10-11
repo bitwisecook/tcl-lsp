@@ -631,9 +631,6 @@ impl SourceInvocationBinding {
         else {
             return false;
         };
-        let Some(protocol) = dialect.native_string_protocol() else {
-            return false;
-        };
         let Some(words) = crate::registry_invocation::original_native_compiler_words(
             site.source.source_image(),
             tokens.words(),
@@ -643,6 +640,20 @@ impl SourceInvocationBinding {
             return false;
         };
         words.iter().all(|word| {
+            let arena = word.executable_parts();
+            if !word.group().expand
+                && arena
+                    .list(arena.root())
+                    .iter()
+                    .all(|component| matches!(&component.part, ExecutablePart::Text(_)))
+            {
+                // Original non-expanding text has no lookup effect. This
+                // lexical fact needs no native string or variable recipe.
+                return true;
+            }
+            let Some(protocol) = dialect.native_string_protocol() else {
+                return false;
+            };
             Self::original_word_preserves_lookup(
                 word,
                 tokens,

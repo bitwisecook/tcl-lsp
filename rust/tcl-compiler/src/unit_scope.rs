@@ -2553,7 +2553,6 @@ fn scan_source_call_sites_with_entry<S: std::hash::BuildHasher>(
     };
     let (ir_module, cfg_module, extra) =
         lower_source_callers(source, registry, declared, dialect, supplied);
-    let config = ir_module.lexer_config;
     // The cross-file scan resolves a dispatch word exactly as the in-unit one
     // does — `scan_cfg_callers`/`record_call_site_evidence` are shared, so a
     // `set cmd helper; $cmd dev` in *another* file retracts this unit's seed
@@ -2577,20 +2576,15 @@ fn scan_source_call_sites_with_entry<S: std::hash::BuildHasher>(
     // in any scanned file is visible — matching Tcl, where `::unknown` is one
     // command shared by the whole interpreter, not a per-file one.
     let unresolved_handler = unresolved_command_handler(registry, known);
-    let identities = crate::realm::document_realm_bindings_with_source_entry(
-        source,
-        config,
-        registry,
-        &ir_module.source_entry,
-    );
-    let identities = ir_module.source_metadata_input.as_ref().map_or_else(
-        || identities.clone(),
-        |input| {
-            identities
-                .clone()
-                .with_resolved_analysis_input(input.clone())
-        },
-    );
+    // naming.source.retained-positioned-command-realm
+    // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
+    // Lowering owns this exact independent source ingress. Query that owner;
+    // refusal retracts reachable caller seeds instead of replaying its text.
+    let Some(identities) = crate::realm::document_realm_bindings_for_module(&ir_module, registry)
+    else {
+        out.record_unenumerable_caller(&reach);
+        return out;
+    };
     let var_facts = collect_module_scope_var_facts(
         &cfg_module,
         &extra,
@@ -3203,6 +3197,24 @@ mod tests {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
         );
         scan_source_call_sites_with_source_input(source, None, &known, &[], &input, entry)
+    }
+
+    #[test]
+    fn independent_caller_ingresses_keep_their_actual_sources_and_loader_identity() {
+        // naming.source.retained-positioned-command-realm
+        // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
+        // Actual independent ingress remains available; changing source text
+        // starts its own producer rather than querying a mismatched Module.
+        let library = "proc helper {mode} {return $mode}";
+        let entry = source_loader_entry(library);
+        for value in ["FIRST", "SECOND"] {
+            let source = format!("source library.tcl; helper {value}");
+            let evidence = scan_loaded_caller(&source, &entry);
+            let helper = evidence.get("::helper").expect("actual sourced caller");
+            assert_eq!(helper.uniform_literal_at(0), Some(value));
+            assert_eq!(helper.source_implementations.len(), 1);
+            assert!(helper.source_implementations[0].matches_source_declaration(library, 0));
+        }
     }
 
     #[test]
