@@ -51,7 +51,9 @@ use tcl_compiler::memory_ssa::{MemoryLocationKind, MemoryOpKind, MemorySsaFuncti
 use tcl_compiler::mixed_region_plan::{
     GuardedCandidateDecision, GuardedCandidateDecline, RegionPlan,
 };
-use tcl_compiler::optimiser::{apply_optimisations, find_dead_stores, optimise, optimise_by_pass};
+use tcl_compiler::optimiser::{
+    apply_optimisations, find_dead_stores, optimise_by_pass, optimise_unit,
+};
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_compiler::semantic_analysis::{
     ExecutableAnalysisAvailability, MixedRegionPlanAvailability,
@@ -78,6 +80,79 @@ use crate::formatters::{
     stmt_color_class, stmt_kind, stmt_summary, type_kind_name,
 };
 use crate::views::{Severity, VIEW_META};
+
+/// Checked readonly source inputs from the actual compilation producer.
+/// Display labels cannot select a command store, profile or source owner.
+struct RetainedExplorerSource<'a> {
+    registry: &'a tcl_registry::CommandRegistry,
+    input: &'a tcl_compiler::analyser::ResolvedAnalysisInput,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    config: LexerConfig,
+    realm: tcl_compiler::realm::CommandBindingRealm,
+}
+
+fn retained_explorer_source<'a>(
+    result: &'a ExplorerResult,
+    source: &str,
+) -> Option<RetainedExplorerSource<'a>> {
+    // naming.source.retained-explorer-consumers
+    // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
+    let module = &result.unit.ir_module;
+    if source != result.source
+        || source != result.unit.source
+        || module.source != tcl_lexer::SourceImage::document(source)
+    {
+        return None;
+    }
+    let registry = module.registry_snapshot.as_ref()?.registry();
+    let realm = tcl_compiler::realm::document_realm_bindings_for_module(module, registry)?;
+    let input = module.source_metadata_input.as_ref()?;
+    tcl_compiler::registry_invocation::InvocationMetadataContext::for_module(registry, module)?;
+    if input.lexer_config() != module.lexer_config || !realm.matches_resolved_analysis_input(input)
+    {
+        return None;
+    }
+    Some(RetainedExplorerSource {
+        registry,
+        input,
+        dialect: module.dialect_profile,
+        config: module.lexer_config,
+        realm,
+    })
+}
+
+/// A rewritten image is a separate source ingress. It retains the actual
+/// metadata/store/grammar, but receives no execution receipt from the old image.
+fn rewritten_explorer_result(
+    source: &str,
+    dialect_label: &str,
+    retained: &RetainedExplorerSource<'_>,
+) -> ExplorerResult {
+    let profile = retained.input.unit_profile();
+    let declared =
+        tcl_compiler::analyser::utils::document_declared_surface(source, None, profile.name);
+    let unit = tcl_compiler::compilation_unit::CompilationUnit::build_with_analysis_input(
+        source,
+        tcl_compiler::compilation_unit::UnitBuildOptions {
+            registry: retained.registry,
+            defer_top_level: false,
+            config: retained.config,
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: Some(&declared),
+        },
+        None,
+        retained.input,
+    )
+    .with_interprocedural(retained.registry, Some(profile))
+    .with_retained_memory_ssa(retained.registry)
+    .with_retained_deep_semantic_analysis(retained.registry);
+    ExplorerResult {
+        source: source.to_owned(),
+        dialect: dialect_label.to_owned(),
+        unit,
+    }
+}
 
 /// Serialise the `meta` view: dialect list, view-tab table, and the
 /// severity vocabulary.
@@ -962,13 +1037,15 @@ pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) 
 /// plus the optimised source string (whose ranges the optimised views
 /// index into).
 fn optimised_result(result: &ExplorerResult) -> Option<(crate::ExplorerResult, String)> {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
-    let optimised = apply_optimisations(&result.source, &optimise(&result.source, registry));
+    let retained = retained_explorer_source(result, &result.source)?;
+    let optimised = apply_optimisations(
+        &result.source,
+        &optimise_unit(&result.unit, retained.registry, retained.dialect),
+    );
     if optimised == result.source {
         return None;
     }
-    let unit = crate::run_pipeline(&optimised, &result.dialect);
+    let unit = rewritten_explorer_result(&optimised, &result.dialect, &retained);
     Some((unit, optimised))
 }
 
@@ -1418,13 +1495,14 @@ pub fn serialise_taint(result: &ExplorerResult, li: &LineIndex, source: &str) ->
 
 /// Serialise the `optimisations` view: the optimiser rewrites found for
 /// the source. — `{code, message,
-/// range, replacement}` per rewrite. Runs the `optimise` pass over
-/// the cached per-dialect registry.
+/// range, replacement}` per rewrite. Uses the actual retained compilation
+/// unit and command store; unavailable source ownership returns null.
 #[must_use]
 pub fn serialise_optimisations(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
-    let opts: Vec<Value> = optimise(source, registry)
+    let Some(retained) = retained_explorer_source(result, source) else {
+        return Value::Null;
+    };
+    let opts: Vec<Value> = optimise_unit(&result.unit, retained.registry, retained.dialect)
         .iter()
         .map(|o| {
             json!({
@@ -1452,35 +1530,32 @@ pub fn serialise_optimisations(result: &ExplorerResult, li: &LineIndex, source: 
 /// execution order.
 #[must_use]
 pub fn serialise_optimiser_passes(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
-    let passes: Vec<Value> = optimise_by_pass(
-        &result.unit,
-        registry,
-        crate::environment::known_profile_for_dialect(&result.dialect),
-    )
-    .iter()
-    .map(|(pass, opts)| {
-        let optimisations: Vec<Value> = opts
-            .iter()
-            .map(|o| {
-                json!({
-                    "code": o.code.as_str(),
-                    "message": o.message,
-                    "range": range_dict(o.span, li, source),
-                    "replacement": o.replacement,
-                    "hintOnly": o.hint_only,
+    let Some(retained) = retained_explorer_source(result, source) else {
+        return Value::Null;
+    };
+    let passes: Vec<Value> = optimise_by_pass(&result.unit, retained.registry, retained.dialect)
+        .iter()
+        .map(|(pass, opts)| {
+            let optimisations: Vec<Value> = opts
+                .iter()
+                .map(|o| {
+                    json!({
+                        "code": o.code.as_str(),
+                        "message": o.message,
+                        "range": range_dict(o.span, li, source),
+                        "replacement": o.replacement,
+                        "hintOnly": o.hint_only,
+                    })
                 })
+                .collect();
+            json!({
+                "id": pass.as_str(),
+                "label": pass.label(),
+                "count": optimisations.len(),
+                "optimisations": optimisations,
             })
-            .collect();
-        json!({
-            "id": pass.as_str(),
-            "label": pass.label(),
-            "count": optimisations.len(),
-            "optimisations": optimisations,
         })
-    })
-    .collect();
+        .collect();
     Value::Array(passes)
 }
 
@@ -2978,6 +3053,43 @@ pub fn serialise_segments(source: &str, config: LexerConfig) -> Value {
 /// Tcl corpus; the `when`-handler behaviour is pinned by a Rust unit test.
 #[must_use]
 pub fn serialise_event_order(source: &str, line_index: &LineIndex, dialect: &str) -> Value {
+    let command_registry = registry_for_dialect(dialect);
+    let identities = tcl_compiler::realm::document_realm_bindings(
+        source,
+        crate::environment::analyser_profile_for_dialect(dialect),
+        &command_registry,
+    );
+    let handlers = tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
+        source,
+        &command_registry,
+        &identities,
+    );
+    serialise_event_handlers(source, line_index, handlers)
+}
+
+/// Event-order advice from the actual retained Module inputs. Missing or
+/// mismatched source ownership returns null, independently of an empty inventory.
+#[must_use]
+pub fn serialise_event_order_for_result(result: &ExplorerResult, line_index: &LineIndex) -> Value {
+    let Some(retained) = retained_explorer_source(result, &result.source) else {
+        return Value::Null;
+    };
+    let handlers =
+        tcl_registry::events::top_level_when_handlers_with_source_config_and_head_resolver(
+            &result.source,
+            retained.registry,
+            retained.config,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+            &retained.realm,
+        );
+    serialise_event_handlers(&result.source, line_index, handlers)
+}
+
+fn serialise_event_handlers(
+    source: &str,
+    line_index: &LineIndex,
+    handlers: Vec<tcl_syntax::event_handler::EventHandler>,
+) -> Value {
     use std::collections::HashMap;
 
     use tcl_registry::events::EventRegistry;
@@ -2992,21 +3104,7 @@ pub fn serialise_event_order(source: &str, line_index: &LineIndex, dialect: &str
     }
 
     let mut per_event: HashMap<String, Vec<Handler>> = HashMap::new();
-    let command_registry = registry_for_dialect(dialect);
-    let identities = tcl_compiler::realm::document_realm_bindings(
-        source,
-        crate::environment::analyser_profile_for_dialect(dialect),
-        &command_registry,
-    );
-    for (matched, handler) in
-        tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
-            source,
-            &command_registry,
-            &identities,
-        )
-        .into_iter()
-        .enumerate()
-    {
+    for (matched, handler) in handlers.into_iter().enumerate() {
         let event = handler.event;
         let span = handler.event_span;
         let priority = i64::from(handler.effective_priority);
@@ -3173,9 +3271,11 @@ fn serialise_source_map_units(result: &ExplorerResult) -> Value {
 /// analyses. `dataflow*` counts are omitted — `dataflow` is not implemented,
 /// and such counts only apply when a dataflow graph is present.
 fn serialise_stats(result: &ExplorerResult) -> Value {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
-    let dialect = crate::environment::known_profile_for_dialect(&result.dialect);
+    let Some(retained) = retained_explorer_source(result, &result.source) else {
+        return Value::Null;
+    };
+    let registry = retained.registry;
+    let dialect = retained.dialect;
 
     let unreachable: usize = result
         .all_snapshots()
@@ -3201,7 +3301,7 @@ fn serialise_stats(result: &ExplorerResult) -> Value {
     ));
     gvn.extend(find_loop_invariants_for_cu(&result.unit, registry, dialect));
     let taint = find_taint_warnings_for_cu(&result.unit, registry, dialect).len();
-    let rewrites = optimise(&result.source, registry).len();
+    let rewrites = optimise_unit(&result.unit, registry, dialect).len();
     // Dead stores are O109 optimiser findings (no standalone liveness pass).
     let dead_stores = find_dead_stores(&result.unit, registry, dialect).len();
 
@@ -3286,9 +3386,11 @@ fn walk_barriers(script: &Script, scope: &str, out: &mut Vec<Ann>) {
 // splitting the per-source arms would scatter one contract across helpers.
 #[allow(clippy::too_many_lines)]
 fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) -> (Value, Value) {
-    let registry_held = registry_for_dialect(&result.dialect);
-    let registry = &*registry_held;
-    let dialect = crate::environment::known_profile_for_dialect(&result.dialect);
+    let Some(retained) = retained_explorer_source(result, source) else {
+        return (Value::Null, Value::Null);
+    };
+    let registry = retained.registry;
+    let dialect = retained.dialect;
     let mut anns: Vec<Ann> = Vec::new();
 
     // Barriers (IR walk).
@@ -3380,7 +3482,7 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
     }
 
     // Optimiser rewrites.
-    for o in optimise(source, registry) {
+    for o in optimise_unit(&result.unit, registry, dialect) {
         anns.push(Ann {
             span: o.span,
             label: format!(
@@ -3627,7 +3729,7 @@ pub fn serialise_result_with_optimisations(
     );
     out.insert(
         "eventOrder".to_owned(),
-        serialise_event_order(&result.source, &li, &result.dialect),
+        serialise_event_order_for_result(result, &li),
     );
     out.insert(
         "asm".to_owned(),
@@ -5222,5 +5324,285 @@ mod original_configured_index_tests {
         let mut jim = crate::run_pipeline("set x 1", "jim");
         jim.unit.ir_module.lexer_config.braced_var = tcl_lexer::BracedVarStyle::Tcl9Nesting;
         assert!(serialise_result(&jim)["structuralIndex"]["scriptComplete"].is_null());
+    }
+}
+
+#[cfg(test)]
+mod retained_explorer_source_tests {
+    use super::*;
+    use std::sync::Arc;
+    use tcl_compiler::analyser::ResolvedAnalysisInput;
+    use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
+
+    fn fixture(
+        source: &str,
+        engine: &str,
+        registry: &tcl_registry::CommandRegistry,
+        config: LexerConfig,
+    ) -> ExplorerResult {
+        let environment =
+            tcl_registry::model::resolve_known_environment(engine).expect("known provider ingress");
+        let context = Arc::new(
+            environment
+                .default_context_registry()
+                .with_command_store(registry.snapshot().shared_registry()),
+        );
+        let input = ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            environment.unit_profile(),
+            context,
+            config,
+        );
+        let unit = CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(environment.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        )
+        .with_interprocedural(registry, Some(environment.unit_profile()));
+        ExplorerResult {
+            source: source.to_owned(),
+            dialect: engine.to_owned(),
+            unit,
+        }
+    }
+
+    #[test]
+    fn retained_explorer_source_keeps_actual_profiles_and_ignores_display_labels() {
+        // naming.source.retained-explorer-consumers
+        // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
+        // Producer/model controls, independently of C/Jim binary observations.
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let environment = tcl_registry::model::resolve_known_environment(engine).unwrap();
+            let registry = environment.default_context_registry();
+            let config = LexerConfig::from_grammar(environment.grammar());
+            let mut result = fixture("set retained VALUE", engine, registry.commands(), config);
+            result.dialect = "display-label-has-no-semantic-owner".to_owned();
+            let owner = retained_explorer_source(&result, &result.source).expect(engine);
+            assert_eq!(owner.config, config, "{engine}");
+            assert_eq!(
+                owner.dialect.unwrap().cache_key(),
+                environment.unit_profile().cache_key(),
+                "{engine}"
+            );
+            assert_eq!(
+                owner.registry.snapshot().semantic_key(),
+                registry.commands().snapshot().semantic_key(),
+                "{engine}"
+            );
+            assert_eq!(
+                owner.input,
+                result
+                    .unit
+                    .ir_module
+                    .source_metadata_input
+                    .as_ref()
+                    .unwrap(),
+                "{engine}"
+            );
+        }
+    }
+
+    #[test]
+    fn retained_event_order_uses_the_custom_full_config_and_actual_command_store() {
+        // naming.source.retained-explorer-consumers
+        // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
+        // Explicit source-parser axis, not a measured BIG-IP BOM acceptance claim.
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let context = environment.default_context_registry();
+        let config = LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..LexerConfig::from_grammar(environment.grammar())
+        };
+        let source = "\u{feff}when HTTP_REQUEST {}";
+        let mut result = fixture(source, "f5-irules", context.commands(), config);
+        result.dialect = "tcl8.4".to_owned();
+        let rows = serialise_event_order_for_result(&result, &LineIndex::new(source));
+        let rows = rows.as_array().expect("current source inventory");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["event"], "HTTP_REQUEST");
+        assert_eq!(rows[0]["range"]["startOffset"], "\u{feff}when ".len());
+
+        let mut commands = context.commands().as_ref().clone();
+        let mut when = commands.get("when").unwrap().clone();
+        when.traits.remove(tcl_registry::Traits::IS_EVENT_HANDLER);
+        commands.insert(when);
+        let result = fixture(
+            "when HTTP_REQUEST {}",
+            "f5-irules",
+            &commands,
+            LexerConfig::from_grammar(environment.grammar()),
+        );
+        let owner = retained_explorer_source(&result, &result.source).unwrap();
+        assert_eq!(
+            owner.registry.snapshot().semantic_key(),
+            commands.snapshot().semantic_key()
+        );
+        assert_eq!(
+            serialise_event_order_for_result(&result, &LineIndex::new(&result.source)),
+            json!([])
+        );
+    }
+
+    fn assert_retained_views_withdraw(result: &ExplorerResult, label: &str) {
+        let line_index = LineIndex::new(&result.source);
+        assert!(
+            retained_explorer_source(result, &result.source).is_none(),
+            "{label}"
+        );
+        assert!(
+            serialise_event_order_for_result(result, &line_index).is_null(),
+            "{label}"
+        );
+        assert!(
+            serialise_optimisations(result, &line_index, &result.source).is_null(),
+            "{label}"
+        );
+        assert!(
+            serialise_optimiser_passes(result, &line_index, &result.source).is_null(),
+            "{label}"
+        );
+        assert!(serialise_stats(result).is_null(), "{label}");
+        assert_eq!(
+            serialise_annotations(result, &line_index, &result.source),
+            (Value::Null, Value::Null),
+            "{label}"
+        );
+        assert!(optimised_result(result).is_none(), "{label}");
+    }
+
+    #[test]
+    fn retained_explorer_views_refuse_missing_changed_and_foreign_source_owners() {
+        // naming.source.retained-explorer-consumers
+        // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let context = environment.default_context_registry();
+        let config = LexerConfig::from_grammar(environment.grammar());
+        let source = "when HTTP_REQUEST {}";
+        let original = fixture(source, "f5-irules", context.commands(), config);
+        assert!(retained_explorer_source(&original, source).is_some());
+        assert_eq!(
+            serialise_event_order_for_result(&original, &LineIndex::new(source))
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        let controls: [(&str, fn(&mut ExplorerResult)); 13] = [
+            ("missing retained interpretation", |r| {
+                r.unit.ir_module.retained_source_bindings = None
+            }),
+            ("missing registry snapshot", |r| {
+                r.unit.ir_module.registry_snapshot = None
+            }),
+            ("missing full input", |r| {
+                r.unit.ir_module.source_metadata_input = None
+            }),
+            ("changed Module image", |r| {
+                r.unit.ir_module.source = tcl_lexer::SourceImage::document("when HTTP_RESPONSE {}")
+            }),
+            ("changed source channel", |r| {
+                r.unit.ir_module.source = tcl_lexer::SourceImage::native(r.source.as_bytes())
+            }),
+            ("changed CU image", |r| {
+                r.unit.source.push_str("; set changed VALUE")
+            }),
+            ("changed presentation image", |r| {
+                r.source.push_str("; set changed VALUE")
+            }),
+            ("changed full BOM config", |r| {
+                r.unit.ir_module.lexer_config.leading_bom = tcl_lexer::LeadingBom::Skip
+            }),
+            ("changed source coordinates", |r| {
+                r.unit.ir_module.lexer_config.base_line += 1
+            }),
+            ("changed profile", |r| {
+                r.unit.ir_module.dialect_profile = Some(tcl_dialect::DialectProfile::plain_tcl())
+            }),
+            ("changed entry", |r| {
+                r.unit.ir_module.source_entry.unknown_entry =
+                    !r.unit.ir_module.source_entry.unknown_entry
+            }),
+            ("same-store foreign availability", |r| {
+                let input = r.unit.ir_module.source_metadata_input.as_ref().unwrap();
+                let commands = r
+                    .unit
+                    .ir_module
+                    .registry_snapshot
+                    .as_ref()
+                    .unwrap()
+                    .shared_registry();
+                let foreign = Arc::new(
+                    tcl_registry::model::ingress::static_context_for("tcl8.4")
+                        .with_command_store(commands),
+                );
+                r.unit.ir_module.source_metadata_input = Some(ResolvedAnalysisInput::new(
+                    input.analyser_profile(),
+                    input.unit_profile(),
+                    foreign,
+                    input.lexer_config(),
+                ));
+            }),
+            ("foreign command snapshot", |r| {
+                r.unit.ir_module.registry_snapshot = Some(
+                    tcl_registry::model::ingress::static_context_for("tcl8.4")
+                        .commands()
+                        .snapshot(),
+                )
+            }),
+        ];
+        for (label, mutate) in controls {
+            let mut changed = ExplorerResult {
+                source: original.source.clone(),
+                dialect: original.dialect.clone(),
+                unit: original.unit.clone(),
+            };
+            mutate(&mut changed);
+            assert_retained_views_withdraw(&changed, label);
+        }
+        let index = LineIndex::new(source);
+        assert!(serialise_optimisations(&original, &index, "foreign source").is_null());
+        assert!(serialise_optimiser_passes(&original, &index, "foreign source").is_null());
+        assert_eq!(
+            serialise_annotations(&original, &index, "foreign source"),
+            (Value::Null, Value::Null)
+        );
+        assert!(retained_explorer_source(&original, source).is_some());
+    }
+
+    #[test]
+    fn rewritten_explorer_image_retains_metadata_without_reusing_old_source_ownership() {
+        // naming.source.retained-explorer-consumers
+        // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
+        let environment = tcl_registry::model::resolve_known_environment("tcl8.4").unwrap();
+        let context = environment.default_context_registry();
+        let config = LexerConfig::from_grammar(environment.grammar());
+        let original = fixture(
+            "set retained ORIGINAL",
+            "tcl8.4",
+            context.commands(),
+            config,
+        );
+        let owner = retained_explorer_source(&original, &original.source).unwrap();
+        let rewritten = rewritten_explorer_result("set retained REWRITTEN", "display-only", &owner);
+        let current = retained_explorer_source(&rewritten, &rewritten.source).unwrap();
+        assert_eq!(current.input, owner.input);
+        assert_eq!(current.config, config);
+        assert!(std::ptr::eq(
+            current.input.borrowed_context_registry(),
+            owner.input.borrowed_context_registry()
+        ));
+        assert_ne!(
+            rewritten.unit.ir_module.source,
+            original.unit.ir_module.source
+        );
+        assert!(retained_explorer_source(&rewritten, &original.source).is_none());
     }
 }

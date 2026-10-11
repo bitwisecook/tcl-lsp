@@ -175,6 +175,8 @@ fails.
 - [native-scalar-getters.md](contracts/native-scalar-getters.md) — original-object
   primitive getter purposes, queried C target widths, host numeric effects,
   single-probe failure rendering, and raw Boolean output.
+- [retained-explorer-source-views.md](contracts/retained-explorer-source-views.md) —
+  actual Module source/configuration/store owners and unavailable Explorer view rendering.
 - [retained-positioned-command-realm.md](contracts/retained-positioned-command-realm.md) —
   reuse of the original Module source inventory, terminal ownership refusal,
   copy-on-write and independent new-source ingress.

@@ -1587,17 +1587,17 @@ function updateBadges() {
     'interproc': data.interprocedural.length,
     'types': data.types.reduce((n, f) => n + f.entries.length, 0),
     'rendered': (data.renderedProperties||[]).reduce((n, f) => n + f.entries.length, 0),
-    'opt': data.optimisations.length,
-    'optimiser-passes': (data.optimiserPasses||[]).reduce((n, p) => n + p.count, 0),
+    'opt': explorerArrayCount(data.optimisations),
+    'optimiser-passes': Array.isArray(data.optimiserPasses) ? data.optimiserPasses.reduce((n, p) => n + p.count, 0) : undefined,
     'gvn': data.gvn.length,
     'shimmer': data.shimmer.length,
     'taint': data.taintWarnings.length + data.taintTracking.reduce((n, f) => n + f.entries.length, 0),
     'loops': (data.loops || []).reduce((n, f) => n + f.loops.length, 0),
     'intervals': (data.intervals || []).reduce((n, f) => n + f.entries.length, 0),
     'bounds': (data.bounds || []).reduce((n, f) => n + f.findings.length + f.divzero.length, 0),
-    'irules-flow': (data.eventOrder || []).length + data.irulesFlow.length,
-    'event-order': (data.eventOrder || []).length,
-    'callouts': data.annotations.length,
+    'irules-flow': Array.isArray(data.eventOrder) ? explorerArrayCount(data.eventOrder) + data.irulesFlow.length : undefined,
+    'event-order': explorerArrayCount(data.eventOrder),
+    'callouts': explorerArrayCount(data.annotations),
     'segments': (data.segments || []).length,
     'asm': instrCount(data.asm),
     'wasm': instrCount(data.wasm),
@@ -1891,18 +1891,18 @@ async function renderEventFlowGraph(container, events) {
 
 function renderIrulesFlow() {
   const pane=$('#pane-irules-flow');
-  const events = data.eventOrder || [];
+  const events = Array.isArray(data.eventOrder) ? data.eventOrder : null;
   const warnings = data.irulesFlow || [];
 
-  if (!events.length && !warnings.length) {
+  if (events && !events.length && !warnings.length) {
     pane.innerHTML = '<div class="empty-state">No events detected</div>';
     return;
   }
 
-  let html = '';
+  let html = events ? '' : explorerViewUnavailableHtml();
 
   // Event flow graph section
-  if (events.length) {
+  if (events && events.length) {
     html += '<div class="event-flow-section-label">Event Flow</div>';
     html += '<div class="event-flow-graph" id="eventFlowGraphContainer"></div>';
     // Store ranges for click navigation
@@ -1924,7 +1924,7 @@ function renderIrulesFlow() {
   setupHoverHighlighting(pane);
 
   // Render mermaid graph asynchronously
-  if (events.length) {
+  if (events && events.length) {
     const graphContainer = $('#eventFlowGraphContainer');
     renderEventFlowGraph(graphContainer, events);
   }

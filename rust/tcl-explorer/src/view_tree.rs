@@ -1208,7 +1208,17 @@ fn opt_leaf(o: &Value) -> ViewNode {
     .with_range(&o["range"])
 }
 
+fn unavailable_source_view() -> Vec<ViewNode> {
+    vec![ViewNode::note(
+        "This view is unavailable for this analysis",
+        "dim",
+    )]
+}
+
 fn build_opt(d: &Value) -> Vec<ViewNode> {
+    if !d["optimisations"].is_array() {
+        return unavailable_source_view();
+    }
     let out: Vec<ViewNode> = arr(d, "optimisations").iter().map(opt_leaf).collect();
     if out.is_empty() {
         vec![ViewNode::note("(no optimiser rewrites)", "dim")]
@@ -1329,6 +1339,9 @@ fn build_source_map(d: &Value) -> Vec<ViewNode> {
 }
 
 fn build_optimiser_passes(d: &Value) -> Vec<ViewNode> {
+    if !d["optimiserPasses"].is_array() {
+        return unavailable_source_view();
+    }
     let out: Vec<ViewNode> = arr(d, "optimiserPasses")
         .iter()
         .map(|p| {
@@ -1516,7 +1529,11 @@ fn build_connection_scope(d: &Value) -> Vec<ViewNode> {
 }
 
 fn build_irules(d: &Value) -> Vec<ViewNode> {
-    let mut out = Vec::new();
+    let mut out = if d["eventOrder"].is_array() {
+        Vec::new()
+    } else {
+        unavailable_source_view()
+    };
     for e in arr(d, "eventOrder") {
         let eff =
             e["base_priority"].as_i64().unwrap_or(0) + e["priority_offset"].as_i64().unwrap_or(0);
@@ -1561,6 +1578,9 @@ fn build_irules(d: &Value) -> Vec<ViewNode> {
 }
 
 fn build_event_order(d: &Value) -> Vec<ViewNode> {
+    if !d["eventOrder"].is_array() {
+        return unavailable_source_view();
+    }
     let mut events: Vec<&Value> = arr(d, "eventOrder").iter().collect();
     events.sort_by(|a, b| {
         let ea =
@@ -1606,6 +1626,9 @@ fn build_event_order(d: &Value) -> Vec<ViewNode> {
 }
 
 fn build_callouts(d: &Value) -> Vec<ViewNode> {
+    if !d["annotations"].is_array() {
+        return unavailable_source_view();
+    }
     let out: Vec<ViewNode> = arr(d, "annotations")
         .iter()
         .map(|a| {
@@ -2296,5 +2319,59 @@ mod original_configured_completeness_tests {
         let view = build_structural_index(&crate::serialise::serialise_result(&result));
         assert_eq!(view[0].label, "script completeness unavailable");
         assert_eq!(view[0].style.as_deref(), Some("dim"));
+    }
+}
+
+#[cfg(test)]
+mod retained_source_view_tests {
+    use super::*;
+    use serde_json::json;
+
+    // naming.source.retained-explorer-consumers. These are wire/render
+    // controls; they do not prove Native execution or provider behaviour.
+    #[test]
+    fn unavailable_source_fields_are_distinct_from_completed_empty_views() {
+        let empty = json!({
+            "optimisations": [], "optimiserPasses": [],
+            "eventOrder": [], "annotations": [], "irulesFlow": [],
+        });
+        for (view, field, expected_empty) in [
+            ("opt", "optimisations", "(no optimiser rewrites)"),
+            (
+                "optimiserPasses",
+                "optimiserPasses",
+                "(optimiser pipeline unavailable)",
+            ),
+            ("eventOrder", "eventOrder", "(no event-order data)"),
+            ("callouts", "annotations", "(no salient annotations)"),
+        ] {
+            assert_eq!(build_view(view, &empty)[0].label, expected_empty);
+            let mut unavailable = empty.clone();
+            unavailable[field] = Value::Null;
+            let rows = build_view(view, &unavailable);
+            assert_eq!(rows, unavailable_source_view(), "{view}");
+            assert!(rows[0].range.is_none());
+            let mut missing = empty.clone();
+            missing.as_object_mut().unwrap().remove(field);
+            assert_eq!(
+                build_view(view, &missing),
+                unavailable_source_view(),
+                "{view}"
+            );
+        }
+    }
+
+    #[test]
+    fn unavailable_event_section_preserves_independent_irules_warnings() {
+        let data = json!({
+            "eventOrder": null,
+            "irulesFlow": [{"code": "W-test", "message": "independent warning", "range": null}],
+        });
+        let rows = build_view("irules", &data);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0], unavailable_source_view()[0]);
+        assert_eq!(rows[1].label, "W-test independent warning");
+        let empty = json!({"eventOrder": [], "irulesFlow": []});
+        assert_eq!(build_view("irules", &empty)[0].label, "(no iRules events)");
     }
 }

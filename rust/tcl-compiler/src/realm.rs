@@ -798,7 +798,7 @@ pub(crate) fn document_vendor_realm_with_resolved_input(
 /// this query never rebuilds an independent interpretation or refreshes Native
 /// compiler, frame, observer or provider currency.
 #[must_use]
-pub(crate) fn document_realm_bindings_for_module(
+pub fn document_realm_bindings_for_module(
     module: &crate::ir::Module,
     registry: &CommandRegistry,
 ) -> Option<CommandBindingRealm> {

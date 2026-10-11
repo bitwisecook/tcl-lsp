@@ -25,7 +25,7 @@
 use std::borrow::Cow;
 
 use rustc_hash::{FxHashMap, FxHashSet};
-use tcl_lexer::{LexerConfig, Token, TokenType};
+use tcl_lexer::{LexerConfig, SourceSegmentationPurpose, Token, TokenType};
 
 use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::side_effects::ConnectionSide;
@@ -1372,6 +1372,28 @@ pub fn top_level_when_handlers_with_registry_and_head_resolver(
         || LexerConfig::for_file_dialect("f5-irules"),
         |profile| LexerConfig::from_grammar(profile.grammar),
     );
+    top_level_when_handlers_with_source_config_and_head_resolver(
+        source,
+        registry,
+        config,
+        SourceSegmentationPurpose::WholeInput,
+        resolver,
+    )
+}
+
+/// Parse handlers under the producer's complete source configuration and
+/// explicitly selected local script purpose. The retained parent configuration
+/// remains independent of this parser selection. Command identity comes only
+/// from the supplied resolver; this boundary parser grants no event execution.
+#[must_use]
+pub fn top_level_when_handlers_with_source_config_and_head_resolver(
+    source: &str,
+    registry: &crate::CommandRegistry,
+    parent_config: LexerConfig,
+    purpose: SourceSegmentationPurpose,
+    resolver: &dyn CommandHeadResolver,
+) -> Vec<tcl_syntax::event_handler::EventHandler> {
+    let config = purpose.config(parent_config);
     let events = EventRegistry::build();
     let mut handlers = tcl_syntax::event_handler::event_handlers_with_head_predicate(
         source,
@@ -4807,5 +4829,77 @@ mod tests {
             registry.lifecycle_relation("RULE_INIT", "NOT_AN_EVENT"),
             EventLifecycleRelation::Unknown,
         );
+    }
+}
+
+#[cfg(test)]
+mod original_event_source_config_tests {
+    use super::*;
+
+    #[test]
+    fn event_boundary_keeps_full_input_and_nested_bom_purposes_distinct() {
+        // naming.source.retained-explorer-consumers
+        // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
+        // Parser/registry boundary control; no executed BIG-IP handler claim.
+        let registry = crate::model::ingress::static_context_for("f5-irules").commands();
+        let parent = LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..LexerConfig::from_grammar(tcl_dialect::DialectProfile::irules().grammar)
+        };
+        let source = "\u{feff}when HTTP_REQUEST {}";
+        let whole = top_level_when_handlers_with_source_config_and_head_resolver(
+            source,
+            registry,
+            parent,
+            SourceSegmentationPurpose::WholeInput,
+            &WrittenHeadResolver,
+        );
+        assert_eq!(whole.len(), 1);
+        assert_eq!(whole[0].event, "HTTP_REQUEST");
+        assert_eq!(
+            whole[0].event_span.start(),
+            u32::try_from("\u{feff}when ".len()).unwrap()
+        );
+        assert!(
+            top_level_when_handlers_with_source_config_and_head_resolver(
+                source,
+                registry,
+                parent,
+                SourceSegmentationPurpose::NestedScript,
+                &WrittenHeadResolver,
+            )
+            .is_empty()
+        );
+        assert!(
+            top_level_when_handlers_with_source_config_and_head_resolver(
+                source,
+                registry,
+                parent.nested(),
+                SourceSegmentationPurpose::WholeInput,
+                &WrittenHeadResolver,
+            )
+            .is_empty()
+        );
+        assert_eq!(parent.leading_bom, tcl_lexer::LeadingBom::Skip);
+
+        let source = "\u{feff}priority 730\nwhen HTTP_REQUEST {}";
+        let whole = top_level_when_handlers_with_source_config_and_head_resolver(
+            source,
+            registry,
+            parent,
+            SourceSegmentationPurpose::WholeInput,
+            &WrittenHeadResolver,
+        );
+        let nested = top_level_when_handlers_with_source_config_and_head_resolver(
+            source,
+            registry,
+            parent,
+            SourceSegmentationPurpose::NestedScript,
+            &WrittenHeadResolver,
+        );
+        assert_eq!(whole.len(), 1);
+        assert_eq!(nested.len(), 1);
+        assert_eq!(whole[0].effective_priority, 730);
+        assert_eq!(nested[0].effective_priority, 500);
     }
 }

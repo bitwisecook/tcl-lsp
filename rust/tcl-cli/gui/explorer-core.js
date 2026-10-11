@@ -255,9 +255,19 @@ function spanLabel(range) {
 }
 var currentHighlighted = null;
 
+// Retained analysis fields use null for unavailable; an empty array is a
+// completed view with no rows. Shell badges share the same distinction.
+function explorerArrayCount(value) {
+  return Array.isArray(value) ? value.length : undefined;
+}
+function explorerViewUnavailableHtml() {
+  return '<div class="empty-state">This view is unavailable for this analysis</div>';
+}
+
 // Stats
 function renderStats() {
   var s = data.stats;
+  if (!s) { $('#stats').innerHTML = explorerViewUnavailableHtml(); return; }
   var parts = [
     'procs <span class="stat-value">' + s.procedures + '</span>',
     'blocks <span class="stat-value">' + s.blocks + '</span>',
@@ -578,6 +588,7 @@ function optReplacementHtml(o) {
 
 function renderOpt() {
   var pane = $('#pane-opt');
+  if (!Array.isArray(data.optimisations)) { pane.innerHTML = explorerViewUnavailableHtml(); return; }
   if (!data.optimisations.length) { pane.innerHTML = '<div class="empty-state">No optimiser rewrites</div>'; return; }
   var html = '<div class="section-header">Rewrites</div>';
   for (var o of data.optimisations) {
@@ -595,7 +606,8 @@ function renderOptimiserPasses() {
   var pane = $('#pane-optimiser-passes');
   if (!pane) return;
   var passes = data.optimiserPasses;
-  if (!passes || !passes.length) { pane.innerHTML = '<div class="empty-state">Optimiser pipeline unavailable</div>'; return; }
+  if (!Array.isArray(passes)) { pane.innerHTML = explorerViewUnavailableHtml(); return; }
+  if (!passes.length) { pane.innerHTML = '<div class="empty-state">Optimiser pipeline unavailable</div>'; return; }
   var html = '';
   for (var p of passes) {
     html += '<div class="section-header">' + esc(p.label) + ' <span style="color:var(--text-dim); font-weight:normal">' + esc(p.id) + ' &middot; ' + p.count + ' rewrite' + (p.count === 1 ? '' : 's') + '</span></div>';
@@ -1199,7 +1211,8 @@ function renderBounds() {
 // iRules event firing order
 function renderEventOrder() {
   var pane = $('#pane-event-order');
-  var events = (data.eventOrder || []).slice();
+  if (!Array.isArray(data.eventOrder)) { pane.innerHTML = explorerViewUnavailableHtml(); return; }
+  var events = data.eventOrder.slice();
   if (!events.length) { pane.innerHTML = '<div class="empty-state">No event-order data</div>'; return; }
   events.sort(function(a, b) {
     return (b.base_priority + b.priority_offset) - (a.base_priority + a.priority_offset) || (a.event < b.event ? -1 : 1);
@@ -1275,6 +1288,7 @@ function renderDataFlow() {
 // client-side line indexing, no source parsing.
 function renderCallouts() {
   var pane=$('#pane-callouts');
+  if(!Array.isArray(data.annotations)){pane.innerHTML=explorerViewUnavailableHtml();return;}
   if(!data.annotations.length){pane.innerHTML='<div class="empty-state">No annotations</div>';return;}
   var source=getSource();var lines=source.split('\n');
   // Per-line lineStart array — recomputed locally because the marker
