@@ -9,6 +9,10 @@ use crate::obj::{self, Owned};
 
 enum RetiredPart {
     Value(Var),
+    LinkMetadata {
+        displaced: super::Link,
+        adopted: super::Link,
+    },
     Default(RetiredArrayDefault),
     Key(Owned),
     Elements(NativeElementEntries),
@@ -24,9 +28,25 @@ enum RetiredPart {
 pub(crate) struct RetiredVariableParts(Vec<RetiredPart>);
 
 impl RetiredVariableParts {
+    pub(crate) fn from_original_link(link: super::Link) -> Self {
+        let mut retired = Self::default();
+        retired.value(Some(Var::Link(link)));
+        retired
+    }
     pub(super) fn value(&mut self, old: Option<Var>) {
         if let Some(old) = old {
             self.0.push(RetiredPart::Value(old));
+        }
+    }
+    /// Both links can observe one issuer, but only the cell stores its real role.
+    /// A publication transfer must not decrement the role that it just adopted.
+    pub(super) fn value_preserving_link(&mut self, old: Option<Var>, adopted: &super::Link) {
+        match old {
+            Some(Var::Link(displaced)) => self.0.push(RetiredPart::LinkMetadata {
+                displaced,
+                adopted: adopted.clone(),
+            }),
+            other => self.value(other),
         }
     }
     pub(super) fn array_default(&mut self, old: Option<RetiredArrayDefault>) {
@@ -69,6 +89,28 @@ impl RetiredVariableParts {
                         if let Err(error) = current() {
                             first.get_or_insert(error);
                         }
+                    }
+                }
+                RetiredPart::Value(Var::Link(link)) => {
+                    if let Err(error) = link.withdraw_stored_roles().finish(&current) {
+                        first.get_or_insert(error);
+                    }
+                    drop(link);
+                    if let Err(error) = current() {
+                        first.get_or_insert(error);
+                    }
+                }
+                RetiredPart::LinkMetadata { displaced, adopted } => {
+                    if let Err(error) = displaced
+                        .withdraw_unshared_roles(Some(&adopted))
+                        .finish(&current)
+                    {
+                        first.get_or_insert(error);
+                    }
+                    drop(displaced);
+                    drop(adopted);
+                    if let Err(error) = current() {
+                        first.get_or_insert(error);
                     }
                 }
                 RetiredPart::Value(value) => {
@@ -129,6 +171,11 @@ impl Drop for RetiredVariableParts {
         for old in std::mem::take(&mut self.0) {
             match old {
                 RetiredPart::Value(value) => value.release(),
+                RetiredPart::LinkMetadata { displaced, adopted } => {
+                    drop(displaced.withdraw_unshared_roles(Some(&adopted)));
+                    drop(displaced);
+                    drop(adopted);
+                }
                 RetiredPart::Default(old) => drop(old),
                 RetiredPart::Key(old) => drop(old),
                 RetiredPart::Elements(old) => drop(old),

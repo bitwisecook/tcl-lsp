@@ -1161,19 +1161,14 @@ impl Interp {
                             ));
                         }
                     }
-                    let bound = crate::vars::make_tcloo_compiled_variable(
-                        &mut self.frames.borrow_mut(),
-                        &mut self.namespaces.borrow_mut(),
-                        ns,
-                        slot,
-                        target,
-                    );
-                    if let Err(error) = bound {
+                    let bound =
+                        self.link_original_tcloo_compiled_namespace_variable(ns, slot, target);
+                    if bound != Code::Ok {
                         let popped = self.pop_native_call_frame();
                         self.current_ns.set(saved_ns);
                         self.leave_namespace_activation(popped);
                         self.recursion_depth.set(self.recursion_depth.get() - 1);
-                        return Err(crate::builtins::var_error(self, primary.as_bytes(), error));
+                        return Err(bound);
                     }
                     break;
                 }

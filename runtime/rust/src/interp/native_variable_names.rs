@@ -31,6 +31,36 @@ struct OriginalCNameSelection {
     currency: super::native_operation_currency::NativeOperationCurrency,
 }
 
+/// A real C target selection carries the original source and target births
+/// through local publication. Its Link metadata has no newly minted alias role.
+pub(crate) struct OriginalCLinkTarget {
+    protocol: tcl_syntax::native_variable_name::NativeVariableNameProtocol,
+    link: crate::frame::Link,
+    source: Option<crate::vars::NativeOriginalNameCell>,
+    target: crate::vars::OriginalAliasTargetObservation,
+    operation: super::native_operation_currency::NativeOperationScope,
+}
+impl std::ops::Deref for OriginalCLinkTarget {
+    type Target = crate::frame::Link;
+    fn deref(&self) -> &Self::Target {
+        &self.link
+    }
+}
+impl std::ops::DerefMut for OriginalCLinkTarget {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.link
+    }
+}
+impl OriginalCLinkTarget {
+    fn check(&self, interpreter: &Interp) -> Result<(), tcl_cmd_core::CmdError> {
+        let currency = self.operation.currency();
+        if let Some(source) = &self.source {
+            source.check(interpreter, currency)?;
+        }
+        self.target.check(interpreter, &self.link, currency)
+    }
+}
+
 /// Reporting bytes captured by the same original-name lookup that selected the
 /// physical cell. They do not grant another lookup or materialise another name.
 pub(super) struct OriginalCVariableCapture {
@@ -683,11 +713,10 @@ impl Interp {
             }
             Err(code) => return code,
         };
-        let mut link =
-            match self.original_c_selection_namespace_link(original, &selection, namespace) {
-                Ok(target) => target,
-                Err(code) => return code,
-            };
+        let mut link = match self.prepare_selected_c_namespace_target(original, &selection) {
+            Ok(target) => target,
+            Err(code) => return code,
+        };
         if let Err(error) = self.prepare_upvar_target(&mut link) {
             return self.original_c_lookup_var_error(original, purpose, error);
         }
@@ -709,6 +738,80 @@ impl Interp {
             }
         }
         self.settle_original_c_local_alias(Some(slot), &selection.root, link)
+    }
+
+    /// The automatic TclOO compiler resolver supplies an actual installed
+    /// ordinal and declared namespace target, rather than an object-name query.
+    pub(crate) fn link_original_tcloo_compiled_namespace_variable(
+        &mut self,
+        namespace: crate::namespace::NsId,
+        slot: usize,
+        name: &[u8],
+    ) -> Code {
+        let operation = match super::native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(operation) => operation,
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
+        let selected = crate::vars::select_tcloo_compiled_variable(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            namespace,
+            name,
+        );
+        let (link, source) = match selected {
+            Ok(selected) => selected,
+            Err(crate::frame::JimLinkStoreError::Variable(error)) => {
+                return crate::builtins::var_error(self, name, error)
+            }
+            Err(crate::frame::JimLinkStoreError::Command(error)) => {
+                return self.report_cmd_error(error)
+            }
+        };
+        if let Err(error) = source.check(self, operation.currency()) {
+            return self.report_cmd_error(error);
+        }
+        let target = match crate::vars::OriginalAliasTargetObservation::capture(
+            &self.frames.borrow(),
+            &self.namespaces(),
+            &link,
+        ) {
+            Ok(target) => target,
+            Err(_) => {
+                return self.report_cmd_error(
+                    ValueError::CommandProtocolUnavailable(
+                        "original compiled resolver target receipt",
+                    )
+                    .into(),
+                )
+            }
+        };
+        let target = OriginalCLinkTarget {
+            protocol: self
+                .native_c_variable_name_protocol()
+                .expect("selected C alias recipe"),
+            link,
+            source: Some(source),
+            target,
+            operation,
+        };
+        let local = self
+            .frames
+            .borrow()
+            .compiled_slot_name(slot)
+            .map(<[u8]>::to_vec);
+        let Some(local) = local else {
+            return self.report_cmd_error(
+                ValueError::CommandProtocolUnavailable("original compiled resolver local ordinal")
+                    .into(),
+            );
+        };
+        self.settle_original_c_alias_at_with_origin(
+            crate::frame::VarHome::Frame(self.current_level()),
+            Some(slot),
+            &local,
+            target,
+            tcl_runtime_api::FrameLinkOrigin::TclOoInstanceCompiled,
+        )
     }
 
     fn original_c_alias_error(&mut self, message: &[u8], code: &[u8]) -> Code {
@@ -747,7 +850,7 @@ impl Interp {
         &mut self,
         compiled: Option<usize>,
         name: &[u8],
-        link: crate::frame::Link,
+        target: OriginalCLinkTarget,
     ) -> Code {
         let local = if let Some(slot) = compiled {
             let name = self
@@ -772,7 +875,7 @@ impl Interp {
                 .to_vec()
         };
         let home = crate::frame::VarHome::Frame(self.frames.borrow().current_level());
-        self.settle_original_c_alias_at(home, compiled, &local, link)
+        self.settle_original_c_alias_at(home, compiled, &local, target)
     }
 
     fn settle_original_c_alias_at(
@@ -780,8 +883,29 @@ impl Interp {
         home: crate::frame::VarHome,
         compiled: Option<usize>,
         local: &[u8],
-        link: crate::frame::Link,
+        target: OriginalCLinkTarget,
     ) -> Code {
+        self.settle_original_c_alias_at_with_origin(
+            home,
+            compiled,
+            local,
+            target,
+            tcl_runtime_api::FrameLinkOrigin::Ordinary,
+        )
+    }
+
+    fn settle_original_c_alias_at_with_origin(
+        &mut self,
+        home: crate::frame::VarHome,
+        compiled: Option<usize>,
+        local: &[u8],
+        target: OriginalCLinkTarget,
+        origin: tcl_runtime_api::FrameLinkOrigin,
+    ) -> Code {
+        if let Err(error) = target.check(self) {
+            return self.report_cmd_error(error);
+        }
+        let link = target.link.clone();
         let (frame_level, namespace, identity) = match home {
             crate::frame::VarHome::Frame(level) => (
                 Some(level),
@@ -810,26 +934,59 @@ impl Interp {
                 && trace.base == local
                 && trace.binding_id == identity
         });
+        let local_observation = crate::vars::OriginalAliasTargetObservation::capture_home(
+            &self.frames.borrow(),
+            &self.namespaces(),
+            home,
+            local,
+        );
+        let local_observation = match local_observation {
+            Ok(observation) => observation,
+            Err(_) => {
+                return self.report_cmd_error(
+                    ValueError::CommandProtocolUnavailable("original local alias table receipt")
+                        .into(),
+                )
+            }
+        };
         let bound = match home {
             crate::frame::VarHome::Frame(_) => {
                 if let Some(slot) = compiled {
                     self.frames
                         .borrow_mut()
-                        .bind_original_compiled_alias(slot, link, traced)
+                        .prepare_original_compiled_alias(slot, &link, traced, origin)
                 } else {
                     self.frames
                         .borrow_mut()
-                        .bind_original_local_alias(local, link, traced)
+                        .prepare_original_local_alias(local, &link, traced)
                 }
             }
             crate::frame::VarHome::Namespace(namespace) => self
                 .namespaces
                 .borrow_mut()
                 .var_table_mut(namespace)
-                .bind_original_alias(local, link, traced),
+                .prepare_original_alias(local, &link, traced),
         };
         match bound {
-            Ok(()) => Code::Ok,
+            Ok(prepared) => {
+                let reached = prepared.finish(
+                    target.protocol.alias_publication_order(),
+                    || {
+                        target.check(self).and_then(|()| {
+                            local_observation.check_cell(self, target.operation.currency())
+                        })
+                    },
+                    |error| {
+                        tcl_cmd_core::CmdError::from_execution_refusal(
+                            self.clone().refuse_completion_value_access(error),
+                        )
+                    },
+                );
+                match reached {
+                    Ok(()) => Code::Ok,
+                    Err(error) => self.report_cmd_error(error),
+                }
+            }
             Err(crate::frame::NativeCompiledAliasError::Unavailable) => self.report_cmd_error(
                 ValueError::CommandProtocolUnavailable("original namespace alias local cell")
                     .into(),
@@ -959,7 +1116,7 @@ impl Interp {
             Ok(target) => target,
             Err(code) => return code,
         };
-        self.bind_original_c_alias_local(local, target)
+        self.bind_selected_c_alias_local(local, target)
     }
 
     /// Prepare the original namespace receiver before a caller's local-link
@@ -968,7 +1125,7 @@ impl Interp {
         &mut self,
         original: *mut TclObj,
         namespace: crate::namespace::NsId,
-    ) -> Result<crate::frame::Link, Code> {
+    ) -> Result<OriginalCLinkTarget, Code> {
         let selected = match self.prepare_original_c_name_in(
             original,
             NativeVariableNameLookupPurpose::Link,
@@ -983,19 +1140,7 @@ impl Interp {
             }
             Err(code) => return Err(code),
         };
-        let mut target =
-            match self.original_c_selection_namespace_link(original, &selected, namespace) {
-                Ok(target) => target,
-                Err(code) => return Err(code),
-            };
-        if let Err(error) = self.prepare_upvar_target(&mut target) {
-            return Err(self.original_c_lookup_var_error(
-                original,
-                NativeVariableNameLookupPurpose::Link,
-                error,
-            ));
-        }
-        Ok(target)
+        self.prepare_selected_c_namespace_target(original, &selected)
     }
 
     pub(crate) fn link_original_c_namespace_alias(
@@ -1016,11 +1161,10 @@ impl Interp {
             }
             Err(code) => return code,
         };
-        let mut target =
-            match self.original_c_selection_namespace_link(original, &selected, namespace) {
-                Ok(target) => target,
-                Err(code) => return code,
-            };
+        let mut target = match self.prepare_selected_c_namespace_target(original, &selected) {
+            Ok(target) => target,
+            Err(code) => return code,
+        };
         if let Err(error) = self.prepare_upvar_target(&mut target) {
             return self.original_c_lookup_var_error(original, purpose, error);
         }
@@ -1032,20 +1176,65 @@ impl Interp {
             != tcl_syntax::naming::NativeNameQualification::Unqualified;
         let tail = qualified.then(|| Owned::fresh(obj::new_string_bytes(local)));
         let local_original = tail.as_ref().map_or(original, Owned::as_ptr);
-        self.bind_original_c_alias_local(local_original, target)
+        self.bind_selected_c_alias_local(local_original, target)
     }
 
     /// ObjMakeUpvar's local side uses simple-name lookup, without converting
     /// the caller's original object to a parsed or indexed variable name.
+    #[cfg(test)]
     pub(crate) fn bind_original_c_alias_local(
         &mut self,
         original: *mut TclObj,
         target: crate::frame::Link,
     ) -> Code {
+        let operation = match super::native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => return self.refuse_native_execution(first),
+        };
+        let observed = crate::vars::OriginalAliasTargetObservation::capture(
+            &self.frames.borrow(),
+            &self.namespaces(),
+            &target,
+        );
+        let observed = match observed {
+            Ok(observed) => observed,
+            Err(error) => {
+                return self.original_c_lookup_var_error(
+                    original,
+                    NativeVariableNameLookupPurpose::Link,
+                    error,
+                )
+            }
+        };
+        self.bind_selected_c_alias_local(
+            original,
+            OriginalCLinkTarget {
+                protocol: self
+                    .native_c_variable_name_protocol()
+                    .expect("selected C alias recipe"),
+                link: target,
+                source: None,
+                target: observed,
+                operation,
+            },
+        )
+    }
+    pub(crate) fn bind_selected_c_alias_local(
+        &mut self,
+        original: *mut TclObj,
+        target: OriginalCLinkTarget,
+    ) -> Code {
         let protocol = self
             .native_c_variable_name_protocol()
             .expect("actual C alias local");
-        let bytes = match self.native_string_bytes(&original) {
+        if let Err(error) = target.check(self) {
+            return self.report_cmd_error(error);
+        }
+        let reached = self.native_string_bytes(&original);
+        if let Err(error) = target.check(self) {
+            return self.report_cmd_error(error);
+        }
+        let bytes = match reached {
             Ok(bytes) => bytes,
             Err(error) => return self.report_cmd_error(error.into()),
         };
@@ -1102,7 +1291,7 @@ impl Interp {
         level: usize,
         local: *mut TclObj,
     ) -> Code {
-        let mut target = match self.prepare_original_c_link_target(original, level) {
+        let mut target = match self.prepare_selected_c_link_target(original, level) {
             Ok(Some(target)) => target,
             Ok(None) => {
                 return self.report_cmd_error(
@@ -1118,14 +1307,69 @@ impl Interp {
                 error,
             );
         }
-        self.bind_original_c_alias_local(local, target)
+        self.bind_selected_c_alias_local(local, target)
     }
 
+    #[cfg(test)]
     pub(crate) fn prepare_original_c_link_target(
         &mut self,
         original: *mut TclObj,
         level: usize,
     ) -> Result<Option<crate::frame::Link>, Code> {
+        self.prepare_original_c_link_target_using(original, level, true)
+            .map(|selected| selected.map(|(target, _)| target))
+    }
+    pub(crate) fn prepare_selected_c_link_target(
+        &mut self,
+        original: *mut TclObj,
+        level: usize,
+    ) -> Result<Option<OriginalCLinkTarget>, Code> {
+        let operation = super::native_operation_currency::NativeOperationScope::enter(self)
+            .map_err(|first| self.refuse_native_execution(first))?;
+        let Some((mut target, source)) =
+            self.prepare_original_c_link_target_using(original, level, false)?
+        else {
+            return Ok(None);
+        };
+        let reached = crate::vars::prepare_selected_upvar_target(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            &mut target,
+        );
+        source
+            .check(self, operation.currency())
+            .map_err(|error| self.report_cmd_error(error))?;
+        reached.map_err(|error| {
+            self.original_c_lookup_var_error(original, NativeVariableNameLookupPurpose::Link, error)
+        })?;
+        let observed = crate::vars::OriginalAliasTargetObservation::capture(
+            &self.frames.borrow(),
+            &self.namespaces(),
+            &target,
+        )
+        .map_err(|error| {
+            self.original_c_lookup_var_error(original, NativeVariableNameLookupPurpose::Link, error)
+        })?;
+        let target = OriginalCLinkTarget {
+            protocol: self
+                .native_c_variable_name_protocol()
+                .expect("selected C alias recipe"),
+            link: target,
+            source: Some(source),
+            target: observed,
+            operation,
+        };
+        target
+            .check(self)
+            .map_err(|error| self.report_cmd_error(error))?;
+        Ok(Some(target))
+    }
+    fn prepare_original_c_link_target_using(
+        &mut self,
+        original: *mut TclObj,
+        level: usize,
+        acquire: bool,
+    ) -> Result<Option<(crate::frame::Link, crate::vars::NativeOriginalNameCell)>, Code> {
         if self.native_c_variable_name_protocol().is_none() {
             return Ok(None);
         }
@@ -1140,13 +1384,18 @@ impl Interp {
                 return Ok(None);
             };
             if let Some(target) = self.capture_original_c_materialised_link(&selection)? {
-                return Ok(Some(target));
+                return Ok(Some((target, selection.simple)));
             }
             selection
                 .simple
                 .check(self, &selection.currency)
                 .map_err(|error| self.report_cmd_error(error))?;
-            let target = crate::vars::original_c_selected_link_target(
+            let select = if acquire {
+                crate::vars::original_c_selected_link_target
+            } else {
+                crate::vars::selected_c_link_target
+            };
+            let target = select(
                 &mut self.frames.borrow_mut(),
                 &mut self.namespaces.borrow_mut(),
                 &selection.simple,
@@ -1156,13 +1405,15 @@ impl Interp {
                 .simple
                 .check(self, &selection.currency)
                 .map_err(|error| self.report_cmd_error(error))?;
-            target.map(Some).map_err(|error| {
-                self.original_c_lookup_var_error(
-                    original,
-                    NativeVariableNameLookupPurpose::Link,
-                    error,
-                )
-            })
+            target
+                .map(|target| Some((target, selection.simple)))
+                .map_err(|error| {
+                    self.original_c_lookup_var_error(
+                        original,
+                        NativeVariableNameLookupPurpose::Link,
+                        error,
+                    )
+                })
         })();
         self.current_ns.set(saved_namespace);
         self.frames.borrow_mut().set_active_level(saved);
@@ -1479,32 +1730,72 @@ impl Interp {
         })
     }
 
-    fn original_c_selection_namespace_link(
+    fn prepare_selected_c_namespace_target(
         &mut self,
         original: *mut TclObj,
         selected: &OriginalCNameSelection,
-        _namespace: crate::namespace::NsId,
-    ) -> Result<crate::frame::Link, Code> {
+    ) -> Result<OriginalCLinkTarget, Code> {
         selected
             .simple
             .check(self, &selected.currency)
             .map_err(|error| self.report_cmd_error(error))?;
-        if let Some(target) = self.capture_original_c_materialised_link(selected)? {
-            return Ok(target);
-        }
-        let target = crate::vars::original_c_selected_link_target(
+        let operation = super::native_operation_currency::NativeOperationScope::enter(self)
+            .map_err(|first| self.refuse_native_execution(first))?;
+        let mut target =
+            if let Some(target) = self.capture_original_c_materialised_link(selected)? {
+                target
+            } else {
+                let reached = crate::vars::selected_c_link_target(
+                    &mut self.frames.borrow_mut(),
+                    &mut self.namespaces.borrow_mut(),
+                    &selected.simple,
+                    selected.element.clone(),
+                );
+                selected
+                    .simple
+                    .check(self, &selected.currency)
+                    .map_err(|error| self.report_cmd_error(error))?;
+                reached.map_err(|error| {
+                    self.original_c_lookup_var_error(
+                        original,
+                        NativeVariableNameLookupPurpose::Link,
+                        error,
+                    )
+                })?
+            };
+        let reached = crate::vars::prepare_selected_upvar_target(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
-            &selected.simple,
-            selected.element.clone(),
+            &mut target,
         );
         selected
             .simple
             .check(self, &selected.currency)
             .map_err(|error| self.report_cmd_error(error))?;
-        target.map_err(|error| {
+        reached.map_err(|error| {
             self.original_c_lookup_var_error(original, NativeVariableNameLookupPurpose::Link, error)
-        })
+        })?;
+        let observed = crate::vars::OriginalAliasTargetObservation::capture(
+            &self.frames.borrow(),
+            &self.namespaces(),
+            &target,
+        );
+        let observed = observed.map_err(|error| {
+            self.original_c_lookup_var_error(original, NativeVariableNameLookupPurpose::Link, error)
+        })?;
+        let target = OriginalCLinkTarget {
+            protocol: self
+                .native_c_variable_name_protocol()
+                .expect("selected C alias recipe"),
+            link: target,
+            source: Some(selected.simple.clone()),
+            target: observed,
+            operation,
+        };
+        target
+            .check(self)
+            .map_err(|error| self.report_cmd_error(error))?;
+        Ok(target)
     }
 
     fn capture_original_c_materialised_link(
@@ -2438,8 +2729,9 @@ mod tests {
         };
         // The genuine ordinal/cell and inherited operation are captured before
         // either original primary can reach its free callback.
-        let operation = super::super::native_operation_currency::NativeOperationScope::enter(interp)
-            .expect("original canonical-name operation");
+        let operation =
+            super::super::native_operation_currency::NativeOperationScope::enter(interp)
+                .expect("original canonical-name operation");
         let selected = crate::vars::prepare_original_c_indexed_name_cell(
             &mut interp.frames.borrow_mut(),
             &interp.namespaces.borrow(),

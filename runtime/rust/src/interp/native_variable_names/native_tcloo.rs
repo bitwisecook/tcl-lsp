@@ -28,20 +28,10 @@ impl Interp {
                 tcl_syntax::naming::NativeVariableFailureSite::NameLookup,
             );
         }
-        let target = crate::vars::original_namespace_link_target(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
-            namespace,
-            &selected.root,
-            None,
-        );
-        let mut target = match target {
+        let mut target = match self.prepare_selected_c_namespace_target(original, &selected) {
             Ok(target) => target,
-            Err(error) => return self.original_c_lookup_var_error(original, purpose, error),
+            Err(code) => return code,
         };
-        if let Err(error) = self.prepare_upvar_target(&mut target) {
-            return self.original_c_lookup_var_error(original, purpose, error);
-        }
         if let crate::frame::VarHome::Namespace(owner) = target.home {
             self.namespaces
                 .borrow_mut()
@@ -50,7 +40,7 @@ impl Interp {
         }
         // PtrMakeUpvar supplies a fresh local CString object, not original part1.
         let local = Owned::fresh(obj::new_string_bytes(local));
-        self.bind_original_c_alias_local(local.as_ptr(), target)
+        self.bind_selected_c_alias_local(local.as_ptr(), target)
     }
 
     pub(crate) fn original_c_oo_varname(

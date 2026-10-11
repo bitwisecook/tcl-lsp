@@ -67,11 +67,14 @@ mod container;
 pub(crate) use container::CapturedContainerModel;
 mod destruction;
 mod materialisation;
+pub(crate) use materialisation::PreparedAliasReplacement;
 #[cfg(test)]
 mod materialisation_tests;
 #[cfg(test)]
 mod member_materialisation_tests;
 mod retired_variable;
+#[cfg(test)]
+mod stored_link_role_tests;
 pub use destruction::{RetainedArrayCell, WeakArraySearchCell};
 pub(crate) use materialisation::{
     OriginalVariableLinkObservation, PreparedArrayMember, PreparedVariableReplacement,
@@ -166,22 +169,157 @@ pub struct Link {
 }
 
 pub(crate) struct OriginalJimLinkTarget {
-    pub(crate) name: crate::obj::Owned,
+    original: crate::obj::NativeObjectLifetime,
+    stored_name: RefCell<Option<crate::obj::Owned>>,
     pub(crate) frame: tcl_runtime_api::jim_call_frame::JimCallFrameStorageReference,
+}
+impl OriginalJimLinkTarget {
+    pub(crate) fn new(
+        name: crate::obj::Owned,
+        frame: tcl_runtime_api::jim_call_frame::JimCallFrameStorageReference,
+    ) -> Self {
+        Self {
+            original: crate::obj::NativeObjectLifetime::retain(name.as_ptr()),
+            stored_name: RefCell::new(Some(name)),
+            frame,
+        }
+    }
+    pub(crate) fn original_name(&self) -> Result<*mut TclObj, tcl_syntax::value::ValueError> {
+        if self.stored_name.borrow().is_none() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "withdrawn original Jim alias role",
+            ));
+        }
+        crate::obj::check_native_liveness(self.original.as_ptr())?;
+        Ok(self.original.as_ptr())
+    }
+    pub(crate) fn withdraw_stored_role(&self) -> RetiredVariableParts {
+        let name = self.stored_name.borrow_mut().take();
+        let mut retired = RetiredVariableParts::default();
+        retired.key(name);
+        retired
+    }
 }
 impl std::fmt::Debug for OriginalJimLinkTarget {
     fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         out.debug_struct("OriginalJimLinkTarget")
-            .field("original", &self.name.as_ptr())
+            .field("original", &self.original.as_ptr())
             .finish_non_exhaustive()
     }
 }
 impl PartialEq for OriginalJimLinkTarget {
     fn eq(&self, other: &Self) -> bool {
-        self.name.as_ptr() == other.name.as_ptr() && self.frame == other.frame
+        self.original.as_ptr() == other.original.as_ptr() && self.frame == other.frame
     }
 }
 impl Eq for OriginalJimLinkTarget {}
+impl Drop for OriginalJimLinkTarget {
+    fn drop(&mut self) {
+        drop(self.withdraw_stored_role());
+    }
+}
+impl Link {
+    pub(crate) fn check_stored_roles(&self) -> Result<(), tcl_syntax::value::ValueError> {
+        if let Some(role) = &self.native_scalar_entry {
+            role.check_stored_role()?;
+        }
+        if let Some(role) = &self.native_element_entry {
+            role.check_stored_role()?;
+        }
+        if let Some(role) = &self.original_jim_target {
+            role.original_name()?;
+        }
+        Ok(())
+    }
+    pub(crate) fn check_selected_target(&self) -> Result<(), tcl_syntax::value::ValueError> {
+        if let Some(entry) = &self.native_scalar_entry {
+            entry.check_selected_target()?;
+        }
+        if let Some(entry) = &self.native_element_entry {
+            entry.check_selected_target()?;
+        }
+        if let Some(array) = &self.array_cell {
+            if !array.is_live() {
+                return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original alias array generation",
+                ));
+            }
+        }
+        if let Some(target) = &self.original_jim_target {
+            target.original_name()?;
+        }
+        Ok(())
+    }
+    pub(crate) fn check_target_identity(&self) -> Result<(), tcl_syntax::value::ValueError> {
+        if let Some(entry) = &self.native_scalar_entry {
+            entry.check_target_identity()?;
+        }
+        if let Some(entry) = &self.native_element_entry {
+            entry.check_target_identity()?;
+        }
+        if let Some(array) = &self.array_cell {
+            if !array.is_live() {
+                return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original alias array generation",
+                ));
+            }
+        }
+        Ok(())
+    }
+    pub(crate) fn acquire_selected_roles(&self) -> Result<(), tcl_syntax::value::ValueError> {
+        self.check_selected_target()?;
+        if let Some(entry) = &self.native_scalar_entry {
+            entry.acquire_selected_role()?;
+        }
+        if let Some(entry) = &self.native_element_entry {
+            entry.acquire_selected_role()?;
+        }
+        self.check_stored_roles()
+    }
+    /// An incoming metadata clone does not own the stored role it borrows from
+    /// the original local link. A distinct incoming issuer still retires once.
+    pub(crate) fn withdraw_unshared_roles(&self, original: Option<&Self>) -> RetiredVariableParts {
+        let mut retired = RetiredVariableParts::default();
+        if let Some(role) = &self.native_scalar_entry {
+            if !original
+                .and_then(|old| old.native_scalar_entry.as_ref())
+                .is_some_and(|old| Rc::ptr_eq(old, role))
+            {
+                retired.extend(role.withdraw_stored_role());
+            }
+        }
+        if let Some(role) = &self.native_element_entry {
+            if !original
+                .and_then(|old| old.native_element_entry.as_ref())
+                .is_some_and(|old| Rc::ptr_eq(old, role))
+            {
+                retired.extend(role.withdraw_stored_role());
+            }
+        }
+        if let Some(role) = &self.original_jim_target {
+            if !original
+                .and_then(|old| old.original_jim_target.as_ref())
+                .is_some_and(|old| Rc::ptr_eq(old, role))
+            {
+                retired.extend(role.withdraw_stored_role());
+            }
+        }
+        retired
+    }
+    pub(crate) fn withdraw_stored_roles(&self) -> RetiredVariableParts {
+        let mut retired = RetiredVariableParts::default();
+        if let Some(role) = &self.native_scalar_entry {
+            retired.extend(role.withdraw_stored_role());
+        }
+        if let Some(role) = &self.native_element_entry {
+            retired.extend(role.withdraw_stored_role());
+        }
+        if let Some(role) = &self.original_jim_target {
+            retired.extend(role.withdraw_stored_role());
+        }
+        retired
+    }
+}
 
 impl Var {
     /// Release every object reference this var owns. Consumes `self`; call
@@ -197,7 +335,7 @@ impl Var {
                     unsafe { obj::decr_ref_count(p) }
                 }
             }
-            Var::Link(_) => {}
+            Var::Link(link) => drop(link.withdraw_stored_roles()),
         }
     }
 }
@@ -577,17 +715,16 @@ pub struct VarTable {
 }
 
 impl VarTable {
-    /// Settle an alias in this already-selected physical table cell.
-    pub(crate) fn bind_original_alias(
+    pub(crate) fn prepare_original_alias(
         &mut self,
         name: &[u8],
-        link: Link,
+        link: &Link,
         traced: bool,
-    ) -> Result<(), NativeCompiledAliasError> {
+    ) -> Result<PreparedAliasReplacement, NativeCompiledAliasError> {
         let contents = self
             .contents(name)
             .ok_or(NativeCompiledAliasError::Unavailable)?;
-        FrameStack::bind_original_alias_cell(contents, link, traced)
+        PreparedAliasReplacement::capture(contents, link, traced, FrameLinkOrigin::Ordinary)
     }
     pub(crate) fn set_hash_recipe(&self, recipe: Option<tcl_core_types::NativeHashRecipe>) {
         if self.hash_recipe.replace(recipe) == recipe {
@@ -1356,7 +1493,8 @@ impl VarTable {
         old.elements(std::mem::take(&mut cell.native_member_keys));
         cell.rmw_member_shells.clear();
         cell.element_operation_refs.clear();
-        old.value(cell.replace_value(Var::Link(link)));
+        let adopted = link.clone(); // Metadata observes the transferred stored role.
+        old.value_preserving_link(cell.replace_value(Var::Link(link)), &adopted);
         drop(cell);
         old
     }
@@ -2151,44 +2289,29 @@ impl FrameStack {
         Some((i, cell))
     }
 
-    /// Bind this actual compiled cell rather than resolving its display name.
-    pub(crate) fn bind_original_compiled_alias(
+    pub(crate) fn prepare_original_compiled_alias(
         &mut self,
         slot: usize,
-        link: Link,
+        link: &Link,
         traced: bool,
-    ) -> Result<(), NativeCompiledAliasError> {
+        origin: FrameLinkOrigin,
+    ) -> Result<PreparedAliasReplacement, NativeCompiledAliasError> {
         let (frame, cell) = self
             .compiled_cell(slot)
             .ok_or(NativeCompiledAliasError::Unavailable)?;
-        Self::bind_original_alias_cell(&self.frames[frame].table.cells[cell].contents, link, traced)
+        PreparedAliasReplacement::capture(
+            &self.frames[frame].table.cells[cell].contents,
+            link,
+            traced,
+            origin,
+        )
     }
-
-    /// The automatic link addresses an admitted compiler ordinal, retaining
-    /// the same physical cell and its separate TclOO enumeration origin.
-    pub(crate) fn bind_tcloo_compiled_alias(
-        &mut self,
-        slot: usize,
-        link: Link,
-    ) -> Result<(), NativeCompiledAliasError> {
-        self.bind_original_compiled_alias(slot, link, false)?;
-        let (frame, cell) = self
-            .compiled_cell(slot)
-            .ok_or(NativeCompiledAliasError::Unavailable)?;
-        self.frames[frame].table.cells[cell]
-            .contents
-            .borrow_mut()
-            .link_origin = FrameLinkOrigin::TclOoInstanceCompiled;
-        Ok(())
-    }
-
-    /// Bind the already-selected dynamic local cell without replacing its identity.
-    pub(crate) fn bind_original_local_alias(
+    pub(crate) fn prepare_original_local_alias(
         &mut self,
         name: &[u8],
-        link: Link,
+        link: &Link,
         traced: bool,
-    ) -> Result<(), NativeCompiledAliasError> {
+    ) -> Result<PreparedAliasReplacement, NativeCompiledAliasError> {
         let frame = self
             .index_of_level(self.active_level)
             .ok_or(NativeCompiledAliasError::Unavailable)?;
@@ -2196,45 +2319,13 @@ impl FrameStack {
             .table
             .lookup_slot(name)
             .ok_or(NativeCompiledAliasError::Unavailable)?;
-        Self::bind_original_alias_cell(&self.frames[frame].table.cells[cell].contents, link, traced)
+        PreparedAliasReplacement::capture(
+            &self.frames[frame].table.cells[cell].contents,
+            link,
+            traced,
+            FrameLinkOrigin::Ordinary,
+        )
     }
-
-    fn bind_original_alias_cell(
-        contents: &Rc<RefCell<CellContents>>,
-        link: Link,
-        traced: bool,
-    ) -> Result<(), NativeCompiledAliasError> {
-        if link.elem.is_none()
-            && link
-                .native_scalar_entry
-                .as_ref()
-                .is_some_and(|entry| Rc::ptr_eq(&entry.contents, contents))
-        {
-            return Err(NativeCompiledAliasError::SelfLink);
-        }
-        if traced {
-            return Err(NativeCompiledAliasError::Traced);
-        }
-        let mut contents = contents.borrow_mut();
-        if matches!(
-            contents.var,
-            Some(Var::Scalar(_) | Var::PendingScalar(_) | Var::Array(_))
-        ) {
-            return Err(NativeCompiledAliasError::Exists);
-        }
-        if matches!(&contents.var, Some(Var::Link(previous)) if previous == &link) {
-            return Ok(());
-        }
-        contents.undefined_shell = false;
-        contents.undefined_root_home = None;
-        contents.link_origin = FrameLinkOrigin::Ordinary;
-        contents.binding_id.get_or_insert_with(fresh_var_id);
-        if let Some(old) = contents.replace_value(Var::Link(link)) {
-            old.release();
-        }
-        Ok(())
-    }
-
     /// Identity of the physical compiled cell before following its alias.
     pub(crate) fn original_compiled_slot_identity(&self, slot: usize) -> Option<VarId> {
         let (frame, cell) = self.compiled_cell(slot)?;

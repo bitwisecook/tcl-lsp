@@ -139,6 +139,7 @@ impl VariablePublicationObservation {
 
 /// A non-owning observation of an actual C alias issuer and its source cell.
 /// It cannot postpone the original alias role's retirement or resolve a name.
+#[derive(Clone)]
 pub(crate) struct OriginalVariableLinkObservation {
     contents: Weak<RefCell<CellContents>>,
     binding: VarId,
@@ -164,6 +165,8 @@ impl OriginalVariableLinkObservation {
         let Some(Var::Link(link)) = cell.var.as_ref() else {
             return Err(super::VarError::NameProtocolUnavailable);
         };
+        link.check_stored_roles()
+            .map_err(|_| super::VarError::NameProtocolUnavailable)?;
         if requires_c_issuer
             && link.native_scalar_entry.is_none()
             && link.native_element_entry.is_none()
@@ -198,6 +201,12 @@ impl OriginalVariableLinkObservation {
         self.undefined_marker && self.home == home && self.name == name && self.key.is_none()
     }
     pub(crate) fn check_current(&self) -> Result<(), ValueError> {
+        self.check_using(true)
+    }
+    pub(crate) fn check_identity_current(&self) -> Result<(), ValueError> {
+        self.check_using(false)
+    }
+    fn check_using(&self, require_stored_role: bool) -> Result<(), ValueError> {
         let valid = self.contents.upgrade().is_some_and(|contents| {
             let cell = contents.borrow();
             let Some(Var::Link(link)) = cell.var.as_ref() else {
@@ -205,6 +214,7 @@ impl OriginalVariableLinkObservation {
             };
             cell.binding_id == Some(self.binding)
                 && cell.rmw_retirement.is_none()
+                && (!require_stored_role || link.check_stored_roles().is_ok())
                 && link.home == self.home
                 && link.name == self.name
                 && link.elem == self.key
@@ -389,6 +399,161 @@ impl Drop for PreparedVariableReplacement {
     fn drop(&mut self) {
         if let Some(incoming) = self.incoming.take() {
             incoming.release();
+        }
+    }
+}
+
+/// The C worker leaves the original old link pointer visible during target
+/// role withdrawal. This weak cell receipt may only replace that same pointer;
+/// withdrawn metadata provides no semantic alias-read authority.
+pub(crate) struct PreparedAliasReplacement {
+    contents: Weak<RefCell<CellContents>>,
+    binding: super::VarId,
+    previous: Option<super::Link>,
+    previous_identity: Option<OriginalVariableLinkObservation>,
+    incoming: Option<super::Link>,
+    origin: FrameLinkOrigin,
+    same_target: bool,
+}
+impl PreparedAliasReplacement {
+    pub(super) fn capture(
+        contents: &Rc<RefCell<CellContents>>,
+        incoming: &super::Link,
+        traced: bool,
+        origin: FrameLinkOrigin,
+    ) -> Result<Self, super::NativeCompiledAliasError> {
+        if incoming.elem.is_none()
+            && incoming
+                .native_scalar_entry
+                .as_ref()
+                .is_some_and(|entry| Rc::ptr_eq(&entry.contents, contents))
+        {
+            return Err(super::NativeCompiledAliasError::SelfLink);
+        }
+        if traced {
+            return Err(super::NativeCompiledAliasError::Traced);
+        }
+        let mut cell = contents.borrow_mut();
+        if matches!(
+            cell.var.as_ref(),
+            Some(Var::Scalar(_) | Var::PendingScalar(_) | Var::Array(_))
+        ) {
+            return Err(super::NativeCompiledAliasError::Exists);
+        }
+        let previous = match cell.var.as_ref() {
+            Some(Var::Link(link)) => Some(link.clone()),
+            _ => None,
+        };
+        let same_target = previous.as_ref().is_some_and(|link| link == incoming);
+        let binding = *cell.binding_id.get_or_insert_with(super::fresh_var_id);
+        drop(cell);
+        let previous_identity = previous
+            .as_ref()
+            .map(|_| OriginalVariableLinkObservation::capture_using(contents, false))
+            .transpose()
+            .map_err(|_| super::NativeCompiledAliasError::Unavailable)?;
+        Ok(Self {
+            contents: Rc::downgrade(contents),
+            binding,
+            previous,
+            previous_identity,
+            incoming: Some(incoming.clone()),
+            origin,
+            same_target,
+        })
+    }
+    fn check<E>(
+        &self,
+        current: &impl Fn() -> Result<(), E>,
+        refuse: &impl Fn(ValueError) -> E,
+    ) -> Result<(), E> {
+        current()?;
+        let physical = (|| {
+            let contents =
+                self.contents
+                    .upgrade()
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "original local alias cell",
+                    ))?;
+            let cell = contents.borrow();
+            cell.check_owned_value_role()?;
+            if cell.binding_id != Some(self.binding) || cell.rmw_retirement.is_some() {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "original local alias cell",
+                ));
+            }
+            if let Some(previous) = &self.previous_identity {
+                previous.check_identity_current()?;
+            } else if cell.var.is_some() {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "original undefined local alias cell",
+                ));
+            }
+            Ok(())
+        })();
+        physical.map_err(refuse)
+    }
+    pub(crate) fn finish<E>(
+        mut self,
+        order: tcl_syntax::native_variable_name::NativeVariableAliasPublicationOrder,
+        current: impl Fn() -> Result<(), E>,
+        refuse: impl Fn(ValueError) -> E,
+    ) -> Result<(), E> {
+        let mut reached = self.check(&current, &refuse);
+        if reached.is_ok() && !self.same_target
+            && matches!(order, tcl_syntax::native_variable_name::NativeVariableAliasPublicationOrder::RetirePreviousBeforeAssignTarget)
+        {
+            let old_roles = self
+                .previous
+                .as_ref()
+                .map(super::Link::withdraw_stored_roles)
+                .unwrap_or_default();
+            reached = old_roles.finish(|| self.check(&current, &refuse));
+            if reached.is_ok() {
+                reached = self.check(&current, &refuse);
+            }
+            if reached.is_ok() {
+                reached = self
+                    .incoming
+                    .as_ref()
+                    .expect("selected target")
+                    .acquire_selected_roles()
+                    .map_err(&refuse);
+            }
+            if reached.is_ok() {
+                let contents = self.contents.upgrade().expect("checked original local");
+                let mut cell = contents.borrow_mut();
+                cell.undefined_shell = false;
+                cell.undefined_root_home = None;
+                cell.link_origin = self.origin;
+                let incoming = self.incoming.take().expect("selected incoming alias");
+                let old = cell.replace_value(Var::Link(incoming));
+                drop(cell);
+                let mut retired = RetiredVariableParts::default();
+                retired.value(old);
+                reached = retired.finish(&current);
+            }
+        }
+        // A no-op or refusal still retires any genuine caller-owned incoming
+        // role. Deferred selections have no Native role to release.
+        if let Some(incoming) = self.incoming.take() {
+            let old = incoming.withdraw_unshared_roles(self.previous.as_ref());
+            let after = old.finish(&current);
+            drop(incoming);
+            if reached.is_ok() {
+                reached = after;
+            }
+        }
+        drop(self.previous.take());
+        let after_cleanup = current();
+        reached?;
+        after_cleanup
+    }
+}
+impl Drop for PreparedAliasReplacement {
+    fn drop(&mut self) {
+        if let Some(incoming) = self.incoming.take() {
+            drop(incoming.withdraw_unshared_roles(self.previous.as_ref()));
         }
     }
 }

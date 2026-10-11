@@ -242,7 +242,10 @@ pub(crate) fn variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 }
             }
         } else {
-            interp.make_variable_mapped(ns, &local, &tail);
+            let code = interp.make_variable_mapped(ns, &local, &tail);
+            if code != Code::Ok {
+                return code;
+            }
         }
         if i + 1 < argv.len() {
             let value = argv[i + 1];
@@ -351,10 +354,22 @@ fn bind_upvar_at_original(
         fresh = crate::obj::Owned::fresh(crate::obj::new_string_bytes(other));
         fresh.as_ptr()
     };
-    let prepared = match interp.prepare_original_c_link_target(original, target_level) {
-        Ok(prepared) => prepared,
-        Err(code) => return code,
-    };
+    if interp.native_c_variable_name_protocol().is_some() {
+        let target = match interp.prepare_selected_c_link_target(original, target_level) {
+            Ok(Some(target)) => target,
+            Ok(None) => return no_namespace(interp, b"access", other),
+            Err(code) => return code,
+        };
+        let fresh_local;
+        let local_original = if let Some(original) = local_original {
+            original
+        } else {
+            fresh_local = crate::obj::Owned::fresh(crate::obj::new_string_bytes(local));
+            fresh_local.as_ptr()
+        };
+        return interp.bind_selected_c_alias_local(local_original, target);
+    }
+    let prepared = None;
     let target = match prepared {
         Some(target) => Some(target),
         None => {
@@ -391,16 +406,6 @@ fn bind_upvar_at_original(
         message.extend_from_slice(reason);
         return interp.set_error(&message);
     }
-    if interp.native_c_variable_name_protocol().is_some() {
-        let fresh_local;
-        let local_original = if let Some(original) = local_original {
-            original
-        } else {
-            fresh_local = crate::obj::Owned::fresh(crate::obj::new_string_bytes(local));
-            fresh_local.as_ptr()
-        };
-        return interp.bind_original_c_alias_local(local_original, link);
-    }
     if interp
         .native_invocation_dialect()
         .native_jim_lookup_protocol()
@@ -424,7 +429,12 @@ fn bind_upvar_at_original(
     // rather than a frame local; its namespace must exist.
     if interp.variable_is_qualified(local) {
         match interp.resolve_var_target(interp.current_ns(), local) {
-            Some((target_ns, tail)) => interp.make_upvar_in(target_ns, &tail, link),
+            Some((target_ns, tail)) => {
+                let code = interp.make_upvar_in(target_ns, &tail, link);
+                if code != Code::Ok {
+                    return code;
+                }
+            }
             None => {
                 let mut m = b"can't create \"".to_vec();
                 m.extend_from_slice(local);
@@ -435,7 +445,10 @@ fn bind_upvar_at_original(
             }
         }
     } else {
-        interp.make_upvar(link, local_key);
+        let code = interp.make_upvar(link, local_key);
+        if code != Code::Ok {
+            return code;
+        }
     }
     if let Some(original) = local_original {
         if let Err(error) = interp.retain_original_jim_link_local(original, local) {

@@ -10,6 +10,15 @@ pub struct NativeVariableNameProtocol {
     version: TclVersion,
 }
 
+/// Pinned C alias publication order, independent of generic software storage.
+/// The descriptor supplies a recipe, never a receiver or variable-reference role.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeVariableAliasPublicationOrder {
+    /// Release the old target reference and run its cleanup before assigning
+    /// the new target and acquiring its actual alias reference.
+    RetirePreviousBeforeAssignTarget,
+}
+
 /// The actual caller of an original-object variable lookup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativeVariableNameLookupPurpose {
@@ -148,6 +157,26 @@ impl NativeVariableNameProtocol {
     #[must_use]
     pub const fn version(self) -> TclVersion {
         self.version
+    }
+    /// Actual ObjMakeUpvar/TclPtrObjMakeUpvar order in each pinned C release.
+    /// Same-target rejection/no-op precedes this selected mutation sequence.
+    #[must_use]
+    pub const fn alias_publication_order(self) -> NativeVariableAliasPublicationOrder {
+        match self.version {
+            TclVersion::V8_4
+            | TclVersion::V8_5
+            | TclVersion::V8_6
+            | TclVersion::V9_0
+            | TclVersion::V9_1 => {
+                NativeVariableAliasPublicationOrder::RetirePreviousBeforeAssignTarget
+            }
+        }
+    }
+    /// C84 counts every target Var; later C counts only a hash-owned Var.
+    /// Compiled-local metadata must not fabricate the later VarHash role.
+    #[must_use]
+    pub const fn alias_target_owns_reference(self, hash_owned: bool) -> bool {
+        matches!(self.version, TclVersion::V8_4) || hash_owned
     }
     /// Native simple scalar lookup for an alias local, without cache adoption.
     #[must_use]

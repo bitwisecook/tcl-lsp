@@ -228,8 +228,19 @@ impl FrameStack {
         &mut self,
         index: usize,
     ) -> Option<Rc<super::NativeScalarAliasEntry>> {
+        self.select_original_compiled_alias(index, true)
+    }
+    pub(crate) fn select_original_compiled_alias(
+        &mut self,
+        index: usize,
+        acquire: bool,
+    ) -> Option<Rc<super::NativeScalarAliasEntry>> {
         let (frame, cell) = self.compiled_cell(index)?;
-        Some(self.frames[frame].table.retain_native_scalar_alias_at(cell))
+        Some(
+            self.frames[frame]
+                .table
+                .select_native_scalar_alias_at(cell, acquire),
+        )
     }
     pub(crate) fn original_compiled_link(&self, index: usize) -> Option<super::Link> {
         let (frame, cell) = self.compiled_cell(index)?;

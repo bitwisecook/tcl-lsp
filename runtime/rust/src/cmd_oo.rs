@@ -4162,7 +4162,10 @@ fn classvariable_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 );
                 return interp.set_error(&m);
             }
-            interp.make_variable(class_ns, &name);
+            let code = interp.make_variable(class_ns, &name);
+            if code != Code::Ok {
+                return code;
+            }
         }
         interp.set_result_bytes(b"");
         Code::Ok
@@ -4274,7 +4277,7 @@ fn classvariable_original(
             Ok(target) => target,
             Err(code) => return code,
         };
-        let code = interp.bind_original_c_alias_local(original, target);
+        let code = interp.bind_selected_c_alias_local(original, target);
         oo_checked!(interp, check(interp));
         if code != Code::Ok {
             return code;

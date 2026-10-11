@@ -112,6 +112,9 @@ impl WeakJimVariableCell {
             Some(Var::Scalar(value)) => Some(*value),
             _ => None,
         };
+        if let Some(Var::Link(link)) = contents.var.as_ref() {
+            link.check_stored_roles()?;
+        }
         let original_link = match contents.var.as_ref() {
             Some(Var::Link(link)) => link.original_jim_target.as_ref().map(Rc::downgrade),
             _ => None,
@@ -138,13 +141,16 @@ impl WeakJimVariableCell {
                 }
                 match contents.var.as_ref() {
                     Some(Var::Scalar(value)) => scalar == Some(*value),
-                    Some(Var::Link(current)) => match original_link.as_ref() {
-                        Some(original) => current
-                            .original_jim_target
-                            .as_ref()
-                            .is_some_and(|target| Weak::ptr_eq(original, &Rc::downgrade(target))),
-                        None => compatibility_link.as_ref() == Some(current),
-                    },
+                    Some(Var::Link(current)) if current.check_stored_roles().is_ok() => {
+                        match original_link.as_ref() {
+                            Some(original) => {
+                                current.original_jim_target.as_ref().is_some_and(|target| {
+                                    Weak::ptr_eq(original, &Rc::downgrade(target))
+                                })
+                            }
+                            None => compatibility_link.as_ref() == Some(current),
+                        }
+                    }
                     _ => false,
                 }
             });

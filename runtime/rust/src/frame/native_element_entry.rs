@@ -155,18 +155,31 @@ impl NativeElementEntries {
         array: &Rc<RefCell<CellContents>>,
         epoch: u64,
     ) -> Option<Rc<NativeElementAliasEntry>> {
+        self.select(id, array, epoch, true)
+    }
+    fn select(
+        &self,
+        id: VarId,
+        array: &Rc<RefCell<CellContents>>,
+        epoch: u64,
+        acquire: bool,
+    ) -> Option<Rc<NativeElementAliasEntry>> {
         let entry = Rc::clone(self.0.get(&id)?);
-        entry.aliases.set(
-            entry
-                .aliases
-                .get()
-                .checked_add(1)
-                .expect("native element alias overflow"),
-        );
+        if acquire {
+            entry.aliases.set(
+                entry
+                    .aliases
+                    .get()
+                    .checked_add(1)
+                    .expect("native element alias overflow"),
+            );
+        }
         Some(Rc::new(NativeElementAliasEntry {
             entry,
             array: Rc::downgrade(array),
             epoch,
+            role_active: Cell::new(acquire),
+            role_unissued: Cell::new(!acquire),
         }))
     }
 }
@@ -200,12 +213,71 @@ impl Drop for NativeElementRetirementTrace {
 /// One newly installed native alias owns one actual element-entry role.
 /// Borrowed Link copies share this role; a new alias mints a separate hold.
 pub(crate) struct NativeElementAliasEntry {
+    role_active: Cell<bool>,
+    role_unissued: Cell<bool>,
     entry: Rc<NativeElementEntry>,
     array: Weak<RefCell<CellContents>>,
     epoch: u64,
 }
 impl NativeElementAliasEntry {
-    pub(crate) fn new_binding(&self) -> Rc<Self> {
+    pub(crate) fn check_stored_role(&self) -> Result<(), tcl_syntax::value::ValueError> {
+        if self.role_active.get() {
+            Ok(())
+        } else {
+            Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "withdrawn original element alias role",
+            ))
+        }
+    }
+    pub(crate) fn check_selected_target(&self) -> Result<(), tcl_syntax::value::ValueError> {
+        if (!self.role_active.get() && !self.role_unissued.get()) || !self.selected_is_live() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original element alias selection",
+            ));
+        }
+        Ok(())
+    }
+    pub(crate) fn check_target_identity(&self) -> Result<(), tcl_syntax::value::ValueError> {
+        if self.selected_is_live() {
+            Ok(())
+        } else {
+            Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original element alias selection",
+            ))
+        }
+    }
+    pub(crate) fn select_new_binding(&self) -> Result<Rc<Self>, tcl_syntax::value::ValueError> {
+        self.check_stored_role()?;
+        self.check_selected_target()?;
+        Ok(Rc::new(Self {
+            role_active: Cell::new(false),
+            role_unissued: Cell::new(true),
+            entry: Rc::clone(&self.entry),
+            array: self.array.clone(),
+            epoch: self.epoch,
+        }))
+    }
+    pub(crate) fn acquire_selected_role(&self) -> Result<(), tcl_syntax::value::ValueError> {
+        self.check_selected_target()?;
+        if self.role_unissued.replace(false) {
+            self.entry.aliases.set(
+                self.entry
+                    .aliases
+                    .get()
+                    .checked_add(1)
+                    .expect("native element alias overflow"),
+            );
+            self.role_active.set(true);
+        }
+        self.check_stored_role()
+    }
+    pub(crate) fn try_new_binding(&self) -> Result<Rc<Self>, tcl_syntax::value::ValueError> {
+        self.check_stored_role()?;
+        if !self.is_live() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original element alias mint entry",
+            ));
+        }
         self.entry.aliases.set(
             self.entry
                 .aliases
@@ -213,29 +285,68 @@ impl NativeElementAliasEntry {
                 .checked_add(1)
                 .expect("native element alias overflow"),
         );
-        Rc::new(Self {
+        Ok(Rc::new(Self {
+            role_active: Cell::new(true),
+            role_unissued: Cell::new(false),
             entry: Rc::clone(&self.entry),
             array: self.array.clone(),
             epoch: self.epoch,
-        })
+        }))
+    }
+    pub(crate) fn new_binding(&self) -> Rc<Self> {
+        self.try_new_binding()
+            .expect("current fixture element alias role")
+    }
+    pub(crate) fn withdraw_stored_role(&self) -> super::RetiredVariableParts {
+        let mut retired = super::RetiredVariableParts::default();
+        self.role_unissued.set(false);
+        if !self.role_active.replace(false) {
+            return retired;
+        }
+        let count = self.entry.aliases.get();
+        assert!(count != 0, "native element alias underflow");
+        self.entry.aliases.set(count - 1);
+        if count != 1 {
+            return retired;
+        }
+        let Some(array) = self.array.upgrade() else {
+            return retired;
+        };
+        let mut contents = array.borrow_mut();
+        let key = &self.entry.key;
+        if contents.rmw_array_epoch == self.epoch
+            && contents.element_ids.get(key.as_slice()) == Some(&self.entry.id)
+            && !contents.element_operation_refs.contains_key(key.as_slice())
+            && matches!(contents.var.as_ref(), Some(Var::Array(values)) if !values.contains_key(key.as_slice()))
+        {
+            contents.member_order.remove(key);
+            contents.element_ids.remove(key.as_slice());
+            contents.rmw_member_shells.remove(key.as_slice());
+            retired.key(contents.native_member_keys.take_key(key));
+        }
+        retired
     }
     /// The active retirement callback retains this original entry for trace
     /// list changes, even after value access has become invalid.
     pub(crate) fn permits_trace_registration(&self) -> bool {
-        self.is_live()
-            || (self.entry.trace_refs.get() != 0
-                && self.entry.table_owned.get()
-                && self.array.upgrade().is_some_and(|array| {
-                    array.borrow().detached_arrays.values().any(|old| {
-                        old.native_keys
-                            .0
-                            .get(&self.entry.id)
-                            .is_some_and(|entry| Rc::ptr_eq(entry, &self.entry))
-                    })
-                }))
+        self.role_active.get()
+            && (self.is_live()
+                || (self.entry.trace_refs.get() != 0
+                    && self.entry.table_owned.get()
+                    && self.array.upgrade().is_some_and(|array| {
+                        array.borrow().detached_arrays.values().any(|old| {
+                            old.native_keys
+                                .0
+                                .get(&self.entry.id)
+                                .is_some_and(|entry| Rc::ptr_eq(entry, &self.entry))
+                        })
+                    })))
     }
 
     pub(crate) fn is_live(&self) -> bool {
+        self.role_active.get() && self.selected_is_live()
+    }
+    fn selected_is_live(&self) -> bool {
         !self.entry.retired.get()
             && self.array.upgrade().is_some_and(|array| {
                 let contents = array.borrow();
@@ -267,29 +378,7 @@ impl PartialEq for NativeElementAliasEntry {
 impl Eq for NativeElementAliasEntry {}
 impl Drop for NativeElementAliasEntry {
     fn drop(&mut self) {
-        let count = self.entry.aliases.get();
-        assert!(count != 0, "native element alias underflow");
-        self.entry.aliases.set(count - 1);
-        if count != 1 {
-            return;
-        }
-        let Some(array) = self.array.upgrade() else {
-            return;
-        };
-        let mut contents = array.borrow_mut();
-        let key = &self.entry.key;
-        if contents.rmw_array_epoch == self.epoch
-            && contents.element_ids.get(key.as_slice()) == Some(&self.entry.id)
-            && !contents.element_operation_refs.contains_key(key.as_slice())
-            && matches!(contents.var.as_ref(), Some(Var::Array(values)) if !values.contains_key(key.as_slice()))
-        {
-            contents.member_order.remove(key);
-            contents.element_ids.remove(key.as_slice());
-            contents.rmw_member_shells.remove(key.as_slice());
-            let old = contents.native_member_keys.take_key(key);
-            drop(contents);
-            drop(old);
-        }
+        drop(self.withdraw_stored_role());
     }
 }
 #[cfg(test)]
@@ -361,6 +450,13 @@ impl super::RetainedArrayCell {
         })
     }
     pub(crate) fn retain_element_alias(&self, key: &[u8]) -> Option<Rc<NativeElementAliasEntry>> {
+        self.select_element_alias(key, true)
+    }
+    pub(crate) fn select_element_alias(
+        &self,
+        key: &[u8],
+        acquire: bool,
+    ) -> Option<Rc<NativeElementAliasEntry>> {
         let mut contents = self.contents.borrow_mut();
         if contents.binding_id != Some(self.id)
             || contents.rmw_array_epoch != self.epoch
@@ -370,9 +466,15 @@ impl super::RetainedArrayCell {
         }
         contents.insert_member_entry(key);
         let id = *contents.element_ids.get(key)?;
-        contents
-            .native_member_keys
-            .hold(id, &self.contents, self.epoch)
+        if acquire {
+            contents
+                .native_member_keys
+                .hold(id, &self.contents, self.epoch)
+        } else {
+            contents
+                .native_member_keys
+                .select(id, &self.contents, self.epoch, false)
+        }
     }
 }
 

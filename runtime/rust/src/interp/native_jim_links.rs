@@ -73,9 +73,15 @@ impl Interp {
                     .into(),
                 );
             };
-            self.make_upvar_in(namespace, &tail, link);
+            let code = self.make_upvar_in(namespace, &tail, link);
+            if code != Code::Ok {
+                return code;
+            }
         } else {
-            self.make_upvar(link, local_key);
+            let code = self.make_upvar(link, local_key);
+            if code != Code::Ok {
+                return code;
+            }
         }
         if let Some(original) = original {
             if let Err(error) = self.retain_original_jim_link_local(original, local) {
@@ -109,7 +115,7 @@ impl Interp {
                 "actual Jim alias target frame",
             ),
         )?;
-        link.original_jim_target = Some(Rc::new(OriginalJimLinkTarget { name, frame }));
+        link.original_jim_target = Some(Rc::new(OriginalJimLinkTarget::new(name, frame)));
         Ok(())
     }
     pub(crate) fn retain_original_jim_link_local(
@@ -173,6 +179,9 @@ impl Interp {
                 _ => None,
             });
         if let Some(target) = target {
+            let target_original = target
+                .original_name()
+                .map_err(|error| self.report_cmd_error(error.into()))?;
             let level = self.frames.borrow().jim_link_level(&target.frame);
             let Some(level) = level else {
                 return Err(self.report_cmd_error(
@@ -186,9 +195,12 @@ impl Interp {
             let saved_namespace = self
                 .current_ns
                 .replace(self.frames.borrow().frame_ns(level));
-            let result = self.unset_original_jim_variable(target.name.as_ptr());
+            let result = self.unset_original_jim_variable(target_original);
             self.current_ns.set(saved_namespace);
             self.frames.borrow_mut().set_active_level(saved);
+            target
+                .original_name()
+                .map_err(|error| self.report_cmd_error(error.into()))?;
             // Jim_UnsetVariable invokes linked targets with JIM_NONE. Its
             // enclosing original alias supplies the eventual diagnostic.
             return match result {
@@ -247,6 +259,10 @@ impl Interp {
         link: &Link,
     ) -> Option<Result<*mut TclObj, Code>> {
         let target = Rc::clone(link.original_jim_target.as_ref()?);
+        let target_original = match target.original_name() {
+            Ok(original) => original,
+            Err(error) => return Some(Err(self.report_cmd_error(error.into()))),
+        };
         let selected_level = self.frames.borrow().jim_link_level(&target.frame);
         let level = match selected_level {
             Some(level) => level,
@@ -263,9 +279,12 @@ impl Interp {
         let saved_namespace = self
             .current_ns
             .replace(self.frames.borrow().frame_ns(level));
-        let result = self.read_original_named_variable(target.name.as_ptr());
+        let result = self.read_original_named_variable(target_original);
         self.current_ns.set(saved_namespace);
         self.frames.borrow_mut().set_active_level(saved);
+        if let Err(error) = target.original_name() {
+            return Some(Err(self.report_cmd_error(error.into())));
+        }
         Some(match result {
             Err(code) if self.host_refusal_pending() => Err(code),
             Err(_) => self.report_original_jim_alias_read(original),
@@ -298,6 +317,10 @@ impl Interp {
         link: &Link,
     ) -> Option<Result<Option<*mut TclObj>, Code>> {
         let target = Rc::clone(link.original_jim_target.as_ref()?);
+        let target_original = match target.original_name() {
+            Ok(original) => original,
+            Err(error) => return Some(Err(self.report_cmd_error(error.into()))),
+        };
         let selected_level = self.frames.borrow().jim_link_level(&target.frame);
         let level = match selected_level {
             Some(level) => level,
@@ -314,9 +337,12 @@ impl Interp {
         let saved_namespace = self
             .current_ns
             .replace(self.frames.borrow().frame_ns(level));
-        let result = self.read_original_named_variable_for_update(target.name.as_ptr());
+        let result = self.read_original_named_variable_for_update(target_original);
         self.current_ns.set(saved_namespace);
         self.frames.borrow_mut().set_active_level(saved);
+        if let Err(error) = target.original_name() {
+            return Some(Err(self.report_cmd_error(error.into())));
+        }
         Some(result)
     }
     pub(super) fn store_original_jim_link(
@@ -325,6 +351,10 @@ impl Interp {
         value: *mut TclObj,
     ) -> Option<Result<(), Code>> {
         let target = Rc::clone(link.original_jim_target.as_ref()?);
+        let target_original = match target.original_name() {
+            Ok(original) => original,
+            Err(error) => return Some(Err(self.report_cmd_error(error.into()))),
+        };
         let selected_level = self.frames.borrow().jim_link_level(&target.frame);
         let level = match selected_level {
             Some(level) => level,
@@ -341,9 +371,12 @@ impl Interp {
         let saved_namespace = self
             .current_ns
             .replace(self.frames.borrow().frame_ns(level));
-        let result = self.assign_original_named_variable(target.name.as_ptr(), value);
+        let result = self.assign_original_named_variable(target_original, value);
         self.current_ns.set(saved_namespace);
         self.frames.borrow_mut().set_active_level(saved);
+        if let Err(error) = target.original_name() {
+            return Some(Err(self.report_cmd_error(error.into())));
+        }
         Some(result)
     }
 }

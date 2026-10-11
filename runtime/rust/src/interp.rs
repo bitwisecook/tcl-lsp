@@ -9755,28 +9755,25 @@ impl Interp {
 
     /// `variable tail` / `global tail` — link `tail` in the current frame to
     /// `target_ns::tail` (a no-op when the current context already is that var).
-    pub(crate) fn make_variable(&mut self, target_ns: NsId, tail: &[u8]) {
-        if self.require_variable_name_protocol().is_err() {
-            return;
-        }
-
-        crate::vars::make_variable(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
-            self.current_ns.get(),
-            target_ns,
-            tail,
-        );
+    pub(crate) fn make_variable(&mut self, target_ns: NsId, tail: &[u8]) -> Code {
+        self.make_variable_mapped(target_ns, tail, tail)
     }
 
-    /// Link local name `local` to `target_ns::target` (TIP 500 private instance
-    /// variables, whose storage name is mangled per declaring class).
-    pub(crate) fn make_variable_mapped(&mut self, target_ns: NsId, local: &[u8], target: &[u8]) {
-        if self.require_variable_name_protocol().is_err() {
-            return;
+    /// Generic publication preserves adoption before old-role retirement.
+    pub(crate) fn make_variable_mapped(
+        &mut self,
+        target_ns: NsId,
+        local: &[u8],
+        target: &[u8],
+    ) -> Code {
+        let operation = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(operation) => operation,
+            Err(first) => return self.refuse_native_execution(first),
+        };
+        if let Err(error) = self.require_variable_name_protocol() {
+            return crate::builtins::var_error(self, local, error);
         }
-
-        crate::vars::make_variable_mapped(
+        let publication = crate::vars::publish_variable_mapped(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
             self.current_ns.get(),
@@ -9784,6 +9781,22 @@ impl Interp {
             local,
             target,
         );
+        self.finish_generic_variable_link(publication, operation.currency(), local)
+    }
+
+    fn finish_generic_variable_link(
+        &mut self,
+        publication: crate::vars::PublishedVariableLink,
+        currency: &native_operation_currency::NativeOperationCurrency,
+        local: &[u8],
+    ) -> Code {
+        match publication.finish(self, currency) {
+            Ok(()) => Code::Ok,
+            Err(crate::frame::JimLinkStoreError::Command(error)) => self.report_cmd_error(error),
+            Err(crate::frame::JimLinkStoreError::Variable(error)) => {
+                crate::builtins::var_error(self, local, error)
+            }
+        }
     }
 
     /// The fully-qualified name of an existing namespace `name` (absolute or
@@ -10456,18 +10469,22 @@ impl Interp {
     }
 
     /// `upvar` — link `local` in the current frame to the resolved `target`.
-    pub(crate) fn make_upvar(&mut self, target: Link, local: &[u8]) {
-        if self.require_variable_name_protocol().is_err() {
-            return;
+    pub(crate) fn make_upvar(&mut self, target: Link, local: &[u8]) -> Code {
+        let operation = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(operation) => operation,
+            Err(first) => return self.refuse_native_execution(first),
+        };
+        if let Err(error) = self.require_variable_name_protocol() {
+            return crate::builtins::var_error(self, local, error);
         }
-
-        crate::vars::make_upvar(
+        let publication = crate::vars::publish_upvar(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
             self.current_ns.get(),
             target,
             local,
         );
+        self.finish_generic_variable_link(publication, operation.currency(), local)
     }
 
     /// The storage resolver's lifetime check for an `upvar` alias.
@@ -10483,18 +10500,22 @@ impl Interp {
 
     /// `upvar … target ns::tail` — install the link as namespace variable
     /// `home_ns::tail` (a qualified local name).
-    pub(crate) fn make_upvar_in(&mut self, home_ns: NsId, tail: &[u8], target: Link) {
-        if self.require_variable_name_protocol().is_err() {
-            return;
+    pub(crate) fn make_upvar_in(&mut self, home_ns: NsId, tail: &[u8], target: Link) -> Code {
+        let operation = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(operation) => operation,
+            Err(first) => return self.refuse_native_execution(first),
+        };
+        if let Err(error) = self.require_variable_name_protocol() {
+            return crate::builtins::var_error(self, tail, error);
         }
-
-        crate::vars::make_upvar_in(
+        let publication = crate::vars::publish_upvar_in(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
             home_ns,
             tail,
             target,
         );
+        self.finish_generic_variable_link(publication, operation.currency(), tail)
     }
 
     // result

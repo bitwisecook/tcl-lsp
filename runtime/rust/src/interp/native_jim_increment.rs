@@ -351,6 +351,7 @@ impl Interp {
                         .ok_or(ValueError::CommandProtocolUnavailable(
                             "original Jim dictionary link target",
                         ))?;
+                let target_original = target.original_name()?;
                 let cell_check = cached.cell.original_stage_check()?;
                 let interpreter = self.clone();
                 let alias_check: crate::dict::NativeDictionaryStageCheck = Rc::new(move || {
@@ -377,7 +378,7 @@ impl Interp {
                     .replace(self.frames.borrow().frame_ns(level));
                 aliases.push(alias_check);
                 let reached = self.capture_original_jim_dictionary_root_inner(
-                    target.name.as_ptr(),
+                    target_original,
                     currency,
                     aliases,
                 );
@@ -387,6 +388,7 @@ impl Interp {
                 currency
                     .ensure_current_or_refuse()
                     .map_err(CmdError::from_execution_refusal)?;
+                target.original_name()?;
                 reached
             }
             None => Ok(None),

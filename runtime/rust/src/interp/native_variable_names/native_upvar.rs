@@ -28,7 +28,7 @@ impl Interp {
         slot: usize,
     ) -> Code {
         let purpose = NativeVariableNameLookupPurpose::Link;
-        let mut target = match self.prepare_original_c_link_target(original, level) {
+        let mut target = match self.prepare_selected_c_link_target(original, level) {
             Ok(Some(target)) => target,
             Ok(None) => {
                 return self.report_cmd_error(
