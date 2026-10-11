@@ -161,8 +161,19 @@ mod tests {
     fn private_string_worker_uses_the_logical_selector_without_emitting_it() {
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let service = crate::compile_service::BytecodeCompileService::for_profile(profile);
+        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let source = tcl_runtime_api::SourceImage::native(
+            b"set result [::tcl::string::equal {a b} {a b}]".as_slice(),
+        );
         let module = service
-            .compile("set result [::tcl::string::equal {a b} {a b}]")
+            .compile_script_bytes_with_entry(
+                tcl_runtime_api::ScriptCompileTargetBytes {
+                    source: &source,
+                    namespace: &tcl_runtime_api::ByteNamespacePath::root(),
+                },
+                profile,
+                entry.as_entry(),
+            )
             .unwrap();
         assert!(
             module

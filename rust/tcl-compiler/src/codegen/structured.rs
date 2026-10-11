@@ -539,7 +539,7 @@ fn opt(text: &str) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lowering::lower_to_ir;
+    use crate::lowering::{Lowerer, lower_to_ir_with};
     use tcl_registry::CommandRegistry;
 
     /// A backend-free [`Emit`] that records each call as a string, so the
@@ -747,7 +747,19 @@ mod tests {
 
     /// Lower `src` and record the structured-walk event sequence.
     fn events(src: &str) -> Vec<String> {
-        let module = lower_to_ir(src, &CommandRegistry::build_default());
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0")
+            .expect("selected native structured-walk fixture");
+        let registry = CommandRegistry::build_default().project_for_profile(profile);
+        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let mut lowerer = Lowerer::new(&registry).with_dialect(Some(profile));
+        lowerer.set_source_analysis_options(crate::command_binding::SourceAnalysisOptions {
+            native_entry: Some(entry.as_entry()),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        });
+        let module = lower_to_ir_with(lowerer, src);
+        let module = entry.retain(module);
         let mut rec = Recorder::default();
         walk(
             &mut rec,

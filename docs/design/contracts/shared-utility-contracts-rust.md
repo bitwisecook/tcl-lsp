@@ -2027,13 +2027,42 @@ analysis versions live; markers themselves remain without executable uses.
 Value provenance uses the canonical lifted-call inventory to recognise the
 first substitution’s variable head read before invocation. Only clobbers
 belonging to that same host are undone for that operand; earlier invocations
-and following statements retain invalidation. Type inference widens registry-clobbered versions independently of binding
-and taint lineage. An unknown prior container contributes unknown elements
-to later updates, preventing a stale class from surviving a handler. A narrow
-straight-line proof retains executable type provenance for empty source-class
-factories: registry manufacturer descriptors identify the empty declarations
-and argument-free factories; any opaque invocation, binding transition,
-nonempty class body or control edge withdraws the proof. The homogeneous and mixed-class collection assertions check this precision.
+and following statements retain invalidation. Type inference widens
+registry-clobbered versions independently of binding and taint lineage. An
+unknown prior container contributes unknown elements to later updates.
+
+The straight-line factory precision gate accounts for empty class declarations
+through their original structured invocation and selected Registry descriptor.
+The signature roster checks inclusion only. A factory invocation must retain
+its own complete `CommandTokens` and `SourceInvocationBinding`;
+`original_default_manufacture_shape` validates the current class, original
+vector, full source policy, actual factory recipe, reached source point and
+independently absent lifecycle bodies. Its private
+`is_argument_free_anonymous_shape` projection reads the selected manufacturer's
+captured layout and complete argument count. It supplies source shape only,
+with no completed allocation, Normal result, entered frame or Native compiler
+authority. Type inference's result and Normal transfer guards remain separate.
+
+Direct calls pass their actual tokens. Nested calls use
+`checked_original_lifted_calls_with_metadata_context` with the supplied complete
+source input, or `checked_lifted_calls` for positively tagged standalone
+metadata. Each child retains its own original binding. Missing or changed
+owners and unavailable inventories withdraw precision; command text, reported
+class names and a constant TclOO grammar cannot supply a replacement. An
+opaque invocation, binding transition, nonempty class body or control edge
+also withdraws the whole straight-line gate.
+
+`manufacturer_method_for_descriptor` reads a selected command's own
+manufacturer rows before its definition-body defaults. For example,
+`oo::abstract create` uses the metaclass command's public factory row, while
+classes it produces inherit the private `tcloo-abstract` defaults. Explicit
+original object exports affect the source visibility query; they do not issue
+an ordinary Native default factory recipe. Positively retained Logical
+conditional advice cannot borrow the reached-only manufacture shape. The
+source-layout, owner-withdrawal and homogeneous/mixed collection controls
+check these distinct contracts; the public abstract-factory visibility evidence
+is recorded in
+[tcloo-original-abstract-manufacturer-public-visibility.md](../analysis/name-resolution-proofs/tcloo-original-abstract-manufacturer-public-visibility.md).
 
 The internal SSA entry-binding adapter receives the compilation unit’s formal
 parameters before allocating scalar value versions. The seeded-parameter
