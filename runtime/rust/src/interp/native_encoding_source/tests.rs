@@ -26,11 +26,11 @@ fn invoke(interpreter: &mut Interp, words: &[&[u8]]) -> super::super::Code {
         .map(|bytes| super::super::new_string(bytes))
         .collect::<Vec<_>>();
     for &original in &argv {
-        crate::obj::Tcl_IncrRefCount(original);
+        unsafe { crate::capi::Tcl_IncrRefCount(original) };
     }
     let code = interpreter.dispatch(&argv);
     for original in argv {
-        crate::obj::Tcl_DecrRefCount(original);
+        unsafe { crate::capi::Tcl_DecrRefCount(original) };
     }
     code
 }
@@ -48,7 +48,7 @@ fn original_source_argument_encoding_is_consumed_and_missing_file_precedes_looku
         super::super::Code::Ok
     );
     assert_eq!(interpreter.result_bytes(), b"YES");
-    assert_eq!(interpreter.eval(b"set ::encoded"), super::super::Code::Ok);
+    assert_eq!(interpreter.eval_str(b"set ::encoded"), super::super::Code::Ok);
     assert_eq!(interpreter.result_bytes(), "é".as_bytes());
     assert_eq!(
         stages.events.borrow().as_slice(),
@@ -63,7 +63,7 @@ fn original_source_argument_encoding_is_consumed_and_missing_file_precedes_looku
         super::super::Code::Error
     );
     assert_eq!(stages.events.borrow().as_slice(), ["filesystem", "open"]);
-    assert_eq!(interpreter.eval(b"set ::errorCode"), super::super::Code::Ok);
+    assert_eq!(interpreter.eval_str(b"set ::errorCode"), super::super::Code::Ok);
     assert_eq!(
         interpreter.result_bytes(),
         b"POSIX ENOENT {no such file or directory}"
