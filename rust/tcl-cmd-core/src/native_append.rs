@@ -20,6 +20,27 @@ pub trait NativeAppendObjects {
     fn snapshot(&self, value: &Self::Value) -> Result<NativeObjectSnapshot, ValueError>;
     /// Apply COW using the original receiver's sharing, before retaining a working handle.
     fn prepare_receiver(&self, value: &Self::Value, protocol: NativeStringProtocol) -> Self::Value;
+    /// Apply the same COW decision under the actual caller's entered guard.
+    /// Neutral implementations keep their existing preparation worker.
+    ///
+    /// # Errors
+    /// Preserves original stage refusal before working receiver adoption.
+    fn prepare_receiver_checked(
+        &self,
+        value: &Self::Value,
+        protocol: NativeStringProtocol,
+        check: &mut impl FnMut() -> Result<(), ValueError>,
+    ) -> Result<Self::Value, ValueError> {
+        check()?;
+        let prepared = self.prepare_receiver(value, protocol);
+        check()?;
+        Ok(prepared)
+    }
+
+    /// Retain the reached original failure before a working receiver is retired.
+    /// Neutral adapters have no entered operation and keep an empty projection.
+    fn retain_append_failure(&self, _first: &ValueError) {}
+
     /// Duplicate source representations into the prepared receiver, preserving its identity.
     fn duplicate_into(&self, receiver: &Self::Value, source: &Self::Value);
     /// Checked duplication into an independently created private receiver.
@@ -174,7 +195,7 @@ pub fn append_unicode_units_checked<O: NativeAppendObjects>(
     if units.is_empty() {
         return Ok(());
     }
-    let shape = checked_append_stage(check, || ops.snapshot(receiver))?;
+    let shape = checked_append_stage(ops, check, || ops.snapshot(receiver))?;
     if let Cache::String {
         protocol: origin,
         unicode: None,
@@ -186,7 +207,8 @@ pub fn append_unicode_units_checked<O: NativeAppendObjects>(
                 "native Unicode append cache origin",
             ));
         }
-        let mut bytes = checked_append_stage(check, || ops.string(receiver, strings))?.to_vec();
+        let mut bytes =
+            checked_append_stage(ops, check, || ops.string(receiver, strings))?.to_vec();
         bytes.extend_from_slice(
             &NativeTclUtf::for_version(strings.tcl_version().expect("C append"))
                 .encode_units(units)
@@ -194,7 +216,7 @@ pub fn append_unicode_units_checked<O: NativeAppendObjects>(
                     "native Unicode append unit width",
                 ))?,
         );
-        return checked_append_stage(check, || {
+        return checked_append_stage(ops, check, || {
             ops.set_string(
                 receiver,
                 strings,
@@ -204,10 +226,10 @@ pub fn append_unicode_units_checked<O: NativeAppendObjects>(
             )
         });
     }
-    let mut unicode = checked_append_stage(check, || ops.unicode(receiver, strings))?.to_vec();
+    let mut unicode = checked_append_stage(ops, check, || ops.unicode(receiver, strings))?.to_vec();
     unicode.extend_from_slice(units);
     let length = unicode.len();
-    checked_append_stage(check, || {
+    checked_append_stage(ops, check, || {
         ops.set_string(
             receiver,
             strings,
@@ -254,7 +276,7 @@ pub fn append_counted_bytes_checked<O: NativeAppendObjects>(
     let reached = if bytes.is_empty() && !protocol.converts_empty_counted_receiver() {
         Ok(receiver.clone())
     } else {
-        let source = checked_append_stage(check, || Ok(ops.new_string(Rc::from(bytes))))?;
+        let source = checked_append_stage(ops, check, || Ok(ops.new_string(Rc::from(bytes))))?;
         let appended =
             append_object_inner_checked(ops, protocol, Some(receiver), &source, true, true, check);
         drop(source);
@@ -285,8 +307,8 @@ pub fn append_published_counted_source_checked<O: NativeAppendObjects>(
             "C published counted append",
         ));
     }
-    let source_shape = checked_append_stage(check, || ops.snapshot(source))?;
-    let receiver_shape = checked_append_stage(check, || ops.snapshot(receiver))?;
+    let source_shape = checked_append_stage(ops, check, || ops.snapshot(source))?;
+    let receiver_shape = checked_append_stage(ops, check, || ops.snapshot(receiver))?;
     let action = protocol
         .action(Some(&receiver_shape), &source_shape)
         .map_err(|_| ValueError::CommandProtocolUnavailable("published counted append shape"))?;
@@ -408,10 +430,12 @@ pub fn append_dictionary_operands<O: NativeAppendObjects>(
     sources: &[O::Value],
 ) -> Result<O::Value, ValueError> {
     let Some((first, rest)) = sources.split_first() else {
-        return Ok(receiver.map_or_else(
-            || ops.new_string(std::rc::Rc::from(&b""[..])),
-            |value| ops.prepare_receiver(value, protocol.string_protocol()),
-        ));
+        return match receiver {
+            None => Ok(ops.new_string(std::rc::Rc::from(&b""[..]))),
+            Some(value) => {
+                ops.prepare_receiver_checked(value, protocol.string_protocol(), &mut || Ok(()))
+            }
+        };
     };
     let mut prepared = append_dictionary_member(ops, protocol, receiver, first)?;
     for source in rest {
@@ -475,12 +499,16 @@ fn append_object_inner<O: NativeAppendObjects>(
     )
 }
 
-fn checked_append_stage<T>(
+fn checked_append_stage<O: NativeAppendObjects, T>(
+    ops: &O,
     check: &mut impl FnMut() -> Result<(), ValueError>,
     stage: impl FnOnce() -> Result<T, ValueError>,
 ) -> Result<T, ValueError> {
     check()?;
     let reached = stage();
+    if let Err(first) = &reached {
+        ops.retain_append_failure(first);
+    }
     check()?;
     reached
 }
@@ -494,9 +522,9 @@ fn append_object_inner_checked<O: NativeAppendObjects>(
     counted_bytes: bool,
     check: &mut impl FnMut() -> Result<(), ValueError>,
 ) -> Result<O::Value, ValueError> {
-    let source_shape = checked_append_stage(check, || ops.snapshot(source))?;
+    let source_shape = checked_append_stage(ops, check, || ops.snapshot(source))?;
     let receiver_shape = receiver
-        .map(|value| checked_append_stage(check, || ops.snapshot(value)))
+        .map(|value| checked_append_stage(ops, check, || ops.snapshot(value)))
         .transpose()?;
     let action = if counted_bytes {
         Action::AppendString
@@ -510,9 +538,11 @@ fn append_object_inner_checked<O: NativeAppendObjects>(
         return match action {
             Action::AdoptSource => Ok(source.clone()),
             Action::NewString => {
-                let bytes = checked_append_stage(check, || ops.string(source, string_protocol))?;
-                let value = checked_append_stage(check, || Ok(ops.new_string(Rc::clone(&bytes))))?;
-                checked_append_stage(check, || {
+                let bytes =
+                    checked_append_stage(ops, check, || ops.string(source, string_protocol))?;
+                let value =
+                    checked_append_stage(ops, check, || Ok(ops.new_string(Rc::clone(&bytes))))?;
+                checked_append_stage(ops, check, || {
                     ops.set_string(
                         &value,
                         string_protocol,
@@ -527,56 +557,61 @@ fn append_object_inner_checked<O: NativeAppendObjects>(
         };
     };
     let receiver = if prepare_receiver {
-        checked_append_stage(check, || {
-            Ok(ops.prepare_receiver(original_receiver, string_protocol))
-        })?
+        ops.prepare_receiver_checked(original_receiver, string_protocol, check)?
     } else {
         original_receiver.clone()
     };
-    match action {
-        Action::PreserveReceiver => return Ok(receiver),
-        Action::DuplicateSource => {
-            ops.duplicate_into_checked(&receiver, source, check)?;
-            return Ok(receiver);
+    let reached = (|| -> Result<(), ValueError> {
+        match action {
+            Action::PreserveReceiver => return Ok(()),
+            Action::DuplicateSource => {
+                ops.duplicate_into_checked(&receiver, source, check)?;
+                return Ok(());
+            }
+            Action::AppendBinary => {
+                let mut bytes = match &receiver_shape.as_ref().expect("receiver shape").cache {
+                    Cache::ByteArray { bytes, .. } => bytes.to_vec(),
+                    _ => Vec::new(),
+                };
+                let Cache::ByteArray { bytes: source, .. } = &source_shape.cache else {
+                    unreachable!("binary source action")
+                };
+                bytes.extend_from_slice(source);
+                checked_append_stage(ops, check, || {
+                    ops.set_binary(&receiver, string_protocol, Rc::from(bytes))
+                })?;
+                return Ok(());
+            }
+            Action::AppendString => {}
+            Action::AdoptSource | Action::NewString => unreachable!("existing receiver action"),
         }
-        Action::AppendBinary => {
-            let mut bytes = match &receiver_shape.as_ref().expect("receiver shape").cache {
-                Cache::ByteArray { bytes, .. } => bytes.to_vec(),
-                _ => Vec::new(),
-            };
-            let Cache::ByteArray { bytes: source, .. } = &source_shape.cache else {
-                unreachable!("binary source action")
-            };
-            bytes.extend_from_slice(source);
-            checked_append_stage(check, || {
-                ops.set_binary(&receiver, string_protocol, Rc::from(bytes))
-            })?;
-            return Ok(receiver);
+        let receiver_shape = receiver_shape.as_ref().expect("receiver shape");
+        if string_protocol.is_jim084() {
+            append_jim_string_checked(
+                ops,
+                string_protocol,
+                &receiver,
+                source,
+                receiver_shape,
+                check,
+            )?;
+        } else {
+            append_c_string(
+                ops,
+                protocol,
+                &receiver,
+                source,
+                receiver_shape,
+                &source_shape,
+                check,
+            )?;
         }
-        Action::AppendString => {}
-        Action::AdoptSource | Action::NewString => unreachable!("existing receiver action"),
+        Ok(())
+    })();
+    if let Err(first) = &reached {
+        ops.retain_append_failure(first);
     }
-    let receiver_shape = receiver_shape.as_ref().expect("receiver shape");
-    if string_protocol.is_jim084() {
-        append_jim_string_checked(
-            ops,
-            string_protocol,
-            &receiver,
-            source,
-            receiver_shape,
-            check,
-        )?;
-    } else {
-        append_c_string(
-            ops,
-            protocol,
-            &receiver,
-            source,
-            receiver_shape,
-            &source_shape,
-            check,
-        )?;
-    }
+    reached?;
     Ok(receiver)
 }
 
@@ -629,19 +664,21 @@ fn append_c_unicode_source<O: NativeAppendObjects>(
     check: &mut impl FnMut() -> Result<(), ValueError>,
 ) -> Result<(), ValueError> {
     let source_units = if matches!(source_shape.cache, Cache::String { .. }) {
-        checked_append_stage(check, || ops.unicode(source, string_protocol))?
+        checked_append_stage(ops, check, || ops.unicode(source, string_protocol))?
     } else {
         let bytes = match source_bytes {
             Some(bytes) => bytes,
-            None => checked_append_stage(check, || ops.string(source, string_protocol))?,
+            None => checked_append_stage(ops, check, || ops.string(source, string_protocol))?,
         };
-        checked_append_stage(check, || ops.decode_unicode_source(string_protocol, &bytes))?
+        checked_append_stage(ops, check, || {
+            ops.decode_unicode_source(string_protocol, &bytes)
+        })?
     };
     if !source_units.is_empty() {
         let mut units = old_units.to_vec();
         units.extend_from_slice(&source_units);
         let count = units.len();
-        checked_append_stage(check, || {
+        checked_append_stage(ops, check, || {
             ops.set_string(
                 receiver,
                 string_protocol,
@@ -677,20 +714,20 @@ fn append_c_string<O: NativeAppendObjects>(
         }
         None
     } else {
-        let bytes = checked_append_stage(check, || ops.string(receiver, string_protocol))?;
-        let shape = checked_append_stage(check, || ops.snapshot(receiver))?;
-        checked_append_stage(check, || {
+        let bytes = checked_append_stage(ops, check, || ops.string(receiver, string_protocol))?;
+        let shape = checked_append_stage(ops, check, || ops.snapshot(receiver))?;
+        checked_append_stage(ops, check, || {
             ops.set_string(receiver, string_protocol, resident(&shape), None, None)
         })?;
         Some(bytes)
     };
-    let mut receiver_shape = checked_append_stage(check, || ops.snapshot(receiver))?;
+    let mut receiver_shape = checked_append_stage(ops, check, || ops.snapshot(receiver))?;
     // C9 reaches GetString(source) before its continuation-byte boundary test.
     let source_bytes = if version >= tcl_dialect::TclVersion::V9_0 {
-        let bytes = checked_append_stage(check, || ops.string(source, string_protocol))?;
+        let bytes = checked_append_stage(ops, check, || ops.string(source, string_protocol))?;
         if protocol.forces_unicode_for_source(&bytes) {
-            checked_append_stage(check, || ops.unicode(receiver, string_protocol))?;
-            receiver_shape = checked_append_stage(check, || ops.snapshot(receiver))?;
+            checked_append_stage(ops, check, || ops.unicode(receiver, string_protocol))?;
+            receiver_shape = checked_append_stage(ops, check, || ops.snapshot(receiver))?;
         }
         Some(bytes)
     } else {
@@ -738,16 +775,16 @@ fn append_c_byte_source<O: NativeAppendObjects>(
     let string_protocol = protocol.string_protocol();
     let source_bytes = match source_bytes {
         Some(bytes) => bytes,
-        None => checked_append_stage(check, || ops.string(source, string_protocol))?,
+        None => checked_append_stage(ops, check, || ops.string(source, string_protocol))?,
     };
     if source_bytes.is_empty() {
         return Ok(());
     }
     let receiver_bytes = match receiver_bytes {
         Some(bytes) => bytes,
-        None => checked_append_stage(check, || ops.string(receiver, string_protocol))?,
+        None => checked_append_stage(ops, check, || ops.string(receiver, string_protocol))?,
     };
-    let source_shape = checked_append_stage(check, || ops.snapshot(source))?;
+    let source_shape = checked_append_stage(ops, check, || ops.snapshot(source))?;
     let count = match (&receiver_shape.cache, &source_shape.cache) {
         (
             Cache::String {
@@ -768,7 +805,7 @@ fn append_c_byte_source<O: NativeAppendObjects>(
     };
     let mut bytes = receiver_bytes.to_vec();
     bytes.extend_from_slice(&source_bytes);
-    checked_append_stage(check, || {
+    checked_append_stage(ops, check, || {
         ops.set_string(
             receiver,
             string_protocol,

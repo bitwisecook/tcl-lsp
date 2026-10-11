@@ -354,6 +354,7 @@ impl BodyObjectOperation {
         let strings = self.clone();
         let strings_interp = actual.clone();
         let refuse = self.clone();
+        let retain = self.clone();
         let current_extra = extra.clone();
         Ok(
             crate::value_ops::RuntimeDictionaryObjects::selected(actual)?.with_original_checks(
@@ -368,6 +369,7 @@ impl BodyObjectOperation {
                     })
                 },
                 move |error| refuse.refuse(error),
+                move |error| retain.arguments.retain_refusal(error),
             ),
         )
     }

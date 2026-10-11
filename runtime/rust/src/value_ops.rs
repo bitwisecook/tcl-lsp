@@ -623,6 +623,7 @@ struct RuntimeDictionaryChecks {
     >,
     parents: std::cell::RefCell<Vec<crate::dict::PreparedDictionaryObserver>>,
     refuse: Box<dyn Fn(ValueError) -> tcl_cmd_core::CmdError>,
+    retain: Box<dyn Fn(tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError>,
 }
 impl RuntimeDictionaryChecks {
     fn check(&self) -> Result<(), tcl_cmd_core::CmdError> {
@@ -675,11 +676,13 @@ impl RuntimeDictionaryObjects {
             ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>
             + 'static,
         refuse: impl Fn(ValueError) -> tcl_cmd_core::CmdError + 'static,
+        retain: impl Fn(tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError + 'static,
     ) -> Self {
         self.original = Some(std::rc::Rc::new(RuntimeDictionaryChecks {
             current: Box::new(current),
             string: Box::new(string),
             refuse: Box::new(refuse),
+            retain: Box::new(retain),
             parents: std::cell::RefCell::new(Vec::new()),
         }));
         self
@@ -730,6 +733,21 @@ impl RuntimeDictionaryObjects {
             &|| self.original_check(),
             &|error| self.original_refuse(error),
         )
+    }
+    /// Reuse this genuine original dictionary/frame/check owner for the same
+    /// physical append/Cat backend. No scope or Native role is manufactured.
+    pub(crate) fn original_append_objects(
+        &self,
+        base: RuntimeAppendObjects,
+    ) -> Result<OriginalRuntimeAppendObjects, tcl_cmd_core::CmdError> {
+        self.original_check()?;
+        Ok(OriginalRuntimeAppendObjects::new(
+            base,
+            self.original
+                .as_ref()
+                .expect("checked original dictionary owner")
+                .clone(),
+        ))
     }
     pub(crate) fn with_preparation(
         mut self,
@@ -895,6 +913,10 @@ impl tcl_cmd_core::native_dictionary::NativeDictionaryObjects for RuntimeDiction
         RuntimeAppendValue::retain(owned.as_ptr())
     }
 }
+
+#[path = "value_ops/original_append.rs"]
+mod original_append;
+pub(crate) use original_append::OriginalRuntimeAppendObjects;
 
 /// Physical append adapter with independently retained issuer and binary updater capability.
 pub(crate) struct RuntimeAppendObjects {

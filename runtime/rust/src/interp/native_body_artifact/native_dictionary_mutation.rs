@@ -2,6 +2,7 @@
 //! Original dictionary mutation over the genuine retained indexed receiver.
 
 use super::*;
+use std::cell::Cell;
 
 pub(super) struct DictionaryMutationOperation {
     recipe: tcl_registry::native_dictionary_compilation::NativeDictionaryMutationInstruction,
@@ -51,58 +52,81 @@ impl Interp {
         dictionary: &DictionaryMutationOperation,
         execution: &mut BodyExecution,
     ) -> Result<Code, Code> {
-        use crate::value_ops::{
-            RuntimeAppendObjects, RuntimeAppendValue, RuntimeDictionaryObjects,
-        };
+        use super::native_list_conversion::BodyObjectOperation;
+        use crate::value_ops::{RuntimeAppendObjects, RuntimeAppendValue};
         use tcl_registry::native_dictionary_compilation::NativeDictionaryMutationKind as Kind;
+        let operation =
+            BodyObjectOperation::capture(self).map_err(|first| self.report_cmd_error(first))?;
         let mut values = Vec::with_capacity(dictionary.operands.len());
-        for operand in &dictionary.operands {
-            values.push(self.body_namespace_operand(artifact, command, operand, execution)?);
-            if execution.done {
-                return Ok(Code::Ok);
+        let reached = (|| {
+            for operand in &dictionary.operands {
+                operation
+                    .check(self)
+                    .map_err(|first| self.report_cmd_error(first))?;
+                values.push(self.body_namespace_operand(artifact, command, operand, execution)?);
+                operation
+                    .check(self)
+                    .map_err(|first| self.report_cmd_error(first))?;
+                if execution.done {
+                    return Ok(Code::Ok);
+                }
             }
-        }
-        let dialect = self.native_invocation_dialect();
-        let objects = RuntimeDictionaryObjects::selected(self)
-            .map_err(|error| self.report_cmd_error(error))?;
-        let append_objects = RuntimeAppendObjects {
-            dialect,
-            binary_recipe: dialect.byte_array_string_recipe(None),
-        };
-        let mut pointers = values.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
-        let concatenated = if dictionary.recipe.kind == Kind::Append && pointers.len() > 2 {
-            let originals = pointers[1..]
-                .iter()
-                .copied()
-                .map(RuntimeAppendValue::borrowed)
-                .collect::<Vec<_>>();
-            let value = tcl_cmd_core::native_cat::concatenate_compiled(
-                &append_objects,
-                objects.protocol,
-                &originals,
-            )
-            .map_err(|error| self.report_cmd_error(error.into()))?;
-            pointers.truncate(1);
-            pointers.push(value.as_ptr());
-            Some(value)
-        } else {
-            None
-        };
-        let code =
-            self.body_dictionary_mutation_update(dictionary, &pointers, &objects, &append_objects)?;
-        drop(concatenated);
-        Ok(code)
+            let dialect = self.native_invocation_dialect();
+            let objects = operation
+                .objects(self)
+                .map_err(|error| self.report_cmd_error(error))?;
+            let append_objects = objects
+                .original_append_objects(RuntimeAppendObjects {
+                    dialect,
+                    binary_recipe: dialect.byte_array_string_recipe(None),
+                })
+                .map_err(|error| self.report_cmd_error(error))?;
+            let mut pointers = values.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
+            let concatenated = if dictionary.recipe.kind == Kind::Append && pointers.len() > 2 {
+                let originals = pointers[1..]
+                    .iter()
+                    .copied()
+                    .map(RuntimeAppendValue::borrowed)
+                    .collect::<Vec<_>>();
+                let reached = tcl_cmd_core::native_cat::concatenate_compiled(
+                    &append_objects,
+                    objects.protocol,
+                    &originals,
+                );
+                let value = append_objects
+                    .finish(reached)
+                    .map_err(|error| self.report_cmd_error(error))?;
+                pointers.truncate(1);
+                pointers.push(value.as_ptr());
+                Some(value)
+            } else {
+                None
+            };
+            let reached = self.body_dictionary_mutation_update(dictionary, &pointers, &operation);
+            drop(concatenated);
+            operation
+                .check(self)
+                .map_err(|first| self.report_cmd_error(first))?;
+            reached
+        })();
+        drop(values);
+        operation
+            .check(self)
+            .map_err(|first| self.report_cmd_error(first))?;
+        reached
     }
 
     fn body_dictionary_mutation_update(
         &mut self,
         dictionary: &DictionaryMutationOperation,
         pointers: &[*mut TclObj],
-        objects: &crate::value_ops::RuntimeDictionaryObjects,
-        append_objects: &crate::value_ops::RuntimeAppendObjects,
+        operation: &Rc<super::native_list_conversion::BodyObjectOperation>,
     ) -> Result<Code, Code> {
-        use crate::value_ops::RuntimeAppendValue;
+        use crate::value_ops::{RuntimeAppendObjects, RuntimeAppendValue};
         use tcl_cmd_core::native_dictionary::NativeDictionaryObjects;
+        operation
+            .check(self)
+            .map_err(|first| self.report_cmd_error(first))?;
         let evaluated = EvaluatedTarget {
             root: dictionary.receiver.clone(),
             element: None,
@@ -110,61 +134,156 @@ impl Interp {
             original_index: None,
             combined: false,
         };
-        let capture = self.body_capture_target(&evaluated, Some(dictionary.slot), true)?;
+        let capture = Rc::new(self.body_capture_target(&evaluated, Some(dictionary.slot), true)?);
+        operation
+            .check(self)
+            .map_err(|first| self.report_cmd_error(first))?;
         let root = capture.root.as_slice();
         let access = self.trace_access(root, root, None, &capture.home, false);
-        let failed = match self.fire_var_trace_resolved(&capture.home, &access, b"read") {
-            Ok(outcome) => outcome.is_guest_error(),
-            Err(first) => return Ok(self.refuse_native_execution(first)),
-        };
-        if self.host_refusal_pending() {
-            return Ok(Code::Error);
-        }
-        let original = if failed {
-            None
-        } else {
-            capture.receiver.read_initial().ok().flatten()
-        };
-        if original.is_none() {
-            self.traces.borrow_mut().pending_err.take();
-            let mut exception = self.exc.borrow_mut();
-            exception.code = b"TCL READ VARNAME".to_vec();
-            exception.code_explicit = false;
-        }
-        let original = original.map(RuntimeAppendValue::borrowed);
-        let prepared = objects
-            .prepare(original.as_ref())
-            .map_err(|error| self.report_cmd_error(error))?;
-        let result = self
-            .body_dictionary_mutation_value(objects, append_objects, dictionary, prepared, pointers)
-            .map_err(|error| self.report_cmd_error(error))?;
-        if let Err(error) = capture.receiver.store(result.as_ptr()) {
-            return Ok(crate::builtins::var_error(self, root, error));
-        }
-        if match self.fire_var_trace_resolved(&capture.home, &access, b"write") {
-            Ok(outcome) => outcome.is_guest_error(),
-            Err(first) => return Ok(self.refuse_native_execution(first)),
-        } {
-            return Ok(crate::builtins::var_error(
-                self,
-                root,
-                crate::frame::VarError::TraceError,
-            ));
-        }
-        if self.host_refusal_pending() {
-            return Ok(Code::Error);
-        }
-        match capture.receiver.read() {
-            Ok(Some(value)) => self.set_result(value),
-            Ok(None) | Err(_) => self.set_result_bytes(b""),
-        }
-        Ok(Code::Ok)
+        let reached = (|| {
+            let failed = self
+                .fire_var_trace_resolved(&capture.home, &access, b"read")
+                .map_err(|first| self.refuse_native_execution(first))?
+                .is_guest_error();
+            operation
+                .check(self)
+                .map_err(|first| self.report_cmd_error(first))?;
+            let selected_read = capture.receiver.read_initial();
+            if selected_read == Err(crate::frame::VarError::NameProtocolUnavailable) {
+                return Err(self.report_cmd_error(
+                    operation.refuse(unavailable("original compiled dictionary scalar role")),
+                ));
+            }
+            // A quiet Guest read outcome is distinct from withdrawal of the
+            // actual selected scalar role. Keep that outcome in the observer.
+            let original = if failed {
+                None
+            } else {
+                selected_read.ok().flatten()
+            };
+            if original.is_none() {
+                self.traces.borrow_mut().pending_err.take();
+                let mut exception = self.exc.borrow_mut();
+                exception.code = b"TCL READ VARNAME".to_vec();
+                exception.code_explicit = false;
+            }
+            let original_lifetime = selected_read
+                .ok()
+                .flatten()
+                .map(obj::NativeObjectLifetime::retain);
+            let expected = Rc::new(Cell::new(selected_read));
+            let selected = capture.clone();
+            let selected_operation = operation.clone();
+            let selected_expected = expected.clone();
+            let selected_interp = self.clone();
+            let check: Rc<dyn Fn() -> Result<(), tcl_cmd_core::CmdError>> = Rc::new(move || {
+                selected_operation.check(&selected_interp)?;
+                selected.receiver.check_current().map_err(|_| {
+                    selected_operation.refuse(unavailable("original compiled dictionary receiver"))
+                })?;
+                let actual = selected.receiver.read_initial();
+                if actual == Err(crate::frame::VarError::NameProtocolUnavailable) {
+                    return Err(selected_operation
+                        .refuse(unavailable("original compiled dictionary scalar role")));
+                }
+                if actual != selected_expected.get() {
+                    return Err(selected_operation
+                        .refuse(unavailable("original compiled dictionary receiver header")));
+                }
+                if let Ok(Some(value)) = actual {
+                    obj::check_native_liveness(value)
+                        .map_err(|error| selected_operation.refuse(error))?;
+                }
+                Ok(())
+            });
+            let objects = operation
+                .objects_using(self, check.clone())
+                .map_err(|error| self.report_cmd_error(error))?;
+            let dialect = self.native_invocation_dialect();
+            let append_objects = objects
+                .original_append_objects(RuntimeAppendObjects {
+                    dialect,
+                    binary_recipe: dialect.byte_array_string_recipe(None),
+                })
+                .map_err(|error| self.report_cmd_error(error))?;
+            let original = original.map(RuntimeAppendValue::borrowed);
+            let prepared = objects
+                .prepare(original.as_ref())
+                .map_err(|error| self.report_cmd_error(error))?;
+            let result = self
+                .body_dictionary_mutation_value(
+                    &objects,
+                    &append_objects,
+                    dictionary,
+                    prepared,
+                    pointers,
+                )
+                .map_err(|error| self.report_cmd_error(error))?;
+            let reached = (|| {
+                check().map_err(|first| self.report_cmd_error(first))?;
+                // The actual store publishes its selected result before releasing
+                // the displaced value. This observation adds no owning role.
+                expected.set(Ok(Some(result.as_ptr())));
+                if let Err(error) = capture.receiver.store(result.as_ptr()) {
+                    operation
+                        .check(self)
+                        .map_err(|first| self.report_cmd_error(first))?;
+                    return Ok(crate::builtins::var_error(self, root, error));
+                }
+                check().map_err(|first| self.report_cmd_error(first))?;
+                let failed = self
+                    .fire_var_trace_resolved(&capture.home, &access, b"write")
+                    .map_err(|first| self.refuse_native_execution(first))?
+                    .is_guest_error();
+                operation
+                    .check(self)
+                    .map_err(|first| self.report_cmd_error(first))?;
+                if failed {
+                    return Ok(crate::builtins::var_error(
+                        self,
+                        root,
+                        crate::frame::VarError::TraceError,
+                    ));
+                }
+                // A legal write trace may change the actual receiver. Read the
+                // selected live cell after the original operation/frame check.
+                capture.receiver.check_current().map_err(|_| {
+                    self.report_cmd_error(
+                        operation.refuse(unavailable("original compiled dictionary receiver")),
+                    )
+                })?;
+                match capture.receiver.read() {
+                    Ok(Some(value)) => self.set_result(value),
+                    Err(crate::frame::VarError::NameProtocolUnavailable) => {
+                        return Err(self.report_cmd_error(operation.refuse(unavailable(
+                            "original compiled dictionary result scalar role",
+                        ))));
+                    }
+                    Ok(None) | Err(_) => self.set_result_bytes(b""),
+                }
+                operation
+                    .check(self)
+                    .map_err(|first| self.report_cmd_error(first))?;
+                Ok(Code::Ok)
+            })();
+            drop(result);
+            drop(original_lifetime);
+            operation
+                .check(self)
+                .map_err(|first| self.report_cmd_error(first))?;
+            reached
+        })();
+        drop(capture);
+        operation
+            .check(self)
+            .map_err(|first| self.report_cmd_error(first))?;
+        reached
     }
 
     fn body_dictionary_mutation_value(
         &self,
         objects: &crate::value_ops::RuntimeDictionaryObjects,
-        append_objects: &crate::value_ops::RuntimeAppendObjects,
+        append_objects: &crate::value_ops::OriginalRuntimeAppendObjects,
         dictionary: &DictionaryMutationOperation,
         prepared: crate::dict::PreparedNativeDictionary,
         pointers: &[*mut TclObj],
@@ -192,7 +311,7 @@ impl Interp {
             ),
             Kind::Append => {
                 let issued = append_objects
-                    .dialect
+                    .dialect()
                     .native_object_append_protocol(None)
                     .ok_or(ValueError::CommandProtocolUnavailable(
                         "native compiled dictionary append",
@@ -203,13 +322,14 @@ impl Interp {
                     &inputs[0],
                     |original| match original {
                         None => Ok(inputs[1].clone()),
-                        Some(_) => tcl_cmd_core::native_append::append_dictionary_operands(
-                            append_objects,
-                            issued.recipe(),
-                            original,
-                            &inputs[1..],
-                        )
-                        .map_err(Into::into),
+                        Some(_) => append_objects.finish(
+                            tcl_cmd_core::native_append::append_dictionary_operands(
+                                append_objects,
+                                issued.recipe(),
+                                original,
+                                &inputs[1..],
+                            ),
+                        ),
                     },
                 )
             }
@@ -218,10 +338,12 @@ impl Interp {
                 prepared,
                 &inputs[0],
                 |original| {
-                    let result = crate::list::append_native_elements(
+                    let result = crate::list::append_native_elements_original_using(
                         original.map(RuntimeAppendValue::as_ptr),
                         &pointers[1..],
                         objects.protocol,
+                        &|| objects.original_check(),
+                        &|error| objects.original_refuse(error),
                     )?;
                     Ok(RuntimeAppendValue::retain(result.as_ptr()))
                 },
@@ -246,3 +368,6 @@ impl Interp {
         }
     }
 }
+
+#[cfg(test)]
+mod original_boundary_tests;
