@@ -252,15 +252,19 @@ pub(crate) fn footprint_command_words(
 
 fn value_commands(text: &str, config: LexerConfig) -> Vec<(bool, Vec<CommandWord>)> {
     let source = SourceMap::new(text);
-    crate::segmenter::segment_commands_with_offset_and_config(text, 0, config)
-        .iter()
-        .map(|command| {
-            (
-                command.is_partial,
-                footprint_command_words(&source, config, command),
-            )
-        })
-        .collect()
+    crate::segmenter::segment_commands_with_offset_and_config(
+        text,
+        0,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+    )
+    .iter()
+    .map(|command| {
+        (
+            command.is_partial,
+            footprint_command_words(&source, config, command),
+        )
+    })
+    .collect()
 }
 
 fn script_writes(
@@ -285,7 +289,10 @@ fn script_writes(
     for (partial, words) in value_commands(text, context.config) {
         out.opaque |= partial;
         for word in words.iter().filter(|word| !word.braced_literal) {
-            let lexer = tcl_lexer::Lexer::with_config(&word.raw, context.config);
+            let lexer = tcl_lexer::Lexer::with_config(
+                &word.raw,
+                tcl_lexer::SourceSegmentationPurpose::NestedScript.config(context.config),
+            );
             let map = SourceMap::new(&word.raw);
             for token in lexer {
                 let Ok(token) = token else {
@@ -445,7 +452,12 @@ fn reevaluated_reads(
                 .extend(scanner.scan_word(&expression, context.registry));
         }
         let map = SourceMap::new(&expression);
-        for token in tcl_lexer::Lexer::with_config(&expression, context.config).as_quoted_body() {
+        for token in tcl_lexer::Lexer::with_config(
+            &expression,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript.config(context.config),
+        )
+        .as_quoted_body()
+        {
             let Ok(token) = token else {
                 out.opaque = true;
                 continue;
@@ -660,4 +672,48 @@ fn immediate_same_frame_script_values_for_role_purpose(
         bodies.push(value);
     }
     bodies
+}
+
+#[cfg(test)]
+mod original_materialized_word_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_materialized_body_keeps_bom_value_and_parent_word_rules_separate() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Original body geometry and materialized value syntax, without child entry or complete effect closure.
+        let config = LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..LexerConfig::default()
+        };
+        let source = "\u{feff}eval {\u{feff}#prefix $x}";
+        let image = tcl_lexer::SourceImage::document(source);
+        let plan = tcl_lexer::native_script_words_in(
+            &image,
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let word = &plan.commands[0].words[1];
+        assert_eq!(word.config(), config);
+        assert_eq!(word.image(), &image);
+        let body = source.get(word.content_span().unwrap().as_range()).unwrap();
+        let commands = value_commands(body, config);
+        assert_eq!(commands.len(), 1);
+        assert!(!commands[0].0);
+        assert_eq!(commands[0].1[0].literal(), Some("\u{feff}#prefix"));
+        assert_eq!(commands[0].1[1].raw, "$x");
+        assert!(commands[0].1[1].substituted);
+        assert_eq!(
+            commands[0].1[0].raw,
+            value_commands(body, config.nested())[0].1[0].raw
+        );
+        assert!(value_commands("#prefix $x", config).is_empty());
+        let first_close = value_commands("\u{feff}#prefix ${a{b}", config);
+        assert_eq!(first_close[0].1[1].raw, "${a{b}");
+        assert_eq!(config.leading_bom, tcl_lexer::LeadingBom::Skip);
+    }
 }

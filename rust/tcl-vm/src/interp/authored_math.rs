@@ -61,6 +61,7 @@ impl Vm {
         if self.logical_providers.math_functions == provider {
             return true;
         }
+        self.advance_native_operation_context();
         self.logical_providers.math_functions = provider;
         self.authored_math = provider.map(|_| AuthoredMathState::default());
         self.bump_cmd_epoch();

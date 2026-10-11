@@ -15,6 +15,7 @@ use tcl_syntax::{
     value::ValueError,
 };
 
+#[derive(Clone)]
 pub(super) struct ObservedNameSelection {
     policy: ObservedBigIpNamePolicy,
     build: tcl_registry::f5::evidence::BigIpBuild,
@@ -24,6 +25,7 @@ pub(super) struct ObservedNameSelection {
     engine: Option<&'static tcl_dialect::DialectProfile>,
 }
 
+#[derive(Clone)]
 pub(super) struct ObservedFrameStorage {
     context: AuthoredObservedFrameStorageContext,
     owner: Weak<crate::frame::ActivationIdentity>,
@@ -92,18 +94,14 @@ impl Vm {
         event: tcl_registry::f5::naming::BigIpNameEvent,
         body: impl FnOnce(&mut Self) -> R,
     ) -> Result<R, ValueError> {
-        let previous_names = self.observed_names.take();
-        let previous_storage = self.observed_frame_storage.take();
+        let previous_names = self.observed_names.clone();
+        let previous_storage = self.observed_frame_storage.clone();
         if !self.set_observed_bigip_name_policy(build, context, event) {
-            self.observed_names = previous_names;
-            self.observed_frame_storage = previous_storage;
-            self.invalidate_execution_name_policy();
+            self.replace_observed_operation_inputs(previous_names, previous_storage);
             return Err(unavailable());
         }
         let result = body(self);
-        self.observed_names = previous_names;
-        self.observed_frame_storage = previous_storage;
-        self.invalidate_execution_name_policy();
+        self.replace_observed_operation_inputs(previous_names, previous_storage);
         Ok(result)
     }
     /// Retain an exact independently supplied appliance build, feature and event.
@@ -115,7 +113,7 @@ impl Vm {
         event: tcl_registry::f5::naming::BigIpNameEvent,
     ) -> bool {
         let policy = tcl_registry::f5::naming::observed_name_policy(build, context, event);
-        self.observed_names = policy.map(|policy| ObservedNameSelection {
+        let selected = policy.map(|policy| ObservedNameSelection {
             policy,
             build,
             context,
@@ -123,8 +121,7 @@ impl Vm {
             profile: self.dialect_profile(),
             engine: self.actual_engine_profile,
         });
-        self.observed_frame_storage = None;
-        self.invalidate_execution_name_policy();
+        self.replace_observed_operation_inputs(selected, None);
         policy.is_some()
     }
 
@@ -166,11 +163,10 @@ impl Vm {
             level,
             interpreter: self.cur,
         };
-        let previous = self.observed_frame_storage.replace(storage);
-        self.invalidate_execution_name_policy();
+        let previous = self.observed_frame_storage.clone();
+        self.replace_observed_operation_inputs(self.observed_names.clone(), Some(storage));
         let result = body(self);
-        self.observed_frame_storage = previous;
-        self.invalidate_execution_name_policy();
+        self.replace_observed_operation_inputs(self.observed_names.clone(), previous);
         Ok(result)
     }
 
@@ -197,6 +193,41 @@ impl Vm {
             Frames::pop(self);
         }
         result
+    }
+
+    fn replace_observed_operation_inputs(
+        &mut self,
+        names: Option<ObservedNameSelection>,
+        storage: Option<ObservedFrameStorage>,
+    ) {
+        let same_names = match (&self.observed_names, &names) {
+            (None, None) => true,
+            (Some(old), Some(new)) => {
+                old.policy == new.policy
+                    && old.build == new.build
+                    && old.context == new.context
+                    && old.event == new.event
+                    && std::ptr::eq(old.profile, new.profile)
+                    && old.engine.map(std::ptr::from_ref) == new.engine.map(std::ptr::from_ref)
+            }
+            _ => false,
+        };
+        let same_storage = match (&self.observed_frame_storage, &storage) {
+            (None, None) => true,
+            (Some(old), Some(new)) => {
+                old.context == new.context
+                    && old.level == new.level
+                    && old.interpreter == new.interpreter
+                    && Weak::ptr_eq(&old.owner, &new.owner)
+            }
+            _ => false,
+        };
+        if !same_names || !same_storage {
+            self.advance_native_operation_context();
+        }
+        self.observed_names = names;
+        self.observed_frame_storage = storage;
+        self.invalidate_execution_name_policy();
     }
 
     fn invalidate_execution_name_policy(&mut self) {

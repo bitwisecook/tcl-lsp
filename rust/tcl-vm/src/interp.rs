@@ -102,6 +102,7 @@ pub(crate) mod native_jim_lookup;
 mod native_legacy_increment_tests;
 mod native_name_world;
 mod native_namespace_names;
+pub(crate) mod native_operation_currency;
 #[cfg(test)]
 mod native_namespace_root_tests;
 mod native_package_files;
@@ -1200,6 +1201,7 @@ pub struct InterpState {
     /// Actual interpreter execution-environment Boolean constant roots.
     native_execution_booleans: Option<[Value; 2]>,
     jim_teardown_started: bool,
+    native_operation_context: Rc<native_operation_currency::NativeOperationContext>,
     logical_providers: LogicalProviders,
     observed_names: Option<execution_name_policy::ObservedNameSelection>,
     observed_frame_storage: Option<execution_name_policy::ObservedFrameStorage>,
@@ -2083,6 +2085,12 @@ impl Vm {
     fn install_pin(&mut self, mut pin: tcl_registry::model::PinnedContext) {
         let profile = pin.profile;
         let profile_changed = !std::ptr::eq(self.pin.profile, profile);
+        if profile_changed
+            || pin.context != self.pin.context
+            || !std::ptr::eq(self.command_surface_profile, profile)
+        {
+            self.advance_native_operation_context();
+        }
         pin.restate(&self.pack_facts);
         if pin.context != self.pin.context {
             // A unit admitted under the old context is checked again at its
@@ -2170,6 +2178,7 @@ impl Vm {
         {
             return true;
         }
+        self.advance_native_operation_context();
         self.actual_engine_profile = Some(profile);
         let recipe = self
             .actual_native_invocation_dialect()
@@ -2202,6 +2211,7 @@ impl Vm {
         if self.logical_providers.quote == Some(provider) {
             return true;
         }
+        self.advance_native_operation_context();
         self.logical_providers.quote = Some(provider);
         self.bump_cmd_epoch();
         self.profile_generation = self.profile_generation.wrapping_add(1);
@@ -2227,6 +2237,7 @@ impl Vm {
             return false;
         }
         if self.logical_providers.eval_object != Some(provider) {
+            self.advance_native_operation_context();
             self.logical_providers.eval_object = Some(provider);
             self.bump_cmd_epoch();
             self.profile_generation = self.profile_generation.wrapping_add(1);
@@ -2259,6 +2270,7 @@ impl Vm {
             return false;
         }
         if self.logical_providers.source_words != Some(provider) {
+            self.advance_native_operation_context();
             self.logical_providers.source_words = Some(provider);
             self.bump_cmd_epoch();
             self.profile_generation = self.profile_generation.wrapping_add(1);
@@ -2302,6 +2314,7 @@ impl Vm {
             return false;
         }
         if self.logical_providers.expression_parse != Some(provider) {
+            self.advance_native_operation_context();
             self.logical_providers.expression_parse = Some(provider);
             self.bump_cmd_epoch();
             self.profile_generation = self.profile_generation.wrapping_add(1);
@@ -2342,6 +2355,7 @@ impl Vm {
         if self.logical_providers.numeric == Some(provider) {
             return true;
         }
+        self.advance_native_operation_context();
         self.logical_providers.numeric = Some(provider);
         self.bump_cmd_epoch();
         self.profile_generation = self.profile_generation.wrapping_add(1);
@@ -2370,6 +2384,7 @@ impl Vm {
         if self.logical_providers.compiled_variables == Some(provider) {
             return true;
         }
+        self.advance_native_operation_context();
         self.logical_providers.compiled_variables = Some(provider);
         self.bump_cmd_epoch();
         self.profile_generation = self.profile_generation.wrapping_add(1);
@@ -2399,6 +2414,7 @@ impl Vm {
         if self.logical_providers.names == Some(provider) {
             return true;
         }
+        self.advance_native_operation_context();
         self.logical_providers.names = Some(provider);
         self.bump_cmd_epoch();
         self.profile_generation = self.profile_generation.wrapping_add(1);
@@ -2483,6 +2499,9 @@ impl Vm {
                 || !Self::command_surface_covers_compiled_commands(self.pin.profile, profile))
         {
             return false;
+        }
+        if !std::ptr::eq(self.command_surface_profile, profile) {
+            self.advance_native_operation_context();
         }
         self.bump_cmd_epoch();
         self.profile_generation = self.profile_generation.wrapping_add(1);
@@ -3259,6 +3278,9 @@ impl InterpState {
             native_c_result: RefCell::new(None),
             native_execution_booleans: None,
             jim_teardown_started: false,
+            native_operation_context: Rc::new(
+                native_operation_currency::NativeOperationContext::default(),
+            ),
             logical_providers: LogicalProviders::default(),
             observed_names: None,
             observed_frame_storage: None,
@@ -4125,6 +4147,7 @@ impl Vm {
     /// Inject the compiler used for runtime compilation, invalidating every
     /// compiler-derived cache and lazily reusable source-bearing body.
     pub fn set_compiler(&mut self, compiler: Box<dyn CompileService<Module = ModuleAsm>>) {
+        self.advance_native_operation_context();
         self.compiler = Some(Rc::from(compiler));
         self.compiler_generation = self.compiler_generation.wrapping_add(1);
         self.eval_cache.clear();
@@ -4147,6 +4170,9 @@ impl Vm {
     /// [`NativeHost::sandboxed`](crate::host_native::NativeHost::sandboxed) to exercise
     /// the WASM-posture "unsupported" paths natively.
     pub fn set_host(&mut self, host: Rc<dyn Host>) {
+        if !Rc::ptr_eq(&self.host, &host) {
+            self.advance_native_operation_context();
+        }
         let system_encoding = host.system_encoding();
         self.host = host;
         // A child has its own host capability object but shares the VM's
@@ -7682,6 +7708,9 @@ impl Vm {
     /// advances the compilation-deopt epoch, so a unit admitted under the
     /// old facts is checked again at its next entry.
     pub fn set_pack_facts(&mut self, stamps: Vec<tcl_runtime_api::PackFactStamp>) {
+        if self.pack_facts != stamps {
+            self.advance_native_operation_context();
+        }
         let state = &mut *self.state;
         state.pack_facts = stamps;
         state.pin.restate(&state.pack_facts);

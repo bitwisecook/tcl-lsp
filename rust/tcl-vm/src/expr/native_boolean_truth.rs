@@ -37,8 +37,7 @@ struct OriginalOps<'a> {
     vm: &'a mut Vm,
     dialect: InvocationDialect,
     host: Rc<dyn tcl_platform::Host>,
-    context: tcl_runtime_api::RuntimeContext,
-    interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
+    scope: crate::interp::native_operation_currency::NativeOperationScope,
 }
 
 fn unavailable() -> CmdError {
@@ -50,23 +49,17 @@ impl<'a> OriginalOps<'a> {
         if let Some(first) = vm.execution_refusal.clone() {
             return Err(CmdError::from_execution_refusal(first));
         }
+        let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(vm)?;
         Ok(Self {
             dialect: vm.actual_native_invocation_dialect(),
             host: vm.host_rc(),
-            context: vm.runtime_context().clone(),
-            interpreter: vm.native_interpreter_identity(),
+            scope,
             vm,
         })
     }
-    fn current(&self) -> Result<(), CmdError> {
-        if let Some(first) = self.vm.execution_refusal.clone() {
-            return Err(CmdError::from_execution_refusal(first));
-        }
-        if self.vm.native_interpreter_identity() != self.interpreter
-            || self.vm.runtime_context() != &self.context
-            || self.vm.actual_native_invocation_dialect() != self.dialect
-            || !Rc::ptr_eq(&self.vm.host_rc(), &self.host)
-        {
+    fn current(&mut self) -> Result<(), CmdError> {
+        self.scope.check(self.vm)?;
+        if self.vm.actual_native_invocation_dialect() != self.dialect {
             return Err(unavailable());
         }
         Ok(())
@@ -92,7 +85,7 @@ impl<'a> OriginalOps<'a> {
         self.current()
     }
     fn scalar_probe(
-        &self,
+        &mut self,
         value: &Value,
         kind: Getter,
     ) -> Result<Result<GetterValue, Failure>, CmdError> {
