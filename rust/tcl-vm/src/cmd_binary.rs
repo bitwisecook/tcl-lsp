@@ -207,11 +207,11 @@ fn binary_wrong_args(
     };
     let bytes = match header
         .iter()
-        .map(|word| vm.native_name_operand_bytes(word))
+        .map(|word| vm.native_name_operand_bytes_checked(word))
         .collect::<Result<Vec<_>, _>>()
     {
         Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
     let operands: Vec<_> = bytes
         .iter()
@@ -535,6 +535,20 @@ fn binary_encode_wrapped_in_original(
 
 /// `binary decode hex|base64|uuencode ?-strict? data`.
 fn binary_decode(vm: &mut Vm, rest: &[Value], invocation: BinaryInvocation) -> Completion<Value> {
+    match with_original_numeric_command(vm, TclError::from_execution_failure, |vm, original| {
+        Ok(binary_decode_in_original(vm, rest, invocation, original))
+    }) {
+        Ok(completion) => completion,
+        Err(error) => crate::command::completion_from_tcl_error(vm, error),
+    }
+}
+
+fn binary_decode_in_original(
+    vm: &mut Vm,
+    rest: &[Value],
+    invocation: BinaryInvocation,
+    original: OriginalNumericCommandContext<'_>,
+) -> Completion<Value> {
     use tcl_cmd_core::binary::UuDecodeError;
     let Some((fmt, args)) = rest.split_first() else {
         return crate::command::native_wrong_arguments_message(
@@ -542,9 +556,9 @@ fn binary_decode(vm: &mut Vm, rest: &[Value], invocation: BinaryInvocation) -> C
             "wrong # args: should be \"binary decode format ?options? data\"",
         );
     };
-    let bytes = match vm.native_name_operand_bytes(fmt) {
+    let bytes = match binary_name_operand(vm, fmt, original) {
         Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
     let canon = match resolve_binary_sub(BINARY_FORMATS, &bytes, false, b"::tcl::binary::decode") {
         Ok(name) => name,
@@ -879,5 +893,57 @@ mod native_ensemble_tests {
             );
             assert!(!vm.namespace_exists("::tcl::binary::encode"), "{dialect}");
         }
+    }
+}
+
+#[cfg(test)]
+mod original_decode_owner_tests {
+    use super::*;
+    use crate::interp::native_operation_currency::NativeOperationScope;
+
+    #[test]
+    fn original_binary_decode_selector_keeps_guest_success_and_exact_header_refusal() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Real codec adapter and closed VM headers; no extension-object ABI claim.
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl8.6"));
+        let original = NativeOperationScope::enter(&mut vm).unwrap();
+        let completion = binary_decode(
+            &mut vm,
+            &[Value::string("hex"), Value::string("41")],
+            BinaryInvocation::Public,
+        );
+        assert_eq!(completion.code, Code::Ok);
+        assert_eq!(
+            completion
+                .result
+                .byte_array_representation()
+                .unwrap()
+                .as_ref(),
+            b"A"
+        );
+        original.check(&mut vm).unwrap();
+        let selector = Value::string("not-a-codec");
+        let loan = selector.native_lifetime_lease();
+        drop(selector);
+        assert!(!loan.value().native_object_is_live());
+        let completion = binary_decode(
+            &mut vm,
+            std::slice::from_ref(loan.value()),
+            BinaryInvocation::Public,
+        );
+        let first = vm.finish_host_execution(completion).unwrap_err();
+        assert_eq!(
+            first,
+            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "retired native object header",
+                ),
+            ),
+        );
+        assert_eq!(vm.execution_refusal.as_ref(), Some(&first));
+        assert_eq!(original.check_native(&mut vm).unwrap_err(), first);
+        assert!(loan.value().resident_string_bytes().is_some());
     }
 }

@@ -186,6 +186,23 @@ impl NativeOperationScope {
         Ok(Self { entered })
     }
 
+    /// Re-enter the same saved execution only after complete original currency checks.
+    pub(crate) fn resume_saved(
+        vm: &mut Vm,
+        original: &NativeOperationCurrency,
+    ) -> Result<Self, NativeExecutionError> {
+        original.check_native(vm)?;
+        Self::enter_saved_cleanup(vm, original, vm.cur)
+    }
+
+    /// Same-target retirement remains mandatory after original currency withdrawal.
+    pub(crate) fn cleanup_saved(
+        vm: &mut Vm,
+        original: &NativeOperationCurrency,
+    ) -> Result<Self, NativeExecutionError> {
+        Self::enter_saved_cleanup(vm, original, vm.cur)
+    }
+
     pub(crate) fn currency(&self) -> &NativeOperationCurrency {
         &self.entered.currency
     }
@@ -438,5 +455,74 @@ mod tests {
         assert_eq!(answer, 7);
         assert!(!authored.native_operation_context.has_entered_operation());
         assert!(authored.execution_refusal.is_none());
+    }
+    #[test]
+    fn original_coroutine_park_preserves_only_the_actual_active_parent_entry() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut vm = native();
+        let outer = NativeOperationScope::enter_native(&mut vm).unwrap();
+        let parked = vm
+            .try_eval_source("coroutine paused apply {{} {yield READY; return END}}")
+            .unwrap();
+        assert_eq!(parked.code, Code::Ok);
+        let observed = NativeOperationScope::current_entered(&mut vm)
+            .unwrap()
+            .unwrap();
+        assert!(Rc::ptr_eq(&outer.entered, &observed.entered));
+        drop(observed);
+        outer.check_native(&mut vm).unwrap();
+        drop(outer);
+        assert!(
+            NativeOperationScope::current_entered(&mut vm)
+                .unwrap()
+                .is_none()
+        );
+        let resumed = vm.try_invoke_command("paused", &[]).unwrap();
+        assert_eq!(resumed.code, Code::Ok);
+        assert_eq!(
+            resumed.result.resident_string_bytes().unwrap().as_ref(),
+            b"END"
+        );
+        assert!(
+            NativeOperationScope::current_entered(&mut vm)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_saved_execution_checks_same_target_currency_before_entry_and_keeps_cleanup() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut vm = native();
+        let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+        let saved = scope.currency().clone();
+        drop(scope);
+        assert!(
+            NativeOperationScope::current_entered(&mut vm)
+                .unwrap()
+                .is_none()
+        );
+        let resumed = NativeOperationScope::resume_saved(&mut vm, &saved).unwrap();
+        let observed = NativeOperationScope::current_entered(&mut vm)
+            .unwrap()
+            .unwrap();
+        assert!(Rc::ptr_eq(&resumed.entered, &observed.entered));
+        drop((observed, resumed));
+        let original_host = vm.host_rc();
+        vm.set_host(Rc::new(crate::host_native::NativeHost::new()));
+        vm.set_host(original_host);
+        let first = NativeOperationScope::resume_saved(&mut vm, &saved)
+            .err()
+            .unwrap();
+        assert!(!vm.native_operation_context.has_entered_operation());
+        assert_eq!(saved.check_native(&mut vm).unwrap_err(), first);
+        let cleanup = NativeOperationScope::cleanup_saved(&mut vm, &saved).unwrap();
+        assert!(vm.native_operation_context.has_entered_operation());
+        assert_eq!(cleanup.check_native(&mut vm).unwrap_err(), first);
+        drop(cleanup);
+        assert!(!vm.native_operation_context.has_entered_operation());
+        assert_eq!(vm.execution_refusal.as_ref(), Some(&first));
     }
 }

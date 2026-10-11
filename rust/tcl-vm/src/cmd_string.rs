@@ -162,9 +162,9 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "string",
         STRING_SUBS,
     );
-    let sub_bytes = match vm.native_name_operand_bytes(sub) {
+    let sub_bytes = match vm.native_name_operand_bytes_checked(sub) {
         Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
     let canon = match resolve_string_sub(subs, &sub_bytes) {
         Ok(c) => c,
@@ -418,10 +418,10 @@ fn cmd_append(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((name, vals)) = args.split_first() else {
         return err_wrong_args(vm, "append varName ?value ...?");
     };
-    let name = match vm.native_name_operand_bytes(name) {
+    let name = match vm.native_name_operand_bytes_checked(name) {
         Ok(name) => name,
         Err(error) => {
-            return vm.refuse_host_command(format!("native append name is unavailable: {error:?}"));
+            return crate::command::completion_from_cmd_error(vm, error);
         }
     };
     if vals.is_empty() {

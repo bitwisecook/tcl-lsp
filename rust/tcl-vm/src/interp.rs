@@ -1688,6 +1688,16 @@ pub(crate) struct ParkedFlow {
 }
 
 impl ParkedFlow {
+    pub(crate) fn original_tailcall_currencies(
+        &self,
+    ) -> Vec<native_operation_currency::NativeOperationCurrency> {
+        self.frames
+            .iter()
+            .filter_map(|frame| frame.tailcall.as_ref())
+            .map(|request| request.original_scope.currency().clone())
+            .collect()
+    }
+
     /// Constructed namespace of the parked flow's current Tcl frame.  The
     /// saved stack omits the shared global root, so an empty tail is global.
     pub(crate) fn current_namespace_token(&self) -> NsId {
@@ -17130,6 +17140,29 @@ impl Vm {
         }
         self.swap_flow(parked);
         scope?.check_native(self)
+    }
+
+    /// A caught return can retain a tailcall request until a later coroutine yield.
+    pub(crate) fn park_original_flow_tailcalls(&mut self) {
+        for frame in &mut self.frames {
+            if let Some(request) = &mut frame.tailcall {
+                request.original_scope.park();
+            }
+        }
+    }
+
+    pub(crate) fn resume_original_flow_tailcalls(
+        &mut self,
+    ) -> Result<Vec<native_operation_currency::NativeOperationScope>, tcl_cmd_core::CmdError> {
+        let mut scopes = Vec::new();
+        for level in 0..self.frames.len() {
+            if let Some(mut request) = self.frames[level].tailcall.take() {
+                let reached = request.original_scope.resume(self);
+                self.frames[level].tailcall = Some(request);
+                scopes.push(reached?);
+            }
+        }
+        Ok(scopes)
     }
 
     /// Push a non-proc call frame for a `namespace eval`/`inscope` body running

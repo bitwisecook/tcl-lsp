@@ -475,15 +475,12 @@ fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let first = match args
         .first()
-        .map(|value| vm.native_name_operand_bytes(value))
+        .map(|value| vm.native_name_operand_bytes_checked(value))
         .transpose()
     {
         Ok(bytes) => bytes,
         Err(error) => {
-            return completion_from_cmd_error(
-                vm,
-                tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error).into(),
-            );
+            return completion_from_cmd_error(vm, error);
         }
     };
     let tcl_registry::source_file::SourceFileSelection::Selected(selected) =
@@ -491,25 +488,22 @@ fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     else {
         return native_wrong_args(vm, grammar.synopsis());
     };
-    let path = match vm.native_name_operand_bytes(&args[selected.path_at]) {
+    let path = match vm.native_name_operand_bytes_checked(&args[selected.path_at]) {
         Ok(bytes) => bytes,
         Err(error) => {
-            return completion_from_cmd_error(
-                vm,
-                tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error).into(),
-            );
+            return completion_from_cmd_error(vm, error);
         }
     };
     let path = tcl_core_types::c_string_extent(&path);
     let encoding = match selected.encoding_at {
         Some(index) => {
-            let name = match vm.native_name_operand_bytes(&args[index]) {
+            let name = match vm.native_name_operand_bytes_checked(&args[index]) {
                 Ok(name) => name,
-                Err(error) => return vm.refuse_host_command(error.to_string()),
+                Err(error) => return completion_from_cmd_error(vm, error),
             };
             let name = match std::str::from_utf8(tcl_core_types::c_string_extent(&name)) {
                 Ok(name) => name,
-                Err(error) => return vm.refuse_host_command(error.to_string()),
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
             };
             match tcl_cmd_core::channel::resolve_system_encoding(name) {
                 Ok(encoding) => encoding,
@@ -627,9 +621,9 @@ fn cmd_jim_exists(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             native_wrong_args(vm, "?-command|-proc|-alias|-channel|-var? name")
         };
     };
-    let name = match vm.native_name_operand_bytes(name) {
+    let name = match vm.native_name_operand_bytes_checked(name) {
         Ok(name) => name,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
+        Err(error) => return completion_from_cmd_error(vm, error),
     };
     let exists = vm.get_var_bytes(&name).is_some();
     if let Some(refusal) = vm.refused_completion() {
@@ -871,12 +865,10 @@ pub(crate) fn build_lambda_proc(
 
 fn lambda_namespace(vm: &mut Vm, original: Option<&Value>) -> Result<NsId, Completion<Value>> {
     if let Some(original) = original {
-        let bytes = match vm.native_name_operand_bytes(original) {
+        let bytes = match vm.native_name_operand_bytes_checked(original) {
             Ok(bytes) => bytes,
             Err(error) => {
-                return Err(
-                    vm.refuse_host_command(format!("lambda namespace is unavailable: {error}"))
-                );
+                return Err(completion_from_cmd_error(vm, error));
             }
         };
         let recipe = vm
@@ -947,13 +939,13 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             "wrong # args: should be \"rename oldName newName\"",
         );
     };
-    let old_name = match vm.native_name_operand_bytes(old) {
+    let old_name = match vm.native_name_operand_bytes_checked(old) {
         Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
+        Err(error) => return completion_from_cmd_error(vm, error),
     };
-    let new_name = match vm.native_name_operand_bytes(new) {
+    let new_name = match vm.native_name_operand_bytes_checked(new) {
         Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
+        Err(error) => return completion_from_cmd_error(vm, error),
     };
     if let Some(error) = vm.jim_local_rename_error(&old_name, new_name.is_empty()) {
         return error;
@@ -1197,9 +1189,9 @@ fn interp_create_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let mut name = None;
     let mut i = 0;
     while i < rest.len() {
-        let original = match vm.native_name_operand_bytes(&rest[i]) {
+        let original = match vm.native_name_operand_bytes_checked(&rest[i]) {
             Ok(bytes) => bytes,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
+            Err(error) => return completion_from_cmd_error(vm, error),
         };
         if !last && original.first() == Some(&b'-') {
             match CREATE_OPTIONS.index_of_original(vm, &rest[i]) {
@@ -1437,13 +1429,13 @@ fn interp_hidectl_cmd(vm: &mut Vm, hide: bool, rest: &[Value]) -> Completion<Val
         Ok(id) => id,
         Err(error) => return error,
     };
-    let command = match vm.native_name_operand_bytes(command) {
+    let command = match vm.native_name_operand_bytes_checked(command) {
         Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
+        Err(error) => return completion_from_cmd_error(vm, error),
     };
-    let token = match vm.native_name_operand_bytes(token) {
+    let token = match vm.native_name_operand_bytes_checked(token) {
         Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
+        Err(error) => return completion_from_cmd_error(vm, error),
     };
     match vm.in_interp(id, |target| {
         if hide {
@@ -1472,9 +1464,9 @@ const HIDDEN_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static> =
 pub(crate) fn skip_hidden_options(vm: &mut Vm, tail: &[Value]) -> Result<usize, Completion<Value>> {
     let mut i = 0;
     while i < tail.len() {
-        let word = match vm.native_name_operand_bytes(&tail[i]) {
+        let word = match vm.native_name_operand_bytes_checked(&tail[i]) {
             Ok(bytes) => bytes,
-            Err(error) => return Err(vm.refuse_host_command(error.to_string())),
+            Err(error) => return Err(completion_from_cmd_error(vm, error)),
         };
         if word.first() != Some(&b'-') {
             break;
@@ -1565,9 +1557,9 @@ fn cmd_alias(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let mut words = vec![target.clone()];
     words.extend_from_slice(prefix);
-    let original = match vm.native_name_operand_bytes(name) {
+    let original = match vm.native_name_operand_bytes_checked(name) {
         Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
+        Err(error) => return completion_from_cmd_error(vm, error),
     };
     let slot = match vm.native_alias_publication_slot(&original) {
         Ok(slot) => slot,
@@ -1809,16 +1801,10 @@ fn cmd_subst(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         {
             Vec::<u8>::new().into()
         } else {
-            match vm.native_name_operand_bytes(string) {
+            match vm.native_name_operand_bytes_checked(string) {
                 Ok(bytes) => bytes.to_vec().into(),
                 Err(error) => {
-                    return completion_from_tcl_error(
-                        vm,
-                        tcl_syntax::value::ValueError::NativeStringAccess(
-                            tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
-                        )
-                        .into(),
-                    );
+                    return completion_from_cmd_error(vm, error);
                 }
             }
         },
@@ -1883,11 +1869,10 @@ fn cmd_incr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if vm.uses_native_jim_lookup() {
         return vm.increment_original_jim_name(name, amount);
     }
-    let name = match vm.native_name_operand_bytes(name) {
+    let name = match vm.native_name_operand_bytes_checked(name) {
         Ok(name) => name,
         Err(error) => {
-            return vm
-                .refuse_host_command(format!("native increment name is unavailable: {error:?}"));
+            return completion_from_cmd_error(vm, error);
         }
     };
     match vm.increment_captured_bytes(&name, None, amount) {
@@ -1909,16 +1894,10 @@ fn cmd_expr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     } else {
         let mut parts = Vec::with_capacity(args.len());
         for value in args {
-            match vm.native_name_operand_bytes(value) {
+            match vm.native_name_operand_bytes_checked(value) {
                 Ok(bytes) => parts.push(bytes),
                 Err(refusal) => {
-                    return completion_from_tcl_error(
-                        vm,
-                        tcl_syntax::value::ValueError::NativeStringAccess(
-                            tcl_syntax::raw_string::NativeStringAccessError::Unavailable(refusal),
-                        )
-                        .into(),
-                    );
+                    return completion_from_cmd_error(vm, refusal);
                 }
             }
         }
@@ -1972,10 +1951,10 @@ pub(crate) fn parse_params_in(
 /// Old C releases use `CString` list input at both levels; modern engines keep
 /// native list element objects, including the original default value.
 fn split_formal_values(
-    vm: &Vm,
+    vm: &mut Vm,
     value: &Value,
     protocol: tcl_syntax::naming::NativeNameProtocol,
-) -> Result<Vec<Value>, tcl_syntax::value::ValueError> {
+) -> Result<Vec<Value>, CmdError> {
     use tcl_syntax::value::ValueError;
     let strings = vm
         .actual_native_invocation_dialect()
@@ -1987,9 +1966,7 @@ fn split_formal_values(
         protocol.tcl_version(),
         Some(tcl_dialect::TclVersion::V8_4 | tcl_dialect::TclVersion::V8_5)
     ) {
-        let original = vm
-            .native_name_operand_bytes(value)
-            .map_err(|_| ValueError::CommandProtocolUnavailable("formal list string"))?;
+        let original = vm.native_name_operand_bytes_checked(value)?;
         let selected = protocol.formal_parameter_list_input(&original);
         let bytes = selected.selected();
         return tcl_syntax::list::split_native_list_bytes(bytes, strings)
@@ -1999,13 +1976,17 @@ fn split_formal_values(
                     .map(|item| Value::from_string_bytes(item.into_owned()))
                     .collect()
             })
-            .map_err(|error| ValueError::ListParse {
-                error,
-                source: bytes.to_vec(),
+            .map_err(|error| {
+                ValueError::ListParse {
+                    error,
+                    source: bytes.to_vec(),
+                }
+                .into()
             });
     }
     vm.native_object_list_elements_in(value, strings)
         .map(|items| items.as_ref().clone())
+        .map_err(Into::into)
 }
 
 pub(crate) fn parse_params_value(
@@ -2014,26 +1995,27 @@ pub(crate) fn parse_params_value(
     procedure: &[u8],
 ) -> Result<(Vec<Param>, bool), Completion<Value>> {
     use tcl_syntax::formal_params::{FormalParameterValueError, parse_formal_parameter_values};
-    use tcl_syntax::value::ValueError;
     let Some(policy) = vm.name_policy_protocol() else {
         return Err(vm.refuse_host_command("formal storage policy is unavailable".into()));
     };
     let protocol = policy.recipe();
-    let split = |value: &Value| split_formal_values(vm, value, protocol);
-    let outer = match split(spec) {
+    let outer = match split_formal_values(vm, spec, protocol) {
         Ok(outer) => outer,
         Err(error) => return Err(completion_from_cmd_error(vm, error.into())),
     };
+    let caller = std::cell::RefCell::new(&mut *vm);
     let parsed = parse_formal_parameter_values(
         &outer,
         protocol,
-        |value, _| split(value),
+        |value, _| split_formal_values(&mut caller.borrow_mut(), value, protocol),
         |value| {
-            vm.native_name_operand_bytes(value)
+            caller
+                .borrow_mut()
+                .native_name_operand_bytes_checked(value)
                 .map(|bytes| bytes.to_vec())
-                .map_err(|_| ValueError::CommandProtocolUnavailable("formal name string"))
         },
     );
+    drop(caller);
     let parsed = match parsed {
         Ok(parsed) => parsed,
         Err(FormalParameterValueError::Access(error)) => {
@@ -2052,11 +2034,9 @@ pub(crate) fn parse_params_value(
         for parameter in &parsed {
             if parameter.name == b"args"
                 && let Some(default) = &parameter.default
-                && let Err(error) = vm.native_name_operand_bytes(default)
+                && let Err(error) = vm.native_name_operand_bytes_checked(default)
             {
-                return Err(
-                    vm.refuse_host_command(format!("variadic local name is unavailable: {error}"))
-                );
+                return Err(completion_from_cmd_error(vm, error));
             }
         }
     }
@@ -2144,16 +2124,10 @@ fn define_procedure(
     } else {
         None
     };
-    let written = match vm.native_name_operand_bytes(name) {
+    let written = match vm.native_name_operand_bytes_checked(name) {
         Ok(bytes) => bytes,
         Err(error) => {
-            return completion_from_cmd_error(
-                vm,
-                tcl_syntax::value::ValueError::NativeStringAccess(
-                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
-                )
-                .into(),
-            );
+            return completion_from_cmd_error(vm, error);
         }
     };
     if let Err(completion) = validate_procedure_publication_name(vm, &written) {
@@ -2785,9 +2759,9 @@ pub(crate) fn cmd_const(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             "wrong # args: should be \"const varName value\"",
         );
     };
-    let name = match vm.native_name_operand_bytes(name) {
+    let name = match vm.native_name_operand_bytes_checked(name) {
         Ok(name) => name,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
+        Err(error) => return completion_from_cmd_error(vm, error),
     };
     match vm.declare_constant_bytes(&name, value.clone(), true) {
         Ok(()) => ok(Value::empty()),
@@ -2819,7 +2793,13 @@ fn cmd_tailcall(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
         return Completion::new(Code::Return, Value::empty(), Value::empty());
     }
+    let original_scope =
+        match crate::interp::native_operation_currency::NativeOperationScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return completion_from_cmd_error(vm, error),
+        };
     let request = crate::exec::TailcallReq {
+        original_scope: crate::exec::OriginalExecutionOwner::Entered(original_scope),
         namespace: tcl_cmd_core::namespace::current(vm),
         words: args.to_vec(),
         original_list: None,
@@ -2941,9 +2921,9 @@ fn cmd_encoding(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             let data = match args {
                 [_, data] if vm.system_encoding() == tcl_platform::SystemEncoding::Utf8 => data,
                 [_, encoding, data] => {
-                    let encoding = match vm.native_name_operand_bytes(encoding) {
+                    let encoding = match vm.native_name_operand_bytes_checked(encoding) {
                         Ok(bytes) => bytes,
-                        Err(error) => return vm.refuse_host_command(error.to_string()),
+                        Err(error) => return completion_from_cmd_error(vm, error),
                     };
                     if encoding.as_ref() != b"utf-8" {
                         return vm.refuse_host_command(
@@ -3090,12 +3070,12 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         args.len(),
         dialect,
         |index| {
-            vm.native_name_operand_bytes(&args[index])
+            vm.native_name_operand_bytes_checked(&args[index])
                 .map(|bytes| bytes.to_vec())
         },
     ) {
         Ok(selection) => selection,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
     let selected = match selection {
         tcl_registry::catch_invocation::CatchInvocationSelection::Valid(selected) => selected,
@@ -3482,8 +3462,8 @@ fn cmd_unset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return vm.refuse_host_command("unset option grammar is unavailable".into());
     };
     let options = match protocol.parse(args.len(), |index| {
-        vm.native_name_operand_bytes(&args[index])
-            .map_err(|error| vm.refuse_host_command(error.to_string()))
+        vm.native_name_operand_bytes_checked(&args[index])
+            .map_err(|error| completion_from_cmd_error(vm, error))
     }) {
         Ok(options) => options,
         Err(error) => return error,
@@ -3592,10 +3572,10 @@ fn cmd_global(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return vm.refuse_host_command("global alias policy is unavailable".into());
     };
     for value in args {
-        let name = match vm.native_name_operand_bytes(value) {
+        let name = match vm.native_name_operand_bytes_checked(value) {
             Ok(name) => name,
             Err(error) => {
-                return vm.refuse_host_command(format!("global name is unavailable: {error}"));
+                return completion_from_cmd_error(vm, error);
             }
         };
         let Some(local) = tcl_syntax::naming::global_local_name_bytes(policy.recipe(), &name)
@@ -4083,10 +4063,10 @@ pub(crate) fn cmd_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let mut i = 0;
     while i < args.len() {
-        let name = match vm.native_name_operand_bytes(&args[i]) {
+        let name = match vm.native_name_operand_bytes_checked(&args[i]) {
             Ok(name) => name,
             Err(error) => {
-                return vm.refuse_host_command(format!("variable name is unavailable: {error}"));
+                return completion_from_cmd_error(vm, error);
             }
         };
         let local = tcl_syntax::naming::variable_local_name_bytes(policy.recipe(), &name);

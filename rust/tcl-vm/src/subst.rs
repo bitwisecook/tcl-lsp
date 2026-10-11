@@ -634,12 +634,14 @@ fn concatenate_word_values(vm: &mut Vm, mut values: Vec<Value>) -> Result<Value,
 }
 
 fn materialise_word_component(vm: &mut Vm, value: &Value) -> Result<std::rc::Rc<[u8]>, TclError> {
-    vm.native_name_operand_bytes(value).map_err(|error| {
-        tcl_syntax::value::ValueError::NativeStringAccess(
-            tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
-        )
-        .into()
-    })
+    vm.native_name_operand_bytes_checked(value)
+        .map_err(|error| {
+            if let Some(first) = error.native_execution_refusal() {
+                TclError::from_execution_failure(first.clone())
+            } else {
+                TclError::from_completion(crate::command::completion_from_cmd_error(vm, error))
+            }
+        })
 }
 
 #[cfg(test)]

@@ -3495,3 +3495,38 @@ publication and owned cleanup. These report and accessor checks do not provide a
 property-member retirement recipe, whole-object lifecycle authority or Native
 callback chronology; the literal configure controls use the independently
 retained public property snapshot and table observations.
+
+
+## Original VM dispatch and parked continuation ownership
+
+`NativeOperationScope` enters the actual invocation before original name
+getters, reset, command charging and enter callbacks. The same original owner
+travels through `ExecLeaveCtx`, deferred `Call`/`Push*` handoffs, the actual
+activation `Frame` and `TailcallReq`. Trace eligibility remains independent;
+the scope supplies no name, command, frame, compiler, scalar or String recipe.
+The checked original name getter returns full `CmdError` to existing completion
+boundaries before Guest formatting or later callbacks.
+
+Coroutine suspension changes only those carried execution owners from
+`Entered(Scope)` to `Parked(Currency)`. Parked-only scope clones retire, while an
+actual active parent invocation remains entered. Saved currency does not make
+`current_entered` succeed for an unrelated call. Authentic resume, queued
+injections, `coroprobe` and retained activation callbacks attach that same saved
+currency after complete checks and before work. Cleanup has a separate
+same-target attachment that permits mandatory owner retirement after currency
+withdrawal; it grants no resumed execution.
+
+Every successful or failed worker checks the original scope before Guest
+presentation or continuation. Host refusal retains the first full typed cause
+while releasing actual scripts, procedure frames, selected namespaces, step
+scopes, Jim command leases, argument owners and temporary lambda publications.
+The `RETURN_CODE_BRANCH` opcode reads its actual popped operand through the
+canonical selected Return-code Int getter; `END_CATCH` remains separate. Pure
+source and authored compatibility APIs keep their independent purposes.
+
+The bounded software controls in
+`exec::original_name_dispatch_tests` and
+`interp::native_operation_currency::tests` exercise actual paused continuations,
+an unrelated fresh invocation, active parent preservation, Host ABA, resume and
+another retained callback route. These controls do not measure an external C
+extension object or grant physical execution authority from saved metadata.

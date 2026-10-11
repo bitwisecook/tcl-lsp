@@ -340,9 +340,9 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         );
     };
     let s = |v: &Value| v.to_str().to_string();
-    let sub_bytes = match vm.native_name_operand_bytes(sub) {
+    let sub_bytes = match vm.native_name_operand_bytes_checked(sub) {
         Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
     let subs = crate::environment::release_subcommands(
         vm.runtime_version().dialect_profile_name(),
@@ -552,13 +552,10 @@ fn cmd_glob(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let mut types: Vec<char> = Vec::new();
     let mut i = 0;
     while i < args.len() {
-        let word = match vm.native_name_operand_bytes(&args[i]) {
+        let word = match vm.native_name_operand_bytes_checked(&args[i]) {
             Ok(bytes) => bytes,
             Err(error) => {
-                return crate::command::completion_from_cmd_error(
-                    vm,
-                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error).into(),
-                );
+                return crate::command::completion_from_cmd_error(vm, error);
             }
         };
         // Only a `-`-leading word reaches the table, as in C — a bare word

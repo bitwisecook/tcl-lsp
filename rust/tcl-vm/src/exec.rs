@@ -60,6 +60,7 @@ mod native_uplevel_tests;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use crate::interp::native_operation_currency::{NativeOperationCurrency, NativeOperationScope};
 use tcl_bytecode::{
     ErrorRegion, ErrorStackContext, FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand,
 };
@@ -325,10 +326,53 @@ pub(crate) struct Frame {
     fatal_tail: Option<FatalTail>,
 }
 
-/// One traced dispatch's leave-side state: the invoked command string, the
-/// still-attached owner eligible for live leave lookup, and how many step
-/// scopes the dispatch pushed (popped before firing).
+/// A suspended continuation retains currency without an entered invocation.
+/// Actual entered execution or readonly saved currency on an authentic continuation.
+#[derive(Clone)]
+pub(crate) enum OriginalExecutionOwner {
+    Entered(NativeOperationScope),
+    Parked(NativeOperationCurrency),
+}
+
+impl OriginalExecutionOwner {
+    pub(crate) fn currency(&self) -> &NativeOperationCurrency {
+        match self {
+            Self::Entered(scope) => scope.currency(),
+            Self::Parked(currency) => currency,
+        }
+    }
+
+    fn check(&self, vm: &mut Vm) -> Result<(), tcl_cmd_core::CmdError> {
+        self.currency().check(vm)
+    }
+
+    pub(crate) fn park(&mut self) {
+        *self = Self::Parked(self.currency().clone());
+    }
+
+    pub(crate) fn resume(
+        &mut self,
+        vm: &mut Vm,
+    ) -> Result<NativeOperationScope, tcl_cmd_core::CmdError> {
+        let entered = match self {
+            Self::Entered(scope) => {
+                scope.check(vm)?;
+                scope.clone()
+            }
+            Self::Parked(currency) => NativeOperationScope::resume_saved(vm, currency)
+                .map_err(tcl_cmd_core::CmdError::from_execution_refusal)?,
+        };
+        *self = Self::Entered(entered.clone());
+        Ok(entered)
+    }
+}
+
+/// Original execution owners retained through deferred activation and cleanup.
+/// Trace eligibility separately retains the invoked command string, attached
+/// leave owner and step scopes (popped before firing).
 pub(crate) struct ExecLeaveCtx {
+    original_scopes: Vec<OriginalExecutionOwner>,
+    traces: bool,
     jim_commands: Vec<crate::interp::native_jim_lookup::JimCommandLease>,
     cmd_string: Value,
     leave_owner: Option<CommandSidecarHandle>,
@@ -1001,6 +1045,7 @@ pub(crate) struct TailcallReq {
     pub(crate) namespace: Value,
     pub(crate) words: Vec<Value>,
     pub(crate) original_list: Option<Value>,
+    pub(crate) original_scope: OriginalExecutionOwner,
 }
 
 /// How a [`Vm::drive`](Vm) invocation ended: the activation stack emptied
@@ -1689,11 +1734,94 @@ impl Vm {
         acts.push(frame);
     }
 
+    fn original_scope_context(original: NativeOperationScope) -> ExecLeaveCtx {
+        ExecLeaveCtx {
+            original_scopes: vec![OriginalExecutionOwner::Entered(original)],
+            traces: false,
+            jim_commands: Vec::new(),
+            cmd_string: Value::empty(),
+            leave_owner: None,
+            step_scopes: 0,
+        }
+    }
+
+    fn original_scope_refusal(
+        &mut self,
+        original: &NativeOperationScope,
+    ) -> Option<Completion<Value>> {
+        original
+            .check(self)
+            .err()
+            .map(|error| crate::command::completion_from_cmd_error(self, error))
+    }
+
+    fn original_owner_refusal(
+        &mut self,
+        original: &OriginalExecutionOwner,
+    ) -> Option<Completion<Value>> {
+        original
+            .check(self)
+            .err()
+            .map(|error| crate::command::completion_from_cmd_error(self, error))
+    }
+
+    fn finish_original_completion(
+        &mut self,
+        original: &NativeOperationScope,
+        reached: Completion<Value>,
+    ) -> Completion<Value> {
+        if let Some(first) = self.original_scope_refusal(original) {
+            drop(reached);
+            let _ = original.check(self);
+            first
+        } else {
+            reached
+        }
+    }
+
+    fn finish_original_dispatch<T>(
+        &mut self,
+        original: &NativeOperationScope,
+        reached: Result<T, Completion<Value>>,
+    ) -> Result<T, Completion<Value>> {
+        if let Some(first) = self.original_scope_refusal(original) {
+            drop(reached);
+            let _ = original.check(self);
+            Err(first)
+        } else {
+            reached
+        }
+    }
+
+    fn exec_leave_scope_refusal(&mut self, context: &ExecLeaveCtx) -> Option<Completion<Value>> {
+        context
+            .original_scopes
+            .iter()
+            .find_map(|original| self.original_owner_refusal(original))
+    }
+
+    fn settle_original_exec_leave(
+        &mut self,
+        context: ExecLeaveCtx,
+        reached: Completion<Value>,
+    ) -> Completion<Value> {
+        let original = context.original_scopes.clone();
+        let replacement = self.finish_exec_leave(&context, &reached);
+        drop(context);
+        let reached = replacement.unwrap_or(reached);
+        for scope in &original {
+            if let Some(first) = self.original_owner_refusal(scope) {
+                drop(reached);
+                let _ = scope.check(self);
+                return first;
+            }
+        }
+        reached
+    }
+
     fn settle_pending_exec_leave(&mut self, completion: Completion<Value>) -> Completion<Value> {
         match self.pending_exec_leave.take() {
-            Some(ctx) => self
-                .finish_exec_leave(&ctx, &completion)
-                .unwrap_or(completion),
+            Some(ctx) => self.settle_original_exec_leave(ctx, completion),
             None => completion,
         }
     }
@@ -1704,9 +1832,7 @@ impl Vm {
         mut completion: Completion<Value>,
     ) -> Completion<Value> {
         for ctx in contexts.drain(..).rev() {
-            if let Some(replacement) = self.finish_exec_leave(&ctx, &completion) {
-                completion = replacement;
-            }
+            completion = self.settle_original_exec_leave(ctx, completion);
         }
         completion
     }
@@ -1814,6 +1940,20 @@ impl Vm {
 
     fn drive_loop(&mut self, acts: &mut Vec<Frame>, mode: DriveMode) -> RunExit {
         loop {
+            for original in acts
+                .iter()
+                .flat_map(|activation| activation.exec_leave.iter())
+                .flat_map(|context| context.original_scopes.iter())
+            {
+                if matches!(original, OriginalExecutionOwner::Parked(_)) {
+                    let _ = original.check(self);
+                    self.refuse_host_command(
+                        "parked VM continuation has no entered execution owner".into(),
+                    );
+                    break;
+                }
+                let _ = original.check(self);
+            }
             if self.execution_refusal.is_some() {
                 return RunExit::Done(self.abort_refused_activations(acts));
             }
@@ -1908,6 +2048,90 @@ impl Vm {
         Some(self.raise_jim_script_parse_failure(tail, level, location))
     }
 
+    pub(crate) fn original_activation_currencies(acts: &[Frame]) -> Vec<NativeOperationCurrency> {
+        acts.iter()
+            .flat_map(|activation| {
+                activation
+                    .exec_leave
+                    .iter()
+                    .flat_map(|context| context.original_scopes.iter())
+                    .chain(activation.deferred_dispatch.iter().filter_map(
+                        |tick| match tick.as_ref() {
+                            Tick::Tailcall(request) => Some(&request.original_scope),
+                            _ => None,
+                        },
+                    ))
+            })
+            .map(|owner| owner.currency().clone())
+            .collect()
+    }
+
+    /// Attach saved currency solely for retirement of its authentic current target.
+    pub(crate) fn original_activation_cleanup(
+        &mut self,
+        currencies: &[NativeOperationCurrency],
+    ) -> Vec<NativeOperationScope> {
+        currencies
+            .iter()
+            .filter_map(|currency| NativeOperationScope::cleanup_saved(self, currency).ok())
+            .collect()
+    }
+
+    /// Restore the genuine suspended owners before any resume callback or opcode.
+    pub(crate) fn resume_original_activations(
+        &mut self,
+        acts: &mut [Frame],
+    ) -> Result<Vec<NativeOperationScope>, tcl_cmd_core::CmdError> {
+        let mut scopes = Vec::new();
+        for activation in acts {
+            for owner in activation
+                .exec_leave
+                .iter_mut()
+                .flat_map(|context| &mut context.original_scopes)
+            {
+                scopes.push(owner.resume(self)?);
+            }
+            if let Some(tick) = &mut activation.deferred_dispatch
+                && let Tick::Tailcall(request) = tick.as_mut()
+            {
+                scopes.push(request.original_scope.resume(self)?);
+            }
+        }
+        scopes.extend(self.resume_original_flow_tailcalls()?);
+        Ok(scopes)
+    }
+
+    pub(crate) fn resume_original_currencies(
+        &mut self,
+        currencies: &[NativeOperationCurrency],
+    ) -> Result<Vec<NativeOperationScope>, tcl_runtime_api::NativeExecutionError> {
+        currencies
+            .iter()
+            .map(|currency| NativeOperationScope::resume_saved(self, currency))
+            .collect()
+    }
+
+    pub(crate) fn check_original_scopes_native(
+        &mut self,
+        scopes: &[NativeOperationScope],
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        if let Some(first) = self.execution_refusal.clone() {
+            return Err(first);
+        }
+        for scope in scopes {
+            scope.check_native(self)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn check_original_scopes(
+        &mut self,
+        scopes: &[NativeOperationScope],
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        self.check_original_scopes_native(scopes)
+            .map_err(tcl_cmd_core::CmdError::from_execution_refusal)
+    }
+
     /// Restore hidden frame owners before a parked coroutine is destroyed.
     /// Walk innermost first so nested selections retire only their own children.
     pub(crate) fn restore_parked_execution_frames(&mut self, acts: &mut [Frame]) {
@@ -1938,7 +2162,18 @@ impl Vm {
     /// Retire engine storage without catch/try/finally, completion presentation,
     /// or guest leave/unset callbacks. The returned carrier is internal only;
     /// the host boundary returns the retained typed refusal instead.
-    fn abort_refused_activations(&mut self, acts: &mut Vec<Frame>) -> Completion<Value> {
+    pub(crate) fn abort_refused_activations(&mut self, acts: &mut Vec<Frame>) -> Completion<Value> {
+        let original_scopes: Vec<_> = acts
+            .iter()
+            .flat_map(|activation| activation.exec_leave.iter())
+            .chain(self.pending_exec_leave.iter())
+            .flat_map(|context| context.original_scopes.iter().cloned())
+            .collect();
+        let currencies: Vec<_> = original_scopes
+            .iter()
+            .map(|owner| owner.currency().clone())
+            .collect();
+        let cleanup = self.original_activation_cleanup(&currencies);
         while let Some(mut activation) = acts.pop() {
             activation.close_native_script();
             if activation.is_proc {
@@ -1966,6 +2201,10 @@ impl Vm {
         if let Some(context) = self.pending_exec_leave.take() {
             self.pop_exec_step_scopes(context.step_scopes);
         }
+        for original in &original_scopes {
+            let _ = original.check(self);
+        }
+        let _ = self.check_original_scopes(&cleanup);
         err("")
     }
 
@@ -1975,6 +2214,18 @@ impl Vm {
         mode: DriveMode,
         req: YieldReq,
     ) -> Option<RunExit> {
+        let original_scopes: Vec<_> = acts
+            .iter()
+            .flat_map(|activation| activation.exec_leave.iter())
+            .chain(self.pending_exec_leave.iter())
+            .flat_map(|context| context.original_scopes.iter().cloned())
+            .collect();
+        for original in &original_scopes {
+            let _ = original.check(self);
+        }
+        if self.execution_refusal.is_some() {
+            return Some(RunExit::Done(self.abort_refused_activations(acts)));
+        }
         match mode {
             // A coroutine `yield`/`yieldto` freezes `acts` in place (pc already
             // past the suspend point) and hands the request out to its resume.
@@ -1989,6 +2240,33 @@ impl Vm {
                         .settle_stale_activation(acts, message)
                         .map(RunExit::Done);
                 }
+                if let Some(context) = self.pending_exec_leave.take() {
+                    let Some(activation) = acts.last_mut() else {
+                        self.pending_exec_leave = Some(context);
+                        self.refuse_host_command(
+                            "suspended VM continuation has no activation owner".into(),
+                        );
+                        return Some(RunExit::Done(self.abort_refused_activations(acts)));
+                    };
+                    activation.exec_leave.push(context);
+                }
+                for activation in acts.iter_mut() {
+                    for owner in activation
+                        .exec_leave
+                        .iter_mut()
+                        .flat_map(|context| &mut context.original_scopes)
+                    {
+                        owner.park();
+                    }
+                    if let Some(tick) = &mut activation.deferred_dispatch
+                        && let Tick::Tailcall(request) = tick.as_mut()
+                    {
+                        request.original_scope.park();
+                    }
+                }
+                self.park_original_flow_tailcalls();
+                // The temporary check views must also retire before the parked flow escapes.
+                drop(original_scopes);
                 Some(RunExit::Yielded(req))
             }
             // Defensive: the `yield` builtin's boundary check rejects a
@@ -2434,7 +2712,18 @@ impl Vm {
         acts: &mut Vec<Frame>,
         mut c: Completion<Value>,
     ) -> Result<(Completion<Value>, Option<TailcallReq>), ()> {
+        let original: Vec<_> = act
+            .exec_leave
+            .iter()
+            .flat_map(|context| context.original_scopes.iter().cloned())
+            .collect();
         let tailcall = self.unwind_activation_state(act, acts, &mut c);
+        for scope in &original {
+            let _ = scope.check(self);
+        }
+        if self.execution_refusal.is_some() {
+            return Ok((c, tailcall));
+        }
         // `catch` and `try` still have command-owned completion work below:
         // catch absorbs its body's completion, while try may advance through
         // several handler/finally phase activations. Their execution-trace
@@ -2463,6 +2752,12 @@ impl Vm {
         // status code as an integer, delivered to the parent as this `catch`
         // command's result (`exit` stays uncatchable — `finish_catch` passes
         // it straight through).
+        for scope in &original {
+            let _ = scope.check(self);
+        }
+        if self.execution_refusal.is_some() {
+            return Ok((c, tailcall));
+        }
         c = match self.settle_control_activation(act, acts, c) {
             Ok(completion) => completion,
             Err(()) => return Err(()),
@@ -2479,7 +2774,26 @@ impl Vm {
         Ok((c, tailcall))
     }
 
-    fn unwind(
+    fn unwind(&mut self, acts: &mut Vec<Frame>, c: Completion<Value>) -> Option<Completion<Value>> {
+        let original: Vec<_> = acts
+            .iter()
+            .flat_map(|activation| activation.exec_leave.iter())
+            .chain(self.pending_exec_leave.iter())
+            .flat_map(|context| context.original_scopes.iter().cloned())
+            .collect();
+        let reached = self.unwind_in_original_scope(acts, c);
+        for scope in &original {
+            if self.original_owner_refusal(scope).is_some() {
+                drop(reached);
+                let completion = self.abort_refused_activations(acts);
+                let _ = scope.check(self);
+                return Some(completion);
+            }
+        }
+        reached
+    }
+
+    fn unwind_in_original_scope(
         &mut self,
         acts: &mut Vec<Frame>,
         mut c: Completion<Value>,
@@ -2692,16 +3006,10 @@ impl Vm {
                 .awaiting_array
                 .take()
         {
-            let key = match self.native_name_operand_bytes(&c.result) {
+            let key = match self.native_name_operand_bytes_checked(&c.result) {
                 Ok(key) => key,
                 Err(_refusal) => {
-                    return Err(crate::command::completion_from_tcl_error(
-                        self,
-                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                            "native array index",
-                        )
-                        .into(),
-                    ));
+                    return Err(crate::command::completion_from_cmd_error(self, _refusal));
                 }
             };
             c = match self.read_variable_result_bytes(&base, Some(&key)) {
@@ -2884,16 +3192,12 @@ impl Vm {
         if let Some(base) = state.pending_array.take()
             && c.code == Code::Ok
         {
-            let key = match self.native_name_operand_bytes(&c.result) {
+            let key = match self.native_name_operand_bytes_checked(&c.result) {
                 Ok(key) => key,
                 Err(refusal) => {
                     parent.subst = None;
-                    return SubstFold::Unwind(crate::command::completion_from_tcl_error(
-                        self,
-                        tcl_syntax::value::ValueError::NativeStringAccess(
-                            tcl_syntax::raw_string::NativeStringAccessError::Unavailable(refusal),
-                        )
-                        .into(),
+                    return SubstFold::Unwind(crate::command::completion_from_cmd_error(
+                        self, refusal,
                     ));
                 }
             };
@@ -2914,18 +3218,12 @@ impl Vm {
         }
         match c.code {
             Code::Ok | Code::Return | Code::Other(_) => {
-                let v = match self.native_name_operand_bytes(&c.result) {
+                let v = match self.native_name_operand_bytes_checked(&c.result) {
                     Ok(bytes) => bytes,
                     Err(refusal) => {
                         parent.subst = None;
-                        return SubstFold::Unwind(crate::command::completion_from_tcl_error(
-                            self,
-                            tcl_syntax::value::ValueError::NativeStringAccess(
-                                tcl_syntax::raw_string::NativeStringAccessError::Unavailable(
-                                    refusal,
-                                ),
-                            )
-                            .into(),
+                        return SubstFold::Unwind(crate::command::completion_from_cmd_error(
+                            self, refusal,
                         ));
                     }
                 };
@@ -2986,8 +3284,8 @@ impl Vm {
         }
         if protocol.empty_body_skips_activation() {
             let body = self
-                .native_name_operand_bytes(&proc.body_src)
-                .map_err(|error| self.refuse_host_command(error.to_string()))?;
+                .native_name_operand_bytes_checked(&proc.body_src)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
             if body.is_empty() {
                 return Ok(Some(ok(Value::empty())));
             }
@@ -3040,8 +3338,8 @@ impl Vm {
         }
         if let Some(failure) = &body.asm.native_compilation_failure {
             let name = self
-                .native_name_operand_bytes(invoked)
-                .map_err(|error| self.refuse_host_command(error.to_string()))?;
+                .native_name_operand_bytes_checked(invoked)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
             return Err(self.raise_native_compilation_failure(failure, Some(&name)));
         }
         let Some(protocol) = tcl_registry::native_procedure::procedure_activation_protocol(
@@ -3058,8 +3356,8 @@ impl Vm {
         }
         let bindings = self.procedure_argument_bindings(proc, argv)?;
         let skip_bindings = if proc.parameter_grammar == tcl_dialect::ParameterGrammar::Jim {
-            self.native_name_operand_bytes(&proc.body_src)
-                .map_err(|error| self.refuse_host_command(error.to_string()))?
+            self.native_name_operand_bytes_checked(&proc.body_src)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?
                 .is_empty()
         } else {
             false
@@ -3149,13 +3447,9 @@ impl Vm {
                     Value::list(argv[*start..*start + *len].to_vec()),
                 ),
                 FormalByteArgumentBinding::CallerLink { name, argument, .. } => {
-                    let target =
-                        self.native_name_operand_bytes(&argv[*argument])
-                            .map_err(|error| {
-                                self.refuse_host_command(format!(
-                                    "formal link name is unavailable: {error}"
-                                ))
-                            })?;
+                    let target = self
+                        .native_name_operand_bytes_checked(&argv[*argument])
+                        .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
                     let caller = self.current_level().saturating_sub(1);
                     if self.get_var_from_bytes(caller, &target).is_none() {
                         return Err(self.read_miss_completion_bytes_from(caller, &target));
@@ -4116,8 +4410,48 @@ impl Vm {
     }
 
     /// Execute a single instruction of the top activation.
-    #[allow(clippy::too_many_lines)] // One match over every opcode; the VM's central dispatch is clearer whole.
     fn tick(&mut self, f: &mut Frame) -> Tick {
+        let original = match NativeOperationScope::enter(self) {
+            Ok(original) => original,
+            Err(error) => {
+                return Tick::Return(crate::command::completion_from_cmd_error(self, error));
+            }
+        };
+        let reached = self.tick_in_original_scope(f);
+        if let Some(first) = self.original_scope_refusal(&original) {
+            drop(reached);
+            let _ = original.check(self);
+            f.exec_leave.push(Self::original_scope_context(original));
+            return Tick::Return(first);
+        }
+        match &reached {
+            Tick::Call { .. }
+            | Tick::PushScript { .. }
+            | Tick::PushCatch(_)
+            | Tick::PushEval(_)
+            | Tick::PushSubst { .. }
+            | Tick::PushEachLoop { .. }
+            | Tick::PushControl { .. }
+            | Tick::PushExpression { .. }
+            | Tick::PushTry { .. } => {
+                if let Some(context) = &mut self.pending_exec_leave {
+                    context
+                        .original_scopes
+                        .push(OriginalExecutionOwner::Entered(original));
+                } else {
+                    self.pending_exec_leave = Some(Self::original_scope_context(original));
+                }
+            }
+            Tick::Return(_) | Tick::Suspend(_) => {
+                f.exec_leave.push(Self::original_scope_context(original))
+            }
+            Tick::Continue | Tick::Tailcall(_) => {}
+        }
+        reached
+    }
+
+    #[allow(clippy::too_many_lines)] // One match over every opcode; the VM's central dispatch is clearer whole.
+    fn tick_in_original_scope(&mut self, f: &mut Frame) -> Tick {
         if let Some(dispatch) = f.deferred_dispatch.take() {
             return *dispatch;
         }
@@ -4348,12 +4682,12 @@ impl Vm {
         macro_rules! native_operand_bytes {
             ($value:expr) => {{
                 let operand = $value;
-                match self.native_name_operand_bytes(&operand) {
+                match self.native_name_operand_bytes_checked(&operand) {
                     Ok(bytes) => bytes,
                     Err(error) => {
-                        return Tick::Return(self.refuse_host_command(format!(
-                            "native variable operand is unavailable: {error}"
-                        )));
+                        return Tick::Return(crate::command::completion_from_cmd_error(
+                            self, error,
+                        ));
                     }
                 }
             }};
@@ -6895,8 +7229,13 @@ impl Vm {
             // `INST_RETURN_CODE_BRANCH`, which panics on TCL_OK / non-integers
             // — the VM errors instead of aborting).
             Op::RETURN_CODE_BRANCH => {
-                let Ok(code) = pop(f).as_int() else {
-                    return Tick::Return(err("returnCodeBranch: TOS not a return code"));
+                let original = pop(f);
+                let code = match self.original_return_code_for_branch(&original) {
+                    Ok(Some(code)) => code,
+                    Ok(None) => {
+                        return Tick::Return(err("returnCodeBranch: TOS not a return code"));
+                    }
+                    Err(refusal) => return Tick::Return(refusal),
                 };
                 if code == 0 {
                     return Tick::Return(err("returnCodeBranch: TOS is TCL_OK"));
@@ -7162,8 +7501,8 @@ impl Vm {
             == Some(tcl_dialect::TclVersion::V9_1)
         {
             let bytes = self
-                .native_name_operand_bytes(&words[0])
-                .map_err(|error| self.refuse_host_command(error.to_string()))?;
+                .native_name_operand_bytes_checked(&words[0])
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
             tcl_core_types::c_string_extent(&bytes).to_vec()
         } else {
             verb.as_bytes().to_vec()
@@ -7204,8 +7543,8 @@ impl Vm {
         }
         // C9.1 obtains the original head after GetElements, before checking the frame.
         let bytes = self
-            .native_name_operand_bytes(&words[0])
-            .map_err(|error| self.refuse_host_command(error.to_string()))?
+            .native_name_operand_bytes_checked(&words[0])
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?
             .to_vec();
         if !crate::cmd_oo::in_method(self) {
             return Err(crate::cmd_oo::native_context::helper_context_error(
@@ -7253,6 +7592,28 @@ impl Vm {
         lookup_namespace: Option<&str>,
         usage: &[crate::command::NativeArgumentUsageRewrite],
     ) -> Result<Option<Tick>, Completion<Value>> {
+        let original_scope = match NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(error) => return Err(crate::command::completion_from_cmd_error(self, error)),
+        };
+        let reached = self.dispatch_words_selected_in_original_scope(
+            f,
+            words,
+            entered,
+            lookup_namespace,
+            usage,
+        );
+        self.finish_original_dispatch(&original_scope, reached)
+    }
+
+    fn dispatch_words_selected_in_original_scope(
+        &mut self,
+        f: &mut Frame,
+        words: &crate::NativeListItems,
+        entered: Option<&EnteredCommand>,
+        lookup_namespace: Option<&str>,
+        usage: &[crate::command::NativeArgumentUsageRewrite],
+    ) -> Result<Option<Tick>, Completion<Value>> {
         let context = self
             .native_command_lookup_context(lookup_namespace)
             .map_err(|error| self.refuse_host_command(error.to_string()))?;
@@ -7279,6 +7640,32 @@ impl Vm {
         usage: &[crate::command::NativeArgumentUsageRewrite],
         ordinary: bool,
     ) -> Result<Option<Tick>, Completion<Value>> {
+        let original_scope = match NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(error) => return Err(crate::command::completion_from_cmd_error(self, error)),
+        };
+        let reached = self.dispatch_words_entry_at_in_original_scope(
+            f,
+            words,
+            entered,
+            context,
+            usage,
+            ordinary,
+            &original_scope,
+        );
+        self.finish_original_dispatch(&original_scope, reached)
+    }
+
+    fn dispatch_words_entry_at_in_original_scope(
+        &mut self,
+        f: &mut Frame,
+        words: &crate::NativeListItems,
+        entered: Option<&EnteredCommand>,
+        context: tcl_core_types::NsId,
+        usage: &[crate::command::NativeArgumentUsageRewrite],
+        ordinary: bool,
+        original_scope: &NativeOperationScope,
+    ) -> Result<Option<Tick>, Completion<Value>> {
         use tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent as Event;
         if ordinary {
             self.reset_native_ensemble_rewrite(Event::BeforeOrdinaryLookup)?;
@@ -7298,9 +7685,19 @@ impl Vm {
             return Err(exceeded);
         }
         if !self.exec_traces_can_fire() {
-            return self.dispatch_words_inner(f, words, None, entered, context, usage);
+            let ctx = ExecLeaveCtx {
+                original_scopes: vec![OriginalExecutionOwner::Entered(original_scope.clone())],
+                traces: false,
+                jim_commands: Vec::new(),
+                cmd_string: Value::empty(),
+                leave_owner: None,
+                step_scopes: 0,
+            };
+            let reached =
+                self.dispatch_words_inner(f, words, None, entered, context, usage, original_scope);
+            return self.settle_traced_word_dispatch(f, ctx, reached);
         }
-        self.dispatch_words_traced(f, words, entered, context, usage)
+        self.dispatch_words_traced(f, words, entered, context, usage, original_scope)
     }
 
     /// Resolve the trace owner and take the own-trace snapshot for one invoke.
@@ -7478,14 +7875,39 @@ impl Vm {
                     | Tick::PushTry { .. } => {
                         if let Some(mut prior) = self.pending_exec_leave.take() {
                             ctx.jim_commands.append(&mut prior.jim_commands);
+                            ctx.original_scopes.append(&mut prior.original_scopes);
                         }
                         self.pending_exec_leave = Some(ctx);
                     }
                     // Control shapes with no owning frame (a traced `yield` /
                     // `tailcall` builtin itself): settle with an empty ok —
                     // their real result forms elsewhere.
-                    Tick::Continue | Tick::Return(_) | Tick::Tailcall(_) | Tick::Suspend(_) => {
-                        let _ = self.finish_exec_leave(&ctx, &ok(Value::empty()));
+                    Tick::Suspend(_) => {
+                        let settled = self.finish_exec_leave(&ctx, &ok(Value::empty()));
+                        let _ = settled;
+                        if let Some(refused) = self.exec_leave_scope_refusal(&ctx) {
+                            return Err(refused);
+                        }
+                        ctx.traces = false;
+                        ctx.step_scopes = 0;
+                        ctx.leave_owner = None;
+                        ctx.cmd_string = Value::empty();
+                        if let Some(refused) = self.exec_leave_scope_refusal(&ctx) {
+                            let original = ctx.original_scopes.clone();
+                            drop(ctx);
+                            for scope in &original {
+                                let _ = scope.check(self);
+                            }
+                            return Err(refused);
+                        }
+                        f.exec_leave.push(ctx);
+                    }
+                    Tick::Continue | Tick::Return(_) | Tick::Tailcall(_) => {
+                        let settled = self.settle_original_exec_leave(ctx, ok(Value::empty()));
+                        let _ = settled;
+                        if let Some(refused) = self.refused_completion() {
+                            return Err(refused);
+                        }
                     }
                 }
                 Ok(Some(tick))
@@ -7493,20 +7915,17 @@ impl Vm {
             Ok(None) => {
                 // Synchronous completion: the result is on top of `f`'s stack.
                 let result = f.stack.last().cloned().unwrap_or_else(Value::empty);
-                match self.finish_exec_leave(&ctx, &ok(result)) {
-                    None => Ok(None),
-                    Some(replacement) => {
-                        // A leave-trace error replaces the command's result
-                        // (tclsh-pinned: LEAVEFAIL).
-                        f.stack.pop();
-                        Err(replacement)
-                    }
+                let replacement = self.settle_original_exec_leave(ctx, ok(result));
+                if replacement.code.is_ok() {
+                    Ok(None)
+                } else {
+                    // A leave-trace error replaces the command's result
+                    // (tclsh-pinned: LEAVEFAIL).
+                    f.stack.pop();
+                    Err(replacement)
                 }
             }
-            Err(c) => match self.finish_exec_leave(&ctx, &c) {
-                None => Err(c),
-                Some(replacement) => Err(replacement),
-            },
+            Err(c) => Err(self.settle_original_exec_leave(ctx, c)),
         }
     }
 
@@ -7517,6 +7936,7 @@ impl Vm {
         entered: Option<&EnteredCommand>,
         context: tcl_core_types::NsId,
         usage: &[crate::command::NativeArgumentUsageRewrite],
+        original_scope: &NativeOperationScope,
     ) -> Result<Option<Tick>, Completion<Value>> {
         let usage_revision = self.native_invocation.usage_revision;
         let original = &words[0];
@@ -7530,6 +7950,9 @@ impl Vm {
                     &scope.entry,
                     &[cmd_string.clone(), Value::string("enterstep")],
                 );
+                if let Some(refused) = self.original_scope_refusal(original_scope) {
+                    return Err(refused);
+                }
                 if !r.code.is_ok() {
                     return Err(r);
                 }
@@ -7554,6 +7977,9 @@ impl Vm {
             if entry.has_op("enter") {
                 let r = self
                     .run_cmd_trace_callback(entry, &[cmd_string.clone(), Value::string("enter")]);
+                if let Some(refused) = self.original_scope_refusal(original_scope) {
+                    return Err(refused);
+                }
                 if !r.code.is_ok() {
                     return Err(r);
                 }
@@ -7584,6 +8010,8 @@ impl Vm {
         let pushed =
             self.push_exec_step_scopes(&sidecar, post_enter.as_deref().unwrap_or_default());
         let ctx = ExecLeaveCtx {
+            original_scopes: vec![OriginalExecutionOwner::Entered(original_scope.clone())],
+            traces: true,
             jim_commands: Vec::new(),
             cmd_string,
             leave_owner,
@@ -7594,8 +8022,15 @@ impl Vm {
         } else {
             &[]
         };
-        let dispatched =
-            self.dispatch_words_inner(f, words, Some(&sidecar), entered, context, usage);
+        let dispatched = self.dispatch_words_inner(
+            f,
+            words,
+            Some(&sidecar),
+            entered,
+            context,
+            usage,
+            original_scope,
+        );
         self.settle_traced_word_dispatch(f, ctx, dispatched)
     }
 
@@ -7616,10 +8051,10 @@ impl Vm {
                 .all(super::interp::native_jim_lookup::JimCommandLease::is_active)
         );
         self.pop_exec_step_scopes(ctx.step_scopes);
-        if let Some(refused) = self.refused_completion() {
+        if let Some(refused) = self.exec_leave_scope_refusal(ctx) {
             return Some(refused);
         }
-        if self.exec_traces.is_empty() && self.exec_step_scopes.is_empty() {
+        if !ctx.traces || (self.exec_traces.is_empty() && self.exec_step_scopes.is_empty()) {
             return None;
         }
         let args = |result: Value, op: &str| {
@@ -7652,6 +8087,9 @@ impl Vm {
                 if entry.has_op("leave") {
                     let r =
                         self.run_cmd_trace_callback(&entry, &args(trace_result.clone(), "leave"));
+                    if let Some(refused) = self.exec_leave_scope_refusal(ctx) {
+                        return Some(refused);
+                    }
                     if !r.code.is_ok() {
                         replacement = Some(r);
                         break;
@@ -7667,6 +8105,9 @@ impl Vm {
             {
                 let r = self
                     .run_cmd_trace_callback(&scope.entry, &args(trace_result.clone(), "leavestep"));
+                if let Some(refused) = self.exec_leave_scope_refusal(ctx) {
+                    return Some(refused);
+                }
                 if !r.code.is_ok() {
                     replacement = Some(r);
                     break;
@@ -7888,6 +8329,7 @@ impl Vm {
         entered: Option<&EnteredCommand>,
         context: tcl_core_types::NsId,
         usage: &[crate::command::NativeArgumentUsageRewrite],
+        original_scope: &NativeOperationScope,
     ) -> Result<Option<Tick>, Completion<Value>> {
         let original = &words[0];
         let selected = if let Some(entered) = entered {
@@ -7947,6 +8389,8 @@ impl Vm {
         ) && let Some(lease) = jim_lease
         {
             let context = self.pending_exec_leave.get_or_insert_with(|| ExecLeaveCtx {
+                original_scopes: vec![OriginalExecutionOwner::Entered(original_scope.clone())],
+                traces: false,
                 jim_commands: Vec::new(),
                 cmd_string: Value::empty(),
                 leave_owner: None,
@@ -8147,10 +8591,44 @@ impl Vm {
         self.settle_native_dispatch(frame, result)
     }
 
+    fn original_return_code_for_branch(
+        &mut self,
+        value: &Value,
+    ) -> Result<Option<i64>, Completion<Value>> {
+        use crate::interp::native_numeric_ops::OriginalNumericOps;
+        use tcl_syntax::scalar_getter::{NativeScalarGetterKind, NativeScalarGetterValue};
+        let original = NativeOperationScope::enter(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let before = OriginalNumericOps::in_original_scope(self, &original)
+            .and_then(|numeric| numeric.current_for_value(value));
+        before.map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = if let Some(authored) = self.authored_numeric_context() {
+            match value.as_int_with_stages(Some(authored)) {
+                Ok(integer) => Ok(Some(integer)),
+                Err(error @ crate::TclError::Host(_)) => {
+                    Err(crate::command::completion_from_tcl_error(self, error))
+                }
+                Err(_) => Ok(None),
+            }
+        } else {
+            match OriginalNumericOps::in_original_scope(self, &original)
+                .and_then(|numeric| numeric.getter(value, NativeScalarGetterKind::Int))
+            {
+                Ok(NativeScalarGetterValue::Wide(integer)) => Ok(Some(integer)),
+                Ok(_) => Ok(None),
+                Err(error) if error.native_execution_refusal().is_some() => {
+                    Err(crate::command::completion_from_cmd_error(self, error))
+                }
+                Err(_) => Ok(None),
+            }
+        };
+        self.finish_original_dispatch(&original, reached)
+    }
+
     fn command_lookup_error_value(&mut self, original: &Value) -> Completion<Value> {
-        let bytes = match self.native_name_operand_bytes(original) {
+        let bytes = match self.native_name_operand_bytes_checked(original) {
             Ok(bytes) => bytes,
-            Err(error) => return self.refuse_host_command(error.to_string()),
+            Err(error) => return crate::command::completion_from_cmd_error(self, error),
         };
         // Both native command error formatters consume C-string reporting operands.
         // This reporting extent is independent from the already-selected table key.
@@ -8332,6 +8810,32 @@ impl Vm {
         origin: tcl_registry::command_lookup::CommandLookupOrigin,
         ordinary: bool,
     ) -> Completion<Value> {
+        let original_scope = match NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(self, error),
+        };
+        let reached = self.invoke_command_value_entry_at_in_original_scope(
+            context,
+            original,
+            arguments,
+            usage,
+            origin,
+            ordinary,
+            &original_scope,
+        );
+        self.finish_original_completion(&original_scope, reached)
+    }
+
+    fn invoke_command_value_entry_at_in_original_scope(
+        &mut self,
+        context: tcl_core_types::NsId,
+        original: &Value,
+        arguments: &[Value],
+        usage: &[crate::command::NativeArgumentUsageRewrite],
+        origin: tcl_registry::command_lookup::CommandLookupOrigin,
+        ordinary: bool,
+        original_scope: &NativeOperationScope,
+    ) -> Completion<Value> {
         let (key, usage_revision) =
             match self.prepare_command_value_entry(context, original, ordinary) {
                 Ok(key) => key,
@@ -8355,6 +8859,9 @@ impl Vm {
                     &scope.entry,
                     &[cmd_string.clone(), Value::string("enterstep")],
                 );
+                if let Some(refused) = self.original_scope_refusal(original_scope) {
+                    return refused;
+                }
                 if !result.code.is_ok() {
                     return result;
                 }
@@ -8375,6 +8882,9 @@ impl Vm {
             if self.exec_trace_entry_live(&sidecar, entry) && entry.has_op("enter") {
                 let result = self
                     .run_cmd_trace_callback(entry, &[cmd_string.clone(), Value::string("enter")]);
+                if let Some(refused) = self.original_scope_refusal(original_scope) {
+                    return refused;
+                }
                 if !result.code.is_ok() {
                     return result;
                 }
@@ -8396,6 +8906,8 @@ impl Vm {
         let leave_owner = (!own.is_empty() && post.is_some()).then(|| sidecar.clone());
         let step_scopes = self.push_exec_step_scopes(&sidecar, post.as_deref().unwrap_or_default());
         let ctx = ExecLeaveCtx {
+            original_scopes: vec![OriginalExecutionOwner::Entered(original_scope.clone())],
+            traces: true,
             jim_commands: Vec::new(),
             cmd_string,
             leave_owner,
@@ -8414,7 +8926,7 @@ impl Vm {
             usage,
             origin,
         );
-        let result = self.finish_exec_leave(&ctx, &result).unwrap_or(result);
+        let result = self.settle_original_exec_leave(ctx, result);
         if result.code == Code::Error {
             self.observe_native_error_result(&result.result);
         }
@@ -8681,6 +9193,30 @@ impl Vm {
         argv: &[Value],
         usage: &[crate::command::NativeArgumentUsageRewrite],
     ) -> Completion<Value> {
+        let original_scope = match NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(self, error),
+        };
+        let reached = self.invoke_resolved_command_value_with_usage_in_original_scope(
+            original,
+            trace_key,
+            command,
+            argv,
+            usage,
+            &original_scope,
+        );
+        self.finish_original_completion(&original_scope, reached)
+    }
+
+    fn invoke_resolved_command_value_with_usage_in_original_scope(
+        &mut self,
+        original: &Value,
+        trace_key: CommandSidecarKey,
+        command: Command,
+        argv: &[Value],
+        usage: &[crate::command::NativeArgumentUsageRewrite],
+        original_scope: &NativeOperationScope,
+    ) -> Completion<Value> {
         if let Some(exceeded) = self.charge_command() {
             return exceeded;
         }
@@ -8708,6 +9244,9 @@ impl Vm {
                     &scope.entry,
                     &[cmd_string.clone(), Value::string("enterstep")],
                 );
+                if let Some(refused) = self.original_scope_refusal(original_scope) {
+                    return refused;
+                }
                 if !r.code.is_ok() {
                     return r;
                 }
@@ -8729,6 +9268,9 @@ impl Vm {
             if entry.has_op("enter") {
                 let r = self
                     .run_cmd_trace_callback(entry, &[cmd_string.clone(), Value::string("enter")]);
+                if let Some(refused) = self.original_scope_refusal(original_scope) {
+                    return refused;
+                }
                 if !r.code.is_ok() {
                     return r;
                 }
@@ -8740,13 +9282,16 @@ impl Vm {
         let pushed =
             self.push_exec_step_scopes(&sidecar, post_enter.as_deref().unwrap_or_default());
         let ctx = ExecLeaveCtx {
+            original_scopes: vec![OriginalExecutionOwner::Entered(original_scope.clone())],
+            traces: true,
             jim_commands: Vec::new(),
             cmd_string,
             leave_owner,
             step_scopes: pushed,
         };
         let Some(live_key) = sidecar.key() else {
-            return err("attempt to invoke a deleted command");
+            return self
+                .settle_original_exec_leave(ctx, err("attempt to invoke a deleted command"));
         };
         let c = self.invoke_resolved_command_inner(
             original,
@@ -8756,10 +9301,7 @@ impl Vm {
             Some(&sidecar),
             usage,
         );
-        match self.finish_exec_leave(&ctx, &c) {
-            Some(replacement) => replacement,
-            None => c,
-        }
+        self.settle_original_exec_leave(ctx, c)
     }
 
     /// Settle a synchronously-run native command on the native re-entry path
@@ -9099,9 +9641,9 @@ impl Vm {
         let context = match self.namespace_object_lookup(namespace) {
             Ok(Some(namespace)) => namespace,
             Ok(None) => {
-                return Tick::Return(match self.native_name_operand_bytes(namespace) {
+                return Tick::Return(match self.native_name_operand_bytes_checked(namespace) {
                     Ok(bytes) => self.namespace_lookup_error_bytes(&bytes),
-                    Err(error) => self.refuse_host_command(error.to_string()),
+                    Err(error) => crate::command::completion_from_cmd_error(self, error),
                 });
             }
             Err(error) => {
@@ -9129,65 +9671,89 @@ impl Vm {
         &mut self,
         words: &[Value],
     ) -> Result<TailcallReq, Completion<Value>> {
-        if !self.frame_owns_local_variables(self.current_level()) {
-            return Err(crate::command::err_with_code(
-                "tailcall can only be called from a proc, lambda or method",
-                "TCL TAILCALL ILLEGAL",
-            ));
-        }
-        let namespace = tcl_cmd_core::namespace::current_original(self)
+        let original_scope = NativeOperationScope::enter(self)
             .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
-        let protocol = self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-            .ok_or_else(|| self.refuse_host_command("original tailcall List issuer".into()))?;
-        let mut members = Vec::with_capacity(words.len() + 1);
-        members.push(namespace);
-        members.extend_from_slice(words);
-        let original = Value::native_list_constructor(members, protocol);
-        let values = self
-            .native_object_list_elements_in(&original, protocol)
-            .map_err(|error| crate::command::completion_from_tcl_error(self, error.into()))?;
-        let (namespace, words) = values.split_first().expect("original namespace prefix");
-        Ok(TailcallReq {
-            namespace: namespace.native_lifetime_lease().into_value(),
-            words: words
-                .iter()
-                .map(|word| word.native_lifetime_lease().into_value())
-                .collect(),
-            original_list: Some(original),
-        })
+        let reached = (|| {
+            if !self.frame_owns_local_variables(self.current_level()) {
+                return Err(crate::command::err_with_code(
+                    "tailcall can only be called from a proc, lambda or method",
+                    "TCL TAILCALL ILLEGAL",
+                ));
+            }
+            let namespace = tcl_cmd_core::namespace::current_original(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            let protocol = self
+                .actual_native_invocation_dialect()
+                .native_string_protocol()
+                .ok_or_else(|| self.refuse_host_command("original tailcall List issuer".into()))?;
+            let mut members = Vec::with_capacity(words.len() + 1);
+            members.push(namespace);
+            members.extend_from_slice(words);
+            let original = Value::native_list_constructor(members, protocol);
+            let values = self
+                .native_object_list_elements_in(&original, protocol)
+                .map_err(|error| crate::command::completion_from_tcl_error(self, error.into()))?;
+            let (namespace, words) = values.split_first().expect("original namespace prefix");
+            Ok(TailcallReq {
+                namespace: namespace.native_lifetime_lease().into_value(),
+                words: words
+                    .iter()
+                    .map(|word| word.native_lifetime_lease().into_value())
+                    .collect(),
+                original_list: Some(original),
+                original_scope: OriginalExecutionOwner::Entered(original_scope.clone()),
+            })
+        })();
+        self.finish_original_dispatch(&original_scope, reached)
     }
 
     /// Preserve the real namespace-prefixed List and borrow its original members.
     fn native_tailcall_tick(&mut self, list: Value) -> Tick {
-        let Some(protocol) = self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-        else {
-            return Tick::Return(self.refuse_host_command("native tailcall List issuer".into()));
-        };
-        let members = match self.native_object_list_elements_in(&list, protocol) {
-            Ok(members) => members,
+        let original_scope = match NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
             Err(error) => {
-                return Tick::Return(crate::command::completion_from_tcl_error(
-                    self,
-                    error.into(),
-                ));
+                return Tick::Return(crate::command::completion_from_cmd_error(self, error));
             }
         };
-        let Some((namespace, words)) = members.split_first() else {
-            return Tick::Return(err("tailcall: missing namespace"));
-        };
-        let request = TailcallReq {
-            namespace: namespace.native_lifetime_lease().into_value(),
-            words: words
-                .iter()
-                .map(|value| value.native_lifetime_lease().into_value())
-                .collect(),
-            original_list: Some(list),
-        };
-        Tick::Tailcall(request)
+        let reached = (|| {
+            let Some(protocol) = self
+                .actual_native_invocation_dialect()
+                .native_string_protocol()
+            else {
+                return Tick::Return(
+                    self.refuse_host_command("native tailcall List issuer".into()),
+                );
+            };
+            let members = match self.native_object_list_elements_in(&list, protocol) {
+                Ok(members) => members,
+                Err(error) => {
+                    return Tick::Return(crate::command::completion_from_tcl_error(
+                        self,
+                        error.into(),
+                    ));
+                }
+            };
+            let Some((namespace, words)) = members.split_first() else {
+                return Tick::Return(err("tailcall: missing namespace"));
+            };
+            let request = TailcallReq {
+                namespace: namespace.native_lifetime_lease().into_value(),
+                words: words
+                    .iter()
+                    .map(|value| value.native_lifetime_lease().into_value())
+                    .collect(),
+                original_list: Some(list),
+                original_scope: OriginalExecutionOwner::Entered(original_scope.clone()),
+            };
+            Tick::Tailcall(request)
+        })();
+        if let Some(first) = self.original_scope_refusal(&original_scope) {
+            drop(reached);
+            let _ = original_scope.check(self);
+            Tick::Return(first)
+        } else {
+            reached
+        }
     }
 
     /// Dispatch a procedure-owned replacement after its frame and leave
@@ -9201,56 +9767,84 @@ impl Vm {
             namespace,
             words,
             original_list,
+            original_scope,
         } = request;
-        let context = match self.namespace_object_lookup(&namespace) {
-            Ok(Some(context)) => context,
-            Ok(None) => {
-                let completion = match self.native_name_operand_bytes(&namespace) {
-                    Ok(bytes) => self.namespace_lookup_error_bytes(&bytes),
-                    Err(error) => self.refuse_host_command(error.to_string()),
-                };
-                return self.deliver_tailcall_completion(acts, completion);
-            }
+        let mut original_scope = original_scope;
+        let original_scope = match original_scope.resume(self) {
+            Ok(scope) => scope,
             Err(error) => {
-                let completion = crate::command::completion_from_cmd_error(self, error.into());
-                return self.deliver_tailcall_completion(acts, completion);
+                let completion = crate::command::completion_from_cmd_error(self, error);
+                drop((namespace, words, original_list));
+                let cleanup = self.abort_refused_activations(acts);
+                drop(completion);
+                return Some(cleanup);
             }
         };
-        let words = crate::NativeListItems::invocation_view(Rc::new(words));
-        if acts.is_empty() {
-            let asm = FunctionAsm {
-                instructions: vec![Instruction::new(Op::DONE, vec![])],
-                ..FunctionAsm::default()
-            };
-            let unit = self.compiled_unit(Rc::new(asm), self.source_namespace_path());
-            self.push_frame(acts, Frame::new(unit, false));
-        }
-        let parent = acts
-            .last_mut()
-            .expect("replacement result activation present");
-        if let Some(owner) = original_list {
-            parent.tailcall_owners.push(owner);
-        }
-        match self.dispatch_words_entry_at(parent, &words, None, context, &[], true) {
-            Ok(Some(mut tick)) => {
-                if let Tick::PushEachLoop { req, .. } = &mut tick {
-                    req.invocation = Some((words.clone(), 1));
+        let reached = (|| {
+            if let Some(first) = self.original_scope_refusal(&original_scope) {
+                return self.deliver_tailcall_completion(acts, first);
+            }
+            let context = match self.namespace_object_lookup(&namespace) {
+                Ok(Some(context)) => context,
+                Ok(None) => {
+                    let completion = match self.native_name_operand_bytes_checked(&namespace) {
+                        Ok(bytes) => self.namespace_lookup_error_bytes(&bytes),
+                        Err(error) => crate::command::completion_from_cmd_error(self, error),
+                    };
+                    return self.deliver_tailcall_completion(acts, completion);
                 }
-                parent.deferred_dispatch = Some(Box::new(tick));
-                None
+                Err(error) => {
+                    let completion = crate::command::completion_from_cmd_error(self, error.into());
+                    return self.deliver_tailcall_completion(acts, completion);
+                }
+            };
+            let words = crate::NativeListItems::invocation_view(Rc::new(words));
+            if acts.is_empty() {
+                let asm = FunctionAsm {
+                    instructions: vec![Instruction::new(Op::DONE, vec![])],
+                    ..FunctionAsm::default()
+                };
+                let unit = self.compiled_unit(Rc::new(asm), self.source_namespace_path());
+                self.push_frame(acts, Frame::new(unit, false));
             }
-            Ok(None) => {
-                let completion = Completion::new(
-                    Code::Ok,
-                    pop(parent),
-                    std::mem::replace(&mut parent.last_options, Value::empty()),
-                );
-                self.deliver_tailcall_completion(acts, completion)
+            let parent = acts
+                .last_mut()
+                .expect("replacement result activation present");
+            if let Some(owner) = original_list {
+                parent.tailcall_owners.push(owner);
             }
-            Err(completion) => self.deliver_tailcall_completion(acts, completion),
+            match self.dispatch_words_entry_at(parent, &words, None, context, &[], true) {
+                Ok(Some(mut tick)) => {
+                    if let Tick::PushEachLoop { req, .. } = &mut tick {
+                        req.invocation = Some((words.clone(), 1));
+                    }
+                    parent.deferred_dispatch = Some(Box::new(tick));
+                    None
+                }
+                Ok(None) => {
+                    let completion = Completion::new(
+                        Code::Ok,
+                        pop(parent),
+                        std::mem::replace(&mut parent.last_options, Value::empty()),
+                    );
+                    self.deliver_tailcall_completion(acts, completion)
+                }
+                Err(completion) => self.deliver_tailcall_completion(acts, completion),
+            }
+        })();
+        if let Some(first) = self.original_scope_refusal(&original_scope) {
+            drop(reached);
+            let completion = self.abort_refused_activations(acts);
+            let _ = original_scope.check(self);
+            Some(self.finish_original_completion(&original_scope, completion))
+        } else {
+            reached
         }
     }
 }
+
+#[cfg(test)]
+mod original_name_dispatch_tests;
 
 #[cfg(test)]
 mod tests {

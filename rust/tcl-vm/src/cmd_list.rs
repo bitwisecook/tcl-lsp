@@ -98,11 +98,10 @@ fn cmd_lappend(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((name, values)) = args.split_first() else {
         return err_wrong_args(vm, "lappend varName ?value ...?");
     };
-    let name = match vm.native_name_operand_bytes(name) {
+    let name = match vm.native_name_operand_bytes_checked(name) {
         Ok(name) => name,
         Err(error) => {
-            return vm
-                .refuse_host_command(format!("native list append name is unavailable: {error:?}"));
+            return crate::command::completion_from_cmd_error(vm, error);
         }
     };
     if !values.is_empty() {
