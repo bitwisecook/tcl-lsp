@@ -41,12 +41,8 @@ fn original_membership_cached_list_keeps_members_and_adds_no_host_query() {
         )
         .unwrap()
     );
-    let after = list
-        .native_list_backing_in(protocol())
-        .unwrap()
-        .unwrap()
-        .elements()
-        .unwrap();
+    let after_backing = list.native_list_backing_in(protocol()).unwrap().unwrap();
+    let after = after_backing.elements().unwrap();
     for (index, item) in after.iter().enumerate() {
         assert!(item.is_same_object(&items[index]));
         assert_eq!(item.native_object_reference_count(), counts[index]);
