@@ -42,7 +42,7 @@ fn callback(first: bool) {
                 let class = interpreter.oo_resolve_object(b"C");
                 let before = interpreter.oo.borrow().native_methods.mutation_stamp(class);
                 assert_eq!(
-                    interpreter.eval_str(b"oo::define C {private variable replacement}"),
+                    interpreter.eval_str(b"oo::define C {private variable -set replacement}"),
                     Code::Ok
                 );
                 let after = interpreter.oo.borrow().native_methods.mutation_stamp(class);
@@ -280,6 +280,8 @@ impl tcl_platform::Host for ReportOutputHost {
 }
 #[test]
 fn materialized_property_reports_preserve_native_snapshot_and_table_index_roles() {
+    // naming.property.original-configure-retained-table-and-read-snapshot
+    // docs/design/analysis/name-resolution-proofs/property-original-configure-retained-table-and-read-snapshot.md
     // Exact ordinary scripts measured independently on C9.0.4 and C9.1.0.
     // This physical adapter comparison is restricted to its selected C9.1 purpose.
     {

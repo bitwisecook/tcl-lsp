@@ -547,3 +547,11 @@ namespace and registry cleanup still completes. Reached effects remain visible.
 Active entered method records retain their independent real call-chain owners;
 idle Weak cache observations add no owning role. These software cleanup stages
 carry no aggregate Native payload or hash-iteration chronology claim.
+
+Declaration replacement retains the caller's original operation and exact OO
+target. The actual new declaration vector is adopted before the extracted old
+headers retire outside the OO borrow. Reached callback effects remain visible;
+a first refusal or target withdrawal stops later result publication. A callback
+may legitimately replace the newly adopted declaration roster without a method
+world or old-inventory veto. This software replacement order carries no Native
+variable-map hash or retirement chronology claim.

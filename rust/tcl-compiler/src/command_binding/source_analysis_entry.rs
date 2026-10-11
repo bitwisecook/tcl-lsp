@@ -335,16 +335,15 @@ impl SourceAnalysisOptions<'_> {
         })
     }
 
-    /// Select original source grammar without borrowing physical compiler or
-    /// logical handler defaults for a supplied live entry. Missing measured
-    /// grammar keeps the driver's configuration, including mode and coordinates.
+    /// Select independently retained Native lexical grammar while preserving
+    /// the driver's coordinates and parser mode. Without measured entry grammar,
+    /// keep the complete supplied source config; handler/value/frame policy does
+    /// not replace its independently selected lexical axes.
     #[must_use]
     pub fn native_lexer_config(&self, config: tcl_lexer::LexerConfig) -> tcl_lexer::LexerConfig {
-        let grammar = match self.native_entry {
-            Some(entry) => entry.lexer_grammar,
-            None => self.invocation_dialect.map(|dialect| dialect.lexer_grammar),
-        };
-        grammar.map_or(config, |grammar| config.with_grammar(grammar))
+        self.native_entry
+            .and_then(|entry| entry.lexer_grammar)
+            .map_or(config, |grammar| config.with_grammar(grammar))
     }
 
     /// Physical compiler policy only. A supplied incomplete native entry stays
@@ -624,5 +623,147 @@ mod source_entry_tests {
                 "{native}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod original_source_config_owner_tests {
+    use super::*;
+
+    #[test]
+    fn original_source_config_survives_independent_handler_policy_without_native_entry() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Complete source grammar, not Native execution or compiler admission.
+        let environment = tcl_registry::model::ingress::resolve_known_environment("tcl9.0")
+            .expect("known source environment");
+        let profile = environment.analyser_profile();
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let source = "\u{feff}set witness ${a{b}\n";
+        for (base_offset, base_line, base_col) in [(0, 0, 0), (37, 12, 4)] {
+            let config = tcl_lexer::LexerConfig {
+                leading_bom: tcl_lexer::LeadingBom::Skip,
+                strict_quoting: true,
+                braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+                base_offset,
+                base_line,
+                base_col,
+                ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+            };
+            for policy in [
+                None,
+                Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            ] {
+                let options = SourceAnalysisOptions {
+                    invocation_dialect: policy,
+                    unknown_entry: true,
+                    ..SourceAnalysisOptions::default()
+                };
+                assert_eq!(options.native_lexer_config(config), config);
+                let bindings = crate::command_binding::SourceCommandBindings::analyse_with_options(
+                    source, config, registry, options,
+                );
+                assert!(bindings.matches_original_source_image(
+                    &tcl_lexer::SourceImage::document(source),
+                    config,
+                ));
+                let replaced = config.with_grammar(profile.grammar);
+                assert_ne!(config, replaced);
+                assert!(!bindings.matches_original_source_image(
+                    &tcl_lexer::SourceImage::document(source),
+                    replaced,
+                ));
+                assert!(!bindings.matches_original_source_image(
+                    &tcl_lexer::SourceImage::document(&format!("{source} ")),
+                    config,
+                ));
+                let mut lowerer = crate::lowering::Lowerer::with_config(registry, config);
+                lowerer.set_source_analysis_options(options);
+                lowerer.lower(source);
+                let module = lowerer.finish_module(source);
+                assert_eq!(module.lexer_config, config);
+                assert_eq!(module.native_lexer_config(), config);
+                assert!(module.source_entry.native_entry.is_none());
+                assert_eq!(options.logical_invocation_dialect(), policy);
+            }
+            assert_eq!(
+                crate::compile_service::BytecodeCompileService::native_entry_config(config, None),
+                config,
+            );
+        }
+    }
+
+    #[test]
+    fn original_source_config_and_retained_native_grammar_keep_separate_issuers() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Original VM registration is held; the checks exercise grammar selection only.
+        let environment = tcl_registry::model::ingress::resolve_known_environment("tcl8.6")
+            .expect("known Native fixture environment");
+        let profile = environment.analyser_profile();
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let (_vm, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let measured = entry
+            .lexer_grammar
+            .expect("actual retained interpreter grammar");
+        let catalogue = tcl_registry::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::TCL_9_1),
+        );
+        let config = tcl_lexer::LexerConfig {
+            base_offset: 37,
+            base_line: 12,
+            base_col: 4,
+            strict_quoting: true,
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..tcl_lexer::LexerConfig::from_grammar(catalogue.lexer_grammar)
+        };
+        let options = SourceAnalysisOptions {
+            native_entry: Some(&entry),
+            invocation_dialect: Some(catalogue),
+            ..SourceAnalysisOptions::default()
+        };
+        let selected = config.with_grammar(measured);
+        assert_ne!(selected, config);
+        assert_eq!(options.native_lexer_config(config), selected);
+        assert_eq!(selected.base_offset, config.base_offset);
+        assert_eq!(selected.base_line, config.base_line);
+        assert_eq!(selected.base_col, config.base_col);
+        assert_eq!(selected.strict_quoting, config.strict_quoting);
+        assert_eq!(selected.leading_bom, config.leading_bom);
+        assert_eq!(
+            options
+                .native_compiler_dialect()
+                .and_then(|dialect| dialect.core_point),
+            entry.execution_point,
+        );
+        let mut unavailable = entry.clone();
+        unavailable.lexer_grammar = None;
+        unavailable.execution_point = None;
+        unavailable.invocation_policy = None;
+        let unknown = SourceAnalysisOptions {
+            native_entry: Some(&unavailable),
+            invocation_dialect: Some(catalogue),
+            ..SourceAnalysisOptions::default()
+        };
+        assert_eq!(unknown.native_lexer_config(config), config);
+        assert!(unknown.native_compiler_dialect().is_none());
+        assert!(unknown.logical_invocation_dialect().is_none());
+        assert_eq!(
+            crate::compile_service::BytecodeCompileService::native_entry_config(
+                config,
+                Some(&unavailable),
+            ),
+            config,
+        );
+        let source = "set witness 1";
+        let mut lowerer = crate::lowering::Lowerer::with_config(registry, config);
+        lowerer.set_source_analysis_options(options);
+        lowerer.lower(source);
+        let module = lowerer.finish_module(source);
+        assert_eq!(module.lexer_config, selected);
+        assert_eq!(module.native_lexer_config(), selected);
+        assert_eq!(module.source_entry.native_entry.as_deref(), Some(&entry));
     }
 }

@@ -12688,49 +12688,69 @@ impl Interp {
         generation: Option<u64>,
         argv: &[*mut TclObj],
     ) -> Code {
-        if self.check_entered_native_operation().is_err() {
-            return Code::Error;
-        }
-        if let Err(error) = self.associate_native_jim_arguments(argv) {
-            return self.report_cmd_error(error.into());
-        }
-        if self.uses_jim_error_stack() {
-            let name = generation
-                .and_then(|id| {
-                    self.raw_command_location_by_generation(id)
-                        .map(|(name, _)| name)
-                })
-                .or_else(|| {
-                    argv.first()
-                        .and_then(|word| self.resolve_cmd_fqn(&obj_bytes(*word)))
-                });
-            let mut frames = self.jim_evaluation_frames.borrow_mut();
-            if let Some(frame) = frames.last_mut() {
-                frame.command_name =
-                    name.map(|name| name.strip_prefix(b"::").unwrap_or(&name).to_vec());
-                frame.is_procedure = matches!(cmd, Command::Proc(_));
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                // A refused entry still retires its actual argument worker.
+                drop(cmd);
+                self.retire_pending_native_ensemble_roles();
+                return Code::Error;
             }
-        }
-        let _jim_invocation = self.borrow_jim_invocation(argv);
-        if self.native_invocation_dialect().native_string_protocol()
-            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
-        {
-            let context = match self.native_jim_object_context() {
-                Ok(context) => context,
-                Err(error) => return self.report_cmd_error(error.into()),
-            };
-            self.set_result(context.empty_object().as_ptr());
-        }
-        let _jim_command = self.retain_active_jim_command(&cmd, generation);
-        let code = self.invoke_bound_body(cmd, generation, argv);
-        // Retirement releases reached owners even after a Host refusal.
-        self.retire_pending_native_ensemble_roles();
-        // Check the original context before Guest projection or later work.
-        if self.check_entered_native_operation().is_err() {
+        };
+        let code = (|| {
+            if self.check_entered_native_operation().is_err() {
+                return Code::Error;
+            }
+            if let Err(error) = self.associate_native_jim_arguments(argv) {
+                return self.report_cmd_error(error.into());
+            }
+            if self.uses_jim_error_stack() {
+                let name = generation
+                    .and_then(|id| {
+                        self.raw_command_location_by_generation(id)
+                            .map(|(name, _)| name)
+                    })
+                    .or_else(|| {
+                        argv.first()
+                            .and_then(|word| self.resolve_cmd_fqn(&obj_bytes(*word)))
+                    });
+                let mut frames = self.jim_evaluation_frames.borrow_mut();
+                if let Some(frame) = frames.last_mut() {
+                    frame.command_name =
+                        name.map(|name| name.strip_prefix(b"::").unwrap_or(&name).to_vec());
+                    frame.is_procedure = matches!(cmd, Command::Proc(_));
+                }
+            }
+            let _jim_invocation = self.borrow_jim_invocation(argv);
+            if self.native_invocation_dialect().native_string_protocol()
+                == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+            {
+                let context = match self.native_jim_object_context() {
+                    Ok(context) => context,
+                    Err(error) => return self.report_cmd_error(error.into()),
+                };
+                self.set_result(context.empty_object().as_ptr());
+            }
+            let jim_command = self.retain_active_jim_command(&cmd, generation);
+            let code = self.invoke_bound_body(cmd, generation, argv);
+            // Retirement releases reached owners even after a Host refusal.
+            self.retire_pending_native_ensemble_roles();
+            // Final current and previous worker cleanup is part of this operation,
+            // before Guest projection or a success status can leave the boundary.
+            drop(jim_command);
+            // Check the original context before Guest projection or later work.
+            if self.check_entered_native_operation().is_err() {
+                return Code::Error;
+            }
+            if code == Code::Error && self.uses_jim_error_stack() {
+                self.capture_jim_error_stack();
+            }
+            code
+        })();
+        // Also covers early reporting and the actual invocation-scope cleanup.
+        if scope.currency().ensure_current_or_refuse().is_err() {
             return Code::Error;
-        }
-        if code == Code::Error && self.uses_jim_error_stack() {
-            self.capture_jim_error_stack();
         }
         code
     }

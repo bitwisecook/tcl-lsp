@@ -15,11 +15,16 @@ pub(super) struct JimActiveCommandScope {
 }
 impl Drop for JimActiveCommandScope {
     fn drop(&mut self) {
-        let mut active = self.interp.jim_active_command_workers.borrow_mut();
-        let (token, _) = active.pop().expect("owned synchronous Jim invocation");
+        let (token, command) = {
+            let mut active = self.interp.jim_active_command_workers.borrow_mut();
+            active.pop().expect("owned synchronous Jim invocation")
+        };
         assert_eq!(token, self.token);
-        drop(active);
+        // The actual current worker retires before its previous-command edge.
+        // Neither its delete hook nor previous cleanup may run under a borrow.
+        drop(command);
         self.interp.namespaces.borrow_mut().leave_jim_command(token);
+        self.interp.retire_pending_native_ensemble_roles();
     }
 }
 impl Interp {
@@ -748,3 +753,7 @@ mod tests {
         assert_eq!(obj::internal_rep(command.as_ptr()), primary);
     }
 }
+
+#[cfg(test)]
+#[path = "native_jim_lookup/active_retirement_tests.rs"]
+mod active_retirement_tests;

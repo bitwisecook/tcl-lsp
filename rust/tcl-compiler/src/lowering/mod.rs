@@ -1751,24 +1751,73 @@ impl<'r> Lowerer<'r> {
     ) -> Option<Script> {
         // naming.source.original-collection-body-owner
         // docs/design/analysis/name-resolution-proofs/original-collection-body-owner.md
-        crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)?;
+        #[cfg(test)]
+        let trace_enabled = std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some();
+        #[cfg(test)]
+        let trace = |stage: &str, passed: bool| {
+            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
+                let offset = parent.argv.first().map(|span| span.start());
+                eprintln!("ORIGINAL_FACTORY_GUARD stage={stage} offset={offset:?} passed={passed}");
+            }
+        };
+        let metadata =
+            crate::registry_invocation::InvocationMetadataContext::for_module(registry, module);
+        #[cfg(test)]
+        if trace_enabled {
+            trace("original_body.module_metadata", metadata.is_some());
+        }
+        metadata?;
         let input = module.source_metadata_input.as_ref()?;
+        #[cfg(test)]
+        if trace_enabled {
+            trace(
+                "original_body.retained",
+                module.retained_source_bindings.is_some(),
+            );
+        }
         let retained = module.retained_source_bindings.as_deref()?;
-        let bindings = retained.positioned_for_module(module, registry)?;
+        let bindings = retained.positioned_for_module(module, registry);
+        #[cfg(test)]
+        if trace_enabled {
+            trace("original_body.positioned", bindings.is_some());
+        }
+        let bindings = bindings?;
+        #[cfg(test)]
+        if trace_enabled {
+            trace(
+                "original_body.parent_vector",
+                retained.owns_original_tokens(parent),
+            );
+        }
         if !retained.owns_original_tokens(parent) {
             return None;
         }
         let body_word = parent.argv.get(argument.checked_add(1)?)?;
-        let source = bindings.executed_script_for_word(*body_word)?.clone();
+        let source = bindings.executed_script_for_word(*body_word);
+        #[cfg(test)]
+        if trace_enabled {
+            trace("original_body.selected_script", source.is_some());
+        }
+        let source = source?.clone();
         source.try_text().ok()?;
         let mut lowerer = Self::with_config(registry, module.lexer_config)
             .with_resolved_analysis_input(input.clone());
         lowerer.set_source_analysis_options(module.source_entry.options());
         lowerer.source_bindings = Some(bindings.clone());
-        let namespace = lowerer.original_body_namespace_context(parent, argument, &source)?;
+        let namespace = lowerer.original_body_namespace_context(parent, argument, &source);
+        #[cfg(test)]
+        if trace_enabled {
+            trace("original_body.namespace", namespace.is_some());
+        }
+        let namespace = namespace?;
         // Preserve the independently selected child stage and namespace issuer
         // before delegating the same original-body semantic owner.
-        bindings.selected_source_in_context(&source, &namespace)?;
+        let selected = bindings.selected_source_in_context(&source, &namespace);
+        #[cfg(test)]
+        if trace_enabled {
+            trace("original_body.stage", selected.is_some());
+        }
+        selected?;
         Some(lowerer.lower_original_body(source, Some(&namespace)))
     }
 

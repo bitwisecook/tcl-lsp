@@ -1942,6 +1942,8 @@ fn original_folded_case_subject(
     metadata: super::InvocationMetadataContext<'_>,
 ) -> Option<crate::ir::WordExpr> {
     #[cfg(test)]
+    let trace_enabled = std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some();
+    #[cfg(test)]
     let trace = |stage: &str, offset: Option<u32>, passed: bool| {
         if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
             eprintln!("ORIGINAL_FACTORY_GUARD stage={stage} offset={offset:?} passed={passed}");
@@ -1949,7 +1951,9 @@ fn original_folded_case_subject(
     };
     let substitution = subject.sole_command_substitution();
     #[cfg(test)]
-    trace("case_fold.substitution", None, substitution.is_some());
+    if trace_enabled {
+        trace("case_fold.substitution", None, substitution.is_some());
+    }
     let (_, source) = substitution?;
     let input = metadata.source_analysis_input()?;
     let config = parent
@@ -1967,29 +1971,35 @@ fn original_folded_case_subject(
         parent, config, registry, metadata,
     );
     #[cfg(test)]
-    trace(
-        "case_fold.complete_children",
-        Some(source.span.start()),
-        calls.is_some(),
-    );
+    if trace_enabled {
+        trace(
+            "case_fold.complete_children",
+            Some(source.span.start()),
+            calls.is_some(),
+        );
+    }
     let calls = calls?;
     let call = calls.iter().find(|call| call.span == extent);
     #[cfg(test)]
-    trace(
-        "case_fold.exact_child",
-        Some(source.span.start()),
-        call.is_some(),
-    );
+    if trace_enabled {
+        trace(
+            "case_fold.exact_child",
+            Some(source.span.start()),
+            call.is_some(),
+        );
+    }
     let call = call?;
     let child = call.tokens.as_ref()?;
     let binding = child.source_binding.as_ref()?;
     let child_metadata = binding.original_invocation_metadata_for_input(child, input, registry);
     #[cfg(test)]
-    trace(
-        "case_fold.child_metadata",
-        Some(source.span.start()),
-        child_metadata.is_some(),
-    );
+    if trace_enabled {
+        trace(
+            "case_fold.child_metadata",
+            Some(source.span.start()),
+            child_metadata.is_some(),
+        );
+    }
     let child_metadata = child_metadata?;
     let selected = if metadata.permits_logical_source_names() {
         super::original_logical_operation_invocation_with_metadata_context(
@@ -2001,11 +2011,13 @@ fn original_folded_case_subject(
         original_native_handler_for_case_source(child, registry, child_metadata)
     };
     #[cfg(test)]
-    trace(
-        "case_fold.selected_child",
-        Some(source.span.start()),
-        selected.is_some(),
-    );
+    if trace_enabled {
+        trace(
+            "case_fold.selected_child",
+            Some(source.span.start()),
+            selected.is_some(),
+        );
+    }
     let selected = selected?;
     let realm = if metadata.permits_logical_source_names() {
         binding.original_source_realm_for_input(child, input, registry)?
@@ -2019,11 +2031,13 @@ fn original_folded_case_subject(
         .then_some(schema.semantics.argument_offset)
     });
     #[cfg(test)]
-    trace(
-        "case_fold.selected_descriptor",
-        Some(source.span.start()),
-        value.is_some(),
-    );
+    if trace_enabled {
+        trace(
+            "case_fold.selected_descriptor",
+            Some(source.span.start()),
+            value.is_some(),
+        );
+    }
     let value = value?;
     let written = selected.effective.written_argument(value)?;
     Some(child.words().get(written + 1)?.clone())

@@ -4066,20 +4066,78 @@ impl CompilationUnit {
     ) -> Option<FunctionUnit> {
         // naming.source.original-collection-body-owner
         // docs/design/analysis/name-resolution-proofs/original-collection-body-owner.md
+        #[cfg(test)]
+        let trace_enabled = std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some();
+        #[cfg(test)]
+        let trace = |stage: &str, passed: bool| {
+            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
+                let offset = parent.argv.first().map(|span| span.start());
+                eprintln!("ORIGINAL_FACTORY_GUARD stage={stage} offset={offset:?} passed={passed}");
+            }
+        };
         let module = &self.ir_module;
+        #[cfg(test)]
+        if trace_enabled {
+            trace(
+                "conditional_body.document",
+                module.source == tcl_lexer::SourceImage::document(&self.source),
+            );
+        }
         if module.source != tcl_lexer::SourceImage::document(&self.source) {
             return None;
         }
-        crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)?;
+        let metadata =
+            crate::registry_invocation::InvocationMetadataContext::for_module(registry, module);
+        #[cfg(test)]
+        if trace_enabled {
+            trace("conditional_body.module_metadata", metadata.is_some());
+        }
+        metadata?;
         let input = module.source_metadata_input.as_ref()?;
+        #[cfg(test)]
+        if trace_enabled {
+            trace(
+                "conditional_body.input_config",
+                input.lexer_config() == module.lexer_config,
+            );
+        }
         if input.lexer_config() != module.lexer_config {
             return None;
         }
-        module
+        #[cfg(test)]
+        if trace_enabled {
+            trace(
+                "conditional_body.retained",
+                module.retained_source_bindings.is_some(),
+            );
+        }
+        let positioned = module
             .retained_source_bindings
             .as_deref()?
-            .positioned_for_module(module, registry)?;
-        original_function.invocation_metadata_context_for_module(registry, module)?;
+            .positioned_for_module(module, registry);
+        #[cfg(test)]
+        if trace_enabled {
+            trace("conditional_body.positioned", positioned.is_some());
+        }
+        positioned?;
+        let function_metadata =
+            original_function.invocation_metadata_context_for_module(registry, module);
+        #[cfg(test)]
+        if trace_enabled {
+            trace(
+                "conditional_body.function_metadata",
+                function_metadata.is_some(),
+            );
+        }
+        function_metadata?;
+        #[cfg(test)]
+        if trace_enabled {
+            trace(
+                "conditional_body.original_function",
+                self.all_body_function_units()
+                    .any(|owned| std::ptr::eq(owned, original_function)),
+            );
+        }
         if !self
             .all_body_function_units()
             .any(|owned| std::ptr::eq(owned, original_function))
@@ -4087,7 +4145,12 @@ impl CompilationUnit {
             return None;
         }
         let script =
-            crate::lowering::Lowerer::original_body_for_module(module, registry, parent, argument)?;
+            crate::lowering::Lowerer::original_body_for_module(module, registry, parent, argument);
+        #[cfg(test)]
+        if trace_enabled {
+            trace("conditional_body.script", script.is_some());
+        }
+        let script = script?;
         script.executed_source.as_ref()?;
         script.namespace_context.as_ref()?;
         let config = tcl_lexer::SourceSegmentationPurpose::NestedScript
@@ -4101,7 +4164,12 @@ impl CompilationUnit {
             config,
             child_input.context_registry(),
         );
-        let known_classes = self.retained_source_class_names(registry)?;
+        let known_classes = self.retained_source_class_names(registry);
+        #[cfg(test)]
+        if trace_enabled {
+            trace("conditional_body.class_facts", known_classes.is_some());
+        }
+        let known_classes = known_classes?;
         let context = crate::value_transfer::AnalysisContextKey::for_module(
             &self.command_mutations,
             registry,
@@ -4312,13 +4380,40 @@ fn collect_known_classes(
     module: &IrModule,
     registry: &CommandRegistry,
 ) -> Option<HashSet<String>> {
+    #[cfg(test)]
+    let trace_enabled = std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some();
+    #[cfg(test)]
+    let trace = |stage: &str, passed: bool| {
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
+            eprintln!("ORIGINAL_FACTORY_GUARD stage={stage} offset=none passed={passed}");
+        }
+    };
+    #[cfg(test)]
+    if trace_enabled {
+        trace(
+            "class_roster.document",
+            module.source == tcl_lexer::SourceImage::document(source),
+        );
+    }
     if module.source != tcl_lexer::SourceImage::document(source) {
         return None;
     }
     let signatures = if let Some(retained) = module.retained_source_bindings.as_deref() {
-        let Some(bindings) = retained.positioned_for_module(module, registry) else {
+        let bindings = retained.positioned_for_module(module, registry);
+        #[cfg(test)]
+        if trace_enabled {
+            trace("class_roster.positioned", bindings.is_some());
+        }
+        let Some(bindings) = bindings else {
             return None;
         };
+        #[cfg(test)]
+        if trace_enabled {
+            trace(
+                "class_roster.input_config",
+                bindings.matches_original_source_image(&module.source, module.lexer_config),
+            );
+        }
         if !bindings.matches_original_source_image(&module.source, module.lexer_config) {
             return None;
         }
@@ -4335,6 +4430,18 @@ fn collect_known_classes(
     } else {
         return None;
     };
+    #[cfg(test)]
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
+        let declared = signatures.class_declarations.len();
+        let named = signatures
+            .class_declarations
+            .iter()
+            .filter(|declaration| declaration.source_spelling().is_some())
+            .count();
+        eprintln!(
+            "ORIGINAL_FACTORY_GUARD stage=class_roster.selected_result declared={declared} named={named}"
+        );
+    }
     Some(
         signatures
             .class_declarations

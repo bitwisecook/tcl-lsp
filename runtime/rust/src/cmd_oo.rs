@@ -1695,27 +1695,47 @@ fn write_declared_variables(
     target: &DefTarget,
     private: bool,
     values: Vec<DeclaredVariable>,
-) {
-    let mut oo = interp.oo.borrow_mut();
-    let slot = match target {
-        DefTarget::Class(class) => oo.classes.get_mut(class).map(|entry| {
-            if private {
-                &mut entry.private_variables
-            } else {
-                &mut entry.variables
-            }
-        }),
-        DefTarget::Object(object) => oo.objects.get_mut(object).map(|entry| {
-            if private {
-                &mut entry.private_variables
-            } else {
-                &mut entry.variables
-            }
-        }),
+    originals: &crate::interp::native_arguments::OriginalArguments,
+    target_owner: &native_context::OriginalOoTarget,
+) -> Result<(), tcl_cmd_core::CmdError> {
+    originals.check()?;
+    target_owner.check(interp)?;
+    let mut retired = values;
+    let published = {
+        let mut oo = interp.oo.borrow_mut();
+        let slot = match target {
+            DefTarget::Class(class) => oo.classes.get_mut(class).map(|entry| {
+                if private {
+                    &mut entry.private_variables
+                } else {
+                    &mut entry.variables
+                }
+            }),
+            DefTarget::Object(object) => oo.objects.get_mut(object).map(|entry| {
+                if private {
+                    &mut entry.private_variables
+                } else {
+                    &mut entry.variables
+                }
+            }),
+        };
+        if let Some(slot) = slot {
+            std::mem::swap(slot, &mut retired);
+            true
+        } else {
+            false
+        }
     };
-    if let Some(slot) = slot {
-        *slot = values;
+    drop(retired);
+    originals.check()?;
+    target_owner.check(interp)?;
+    if !published {
+        return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "TclOO variable declaration target",
+        )
+        .into());
     }
+    Ok(())
 }
 
 fn set_declared_variable_list(interp: &mut Interp, values: &[DeclaredVariable]) {
@@ -1872,7 +1892,10 @@ fn slot_inst_set_original(
             |entry| entry.name.as_slice(),
         );
         let private = interp.oo.borrow().private_depth > 0;
-        write_declared_variables(interp, &target, private, values);
+        oo_checked!(
+            interp,
+            write_declared_variables(interp, &target, private, values, originals, &target_owner)
+        );
     } else {
         let list = if let Some(original) = args.first() {
             let members = native_context::original_list_members(interp, *original, originals);
@@ -7659,6 +7682,9 @@ mod native_eval_tests;
 
 #[cfg(test)]
 mod native_method_report_tests;
+
+#[cfg(test)]
+mod original_declaration_retirement_tests;
 
 #[cfg(test)]
 mod tests {

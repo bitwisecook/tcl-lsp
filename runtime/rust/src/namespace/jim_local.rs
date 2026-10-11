@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Actual owning previous-node edges and live Jim upcall traversal.
 
-use super::{CommandBinding, Namespaces};
+use super::Namespaces;
 use crate::interp::Command;
 
 impl Namespaces {
@@ -113,7 +113,18 @@ impl Namespaces {
         self.note_jim_command_retirement(top_generation);
     }
     pub(super) fn release_jim_previous(&mut self, token: u64) {
-        if let Some(CommandBinding { generation, .. }) = self.jim_previous_commands.remove(&token) {
+        if let Some(previous) = self.jim_previous_commands.remove(&token) {
+            let generation = previous.generation;
+            // Preserve current-before-previous retirement, but extract the real
+            // owning edge before its delete callback can reenter Namespace.
+            self.arena[super::GLOBAL]
+                .commands
+                .retired
+                .borrow_mut()
+                .push(super::RetiredCommandSlot {
+                    original_jim_key: None,
+                    binding: Some(previous),
+                });
             if self.native_command_at_node(generation).is_none() {
                 self.note_jim_command_retirement(generation);
             }

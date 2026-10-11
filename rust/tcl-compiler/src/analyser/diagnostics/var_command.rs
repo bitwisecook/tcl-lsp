@@ -1382,29 +1382,37 @@ impl Analyser {
             &cu.ir_module,
         );
         #[cfg(test)]
+        let trace_enabled = std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some();
+        #[cfg(test)]
         let trace = |stage: &str, offset: Option<u32>, passed: bool| {
             if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
                 eprintln!("ORIGINAL_FACTORY_GUARD stage={stage} offset={offset:?} passed={passed}");
             }
         };
         #[cfg(test)]
-        trace("w250.module_metadata", None, metadata.is_some());
+        if trace_enabled {
+            trace("w250.module_metadata", None, metadata.is_some());
+        }
         let Some(metadata) = metadata else {
             return;
         };
         #[cfg(test)]
-        trace(
-            "w250.analysis_input",
-            None,
-            metadata.source_analysis_input() == Some(input),
-        );
+        if trace_enabled {
+            trace(
+                "w250.analysis_input",
+                None,
+                metadata.source_analysis_input() == Some(input),
+            );
+        }
         #[cfg(test)]
-        trace(
-            "w250.analysis_image",
-            None,
-            self.result
-                .matches_original_source_image(&cu.ir_module.source, cu.ir_module.lexer_config),
-        );
+        if trace_enabled {
+            trace(
+                "w250.analysis_image",
+                None,
+                self.result
+                    .matches_original_source_image(&cu.ir_module.source, cu.ir_module.lexer_config),
+            );
+        }
         if metadata.source_analysis_input() != Some(input)
             || !self
                 .result
@@ -1414,20 +1422,24 @@ impl Analyser {
         }
         let diagnostic = |tokens: &crate::ir::CommandTokens, span: tcl_lexer::Span| {
             #[cfg(test)]
-            trace(
-                "w250.source_binding",
-                Some(span.start()),
-                tokens.source_binding.is_some(),
-            );
+            if trace_enabled {
+                trace(
+                    "w250.source_binding",
+                    Some(span.start()),
+                    tokens.source_binding.is_some(),
+                );
+            }
             let binding = tokens.source_binding.as_ref()?;
             let owned =
                 binding.original_invocation_metadata_for_module(tokens, &cu.ir_module, registry);
             #[cfg(test)]
-            trace(
-                "w250.original_module_metadata",
-                Some(span.start()),
-                owned.is_some(),
-            );
+            if trace_enabled {
+                trace(
+                    "w250.original_module_metadata",
+                    Some(span.start()),
+                    owned.is_some(),
+                );
+            }
             owned?;
             let image = &cu.ir_module.source;
             let original = crate::registry_invocation::original_native_compiler_words(
@@ -1437,27 +1449,35 @@ impl Analyser {
                 cu.ir_module.lexer_config,
             );
             #[cfg(test)]
-            trace(
-                "w250.original_words",
-                Some(span.start()),
-                original.is_some(),
-            );
+            if trace_enabled {
+                trace(
+                    "w250.original_words",
+                    Some(span.start()),
+                    original.is_some(),
+                );
+            }
             let original = original?;
             let realm = self.result.retained_command_realm();
             #[cfg(test)]
-            trace("w250.analysis_realm", Some(span.start()), realm.is_some());
+            if trace_enabled {
+                trace("w250.analysis_realm", Some(span.start()), realm.is_some());
+            }
             let realm = realm?;
             let call = realm.original_source_constructor_call(input, &original);
             #[cfg(test)]
-            trace(
-                "w250.source_constructor",
-                Some(span.start()),
-                call.is_some(),
-            );
+            if trace_enabled {
+                trace(
+                    "w250.source_constructor",
+                    Some(span.start()),
+                    call.is_some(),
+                );
+            }
             let call = call?;
             let attempt = call.source_factory_attempt(&self.result);
             #[cfg(test)]
-            trace("w250.source_attempt", Some(span.start()), attempt.is_some());
+            if trace_enabled {
+                trace("w250.source_attempt", Some(span.start()), attempt.is_some());
+            }
             let attempt = attempt?;
             if !attempt
                 .factory_traits()
