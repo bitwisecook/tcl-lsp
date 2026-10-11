@@ -208635,6 +208635,96 @@
           "uncompressed_sha256": "053247f11cabe62686fb906760015973ecf84fb255391e9043e431ac0d3debcb"
         }
       }
+    },
+    {
+      "id": "rust.frozen318.integration-compiler-own-test-build318",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen318/integration-compiler-own-test-build318/receipt.json.gz",
+        "sha256": "c00a78d8df1b84545649019033c1481073f3595101a4130659dcb4f3add11c03",
+        "compression": "gzip",
+        "uncompressed_sha256": "13120b3013f6784099939fea7e50351c9c4a79f10bab6df8ed6aa7e6f028859d"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen318/integration-compiler-own-test-build318/tests.log",
+        "sha256": "48513983f34f00c0cf3c53a9454afaf0bb736ba4165c4c51322cfda075a84a15"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 57.73021406700718,
+      "uniform_source": true,
+      "status": "compile-failed",
+      "result": null,
+      "source_inventory": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen318/integration-compiler-own-test-build318/source-snapshot.json.gz",
+        "compression": "gzip",
+        "uncompressed_sha256": "0ca69ea4176a284cbf57a8630e023eb6255121dbdff3a30c9b5b5b3a94361746",
+        "sha256": "963c264805846bb977b424ecb646f15c21d659474e3222995cc30ed9083d9098",
+        "json_pointer": "/source",
+        "authority": "Complete original33794-leaf immutable Source318 source/head/archive association. The exact original snapshot joins the original command receipt source value; error-source file bodies independently match the same map. No current input or failed artifact substitution."
+      },
+      "tests": [],
+      "question_ids": [],
+      "sealed_images": {},
+      "limits": "The no-run Compiler command records one production E0061 missing parser-purpose argument at lowering/structured.rs1539. No test executable is created or admitted; there is no owned Compiler image, inventory or assertion. The complete immutable Source318 source map, source identity and original error remain separate from Source319 and current repairs. No aggregate build, assertion or Native provider result is inferred; original provider answers/evidence are unchanged."
+    },
+    {
+      "id": "rust.frozen319.integration-compiler-own-test-build319",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen319/integration-compiler-own-test-build319/receipt.json.gz",
+        "sha256": "a08bec35db6828ced381671c140c7cf2daf48283ee228609863c1a5792946db3",
+        "compression": "gzip",
+        "uncompressed_sha256": "26be643ebb5620e5e0ccf0a0a27e9a160bb1071d67108e18f9bd4b0acf78bffa"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen319/integration-compiler-own-test-build319/tests.log",
+        "sha256": "f5d5df577ae0b7b40234bd7b06f6f9bce19f34731995eefc89200d79c8f48c49"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 151.19535175999044,
+      "uniform_source": true,
+      "status": "compile-failed",
+      "result": null,
+      "source_inventory": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen319/integration-compiler-own-test-build319/source-snapshot.json.gz",
+        "compression": "gzip",
+        "uncompressed_sha256": "baa9ca821a5eb85d6d0fb2af93bd02df79c7b0e90a1a1b3cdac36846f1256337",
+        "sha256": "94bc20397b65511f6c8c85b5f2b340382e28b4fead9aeeb103a7284d94f589c9",
+        "json_pointer": "/source",
+        "authority": "Complete original33794-leaf immutable Source319 source/head/archive association. The exact original snapshot joins the original command receipt source value; error-source file bodies independently match the same map. No current input or failed artifact substitution."
+      },
+      "tests": [],
+      "question_ids": [],
+      "sealed_images": {},
+      "limits": "The no-run Compiler command records eleven cfg-test public-interface errors: two missing SignatureSourceNameInput source_image methods and nine private ResolvedAnalysisInput field accesses. The original compiler emits two separate field errors at lowering/mod.rs10803, both retained. No test executable is created or admitted; there is no owned Compiler image, inventory or assertion. The complete immutable Source319 source map and identity remain separate from Source318 and current repairs. No aggregate build, assertion or Native provider result is inferred; original provider answers/evidence are unchanged."
     }
   ]
 }

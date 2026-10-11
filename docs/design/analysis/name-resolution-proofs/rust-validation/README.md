@@ -3461,3 +3461,41 @@ and [whole lossless image](frozen317/sealed-own-core-image/pinned-core317.elf.gz
 Build and inventory success supply no suite pass. Canonical question links
 require whole current source equality with the frozen source. Original
 Native answers and current implementation contexts remain unchanged.
+
+## Source318 and Source319 Compiler compilation failures
+
+These two independent no-run commands have distinct immutable source
+identities and whole original logs. Neither produces a test executable,
+owned Compiler image, executable inventory or assertion summary. Current
+parser-purpose or fixture repairs supply no retrospective credit; original
+Native provider answers and evidence retain their own scope.
+
+
+### Source318 independent Compiler build
+
+The own Compiler library-test no-run command closes exit `101` after
+57.73021406700718 seconds with uniform source `true`. Its complete
+33,794-leaf source retains HEAD `695007e926a9f6e45df907be8d1cbb59517b2b2d` and its
+distinct immutable Source318 archive. The no-run Compiler command records one production E0061 missing parser-purpose argument at lowering/structured.rs1539. No test executable is created or admitted; there is no owned Compiler image, inventory or assertion. The complete immutable Source318 source map, source identity and original error remain separate from Source319 and current repairs.
+
+The [complete original receipt](frozen318/integration-compiler-own-test-build318/receipt.json.gz) restores
+SHA-256 `13120b3013f6784099939fea7e50351c9c4a79f10bab6df8ed6aa7e6f028859d`. The [complete source snapshot](frozen318/integration-compiler-own-test-build318/source-snapshot.json.gz)
+restores SHA-256 `0ca69ea4176a284cbf57a8630e023eb6255121dbdff3a30c9b5b5b3a94361746` and exactly matches the receipt's
+source value. The [whole original log](frozen318/integration-compiler-own-test-build318/tests.log) retains
+SHA-256 `48513983f34f00c0cf3c53a9454afaf0bb736ba4165c4c51322cfda075a84a15`. All original command arguments, compiler spans,
+messages and source associations remain unchanged.
+
+
+### Source319 independent Compiler build
+
+The own Compiler library-test no-run command closes exit `101` after
+151.19535175999044 seconds with uniform source `true`. Its complete
+33,794-leaf source retains HEAD `fd571f7ccf538305eed5ddd258741f69216417bd` and its
+distinct immutable Source319 archive. The no-run Compiler command records eleven cfg-test public-interface errors: two missing SignatureSourceNameInput source_image methods and nine private ResolvedAnalysisInput field accesses. The original compiler emits two separate field errors at lowering/mod.rs10803, both retained. No test executable is created or admitted; there is no owned Compiler image, inventory or assertion. The complete immutable Source319 source map and identity remain separate from Source318 and current repairs.
+
+The [complete original receipt](frozen319/integration-compiler-own-test-build319/receipt.json.gz) restores
+SHA-256 `26be643ebb5620e5e0ccf0a0a27e9a160bb1071d67108e18f9bd4b0acf78bffa`. The [complete source snapshot](frozen319/integration-compiler-own-test-build319/source-snapshot.json.gz)
+restores SHA-256 `baa9ca821a5eb85d6d0fb2af93bd02df79c7b0e90a1a1b3cdac36846f1256337` and exactly matches the receipt's
+source value. The [whole original log](frozen319/integration-compiler-own-test-build319/tests.log) retains
+SHA-256 `f5d5df577ae0b7b40234bd7b06f6f9bce19f34731995eefc89200d79c8f48c49`. All original command arguments, compiler spans,
+messages and source associations remain unchanged.
