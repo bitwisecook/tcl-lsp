@@ -3330,3 +3330,44 @@ already retains all 206,936,520 original bytes, SHA-256
 decompression, unchanged raw metadata and byte identity with the committed
 Git blob. Root verifies the exact pushed blob before retiring a duplicate
 raw image. No original image is copied, replaced or retired here.
+
+## Source317 Runtime engine compilation failure
+
+The original own Runtime engine library-test no-run command closes exit
+`101` after 51.04246093399706 seconds with uniform source `true`. It records
+one production `E0432` at `capi/collections.rs:11` and three test `E0308`
+errors at `state_traits.rs:2122`, `2130` and `2139`. The former imports an
+unavailable Syntax flags module; the latter retain exact original
+`Result<Option<pointer>>` presence/type mismatches.
+
+No Runtime executable creation event, successful producer, strict image,
+inventory or assertion is admitted. Corrections to imports or test presence
+handling supply no retrospective build or behavior credit.
+
+Both exact Source317 command receipts retain the complete 33,626-leaf
+source image and HEAD `ea3a644447bc79bae42600055f061b824405dd1c`.
+The [whole original receipt](frozen317/integration-runtime-own-test-build317/receipt.json.gz)
+is lossless gzip and restores SHA-256 `be1d0e7ef02a2ec04e147df0079a7d9709f43538185a7edd3f3da480b91de3e8`; the
+[whole original log](frozen317/integration-runtime-own-test-build317/tests.log) retains
+SHA-256 `a957885d83dde226f5d687f58e7146392e7853060544a32dbb34846aca14dd19`.
+
+
+## Source317 maintained proof-boundary controls
+
+The exact independent `python3 -m unittest discover` command completes
+17 tests with `OK`, exit `0`, after 0.14439410099294037 seconds with uniform
+source `true`; the test framework reports 0.066 seconds. These maintained
+controls exercise checker boundary semantics, including failed-setup and
+source-inspection limits and exact Boolean/integer fields.
+
+This result is independent of the failed Runtime producer. It supplies no
+Runtime executable, Rust assertion, Native observation or full-catalog
+acceptance. The complete original argv selects only
+`scripts/dev/test_name_resolution_proofs.py`.
+
+Both exact Source317 command receipts retain the complete 33,626-leaf
+source image and HEAD `ea3a644447bc79bae42600055f061b824405dd1c`.
+The [whole original receipt](frozen317/integration-proof-maintenance317/receipt.json.gz)
+is lossless gzip and restores SHA-256 `f054553d195bf45114e1428d425e8d789c53b66399a99621ab175cae5e93c900`; the
+[whole original log](frozen317/integration-proof-maintenance317/tests.log) retains
+SHA-256 `1e40316a5668dc3d14ead87d86b09ca3c7724fc3e8bf943c9e2682a3c543a6fb`.

@@ -206837,6 +206837,91 @@
           "uncompressed_sha256": "40f20df0c954ff1568c127e6d05c1f0a2b2e6fc67e7e1188dcf3b0cf43b2e482"
         }
       }
+    },
+    {
+      "id": "rust.frozen317.integration-runtime-own-test-build317",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/integration-runtime-own-test-build317/receipt.json.gz",
+        "sha256": "291004fbfcfda1046757f599854f6dbb697d31d3fceca97fb66d453bf8fcadec",
+        "compression": "gzip",
+        "uncompressed_sha256": "be1d0e7ef02a2ec04e147df0079a7d9709f43538185a7edd3f3da480b91de3e8"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/integration-runtime-own-test-build317/tests.log",
+        "sha256": "a957885d83dde226f5d687f58e7146392e7853060544a32dbb34846aca14dd19"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "TCL_TOMMATH_DIR=/workspace/tcl-lsp/tmp/tcl9.0.4/libtommath",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "runtime/rust/Cargo.toml",
+        "--features",
+        "engine",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 51.04246093399706,
+      "uniform_source": true,
+      "status": "compile-failed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Complete original unchanged33626-leaf Source317 source/head/archive associations are independently byte-verified; the two exact independent commands retain identical source maps. No failed artifact or current-source result is promoted."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The independent Runtime engine library-test no-run command closes exit101 with one production unresolved Syntax flags import and three cfg(test) Result<Option<pointer>> presence/type mismatches. No test executable creation, successful Runtime producer, strict image, inventory or assertion is admitted. Exact compiler spans and all original source associations are retained; corrected imports/test presence handling receive no retrospective result. Separate Python maintenance success supplies no Runtime or full-catalog credit.",
+      "sealed_images": {}
+    },
+    {
+      "id": "rust.frozen317.integration-proof-maintenance317",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/integration-proof-maintenance317/receipt.json.gz",
+        "sha256": "e4f864d81e20e149c87b0b60c9a34410a3c6aaa7094aa6dc0ef45775d63575dc",
+        "compression": "gzip",
+        "uncompressed_sha256": "f054553d195bf45114e1428d425e8d789c53b66399a99621ab175cae5e93c900"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/integration-proof-maintenance317/tests.log",
+        "sha256": "1e40316a5668dc3d14ead87d86b09ca3c7724fc3e8bf943c9e2682a3c543a6fb"
+      },
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "scripts/dev",
+        "-p",
+        "test_name_resolution_proofs.py"
+      ],
+      "exit": 0,
+      "seconds": 0.14439410099294037,
+      "uniform_source": true,
+      "status": "passed",
+      "result": {
+        "passed": 17,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Complete original unchanged33626-leaf Source317 source/head/archive associations are independently byte-verified; the two exact independent commands retain identical source maps. No failed artifact or current-source result is promoted."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The independent exact Python unittest-discovery command completes17 maintained proof-boundary controls on original Source317. This is a test of the maintained checker boundary semantics only, independent of the actual Runtime compilation failure. It launches no Native provider process and admits no Runtime executable/assertion, Rust suite or complete proof-catalog acceptance.",
+      "sealed_images": {},
+      "framework": "python-unittest"
     }
   ]
 }

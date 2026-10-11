@@ -554,6 +554,39 @@ Missing policy or physical lookup capability is a typed refusal.
   lifecycle. `TclVersion::has_error_stack` is the release fact: Tcl 8.6 and
   later expose it; older and vendor profiles inherit their selected runtime.
 
+### `tcl-runtime-api` + Runtime + VM — checked completion transport
+
+- `Commands::{dispatch,dispatch_id}` return
+  `Result<Completion<Value>, NativeExecutionError>`. Every Guest code remains
+  an `Ok` transport; first Host refusal is `Err`, independent of command-id
+  validity. Runtime and VM are the actual implementations. The VM list-sort
+  callback propagates the typed first cause through its existing internal
+  unwind owner instead of rendering a Guest error.
+- Runtime `state_traits::capture_completion_checked` is the crate-private
+  original object-capture owner. It requires the original entered currency and
+  transfers one real independent owning reference to each result/options handle
+  on success. Refusal releases partial ownership and returns the retained typed
+  cause; no NULL Guest placeholders are returned. Options getters may reach
+  effects or invalidate the original operation, including change and restoration.
+- `completion::capture_bytes` uses that owner and the actual selected String
+  getter, preserves result/options bytes, retires the two transport references,
+  then checks currency before exposing a `ScriptCompletion`. Public
+  `Interp::{eval_completion,eval_sourced_completion}` establish the before-body
+  scope and preserve first Host through outer error publication. Object-vector
+  codegen, original child completion and EngineABI capture consume the same
+  checked owner under their actual original scope and owning-reference contracts.
+  ABI outputs remain untouched on refused capture.
+- Runtime `NativeOperationScope` is a crate-private currency owner, not a
+  native-operation permission. `enter_engine_evaluation` resets an old episode
+  only at an actual independent engine entry with an empty operation stack.
+  Nested work inherits the first cause. Public Interp pending-Host semantics
+  and the VM's separate outer-boundary cause retirement remain explicit.
+- The dependency-low `tcl-engine-api` presents Runtime refusal through
+  `EngineError::ExecutionRefusal(String)` while the original typed cause remains
+  retained by Interp. This is a presentation boundary with no public typed cause
+  field; callers cannot recover identity or authority by parsing it. Structured
+  consumers use `Commands` or public Interp completion APIs instead.
+
 ### `tcl-runtime-api` + `tcl-cmd-core` — trace-aware array enumeration
 
 - `ArrayTarget` is the variable cell located before an array-operation trace.

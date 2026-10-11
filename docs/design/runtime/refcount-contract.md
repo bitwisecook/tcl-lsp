@@ -275,3 +275,21 @@ remains.
   [`c-api-ownership-contract.md`](c-api-ownership-contract.md).
 - Compile-side proof and ownership contract:
   [`../compiler/var-escape-analysis.md`](../compiler/var-escape-analysis.md).
+
+`OriginalArguments` retains the actual interpreter operation and allocation-only
+leases for a command's original argv. Entry checks live allocations without
+materialising their Strings or changing native reference counts. `original(index)`
+checks a borrowed header; `bytes(index)` reaches the existing selected original
+String getter at that command stage, retaining its result and checking the
+original currency before returning counted bytes. Neither accessor grants a
+name, frame, cache or getter purpose. Native worker consumers select those
+through their existing sealed protocols.
+
+Command drivers retain this context through their read/effect sequence. They
+check before table effects and after a callback or worker, preserve reached
+effects on failure, and finish through the original first Host cause. They read
+each subsequent operand only when the selected command reaches it. The common
+dispatch boundary enters the same operation before rewrite retirement, result
+retirement, traces, lookup and invocation, and checks after tailcall settlement.
+An independent engine entry retains its separate reset contract; nested dispatch
+never resets the original operation's first cause.

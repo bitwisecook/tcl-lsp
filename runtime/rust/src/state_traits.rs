@@ -2116,8 +2116,12 @@ mod original_completion_capture_tests {
                     .as_ref(),
                 b"GUEST\0\xff"
             );
-            let actual_code = crate::dict::dict_get(options.as_ptr(), b"-code").unwrap();
-            let actual_level = crate::dict::dict_get(options.as_ptr(), b"-level").unwrap();
+            let actual_code = crate::dict::dict_get(options.as_ptr(), b"-code")
+                .unwrap()
+                .expect("captured completion includes -code");
+            let actual_level = crate::dict::dict_get(options.as_ptr(), b"-level")
+                .unwrap()
+                .expect("captured completion includes -level");
             assert_eq!(
                 obj::bytes_of(actual_code),
                 if code == 2 {
@@ -2136,7 +2140,11 @@ mod original_completion_capture_tests {
             );
             if code == 1 {
                 assert_eq!(
-                    obj::bytes_of(crate::dict::dict_get(options.as_ptr(), b"-errorcode").unwrap()),
+                    obj::bytes_of(
+                        crate::dict::dict_get(options.as_ptr(), b"-errorcode")
+                            .unwrap()
+                            .expect("original error completion includes -errorcode"),
+                    ),
                     b"ORIGINAL ERROR CODE"
                 );
             }

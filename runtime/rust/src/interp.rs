@@ -77,6 +77,7 @@ mod native_command_rename;
 mod native_event_context;
 mod native_object_vector;
 pub(crate) mod native_operation_currency;
+pub(crate) mod native_arguments;
 pub(crate) mod native_scalar_context;
 mod native_script;
 mod native_substitution;
@@ -11494,36 +11495,50 @@ impl Interp {
         prebound: CommandDispatchSelection,
         ordinary: bool,
     ) -> Code {
-        if self.check_entered_native_operation().is_err() {
-            return Code::Error;
-        }
-        let previous = self.native_dispatch_depth.get();
-        let depth = previous.saturating_add(1);
-        // Unknown handlers and other forwarding entries add real recursive
-        // dispatch frames between script-body activations. Bound this shared
-        // entry before lookup/rewrite effects, using the existing native-stack
-        // budget independently of the body evaluator's depth.
-        if NATIVE_EVAL_DEPTH_LIMIT.exceeded(depth) {
-            return self.error(b"too many nested evaluations (infinite loop?)");
-        }
-        if ordinary {
-            if let Err(code) = self.reset_native_ensemble_rewrite(
-                tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::BeforeOrdinaryLookup,
-            ) {
-                return code;
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return Code::Error;
             }
-        }
-        self.native_dispatch_depth.set(depth);
-        let code = self.dispatch_prebound_inner(argv, prebound, ordinary);
-        let code = if self.check_entered_native_operation().is_err() {
+        };
+        let code = (|| {
+            let previous = self.native_dispatch_depth.get();
+            let depth = previous.saturating_add(1);
+            // Unknown handlers and other forwarding entries add real recursive
+            // dispatch frames between script-body activations. Bound this shared
+            // entry before lookup/rewrite effects, using the existing native-stack
+            // budget independently of the body evaluator's depth.
+            if NATIVE_EVAL_DEPTH_LIMIT.exceeded(depth) {
+                return self.error(b"too many nested evaluations (infinite loop?)");
+            }
+            if ordinary {
+                let reset = self.reset_native_ensemble_rewrite(
+                    tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::BeforeOrdinaryLookup,
+                );
+                if scope.currency().ensure_current_or_refuse().is_err() {
+                    return Code::Error;
+                }
+                if let Err(code) = reset {
+                    return code;
+                }
+            }
+            self.native_dispatch_depth.set(depth);
+            let code = self.dispatch_prebound_inner(argv, prebound, ordinary);
+            let code = if self.check_entered_native_operation().is_err() {
+                Code::Error
+            } else {
+                self.drain_tailcalls(depth, code)
+            };
+            self.native_dispatch_depth.set(previous);
+            code
+        })();
+        if scope.currency().ensure_current_or_refuse().is_err() {
             Code::Error
         } else {
-            self.drain_tailcalls(depth, code)
-        };
-        self.native_dispatch_depth.set(previous);
-        code
+            code
+        }
     }
-
     fn dispatch_prebound_inner(
         &mut self,
         argv: &[*mut TclObj],
@@ -11539,6 +11554,9 @@ impl Interp {
         // native ABI. `argv` owns/borrows its objects independently, so dropping
         // the prior result here cannot invalidate an argument.
         self.set_result_bytes(b"");
+        if self.check_entered_native_operation().is_err() {
+            return Code::Error;
+        }
         self.reset_native_global_error_episode();
         self.cmd_count.set(self.cmd_count.get() + 1);
         // An embedder's limits are charged here, where every command passes:

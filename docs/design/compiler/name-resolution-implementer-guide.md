@@ -1642,6 +1642,91 @@ before selecting a written segment operand. A captured alias prefix has no edita
 segment index. A compatibility argument spelling must never become a literal
 option value or replace a missing implementation proof.
 
+### Transport reached completions and the first Host cause
+
+`Commands::{dispatch,dispatch_id}` return
+`Result<Completion<Value>, NativeExecutionError>`. `Ok` transports every Guest
+code, including Error, Return, Break, Continue and Other; it does not mean that
+the Guest operation succeeded. `Err` carries the reached first Host cause
+outside those Guest codes. Preserve that error through callbacks and nested
+execution instead of placing its rendered text in a Guest completion.
+
+```rust
+use tcl_runtime_api::{Commands, Completion, NativeExecutionError};
+
+fn call<C: Commands>(
+    runtime: &mut C,
+    name: &str,
+    arguments: &[C::Value],
+) -> Result<Completion<C::Value>, NativeExecutionError> {
+    runtime.dispatch(name, arguments)
+}
+```
+
+The name is resolved in the actual runtime context. `dispatch_id` consumes the
+retained command generation from `Namespaces::find_command`; a stale or invalid
+id produces a Guest error only when no earlier Host cause is pending. Runtime
+and VM supply their own value and owning-reference models. A typed result or a
+current operation receipt supplies no name policy, native handler, variable
+frame, getter or cache permission. Original counted object argv belongs to its
+actual object-vector owner; the string-name role is not a decoder for arbitrary
+original name bytes.
+
+Runtime embedding callers can preserve result and complete options as bytes:
+
+```rust
+use tcl_runtime::interp::Interp;
+use tcl_runtime_api::{NativeExecutionError, ScriptCompletion};
+
+fn run(
+    interpreter: &mut Interp,
+    source: &[u8],
+) -> Result<ScriptCompletion, NativeExecutionError> {
+    interpreter.eval_completion(source)
+}
+```
+
+Use `eval_sourced_completion` when the actual source filename is also owned by
+the caller. Both APIs enter before the body and capture before outer error
+publication. They retain binary bytes and the original return options without
+reparsing a message. The `eval_str` and `eval_sourced` Code projections retain their separate Host
+channel. Their callers check `Interp::native_execution_refusal` before treating
+the code as Guest transport; the typed completion APIs perform this check
+themselves.
+
+Internal Runtime object transport uses
+`state_traits::capture_completion_checked(interpreter, currency, code)`. On
+success each result/options pointer transfers one independent `+1`; adopt and
+release each exactly once. On refusal it transfers no handles and preserves
+the first typed cause. The actual entered currency spans options getters,
+String materialisation and cleanup, including a context change followed by
+restoration. `completion::capture_bytes` releases its two independent transport
+references before exposing bytes. Codegen and EngineABI publishers write no
+output on refused capture. These helpers are crate-private; external users use
+the public completion or role APIs.
+
+`NativeOperationScope::enter_engine_evaluation` is the Runtime engine facade's
+private entry owner. It resets an earlier episode only when the authoritative
+entered-operation stack is empty, then enters the original scope. Nested
+Engine callbacks inherit their first cause. Public Interp completion calls do
+not reset a pending cause. The VM's existing outer Host boundary independently
+controls when its retained cause is retired; a nested role call cannot retire
+it. Mandatory frame restoration and temporary reference release remain reached
+before publication.
+
+`tcl-engine-api` presents a Runtime Host refusal as
+`EngineError::ExecutionRefusal(String)`. The full `NativeExecutionError` remains
+retained on the actual Interp; that public engine error exposes its presentation
+only. Do not parse the String to recover a cause, identity or capability. Choose
+the typed role or public Interp completion boundary when the consumer needs a
+structured Host error. The engine API retains its dependency-low interface;
+Guest errors use its separate ScriptBytes completion metadata.
+
+The [original Host publication and transport contract](../analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md)
+keeps software ownership/current-operation controls distinct from measured
+Native observations. Source declarations and a typed interface are not a
+compiled assertion or native execution result.
+
 ## Treat compiler failure as an entry event
 
 `SourceCommandBindings::native_compilation_failure_at` is a must query: every reached entry must agree on the same rejection of that actual source chunk. The broader failure inventory includes possible failures and does not license an unconditional rejection.

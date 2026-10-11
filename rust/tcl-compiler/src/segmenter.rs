@@ -549,7 +549,8 @@ pub fn body_text_in_region<'t>(
 /// that element's text, so it must be read under the grammar the document was
 /// lexed with — an iRules `}{`, a Jim `$(…)` or an 8.4 `{*}` classify
 /// differently otherwise, which is why `config` is required rather than
-/// defaulted.
+/// defaulted. Only the extracted element parser uses `config.nested()`;
+/// list geometry and the enclosing original word retain their parent purpose.
 #[must_use]
 pub fn flatten_clause_list_elements_with_config(
     source: &str,
@@ -591,7 +592,7 @@ pub fn flatten_clause_list_elements_with_config(
             // one already-located element merely preserves the representative
             // token kind (`$var`, `[command]`, or bare text) that consumers
             // use for semantic classification.
-            Lexer::with_config(raw, config)
+            Lexer::with_config(raw, config.nested())
                 .tokenise_all()
                 .ok()
                 .and_then(|tokens| {
@@ -1964,5 +1965,66 @@ mod span_absolute_tests {
             text.starts_with("set"),
             "expected absolute span pointing at `set`, got {text:?}",
         );
+    }
+}
+
+#[cfg(test)]
+mod original_clause_element_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_clause_elements_keep_parent_geometry_and_nested_bom_content() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Original Document/list geometry only; the public String completeness
+        // observations supply no list value, header or handler receipt.
+        let source = "\u{feff}switch -- $v {\u{feff}$pattern {puts ok} plain {puts tail}}";
+        let environment = crate::environment_ingress::resolve_environment("tcl9.1");
+        for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let config = LexerConfig {
+                leading_bom: bom,
+                braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+                ..LexerConfig::for_file_grammar(environment.grammar())
+            };
+            let commands = segment_commands_with_offset_and_config(source, 0, config);
+            let [command] = commands.as_slice() else {
+                panic!("actual original whole command")
+            };
+            let body = command.argv[3];
+            let elements =
+                flatten_clause_list_elements_with_config(source, &command.texts[3], body, config);
+            assert_eq!(
+                elements
+                    .iter()
+                    .map(|(text, _)| text.as_str())
+                    .collect::<Vec<_>>(),
+                ["\u{feff}$pattern", "puts ok", "plain", "puts tail"]
+            );
+            assert_eq!(elements[0].1.kind, TokenType::Esc);
+            assert_eq!(elements[1].1.kind, TokenType::Str);
+            let first = elements[0].1.span;
+            assert_eq!(source.get(first.as_range()), Some("\u{feff}$pattern"));
+            assert_eq!(
+                first.start(),
+                body.span.start() + u32::from(body.content_offset)
+            );
+            assert_eq!(elements[1].1.content_offset, 1);
+            assert!(
+                elements
+                    .iter()
+                    .all(|(_, token)| body.span.start() <= token.span.start()
+                        && token.span.end() <= body.span.end())
+            );
+            let elements_with_content = flatten_clause_list_elements_with_config(
+                source,
+                &command.texts[3],
+                body,
+                LexerConfig {
+                    leading_bom: tcl_lexer::LeadingBom::Content,
+                    ..config
+                },
+            );
+            assert_eq!(elements, elements_with_content);
+        }
     }
 }
