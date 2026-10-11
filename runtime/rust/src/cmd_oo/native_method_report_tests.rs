@@ -72,7 +72,7 @@ fn missing_report_observer(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
     assert_eq!(
         interp.native_execution_refusal(),
         Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
-            tcl_runtime_api::NativeValueAccessRefusal::CommandProtocolUnavailable(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
                 "original Foundation method report header"
             )
         ))
@@ -156,7 +156,7 @@ fn original_foundation_report_refuses_missing_headers_and_unsupported_selection(
         assert_eq!(
             interp.native_execution_refusal(),
             Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
-                tcl_runtime_api::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
                     "original Foundation method report header"
                 )
             ))

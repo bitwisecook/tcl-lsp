@@ -108,7 +108,7 @@ fn original_foundation_value_report_refuses_missing_and_unsupported_owners() {
         );
         vm.oo.method_reports = None;
         let expected = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
-            tcl_runtime_api::NativeValueAccessRefusal::CommandProtocolUnavailable(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
                 "original Foundation method report header",
             ),
         );

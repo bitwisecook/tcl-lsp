@@ -13,7 +13,8 @@ use std::{
 };
 use tcl_cmd_core::CmdError;
 use tcl_runtime_api::native_compilation::NativeInterpreterIdentity;
-use tcl_runtime_api::{NativeExecutionError, NativeValueAccessRefusal, RuntimeContext};
+use tcl_runtime_api::{NativeExecutionError, RuntimeContext};
+use tcl_syntax::raw_string::NativeValueAccessRefusal;
 
 pub(super) struct NativeOperationContext {
     generation: Cell<Option<u64>>,
