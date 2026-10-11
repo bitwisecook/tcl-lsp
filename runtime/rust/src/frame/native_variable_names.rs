@@ -202,6 +202,28 @@ impl FrameStack {
             .get_or_insert_with(super::fresh_var_id);
         true
     }
+    /// Observe the already selected ordinal cell without a new variable role.
+    pub(crate) fn original_compiled_name_observation(
+        &self,
+        index: usize,
+    ) -> Option<(
+        usize,
+        Vec<u8>,
+        super::VariablePublicationObservation,
+        Option<super::OriginalVariableLinkObservation>,
+    )> {
+        let (frame, cell) = self.compiled_cell(index)?;
+        let table = &self.frames[frame].table;
+        let (observation, link) =
+            super::VarTable::observe_original_name_contents(&table.cells[cell].contents).ok()?;
+        Some((
+            self.frames[frame].level,
+            table.slot_name(cell)?.to_vec(),
+            observation,
+            link,
+        ))
+    }
+
     pub(crate) fn retain_original_compiled_alias(
         &mut self,
         index: usize,

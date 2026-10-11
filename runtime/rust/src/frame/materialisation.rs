@@ -25,6 +25,15 @@ pub(crate) struct VariablePublicationObservation {
     binding: VarId,
 }
 impl VariablePublicationObservation {
+    fn capture_existing(contents: &Rc<RefCell<CellContents>>) -> Result<Self, super::VarError> {
+        let cell = contents.borrow();
+        Ok(Self {
+            contents: Rc::downgrade(contents),
+            binding: cell
+                .binding_id
+                .ok_or(super::VarError::NameProtocolUnavailable)?,
+        })
+    }
     pub(super) fn matches(&self, current: &Rc<RefCell<CellContents>>) -> bool {
         self.contents.strong_count() != 0 && Weak::ptr_eq(&self.contents, &Rc::downgrade(current))
     }
@@ -138,14 +147,27 @@ pub(crate) struct OriginalVariableLinkObservation {
     home: super::VarHome,
     name: Vec<u8>,
     key: Option<Vec<u8>>,
+    array_identity: Option<VarId>,
+    array: Option<(Weak<RefCell<CellContents>>, VarId, u64)>,
+    jim: Option<Weak<super::OriginalJimLinkTarget>>,
+    undefined_marker: bool,
 }
 impl OriginalVariableLinkObservation {
     fn capture(contents: &Rc<RefCell<CellContents>>) -> Result<Self, super::VarError> {
+        Self::capture_using(contents, true)
+    }
+    fn capture_using(
+        contents: &Rc<RefCell<CellContents>>,
+        requires_c_issuer: bool,
+    ) -> Result<Self, super::VarError> {
         let cell = contents.borrow();
         let Some(Var::Link(link)) = cell.var.as_ref() else {
             return Err(super::VarError::NameProtocolUnavailable);
         };
-        if link.native_scalar_entry.is_none() && link.native_element_entry.is_none() {
+        if requires_c_issuer
+            && link.native_scalar_entry.is_none()
+            && link.native_element_entry.is_none()
+        {
             // An authored byte-only link supplies no actual C alias issuer.
             return Err(super::VarError::NameProtocolUnavailable);
         }
@@ -159,7 +181,21 @@ impl OriginalVariableLinkObservation {
             home: link.home,
             name: link.name.clone(),
             key: link.elem.clone(),
+            array_identity: link.array_identity,
+            array: link
+                .array_cell
+                .as_ref()
+                .map(|array| (Rc::downgrade(&array.contents), array.id, array.epoch)),
+            jim: link.original_jim_target.as_ref().map(Rc::downgrade),
+            undefined_marker: link.native_scalar_entry.is_none()
+                && link.native_element_entry.is_none()
+                && link.original_jim_target.is_none()
+                && link.array_cell.is_none()
+                && link.array_identity.is_none(),
         })
+    }
+    pub(crate) fn targets_itself(&self, home: super::VarHome, name: &[u8]) -> bool {
+        self.undefined_marker && self.home == home && self.name == name && self.key.is_none()
     }
     pub(crate) fn check_current(&self) -> Result<(), ValueError> {
         let valid = self.contents.upgrade().is_some_and(|contents| {
@@ -172,6 +208,25 @@ impl OriginalVariableLinkObservation {
                 && link.home == self.home
                 && link.name == self.name
                 && link.elem == self.key
+                && link.array_identity == self.array_identity
+                && match (&self.array, &link.array_cell) {
+                    (Some((contents, id, epoch)), Some(current)) => {
+                        contents.strong_count() != 0
+                            && Weak::ptr_eq(contents, &Rc::downgrade(&current.contents))
+                            && *id == current.id
+                            && *epoch == current.epoch
+                    }
+                    (None, None) => true,
+                    _ => false,
+                }
+                && match (&self.jim, &link.original_jim_target) {
+                    (Some(original), Some(current)) => {
+                        original.strong_count() != 0
+                            && Weak::ptr_eq(original, &Rc::downgrade(current))
+                    }
+                    (None, None) => true,
+                    _ => false,
+                }
                 && match (&self.scalar, &link.native_scalar_entry) {
                     (Some(original), Some(current)) => {
                         original.strong_count() != 0
@@ -199,6 +254,37 @@ impl OriginalVariableLinkObservation {
     }
 }
 impl super::VarTable {
+    pub(crate) fn observe_original_name_cell(
+        &self,
+        name: &[u8],
+    ) -> Result<
+        (
+            VariablePublicationObservation,
+            Option<OriginalVariableLinkObservation>,
+        ),
+        super::VarError,
+    > {
+        let contents = self
+            .contents(name)
+            .ok_or(super::VarError::NameProtocolUnavailable)?;
+        Self::observe_original_name_contents(contents)
+    }
+    pub(super) fn observe_original_name_contents(
+        contents: &Rc<RefCell<CellContents>>,
+    ) -> Result<
+        (
+            VariablePublicationObservation,
+            Option<OriginalVariableLinkObservation>,
+        ),
+        super::VarError,
+    > {
+        let observation = VariablePublicationObservation::capture_existing(contents)?;
+        let is_link = matches!(contents.borrow().var.as_ref(), Some(Var::Link(_)));
+        let link = is_link
+            .then(|| OriginalVariableLinkObservation::capture_using(contents, false))
+            .transpose()?;
+        Ok((observation, link))
+    }
     pub(crate) fn observe_original_c_link(
         &self,
         name: &[u8],

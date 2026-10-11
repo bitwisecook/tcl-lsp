@@ -26,9 +26,9 @@ use tcl_syntax::{
 struct OriginalCNameSelection {
     root: Vec<u8>,
     element: Option<Vec<u8>>,
-    compiled: Option<usize>,
-    namespace: Option<crate::namespace::NsId>,
     materialised: Option<crate::vars::OriginalArrayMemberSelection>,
+    simple: crate::vars::NativeOriginalNameCell,
+    currency: super::native_operation_currency::NativeOperationCurrency,
 }
 
 /// Reporting bytes captured by the same original-name lookup that selected the
@@ -167,23 +167,39 @@ impl Interp {
     fn install_original_c_name_cache(
         &self,
         original: *mut TclObj,
-        index: Option<usize>,
-    ) -> Result<(), ValueError> {
+        selected: &crate::vars::NativeOriginalNameCell,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        selected.check(self, currency)?;
         self.check_original_c_name_operation(&[original])?;
+        let retain = |error: &tcl_cmd_core::CmdError| {
+            if let Some(first) = error.native_execution_refusal() {
+                self.clone().refuse_native_execution(first.clone());
+            }
+        };
+        let mut current = || {
+            selected.check(self, currency).and_then(|()| {
+                self.check_original_c_name_operation(&[original])
+                    .map_err(Into::into)
+            })
+        };
         let _original_lifetime = obj::NativeObjectLifetime::retain(original);
         let dialect = self.native_invocation_dialect();
         let protocol = dialect
             .native_variable_name_protocol()
             .expect("C variable issuer");
-        let Some(index) = index else {
-            let result = obj::native_variable_name::install_parsed(
+        let Some(index) = selected.compiled else {
+            let result = obj::native_variable_name::install_parsed_with_stage_check(
                 original,
                 NativeParsedVariableName {
                     protocol,
                     array: None,
                 },
                 dialect,
+                &mut current,
+                &retain,
             );
+            selected.check(self, currency)?;
             self.check_original_c_name_operation(&[original])?;
             return result;
         };
@@ -193,7 +209,7 @@ impl Interp {
             )?;
             procedure
                 .retain_native_compiled_frame_names(self.frames.borrow().native_compiled_names());
-            let result = obj::native_variable_name::install_local(
+            let result = obj::native_variable_name::install_local_with_stage_check(
                 original,
                 NativeLocalVariableName {
                     protocol,
@@ -210,7 +226,10 @@ impl Interp {
                     ),
                 },
                 dialect,
+                &mut current,
+                &retain,
             );
+            selected.check(self, currency)?;
             self.check_original_c_name_operation(&[original])?;
             return result;
         }
@@ -231,7 +250,7 @@ impl Interp {
         let owner = NativeLocalVariableOwner::Name(
             (canonical != original).then(|| Owned::retain(canonical)),
         );
-        let result = obj::native_variable_name::install_local(
+        let result = obj::native_variable_name::install_local_with_stage_check(
             original,
             NativeLocalVariableName {
                 protocol,
@@ -239,14 +258,21 @@ impl Interp {
                 owner,
             },
             dialect,
+            &mut current,
+            &retain,
         );
+        selected.check(self, currency)?;
         self.check_original_c_name_operation(&[original, canonical])?;
         result?;
         if canonical != original && protocol.installs_canonical_local_self_cache() {
-            let result = obj::discard_native_internal_representation(canonical);
+            let result = obj::discard_native_internal_representation_with_stage_check(
+                canonical,
+                &mut current,
+            );
+            selected.check(self, currency)?;
             self.check_original_c_name_operation(&[original, canonical])?;
             result?;
-            let result = obj::native_variable_name::install_local(
+            let result = obj::native_variable_name::install_local_with_stage_check(
                 canonical,
                 NativeLocalVariableName {
                     protocol,
@@ -254,7 +280,10 @@ impl Interp {
                     owner: NativeLocalVariableOwner::Name(None),
                 },
                 dialect,
+                &mut current,
+                &retain,
             );
+            selected.check(self, currency)?;
             self.check_original_c_name_operation(&[original, canonical])?;
             result?;
         } else if canonical != original
@@ -264,7 +293,11 @@ impl Interp {
             })
             .unwrap_or(false)
         {
-            let result = obj::discard_native_internal_representation(canonical);
+            let result = obj::discard_native_internal_representation_with_stage_check(
+                canonical,
+                &mut current,
+            );
+            selected.check(self, currency)?;
             self.check_original_c_name_operation(&[original, canonical])?;
             result?;
         }
@@ -315,6 +348,8 @@ impl Interp {
         namespace: Option<crate::namespace::NsId>,
         explicit_element: Option<&[u8]>,
     ) -> Result<Option<OriginalCNameSelection>, Code> {
+        let operation = super::native_operation_currency::NativeOperationScope::enter(self)
+            .map_err(|first| self.refuse_native_execution(first))?;
         self.check_original_c_name_operation(&[original])
             .map_err(|error| self.report_cmd_error(error.into()))?;
         let _original_lifetime = obj::NativeObjectLifetime::retain(original);
@@ -374,13 +409,30 @@ impl Interp {
                         obj::new_string_bytes(element),
                     )),
                 };
-                let result = obj::native_variable_name::install_parsed(
+                let mut current = || {
+                    operation
+                        .currency()
+                        .ensure_current_or_refuse()
+                        .map_err(tcl_cmd_core::CmdError::from_execution_refusal)
+                        .and_then(|()| {
+                            self.check_original_c_name_operation(&[original])
+                                .map_err(Into::into)
+                        })
+                };
+                let retain = |error: &tcl_cmd_core::CmdError| {
+                    if let Some(first) = error.native_execution_refusal() {
+                        self.clone().refuse_native_execution(first.clone());
+                    }
+                };
+                let result = obj::native_variable_name::install_parsed_with_stage_check(
                     original,
                     NativeParsedVariableName {
                         protocol,
                         array: Some((root, element)),
                     },
                     dialect,
+                    &mut current,
+                    &retain,
                 );
                 self.check_original_c_name_operation(&[original])
                     .map_err(|error| self.report_cmd_error(error.into()))?;
@@ -412,7 +464,20 @@ impl Interp {
             let free_hook = !kind.is_null() && unsafe { (*kind).free_int_rep_proc.is_some() };
             if protocol.retires_before_simple_lookup(free_hook) {
                 let _root_lifetime = obj::NativeObjectLifetime::retain(root);
-                let result = obj::discard_native_internal_representation(root);
+                let mut current = || {
+                    operation
+                        .currency()
+                        .ensure_current_or_refuse()
+                        .map_err(tcl_cmd_core::CmdError::from_execution_refusal)
+                        .and_then(|()| {
+                            self.check_original_c_name_operation(&[original, root])
+                                .map_err(Into::into)
+                        })
+                };
+                let result = obj::discard_native_internal_representation_with_stage_check(
+                    root,
+                    &mut current,
+                );
                 self.check_original_c_name_operation(&[original, root])
                     .map_err(|error| self.report_cmd_error(error.into()))?;
                 result.map_err(|error| self.report_cmd_error(error.into()))?;
@@ -420,19 +485,12 @@ impl Interp {
             root_bytes
         };
         let selected = if let Some(index) = cached {
-            if !self
-                .frames
-                .borrow_mut()
-                .prepare_native_compiled_name_cell(index)
-            {
-                return Err(self.report_cmd_error(
-                    ValueError::CommandProtocolUnavailable("actual original indexed variable cell")
-                        .into(),
-                ));
-            }
-            Ok(Some(crate::vars::NativeOriginalNameCell {
-                compiled: Some(index),
-            }))
+            crate::vars::prepare_original_c_indexed_name_cell(
+                &mut self.frames.borrow_mut(),
+                &self.namespaces.borrow(),
+                index,
+            )
+            .map(Some)
         } else {
             crate::vars::prepare_original_c_variable_cell(
                 &mut self.frames.borrow_mut(),
@@ -450,6 +508,12 @@ impl Interp {
         let selected = match selected {
             Ok(Some(selected)) => selected,
             Ok(None) => return Ok(None),
+            Err(crate::frame::VarError::NameProtocolUnavailable) => {
+                return Err(self.report_cmd_error(
+                    ValueError::CommandProtocolUnavailable("actual original simple variable cell")
+                        .into(),
+                ));
+            }
             Err(error) if create => {
                 let reason = match error {
                     crate::frame::VarError::NoSuchNamespace => {
@@ -470,8 +534,8 @@ impl Interp {
             Err(_) => return Ok(None),
         };
         if cached.is_none() {
-            self.install_original_c_name_cache(root, selected.compiled)
-                .map_err(|error| self.report_cmd_error(error.into()))?;
+            self.install_original_c_name_cache(root, &selected, operation.currency())
+                .map_err(|error| self.report_cmd_error(error))?;
         }
         let mut materialised = None;
         if create
@@ -485,14 +549,13 @@ impl Interp {
                         self.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error))
                     })?;
                 let retained_key = self.original_c_parsed_element_key(original);
-                let prepared = crate::vars::capture_original_c_element_materialisation(
+                selected
+                    .check(self, operation.currency())
+                    .map_err(|error| self.report_cmd_error(error))?;
+                let prepared = crate::vars::capture_original_c_selected_element_materialisation(
                     &mut self.frames.borrow_mut(),
                     &mut self.namespaces.borrow_mut(),
-                    crate::vars::NativeOriginalNameScope {
-                        current: self.current_ns.get(),
-                        namespace,
-                    },
-                    &root_bytes,
+                    &selected,
                     element,
                     retained_key.as_ref().map(Owned::as_ptr),
                     purpose.creates_element_entries(),
@@ -536,9 +599,9 @@ impl Interp {
         Ok(Some(OriginalCNameSelection {
             root: root_bytes,
             element,
-            compiled: selected.compiled,
-            namespace,
             materialised,
+            simple: selected,
+            currency: operation.currency().clone(),
         }))
     }
 
@@ -552,6 +615,8 @@ impl Interp {
         namespace: Option<crate::namespace::NsId>,
         explicit_element: Option<&[u8]>,
     ) -> Result<Option<OriginalCNameSelection>, Code> {
+        let operation = super::native_operation_currency::NativeOperationScope::enter(self)
+            .map_err(|first| self.refuse_native_execution(first))?;
         let bytes = self
             .native_string_bytes(&original)
             .map_err(|error| self.report_cmd_error(error.into()))?
@@ -589,9 +654,9 @@ impl Interp {
             Ok(Some(selected)) => Ok(Some(OriginalCNameSelection {
                 root,
                 element,
-                compiled: selected.compiled,
-                namespace,
                 materialised: None,
+                simple: selected,
+                currency: operation.currency().clone(),
             })),
             Err(crate::frame::VarError::NameProtocolUnavailable) => Err(self.report_cmd_error(
                 ValueError::CommandProtocolUnavailable("actual original byte variable cell").into(),
@@ -1077,28 +1142,27 @@ impl Interp {
             if let Some(target) = self.capture_original_c_materialised_link(&selection)? {
                 return Ok(Some(target));
             }
-            if let Some(index) = selection.compiled {
-                let selected = crate::vars::original_indexed_link_target(
-                    &mut self.frames.borrow_mut(),
-                    &mut self.namespaces.borrow_mut(),
-                    index,
-                    selection.element,
-                );
-                return selected.map(Some).map_err(|error| {
-                    self.original_c_lookup_var_error(
-                        original,
-                        NativeVariableNameLookupPurpose::Link,
-                        error,
-                    )
-                });
-            }
-            Ok(crate::vars::link_target_at(
-                &self.frames.borrow(),
-                &self.namespaces.borrow(),
-                &selection.root,
-                selection.element,
-                level,
-            ))
+            selection
+                .simple
+                .check(self, &selection.currency)
+                .map_err(|error| self.report_cmd_error(error))?;
+            let target = crate::vars::original_c_selected_link_target(
+                &mut self.frames.borrow_mut(),
+                &mut self.namespaces.borrow_mut(),
+                &selection.simple,
+                selection.element.clone(),
+            );
+            selection
+                .simple
+                .check(self, &selection.currency)
+                .map_err(|error| self.report_cmd_error(error))?;
+            target.map(Some).map_err(|error| {
+                self.original_c_lookup_var_error(
+                    original,
+                    NativeVariableNameLookupPurpose::Link,
+                    error,
+                )
+            })
         })();
         self.current_ns.set(saved_namespace);
         self.frames.borrow_mut().set_active_level(saved);
@@ -1419,18 +1483,25 @@ impl Interp {
         &mut self,
         original: *mut TclObj,
         selected: &OriginalCNameSelection,
-        namespace: crate::namespace::NsId,
+        _namespace: crate::namespace::NsId,
     ) -> Result<crate::frame::Link, Code> {
+        selected
+            .simple
+            .check(self, &selected.currency)
+            .map_err(|error| self.report_cmd_error(error))?;
         if let Some(target) = self.capture_original_c_materialised_link(selected)? {
             return Ok(target);
         }
-        let target = crate::vars::original_namespace_link_target(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
-            namespace,
-            &selected.root,
+        let target = crate::vars::original_c_selected_link_target(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            &selected.simple,
             selected.element.clone(),
         );
+        selected
+            .simple
+            .check(self, &selected.currency)
+            .map_err(|error| self.report_cmd_error(error))?;
         target.map_err(|error| {
             self.original_c_lookup_var_error(original, NativeVariableNameLookupPurpose::Link, error)
         })
@@ -1440,6 +1511,10 @@ impl Interp {
         &mut self,
         selected: &OriginalCNameSelection,
     ) -> Result<Option<crate::frame::Link>, Code> {
+        selected
+            .simple
+            .check(self, &selected.currency)
+            .map_err(|error| self.report_cmd_error(error))?;
         let Some(original_target) = &selected.materialised else {
             return Ok(None);
         };
@@ -1464,6 +1539,13 @@ impl Interp {
         Option<(crate::frame::VariableReceiver, crate::vars::TraceHome)>,
         crate::frame::VarError,
     > {
+        selected
+            .simple
+            .check(self, &selected.currency)
+            .map_err(|error| {
+                self.report_cmd_error(error);
+                crate::frame::VarError::NameProtocolUnavailable
+            })?;
         if let Some(original_target) = &selected.materialised {
             let operation = super::native_operation_currency::NativeOperationScope::enter(self)
                 .map_err(|first| {
@@ -1485,54 +1567,20 @@ impl Interp {
                 crate::frame::VarError::NameProtocolUnavailable
             });
         }
-        let captured = if let Some(namespace) = selected.namespace {
-            crate::vars::capture_original_namespace_receiver(
-                &mut self.frames.borrow_mut(),
-                &mut self.namespaces.borrow_mut(),
-                namespace,
-                &selected.root,
-                selected.element.clone(),
-                purpose.creates_entries(),
-            )
-        } else if let Some(index) = selected.compiled {
-            crate::vars::capture_original_indexed_receiver(
-                &mut self.frames.borrow_mut(),
-                &mut self.namespaces.borrow_mut(),
-                index,
-                selected.element.clone(),
-                purpose.creates_entries(),
-            )
-        } else {
-            let receiver = if purpose.creates_entries() {
-                crate::vars::capture_variable_receiver(
-                    &mut self.frames.borrow_mut(),
-                    &mut self.namespaces.borrow_mut(),
-                    self.current_ns.get(),
-                    &selected.root,
-                    selected.element.as_deref(),
-                )
-                .map(Some)
-            } else {
-                crate::vars::capture_get_variable_receiver(
-                    &mut self.frames.borrow_mut(),
-                    &mut self.namespaces.borrow_mut(),
-                    self.current_ns.get(),
-                    &selected.root,
-                    selected.element.as_deref(),
-                )
-            };
-            receiver.map(|receiver| {
-                receiver.map(|receiver| {
-                    let home = crate::vars::trace_home(
-                        &self.frames.borrow(),
-                        &self.namespaces.borrow(),
-                        self.current_ns.get(),
-                        &selected.root,
-                    );
-                    (receiver, home)
-                })
-            })
-        };
+        let captured = crate::vars::capture_original_c_selected_receiver(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            &selected.simple,
+            selected.element.clone(),
+            purpose.creates_entries(),
+        );
+        selected
+            .simple
+            .check(self, &selected.currency)
+            .map_err(|error| {
+                self.report_cmd_error(error);
+                crate::frame::VarError::NameProtocolUnavailable
+            })?;
         let captured = captured?
             .map(|(receiver, home)| {
                 let home = home
@@ -2116,6 +2164,9 @@ impl Interp {
     }
 }
 
+#[cfg(test)]
+#[path = "native_variable_names/original_handoff_tests.rs"]
+mod original_handoff_tests;
 #[cfg(test)]
 mod tests {
     use super::*;

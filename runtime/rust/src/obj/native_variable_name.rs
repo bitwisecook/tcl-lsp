@@ -137,16 +137,31 @@ pub(crate) fn with_local<R>(value: *mut TclObj, borrow: impl FnOnce(&Local) -> R
         &*(super::internal_rep(value) as usize as *const Local)
     }))
 }
-pub(crate) fn install_parsed(
+pub(crate) fn install_parsed_with_stage_check<E: From<ValueError>>(
     value: *mut TclObj,
     cache: Parsed,
     dialect: tcl_registry::InvocationDialect,
-) -> Result<(), ValueError> {
+    check: &mut dyn FnMut() -> Result<(), E>,
+    retain: &dyn Fn(&E),
+) -> Result<(), E> {
+    install_parsed_using(value, cache, dialect, Some(check), Some(retain))
+}
+fn install_parsed_using<E: From<ValueError>>(
+    value: *mut TclObj,
+    cache: Parsed,
+    dialect: tcl_registry::InvocationDialect,
+    check: Option<&mut dyn FnMut() -> Result<(), E>>,
+    retain: Option<&dyn Fn(&E)>,
+) -> Result<(), E> {
     if dialect.native_variable_name_protocol() != Some(cache.protocol)
         || !super::has_string_rep(value)
     {
-        return Err(ValueError::CommandProtocolUnavailable(
-            "native parsed variable-name origin/resident storage",
+        return Err(retain_cache_refusal(
+            ValueError::CommandProtocolUnavailable(
+                "native parsed variable-name origin/resident storage",
+            )
+            .into(),
+            retain,
         ));
     }
     let valid = cache
@@ -157,35 +172,75 @@ pub(crate) fn install_parsed(
             NativeParsedVariableElement::Object(_) => !cache.protocol.has_parsed_array_updater(),
         });
     if !valid {
-        return Err(ValueError::CommandProtocolUnavailable(
-            "native parsed variable-name parts",
+        return Err(retain_cache_refusal(
+            ValueError::CommandProtocolUnavailable("native parsed variable-name parts").into(),
+            retain,
         ));
     }
-    install_parsed_unchecked(value, cache);
-    Ok(())
+    install_parsed_primary(value, cache, check, retain)
 }
 fn install_parsed_unchecked(value: *mut TclObj, cache: Parsed) {
+    let _ = install_parsed_primary::<ValueError>(value, cache, None, None);
+}
+fn install_parsed_primary<E: From<ValueError>>(
+    value: *mut TclObj,
+    cache: Parsed,
+    mut check: Option<&mut dyn FnMut() -> Result<(), E>>,
+    retain: Option<&dyn Fn(&E)>,
+) -> Result<(), E> {
     let descriptor = if cache.protocol.has_parsed_array_updater() {
         &PARSED_C8
     } else {
         &PARSED_C9
     };
-    super::change_type(
-        value,
-        descriptor,
-        Box::into_raw(Box::new(cache)) as usize as u64,
-    );
+    let backing = Box::into_raw(Box::new(cache));
+    if let Some(current) = check.as_mut() {
+        let reached = super::change_type_with_stage_check(
+            value,
+            descriptor,
+            backing as usize as u64,
+            *current,
+        );
+        if let Err(error) = &reached {
+            if let Some(retain) = retain {
+                retain(error);
+            }
+            // A declined transfer still retires its actual prepared part roles.
+            unsafe { drop(Box::from_raw(backing)) };
+            let after = current();
+            return reached.and(after);
+        }
+        reached
+    } else {
+        super::change_type(value, descriptor, backing as usize as u64);
+        Ok(())
+    }
 }
-pub(crate) fn install_local(
+pub(crate) fn install_local_with_stage_check<E: From<ValueError>>(
     value: *mut TclObj,
     cache: Local,
     dialect: tcl_registry::InvocationDialect,
-) -> Result<(), ValueError> {
+    check: &mut dyn FnMut() -> Result<(), E>,
+    retain: &dyn Fn(&E),
+) -> Result<(), E> {
+    install_local_using(value, cache, dialect, Some(check), Some(retain))
+}
+fn install_local_using<E: From<ValueError>>(
+    value: *mut TclObj,
+    cache: Local,
+    dialect: tcl_registry::InvocationDialect,
+    check: Option<&mut dyn FnMut() -> Result<(), E>>,
+    retain: Option<&dyn Fn(&E)>,
+) -> Result<(), E> {
     if dialect.native_variable_name_protocol() != Some(cache.protocol)
         || !super::has_string_rep(value)
     {
-        return Err(ValueError::CommandProtocolUnavailable(
-            "native local variable-name origin/resident storage",
+        return Err(retain_cache_refusal(
+            ValueError::CommandProtocolUnavailable(
+                "native local variable-name origin/resident storage",
+            )
+            .into(),
+            retain,
         ));
     }
     if cache.protocol.local_cache_owns_procedure()
@@ -194,22 +249,53 @@ pub(crate) fn install_local(
             tcl_syntax::native_variable_name::NativeLocalVariableOwner::Procedure(_)
         )
     {
-        return Err(ValueError::CommandProtocolUnavailable(
-            "native local variable-name owner",
+        return Err(retain_cache_refusal(
+            ValueError::CommandProtocolUnavailable("native local variable-name owner").into(),
+            retain,
         ));
     }
-    install_local_unchecked(value, cache);
-    Ok(())
+    install_local_primary(value, cache, check, retain)
 }
 fn install_local_unchecked(value: *mut TclObj, cache: Local) {
+    let _ = install_local_primary::<ValueError>(value, cache, None, None);
+}
+fn install_local_primary<E: From<ValueError>>(
+    value: *mut TclObj,
+    cache: Local,
+    mut check: Option<&mut dyn FnMut() -> Result<(), E>>,
+    retain: Option<&dyn Fn(&E)>,
+) -> Result<(), E> {
     let descriptor = if cache.protocol.local_cache_owns_procedure() {
         &LOCAL_C84
     } else {
         &LOCAL
     };
-    super::change_type(
-        value,
-        descriptor,
-        Box::into_raw(Box::new(cache)) as usize as u64,
-    );
+    let backing = Box::into_raw(Box::new(cache));
+    if let Some(current) = check.as_mut() {
+        let reached = super::change_type_with_stage_check(
+            value,
+            descriptor,
+            backing as usize as u64,
+            *current,
+        );
+        if let Err(error) = &reached {
+            if let Some(retain) = retain {
+                retain(error);
+            }
+            unsafe { drop(Box::from_raw(backing)) };
+            let after = current();
+            return reached.and(after);
+        }
+        reached
+    } else {
+        super::change_type(value, descriptor, backing as usize as u64);
+        Ok(())
+    }
+}
+
+fn retain_cache_refusal<E>(error: E, retain: Option<&dyn Fn(&E)>) -> E {
+    if let Some(retain) = retain {
+        retain(&error);
+    }
+    error
 }

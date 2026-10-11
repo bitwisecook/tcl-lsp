@@ -2162,7 +2162,6 @@ pub(crate) fn make_upvar_in(
     };
     table_mut(frames, ns, VarHome::Namespace(home_ns)).insert_link(tail, target);
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2691,6 +2690,68 @@ fn capture_resolved_receiver(
 /// A hash key is adopted by its actual entry at birth; compiled cells own none.
 pub(crate) struct NativeOriginalNameCell {
     pub compiled: Option<usize>,
+    home: VarHome,
+    name: Vec<u8>,
+    table: entered_container::TableObservation,
+    cell: crate::frame::VariablePublicationObservation,
+    link: Option<crate::frame::OriginalVariableLinkObservation>,
+}
+impl NativeOriginalNameCell {
+    fn capture(frames: &FrameStack, ns: &Namespaces, home: VarHome, name: Vec<u8>, compiled: Option<usize>, cell: crate::frame::VariablePublicationObservation, mut link: Option<crate::frame::OriginalVariableLinkObservation>) -> Result<Self, VarError> {
+        // The declared-but-undefined self marker is not a traversed alias. Its
+        // own selected array conversion may legitimately replace that marker.
+        if link.as_ref().is_some_and(|link| link.targets_itself(home, &name)) {
+            link = None;
+        }
+        Ok(Self { compiled, home, name, table: entered_container::TableObservation::capture(frames, ns, home).ok_or(VarError::NameProtocolUnavailable)?, cell, link })
+    }
+    pub(crate) fn check(&self, interpreter: &crate::interp::Interp, currency: &crate::interp::native_operation_currency::NativeOperationCurrency) -> Result<(), tcl_cmd_core::CmdError> {
+        currency.ensure_current_or_refuse().map_err(tcl_cmd_core::CmdError::from_execution_refusal)?;
+        let physical = entered_container::same_table(interpreter, self.home, &self.table).and_then(|()| {
+            let frames = interpreter.frames.borrow();
+            let ns = interpreter.namespaces();
+            self.check_selected(&frames, &ns)
+        });
+        physical.map_err(|error| tcl_cmd_core::CmdError::from_execution_refusal(interpreter.clone().refuse_completion_value_access(error)))?;
+        currency.ensure_current_or_refuse().map_err(tcl_cmd_core::CmdError::from_execution_refusal)
+    }
+    fn check_selected(&self, frames: &FrameStack, ns: &Namespaces) -> Result<(), tcl_syntax::value::ValueError> {
+        let same = if let Some(index) = self.compiled {
+            frames.original_formal_cell_is_current(index, &self.cell)
+        } else {
+            table(frames, ns, self.home).is_some_and(|table| self.cell.matches_root(table, &self.name))
+        };
+        if !same { return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable("original simple variable cell")); }
+        self.cell.check_current()?;
+        if let Some(link) = &self.link { link.check_current()?; }
+        Ok(())
+    }
+    fn place(&self) -> Place {
+        Place { home: self.home, name: self.name.clone(), elem: None, array_cell: None, scalar_entry: None }
+    }
+}
+/// A matching existing cache supplies an actual ordinal, never a name replay.
+pub(crate) fn prepare_original_c_indexed_name_cell(frames: &mut FrameStack, ns: &Namespaces, index: usize) -> Result<NativeOriginalNameCell, VarError> {
+    if !frames.prepare_native_compiled_name_cell(index) { return Err(VarError::NameProtocolUnavailable); }
+    let (level, name, cell, link) = frames.original_compiled_name_observation(index).ok_or(VarError::NameProtocolUnavailable)?;
+    NativeOriginalNameCell::capture(frames, ns, VarHome::Frame(level), name, Some(index), cell, link)
+}
+/// Project the already selected home/entry, with the existing link worker.
+pub(crate) fn capture_original_c_selected_receiver(frames: &mut FrameStack, ns: &mut Namespaces, selected: &NativeOriginalNameCell, element: Option<Vec<u8>>, create: bool) -> Result<Option<(crate::frame::VariableReceiver, TraceHome)>, VarError> {
+    selected.check_selected(frames, ns).map_err(|_| VarError::NameProtocolUnavailable)?;
+    if let Some(index) = selected.compiled { return capture_original_indexed_receiver(frames, ns, index, element, create); }
+    let mut place = selected.place();
+    place.elem = element;
+    let place = follow_links(frames, ns, place)?;
+    capture_resolved_receiver(frames, ns, place, create)
+}
+pub(crate) fn original_c_selected_link_target(frames: &mut FrameStack, ns: &mut Namespaces, selected: &NativeOriginalNameCell, element: Option<Vec<u8>>) -> Result<Link, VarError> {
+    selected.check_selected(frames, ns).map_err(|_| VarError::NameProtocolUnavailable)?;
+    if let Some(index) = selected.compiled { return original_indexed_link_target(frames, ns, index, element); }
+    let mut place = selected.place(); place.elem = element;
+    let place = follow_links(frames, ns, place)?;
+    Ok(Link { original_jim_target: None, native_scalar_entry: place.scalar_entry.as_ref().map(|entry| entry.new_binding()), native_element_entry: None,
+        array_identity: place.array_cell.as_ref().map(crate::frame::RetainedArrayCell::identity), array_cell: place.array_cell, home: place.home, name: place.name, elem: place.elem })
 }
 
 /// Simple local-side alias receiver. It owns no original-name cache transition.
@@ -2738,7 +2799,7 @@ pub(crate) fn prepare_original_c_alias_local(
         original,
         true,
         protocol.version(),
-    )
+    )?
     .ok_or(VarError::NameProtocolUnavailable)?;
     Ok(NativeAliasLocalCell {
         home: place.home,
@@ -2768,9 +2829,9 @@ pub(crate) fn prepare_original_c_variable_cell(
         Resolved::Place(place) => place,
         Resolved::Error(error) => return Err(error),
     };
-    Ok(prepare_original_c_variable_cell_at_place(
+    prepare_original_c_variable_cell_at_place(
         frames, ns, &place, name, original, create, version,
-    ))
+    )
 }
 
 /// Materialise the already selected cell without re-running another purpose's
@@ -2783,7 +2844,7 @@ fn prepare_original_c_variable_cell_at_place(
     original: *mut TclObj,
     create: bool,
     version: tcl_dialect::TclVersion,
-) -> Option<NativeOriginalNameCell> {
+) -> Result<Option<NativeOriginalNameCell>, VarError> {
     let local = match place.home {
         VarHome::Frame(level) => frames.native_compiled_name_index(level, &place.name),
         VarHome::Namespace(_) => None,
@@ -2795,7 +2856,7 @@ fn prepare_original_c_variable_cell_at_place(
     let selected = table_mut(frames, ns, place.home);
     let birth = !selected.has_native_name_cell(&place.name);
     if !selected.prepare_native_name_cell(&place.name, create) {
-        return None;
+        return Ok(None);
     }
     if birth && local.is_none() && version >= tcl_dialect::TclVersion::V8_5 {
         let tail;
@@ -2807,7 +2868,9 @@ fn prepare_original_c_variable_cell_at_place(
         };
         selected.retain_native_key(&place.name, key, false);
     }
-    Some(NativeOriginalNameCell { compiled: local })
+    let (cell, link) = selected.observe_original_name_cell(&place.name)?;
+    NativeOriginalNameCell::capture(frames, ns, place.home, place.name.clone(), local, cell, link)
+        .map(Some)
 }
 /// The selected cell and actual table/frame birth survive the reached array
 /// and search retirement stages without retaining their Native roles.
@@ -3035,6 +3098,7 @@ impl OriginalArrayMemberPreparation {
 
 /// Same original classifier and link walk, returning before any old owner is
 /// released so the actual caller can leave its frame/namespace borrows first.
+#[cfg(test)]
 pub(crate) fn capture_original_c_element_materialisation(
     frames: &mut FrameStack,
     ns: &mut Namespaces,
@@ -3046,13 +3110,19 @@ pub(crate) fn capture_original_c_element_materialisation(
     protocol: tcl_syntax::native_variable_name::NativeVariableNameProtocol,
 ) -> Result<OriginalArrayMemberPreparation, crate::frame::JimLinkStoreError> {
     let NativeOriginalNameScope { current, namespace } = scope;
-    let mut links = Vec::new();
     let place = match classify_original_name(frames, ns, current, root, namespace) {
-        Resolved::Place(place) => {
-            follow_selected_links_observed(frames, ns, place, false, Some(&mut links))?
-        }
+        Resolved::Place(place) => place,
         Resolved::Error(error) => return Err(error.into()),
     };
+    capture_original_c_element_materialisation_using(frames, ns, place, element, original, create_element, protocol)
+}
+pub(crate) fn capture_original_c_selected_element_materialisation(frames: &mut FrameStack, ns: &mut Namespaces, selected: &NativeOriginalNameCell, element: &[u8], original: Option<*mut TclObj>, create_element: bool, protocol: tcl_syntax::native_variable_name::NativeVariableNameProtocol) -> Result<OriginalArrayMemberPreparation, crate::frame::JimLinkStoreError> {
+    selected.check_selected(frames, ns)?;
+    capture_original_c_element_materialisation_using(frames, ns, selected.place(), element, original, create_element, protocol)
+}
+fn capture_original_c_element_materialisation_using(frames: &mut FrameStack, ns: &mut Namespaces, place: Place, element: &[u8], original: Option<*mut TclObj>, create_element: bool, protocol: tcl_syntax::native_variable_name::NativeVariableNameProtocol) -> Result<OriginalArrayMemberPreparation, crate::frame::JimLinkStoreError> {
+    let mut links = Vec::new();
+    let place = follow_selected_links_observed(frames, ns, place, false, Some(&mut links))?;
     if place.elem.is_some() {
         return Err(VarError::IsScalar.into());
     }

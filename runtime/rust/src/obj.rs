@@ -1042,11 +1042,33 @@ fn change_type_using<E: From<tcl_syntax::value::ValueError>>(
 pub(crate) fn discard_native_internal_representation(
     value: *mut TclObj,
 ) -> Result<(), tcl_syntax::value::ValueError> {
+    discard_native_internal_representation_using(value, None)
+}
+
+/// The same resident-cache retirement, checked before an entered consumer may
+/// look up or adopt its actual next role. No incoming backing is constructed.
+pub(crate) fn discard_native_internal_representation_with_stage_check<
+    E: From<tcl_syntax::value::ValueError>,
+>(
+    value: *mut TclObj,
+    check: &mut dyn FnMut() -> Result<(), E>,
+) -> Result<(), E> {
+    discard_native_internal_representation_using(value, Some(check))
+}
+
+fn discard_native_internal_representation_using<E: From<tcl_syntax::value::ValueError>>(
+    value: *mut TclObj,
+    mut check: Option<&mut dyn FnMut() -> Result<(), E>>,
+) -> Result<(), E> {
+    if let Some(check) = check.as_mut() {
+        check()?;
+    }
     check_native_liveness(value)?;
     if !has_string_rep(value) {
         return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
             "native cache discard resident string",
-        ));
+        )
+        .into());
     }
     if obj_type_ptr(value).is_null() {
         return Ok(());
@@ -1057,8 +1079,7 @@ pub(crate) fn discard_native_internal_representation(
         // SAFETY: a typed object's resident allocation has exactly length+1 bytes.
         unsafe { (*value).length as usize + 1 }
     };
-    change_type(value, core::ptr::null(), capacity as u64);
-    Ok(())
+    change_type_using(value, core::ptr::null(), capacity as u64, check)
 }
 
 /// Reset the same unshared C result header to canonical empty storage.
