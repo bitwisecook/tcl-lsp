@@ -1205,6 +1205,10 @@ pub struct SourceInvocationBinding {
     declaration_layout_observations:
         Option<Arc<[declaration_layout::DeclarationLayoutObservation]>>,
     declaration_flow_inventory: Option<Arc<declaration_flow::DeclarationFlowInventory>>,
+    /// Original declaration availability when this source has no dispatch point.
+    /// The private source receipt never supplies runtime targets or lookup state.
+    original_logical_declaration_targets:
+        Option<Arc<declaration_layout::OriginalLogicalDeclarationTargets>>,
     compiler_policy: Option<Arc<compiler_inventory::SourceNativeCompilerPolicy>>,
     original_compiler_words: Option<Arc<compiled_invocation::SourceOriginalCompilerWords>>,
     original_written_words: Option<Arc<original_name_value::OriginalWrittenSourceWords>>,
@@ -1278,6 +1282,7 @@ impl Default for SourceInvocationBinding {
             compiler_lookup_state: None,
             declaration_layout_observations: None,
             declaration_flow_inventory: None,
+            original_logical_declaration_targets: None,
             compiler_policy: None,
             original_compiler_words: None,
             original_written_words: None,
@@ -1340,6 +1345,7 @@ impl Hash for SourceInvocationBinding {
         self.compiler_lookup_state.hash(state);
         self.declaration_layout_observations.hash(state);
         self.declaration_flow_inventory.hash(state);
+        self.original_logical_declaration_targets.hash(state);
         self.compiler_policy.hash(state);
         self.original_compiler_words.hash(state);
         self.original_written_words.hash(state);
@@ -1728,6 +1734,8 @@ impl SourceInvocationBinding {
         left.declaration_flow_inventory = None;
         right.declaration_layout_observations = None;
         right.declaration_flow_inventory = None;
+        left.original_logical_declaration_targets = None;
+        right.original_logical_declaration_targets = None;
         left == right
     }
 
@@ -1767,6 +1775,9 @@ impl SourceInvocationBinding {
     }
 
     fn join(&mut self, other: &Self) {
+        if self.original_logical_declaration_targets != other.original_logical_declaration_targets {
+            self.original_logical_declaration_targets = None;
+        }
         self.join_original_operand_receipts(other);
         self.join_compiled_execution(other);
         self.join_invocation_reads(other);
@@ -7149,6 +7160,7 @@ impl SourceCommandBindings {
                 if let Some(tokens) = &mut site.source_tokens {
                     tokens.source_binding =
                         Some(bindings.invocation_at_source("", site.span.start()));
+                    bindings.stamp_original_logical_declaration_targets(tokens);
                     tokens.variable_accesses =
                         bindings.variable_accesses_during_expression_invocation(site.span.start());
                     for (offset, proof) in &mut tokens.nested_bindings {
@@ -7166,6 +7178,7 @@ impl SourceCommandBindings {
                     valid = false;
                 }
                 tokens.source_binding = Some(bindings.invocation_at_source("", offset));
+                bindings.stamp_original_logical_declaration_targets(tokens);
                 tokens.variable_accesses =
                     bindings.variable_accesses_during_expression_invocation(offset);
                 for (offset, proof) in &mut tokens.nested_bindings {
@@ -7202,11 +7215,15 @@ impl SourceCommandBindings {
         tokens.nested_bindings.clear();
         let config = self.lexer_config.unwrap_or_default();
         for lifted in crate::word_subst::lifted_calls(Some(tokens), config) {
-            if let Some(nested) = lifted.tokens
+            if let Some(mut nested) = lifted.tokens
                 && let Some(head) = nested.words().first()
             {
                 let offset = head.source().span.start();
-                tokens.nested_bindings.push((offset, binding_at(offset)));
+                nested.source_binding = Some(binding_at(offset));
+                self.stamp_original_logical_declaration_targets(&mut nested);
+                if let Some(binding) = nested.source_binding {
+                    tokens.nested_bindings.push((offset, binding));
+                }
             }
         }
         let mut retained = tokens
@@ -7244,6 +7261,7 @@ impl SourceCommandBindings {
             }
         }
         tokens.source_binding = Some(binding_at(offset));
+        self.stamp_original_logical_declaration_targets(tokens);
     }
 
     /// Loader provenance live at an exact invocation site, independently of
@@ -11910,6 +11928,7 @@ fn source_binding_projection_in(
         compiler_lookup_state: None,
         declaration_layout_observations: None,
         declaration_flow_inventory: None,
+        original_logical_declaration_targets: None,
         compiler_policy: None,
         original_compiler_words: None,
         original_written_words: None,

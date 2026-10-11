@@ -200,6 +200,29 @@ pub(super) enum DeclarationLayoutIssuer {
     EnteredActivation,
 }
 
+/// A sealed conditional source declaration whose original command has no
+/// dispatch point. The saved raw binding retains unknown/absence and every
+/// source/world attachment; its targets remain separate from runtime lookup.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(super) struct OriginalLogicalDeclarationTargets {
+    original_binding: Box<super::SourceInvocationBinding>,
+    targets: Vec<super::SourceCommandTarget>,
+}
+
+impl OriginalLogicalDeclarationTargets {
+    fn matches(
+        &self,
+        binding: &super::SourceInvocationBinding,
+        advice: &OriginalCompilationLookupAdvice,
+    ) -> bool {
+        let mut original = binding.clone();
+        original.original_logical_declaration_targets = None;
+        original.lookup_state.is_none()
+            && &original == self.original_binding.as_ref()
+            && self.targets.as_slice() == advice.targets()
+    }
+}
+
 /// Select the immutable declaration owner without joining entered activations.
 /// A conflicting original receipt withdraws the entire declaration projection.
 pub(super) fn original_declaration_layouts(
@@ -1773,6 +1796,44 @@ impl SourceCommandBindings {
         })
     }
 
+    /// Seal only the actual original Logical declaration vector, after its
+    /// ordinary token attachments. A reached point keeps its existing dispatch
+    /// guards; an absent point retains unknown runtime lookup unchanged.
+    pub(super) fn stamp_original_logical_declaration_targets(
+        &self,
+        tokens: &mut crate::ir::CommandTokens,
+    ) {
+        // naming.compiler.original-positioned-callee-body-availability
+        // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
+        let Some(binding) = tokens.source_binding.as_ref() else {
+            return;
+        };
+        let Some(site) = binding.invocation_site() else {
+            return;
+        };
+        if binding.lookup_state.is_some()
+            || binding.original_logical_declaration_targets.is_some()
+            || self.root_origin.as_ref() != Some(&site.source)
+            || self.dispatch_points_at(site.offset).next().is_some()
+            || binding != &self.invocation_at_source("", site.offset)
+        {
+            return;
+        }
+        let Some(advice) = binding.original_logical_declaration_layout_advice(tokens) else {
+            return;
+        };
+        if !advice.closed_logical_source_lookup() {
+            return;
+        }
+        let receipt = OriginalLogicalDeclarationTargets {
+            original_binding: Box::new(binding.clone()),
+            targets: advice.targets().to_vec(),
+        };
+        if let Some(binding) = tokens.source_binding.as_mut() {
+            binding.original_logical_declaration_targets = Some(Arc::new(receipt));
+        }
+    }
+
     pub(super) fn attach_declaration_operand_layout(
         &self,
         mut binding: super::SourceInvocationBinding,
@@ -2305,9 +2366,18 @@ impl super::SourceInvocationBinding {
             .then_some(())?;
         let advice = self.original_logical_declaration_layout_advice(tokens)?;
         advice.closed_logical_source_lookup().then_some(())?;
-        // A closed pre-operand source row cannot revive a target withdrawn
-        // by the same invocation's arguments or its retained source join.
-        if self.unknown || self.may_be_absent || self.targets.as_slice() != advice.targets() {
+        // A reached invocation retains its post-operand dispatch guards. A
+        // declaration-only source uses its independently sealed conditional
+        // targets, while every raw binding and original row must stay unchanged.
+        if self.lookup_state.is_some() {
+            if self.unknown || self.may_be_absent || self.targets.as_slice() != advice.targets() {
+                return None;
+            }
+        } else if !self
+            .original_logical_declaration_targets
+            .as_ref()
+            .is_some_and(|receipt| receipt.matches(self, &advice))
+        {
             return None;
         }
         let mut targets = advice.targets().to_vec();
@@ -3256,3 +3326,154 @@ mod original_nested_root_activation_purpose_tests {
 #[cfg(test)]
 #[path = "logical_purpose_tests.rs"]
 mod logical_purpose_tests;
+
+
+#[cfg(test)]
+mod original_logical_declaration_receipt_tests {
+    use crate::analyser::ResolvedAnalysisInput;
+    use crate::ir::CommandTokens;
+
+    fn original_statement(source: &str, selected: &str) -> (ResolvedAnalysisInput, CommandTokens) {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_known_environment("tcl8.6")
+                .unwrap()
+                .default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let mut lowerer = crate::lowering::Lowerer::with_config(
+            input.borrowed_context_registry().commands(), input.lexer_config(),
+        ).with_resolved_analysis_input(input.clone());
+        lowerer.lower(source);
+        let module = lowerer.finish_module(source);
+        assert_eq!(module.source_metadata_input.as_ref(), Some(&input));
+        assert_eq!(module.lexer_config, input.lexer_config());
+        let offset = u32::try_from(source.rfind(selected).unwrap()).unwrap();
+        let mut found = Vec::new();
+        let mut collect = |statement: &crate::ir::Statement| {
+            if statement.span().start() == offset {
+                found.push(statement.tokens().expect("original statement vector").clone());
+            }
+        };
+        crate::ir::for_each_statement(&module.top_level, &mut collect);
+        for procedure in module.procedures.values() {
+            crate::ir::for_each_statement(&procedure.body, &mut collect);
+        }
+        assert_eq!(found.len(), 1);
+        (input, found.pop().unwrap())
+    }
+
+    #[test]
+    fn original_logical_nested_declaration_retains_availability_without_dispatch() {
+        // naming.compiler.original-positioned-callee-body-availability
+        // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
+        for (source, selected, prefix) in [
+            ("proc subject {} {package require Tcl}", "package require Tcl", 0),
+            ("interp alias {} ensure {} package require; proc subject {} {ensure Tcl}", "ensure Tcl", 1),
+        ] {
+            let (input, tokens) = original_statement(source, selected);
+            let binding = tokens.source_binding.as_ref().unwrap();
+            assert!(binding.lookup_state.is_none());
+            assert!(binding.unknown);
+            assert!(binding.targets.is_empty());
+            assert!(binding.original_logical_declaration_targets.is_some());
+            let targets = binding.original_logical_declaration_call_targets(
+                &tokens, &input, input.borrowed_context_registry().commands(),
+            ).expect("closed conditional original declaration");
+            let [target] = targets.as_slice() else { panic!("one selected source target") };
+            assert!(target.registry_backed);
+            assert_eq!(target.prepended.len(), prefix);
+            assert!(target.implementation_allocation.is_none());
+            assert!(binding.proved_target().is_none());
+            assert!(binding.proved_execution_target().is_none());
+            assert!(binding.proved_handler_target().is_none());
+            assert!(binding.native_compiler_admission.is_none());
+            assert!(binding.native_compilation_admission.is_none());
+        }
+    }
+
+    #[test]
+    fn original_logical_declaration_receipt_rejects_changed_inputs_rows_and_world() {
+        // naming.compiler.original-positioned-callee-body-availability
+        // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
+        let (input, tokens) = original_statement("proc subject {} {package require Tcl}", "package require Tcl");
+        let registry = input.borrowed_context_registry().commands();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(binding.original_logical_declaration_call_targets(&tokens, &input, registry).is_some());
+        for axis in [0, 1] {
+            let mut config = input.lexer_config();
+            if axis == 0 { config.skip_leading_bom = !config.skip_leading_bom; }
+            else { config.strict_quoting = !config.strict_quoting; }
+            let changed = ResolvedAnalysisInput::new(
+                input.analyser_profile(), input.unit_profile(), input.context_registry(), config,
+            );
+            assert!(binding.original_logical_declaration_call_targets(&tokens, &changed, registry).is_none());
+        }
+        let other_input = ResolvedAnalysisInput::new(
+            input.analyser_profile(), input.unit_profile(),
+            tcl_registry::model::ingress::resolve_known_environment("tcl9.0").unwrap().default_context_registry(),
+            input.lexer_config(),
+        );
+        assert!(binding.original_logical_declaration_call_targets(
+            &tokens, &other_input, other_input.borrowed_context_registry().commands(),
+        ).is_none());
+        let (_, foreign) = original_statement("proc another {} {package require Tcl}", "package require Tcl");
+        let mut changed = tokens.clone();
+        changed.source_binding.as_mut().unwrap().declaration_layout_observations =
+            foreign.source_binding.as_ref().unwrap().declaration_layout_observations.clone();
+        assert!(changed.source_binding.as_ref().unwrap().original_logical_declaration_call_targets(
+            &changed, &input, registry,
+        ).is_none());
+        let mut changed = tokens.clone();
+        changed.source_binding.as_mut().unwrap().unknown = false;
+        assert!(changed.source_binding.as_ref().unwrap().original_logical_declaration_call_targets(
+            &changed, &input, registry,
+        ).is_none());
+        let mut changed = tokens.clone();
+        changed.source_binding.as_mut().unwrap().may_be_absent = true;
+        assert!(changed.source_binding.as_ref().unwrap().original_logical_declaration_call_targets(
+            &changed, &input, registry,
+        ).is_none());
+        let mut changed = tokens.clone();
+        changed.source_binding.as_mut().unwrap().join(&super::super::SourceInvocationBinding::default());
+        assert!(changed.source_binding.as_ref().unwrap().original_logical_declaration_targets.is_none());
+        assert!(changed.source_binding.as_ref().unwrap().original_logical_declaration_call_targets(
+            &changed, &input, registry,
+        ).is_none());
+        let mut changed = tokens.clone();
+        changed.synthetic = Some(crate::ir::SyntheticMarker::EvaluatedArguments);
+        assert!(binding.original_logical_declaration_call_targets(&changed, &input, registry).is_none());
+        let mut changed = tokens.clone();
+        changed.word_exprs.pop();
+        assert!(binding.original_logical_declaration_call_targets(&changed, &input, registry).is_none());
+    }
+
+    #[test]
+    fn original_logical_declaration_receipt_keeps_reached_and_opaque_guards() {
+        // naming.compiler.original-positioned-callee-body-availability
+        // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
+        let (input, tokens) = original_statement("package require Tcl", "package require Tcl");
+        let registry = input.borrowed_context_registry().commands();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(binding.lookup_state.is_some());
+        assert!(binding.original_logical_declaration_targets.is_none());
+        assert!(binding.original_logical_declaration_call_targets(&tokens, &input, registry).is_some());
+        for axis in 0..3 {
+            let mut changed = tokens.clone();
+            let binding = changed.source_binding.as_mut().unwrap();
+            match axis { 0 => binding.unknown = true, 1 => binding.may_be_absent = true, _ => binding.targets.clear() }
+            assert!(changed.source_binding.as_ref().unwrap().original_logical_declaration_call_targets(
+                &changed, &input, registry,
+            ).is_none());
+        }
+        let (input, tokens) = original_statement("proc subject {} {$callback; package require Tcl}", "package require Tcl");
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(binding.original_logical_declaration_targets.is_none());
+        assert!(binding.original_logical_declaration_call_targets(
+            &tokens, &input, input.borrowed_context_registry().commands(),
+        ).is_none());
+        assert!(binding.proved_execution_target().is_none());
+    }
+}
