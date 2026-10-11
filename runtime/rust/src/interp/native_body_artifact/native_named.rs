@@ -2,6 +2,7 @@
 //! Original compiled private names, ordered operands and late ordinary lookup.
 
 use super::*;
+use crate::interp::native_arguments::OriginalArguments;
 use tcl_registry::native_compilation::NativeNamedInvocationProtocol;
 use tcl_registry::native_instruction_plan::{
     NativeNamedInvocationInstruction, NativeNamedInvocationWord,
@@ -77,8 +78,12 @@ impl Interp {
         named: &NamedOperation,
         execution: &mut BodyExecution,
     ) -> Result<Code, Code> {
-        let scope = super::super::native_operation_currency::NativeOperationScope::enter(self)
-            .map_err(|first| self.refuse_native_execution(first))?;
+        let original_operation =
+            OriginalArguments::enter(self, &[]).map_err(|first| self.report_cmd_error(first))?;
+        let frame = BodyListFrame::capture(self);
+        frame
+            .check(self, &original_operation)
+            .map_err(|first| self.report_cmd_error(first))?;
         let outcome = (|| {
             let rewrite = named.recipe.protocol == NativeNamedInvocationProtocol::EnsembleRewrite;
             let direct_head = (!rewrite).then(|| {
@@ -92,16 +97,22 @@ impl Interp {
             let mut values = Vec::with_capacity(named.operands.len());
             let mut originals = Vec::with_capacity(named.operands.len());
             for (operand, expanded) in named.operands.iter().zip(&named.recipe.expanded) {
+                frame
+                    .check(self, &original_operation)
+                    .map_err(|first| self.report_cmd_error(first))?;
                 let value = self.body_namespace_operand(artifact, command, operand, execution)?;
+                frame
+                    .check(self, &original_operation)
+                    .map_err(|first| self.report_cmd_error(first))?;
                 if execution.done {
                     return Ok(Code::Ok);
                 }
                 if *expanded {
-                    let members = crate::list::list_elements_native_checked(
-                        value.as_ptr(),
-                        artifact.stamp.source_protocol,
-                    )
-                    .map_err(|error| self.report_cmd_error(error.into()))?;
+                    let captured = BodyListArguments::capture(self, value.as_ptr(), None)
+                        .map_err(|first| self.report_cmd_error(first))?;
+                    let members = captured
+                        .members(self, artifact.stamp.source_protocol)
+                        .map_err(|first| self.report_cmd_error(first))?;
                     originals.extend(std::iter::repeat_n(None, members.len()));
                     values.extend(members.into_iter().map(obj::Owned::retain));
                 } else {
@@ -112,6 +123,9 @@ impl Interp {
                     values.push(value);
                 }
             }
+            frame
+                .check(self, &original_operation)
+                .map_err(|first| self.report_cmd_error(first))?;
             let head = direct_head.unwrap_or_else(|| {
                 obj::Owned::retain(
                     artifact
@@ -161,6 +175,9 @@ impl Interp {
                     }
                 }
             }
+            frame
+                .check(self, &original_operation)
+                .map_err(|first| self.report_cmd_error(first))?;
             let code = if rewrite {
                 self.dispatch_invoke(&argv)
             } else {
@@ -181,10 +198,9 @@ impl Interp {
             }
             Ok(code)
         })();
-        scope
-            .currency()
-            .ensure_current_or_refuse()
-            .map_err(|first| self.refuse_native_execution(first))?;
+        frame
+            .check(self, &original_operation)
+            .map_err(|first| self.report_cmd_error(first))?;
         outcome
     }
 }

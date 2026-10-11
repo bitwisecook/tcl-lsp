@@ -89,6 +89,19 @@ impl BodyListArguments {
     pub(super) fn refuse(&self, error: ValueError) -> CmdError {
         self.arguments.retain_refusal(error.into())
     }
+    pub(super) fn members(
+        &self,
+        interpreter: &Interp,
+        protocol: NativeStringProtocol,
+    ) -> Result<Vec<*mut TclObj>, CmdError> {
+        self.check(interpreter)?;
+        crate::list::list_elements_native_using(
+            self.original,
+            protocol,
+            &|| self.check(interpreter),
+            &|error| self.refuse(error),
+        )
+    }
     pub(super) fn length(&self, interpreter: &mut Interp) -> Result<usize, CmdError> {
         crate::value_ops::list_length_using(
             interpreter,

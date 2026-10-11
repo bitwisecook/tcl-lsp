@@ -3025,80 +3025,104 @@ impl Interp {
         command: &CommandInstruction,
         execution: &mut BodyExecution,
     ) -> Result<Code, Code> {
-        let mut values = Vec::new();
-        let mut original_words = Vec::new();
-        let written;
-        let operands = if let Operation::NamespaceBindings(NamespaceOperation {
-            generic: Some(operands),
-            ..
-        }) = &command.operation
-        {
-            operands.as_slice()
-        } else {
-            written = (0..command.words.len())
-                .map(NamespaceOperand::Original)
-                .collect::<Vec<_>>();
-            written.as_slice()
-        };
-        for operand in operands {
-            let word = match operand {
-                NamespaceOperand::Original(index) => Some(&command.words[*index]),
-                NamespaceOperand::Literal(_) => None,
-            };
-            let value = self.body_namespace_operand(artifact, command, operand, execution)?;
-            if execution.done {
-                return Ok(Code::Ok);
-            }
-            if word.is_some_and(|word| word.original.group().expand) {
-                let members = crate::list::list_elements_native_checked(
-                    value.as_ptr(),
-                    artifact.stamp.source_protocol,
-                )
-                .map_err(|error| self.report_cmd_error(error.into()))?;
-                original_words.extend(std::iter::repeat_n(None, members.len()));
-                values.extend(members.into_iter().map(obj::Owned::retain));
+        let arguments = crate::interp::native_arguments::OriginalArguments::enter(self, &[])
+            .map_err(|first| self.report_cmd_error(first))?;
+        let frame = BodyListFrame::capture(self);
+        frame
+            .check(self, &arguments)
+            .map_err(|first| self.report_cmd_error(first))?;
+        let reached = (|| {
+            let mut values = Vec::new();
+            let mut original_words = Vec::new();
+            let written;
+            let operands = if let Operation::NamespaceBindings(NamespaceOperation {
+                generic: Some(operands),
+                ..
+            }) = &command.operation
+            {
+                operands.as_slice()
             } else {
-                original_words.push(word);
-                values.push(value);
-            }
-        }
-        if values.is_empty() {
-            self.set_result_bytes(b"");
-            return Ok(Code::Ok);
-        }
-        let argv: Vec<_> = values.iter().map(obj::Owned::as_ptr).collect();
-        let file = self
-            .cmd_frames
-            .borrow()
-            .last()
-            .and_then(|frame| frame.file.clone());
-        let mut added = 0;
-        if file.is_some() {
-            for (word, value) in original_words.iter().zip(&values) {
-                if let Some(word) = word.filter(|word| word.literal.is_some()) {
-                    let line = self
-                        .cmd_frames
-                        .borrow()
-                        .last()
-                        .map_or(0, |frame| frame.line_base)
-                        + line_of(
-                            artifact.image.bytes(),
-                            word.original.span().start() as usize,
-                        );
-                    self.arg_locs
-                        .borrow_mut()
-                        .push((value.as_ptr(), file.clone(), line));
-                    added += 1;
+                written = (0..command.words.len())
+                    .map(NamespaceOperand::Original)
+                    .collect::<Vec<_>>();
+                written.as_slice()
+            };
+            for operand in operands {
+                let word = match operand {
+                    NamespaceOperand::Original(index) => Some(&command.words[*index]),
+                    NamespaceOperand::Literal(_) => None,
+                };
+                frame
+                    .check(self, &arguments)
+                    .map_err(|first| self.report_cmd_error(first))?;
+                let value = self.body_namespace_operand(artifact, command, operand, execution)?;
+                frame
+                    .check(self, &arguments)
+                    .map_err(|first| self.report_cmd_error(first))?;
+                if execution.done {
+                    return Ok(Code::Ok);
+                }
+                if word.is_some_and(|word| word.original.group().expand) {
+                    let captured = BodyListArguments::capture(self, value.as_ptr(), None)
+                        .map_err(|first| self.report_cmd_error(first))?;
+                    let members = captured
+                        .members(self, artifact.stamp.source_protocol)
+                        .map_err(|first| self.report_cmd_error(first))?;
+                    original_words.extend(std::iter::repeat_n(None, members.len()));
+                    values.extend(members.into_iter().map(obj::Owned::retain));
+                } else {
+                    original_words.push(word);
+                    values.push(value);
                 }
             }
-        }
-        let code = self.dispatch(&argv);
-        if added != 0 {
-            let mut locations = self.arg_locs.borrow_mut();
-            let length = locations.len() - added;
-            locations.truncate(length);
-        }
-        Ok(code)
+            frame
+                .check(self, &arguments)
+                .map_err(|first| self.report_cmd_error(first))?;
+            if values.is_empty() {
+                self.set_result_bytes(b"");
+                return Ok(Code::Ok);
+            }
+            let argv: Vec<_> = values.iter().map(obj::Owned::as_ptr).collect();
+            let file = self
+                .cmd_frames
+                .borrow()
+                .last()
+                .and_then(|frame| frame.file.clone());
+            let mut added = 0;
+            if file.is_some() {
+                for (word, value) in original_words.iter().zip(&values) {
+                    if let Some(word) = word.filter(|word| word.literal.is_some()) {
+                        let line = self
+                            .cmd_frames
+                            .borrow()
+                            .last()
+                            .map_or(0, |frame| frame.line_base)
+                            + line_of(
+                                artifact.image.bytes(),
+                                word.original.span().start() as usize,
+                            );
+                        self.arg_locs
+                            .borrow_mut()
+                            .push((value.as_ptr(), file.clone(), line));
+                        added += 1;
+                    }
+                }
+            }
+            frame
+                .check(self, &arguments)
+                .map_err(|first| self.report_cmd_error(first))?;
+            let code = self.dispatch(&argv);
+            if added != 0 {
+                let mut locations = self.arg_locs.borrow_mut();
+                let length = locations.len() - added;
+                locations.truncate(length);
+            }
+            Ok(code)
+        })();
+        frame
+            .check(self, &arguments)
+            .map_err(|first| self.report_cmd_error(first))?;
+        reached
     }
 
     fn execute_body_opcode(
@@ -4292,5 +4316,44 @@ mod tests {
             compared += 1;
         }
         assert_eq!(compared, 44);
+    }
+    #[test]
+    fn original_compiled_generic_expansion_stops_before_real_target_dispatch() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        use crate::cmd_control::original_list_conversion_tests as fixture;
+        use std::cell::Cell;
+        let mut interpreter = fixture::native("tcl9.0");
+        let _current = fixture::install(&mut interpreter, 0);
+        assert_eq!(
+            interpreter
+                .eval_str(b"proc q args {return REACHED}; proc p {input} {q {*}$input}; p {A B}"),
+            Code::Ok
+        );
+        let procedure = interpreter.proc_def(b"p").unwrap();
+        let artifact = cache(procedure.body.as_ptr()).expect("actual generic compiled artifact");
+        assert!(artifact
+            .scripts
+            .values()
+            .flat_map(|script| &script.commands)
+            .any(|command| matches!(&command.operation, Operation::Invoke)
+                && command
+                    .words
+                    .iter()
+                    .any(|word| word.original.group().expand)));
+        let head = fixture::string(b"p");
+        let input = fixture::original(b"A B");
+        fixture::MODE.with(|mode| mode.set(1));
+        let argv = [head.as_ptr(), input.as_ptr()];
+        assert_eq!(interpreter.eval_original_object_vector(&argv), Code::Error);
+        fixture::host(&interpreter.native_execution_refusal().unwrap());
+        assert_eq!(fixture::FREES.with(Cell::get), 1);
+        assert_eq!(fixture::GETTERS.with(Cell::get), 0);
+        assert!(!core::ptr::eq(
+            obj::obj_type_ptr(input.as_ptr()),
+            &crate::list::TCL_LIST_TYPE
+        ));
+        assert_eq!(unsafe { (*input.as_ptr()).ref_count }, 1);
+        assert_eq!(interpreter.frames.borrow().top_level(), 0);
     }
 }

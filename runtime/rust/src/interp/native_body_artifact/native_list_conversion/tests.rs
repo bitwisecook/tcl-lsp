@@ -150,3 +150,64 @@ fn original_compiled_group_retirement_keeps_frame_check_after_header_is_released
     assert_eq!(interpreter.get_obj_result(), prior);
     assert_eq!(interpreter.frames.borrow().top_level(), 1);
 }
+
+#[test]
+fn original_compiled_expansion_members_keep_same_frame_and_first_cause_before_adoption() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Actual compiled expansion helper; extension callbacks are software controls.
+    for mode in [0, 1, 2, 3] {
+        let mut interpreter = fixture::native("tcl9.0");
+        let _current = fixture::install(&mut interpreter, mode);
+        interpreter
+            .frames
+            .borrow_mut()
+            .push(crate::namespace::GLOBAL);
+        let value = fixture::original(b"A B");
+        let entered = BodyListArguments::capture(&interpreter, value.as_ptr(), None).unwrap();
+        interpreter.set_result_bytes(b"PRIOR");
+        let prior = interpreter.get_obj_result();
+        let before = crate::counters::live_objs();
+        let reached = entered.members(
+            &interpreter,
+            NativeStringProtocol::C(tcl_dialect::TclVersion::V9_0),
+        );
+        assert_eq!(fixture::FREES.with(Cell::get), 1);
+        assert_eq!(fixture::REFS.with(Cell::get), 1);
+        assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 1);
+        assert_eq!(fixture::GETTERS.with(Cell::get), 0);
+        assert_eq!(interpreter.get_obj_result(), prior);
+        if mode == 0 {
+            assert_eq!(reached.unwrap().len(), 2);
+            assert!(entered.check(&interpreter).is_ok());
+            assert!(core::ptr::eq(
+                obj::obj_type_ptr(value.as_ptr()),
+                &crate::list::TCL_LIST_TYPE
+            ));
+        } else {
+            let first = reached.unwrap_err();
+            assert_eq!(
+                first.native_execution_refusal(),
+                interpreter.native_execution_refusal().as_ref()
+            );
+            if mode == 1 {
+                fixture::host(first.native_execution_refusal().unwrap());
+            } else if mode == 3 {
+                assert_eq!(
+                    first,
+                    CmdError::from(ValueError::CommandProtocolUnavailable(
+                        "original compiled List frame or temporary"
+                    ))
+                );
+            } else {
+                assert!(matches!(first.native_execution_refusal(), Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("stale entered native operation")))));
+            }
+            assert!(entered.check(&interpreter).is_err());
+            assert!(!core::ptr::eq(
+                obj::obj_type_ptr(value.as_ptr()),
+                &crate::list::TCL_LIST_TYPE
+            ));
+            assert_eq!(crate::counters::live_objs(), before);
+        }
+    }
+}

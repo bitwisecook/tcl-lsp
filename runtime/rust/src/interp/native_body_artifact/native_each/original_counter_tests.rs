@@ -2,6 +2,7 @@
 //! Software observations of genuine compiled counter primary retirement.
 use super::*;
 use crate::cmd_control::original_list_conversion_tests as fixture;
+use crate::interp::native_arguments::OriginalArguments;
 use std::cell::Cell;
 use tcl_runtime_api::native_compilation::{
     NativeCompiledLocalLayout, NativeCompiledLocalLayoutKind, NativeInterpreterIdentity,

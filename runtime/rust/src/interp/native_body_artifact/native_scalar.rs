@@ -19,6 +19,7 @@
 //! Retained original scalar operands and selected native getters/result owners.
 
 use super::*;
+use crate::interp::native_arguments::OriginalArguments;
 use tcl_registry::native_scalar_compilation::{NativeScalarInstruction, NativeScalarOperation};
 use tcl_syntax::value::ValueOps;
 
@@ -62,50 +63,88 @@ impl Interp {
         scalar: &ScalarOperation,
         execution: &mut BodyExecution,
     ) -> Result<Code, Code> {
-        let mut operands = Vec::with_capacity(scalar.operands.len());
-        for operand in &scalar.operands {
-            operands.push(self.body_namespace_operand(artifact, command, operand, execution)?);
-            if execution.done {
-                return Ok(Code::Ok);
-            }
-        }
-        let version = artifact.stamp.physical;
-        let result = match scalar.operation {
-            NativeScalarOperation::StringEqual => {
-                let matched = tcl_cmd_core::switch::compiled_equal(
-                    self,
-                    &operands[0].as_ptr(),
-                    &operands[1].as_ptr(),
-                    version,
-                )
-                .map_err(|error| self.report_cmd_error(error))?;
-                let right = operands.pop().expect("validated second scalar operand");
-                drop(right);
-                self.native_compiled_match_result(
-                    operands.pop().expect("validated first scalar operand"),
-                    matched,
-                    version,
-                    tcl_registry::native_string_compilation::NativeStringMatchOperation::Equal,
-                )
-                .map_err(|error| self.report_cmd_error(error.into()))?
-            }
-            operation => {
-                let input = operands[0].as_ptr();
-                let length = match operation {
-                    NativeScalarOperation::StringLength => self.native_char_len(&input),
-                    NativeScalarOperation::ListLength => self.list_len(&input),
-                    NativeScalarOperation::StringEqual => unreachable!("equality handled above"),
+        let arguments =
+            OriginalArguments::enter(self, &[]).map_err(|first| self.report_cmd_error(first))?;
+        let frame = BodyListFrame::capture(self);
+        frame
+            .check(self, &arguments)
+            .map_err(|first| self.report_cmd_error(first))?;
+        let reached = (|| {
+            let mut operands = Vec::with_capacity(scalar.operands.len());
+            for operand in &scalar.operands {
+                frame
+                    .check(self, &arguments)
+                    .map_err(|first| self.report_cmd_error(first))?;
+                operands.push(self.body_namespace_operand(artifact, command, operand, execution)?);
+                frame
+                    .check(self, &arguments)
+                    .map_err(|first| self.report_cmd_error(first))?;
+                if execution.done {
+                    return Ok(Code::Ok);
                 }
-                .map_err(|error| self.report_cmd_error(error.into()))?;
-                let result = self
-                    .native_scalar_length_result(length, version)
-                    .map_err(|error| self.report_cmd_error(error.into()))?;
-                drop(operands);
-                result
             }
-        };
-        self.set_result(result.as_ptr());
-        Ok(Code::Ok)
+            let version = artifact.stamp.physical;
+            let result = match scalar.operation {
+                NativeScalarOperation::StringEqual => {
+                    let matched = tcl_cmd_core::switch::compiled_equal(
+                        self,
+                        &operands[0].as_ptr(),
+                        &operands[1].as_ptr(),
+                        version,
+                    )
+                    .map_err(|error| self.report_cmd_error(error))?;
+                    let right = operands.pop().expect("validated second scalar operand");
+                    drop(right);
+                    frame
+                        .check(self, &arguments)
+                        .map_err(|first| self.report_cmd_error(first))?;
+                    self.native_compiled_match_result(
+                        operands.pop().expect("validated first scalar operand"),
+                        matched,
+                        version,
+                        tcl_registry::native_string_compilation::NativeStringMatchOperation::Equal,
+                    )
+                    .map_err(|error| self.report_cmd_error(error.into()))?
+                }
+                operation => {
+                    let input = operands[0].as_ptr();
+                    let length = match operation {
+                        NativeScalarOperation::StringLength => self
+                            .native_char_len(&input)
+                            .map_err(tcl_cmd_core::CmdError::from),
+                        NativeScalarOperation::ListLength => {
+                            let captured = BodyListArguments::capture(self, input, None)
+                                .map_err(|first| self.report_cmd_error(first))?;
+                            captured.length(self)
+                        }
+                        NativeScalarOperation::StringEqual => {
+                            unreachable!("equality handled above")
+                        }
+                    }
+                    .map_err(|error| self.report_cmd_error(error.into()))?;
+                    frame
+                        .check(self, &arguments)
+                        .map_err(|first| self.report_cmd_error(first))?;
+                    let result = self
+                        .native_scalar_length_result(length, version)
+                        .map_err(|error| self.report_cmd_error(error.into()))?;
+                    drop(operands);
+                    result
+                }
+            };
+            if let Err(first) = frame.check(self, &arguments) {
+                let code = self.report_cmd_error(first);
+                drop(result);
+                let _ = frame.check(self, &arguments);
+                return Err(code);
+            }
+            self.set_result(result.as_ptr());
+            Ok(Code::Ok)
+        })();
+        frame
+            .check(self, &arguments)
+            .map_err(|first| self.report_cmd_error(first))?;
+        reached
     }
 
     fn native_scalar_length_result(
@@ -265,5 +304,36 @@ mod tests {
             }
         }
         assert_eq!(windows, 41);
+    }
+    #[test]
+    fn original_compiled_scalar_list_length_stops_at_real_primary_retirement() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        use crate::cmd_control::original_list_conversion_tests as fixture;
+        use std::cell::Cell;
+        let mut interpreter = fixture::native("tcl9.0");
+        let _current = fixture::install(&mut interpreter, 0);
+        assert_eq!(
+            interpreter.eval_str(b"proc p {input} {llength $input}; p {A B}"),
+            Code::Ok
+        );
+        let procedure = interpreter.proc_def(b"p").unwrap();
+        let artifact = cache(procedure.body.as_ptr()).expect("actual compiled scalar artifact");
+        assert!(artifact.scripts.values().flat_map(|script| &script.commands).any(|command|
+            matches!(&command.operation, Operation::Scalar(operation) if operation.operation == NativeScalarOperation::ListLength)));
+        let head = fixture::string(b"p");
+        let input = fixture::original(b"A B");
+        fixture::MODE.with(|mode| mode.set(1));
+        let argv = [head.as_ptr(), input.as_ptr()];
+        assert_eq!(interpreter.eval_original_object_vector(&argv), Code::Error);
+        fixture::host(&interpreter.native_execution_refusal().unwrap());
+        assert_eq!(fixture::FREES.with(Cell::get), 1);
+        assert_eq!(fixture::GETTERS.with(Cell::get), 0);
+        assert!(!core::ptr::eq(
+            obj::obj_type_ptr(input.as_ptr()),
+            &crate::list::TCL_LIST_TYPE
+        ));
+        assert_eq!(unsafe { (*input.as_ptr()).ref_count }, 1);
+        assert_eq!(interpreter.frames.borrow().top_level(), 0);
     }
 }
