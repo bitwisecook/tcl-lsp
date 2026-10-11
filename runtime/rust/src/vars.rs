@@ -966,13 +966,10 @@ pub(crate) fn array_default_state_at_target(
     target.cell.default_state()
 }
 
-pub(crate) fn unset_array_default_at_target(
-    frames: &mut FrameStack,
-    ns: &mut Namespaces,
+pub(crate) fn take_array_default_at_target(
     target: &ArrayCellTarget,
-) {
-    let _ = (frames, ns);
-    target.cell.unset_default();
+) -> Option<crate::frame::RetiredArrayDefault> {
+    target.cell.take_default()
 }
 
 pub(crate) fn array_target_is_set(
@@ -1522,13 +1519,16 @@ pub(crate) fn get_elem(
 }
 
 /// Fresh native creating lookup with physical root/element classification.
-pub(crate) fn set_array_default_classified(
+pub(crate) fn replace_array_default_classified(
     frames: &mut FrameStack,
     ns: &mut Namespaces,
     current_ns: NsId,
     name: &[u8],
     obj: *mut TclObj,
-) -> Result<Result<(), tcl_runtime_api::ArrayDefaultSetFailure>, VarError> {
+) -> Result<
+    Result<Option<crate::frame::RetiredArrayDefault>, tcl_runtime_api::ArrayDefaultSetFailure>,
+    VarError,
+> {
     use tcl_runtime_api::ArrayDefaultSetFailure;
     let protocol = ns
         .variable_name_protocol
@@ -1550,8 +1550,7 @@ pub(crate) fn set_array_default_classified(
         return Ok(Err(ArrayDefaultSetFailure::Scalar));
     }
     table.ensure_array(&place.name)?;
-    table.set_array_default(&place.name, obj);
-    Ok(Ok(()))
+    Ok(Ok(table.replace_array_default(&place.name, obj)))
 }
 
 /// Ensure `name` is an (possibly empty) array, creating an empty one if it is

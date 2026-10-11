@@ -185,7 +185,13 @@ impl OriginalSourceCommandProjection {
             return None;
         }
         let region = Span::new(offset, spans.last()?.end());
-        let mut parsed = tcl_lexer::native_script_words_in(image.clone(), region, config).ok()?;
+        let mut parsed = tcl_lexer::native_script_words_in_with_purpose(
+            image.clone(),
+            region,
+            config,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        )
+        .ok()?;
         if parsed.fatal_tail.is_some() || parsed.commands.len() != 1 {
             return None;
         }
@@ -203,7 +209,9 @@ impl OriginalSourceCommandProjection {
         let original =
             SourceImage::from_bytes(image.bytes().get(region.as_range())?, image.channel());
         let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
-            &original, offset, config,
+            &original,
+            offset,
+            config.nested(),
         )?;
         let [segment] = segments.as_slice() else {
             return None;

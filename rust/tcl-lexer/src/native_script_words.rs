@@ -3,7 +3,8 @@
 
 use crate::{
     LeadingBom, Lexer, LexerConfig, NativeWord, NativeWordError, ParseCut, ParseCutUnavailable,
-    SourceImage, Span, Token, first_parse_cut_image_in_checked, group_commands_bytes,
+    SourceImage, SourceSegmentationPurpose, Span, Token, first_parse_cut_image_in_checked,
+    group_commands_bytes,
 };
 
 /// Complete command words retaining the original whole-image address space.
@@ -74,7 +75,8 @@ pub fn source_region_tokens_in(
 ) -> Result<Vec<Token>, NativeScriptWordsUnavailable> {
     // naming.cli.original-source-highlight-geometry
     // docs/design/analysis/name-resolution-proofs/cli-original-source-highlight-geometry.md
-    let (_, _, mut tokens) = local_region_tokens(image, region, config)?;
+    let (_, _, mut tokens) =
+        local_region_tokens(image, region, config, SourceSegmentationPurpose::WholeInput)?;
     for token in &mut tokens {
         token.span = rebase_span(token.span, region)?;
     }
@@ -85,13 +87,14 @@ fn local_region_tokens(
     image: &SourceImage,
     region: Span,
     config: LexerConfig,
+    purpose: SourceSegmentationPurpose,
 ) -> Result<(SourceImage, LexerConfig, Vec<Token>), NativeScriptWordsUnavailable> {
     let original = image
         .bytes()
         .get(region.as_range())
         .ok_or(NativeScriptWordsUnavailable::SourceGeometry)?;
     let local = SourceImage::from_bytes(original, image.channel());
-    let mut config = config.normalized();
+    let mut config = purpose.config(config).normalized();
     if region.start() != 0 {
         config.leading_bom = LeadingBom::Content;
     }
@@ -118,6 +121,27 @@ pub fn native_script_words_in(
     region: Span,
     config: LexerConfig,
 ) -> Result<NativeScriptWordsPlan, NativeScriptWordsUnavailable> {
+    native_script_words_in_with_purpose(
+        image,
+        region,
+        config,
+        SourceSegmentationPurpose::WholeInput,
+    )
+}
+
+/// Capture words with an explicitly issued local script purpose while every
+/// returned word retains the original image and complete parent configuration.
+/// A body at byte zero is still a body; its coordinate supplies no prologue or
+/// execution authority. Region geometry and checked parse failures are unchanged.
+///
+/// # Errors
+/// Returns the same unavailable geometry/word ownership as the whole-input view.
+pub fn native_script_words_in_with_purpose(
+    image: SourceImage,
+    region: Span,
+    config: LexerConfig,
+    purpose: SourceSegmentationPurpose,
+) -> Result<NativeScriptWordsPlan, NativeScriptWordsUnavailable> {
     let original = image
         .bytes()
         .get(region.as_range())
@@ -129,6 +153,7 @@ pub fn native_script_words_in(
             strict_quoting: false,
             ..config
         },
+        purpose,
     )?;
     let groups = group_commands_bytes(&tokens, local.bytes(), parse_config);
     let cut = first_parse_cut_image_in_checked(&groups, &tokens, &local, parse_config)
@@ -350,5 +375,99 @@ mod tests {
         assert_eq!(words[0].bytes(), b"\xef\xbb\xbf");
         assert_eq!(words[1].written_bytes(), b"{*}[list \xff]");
         assert!(words[1].group().expand);
+    }
+}
+
+#[cfg(test)]
+mod original_script_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_script_purpose_keeps_parent_words_at_zero_and_body_offsets() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Source geometry and parent configuration only; no Native entry grant.
+        let config = LexerConfig {
+            leading_bom: LeadingBom::Skip,
+            strict_quoting: true,
+            braced_var: crate::BracedVarStyle::FirstClose,
+            base_offset: 77,
+            ..LexerConfig::default()
+        };
+        let image = SourceImage::document("\u{feff}puts ${a{b}");
+        let region = Span::new(0, u32::try_from(image.len()).unwrap());
+        let whole = native_script_words_in(image.clone(), region, config).unwrap();
+        let body = native_script_words_in_with_purpose(
+            image.clone(),
+            region,
+            config,
+            SourceSegmentationPurpose::NestedScript,
+        )
+        .unwrap();
+        assert!(whole.fatal_tail.is_none());
+        assert!(body.fatal_tail.is_none());
+        assert_eq!(whole.commands.len(), 1);
+        assert_eq!(body.commands.len(), 1);
+        assert_eq!(whole.commands[0].words[0].bytes(), b"puts");
+        assert_eq!(whole.commands[0].span.start(), 3);
+        assert_eq!(body.commands[0].words[0].bytes(), "\u{feff}puts".as_bytes());
+        assert_eq!(body.commands[0].span.start(), 0);
+        assert_ne!(whole.commands[0].words, body.commands[0].words);
+        for plan in [&whole, &body] {
+            assert_eq!(plan.commands[0].words.len(), 2);
+            assert_eq!(plan.commands[0].words[1].bytes(), b"${a{b}");
+            for word in &plan.commands[0].words {
+                assert_eq!(word.image(), &image);
+                assert_eq!(word.config(), config);
+            }
+        }
+        let parent = SourceImage::document("eval {\u{feff}puts value}");
+        let parent_plan = native_script_words_in(
+            parent.clone(),
+            Span::new(0, u32::try_from(parent.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let body_region = parent_plan.commands[0].words[1].content_span().unwrap();
+        let child = native_script_words_in_with_purpose(
+            parent.clone(),
+            body_region,
+            config,
+            SourceSegmentationPurpose::NestedScript,
+        )
+        .unwrap();
+        assert!(child.fatal_tail.is_none());
+        assert_eq!(child.commands.len(), 1);
+        assert_eq!(child.commands[0].span.start(), body_region.start());
+        assert_eq!(
+            child.commands[0].words[0].bytes(),
+            "\u{feff}puts".as_bytes()
+        );
+        assert_eq!(child.commands[0].words[1].bytes(), b"value");
+        for word in &child.commands[0].words {
+            assert_eq!(word.image(), &parent);
+            assert_eq!(word.config(), config);
+        }
+        assert!(matches!(
+            native_script_words_in_with_purpose(
+                parent.clone(),
+                Span::new(0, u32::try_from(parent.len()).unwrap() + 1),
+                config,
+                SourceSegmentationPurpose::NestedScript,
+            ),
+            Err(NativeScriptWordsUnavailable::SourceGeometry)
+        ));
+        let content = LexerConfig {
+            leading_bom: LeadingBom::Content,
+            ..config
+        };
+        assert_eq!(
+            native_script_words_in(image, region, content)
+                .unwrap()
+                .commands[0]
+                .words[0]
+                .bytes(),
+            "\u{feff}puts".as_bytes()
+        );
     }
 }

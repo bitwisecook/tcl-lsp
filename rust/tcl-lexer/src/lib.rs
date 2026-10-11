@@ -73,6 +73,7 @@ mod ranges;
 pub mod script;
 mod script_completeness;
 mod source_map;
+mod source_purpose;
 mod span;
 mod structural_index;
 mod substitution;
@@ -101,7 +102,8 @@ pub use lexer::{LeadingBom, LexError, LexWarning, Lexer, LexerConfig, UTF8_BOM};
 pub use line_index::{LineIndex, normalise_lone_cr};
 pub use native_script_words::{
     NativeScriptCommandWords, NativeScriptWordCut, NativeScriptWordsPlan,
-    NativeScriptWordsUnavailable, native_script_words_in, source_region_tokens_in,
+    NativeScriptWordsUnavailable, native_script_words_in, native_script_words_in_with_purpose,
+    source_region_tokens_in,
 };
 pub use parse_cut::{
     EXTRA_AFTER_CLOSE_QUOTE, ParseCut, ParseCutCompleteness, ParseCutUnavailable, first_parse_cut,
@@ -118,6 +120,7 @@ pub use ranges::{
 pub use script::{CommandSpan, WordKind, WordSpan, group_commands, group_commands_bytes};
 pub use script_completeness::{ScriptCompletenessUnavailable, script_image_is_complete};
 pub use source_map::{DocumentLineEndingProjection, SourceChannel, SourceImage, SourceMap};
+pub use source_purpose::SourceSegmentationPurpose;
 pub use span::Span;
 pub use structural_index::{
     BraceIndex, BracketIndex, ExprParenIndex, ParenBalance, command_boundaries, reparse_window,

@@ -19,6 +19,7 @@ const MAX_POINTS: usize = 4096;
 pub(super) struct SourceAnalysisCacheKey {
     source: tcl_lexer::SourceImage,
     config: tcl_lexer::LexerConfig,
+    purpose: tcl_lexer::SourceSegmentationPurpose,
     frame: VariableExecutionFrame,
     registry: tcl_registry::RegistrySemanticKey,
     entry: SourceAnalysisEntry,
@@ -31,6 +32,7 @@ impl SourceAnalysisCacheKey {
         config: tcl_lexer::LexerConfig,
         registry: &tcl_registry::CommandRegistry,
         options: SourceAnalysisOptions<'_>,
+        purpose: tcl_lexer::SourceSegmentationPurpose,
     ) -> Option<Self> {
         // Physical provider currency can change independently of an entry's
         // immutable rows. Such entries require a fresh interpretation.
@@ -40,6 +42,7 @@ impl SourceAnalysisCacheKey {
         Some(Self {
             source: source.clone(),
             config,
+            purpose,
             frame: frame.clone(),
             registry: registry.snapshot().semantic_key(),
             entry: SourceAnalysisEntry {
@@ -135,8 +138,15 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/authored-interpretation-memo.md
         let (source, config, registry, options) = inputs();
         let frame = VariableExecutionFrame::Global;
-        let key =
-            SourceAnalysisCacheKey::at_entry(&source, &frame, config, registry, options).unwrap();
+        let key = SourceAnalysisCacheKey::at_entry(
+            &source,
+            &frame,
+            config,
+            registry,
+            options,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        )
+        .unwrap();
         let bindings = SourceCommandBindings::analyse_image_in_frame_with_options(
             &source, &frame, config, registry, options,
         )
@@ -190,9 +200,15 @@ mod tests {
             ),
             ..Default::default()
         };
-        let key =
-            SourceAnalysisCacheKey::at_entry(&source, &frame, config, current.commands(), options)
-                .unwrap();
+        let key = SourceAnalysisCacheKey::at_entry(
+            &source,
+            &frame,
+            config,
+            current.commands(),
+            options,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        )
+        .unwrap();
         let bindings = SourceCommandBindings::analyse_image_in_frame_with_options(
             &source,
             &frame,
@@ -217,6 +233,7 @@ mod tests {
                     metadata_context,
                     ..options
                 },
+                tcl_lexer::SourceSegmentationPurpose::WholeInput,
             )
             .unwrap();
             assert!(lookup(&changed).is_none());
@@ -252,8 +269,15 @@ mod tests {
         let mut keys = Vec::new();
         for source in sources {
             let image = tcl_lexer::SourceImage::document(source);
-            let key = SourceAnalysisCacheKey::at_entry(&image, &frame, config, registry, options)
-                .unwrap();
+            let key = SourceAnalysisCacheKey::at_entry(
+                &image,
+                &frame,
+                config,
+                registry,
+                options,
+                tcl_lexer::SourceSegmentationPurpose::WholeInput,
+            )
+            .unwrap();
             SourceCommandBindings::analyse_image_in_frame_with_options(
                 &image, &frame, config, registry, options,
             )
@@ -265,8 +289,15 @@ mod tests {
         assert!(lookup(keys.last().unwrap()).is_some());
         let oversized = tcl_lexer::SourceImage::document(&"x".repeat(MAX_SOURCE_BYTES + 1));
         assert!(
-            SourceAnalysisCacheKey::at_entry(&oversized, &frame, config, registry, options)
-                .is_none()
+            SourceAnalysisCacheKey::at_entry(
+                &oversized,
+                &frame,
+                config,
+                registry,
+                options,
+                tcl_lexer::SourceSegmentationPurpose::WholeInput
+            )
+            .is_none()
         );
     }
 
@@ -276,8 +307,15 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/authored-interpretation-memo.md
         let (source, config, registry, options) = inputs();
         let frame = VariableExecutionFrame::Global;
-        let key =
-            SourceAnalysisCacheKey::at_entry(&source, &frame, config, registry, options).unwrap();
+        let key = SourceAnalysisCacheKey::at_entry(
+            &source,
+            &frame,
+            config,
+            registry,
+            options,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        )
+        .unwrap();
         let bindings = SourceCommandBindings::analyse_image_in_frame_with_options(
             &source, &frame, config, registry, options,
         )
@@ -296,16 +334,51 @@ mod tests {
         };
         let other_registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
         for changed in [
-            SourceAnalysisCacheKey::at_entry(&other_channel, &frame, config, registry, options)
-                .unwrap(),
-            SourceAnalysisCacheKey::at_entry(&source, &frame, other_config, registry, options)
-                .unwrap(),
-            SourceAnalysisCacheKey::at_entry(&source, &other_frame, config, registry, options)
-                .unwrap(),
-            SourceAnalysisCacheKey::at_entry(&source, &frame, config, registry, other_entry)
-                .unwrap(),
-            SourceAnalysisCacheKey::at_entry(&source, &frame, config, other_registry, options)
-                .unwrap(),
+            SourceAnalysisCacheKey::at_entry(
+                &other_channel,
+                &frame,
+                config,
+                registry,
+                options,
+                tcl_lexer::SourceSegmentationPurpose::WholeInput,
+            )
+            .unwrap(),
+            SourceAnalysisCacheKey::at_entry(
+                &source,
+                &frame,
+                other_config,
+                registry,
+                options,
+                tcl_lexer::SourceSegmentationPurpose::WholeInput,
+            )
+            .unwrap(),
+            SourceAnalysisCacheKey::at_entry(
+                &source,
+                &other_frame,
+                config,
+                registry,
+                options,
+                tcl_lexer::SourceSegmentationPurpose::WholeInput,
+            )
+            .unwrap(),
+            SourceAnalysisCacheKey::at_entry(
+                &source,
+                &frame,
+                config,
+                registry,
+                other_entry,
+                tcl_lexer::SourceSegmentationPurpose::WholeInput,
+            )
+            .unwrap(),
+            SourceAnalysisCacheKey::at_entry(
+                &source,
+                &frame,
+                config,
+                other_registry,
+                options,
+                tcl_lexer::SourceSegmentationPurpose::WholeInput,
+            )
+            .unwrap(),
         ] {
             assert!(lookup(&changed).is_none());
         }
@@ -321,7 +394,8 @@ mod tests {
                 SourceAnalysisOptions {
                     native_entry: Some(&native),
                     ..options
-                }
+                },
+                tcl_lexer::SourceSegmentationPurpose::WholeInput
             )
             .is_none()
         );

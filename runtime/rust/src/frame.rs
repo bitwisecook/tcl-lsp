@@ -76,6 +76,25 @@ pub(crate) use native_array_target::NativeArrayTargetCell;
 mod native_variable_names;
 pub(crate) use native_scalar_alias::NativeScalarAliasEntry;
 
+/// Extracted ownership of an actual array default's two native references.
+/// The storage worker publishes the replacement while borrowed, then its caller
+/// retires this value after releasing the cell and enclosing owner borrows.
+pub(crate) struct RetiredArrayDefault(*mut TclObj);
+impl RetiredArrayDefault {
+    pub(super) fn capture(original: *mut TclObj) -> Self {
+        Self(original)
+    }
+}
+impl Drop for RetiredArrayDefault {
+    fn drop(&mut self) {
+        // SAFETY: this token carries the old actual table's +2, exactly once.
+        unsafe {
+            obj::decr_ref_count(self.0);
+            obj::decr_ref_count(self.0);
+        }
+    }
+}
+
 static NEXT_VAR_ID: AtomicU32 = AtomicU32::new(1);
 
 fn fresh_var_id() -> VarId {
@@ -870,23 +889,29 @@ impl VarTable {
     /// read-modify-write (`lappend`/`append`/`dict`) then copies rather than
     /// mutating the stored default in place (TIP 508 copy-on-write).
     pub(crate) fn set_array_default(&mut self, name: &[u8], obj: *mut TclObj) {
-        // SAFETY: retain the new default twice, release any prior one twice.
+        let retired = self.replace_array_default(name, obj);
+        drop(retired);
+    }
+
+    /// Same selected storage step, with retirement returned to the entered
+    /// caller so no enclosing table/namespace borrow crosses a free callback.
+    pub(crate) fn replace_array_default(
+        &mut self,
+        name: &[u8],
+        original: *mut TclObj,
+    ) -> Option<RetiredArrayDefault> {
+        // The new table default owns +2 before the old default is retired.
         unsafe {
-            obj::incr_ref_count(obj);
-            obj::incr_ref_count(obj);
+            obj::incr_ref_count(original);
+            obj::incr_ref_count(original);
         }
         let slot = self.slot_for(name);
-        if let Some(old) = self.cells[slot]
+        let old = self.cells[slot]
             .contents
             .borrow_mut()
             .array_default
-            .replace(obj)
-        {
-            unsafe {
-                obj::decr_ref_count(old);
-                obj::decr_ref_count(old);
-            }
-        }
+            .replace(original);
+        old.map(RetiredArrayDefault::capture)
     }
 
     /// Array `name`'s default value, if one is set (`array default get`, and the
@@ -897,16 +922,14 @@ impl VarTable {
 
     /// Remove array `name`'s default value (`array default unset`).
     pub(crate) fn unset_array_default(&mut self, name: &[u8]) {
-        let Some(contents) = self.contents(name) else {
-            return;
-        };
-        if let Some(old) = contents.borrow_mut().array_default.take() {
-            // SAFETY: balances the +2 taken in `set_array_default`.
-            unsafe {
-                obj::decr_ref_count(old);
-                obj::decr_ref_count(old);
-            }
-        }
+        let retired = self.take_array_default(name);
+        drop(retired);
+    }
+
+    fn take_array_default(&mut self, name: &[u8]) -> Option<RetiredArrayDefault> {
+        let contents = self.contents(name)?;
+        let old = contents.borrow_mut().array_default.take();
+        old.map(RetiredArrayDefault::capture)
     }
 
     /// Flag the scalar `name` `const` (the `const` command, after its value is

@@ -175,31 +175,39 @@ impl RetainedSourceModuleBindings {
             .is_some_and(|original| original.matches(procedure))
     }
 
-    /// Authenticate a whole original function carrier against this Module's
-    /// source world. Equal spelling/configuration does not replace the retained
-    /// availability, entry or original invocation vector.
+    /// Authenticate the complete written source carrier under this Module's
+    /// original interpretation. This supplies source ownership independently of
+    /// compiler visitation, Native handler admission and read/store receipts.
     pub(crate) fn owns_original_tokens(&self, tokens: &crate::ir::CommandTokens) -> bool {
+        // naming.source.original-direct-token-owner
+        // docs/design/analysis/name-resolution-proofs/original-direct-token-owner.md
         let Some(binding) = tokens.source_binding.as_ref() else {
             return false;
         };
-        let Some((image, _, _)) = binding.original_compiler_source(tokens) else {
+        if binding.original_written_words.is_none()
+            || !tokens.words_align_with_argv_text()
+            || !tokens
+                .words()
+                .iter()
+                .zip(&tokens.argv_texts)
+                .all(|(word, text)| word.legacy_text() == *text)
+        {
+            return false;
+        }
+        let Some(config) = binding.original_lexer_config_for_tokens(tokens) else {
             return false;
         };
-        let Some(snapshot) = binding
-            .lookup_state
-            .as_ref()
-            .or(binding.compiler_lookup_state.as_ref())
-        else {
+        let Some(site) = binding.invocation_site() else {
             return false;
         };
-        let baseline = &snapshot.state.baseline;
-        image == &self.source
-            && baseline.metadata_context == self.entry.metadata_context
-            && baseline.logical_source_input == self.entry.logical_source_input
-            && baseline.vendor_source_input == self.entry.vendor_source_input
-            && baseline.native_entry == self.entry.native_entry
-            && baseline.execution_name_policy == self.entry.execution_name_policy
-            && baseline.registry_snapshot.as_ref() == Some(&self.registry)
+        let Some(snapshot) = binding.lookup_state.as_ref() else {
+            return false;
+        };
+        config == self.grammar
+            && site.source.source_image() == &self.source
+            && self.positioned.root_origin.as_ref() == Some(&site.source)
+            && snapshot.state.current_source_origin.as_ref() == Some(&site.source)
+            && snapshot.state.baseline == self.observed.baseline
     }
 
     pub(super) fn projection(
@@ -308,6 +316,213 @@ mod tests {
             registry,
             tcl_lexer::LexerConfig::default(),
         )
+    }
+
+    #[test]
+    fn direct_original_source_tokens_do_not_require_compiler_visitation() {
+        // naming.source.original-direct-token-owner
+        // docs/design/analysis/name-resolution-proofs/original-direct-token-owner.md
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let profile = tcl_registry::model::ingress::resolve_known_environment(engine)
+                .expect("each fixture uses a known engine environment")
+                .analyser_profile();
+            let registry = CommandRegistry::build_default().project_for_profile(profile);
+            let unit = crate::compilation_unit::CompilationUnit::build_for(
+                "set x 0; llength $x; set x [expr {$x + 1}]",
+                &registry,
+                false,
+            );
+            let module = &unit.ir_module;
+            let retained = module.retained_source_bindings.as_deref().unwrap();
+            assert!(retained.matches_module(module, &registry), "{engine}");
+            assert_eq!(
+                module.source_entry.native_compilation.mode,
+                tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                "{engine}",
+            );
+            assert!(module.source_entry.metadata_context.is_standalone());
+            let script = &module.top_level;
+            let tokens = script
+                .retained_source_tokens_for_statement(script.statements.last().unwrap())
+                .unwrap();
+            let binding = tokens.source_binding.as_ref().unwrap();
+            assert!(
+                binding.original_compiler_source(tokens).is_none(),
+                "{engine}"
+            );
+            assert!(retained.owns_original_tokens(tokens), "{engine}");
+            assert!(
+                binding
+                    .original_invocation_metadata_at_point(tokens, &registry)
+                    .unwrap()
+                    .is_none(),
+                "{engine}",
+            );
+            let nested = crate::value_shapes::command_substitution_tokens(
+                &tokens.words()[2],
+                Some(tokens),
+                binding.original_lexer_config_for_tokens(tokens).unwrap(),
+            )
+            .unwrap();
+            let [expression] = nested.as_slice() else {
+                panic!("the original fixture contains exactly one expression: {engine}");
+            };
+            assert!(
+                expression
+                    .source_binding
+                    .as_ref()
+                    .unwrap()
+                    .original_compiler_source(expression)
+                    .is_none(),
+                "{engine}",
+            );
+            assert!(retained.owns_original_tokens(expression), "{engine}");
+        }
+    }
+
+    #[test]
+    fn original_source_token_owner_refuses_missing_and_changed_carriers() {
+        // naming.source.original-direct-token-owner
+        // docs/design/analysis/name-resolution-proofs/original-direct-token-owner.md
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let unit = crate::compilation_unit::CompilationUnit::build_for("set x 0", &registry, false);
+        let module = &unit.ir_module;
+        let retained = module.retained_source_bindings.as_deref().unwrap();
+        let script = &module.top_level;
+        let tokens = script
+            .retained_source_tokens_for_statement(script.statements.last().unwrap())
+            .unwrap();
+        assert!(retained.owns_original_tokens(tokens));
+        for change in 0..10 {
+            let mut changed = tokens.clone();
+            match change {
+                0 => changed.source_binding = None,
+                1 => changed.synthetic = Some(crate::ir::SyntheticMarker::EvaluatedWrapper),
+                2 => {
+                    changed.word_exprs.pop();
+                }
+                3 => {
+                    changed.argv_texts.pop();
+                }
+                4 => *changed.argv_texts.last_mut().unwrap() = "OTHER".to_owned(),
+                5 => {
+                    changed
+                        .source_binding
+                        .as_mut()
+                        .unwrap()
+                        .original_written_words = None
+                }
+                6 => {
+                    let binding = changed.source_binding.as_mut().unwrap();
+                    binding.compiler_lookup_state = binding.lookup_state.take();
+                }
+                7 => {
+                    let snapshot = Arc::make_mut(
+                        changed
+                            .source_binding
+                            .as_mut()
+                            .unwrap()
+                            .lookup_state
+                            .as_mut()
+                            .unwrap(),
+                    );
+                    snapshot.state.current_source_origin = None;
+                }
+                8 => {
+                    let snapshot = Arc::make_mut(
+                        changed
+                            .source_binding
+                            .as_mut()
+                            .unwrap()
+                            .lookup_state
+                            .as_mut()
+                            .unwrap(),
+                    );
+                    snapshot.state.current_source_origin =
+                        Some(Arc::new(super::super::SourceOriginId::authored_image(
+                            tcl_lexer::SourceImage::native(module.source.bytes()),
+                        )));
+                }
+                _ => {
+                    changed
+                        .source_binding
+                        .as_mut()
+                        .unwrap()
+                        .dispatch_site
+                        .as_mut()
+                        .unwrap()
+                        .offset += 1
+                }
+            }
+            assert!(!retained.owns_original_tokens(&changed), "carrier {change}");
+        }
+        let mut missing_root = retained.clone();
+        Arc::make_mut(&mut missing_root.positioned).root_origin = None;
+        assert!(!missing_root.owns_original_tokens(tokens));
+        for change in 0..3 {
+            let mut changed = retained.clone();
+            match change {
+                0 => changed.grammar.strict_quoting = !changed.grammar.strict_quoting,
+                1 => changed.grammar.leading_bom = tcl_lexer::LeadingBom::Skip,
+                _ => changed.grammar.base_offset += 1,
+            }
+            assert!(
+                !changed.owns_original_tokens(tokens),
+                "configuration {change}"
+            );
+        }
+        assert!(retained.owns_original_tokens(tokens));
+    }
+
+    #[test]
+    fn original_source_token_owner_joins_the_complete_retained_baseline() {
+        // naming.source.original-direct-token-owner
+        // docs/design/analysis/name-resolution-proofs/original-direct-token-owner.md
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let unit = crate::compilation_unit::CompilationUnit::build_for("set x 0", &registry, false);
+        let script = &unit.ir_module.top_level;
+        let tokens = script
+            .retained_source_tokens_for_statement(script.statements.last().unwrap())
+            .unwrap();
+        let retained = unit.ir_module.retained_source_bindings.as_deref().unwrap();
+        let foreign = CommandRegistry::build_default();
+        for change in 0..6 {
+            let mut changed = tokens.clone();
+            let snapshot = Arc::make_mut(
+                changed
+                    .source_binding
+                    .as_mut()
+                    .unwrap()
+                    .lookup_state
+                    .as_mut()
+                    .unwrap(),
+            );
+            let baseline = Arc::make_mut(&mut snapshot.state.baseline);
+            match change {
+                0 => {
+                    baseline.metadata_context =
+                        crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable
+                }
+                1 => baseline.unknown_entry = !baseline.unknown_entry,
+                2 => baseline.native_compilation.loop_depth += 1,
+                3 => {
+                    baseline.invocation_realm =
+                        tcl_dialect::model::InvocationRealm::InterpreterRuntime
+                }
+                4 => baseline.registry_snapshot = Some(foreign.snapshot().semantic_key()),
+                _ => {
+                    baseline.native_compilation.mode =
+                        tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject
+                }
+            }
+            assert!(
+                !retained.owns_original_tokens(&changed),
+                "baseline {change}"
+            );
+        }
+        assert!(retained.owns_original_tokens(tokens));
     }
 
     #[test]

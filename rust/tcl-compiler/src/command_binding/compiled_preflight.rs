@@ -411,17 +411,18 @@ impl CompilerTraversal<'_> {
             self.require_provider();
             return None;
         }
-        let Ok(plan) = tcl_lexer::native_script_words_in(
+        let Ok(plan) = tcl_lexer::native_script_words_in_with_purpose(
             image.clone(),
             tcl_lexer::Span::new(0, u32::try_from(image.len()).ok()?),
             context.config,
+            context.source_purpose,
         ) else {
             self.require_provider();
             return None;
         };
         // The checked native plan owns the syntax cut. The structural view may
         // retain the failed command, but it must not select its incomplete argv.
-        let mut config = context.config;
+        let mut config = context.source_purpose.config(context.config);
         config.strict_quoting = false;
         let Some(segments) =
             crate::segmenter::segment_commands_image_with_offset_and_config(image, base, config)
@@ -975,6 +976,7 @@ impl CompilerTraversal<'_> {
                 &original,
                 span.start(),
                 SourceExecutionContext {
+                    source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                     depth: context.depth + 1,
                     ..context
                 },
@@ -1323,6 +1325,7 @@ impl CompilerTraversal<'_> {
                 &tcl_lexer::SourceImage::native(script.as_bytes()),
                 child_base,
                 SourceExecutionContext {
+                    source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                     depth: context.depth + 1,
                     ..context
                 },
@@ -1428,6 +1431,7 @@ impl CompilerTraversal<'_> {
                 &tcl_lexer::SourceImage::native(text.as_bytes()),
                 source.span.start().saturating_add(1),
                 SourceExecutionContext {
+                    source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                     compilation,
                     depth: context.depth + 1,
                     ..context
@@ -1613,6 +1617,7 @@ impl CompilerTraversal<'_> {
                         &tcl_lexer::SourceImage::from_bytes(script, arena.image().channel()),
                         body.start(),
                         SourceExecutionContext {
+                            source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                             depth: depth + 1,
                             ..context
                         },
@@ -1659,6 +1664,7 @@ impl CompilerTraversal<'_> {
             &tcl_lexer::SourceImage::native(script.as_bytes()),
             source.span.start().saturating_add(1),
             SourceExecutionContext {
+                source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                 depth: context.depth + 1,
                 ..context
             },
@@ -2214,6 +2220,7 @@ mod tests {
         frame: &'a crate::var_resolve::VariableExecutionFrame,
     ) -> SourceExecutionContext<'a> {
         SourceExecutionContext {
+            source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
             realm: tcl_dialect::model::InvocationRealm::RuleLoader,
             compilation,
             compilation_snapshot: None,

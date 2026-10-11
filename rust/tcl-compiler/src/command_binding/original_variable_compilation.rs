@@ -848,7 +848,13 @@ mod logical_substitution_tests {
         let namespace = super::super::SourceNamespaceKey::authored("::");
         let frame = crate::var_resolve::VariableExecutionFrame::Global;
         let selected = super::super::root_source_execution_context(
-            &frame, "::", &namespace, config, registry, options,
+            &frame,
+            "::",
+            &namespace,
+            config,
+            registry,
+            options,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
         );
         inspect(&mut state, &original, &arena, selected)
     }

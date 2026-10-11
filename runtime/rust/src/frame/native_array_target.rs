@@ -52,23 +52,18 @@ impl NativeArrayTargetCell {
             _ => ArrayDefaultState::Undefined,
         }
     }
-    pub(crate) fn unset_default(&self) {
+    pub(crate) fn take_default(&self) -> Option<super::RetiredArrayDefault> {
         let old = {
             let mut cell = self.contents.borrow_mut();
             if cell.binding_id != Some(self.id) || !matches!(cell.var.as_ref(), Some(Var::Array(_)))
             {
-                return;
+                return None;
             }
             cell.array_default.take()
         };
-        if let Some(old) = old {
-            // SAFETY: the same actual array owns these two references.
-            unsafe {
-                obj::decr_ref_count(old);
-                obj::decr_ref_count(old);
-            }
-        }
+        old.map(super::RetiredArrayDefault::capture)
     }
+
     pub(crate) fn retain_operation(&self) -> bool {
         let mut cell = self.contents.borrow_mut();
         if cell.binding_id != Some(self.id) || cell.rmw_retirement.is_some() {

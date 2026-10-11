@@ -3344,6 +3344,7 @@ fn index_text_fragment(
 
 #[derive(Clone, Copy)]
 struct SourceExecutionContext<'a> {
+    source_purpose: tcl_lexer::SourceSegmentationPurpose,
     realm: tcl_dialect::model::InvocationRealm,
     compilation: tcl_registry::native_compilation::NativeCompilationContext,
     compilation_snapshot: Option<&'a NativeCompilationSnapshot>,
@@ -3851,8 +3852,10 @@ fn root_source_execution_context<'a>(
     config: tcl_lexer::LexerConfig,
     registry: &'a CommandRegistry,
     options: SourceAnalysisOptions<'a>,
+    source_purpose: tcl_lexer::SourceSegmentationPurpose,
 ) -> SourceExecutionContext<'a> {
     SourceExecutionContext {
+        source_purpose,
         realm: options.invocation_realm,
         compilation: options.native_compilation,
         compilation_snapshot: None,
@@ -4357,6 +4360,7 @@ fn source_body_context_boxed<'a>(
     frame: &'a crate::var_resolve::VariableExecutionFrame,
 ) -> Box<SourceExecutionContext<'a>> {
     Box::new(SourceExecutionContext {
+        source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
         namespace,
         namespace_key: frame.namespace_identity().or_else(|| {
             (context.namespace == namespace)
@@ -6116,9 +6120,31 @@ impl SourceCommandBindings {
         registry: &CommandRegistry,
         options: SourceAnalysisOptions<'_>,
     ) -> Option<Self> {
+        Self::analyse_image_in_frame_with_purpose(
+            image,
+            frame,
+            config,
+            registry,
+            options,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        )
+    }
+
+    /// Interpret a producer-selected whole input or nested script while keeping
+    /// the complete parent config for original word and metadata correspondence.
+    /// Parser purpose supplies no entered source/frame/Native implementation.
+    #[must_use]
+    pub fn analyse_image_in_frame_with_purpose(
+        image: &tcl_lexer::SourceImage,
+        frame: &crate::var_resolve::VariableExecutionFrame,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+        options: SourceAnalysisOptions<'_>,
+        purpose: tcl_lexer::SourceSegmentationPurpose,
+    ) -> Option<Self> {
         let source = image.try_text().ok()?;
         Some(Self::analyse_source_in_frame_with_options(
-            source, image, frame, config, registry, options,
+            source, image, frame, config, registry, options, purpose,
         ))
     }
 
@@ -6129,6 +6155,7 @@ impl SourceCommandBindings {
         config: tcl_lexer::LexerConfig,
         registry: &CommandRegistry,
         options: SourceAnalysisOptions<'_>,
+        purpose: tcl_lexer::SourceSegmentationPurpose,
     ) -> Self {
         #[cfg(any(test, debug_assertions))]
         let phase_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
@@ -6141,7 +6168,7 @@ impl SourceCommandBindings {
             phase_start.map(|_| original_command_table::original_source_query_totals());
         let config = options.native_lexer_config(config);
         let memo_key = source_analysis_cache::SourceAnalysisCacheKey::at_entry(
-            image, frame, config, registry, options,
+            image, frame, config, registry, options, purpose,
         );
         if let Some(bindings) = memo_key.as_ref().and_then(source_analysis_cache::lookup) {
             #[cfg(any(test, debug_assertions))]
@@ -6196,6 +6223,7 @@ impl SourceCommandBindings {
                 config,
                 registry,
                 options,
+                purpose,
             ),
         );
         #[cfg(any(test, debug_assertions))]
@@ -6481,6 +6509,7 @@ impl SourceCommandBindings {
             root.offset,
             &mut branch,
             &SourceExecutionContext {
+                source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                 realm: root.realm,
                 compilation,
                 compilation_snapshot: None,
@@ -7268,6 +7297,7 @@ impl SourceCommandBindings {
             source_base,
             &mut state,
             &SourceExecutionContext {
+                source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                 realm,
                 compilation,
                 compilation_snapshot: None,
@@ -7468,7 +7498,7 @@ impl SourceCommandBindings {
         };
         let entry_context = source_chunk_context_boxed(context, None);
         let context = entry_context.as_ref();
-        let config = context.config;
+        let config = context.source_purpose.config(context.config);
         let depth = context.depth;
         let mut prepared = Box::<PreparedSourceChunk>::default();
         self.prepare_source_chunk(image, base, state, context, &mut prepared);
@@ -8528,6 +8558,7 @@ impl SourceCommandBindings {
                 body.offset,
                 state,
                 &SourceExecutionContext {
+                    source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                     compilation: procedure_compilation(state.baseline.compilation_dialect()),
                     compilation_snapshot: None,
                     selected_compilation: None,
@@ -8592,7 +8623,15 @@ impl SourceCommandBindings {
                     .strip_prefix('[')
                     .and_then(|text| text.strip_suffix(']'))
                     .unwrap_or(spelling);
-                self.walk_source(script, source.span.start() + 1, state, &context)
+                self.walk_source(
+                    script,
+                    source.span.start() + 1,
+                    state,
+                    &SourceExecutionContext {
+                        source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                        ..context
+                    },
+                )
             }
             WordExpr::Template { parts, .. } => {
                 self.walk_template_substitutions(word, parts, document, base, state, context)
@@ -8843,6 +8882,7 @@ impl SourceCommandBindings {
                 offset,
                 state,
                 &SourceExecutionContext {
+                    source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                     depth: context.depth + 1,
                     ..context
                 },
@@ -10076,6 +10116,7 @@ impl SourceCommandBindings {
             },
             state,
             &SourceExecutionContext {
+                source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                 depth: context.depth + 1,
                 ..context
             },
@@ -10407,6 +10448,7 @@ impl SourceCommandBindings {
                 offset,
                 state,
                 &SourceExecutionContext {
+                    source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                     realm,
                     compilation: procedure_compilation(state.baseline.compilation_dialect()),
                     compilation_snapshot: None,
@@ -10592,7 +10634,15 @@ impl SourceCommandBindings {
                 },
             )
         } else {
-            self.walk_source(source, 0, state, &context)
+            self.walk_source(
+                source,
+                0,
+                state,
+                &SourceExecutionContext {
+                    source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                    ..context
+                },
+            )
         };
         outcomes.restore_source_origin(Some(&origin));
         outcomes.publish(state);
@@ -10802,6 +10852,7 @@ impl SourceCommandBindings {
             return SourceOutcomes::invocation(state, Route::Unknown);
         }
         let nested = SourceExecutionContext {
+            source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
             depth: context.depth + 1,
             ..context
         };
@@ -10929,8 +10980,11 @@ impl SourceCommandBindings {
         state: &mut ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) -> SourceOutcomes {
-        let segments =
-            crate::segmenter::segment_commands_with_offset_and_config(text, offset, context.config);
+        let segments = crate::segmenter::segment_commands_with_offset_and_config(
+            text,
+            offset,
+            context.config.nested(),
+        );
         if let Some(segment) = segments.first() {
             let tokens = crate::ir::CommandTokens::from_segmented(
                 &tcl_lexer::SourceMap::new(text).with_base(offset, 0, 0),
@@ -13299,12 +13353,20 @@ impl ModuleCommandBindings {
                 namespace,
                 module.top_level_kind,
             );
-            let interpreted = SourceCommandBindings::analyse_image_in_frame_with_options(
+            let interpreted = SourceCommandBindings::analyse_image_in_frame_with_purpose(
                 &module.source,
                 &frame,
                 config,
                 registry,
                 options,
+                match module.top_level_kind {
+                    crate::ir::TopLevelKind::Script => {
+                        tcl_lexer::SourceSegmentationPurpose::WholeInput
+                    }
+                    crate::ir::TopLevelKind::ProcedureBody => {
+                        tcl_lexer::SourceSegmentationPurpose::NestedScript
+                    }
+                },
             )?;
             return Some(interpreted.module_projection(module));
         }
@@ -15611,6 +15673,7 @@ fn interpret_binding_source(
         offset,
         &mut post,
         &SourceExecutionContext {
+            source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
             realm: bindings.baseline.invocation_realm,
             compilation: if matches!(
                 frame.layout(),
@@ -17211,7 +17274,8 @@ fn constructed_script_words_with_optional_metadata(
             |dialect| tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
         ),
     };
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config);
+    let commands =
+        crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config.nested());
     let [command] = commands.as_slice() else {
         return None;
     };
@@ -22953,5 +23017,119 @@ mod shared_noop_source_join_tests {
         assert!(!joined.namespaces.contains(namespace));
         assert_eq!(previous, &old);
         assert!(previous.namespaces.contains(namespace));
+    }
+}
+
+#[cfg(test)]
+mod original_explicit_script_purpose_tests {
+    use super::*;
+
+    fn input() -> crate::analyser::ResolvedAnalysisInput {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            strict_quoting: true,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry(),
+            config,
+        )
+    }
+
+    #[test]
+    fn original_binding_purpose_retains_full_input_and_separates_cached_interpretations() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // The same original Document can have independently selected parser purposes.
+        // Neither interpretation issues Native admission or a fresh body activation.
+        let input = input();
+        let config = input.lexer_config();
+        let context = input.context_registry();
+        let registry = context.commands();
+        let image = tcl_lexer::SourceImage::document("\u{feff}puts ${a{b}");
+        let frame = crate::var_resolve::VariableExecutionFrame::Global;
+        let options = SourceAnalysisOptions::for_logical_source(&input).unwrap();
+        let whole_key = source_analysis_cache::SourceAnalysisCacheKey::at_entry(
+            &image,
+            &frame,
+            config,
+            registry,
+            options,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        )
+        .unwrap();
+        let body_key = source_analysis_cache::SourceAnalysisCacheKey::at_entry(
+            &image,
+            &frame,
+            config,
+            registry,
+            options,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        )
+        .unwrap();
+        assert!(whole_key != body_key);
+        for purpose in [
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        ] {
+            let bindings = SourceCommandBindings::analyse_image_in_frame_with_purpose(
+                &image, &frame, config, registry, options, purpose,
+            )
+            .unwrap();
+            assert_eq!(bindings.lexer_config, Some(config));
+            let point = bindings.points.first().unwrap();
+            assert_eq!(point.state.logical_source_name_advice_input(), Some(&input));
+            let offset = if purpose == tcl_lexer::SourceSegmentationPurpose::WholeInput {
+                3
+            } else {
+                0
+            };
+            let head = if offset == 3 { "puts" } else { "\u{feff}puts" };
+            assert_eq!(point.offset, offset);
+            let binding = bindings.invocation_at_source(head, offset);
+            let (command, tokens) = binding.original_recorded_command().unwrap();
+            assert_eq!(command.texts[0], head);
+            assert_eq!(command.texts[1], "${a{b}");
+            assert_eq!(
+                binding.original_lexer_config_for_tokens(&tokens),
+                Some(config)
+            );
+            let original = crate::registry_invocation::original_native_compiler_words(
+                &image,
+                tokens.words(),
+                offset,
+                config,
+            )
+            .unwrap();
+            assert_eq!(original.len(), 2);
+            assert!(
+                original
+                    .iter()
+                    .all(|word| word.config() == config && word.image() == &image)
+            );
+            let stale = tcl_lexer::LexerConfig {
+                braced_var: tcl_lexer::BracedVarStyle::Tcl9Nesting,
+                ..config
+            };
+            assert!(
+                crate::registry_invocation::original_native_compiler_words(
+                    &image,
+                    tokens.words(),
+                    offset,
+                    stale,
+                )
+                .is_none()
+            );
+            assert!(point.state.baseline.native_entry.is_none());
+            assert!(point.state.baseline.execution_name_policy.is_none());
+            let mut foreign = tokens.clone();
+            foreign.synthetic = Some(crate::ir::SyntheticMarker::IterationBindings(None));
+            assert!(binding.original_lexer_config_for_tokens(&foreign).is_none());
+        }
     }
 }

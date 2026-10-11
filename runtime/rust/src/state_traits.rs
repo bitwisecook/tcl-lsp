@@ -213,6 +213,8 @@ impl VarStore for Interp {
         &mut self,
         target: &ArrayTarget,
     ) -> Result<(), tcl_syntax::value::ValueError> {
+        let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self)
+            .map_err(|first| array_default_operation_refusal(self, first))?;
         if self.observed_name_policy_selected() {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "unmeasured observed variable operation",
@@ -224,14 +226,14 @@ impl VarStore for Interp {
             .ok_or(ValueError::CommandProtocolUnavailable(
                 "array default storage",
             ))?;
-        if let Some(record) = self.array_operation_target(target) {
-            crate::vars::unset_array_default_at_target(
-                &mut self.frames.borrow_mut(),
-                &mut self.namespaces_mut(),
-                &record,
-            );
-        }
-        Ok(())
+        let retired = self
+            .array_operation_target(target)
+            .and_then(|record| crate::vars::take_array_default_at_target(&record));
+        drop(retired);
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| array_default_operation_refusal(self, first))
     }
 
     fn set_array_default_bytes(
@@ -241,6 +243,15 @@ impl VarStore for Interp {
         value: Self::Value,
     ) -> Result<Result<(), tcl_runtime_api::ArrayDefaultSetFailure>, tcl_syntax::value::ValueError>
     {
+        let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self)
+            .map_err(|first| array_default_operation_refusal(self, first))?;
+        obj::check_native_liveness(value).map_err(|error| {
+            if let Some(first) = error.native_access_refusal() {
+                self.clone().refuse_native_access(first);
+            }
+            error
+        })?;
+        let _original = obj::NativeObjectLifetime::retain(value);
         if self.observed_name_policy_selected() {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "unmeasured observed variable operation",
@@ -260,13 +271,27 @@ impl VarStore for Interp {
         }
         self.require_variable_name_protocol()
             .map_err(|_| ValueError::CommandProtocolUnavailable("array default variable name"))?;
-        let outcome = crate::vars::set_array_default_classified(
+        let outcome = crate::vars::replace_array_default_classified(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces_mut(),
             self.current_ns(),
             name,
             value,
         );
+        // The store/creating lookup is already reached. Retire the old +2
+        // after every enclosing borrow has ended, before later reporting.
+        let outcome = match outcome {
+            Ok(Ok(retired)) => {
+                drop(retired);
+                Ok(Ok(()))
+            }
+            Ok(Err(failure)) => Ok(Err(failure)),
+            Err(error) => Err(error),
+        };
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| array_default_operation_refusal(self, first))?;
         match outcome {
             Ok(outcome) => Ok(outcome),
             Err(crate::frame::VarError::NameProtocolUnavailable) => Err(
@@ -2321,3 +2346,23 @@ mod original_completion_capture_tests {
         }
     }
 }
+
+// Value-domain roles retain the full first execution cause on their actual
+// interpreter before projecting the value-domain outer refusal.
+fn array_default_operation_refusal(
+    interpreter: &Interp,
+    first: tcl_runtime_api::NativeExecutionError,
+) -> tcl_syntax::value::ValueError {
+    let error = match &first {
+        tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(cause) => cause.clone().into(),
+        _ => tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "array default entered operation",
+        ),
+    };
+    interpreter.clone().refuse_native_execution(first);
+    error
+}
+
+#[cfg(test)]
+#[path = "state_traits/native_array_default_tests.rs"]
+mod native_array_default_tests;

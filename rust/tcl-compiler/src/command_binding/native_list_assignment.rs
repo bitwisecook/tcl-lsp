@@ -667,6 +667,7 @@ mod tests {
         config: tcl_lexer::LexerConfig,
     ) -> SourceExecutionContext<'a> {
         SourceExecutionContext {
+            source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
             realm: tcl_dialect::model::InvocationRealm::RuleLoader,
             compilation: NativeCompilationContext {
                 frame: NativeCompilationFrame::ScriptCode,

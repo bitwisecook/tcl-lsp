@@ -616,6 +616,7 @@ mod tests {
             tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar),
             registry,
             SourceAnalysisOptions::default(),
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
         );
         context.compilation = tcl_registry::native_compilation::NativeCompilationContext {
             mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,

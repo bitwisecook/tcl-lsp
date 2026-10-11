@@ -394,27 +394,53 @@ impl SourceCommandBindings {
         state: &ModuleCommandBindings,
         context: &SourceExecutionContext<'_>,
     ) {
-        if !matches!(
-            state.variable_frame.layout(),
-            crate::var_resolve::VariableExecutionFrame::NamespaceActivation { .. }
-        ) || &state.variable_frame != context.frame
-        {
+        if &state.variable_frame != context.frame {
             return;
         }
         let Some(origin) = state.current_source_origin.as_ref() else {
             return;
         };
-        if self.root_origin.as_ref() != Some(origin) {
-            return;
-        }
         let namespace = context.namespace_identity();
         if state.source_variables.namespace_identity.as_ref() != Some(&namespace) {
             return;
         }
-        let Some(source) =
-            super::ExecutedScriptSource::contiguous_image(Arc::clone(origin), image.clone(), base)
-        else {
-            return;
+        // A nested parser does not issue a frame. Reborrow only a genuine
+        // entered operand observation carrying this exact source and frame.
+        let entered = (context.source_purpose
+            == tcl_lexer::SourceSegmentationPurpose::NestedScript)
+            .then(|| {
+                self.entered_scripts
+                    .values()
+                    .flat_map(|arguments| arguments.values().flatten())
+                    .find(|observation| {
+                        observation.source.origin == *origin
+                            && observation.source.text == *image
+                            && observation.source.base() == base
+                            && observation.frame.as_ref() == Some(context.frame)
+                            && observation.namespace.as_ref() == Some(&namespace)
+                    })
+                    .map(|observation| observation.source.clone())
+            })
+            .flatten();
+        let source = if let Some(source) = entered {
+            source
+        } else {
+            if self.root_origin.as_ref() != Some(origin)
+                || !matches!(
+                    state.variable_frame.layout(),
+                    crate::var_resolve::VariableExecutionFrame::NamespaceActivation { .. }
+                )
+            {
+                return;
+            }
+            let Some(source) = super::ExecutedScriptSource::contiguous_image(
+                Arc::clone(origin),
+                image.clone(),
+                base,
+            ) else {
+                return;
+            };
+            source
         };
         let entry = Arc::new(OriginalDiagnosticFrameEntry::ScriptActivation {
             source,
@@ -1445,6 +1471,9 @@ impl SourceCommandBindings {
         {
             (entry, context.namespace_identity())
         } else {
+            if context.source_purpose != tcl_lexer::SourceSegmentationPurpose::WholeInput {
+                return;
+            }
             let Some(namespace) = root_diagnostic_namespace(state, &context.namespace_identity())
             else {
                 return;
@@ -2942,6 +2971,142 @@ mod tests {
             bindings
                 .declaration_operand_layout_advice(&tokens)
                 .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_nested_root_activation_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_nested_parser_keeps_entered_root_frame_separate_from_whole_input() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // A genuine eval observation supplies its frame; NestedScript supplies grammar only.
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            strict_quoting: true,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let frame = crate::var_resolve::VariableExecutionFrame::Global;
+        let options = super::super::SourceAnalysisOptions::for_logical_source(&input).unwrap();
+        for (source, expected, materialised) in [
+            ("eval {set x VALUE; list $x}", "set x VALUE; list $x", false),
+            ("eval {set} {x VALUE}", "set x VALUE", true),
+        ] {
+            let image = tcl_lexer::SourceImage::document(source);
+            let bindings = SourceCommandBindings::analyse_image_in_frame_with_options(
+                &image,
+                &frame,
+                config,
+                context.commands(),
+                options,
+            )
+            .unwrap();
+            let origin = Arc::clone(bindings.root_origin.as_ref().unwrap());
+            let site = CommandAllocationSite {
+                source: Arc::clone(&origin),
+                offset: 0,
+            };
+            let entered = bindings.executed_script_at(&site, 0).unwrap();
+            assert_eq!(entered.text.try_text().unwrap(), expected);
+            if materialised {
+                assert_eq!(entered.base(), 0);
+                assert!(matches!(
+                    entered.mapping,
+                    super::super::ExecutedScriptMapping::Materialised
+                ));
+                assert_ne!(entered.origin, origin);
+            }
+            let body_rows = bindings
+                .declaration_layouts
+                .get(&CommandAllocationSite {
+                    source: Arc::clone(&entered.origin),
+                    offset: entered.base(),
+                })
+                .unwrap();
+            let activation = body_rows
+                .iter()
+                .find(|row| {
+                    matches!(
+                        row.entry.as_ref(),
+                        OriginalDiagnosticFrameEntry::ScriptActivation { .. }
+                    )
+                })
+                .unwrap();
+            assert_eq!(activation.entry.source(), entered);
+            assert_eq!(activation.entry.frame().layout(), &frame);
+            assert_eq!(activation.config, config);
+            assert_eq!(activation.words[0].legacy_text(), "set");
+            assert!(
+                matches!(activation.entry.as_ref(), OriginalDiagnosticFrameEntry::ScriptActivation {
+            config: actual, ..
+        } if *actual == config)
+            );
+            assert!(activation.snapshot.state.baseline.native_entry.is_none());
+            assert!(
+                bindings
+                    .declaration_layouts
+                    .get(&site)
+                    .unwrap()
+                    .iter()
+                    .any(|row| matches!(
+                        row.entry.as_ref(),
+                        OriginalDiagnosticFrameEntry::RootScript { .. }
+                    ))
+            );
+        }
+
+        let body_at_zero = tcl_lexer::SourceImage::document("set x VALUE");
+        let nested = SourceCommandBindings::analyse_image_in_frame_with_purpose(
+            &body_at_zero,
+            &frame,
+            config,
+            context.commands(),
+            options,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        )
+        .unwrap();
+        assert!(nested.points.iter().any(|point| point.offset == 0));
+        assert!(
+            nested
+                .declaration_layouts
+                .values()
+                .flatten()
+                .all(|row| !matches!(
+                    row.entry.as_ref(),
+                    OriginalDiagnosticFrameEntry::RootScript { .. }
+                ))
+        );
+        assert!(nested.original_script_activations.is_empty());
+        let whole = SourceCommandBindings::analyse_image_in_frame_with_options(
+            &body_at_zero,
+            &frame,
+            config,
+            context.commands(),
+            options,
+        )
+        .unwrap();
+        assert!(
+            whole
+                .declaration_layouts
+                .values()
+                .flatten()
+                .any(|row| matches!(
+                    row.entry.as_ref(),
+                    OriginalDiagnosticFrameEntry::RootScript { .. }
+                ))
         );
     }
 }

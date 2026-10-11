@@ -839,6 +839,7 @@ pub(super) fn body_context<'a>(
 ) -> super::SourceExecutionContext<'a> {
     let Some(dialect) = state.baseline.compilation_dialect() else {
         return super::SourceExecutionContext {
+            source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
             compilation: NativeCompilationContext::default(),
             compilation_snapshot: None,
             selected_compilation: None,
@@ -876,6 +877,7 @@ pub(super) fn body_context<'a>(
             )
     });
     super::SourceExecutionContext {
+        source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
         compilation,
         compilation_snapshot: if inherited {
             context.compilation_snapshot

@@ -454,6 +454,12 @@ impl SourceInvocationBinding {
         let entry = builder.placeholder();
         builder.jobs.push(Job {
             source: first.entry.source().clone(),
+            purpose: match first.entry.as_ref() {
+                super::declaration_layout::OriginalDiagnosticFrameEntry::RootScript { .. } => {
+                    tcl_lexer::SourceSegmentationPurpose::WholeInput
+                }
+                _ => tcl_lexer::SourceSegmentationPurpose::NestedScript,
+            },
             entry,
             exits: Exits::all(0),
         });
@@ -620,6 +626,7 @@ impl Exits {
 }
 struct Job {
     source: ExecutedScriptSource,
+    purpose: tcl_lexer::SourceSegmentationPurpose,
     entry: usize,
     exits: Exits,
 }
@@ -648,7 +655,7 @@ impl Builder<'_> {
         let Some(segments) = crate::segmenter::segment_commands_image_with_offset_and_config(
             &job.source.text,
             job.source.base(),
-            self.config,
+            job.purpose.config(self.config),
         ) else {
             self.unknown(job.entry, job.exits.normal);
             return;
@@ -1120,6 +1127,7 @@ impl Builder<'_> {
                 }
                 Event::Script(source) => self.jobs.push(Job {
                     source,
+                    purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                     entry: id,
                     exits: Exits {
                         normal: next,
@@ -1321,6 +1329,7 @@ impl Builder<'_> {
         if let Some(source) = source {
             self.jobs.push(Job {
                 source,
+                purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                 entry: id,
                 exits,
             });

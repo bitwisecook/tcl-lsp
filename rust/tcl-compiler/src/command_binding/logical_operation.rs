@@ -457,6 +457,7 @@ mod tests {
             input.lexer_config(),
             registry,
             options,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
         );
         let access = crate::var_resolve::resolve_literal_access(
             "suffix",
@@ -902,6 +903,7 @@ mod tests {
             input.lexer_config(),
             registry,
             options,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
         );
         let command = crate::segmenter::segment_commands_image_with_offset_and_config(
             image,

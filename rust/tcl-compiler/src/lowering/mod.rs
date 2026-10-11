@@ -981,21 +981,7 @@ enum SourceEntryOrigin {
     Driver,
 }
 
-/// Parser purpose of this span space, independent of retained parent metadata.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SourceSegmentationPurpose {
-    WholeInput,
-    NestedScript,
-}
-
-impl SourceSegmentationPurpose {
-    fn config(self, parent: tcl_lexer::LexerConfig) -> tcl_lexer::LexerConfig {
-        match self {
-            Self::WholeInput => parent,
-            Self::NestedScript => parent.nested(),
-        }
-    }
-}
+use tcl_lexer::SourceSegmentationPurpose;
 
 /// The lowering engine — accumulates procedures and IR statements.
 pub struct Lowerer<'r> {
@@ -1938,10 +1924,10 @@ impl<'r> Lowerer<'r> {
         // word and metadata joins; a missing body receipt cannot borrow them.
         let frame = self.source_entry_frame(namespace);
         let image = tcl_lexer::SourceImage::from_bytes(source.as_bytes(), self.source_channel);
-        let Some(bindings) = SourceCommandBindings::analyse_image_in_frame_with_options(
+        let Some(bindings) = SourceCommandBindings::analyse_image_in_frame_with_purpose(
             &image,
             &frame,
-            purpose.config(self.config),
+            self.config,
             self.registry,
             SourceAnalysisOptions {
                 metadata_context: self.source_metadata_input(),
@@ -1975,6 +1961,7 @@ impl<'r> Lowerer<'r> {
                     ..self.native_compilation
                 },
             },
+            purpose,
         ) else {
             self.source = enclosing_source;
             self.nest_depth -= 1;
