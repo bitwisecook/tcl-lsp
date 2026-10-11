@@ -67,6 +67,69 @@ pub(super) fn current_method(vm: &Vm) -> Option<&OoFrame> {
         .find(|frame| frame.activation == Some(activation))
 }
 
+/// Descriptive observation of the selected physical method activation and chain.
+/// It grants no object lookup, callable Method, or additional native reference.
+pub(super) struct OriginalMethodFrame {
+    position: usize,
+    activation: u64,
+    object: OoId,
+    name: std::rc::Weak<std::cell::RefCell<Option<Value>>>,
+    steps: std::rc::Weak<Vec<super::Step>>,
+    index: usize,
+    method: String,
+    role: tcl_registry::native_tcloo_method_definition::NativeTclooMethodReportRole,
+}
+impl OriginalMethodFrame {
+    pub(super) fn capture(vm: &Vm) -> Option<Self> {
+        let activation = vm.native_oo_variable_activation();
+        let position = vm
+            .oo
+            .call_stack
+            .iter()
+            .rposition(|frame| frame.activation == Some(activation))?;
+        let frame = &vm.oo.call_stack[position];
+        Some(Self {
+            position,
+            activation,
+            object: frame.object,
+            name: std::rc::Rc::downgrade(&frame.name_owner),
+            steps: frame.chain.original_steps(),
+            index: frame.index,
+            method: frame.method.clone(),
+            role: frame.chain.report_role(),
+        })
+    }
+    fn is_current(&self, vm: &Vm) -> bool {
+        let selected = vm
+            .oo
+            .call_stack
+            .iter()
+            .rposition(|frame| frame.activation == Some(vm.native_oo_variable_activation()));
+        selected == Some(self.position)
+            && vm.oo.call_stack.get(self.position).is_some_and(|frame| {
+                frame.activation == Some(self.activation)
+                    && frame.object == self.object
+                    && frame.index == self.index
+                    && frame.chain.get(frame.index).is_some()
+                    && frame.method == self.method
+                    && frame.chain.report_role() == self.role
+                    && self.name.strong_count() != 0
+                    && std::rc::Weak::ptr_eq(&self.name, &std::rc::Rc::downgrade(&frame.name_owner))
+                    && self.steps.strong_count() != 0
+                    && std::rc::Weak::ptr_eq(&self.steps, &frame.chain.original_steps())
+            })
+    }
+    pub(super) fn check(
+        &self,
+        vm: &mut Vm,
+        context: &crate::interp::native_name_consumers::OriginalNameConsumerScope,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        context.check(vm)?;
+        let current = self.is_current(vm);
+        context.require(vm, current, "original OO self method frame")
+    }
+}
+
 pub(super) fn object_name(vm: &Vm, object: OoId) -> Value {
     let owner = vm
         .oo
@@ -647,3 +710,6 @@ list $chained $ordinary $magic [namespace current] $outside [dict get $options -
         }
     }
 }
+
+#[cfg(test)]
+mod self_frame_tests;

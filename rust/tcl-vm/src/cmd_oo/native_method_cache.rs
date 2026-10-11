@@ -183,6 +183,10 @@ impl ReachedMethodChain {
     pub(super) fn report_role(&self) -> NativeTclooMethodReportRole {
         self.report_role
     }
+    /// Observe the actual entered chain without retaining Method payload roles.
+    pub(super) fn original_steps(&self) -> Weak<Vec<Step>> {
+        Rc::downgrade(&self.steps)
+    }
     fn from_cached(chain: Rc<NativeMethodChain>) -> Option<Self> {
         // InvokeContext retains ALL original records before the first Method.
         // A missing weak record cannot be reconstructed from its method name.

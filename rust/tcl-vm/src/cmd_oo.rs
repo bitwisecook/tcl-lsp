@@ -2375,7 +2375,23 @@ pub(crate) fn in_method(vm: &Vm) -> bool {
 }
 
 fn cmd_self(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let Some(fr) = native_context::current_method(vm) else {
+    let context = match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+        Ok(context) => context,
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    };
+    let reached = cmd_self_entered(vm, args, &context);
+    match context.finish(vm) {
+        Ok(()) => reached,
+        Err(error) => crate::command::completion_from_cmd_error(vm, error),
+    }
+}
+
+fn cmd_self_entered(
+    vm: &mut Vm,
+    args: &[Value],
+    context: &crate::interp::native_name_consumers::OriginalNameConsumerScope,
+) -> Completion<Value> {
+    let Some(original_frame) = native_context::OriginalMethodFrame::capture(vm) else {
         let Some(original) = vm.invoked_name_value() else {
             return vm.refuse_host_command("original self invocation head is unavailable".into());
         };
@@ -2397,23 +2413,29 @@ fn cmd_self(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         };
         return native_context::helper_context_error(vm, &head);
     };
+    let fr = native_context::current_method(vm).expect("captured original method frame");
     let self_name = frame_object_name(vm, fr);
     let obj = fr.object;
     if args.len() > 1 {
         return crate::command::native_wrong_args(vm, "self subcommand");
     }
-    let sub = match args.first() {
-        Some(original) => match vm.native_static_option_index_checked(
+    let selected = args.first().map(|original| {
+        vm.native_static_option_index_checked(
             original,
             tcl_registry::native_tcloo_compilation::SELF_SUBCOMMANDS,
             false,
             "subcommand",
-        ) {
-            Ok(index) => Some(tcl_registry::native_tcloo_compilation::SELF_SUBCOMMANDS[index]),
-            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-        },
+        )
+    });
+    if let Err(error) = original_frame.check(vm, context) {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    let sub = match selected {
+        Some(Ok(index)) => Some(tcl_registry::native_tcloo_compilation::SELF_SUBCOMMANDS[index]),
+        Some(Err(error)) => return crate::command::completion_from_cmd_error(vm, error),
         None => None,
     };
+    let fr = native_context::current_method(vm).expect("checked original method frame");
     match sub {
         None | Some("object") => ok(self_name),
         Some("namespace") => {
