@@ -201410,6 +201410,182 @@
         "naming.string.original-counted-index-range-storage-and-results"
       ],
       "reason": "Exact original closed measured process capture, selected whole input/source bytes or lossless image/stream retention; no guessed allocator producer, unmeasured callback chronology, Rust assertion or BIG-IP outcome is issued."
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/README.md",
+      "sha256": "9b62d42244d532d5d11338f74836bc66ef31d97d0b43c8d1e71c283fa5a4b88f",
+      "bytes": 827,
+      "candidate": false,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.source.original-point-operand-projection"
+      ],
+      "reason": "Exact original bounded independent Rust diagnostic retention; no full library test, external provider or unmeasured source outcome follows."
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/base-compile.stderr",
+      "sha256": "8953cccb3c3a2350db33044e32662d8033982fbe35f34dd39e5dc3f17bbd25d6",
+      "bytes": 4635,
+      "candidate": false,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.source.original-point-operand-projection"
+      ],
+      "reason": "Exact original bounded independent Rust diagnostic retention; no full library test, external provider or unmeasured source outcome follows."
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/base-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.source.original-point-operand-projection"
+      ],
+      "reason": "Exact original bounded independent Rust diagnostic retention; no full library test, external provider or unmeasured source outcome follows."
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/base-execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.source.original-point-operand-projection"
+      ],
+      "reason": "Exact original bounded independent Rust diagnostic retention; no full library test, external provider or unmeasured source outcome follows."
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/base-execute.stdout",
+      "sha256": "0f6bdf14686968504600f012b06877d355a4439bb90b7d4674051be05215b74f",
+      "bytes": 115573,
+      "candidate": false,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.source.original-point-operand-projection"
+      ],
+      "reason": "Exact original bounded independent Rust diagnostic retention; no full library test, external provider or unmeasured source outcome follows."
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/base.elf.gz",
+      "sha256": "3e8b25f84b300ed6e1da342e17ded2d4bf4b63d2302aee03b219a92a441a464b",
+      "bytes": 1407520,
+      "candidate": false,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.source.original-point-operand-projection"
+      ],
+      "reason": "Exact original bounded independent Rust diagnostic retention; no full library test, external provider or unmeasured source outcome follows."
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/base.rs",
+      "sha256": "a2094a885838ca9f83feb292d7ec21e28616d2075b1f3b639dcf86a27db81963",
+      "bytes": 1543,
+      "candidate": false,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.source.original-point-operand-projection"
+      ],
+      "reason": "Exact original bounded independent Rust diagnostic retention; no full library test, external provider or unmeasured source outcome follows."
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/candidate-compile.stderr",
+      "sha256": "d170edca21ef5dd136691fb514a40d4009f6f1084a07fe5013d63a4c396f255d",
+      "bytes": 4899,
+      "candidate": false,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.source.original-point-operand-projection"
+      ],
+      "reason": "Exact original bounded independent Rust diagnostic retention; no full library test, external provider or unmeasured source outcome follows."
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/candidate-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.source.original-point-operand-projection"
+      ],
+      "reason": "Exact original bounded independent Rust diagnostic retention; no full library test, external provider or unmeasured source outcome follows."
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/candidate-execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.source.original-point-operand-projection"
+      ],
+      "reason": "Exact original bounded independent Rust diagnostic retention; no full library test, external provider or unmeasured source outcome follows."
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/candidate-execute.stdout",
+      "sha256": "e70c14b8a475f5bb9fd9d4fa110d28d31a9d22a931775b5bfd94dc369dc2b3b6",
+      "bytes": 23,
+      "candidate": false,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.source.original-point-operand-projection"
+      ],
+      "reason": "Exact original bounded independent Rust diagnostic retention; no full library test, external provider or unmeasured source outcome follows."
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/candidate.elf.gz",
+      "sha256": "9858eebc82e9f4604624d7a30823c0316f4247e3f65e2091ad5cf0eba7716c38",
+      "bytes": 1407737,
+      "candidate": false,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.source.original-point-operand-projection"
+      ],
+      "reason": "Exact original bounded independent Rust diagnostic retention; no full library test, external provider or unmeasured source outcome follows."
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/candidate.rs",
+      "sha256": "99f77d5a040929c4af4763ed12cc46e67c16d327da961e6b66faedeba0ba40b7",
+      "bytes": 1497,
+      "candidate": false,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.source.original-point-operand-projection"
+      ],
+      "reason": "Exact original bounded independent Rust diagnostic retention; no full library test, external provider or unmeasured source outcome follows."
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/pinned-inputs.tar.gz",
+      "sha256": "185a6dcf5dbf6be7aaece6548c28de70012d4734c311f6ec02e111cde342262e",
+      "bytes": 1165947,
+      "candidate": false,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.source.original-point-operand-projection"
+      ],
+      "reason": "Exact original bounded independent Rust diagnostic retention; no full library test, external provider or unmeasured source outcome follows."
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/receipts.json",
+      "sha256": "4b063785f76239f9dc72e36f1b5bb9626acba37e25fba879a7fc44ce0d166cdd",
+      "bytes": 8258,
+      "candidate": true,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.source.original-point-operand-projection"
+      ],
+      "reason": "Exact original bounded independent Rust diagnostic retention; no full library test, external provider or unmeasured source outcome follows."
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/retention.json",
+      "sha256": "d34d8b9086aff5acec4e2a4cf1261f63aa96b91101a1d1855360e8e9225728cb",
+      "bytes": 7603,
+      "candidate": true,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.source.original-point-operand-projection"
+      ],
+      "reason": "Exact original bounded independent Rust diagnostic retention; no full library test, external provider or unmeasured source outcome follows."
     }
   ]
 }

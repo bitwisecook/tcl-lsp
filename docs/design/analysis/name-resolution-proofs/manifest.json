@@ -235430,6 +235430,48 @@
           "sha256": "903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c",
           "description": "Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.",
           "json_pointer": "/exact_question_body_outcomes"
+        },
+        {
+          "id": "current-cst-green",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/parsing/syntax/green.rs",
+          "sha256": "1262e14ea4d5cae6c97da7f77827ff0c85ee8e7bd38ed4f8a0106eb3d49a10b7",
+          "description": "Retain the actual original lexer record recipe separately from literal trivia tiling width, without reconstructing token meaning from bytes. Current implementation source is independent of the diagnostic images and conveys no executed assertion."
+        },
+        {
+          "id": "current-cst-build",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/parsing/syntax/build.rs",
+          "sha256": "d516fca89ed6c646683bf16199b6c47c6271226c9ca3dfebda1bbe6ceafc7a5e",
+          "description": "Keep original lexer trivia records while assembling the configured original source CST. Current implementation source is independent of the diagnostic images and conveys no executed assertion."
+        },
+        {
+          "id": "current-cst-red",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/parsing/syntax/red.rs",
+          "sha256": "ee58028f1135a81d18922d01ff13f477fb04ff856767096f5c5bc085d4ecb619",
+          "description": "Project actual original lexer records and anchor coordinates while keeping the semantic token API independent. Current implementation source is independent of the diagnostic images and conveys no executed assertion."
+        },
+        {
+          "id": "current-cst-segment",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/parsing/syntax/segment.rs",
+          "sha256": "d1a5cb8d510393680cd59585051392caa40ccc6653ae27663ac80e16b58bd455",
+          "description": "Supply original interior separators to shared written-word grouping, preserving reporting extents independently. Current implementation source is independent of the diagnostic images and conveys no executed assertion."
+        },
+        {
+          "id": "independent-cst-lexer-projection",
+          "role": "observation",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/receipts.json",
+          "sha256": "4b063785f76239f9dc72e36f1b5bb9626acba37e25fba879a7fc44ce0d166cdd",
+          "description": "Four actual independent diagnostic processes: both compile successfully; semantic projection compared with full original lexical records exits1 with112 differences; lexical projection exits0 with126 exact vectors. This is not a Compiler library test or native-provider observation."
+        },
+        {
+          "id": "independent-cst-lexer-retention",
+          "role": "provider",
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/retention.json",
+          "sha256": "d34d8b9086aff5acec4e2a4cf1261f63aa96b91101a1d1855360e8e9225728cb",
+          "description": "Whole original three-owner sources, compiler/Lexer library bytes, driver inputs, streams and lossless executable images; limited to the actual recorded diagnostic."
         }
       ],
       "source_anchors": [],
@@ -235468,6 +235510,26 @@
           "path": "rust/tcl-compiler/src/command_binding/deferred_namespace_index.rs",
           "symbol": "DeferredNamespaceIndexCache",
           "purpose": "Derive exact implementation-to-holder alternatives only from the strongly retained original BindingTable Arc; COW mutation and independent equal tables get separate derived caches."
+        },
+        {
+          "path": "rust/tcl-compiler/src/parsing/syntax/green.rs",
+          "symbol": "GreenTrivia",
+          "purpose": "Retain the actual original lexer record recipe separately from literal trivia tiling width, without reconstructing token meaning from bytes."
+        },
+        {
+          "path": "rust/tcl-compiler/src/parsing/syntax/build.rs",
+          "symbol": "build_document_image",
+          "purpose": "Keep original lexer trivia records while assembling the configured original source CST."
+        },
+        {
+          "path": "rust/tcl-compiler/src/parsing/syntax/red.rs",
+          "symbol": "SyntaxNode::lexer_tokens",
+          "purpose": "Project actual original lexer records and anchor coordinates while keeping the semantic token API independent."
+        },
+        {
+          "path": "rust/tcl-compiler/src/parsing/syntax/segment.rs",
+          "symbol": "command_segment",
+          "purpose": "Supply original interior separators to shared written-word grouping, preserving reporting extents independently."
         }
       ],
       "tests": [
@@ -235542,6 +235604,12 @@
           "selector": "command_binding::original_body_namespace::tests::original_body_word_extent_keeps_inner_and_whole_geometry_separate",
           "status": "linked",
           "assertion": "Body word extent keeps inner and whole geometry separate. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission."
+        },
+        {
+          "path": "rust/tcl-compiler/src/parsing/syntax/red.rs",
+          "selector": "parsing::syntax::red::tests::original_cst_lexer_tokens_keep_actual_trivia_and_empty_terminators",
+          "status": "linked",
+          "assertion": "Across seven configured dialects, nine original sources and both document/native-byte channels, the lexical CST API exactly preserves original lexer kind/span/content-offset/quote records, including empty separators/terminators and anchor translation; the semantic API retains its separately filtered contract. This source-defined control has no matching current whole-Compiler assertion outcome or external-provider result."
         }
       ],
       "replay": {

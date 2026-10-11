@@ -1,0 +1,110 @@
+{
+  "original_to_stored": [
+    {
+      "original": "/tmp/owned-cst-trivia-diagnostic639/base-compile.stderr",
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/base-compile.stderr",
+      "original_sha256": "8953cccb3c3a2350db33044e32662d8033982fbe35f34dd39e5dc3f17bbd25d6",
+      "stored_sha256": "8953cccb3c3a2350db33044e32662d8033982fbe35f34dd39e5dc3f17bbd25d6",
+      "compression": null
+    },
+    {
+      "original": "/tmp/owned-cst-trivia-diagnostic639/base-compile.stdout",
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/base-compile.stdout",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compression": null
+    },
+    {
+      "original": "/tmp/owned-cst-trivia-diagnostic639/base-execute.stderr",
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/base-execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compression": null
+    },
+    {
+      "original": "/tmp/owned-cst-trivia-diagnostic639/base-execute.stdout",
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/base-execute.stdout",
+      "original_sha256": "0f6bdf14686968504600f012b06877d355a4439bb90b7d4674051be05215b74f",
+      "stored_sha256": "0f6bdf14686968504600f012b06877d355a4439bb90b7d4674051be05215b74f",
+      "compression": null
+    },
+    {
+      "original": "/tmp/owned-cst-trivia-diagnostic639/base.elf",
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/base.elf.gz",
+      "original_sha256": "4657b1be7801263a8f1db7738e88111b09ad8e9ed1f9441b784d3b8fa892aaf7",
+      "stored_sha256": "3e8b25f84b300ed6e1da342e17ded2d4bf4b63d2302aee03b219a92a441a464b",
+      "compression": "gzip"
+    },
+    {
+      "original": "/tmp/owned-cst-trivia-diagnostic639/base.rs",
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/base.rs",
+      "original_sha256": "a2094a885838ca9f83feb292d7ec21e28616d2075b1f3b639dcf86a27db81963",
+      "stored_sha256": "a2094a885838ca9f83feb292d7ec21e28616d2075b1f3b639dcf86a27db81963",
+      "compression": null
+    },
+    {
+      "original": "/tmp/owned-cst-trivia-diagnostic639/candidate-compile.stderr",
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/candidate-compile.stderr",
+      "original_sha256": "d170edca21ef5dd136691fb514a40d4009f6f1084a07fe5013d63a4c396f255d",
+      "stored_sha256": "d170edca21ef5dd136691fb514a40d4009f6f1084a07fe5013d63a4c396f255d",
+      "compression": null
+    },
+    {
+      "original": "/tmp/owned-cst-trivia-diagnostic639/candidate-compile.stdout",
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/candidate-compile.stdout",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compression": null
+    },
+    {
+      "original": "/tmp/owned-cst-trivia-diagnostic639/candidate-execute.stderr",
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/candidate-execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compression": null
+    },
+    {
+      "original": "/tmp/owned-cst-trivia-diagnostic639/candidate-execute.stdout",
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/candidate-execute.stdout",
+      "original_sha256": "e70c14b8a475f5bb9fd9d4fa110d28d31a9d22a931775b5bfd94dc369dc2b3b6",
+      "stored_sha256": "e70c14b8a475f5bb9fd9d4fa110d28d31a9d22a931775b5bfd94dc369dc2b3b6",
+      "compression": null
+    },
+    {
+      "original": "/tmp/owned-cst-trivia-diagnostic639/candidate.elf",
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/candidate.elf.gz",
+      "original_sha256": "66187acd37b1ce779cd0081f1d92a886a750be1a9c49728a80c797aff85d705d",
+      "stored_sha256": "9858eebc82e9f4604624d7a30823c0316f4247e3f65e2091ad5cf0eba7716c38",
+      "compression": "gzip"
+    },
+    {
+      "original": "/tmp/owned-cst-trivia-diagnostic639/candidate.rs",
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/candidate.rs",
+      "original_sha256": "99f77d5a040929c4af4763ed12cc46e67c16d327da961e6b66faedeba0ba40b7",
+      "stored_sha256": "99f77d5a040929c4af4763ed12cc46e67c16d327da961e6b66faedeba0ba40b7",
+      "compression": null
+    },
+    {
+      "original": "/tmp/owned-cst-trivia-diagnostic639/receipts.json",
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/receipts.json",
+      "original_sha256": "4b063785f76239f9dc72e36f1b5bb9626acba37e25fba879a7fc44ce0d166cdd",
+      "stored_sha256": "4b063785f76239f9dc72e36f1b5bb9626acba37e25fba879a7fc44ce0d166cdd",
+      "compression": null
+    }
+  ],
+  "whole_input_pins": {
+    "/tmp/owned-cst-trivia-diagnostic639/base.rs": "a2094a885838ca9f83feb292d7ec21e28616d2075b1f3b639dcf86a27db81963",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc": "f3834d26669b03f6855fa54bd2381443123e860167bc0c7a8dd137e5cf6e5e4f",
+    "/workspace/.targets/naming-upstream-clean/debug/deps/libtcl_lexer-14f96023fa581477.rlib": "7bee8a031b4c36a15608628f38747a4193f7682478937bc0798bdb0080a0fbd6",
+    "/workspace/.proofs/root-cst-trivia-token639/base/rust/tcl-compiler/src/parsing/syntax/green.rs": "1495e7854961b163a010c138a0a3d829b091235ea86c71f5c14bdcf20223c8ae",
+    "/workspace/.proofs/root-cst-trivia-token639/base/rust/tcl-compiler/src/parsing/syntax/build.rs": "4b99434e46592a03e601f00fe1d64fc2b73a22f0fe782839a497ab419971fd3b",
+    "/workspace/.proofs/root-cst-trivia-token639/base/rust/tcl-compiler/src/parsing/syntax/red.rs": "06aae6106a4ade6aedf7f122532167c47b02724d086db672b1bf2cd11dfd862b",
+    "/tmp/owned-cst-trivia-diagnostic639/candidate.rs": "99f77d5a040929c4af4763ed12cc46e67c16d327da961e6b66faedeba0ba40b7",
+    "/workspace/.proofs/root-cst-trivia-token639/candidate/rust/tcl-compiler/src/parsing/syntax/green.rs": "1262e14ea4d5cae6c97da7f77827ff0c85ee8e7bd38ed4f8a0106eb3d49a10b7",
+    "/workspace/.proofs/root-cst-trivia-token639/candidate/rust/tcl-compiler/src/parsing/syntax/build.rs": "d516fca89ed6c646683bf16199b6c47c6271226c9ca3dfebda1bbe6ceafc7a5e",
+    "/workspace/.proofs/root-cst-trivia-token639/candidate/rust/tcl-compiler/src/parsing/syntax/red.rs": "ee58028f1135a81d18922d01ff13f477fb04ff856767096f5c5bc085d4ecb619"
+  },
+  "input_archive_sha256": "185a6dcf5dbf6be7aaece6548c28de70012d4734c311f6ec02e111cde342262e",
+  "whole_members_verified": true,
+  "scope": "Three included CST owners and the explicitly recorded Lexer library and compiler bytes. Additional link/toolchain/load closure is not measured. Two APIs are compared independently with original configured lexer records; no full Compiler library assertion or external provider execution is admitted."
+}

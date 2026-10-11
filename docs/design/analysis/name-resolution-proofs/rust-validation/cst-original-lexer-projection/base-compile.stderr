@@ -1,0 +1,135 @@
+warning: methods `width`, `trailing_width`, and `full_text` are never used
+   --> /workspace/.proofs/root-cst-trivia-token639/base/rust/tcl-compiler/src/parsing/syntax/green.rs:245:12
+    |
+204 | impl GreenToken {
+    | --------------- methods in this implementation
+...
+245 |     pub fn width(&self) -> u32 {
+    |            ^^^^^
+...
+257 |     pub fn trailing_width(&self) -> u32 {
+    |            ^^^^^^^^^^^^^^
+...
+281 |     pub fn full_text(&self) -> String {
+    |            ^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `full_text` is never used
+   --> /workspace/.proofs/root-cst-trivia-token639/base/rust/tcl-compiler/src/parsing/syntax/green.rs:317:12
+    |
+297 | impl GreenElement {
+    | ----------------- method in this implementation
+...
+317 |     pub fn full_text(&self) -> String {
+    |            ^^^^^^^^^
+
+warning: method `is_expand` is never used
+   --> /workspace/.proofs/root-cst-trivia-token639/base/rust/tcl-compiler/src/parsing/syntax/green.rs:471:12
+    |
+373 | impl GreenNode {
+    | -------------- method in this implementation
+...
+471 |     pub fn is_expand(&self) -> bool {
+    |            ^^^^^^^^^
+
+warning: function `build_document` is never used
+  --> /workspace/.proofs/root-cst-trivia-token639/base/rust/tcl-compiler/src/parsing/syntax/build.rs:66:8
+   |
+66 | pub fn build_document(source: &str, config: LexerConfig) -> (GreenNode, Vec<LexWarning>) {
+   |        ^^^^^^^^^^^^^^
+
+warning: function `build_document_with_ghosts` is never used
+  --> /workspace/.proofs/root-cst-trivia-token639/base/rust/tcl-compiler/src/parsing/syntax/build.rs:74:8
+   |
+74 | pub fn build_document_with_ghosts(
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: fields `base_line`, `base_col`, `text`, and `line_starts` are never read
+  --> /workspace/.proofs/root-cst-trivia-token639/base/rust/tcl-compiler/src/parsing/syntax/red.rs:71:5
+   |
+68 | pub struct SyntaxTree {
+   |            ---------- fields in this struct
+...
+71 |     base_line: u32,
+   |     ^^^^^^^^^
+72 |     base_col: u32,
+   |     ^^^^^^^^
+73 |     text: String,
+   |     ^^^^
+74 |     line_starts: Vec<u32>,
+   |     ^^^^^^^^^^^
+   |
+   = note: `SyntaxTree` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: associated items `with_parts`, `text`, `green`, and `position_at` are never used
+   --> /workspace/.proofs/root-cst-trivia-token639/base/rust/tcl-compiler/src/parsing/syntax/red.rs:109:12
+    |
+ 77 | impl SyntaxTree {
+    | --------------- associated items in this implementation
+...
+109 |     pub fn with_parts(
+    |            ^^^^^^^^^^
+...
+129 |     pub fn text(&self) -> &str {
+    |            ^^^^
+...
+135 |     pub fn green(&self) -> &GreenNode {
+    |            ^^^^^
+...
+155 |     pub fn position_at(&self, region_offset: u32) -> SourcePosition {
+    |            ^^^^^^^^^^^
+
+warning: multiple methods are never used
+   --> /workspace/.proofs/root-cst-trivia-token639/base/rust/tcl-compiler/src/parsing/syntax/red.rs:185:12
+    |
+182 | impl<'t> SyntaxToken<'t> {
+    | ------------------------ methods in this implementation
+...
+185 |     pub fn green(&self) -> &'t GreenToken {
+    |            ^^^^^
+...
+191 |     pub fn token_type(&self) -> TokenType {
+    |            ^^^^^^^^^^
+...
+197 |     pub fn text(&self) -> &'t str {
+    |            ^^^^
+...
+203 |     pub fn raw(&self) -> &'t str {
+    |            ^^^
+...
+209 |     pub fn in_quote(&self) -> bool {
+    |            ^^^^^^^^
+...
+222 |     pub fn start_position(&self) -> SourcePosition {
+    |            ^^^^^^^^^^^^^^
+...
+228 |     pub fn end_position(&self) -> SourcePosition {
+    |            ^^^^^^^^^^^^
+
+warning: methods `green`, `kind`, `full_start`, and `start_position` are never used
+   --> /workspace/.proofs/root-cst-trivia-token639/base/rust/tcl-compiler/src/parsing/syntax/red.rs:278:12
+    |
+275 | impl<'t> SyntaxNode<'t> {
+    | ----------------------- methods in this implementation
+...
+278 |     pub fn green(&self) -> &'t GreenNode {
+    |            ^^^^^
+...
+284 |     pub fn kind(&self) -> super::green::SyntaxKind {
+    |            ^^^^
+...
+290 |     pub fn full_start(&self) -> u32 {
+    |            ^^^^^^^^^^
+...
+358 |     pub fn start_position(&self) -> SourcePosition {
+    |            ^^^^^^^^^^^^^^
+
+warning: function `first_leading_width` is never used
+   --> /workspace/.proofs/root-cst-trivia-token639/base/rust/tcl-compiler/src/parsing/syntax/red.rs:372:4
+    |
+372 | fn first_leading_width(green: &GreenNode) -> u32 {
+    |    ^^^^^^^^^^^^^^^^^^^
+
+warning: 10 warnings emitted
+
