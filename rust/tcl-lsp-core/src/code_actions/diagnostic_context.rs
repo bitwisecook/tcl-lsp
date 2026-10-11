@@ -650,7 +650,9 @@ mod tests {
         let input = analysis.resolved_input.as_ref().unwrap();
         let older_context = tcl_registry::model::resolve_environment("tcl8.4")
             .default_context_registry()
-            .with_command_store(registry.snapshot().shared_registry());
+            .with_command_store(std::sync::Arc::clone(
+                input.borrowed_context_registry().commands(),
+            ));
         let older_input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
             input.analyser_profile(),
             input.unit_profile(),

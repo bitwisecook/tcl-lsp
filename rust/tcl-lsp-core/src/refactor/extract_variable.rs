@@ -49,23 +49,20 @@ pub fn extract_variable(
     if selected.trim().is_empty() {
         return None;
     }
-    let registry = current.registry();
-    if !analysis.allows_lexical_declaration_advice() {
-        let reason = original_assignment_candidate(source, Span::new(start, end), var_name, analysis)
-            .err().unwrap_or_else(|| "Variable extraction requires an independently proved inserted store and evaluation movement".to_owned());
-        return Some(Refactoring {
-            title: format!("Extract into variable '{var_name}'"),
-            edits: Vec::new(),
-            kind: ActionKind::RefactorExtract,
-            data_group: None,
-            disabled: Some(reason),
-        });
-    }
-    if !crate::rename::is_safe_symbol_name(var_name) {
+    let proposed_reference = format!("${var_name}");
+    let proposed =
+        tcl_lexer::word_parts::whole_var_ref(proposed_reference.as_bytes(), config.nested())
+            .ok()??;
+    if proposed.index.is_some()
+        || proposed.name != var_name.as_bytes()
+        || tcl_syntax::naming::is_qualified(var_name)
+    {
         return None;
     }
-    let value = logical_value_word(selected, config)?;
-    let setter = unique_logical_command(registry, analysis, LoweringHookId::Set)?;
+    let registry = current.registry();
+    // Structural source selection precedes purpose-specific advice. An
+    // unavailable edit licence does not make a malformed selection a candidate.
+    let value = logical_value_word(selected, config.nested())?;
     let command = super::find_original_command_at(source, start, analysis)?;
     let (command_start, command_end) = super::command_span_offsets(source, &command);
     if start < command_start || end > command_end {
@@ -83,6 +80,21 @@ pub fn extract_variable(
     {
         return None;
     }
+    if !analysis.allows_lexical_declaration_advice() {
+        let reason = original_assignment_candidate(source, Span::new(start, end), var_name, analysis)
+            .err().unwrap_or_else(|| "Variable extraction requires an independently proved inserted store and evaluation movement".to_owned());
+        return Some(Refactoring {
+            title: format!("Extract into variable '{var_name}'"),
+            edits: Vec::new(),
+            kind: ActionKind::RefactorExtract,
+            data_group: None,
+            disabled: Some(reason),
+        });
+    }
+    if !crate::rename::is_safe_symbol_name(var_name) {
+        return None;
+    }
+    let setter = unique_logical_command(registry, analysis, LoweringHookId::Set)?;
     match analysis
         .retained_command_realm()?
         .binding_at(setter, command_start)
@@ -409,7 +421,9 @@ mod tests {
             "set seasoning {salt and pepper}\nputs $seasoning"
         );
         assert!(extract_variable(source, (5, end), "seasoning", &analyse(older), &index).is_none());
-        assert!(crate::original_context::CurrentSourceContext::capture(source, &analysis).is_some());
+        assert!(
+            crate::original_context::CurrentSourceContext::capture(source, &analysis).is_some()
+        );
         assert!(analysis.allows_retained_logical_declaration_advice());
 
         let mut missing = analysis.clone();
@@ -485,5 +499,50 @@ mod tests {
                 .is_none()
             );
         }
+    }
+    #[test]
+    fn original_extraction_validates_complete_word_before_unlicensed_advice() {
+        // naming.refactor.original-variable-extraction-permission
+        // docs/design/analysis/name-resolution-proofs/refactor-original-variable-extraction-permission.md
+        // Geometry is read-only; this genuine Native input supplies no motion or store licence.
+        let source = "proc p {} {puts literal}; p";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let index = LineIndex::new(source);
+        let start = u32::try_from(source.find("literal").unwrap()).unwrap();
+        let valid = extract_variable(source, (start, start + 7), "result", &analysis, &index)
+            .expect("one original complete value word remains a candidate");
+        assert!(valid.disabled.is_some());
+        assert!(valid.edits.is_empty());
+        for malformed_name in ["a b", "arr(k)", "ns::result", "::result", "", "a; puts x"] {
+            assert!(
+                extract_variable(
+                    source,
+                    (start, start + 7),
+                    malformed_name,
+                    &analysis,
+                    &index
+                )
+                .is_none()
+            );
+        }
+        let unicode = extract_variable(source, (start, start + 7), "café", &analysis, &index)
+            .expect("a complete Unicode scalar reference remains valid unlicensed advice");
+        assert!(unicode.disabled.is_some());
+        assert!(unicode.edits.is_empty());
+        assert!(
+            extract_variable(source, (start, start + 6), "result", &analysis, &index).is_none()
+        );
+        let source = "puts helper {a and b} $x";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            extract_variable(
+                source,
+                (5, u32::try_from(source.len()).unwrap()),
+                "result",
+                &analysis,
+                &LineIndex::new(source),
+            )
+            .is_none()
+        );
     }
 }
