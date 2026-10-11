@@ -370,7 +370,9 @@ impl Interp {
 }
 
 #[cfg(test)]
+#[path = "native_dictionary_mutation/original_boundary_tests.rs"]
 mod original_boundary_tests;
 
 #[cfg(test)]
+#[path = "native_dictionary_mutation/original_increment_tests.rs"]
 mod original_increment_tests;
