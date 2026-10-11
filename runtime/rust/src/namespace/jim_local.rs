@@ -85,7 +85,8 @@ impl Namespaces {
         let Some(top) = self.arena[super::GLOBAL].commands.take_slot(key) else {
             return;
         };
-        if let Some(previous) = self.jim_previous_commands.remove(&top.generation) {
+        let top_generation = top.generation;
+        if let Some(previous) = self.jim_previous_commands.remove(&top_generation) {
             let previous_token = previous.generation;
             self.arena[super::GLOBAL]
                 .commands
@@ -93,13 +94,23 @@ impl Namespaces {
             if let Some(node) = self.native_command_nodes.get_mut(&previous_token) {
                 node.placement = Some((super::GLOBAL, key.to_vec()));
             }
+            self.arena[super::GLOBAL]
+                .commands
+                .retired
+                .borrow_mut()
+                .push(super::RetiredCommandSlot {
+                    original_jim_key: None,
+                    binding: Some(top),
+                });
         } else {
-            self.arena[super::GLOBAL].commands.drop_entry(key);
+            self.arena[super::GLOBAL]
+                .commands
+                .drop_entry_with_binding(key, top);
         }
-        if let Some(node) = self.native_command_nodes.get_mut(&top.generation) {
+        if let Some(node) = self.native_command_nodes.get_mut(&top_generation) {
             node.placement = None;
         }
-        self.note_jim_command_retirement(top.generation);
+        self.note_jim_command_retirement(top_generation);
     }
     pub(super) fn release_jim_previous(&mut self, token: u64) {
         if let Some(CommandBinding { generation, .. }) = self.jim_previous_commands.remove(&token) {

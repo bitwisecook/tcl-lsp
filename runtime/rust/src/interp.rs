@@ -75,6 +75,9 @@ pub(crate) use native_procedure_resources::{NativeCallableProcedure, NativeProce
 mod execution_name_policy;
 pub(crate) mod native_arguments;
 mod native_command_rename;
+#[cfg(test)]
+#[path = "interp/native_eval_object_tests.rs"]
+mod native_eval_object_tests;
 mod native_event_context;
 mod native_object_vector;
 pub(crate) mod native_operation_currency;
@@ -82,9 +85,6 @@ pub(crate) mod native_scalar_context;
 mod native_script;
 mod native_substitution;
 mod native_variable_names;
-#[cfg(test)]
-#[path = "interp/native_eval_object_tests.rs"]
-mod native_eval_object_tests;
 mod native_variable_observers;
 mod native_variable_teardown;
 mod stock_ensembles;
@@ -783,7 +783,7 @@ pub enum Command {
         /// the native List or its member references.
         original_prefix: Rc<obj::Owned>,
         /// C retains the original registration name independently of its slot.
-        registration_name: Rc<obj::Owned>,
+        registration_name: Option<Rc<obj::Owned>>,
         /// Registration report retained independently from the lookup slot.
         publication_name: Vec<u8>,
         /// Per-instance identity — see [`Command::is_same_binding`].
@@ -2864,6 +2864,17 @@ impl Interp {
 
     /// Bind a builtin through its actual publication owner.
     fn bind_builtin(&mut self, name: &[u8], f: BuiltinFn) -> u64 {
+        let original_key = match self.generated_jim_command_key(
+            GLOBAL,
+            name,
+            tcl_syntax::naming::NativeNamePurpose::CommandCApiPublication,
+        ) {
+            Ok(key) => key,
+            Err(error) => {
+                self.report_cmd_error(error.into());
+                return 0;
+            }
+        };
         let Some((ns, tail)) = self.namespaces_mut().command_publication_at(GLOBAL, name) else {
             let _ = self.refuse_host_command("builtin publication has no actual namespace");
             return 0;
@@ -2873,7 +2884,16 @@ impl Interp {
             name,
             tcl_syntax::naming::NativeNamePurpose::AliasPublication,
         );
-        self.bind_command_replacement_with_jim_key(ns, &tail, Command::Builtin(f), report);
+        self.bind_command_replacement_with_original_jim_key(
+            ns,
+            &tail,
+            Command::Builtin(f),
+            report,
+            original_key,
+        );
+        if self.host_refusal_pending() {
+            return 0;
+        }
         let (fqn, generation) = {
             let namespaces = self.namespaces.borrow();
             (
@@ -3305,6 +3325,59 @@ impl Interp {
     /// `TclRenameCommand` applies before anything observable happens, then
     /// [`Self::move_bound_command`] or [`Self::delete_bound_command`].
     pub(crate) fn rename_command(&mut self, old: &[u8], new: &[u8]) -> RenameOutcome {
+        let original_key = if new.is_empty() {
+            None
+        } else {
+            match self.generated_jim_command_key(
+                self.current_ns.get(),
+                new,
+                tcl_syntax::naming::NativeNamePurpose::RenameDestination,
+            ) {
+                Ok(key) => key,
+                Err(error) => {
+                    self.report_cmd_error(error.into());
+                    return RenameOutcome::NoSuchCommand;
+                }
+            }
+        };
+        self.rename_command_with_original_jim_key(old, new, original_key)
+    }
+
+    pub(crate) fn rename_command_with_original_jim_key(
+        &mut self,
+        old: &[u8],
+        new: &[u8],
+        original_key: Option<Rc<obj::Owned>>,
+    ) -> RenameOutcome {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return RenameOutcome::NoSuchCommand;
+            }
+        };
+        if self
+            .name_policy_protocol()
+            .is_some_and(|protocol| protocol.recipe().is_jim084())
+        {
+            if self
+                .namespaces()
+                .original_jim_rename_source_of(self.current_ns.get(), old)
+                .is_none()
+            {
+                return RenameOutcome::NoSuchCommand;
+            }
+            if let Some(key) = original_key.as_ref() {
+                let reached = self.native_object_string_bytes(key.as_ptr());
+                if scope.currency().ensure_current_or_refuse().is_err() {
+                    return RenameOutcome::NoSuchCommand;
+                }
+                if let Err(error) = reached {
+                    self.report_cmd_error(error.into());
+                    return RenameOutcome::NoSuchCommand;
+                }
+            }
+        }
         // Inside an open `rename` window the vacating name still resolves, but
         // it *is* the destination command — C's two hash entries reference the
         // one `Command` — so a callback's `rename <old> <third>` or `rename
@@ -3378,7 +3451,7 @@ impl Interp {
         if new.is_empty() {
             self.delete_bound_command(old)
         } else {
-            self.move_bound_command(old, new)
+            self.move_bound_command(old, new, original_key)
         }
     }
 
@@ -3396,7 +3469,15 @@ impl Interp {
     /// and the window
     /// ([`rename_windows`](crate::cmd_trace::TraceTable::rename_windows))
     /// records the equivalence our name-keyed registries cannot express.
-    fn move_bound_command(&mut self, old: &[u8], new: &[u8]) -> RenameOutcome {
+    fn move_bound_command(
+        &mut self,
+        old: &[u8],
+        new: &[u8],
+        original_key: Option<Rc<obj::Owned>>,
+    ) -> RenameOutcome {
+        // Both Jim qualification temporaries survive AddHashEntry and the
+        // original source-slot retirement; keyDup owns a separate reference.
+        let _qualified_destination = original_key.as_ref().map(Rc::clone);
         let Some(old_fqn) = self.resolve_cmd_fqn(old) else {
             return RenameOutcome::NoSuchCommand;
         };
@@ -3404,11 +3485,16 @@ impl Interp {
             Some(Command::OoObject(id)) => Some(id),
             _ => None,
         };
-        let Some(publication) = self.namespaces.borrow_mut().publish_rename_destination(
-            self.current_ns.get(),
-            old,
-            new,
-        ) else {
+        let Some(publication) = self
+            .namespaces
+            .borrow_mut()
+            .publish_rename_destination_with_original_key(
+                self.current_ns.get(),
+                old,
+                new,
+                original_key,
+            )
+        else {
             return RenameOutcome::NoSuchCommand;
         };
         self.retire_pending_native_ensemble_roles();
@@ -3446,6 +3532,7 @@ impl Interp {
         self.namespaces
             .borrow_mut()
             .retire_rename_source(&publication);
+        self.retire_pending_native_ensemble_roles();
         RenameOutcome::Renamed
     }
 
@@ -3528,6 +3615,8 @@ impl Interp {
         } else {
             RenameOutcome::NoSuchCommand
         };
+        drop(bound_before);
+        self.retire_pending_native_ensemble_roles();
         // A delete-trace callback may itself delete the command (e.g. by
         // deleting the object's namespace). C captured the command token before
         // the callback, so the deletion still succeeds — treat "existed at
@@ -3645,8 +3734,12 @@ impl Interp {
             name,
             tcl_syntax::naming::NativeNamePurpose::AliasPublication,
         );
+        let original_key = recipe.is_jim084().then(|| Rc::clone(&registration_name));
+        let registration_name = recipe
+            .alias_record_retains_original_registration_name()
+            .then_some(registration_name);
         let identity = Rc::new(());
-        self.bind_command_replacement_with_jim_key(
+        self.bind_command_replacement_with_original_jim_key(
             ns,
             &simple,
             Command::Alias {
@@ -3656,6 +3749,7 @@ impl Interp {
                 identity: Rc::clone(&identity),
             },
             report,
+            original_key,
         );
         if !recipe.alias_publication_checks_original_target() {
             return Ok(None);
@@ -3676,6 +3770,7 @@ impl Interp {
             }
         };
         drop(retired);
+        self.retire_pending_native_ensemble_roles();
         loops?;
         Ok(Some(simple))
     }
@@ -3782,6 +3877,11 @@ impl Interp {
                 .ok_or(ValueError::CommandProtocolUnavailable(
                     "child alias publication holder",
                 ))?;
+            let original_key = c.generated_jim_command_key(
+                current,
+                name,
+                tcl_syntax::naming::NativeNamePurpose::ChildAliasPublication,
+            )?;
             let registration_name = if receiver
                 .recipe()
                 .alias_record_retains_original_registration_name()
@@ -3797,7 +3897,7 @@ impl Interp {
                 drop(registration_name);
                 None
             };
-            c.bind_command_replacement_with_jim_key(
+            c.bind_command_replacement_with_original_jim_key(
                 namespace,
                 &simple,
                 Command::ParentAlias {
@@ -3807,6 +3907,7 @@ impl Interp {
                     identity: Rc::new(()),
                 },
                 report,
+                original_key,
             );
             Ok(true)
         })
@@ -3831,6 +3932,7 @@ impl Interp {
             }
         };
         drop(retired);
+        self.retire_pending_native_ensemble_roles();
     }
 
     /// The `(target, prefix)` of the alias bound to `name` (the query form), or
@@ -3956,7 +4058,9 @@ impl Interp {
                 registration_name,
                 ..
             }) => {
-                obj::check_native_liveness(registration_name.as_ptr())?;
+                if let Some(registration_name) = registration_name {
+                    obj::check_native_liveness(registration_name.as_ptr())?;
+                }
                 original_prefix
             }
             Some(Command::ParentAlias {
@@ -4063,13 +4167,14 @@ impl Interp {
             });
             hidden.is_some_and(|name| self.hidden.borrow_mut().remove(&name).is_some())
         };
+        drop(original);
+        self.retire_pending_native_ensemble_roles();
         if removed {
             self.namespaces_mut().retire_native_command_node(generation);
             self.remove_imports_for_deleted_origins([generation], &[]);
             self.retire_pending_native_ensemble_roles();
         }
-        // The original extension delete callback runs outside every table borrow.
-        drop(original);
+        // The original extension delete callback has run outside every table borrow.
         if self.check_entered_native_operation().is_err() {
             return false;
         }
@@ -4231,19 +4336,6 @@ impl Interp {
         )
     }
 
-    pub(crate) fn define_proc_chosen_storage(
-        &mut self,
-        name: &[u8],
-        params: Vec<Param>,
-        parameters_obj: Option<*mut TclObj>,
-        body: (*mut TclObj, obj::Owned),
-        native: Option<NativeProcEntry>,
-        statics: Option<Rc<crate::frame::StaticVariables>>,
-    ) {
-        let _ =
-            self.install_proc_chosen_storage(name, params, parameters_obj, body, native, statics);
-    }
-
     /// Bind the chosen original procedure and return its installed generation.
     pub(crate) fn install_proc_chosen_storage(
         &mut self,
@@ -4254,6 +4346,42 @@ impl Interp {
         native: Option<NativeProcEntry>,
         statics: Option<Rc<crate::frame::StaticVariables>>,
     ) -> Option<u64> {
+        let original_key = match self.generated_jim_command_key(
+            self.current_ns.get(),
+            name,
+            tcl_syntax::naming::NativeNamePurpose::CommandPublication,
+        ) {
+            Ok(key) => key,
+            Err(error) => {
+                self.report_cmd_error(error.into());
+                return None;
+            }
+        };
+        self.install_proc_chosen_storage_with_original_key(
+            (name, original_key),
+            params,
+            parameters_obj,
+            body,
+            native,
+            statics,
+        )
+    }
+
+    /// The original proc command supplies the already-qualified actual key.
+    /// This does not reconstruct a header from the publication report.
+    pub(crate) fn install_proc_chosen_storage_with_original_key(
+        &mut self,
+        name: (&[u8], Option<Rc<obj::Owned>>),
+        params: Vec<Param>,
+        parameters_obj: Option<*mut TclObj>,
+        body: (*mut TclObj, obj::Owned),
+        native: Option<NativeProcEntry>,
+        statics: Option<Rc<crate::frame::StaticVariables>>,
+    ) -> Option<u64> {
+        let (name, original_key) = name;
+        // JimQualifyName's temporary spans CreateCommand and the procedure's
+        // namespace/header handoff, independently of the table's keyDup role.
+        let _qualified_name = original_key.as_ref().map(Rc::clone);
         if self.host_refusal_pending() {
             return None;
         }
@@ -4341,11 +4469,12 @@ impl Interp {
             name,
             tcl_syntax::naming::NativeNamePurpose::CommandPublication,
         );
-        self.bind_command_replacement_with_jim_key(
+        self.bind_command_replacement_with_original_jim_key(
             binding_ns,
             &tail,
             Command::Proc(command),
             report,
+            original_key,
         );
         let generation = self.namespaces().command_generation(binding_ns, &tail);
         let header = match self.original_procedure_compiler_header(parameters_obj, original_body) {
@@ -4391,6 +4520,37 @@ impl Interp {
         command: Command,
         incoming: Option<tcl_syntax::naming::NativeJimCommandTableKey>,
     ) {
+        let original_key = match self.generated_jim_command_key(
+            ns,
+            tail,
+            tcl_syntax::naming::NativeNamePurpose::CommandCApiPublication,
+        ) {
+            Ok(key) => key,
+            Err(error) => {
+                self.report_cmd_error(error.into());
+                return;
+            }
+        };
+        self.bind_command_replacement_with_original_jim_key(
+            ns,
+            tail,
+            command,
+            incoming,
+            original_key,
+        );
+    }
+
+    fn bind_command_replacement_with_original_jim_key(
+        &mut self,
+        ns: NsId,
+        tail: &[u8],
+        command: Command,
+        incoming: Option<tcl_syntax::naming::NativeJimCommandTableKey>,
+        original_key: Option<Rc<obj::Owned>>,
+    ) {
+        // RegisterCommand/QualifyName owns this temporary through replacement
+        // callbacks and publication, separately from a fresh table-key retain.
+        let _registration_name = original_key.as_ref().map(Rc::clone);
         let scope = match native_operation_currency::NativeOperationScope::enter(self) {
             Ok(scope) => scope,
             Err(first) => {
@@ -4418,7 +4578,7 @@ impl Interp {
         let native_entry = self
             .namespaces
             .borrow_mut()
-            .native_command_creation_entry_with_jim_key(ns, tail, incoming);
+            .native_command_creation_entry_with_original_key(ns, tail, incoming, original_key);
         if self.jim_local_depth.get() != 0
             && self
                 .native_invocation_dialect()
@@ -4464,7 +4624,9 @@ impl Interp {
                             .is_some_and(|old| old.is_same_binding(&current))
                     });
             if still_displaced {
-                self.namespaces.borrow_mut().remove_in(ns, tail);
+                self.namespaces
+                    .borrow_mut()
+                    .remove_in_for_replacement(ns, tail);
             }
             self.oo_command_renamed(owner, None);
             if scope.currency().ensure_current_or_refuse().is_err()
@@ -4486,13 +4648,27 @@ impl Interp {
                         .is_some_and(|old| old.is_same_binding(&current))
                 });
         if still_displaced {
-            self.namespaces.borrow_mut().remove_in(ns, tail);
+            self.namespaces
+                .borrow_mut()
+                .remove_in_for_replacement(ns, tail);
         }
         let slot_was_empty = self.namespaces.borrow().command_in(ns, tail).is_none();
         drop(displaced);
+        self.retire_pending_native_ensemble_roles();
         if scope.currency().ensure_current_or_refuse().is_err()
             || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
         {
+            return;
+        }
+        if !self
+            .namespaces()
+            .original_jim_creation_slot_is_current(&native_entry)
+        {
+            self.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original Jim command key slot retired",
+                ),
+            );
             return;
         }
         // The original idle public object-command overwrite discards a record
@@ -4546,10 +4722,40 @@ impl Interp {
         // Other publication purposes keep their ordinary retained-handle
         // retirement; no idle object-command receipt is donated to them.
         let recreated = self.namespaces.borrow().command_in(ns, tail);
-        self.namespaces
-            .borrow_mut()
-            .bind_after_native_creation_entry(native_entry, tail, command);
-        drop(recreated);
+        if self
+            .name_policy_protocol()
+            .is_some_and(|protocol| protocol.recipe().is_jim084())
+        {
+            self.namespaces
+                .borrow_mut()
+                .remove_in_for_replacement(ns, tail);
+            drop(recreated);
+            self.retire_pending_native_ensemble_roles();
+            if scope.currency().ensure_current_or_refuse().is_err()
+                || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
+            {
+                return;
+            }
+            if !self
+                .namespaces()
+                .original_jim_creation_slot_is_current(&native_entry)
+            {
+                self.refuse_native_access(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "original Jim command key slot retired",
+                    ),
+                );
+                return;
+            }
+            self.namespaces
+                .borrow_mut()
+                .bind_after_native_creation_entry(native_entry, tail, command);
+        } else {
+            self.namespaces
+                .borrow_mut()
+                .bind_after_native_creation_entry(native_entry, tail, command);
+            drop(recreated);
+        }
         if scope.currency().ensure_current_or_refuse().is_err()
             || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
         {
@@ -8426,6 +8632,7 @@ impl Interp {
                 };
                 let oo_owner = command.as_ref().and_then(Command::oo_object);
                 self.namespaces.borrow_mut().remove_in(ns, &tail);
+                drop(command);
                 self.retire_pending_native_ensemble_roles();
                 self.remove_imports_for_deleted_origins([generation], &ensemble_tokens);
                 if let Some(owner) = oo_owner {
@@ -8556,6 +8763,42 @@ impl Interp {
         );
         self.remove_imports_for_deleted_origins(origins.iter().copied(), &tokens);
         let cleared = self.namespaces.borrow().command_locations_in_ids(&ids);
+        if self
+            .name_policy_protocol()
+            .is_some_and(|policy| policy.recipe().is_jim084())
+        {
+            // The residual fixed-point sweep may contain callback-created Jim
+            // slots. Retire each captured generation before variable/namespace
+            // cleanup; an original key destructor runs outside the borrow.
+            let slots = {
+                let namespaces = self.namespaces.borrow();
+                namespaces
+                    .command_slots_in_ids(&ids)
+                    .into_iter()
+                    .filter_map(|(ns, tail)| {
+                        Some((ns, tail.clone(), namespaces.command_generation(ns, &tail)?))
+                    })
+                    .collect::<Vec<_>>()
+            };
+            for (ns, tail, generation) in slots {
+                let retired = {
+                    let mut namespaces = self.namespaces.borrow_mut();
+                    if namespaces.command_generation(ns, &tail) == Some(generation) {
+                        namespaces.remove_in(ns, &tail)
+                    } else {
+                        None
+                    }
+                };
+                drop(retired);
+                self.retire_pending_native_ensemble_roles();
+            }
+            // A destructor may publish a distinct new slot. It needs the
+            // existing fresh teardown frontier and callbacks, never the old
+            // captured generation's authority or a blind bulk removal.
+            for &ns in &ids {
+                self.tear_down_command_table(ns);
+            }
+        }
         let retired = self.namespaces.borrow_mut().clear_namespace_ids(&ids);
         self.retire_pending_native_ensemble_roles();
         drop(retired);
@@ -12151,7 +12394,9 @@ impl Interp {
         caller: NsId,
         origin: tcl_registry::command_lookup::CommandLookupOrigin,
     ) -> Result<Box<PreparedMissingCommand>, Code> {
-        use tcl_registry::command_lookup::{native_lookup_fallback_policy, UnknownHandlerNamespace};
+        use tcl_registry::command_lookup::{
+            native_lookup_fallback_policy, UnknownHandlerNamespace,
+        };
         use tcl_syntax::value::ValueOps;
         let Some(policy) = native_lookup_fallback_policy(self.native_invocation_dialect(), origin)
         else {
@@ -13132,6 +13377,7 @@ impl Interp {
                 let Some(binding) = self.namespaces.borrow_mut().take(GLOBAL, name) else {
                     return CommandVisibilityOutcome::Missing;
                 };
+                self.retire_pending_native_ensemble_roles();
                 let mut hidden_fqn = b"::".to_vec();
                 hidden_fqn.extend_from_slice(hidden_name);
                 if let Some(old_fqn) = &old_fqn {
@@ -13169,6 +13415,17 @@ impl Interp {
         if self.namespaces.borrow().resolve_fqn(GLOBAL, name).is_some() {
             return CommandVisibilityOutcome::Collision;
         }
+        let original_key = match self.generated_jim_command_key(
+            GLOBAL,
+            name,
+            tcl_syntax::naming::NativeNamePurpose::CommandCApiPublication,
+        ) {
+            Ok(key) => key,
+            Err(error) => {
+                self.report_cmd_error(error.into());
+                return CommandVisibilityOutcome::Missing;
+            }
+        };
         // Invalidate before removing from the hidden table. A missing entry may
         // over-invalidate, which is preferable to a re-entrant visibility gap.
         self.invalidate_interpreter_policy();
@@ -13182,7 +13439,9 @@ impl Interp {
                     Command::Ensemble(token) => Some(Rc::clone(token)),
                     _ => None,
                 };
-                self.namespaces.borrow_mut().restore(name, binding);
+                self.namespaces
+                    .borrow_mut()
+                    .restore_with_original_key(name, binding, original_key);
                 self.retire_pending_native_ensemble_roles();
                 let new_fqn = self
                     .namespaces
@@ -13383,11 +13642,12 @@ impl Interp {
     }
 
     fn remove_import_identity(&mut self, identity: &Rc<ImportToken>) -> Option<(Vec<u8>, u64)> {
-        if let Some(fqn) = self
+        let visible = self
             .namespaces
             .borrow_mut()
-            .remove_import_identity(identity)
-        {
+            .remove_import_identity(identity);
+        self.retire_pending_native_ensemble_roles();
+        if let Some(fqn) = visible {
             return Some(fqn);
         }
         let hidden_name = self.hidden.borrow().iter().find_map(|(name, binding)| {
@@ -13446,6 +13706,7 @@ impl Interp {
             .namespaces
             .borrow_mut()
             .remove_ensemble_identity(identity);
+        self.retire_pending_native_ensemble_roles();
         let removed_fqn = visible_removed.or_else(|| {
             let hidden_name = self.hidden.borrow().iter().find_map(|(name, binding)| {
                 matches!(
@@ -15329,7 +15590,9 @@ impl Interp {
         quoted: bool,
     ) -> Result<Vec<u8>, Code> {
         use tcl_lexer::{ExecutablePart, ExecutablePartArena, SourceImage, Span};
-        use tcl_registry::invocation_words::{ExpressionQuoteControl, LogicalExpressionQuoteProvider};
+        use tcl_registry::invocation_words::{
+            ExpressionQuoteControl, LogicalExpressionQuoteProvider,
+        };
         let dialect = self.native_invocation_dialect();
         let policy = if quoted {
             Some(dialect.expression_quote_control().or_else(|| dialect.logical_expression_quote_control(LogicalExpressionQuoteProvider::Tcl84CoreSimulation)).ok_or_else(|| self.refuse_native_access(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("native expression quote settlement")))?)
@@ -18327,7 +18590,7 @@ mod tests {
         leak_free(|i| {
             let alias = |target: &[u8]| Command::Alias {
                 original_prefix: Rc::new(i.generated_alias_prefix(target, &[])),
-                registration_name: Rc::new(obj::Owned::fresh(new_string(target))),
+                registration_name: Some(Rc::new(obj::Owned::fresh(new_string(target)))),
                 publication_name: target.to_vec(),
                 identity: Rc::new(()),
             };

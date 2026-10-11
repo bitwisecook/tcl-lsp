@@ -60,6 +60,62 @@ impl Interp {
             ))
         }
     }
+    /// Jim tests the new counted length before qualifying either name. The
+    /// returned temporaries retain those exact key objects through lookup and
+    /// mutation; the table independently acquires its destination-key role.
+    pub(crate) fn original_jim_rename_operands(
+        &mut self,
+        old: *mut TclObj,
+        new: *mut TclObj,
+    ) -> Result<
+        (
+            Vec<u8>,
+            Vec<u8>,
+            std::rc::Rc<crate::obj::Owned>,
+            Option<std::rc::Rc<crate::obj::Owned>>,
+        ),
+        ValueError,
+    > {
+        use tcl_syntax::naming::NativeNamePurpose;
+        let scope = super::native_operation_currency::NativeOperationScope::enter(self).map_err(
+            |first| {
+                self.refuse_native_execution(first);
+                ValueError::CommandProtocolUnavailable("original Jim rename entry")
+            },
+        )?;
+        let new_bytes = self.native_object_string_bytes(new);
+        scope.currency().ensure_current_or_refuse().map_err(|_| {
+            ValueError::CommandProtocolUnavailable("original Jim rename length currency")
+        })?;
+        let new_bytes = new_bytes?;
+        let origin = self.current_ns();
+        let (old_key, original_old_bytes) = self
+            .original_jim_command_key(origin, old, NativeNamePurpose::RenameSource)?
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original Jim rename source key",
+            ))?;
+        let new_key = if new_bytes.is_empty() {
+            None
+        } else {
+            Some(
+                self.original_jim_command_key(origin, new, NativeNamePurpose::RenameDestination)?
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "original Jim rename destination key",
+                    ))?
+                    .0,
+            )
+        };
+        // Jim's first hash lookup reaches the prepared old key. For a root
+        // input this is also its first name String getter.
+        let old_key_bytes = self.native_object_string_bytes(old_key.as_ptr());
+        scope.currency().ensure_current_or_refuse().map_err(|_| {
+            ValueError::CommandProtocolUnavailable("original Jim rename lookup currency")
+        })?;
+        let old_key_bytes = old_key_bytes?;
+        let old_bytes = original_old_bytes.unwrap_or(old_key_bytes);
+        Ok((old_bytes.to_vec(), new_bytes.to_vec(), old_key, new_key))
+    }
+
     /// Use the actual restored source token and selected destination slot for
     /// the native alias-loop error. Neither diagnostic display is re-parsed.
     pub(crate) fn original_rename_alias_loop_name(

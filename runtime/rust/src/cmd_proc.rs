@@ -179,9 +179,26 @@ fn proc_cmd_original(
             Err(error) => return interp.report_cmd_error(error),
         };
     }
-    let name = match arguments.bytes(1) {
-        Ok(bytes) => bytes,
-        Err(error) => return interp.report_cmd_error(error),
+    let prepared_key = match interp.original_jim_command_key(
+        interp.current_ns(),
+        argv[definition.name_at + 1],
+        tcl_syntax::naming::NativeNamePurpose::CommandPublication,
+    ) {
+        Ok(key) => key,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    // JimQualifyName retains its root original before the hash getter. A
+    // non-root qualification already retains the original name's byte owner.
+    let (original_key, prepared_name) = match prepared_key {
+        Some((key, name)) => (Some(key), name),
+        None => (None, None),
+    };
+    let name = match prepared_name {
+        Some(bytes) => bytes,
+        None => match arguments.bytes(definition.name_at + 1) {
+            Ok(bytes) => bytes,
+            Err(error) => return interp.report_cmd_error(error),
+        },
     };
     // A namespace-qualified proc name requires that namespace to already exist
     // (C's `Tcl_ProcObjCmd` via `TclGetNamespaceForQualName`).
@@ -285,8 +302,8 @@ fn proc_cmd_original(
     if let Err(error) = arguments.check() {
         return interp.report_cmd_error(error);
     }
-    interp.define_proc_chosen_storage(
-        &name,
+    interp.install_proc_chosen_storage_with_original_key(
+        (&name, original_key),
         params,
         Some(argv[definition.parameters_at + 1]),
         (original_body, chosen_body),
@@ -443,7 +460,7 @@ pub(crate) fn parse_params_object(
     spec: *mut TclObj,
     procedure: &[u8],
 ) -> Result<Vec<Param>, CmdError> {
-    use tcl_syntax::formal_params::{FormalParameterValueError, parse_formal_parameter_values};
+    use tcl_syntax::formal_params::{parse_formal_parameter_values, FormalParameterValueError};
     let protocol = interp
         .name_policy_protocol()
         .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(

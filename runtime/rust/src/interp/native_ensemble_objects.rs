@@ -14,10 +14,17 @@ use tcl_syntax::value::ValueError;
 
 impl Interp {
     pub(crate) fn retire_pending_native_ensemble_roles(&mut self) {
-        self.retire_pending_children();
         loop {
+            let command_slots = self.namespaces.borrow().take_retired_command_slots();
+            let had_command_slots = !command_slots.is_empty();
+            // The extracted slot owns the real key and value. Callback cleanup
+            // is mandatory even with a first cause, and runs outside all borrows.
+            for slot in command_slots {
+                slot.retire();
+            }
+            self.retire_pending_children();
             let retired = self.namespaces.borrow().take_retired_ensemble_roles();
-            if retired.is_empty() {
+            if !had_command_slots && retired.is_empty() {
                 break;
             }
             for token in retired {

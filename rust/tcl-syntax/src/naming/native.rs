@@ -1521,6 +1521,47 @@ impl NativeNameProtocol {
         })
     }
 
+    /// Select the actual Jim command-table key constructor. An occupied slot
+    /// keeps its original key; this selects only the incoming constructor role.
+    /// Alias registration uses the supplied object, while the child/public
+    /// CString API constructs a fresh object. Procedure and rename qualification
+    /// duplicate the genuine namespace object before appending CString units.
+    ///
+    /// # Errors
+    /// Refuses other engines, unsupported purposes or a missing namespace owner.
+    pub fn jim_command_key_construction(
+        self,
+        context: NativeNameContext<'_>,
+        original: &[u8],
+        purpose: NativeNamePurpose,
+    ) -> Result<NativeJimNamespaceConstruction, NameProjectionUnavailable> {
+        if !self.is_jim084() {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
+        match purpose {
+            NativeNamePurpose::AliasPublication => {
+                Ok(NativeJimNamespaceConstruction::RetainOriginal)
+            }
+            NativeNamePurpose::ChildAliasPublication
+            | NativeNamePurpose::CommandCApiPublication => {
+                Ok(NativeJimNamespaceConstruction::FreshString)
+            }
+            NativeNamePurpose::CommandPublication
+            | NativeNamePurpose::RenameSource
+            | NativeNamePurpose::RenameDestination => {
+                let namespace = context
+                    .jim_namespace_object
+                    .ok_or(NameProjectionUnavailable::MissingJimNamespaceObject)?;
+                Ok(if namespace.is_empty() || original.starts_with(b"::") {
+                    NativeJimNamespaceConstruction::RetainOriginal
+                } else {
+                    NativeJimNamespaceConstruction::DuplicateNamespaceAndAppend
+                })
+            }
+            _ => Err(NameProjectionUnavailable::PurposeNotModelled),
+        }
+    }
+
     /// Package database keys use `CString` extent in both audited engines.
     #[must_use]
     pub fn package_key(self, original: &[u8]) -> NativeNameProjection<'_> {
@@ -4246,5 +4287,65 @@ fn child_alias_publication_has_its_own_counted_input_and_c_string_registration()
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod original_command_key_tests {
+    use super::*;
+
+    #[test]
+    fn original_jim_command_key_constructors_keep_independent_capture_purposes() {
+        // naming.alias.original-command-key-replacement-child-capture-and-rename
+        // docs/design/analysis/name-resolution-proofs/alias-original-command-key-replacement-child-capture-and-rename.md
+        // Constructor selection is a pure recipe, not object ownership or a
+        // grant to install a command, evaluate a prefix or recover a context.
+        let path = ByteNamespacePath::root();
+        let nested = NativeNameContext::with_jim_namespace(&path, b"actual_namespace");
+        let jim = NativeNameProtocol::Jim084;
+        assert_eq!(
+            jim.jim_command_key_construction(nested, b"name", NativeNamePurpose::AliasPublication),
+            Ok(NativeJimNamespaceConstruction::RetainOriginal)
+        );
+        for purpose in [
+            NativeNamePurpose::ChildAliasPublication,
+            NativeNamePurpose::CommandCApiPublication,
+        ] {
+            assert_eq!(
+                jim.jim_command_key_construction(nested, b"name", purpose),
+                Ok(NativeJimNamespaceConstruction::FreshString)
+            );
+        }
+        for purpose in [
+            NativeNamePurpose::CommandPublication,
+            NativeNamePurpose::RenameSource,
+            NativeNamePurpose::RenameDestination,
+        ] {
+            assert_eq!(
+                jim.jim_command_key_construction(nested, b"name", purpose),
+                Ok(NativeJimNamespaceConstruction::DuplicateNamespaceAndAppend)
+            );
+            assert_eq!(
+                jim.jim_command_key_construction(nested, b"::name", purpose),
+                Ok(NativeJimNamespaceConstruction::RetainOriginal)
+            );
+            assert_eq!(
+                jim.jim_command_key_construction(NativeNameContext::root(), b"name", purpose),
+                Ok(NativeJimNamespaceConstruction::RetainOriginal)
+            );
+            assert_eq!(
+                jim.jim_command_key_construction(NativeNameContext::new(&path), b"name", purpose),
+                Err(NameProjectionUnavailable::MissingJimNamespaceObject)
+            );
+            assert_eq!(
+                NativeNameProtocol::C(tcl_dialect::TclVersion::V9_0)
+                    .jim_command_key_construction(nested, b"name", purpose),
+                Err(NameProjectionUnavailable::PurposeNotModelled)
+            );
+        }
+        assert_eq!(
+            jim.jim_command_key_construction(nested, b"name", NativeNamePurpose::PackageName),
+            Err(NameProjectionUnavailable::PurposeNotModelled)
+        );
     }
 }

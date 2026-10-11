@@ -10,6 +10,201 @@ use tcl_runtime_api::native_command_name::{NativeCommandNameCache, NativeCommand
 use tcl_syntax::value::{ValueError, ValueOps};
 
 impl Interp {
+    /// Execute JimQualifyName on the actual supplied object. The namespace
+    /// length test precedes the name getter, and the native temporary reference
+    /// starts only after qualification has finished.
+    pub(crate) fn original_jim_command_key(
+        &mut self,
+        origin: NsId,
+        original: *mut TclObj,
+        purpose: tcl_syntax::naming::NativeNamePurpose,
+    ) -> Result<Option<(std::rc::Rc<obj::Owned>, Option<std::rc::Rc<[u8]>>)>, ValueError> {
+        use tcl_syntax::naming::{
+            NativeJimNamespaceConstruction, NativeNameContext, NativeNamePurpose,
+        };
+        let recipe = self
+            .name_policy_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original command key issuer",
+            ))?
+            .recipe();
+        if !recipe.is_jim084() {
+            return Ok(None);
+        }
+        if !matches!(
+            purpose,
+            NativeNamePurpose::CommandPublication
+                | NativeNamePurpose::RenameSource
+                | NativeNamePurpose::RenameDestination
+        ) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original qualified Jim key purpose",
+            ));
+        }
+        let scope = super::native_operation_currency::NativeOperationScope::enter(self).map_err(
+            |first| {
+                self.refuse_native_execution(first);
+                ValueError::CommandProtocolUnavailable("original Jim key entry")
+            },
+        )?;
+        obj::check_native_liveness(original)?;
+        let original_allocation = obj::NativeObjectLifetime::retain(original);
+        let namespace = self
+            .namespaces()
+            .jim_namespace_original_owner(origin)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original Jim key namespace owner",
+            ))?;
+        let namespace_bytes = self.native_object_string_bytes(namespace.as_ptr());
+        scope.currency().ensure_current_or_refuse().map_err(|_| {
+            ValueError::CommandProtocolUnavailable("original Jim key namespace currency")
+        })?;
+        let namespace_bytes = namespace_bytes?;
+        // A root frame reaches no String getter on the incoming name here.
+        let bytes = if namespace_bytes.is_empty() {
+            std::rc::Rc::<[u8]>::from([])
+        } else {
+            let bytes = self.native_object_string_bytes(original);
+            scope.currency().ensure_current_or_refuse().map_err(|_| {
+                ValueError::CommandProtocolUnavailable("original Jim key getter currency")
+            })?;
+            bytes?
+        };
+        let path = self.namespaces().native_context_path(origin).ok_or(
+            ValueError::CommandProtocolUnavailable("original Jim key namespace path"),
+        )?;
+        let context = NativeNameContext::with_jim_namespace(&path, &namespace_bytes);
+        let construction = recipe
+            .jim_command_key_construction(context, &bytes, purpose)
+            .map_err(|_| {
+                ValueError::CommandProtocolUnavailable("original Jim key construction purpose")
+            })?;
+        let result = match construction {
+            NativeJimNamespaceConstruction::RetainOriginal => {
+                obj::check_native_liveness(original)?;
+                std::rc::Rc::new(obj::Owned::retain(original))
+            }
+            NativeJimNamespaceConstruction::DuplicateNamespaceAndAppend => {
+                // JimQualifyName increments only after both CString appends.
+                // This lease protects allocation without changing sharing.
+                let duplicate = obj::duplicate(namespace.as_ptr());
+                let allocation = obj::NativeObjectLifetime::retain(duplicate);
+                let prepared = (|| {
+                    let dialect = self.native_invocation_dialect();
+                    let append = dialect.native_object_append_protocol(None).ok_or(
+                        ValueError::CommandProtocolUnavailable("Jim original key append issuer"),
+                    )?;
+                    let operations = crate::value_ops::RuntimeAppendObjects {
+                        dialect,
+                        binary_recipe: dialect.byte_array_string_recipe(None),
+                    };
+                    let receiver = crate::value_ops::RuntimeAppendValue::borrowed(duplicate);
+                    let mut check = || {
+                        scope.currency().ensure_current_or_refuse().map_err(|_| {
+                            ValueError::CommandProtocolUnavailable(
+                                "original Jim key append currency",
+                            )
+                        })?;
+                        obj::check_native_liveness(duplicate)
+                    };
+                    check()?;
+                    for part in [b"::".as_slice(), tcl_core_types::c_string_extent(&bytes)] {
+                        tcl_cmd_core::native_append::append_unshared_jim_cstring(
+                            &operations,
+                            append.recipe(),
+                            &receiver,
+                            part,
+                            &mut check,
+                        )?;
+                    }
+                    check()?;
+                    crate::native_source::bind_context(
+                        duplicate,
+                        &self.native_jim_object_context()?,
+                    )?;
+                    check()?;
+                    Ok::<_, ValueError>(())
+                })();
+                if let Err(error) = prepared {
+                    // The failed constructor owns a live rc-zero header.
+                    // Retire it without introducing a native +1 role.
+                    if obj::allocation_is_live(duplicate) {
+                        unsafe { obj::free_obj(duplicate) };
+                    }
+                    drop(allocation);
+                    scope.currency().ensure_current_or_refuse().map_err(|_| {
+                        ValueError::CommandProtocolUnavailable("original Jim key cleanup currency")
+                    })?;
+                    return Err(error);
+                }
+                let created = obj::Owned::fresh(duplicate);
+                drop(allocation);
+                std::rc::Rc::new(created)
+            }
+            NativeJimNamespaceConstruction::FreshString => {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "qualified Jim key cannot use RegisterCmd",
+                ));
+            }
+        };
+        scope.currency().ensure_current_or_refuse().map_err(|_| {
+            ValueError::CommandProtocolUnavailable("original Jim key producer currency")
+        })?;
+        drop(original_allocation);
+        Ok(Some((
+            result,
+            (!namespace_bytes.is_empty()).then_some(bytes),
+        )))
+    }
+
+    /// Genuine byte-name APIs construct their own incoming object. The child
+    /// RegisterCmd API uses a fresh CString key; authored aliases pass their
+    /// already retained original object directly to the table owner.
+    pub(crate) fn generated_jim_command_key(
+        &mut self,
+        origin: NsId,
+        bytes: &[u8],
+        purpose: tcl_syntax::naming::NativeNamePurpose,
+    ) -> Result<Option<std::rc::Rc<obj::Owned>>, ValueError> {
+        use tcl_syntax::naming::{
+            NativeJimNamespaceConstruction, NativeNameContext, NativeNamePurpose,
+        };
+        let recipe = self
+            .name_policy_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "generated command key issuer",
+            ))?
+            .recipe();
+        if !recipe.is_jim084() {
+            return Ok(None);
+        }
+        let created = obj::Owned::fresh(obj::new_string_bytes(tcl_core_types::c_string_extent(
+            bytes,
+        )));
+        crate::native_source::bind_context(created.as_ptr(), &self.native_jim_object_context()?)?;
+        match purpose {
+            // Qualification always consumes the actual namespace holder. A
+            // byte API's fresh operand cannot manufacture a root-frame purpose.
+            NativeNamePurpose::CommandPublication
+            | NativeNamePurpose::RenameSource
+            | NativeNamePurpose::RenameDestination => self
+                .original_jim_command_key(origin, created.as_ptr(), purpose)
+                .map(|prepared| prepared.map(|(key, _)| key)),
+            _ => {
+                match recipe.jim_command_key_construction(NativeNameContext::root(), bytes, purpose)
+                {
+                    Ok(
+                        NativeJimNamespaceConstruction::FreshString
+                        | NativeJimNamespaceConstruction::RetainOriginal,
+                    ) => Ok(Some(std::rc::Rc::new(created))),
+                    _ => Err(ValueError::CommandProtocolUnavailable(
+                        "generated Jim key constructor purpose",
+                    )),
+                }
+            }
+        }
+    }
+
     /// Retain the original object's actual selected command token before any
     /// name or imported-origin reporting. No reporting query redoes lookup.
     fn native_selected_original_command_token(
@@ -722,5 +917,224 @@ mod tests {
                 .target
                 .is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod original_key_construction_tests {
+    use super::*;
+    use crate::interp::native_operation_currency::NativeOperationScope;
+    use std::cell::{Cell, RefCell};
+    use tcl_syntax::naming::NativeNamePurpose;
+
+    thread_local! {
+        static OWNER: RefCell<Option<Interp>> = const { RefCell::new(None) };
+        static MODE: Cell<u8> = const { Cell::new(0) };
+        static REFS: Cell<i64> = const { Cell::new(-1) };
+    }
+    extern "C" fn update(original: *mut TclObj) {
+        REFS.with(|refs| refs.set(unsafe { (*original).ref_count } as i64));
+        let mut interp = OWNER.with(|owner| owner.borrow().as_ref().unwrap().clone());
+        let effect = obj::Owned::fresh(obj::new_string_bytes(b"REACHED\0\xff"));
+        interp
+            .var_set(b"original_key_getter_effect", effect.as_ptr())
+            .unwrap();
+        match MODE.with(Cell::get) {
+            1 => {
+                interp.refuse_host_command("original qualification name getter");
+            }
+            2 => {
+                let original = interp.runtime_context();
+                let mut changed = original.clone();
+                changed.packages = vec![("original-key-construction".to_owned(), "1.0".to_owned())];
+                interp.pin_context(&changed).unwrap();
+                interp.pin_context(&original).unwrap();
+            }
+            _ => {}
+        }
+        unsafe { obj::set_native_updater_string_rep(original, b"child\0ignored", false) };
+    }
+    static TYPE: obj::TclObjType = obj::TclObjType {
+        name: c"originalJimQualifiedName".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(update),
+        set_from_any_proc: None,
+    };
+
+    #[test]
+    fn original_jim_qualification_keeps_namespace_owner_and_stops_after_refused_getter() {
+        // naming.alias.original-command-key-replacement-child-capture-and-rename
+        // docs/design/analysis/name-resolution-proofs/alias-original-command-key-replacement-child-capture-and-rename.md
+        // Qualified source/first-cause controls; Native421b observes root keys.
+        for mode in [0, 1, 2] {
+            let mut interp = crate::cmd_alias::original_operand_tests::native("jim");
+            assert_eq!(
+                interp.eval_str(b"namespace eval key_scope {}"),
+                crate::interp::Code::Ok
+            );
+            let namespace = interp
+                .namespaces()
+                .find_namespace(crate::namespace::GLOBAL, b"key_scope")
+                .unwrap();
+            let namespace_owner = interp
+                .namespaces()
+                .jim_namespace_original_owner(namespace)
+                .unwrap();
+            let namespace_refs = unsafe { (*namespace_owner.as_ptr()).ref_count };
+            let original = obj::Owned::fresh(obj::alloc_typed(&TYPE, 0));
+            OWNER.with(|owner| *owner.borrow_mut() = Some(interp.clone()));
+            MODE.with(|selected| selected.set(mode));
+            REFS.with(|refs| refs.set(-1));
+            let prior = crate::cmd_alias::original_operand_tests::seed(&mut interp);
+            let before = interp.namespaces().native_command_generations();
+            let result = interp.original_jim_command_key(
+                namespace,
+                original.as_ptr(),
+                NativeNamePurpose::CommandPublication,
+            );
+            assert_eq!(
+                REFS.with(Cell::get),
+                1,
+                "qualification reads before any original-name native retain"
+            );
+            assert_eq!(unsafe { (*original.as_ptr()).ref_count }, 1);
+            assert_eq!(
+                unsafe { (*namespace_owner.as_ptr()).ref_count },
+                namespace_refs
+            );
+            assert_eq!(interp.namespaces().native_command_generations(), before);
+            assert_eq!(interp.get_obj_result(), prior.as_ptr());
+            if mode == 0 {
+                let (key, source) = result.unwrap().unwrap();
+                assert_ne!(key.as_ptr(), original.as_ptr());
+                assert_eq!(unsafe { (*key.as_ptr()).ref_count }, 1);
+                assert_eq!(source.unwrap().as_ref(), b"child\0ignored");
+                let scope = NativeOperationScope::enter(&interp).unwrap();
+                assert_eq!(
+                    interp
+                        .native_object_string_bytes(key.as_ptr())
+                        .unwrap()
+                        .as_ref(),
+                    b"key_scope::child"
+                );
+                assert!(scope.currency().ensure_current_or_refuse().is_ok());
+                let generated = interp
+                    .generated_jim_command_key(
+                        namespace,
+                        b"generated_child\0ignored",
+                        NativeNamePurpose::CommandPublication,
+                    )
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(
+                    obj::bytes_of(generated.as_ptr()),
+                    b"key_scope::generated_child"
+                );
+                assert_eq!(unsafe { (*generated.as_ptr()).ref_count }, 1);
+                assert!(scope.currency().ensure_current_or_refuse().is_ok());
+            } else {
+                assert!(result.is_err());
+                assert!(interp.native_execution_refusal().is_some());
+                assert_eq!(obj::bytes_of(original.as_ptr()), b"child\0ignored");
+            }
+            assert_eq!(
+                obj::bytes_of(
+                    interp
+                        .namespaces()
+                        .var_table(crate::namespace::GLOBAL)
+                        .load_scalar(b"original_key_getter_effect")
+                        .unwrap(),
+                ),
+                b"REACHED\0\xff"
+            );
+            OWNER.with(|owner| owner.borrow_mut().take());
+        }
+    }
+
+    #[test]
+    fn original_jim_key_append_keeps_the_actual_zero_reference_receiver() {
+        // naming.alias.original-command-key-replacement-child-capture-and-rename
+        // docs/design/analysis/name-resolution-proofs/alias-original-command-key-replacement-child-capture-and-rename.md
+        let interp = crate::cmd_alias::original_operand_tests::native("jim");
+        let scope = NativeOperationScope::enter(&interp).unwrap();
+        let raw = obj::new_string_bytes(b"key_scope");
+        let allocation = obj::NativeObjectLifetime::retain(raw);
+        crate::native_source::bind_context(raw, &interp.native_jim_object_context().unwrap())
+            .unwrap();
+        let dialect = interp.native_invocation_dialect();
+        let ops = crate::value_ops::RuntimeAppendObjects {
+            dialect,
+            binary_recipe: dialect.byte_array_string_recipe(None),
+        };
+        let receiver = crate::value_ops::RuntimeAppendValue::borrowed(raw);
+        let recipe = dialect
+            .native_object_append_protocol(None)
+            .unwrap()
+            .recipe();
+        let mut checks = 0;
+        let mut check = || {
+            checks += 1;
+            assert_eq!(unsafe { (*raw).ref_count }, 0);
+            scope.currency().ensure_current_or_refuse().map_err(|_| {
+                ValueError::CommandProtocolUnavailable("original append test currency")
+            })
+        };
+        for part in [b"::".as_slice(), b"child\0ignored"] {
+            tcl_cmd_core::native_append::append_unshared_jim_cstring(
+                &ops, recipe, &receiver, part, &mut check,
+            )
+            .unwrap();
+        }
+        assert!(checks > 2);
+        assert_eq!(obj::bytes_of(raw), b"key_scope::child");
+        assert_eq!(unsafe { (*raw).ref_count }, 0);
+        // Retire the real constructor receiver directly; a lease is not a
+        // protective native reference or a manufactured key/lookup receipt.
+        unsafe { obj::free_obj(raw) };
+        drop(allocation);
+    }
+
+    #[test]
+    fn original_jim_missing_rename_source_stops_before_destination_lookup() {
+        // naming.alias.original-command-key-replacement-child-capture-and-rename
+        // docs/design/analysis/name-resolution-proofs/alias-original-command-key-replacement-child-capture-and-rename.md
+        let mut interp = crate::cmd_alias::original_operand_tests::native("jim");
+        let original = obj::Owned::fresh(obj::alloc_typed(&TYPE, 0));
+        let source = obj::Owned::fresh(obj::new_string_bytes(b"missing_original_key"));
+        OWNER.with(|owner| *owner.borrow_mut() = Some(interp.clone()));
+        MODE.with(|mode| mode.set(0));
+        let scope = NativeOperationScope::enter(&interp).unwrap();
+        let (old, new, old_key, new_key) = interp
+            .original_jim_rename_operands(source.as_ptr(), original.as_ptr())
+            .unwrap();
+        assert_eq!(obj::bytes_of(original.as_ptr()), b"child\0ignored");
+        // The destination length getter was reached once before qualification.
+        // A missing exact source cannot publish or borrow a fallback binding.
+        let before = interp.namespaces().native_command_generations();
+        assert_eq!(
+            interp.rename_command_with_original_jim_key(&old, &new, new_key),
+            crate::interp::RenameOutcome::NoSuchCommand
+        );
+        assert_eq!(interp.namespaces().native_command_generations(), before);
+        assert_eq!(old_key.as_ptr(), source.as_ptr());
+        assert_eq!(unsafe { (*old_key.as_ptr()).ref_count }, 2);
+        assert!(scope.currency().ensure_current_or_refuse().is_ok());
+        OWNER.with(|owner| owner.borrow_mut().take());
+        // The source hash lookup is exact in the current Jim namespace. A
+        // global command of the same spelling cannot close a missing source.
+        assert_eq!(
+            interp.eval_str(b"namespace eval key_scope {rename list missing_original_key}"),
+            crate::interp::Code::Error,
+        );
+        assert!(interp
+            .namespaces()
+            .command_in(crate::namespace::GLOBAL, b"list")
+            .is_some());
+        assert!(interp
+            .namespaces()
+            .command_in(crate::namespace::GLOBAL, b"key_scope::missing_original_key")
+            .is_none());
+        assert!(interp.native_execution_refusal().is_none());
     }
 }

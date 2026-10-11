@@ -177,6 +177,44 @@ pub fn append_counted_bytes<O: NativeAppendObjects>(
     append_object_inner(ops, protocol, Some(receiver), &source, true, true)
 }
 
+/// Append one CString operand onto the genuine refcount-zero unshared object
+/// already allocated by Jim's key constructor. This does not acquire a working
+/// native reference or repeat a copy-on-write decision. The caller retains an
+/// allocation lease and checks the original operation at every reached stage.
+///
+/// # Errors
+/// Refuses a non-Jim recipe or a failed original getter/storage/currency stage.
+/// This supplies storage only, never command-name or table-slot authority.
+pub fn append_unshared_jim_cstring<O: NativeAppendObjects>(
+    ops: &O,
+    protocol: NativeObjectAppendProtocol,
+    receiver: &O::Value,
+    original_bytes: &[u8],
+    check: &mut impl FnMut() -> Result<(), ValueError>,
+) -> Result<(), ValueError> {
+    if !protocol.string_protocol().is_jim084() {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "Jim original CString append",
+        ));
+    }
+    check()?;
+    let bytes = tcl_core_types::c_string_extent(original_bytes);
+    if bytes.is_empty() {
+        return Ok(());
+    }
+    let source = ops.new_string(Rc::from(bytes));
+    let shape = ops.snapshot(receiver);
+    check()?;
+    append_jim_string_checked(
+        ops,
+        protocol.string_protocol(),
+        receiver,
+        &source,
+        &shape?,
+        check,
+    )
+}
+
 /// Continue the same Jim append batch without repeating its original COW decision.
 /// No variable publication, callback, or additional value owner may intervene.
 ///
@@ -373,9 +411,31 @@ fn append_jim_string<O: NativeAppendObjects>(
     source: &O::Value,
     receiver_shape: &NativeObjectSnapshot,
 ) -> Result<(), ValueError> {
+    append_jim_string_checked(
+        ops,
+        string_protocol,
+        receiver,
+        source,
+        receiver_shape,
+        &mut || Ok(()),
+    )
+}
+
+fn append_jim_string_checked<O: NativeAppendObjects>(
+    ops: &O,
+    string_protocol: NativeStringProtocol,
+    receiver: &O::Value,
+    source: &O::Value,
+    receiver_shape: &NativeObjectSnapshot,
+    check: &mut impl FnMut() -> Result<(), ValueError>,
+) -> Result<(), ValueError> {
     // Jim obtains the append operand before converting the receiver.
-    let source_bytes = ops.string(source, string_protocol)?;
-    let receiver_bytes = ops.string(receiver, string_protocol)?;
+    let source_bytes = ops.string(source, string_protocol);
+    check()?;
+    let source_bytes = source_bytes?;
+    let receiver_bytes = ops.string(receiver, string_protocol);
+    check()?;
+    let receiver_bytes = receiver_bytes?;
     let old_count = match &receiver_shape.cache {
         Cache::JimString { num_chars } => *num_chars,
         _ => None,
@@ -388,14 +448,15 @@ fn append_jim_string<O: NativeAppendObjects>(
     });
     let mut bytes = receiver_bytes.to_vec();
     bytes.extend_from_slice(&source_bytes);
-    ops.set_string(
+    let updated = ops.set_string(
         receiver,
         string_protocol,
         Some((Rc::from(bytes), Storage::Allocated)),
         count,
         None,
-    )?;
-    Ok(())
+    );
+    check()?;
+    updated
 }
 
 fn append_c_unicode_source<O: NativeAppendObjects>(
