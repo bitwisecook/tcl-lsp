@@ -970,6 +970,83 @@ impl SourceInvocationBinding {
             .then_some(preparation)
     }
 
+    /// Original Inline Control structure for a genuine retained compiler entry.
+    /// Generic/rejected recipes and absent physical compiler registrations
+    /// cannot supply this source purpose. Runtime entry remains independent.
+    pub(crate) fn original_inline_control_compilation(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<&super::compiled_invocation::SourceNativeStructuredPreparation> {
+        use tcl_registry::native_compilation::NativeCompilationSelection;
+        use tcl_registry::native_control_compilation::NativeControlOutcome;
+        use tcl_registry::native_instruction_plan::NativeInstructionPlan;
+        let preparation = self.original_structured_compilation(tokens)?;
+        if !matches!(
+            self.native_compilation_admission_selection(),
+            NativeCompilationSelection::Inline { .. }
+        ) || !matches!(&preparation.recipe, NativeInstructionPlan::Control(control)
+                if matches!(&control.outcome, NativeControlOutcome::Inline(_)))
+        {
+            return None;
+        }
+        let original = self.original_compiler_words.as_ref()?;
+        let snapshot = self.compiler_lookup_state.as_ref()?;
+        let entry = snapshot.state.baseline.native_entry.as_deref()?;
+        let prerequisite = preparation.dependency.compiler_prerequisite.as_deref()?;
+        let policy = self.compiler_policy.as_deref()?;
+        let input = snapshot
+            .state
+            .baseline
+            .metadata_context
+            .source_analysis_input()?;
+        if prerequisite.interpreter != entry.interpreter
+            || snapshot.state.current_source_origin.as_ref() != Some(&original.site.source)
+            || preparation.compilation_site != original.site
+            || self.original_lexer_config_for_tokens(tokens)? != original.config
+            || original.config != input.lexer_config()
+            || policy.words != snapshot.state.baseline.dialect
+            || policy.compiler != snapshot.state.baseline.compilation_dialect()
+            || policy.source_protocol != entry.source_string_protocol
+            || policy.realm != snapshot.realm
+        {
+            return None;
+        }
+        Some(preparation)
+    }
+
+    /// Join compiler-only source structure to the caller's complete input.
+    /// The retained compiler point supplies metadata, never a new handler,
+    /// Normal completion, native execution entry or body activation.
+    pub(crate) fn original_inline_control_metadata_for_input<'a>(
+        &'a self,
+        tokens: &crate::ir::CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::registry_invocation::InvocationMetadataContext<'a>> {
+        self.original_inline_control_compilation(tokens)?;
+        let snapshot = self.compiler_lookup_state.as_ref()?;
+        if snapshot.state.baseline.registry_snapshot.as_ref()
+            != Some(&registry.snapshot().semantic_key())
+        {
+            return None;
+        }
+        let original = self.original_compiler_words.as_ref()?;
+        let point = snapshot
+            .state
+            .baseline
+            .metadata_context
+            .source_analysis_input()?;
+        if point != input {
+            return None;
+        }
+        crate::registry_invocation::InvocationMetadataContext::for_source_input(
+            registry,
+            point,
+            original.config,
+            Some(point.unit_profile()),
+        )
+    }
+
     /// Original switch compiler body visits, independent of runtime arm entry.
     /// Changed source vectors or an unknown joined admission retain no recipe.
     #[must_use]
@@ -1580,5 +1657,217 @@ fn attach_unanimous_original_compiler_metadata(
             binding.native_structured_preparation = None;
             binding.native_switch_preparation = None;
         }
+    }
+}
+
+#[cfg(test)]
+mod original_inline_control_source_tests {
+    use super::*;
+    use crate::analyser::ResolvedAnalysisInput;
+    use crate::registry_invocation::{InvocationMetadataContext, OwnedInvocationMetadataContext};
+
+    struct Fixture {
+        input: ResolvedAnalysisInput,
+        tokens: Vec<crate::ir::CommandTokens>,
+        _owner: tcl_vm::Vm,
+    }
+
+    fn fixture(source: &str, environment: &str) -> Fixture {
+        let environment = tcl_registry::model::ingress::resolve_known_environment(environment)
+            .expect("actual original compiler environment");
+        let profile = environment.unit_profile();
+        let context = environment.default_context_registry();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = ResolvedAnalysisInput::new(profile, profile, Arc::clone(&context), config);
+        let (owner, native) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = super::super::SourceAnalysisEntry {
+            metadata_context: OwnedInvocationMetadataContext::for_source_input(Some(&input)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
+                frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
+                ..crate::environment_ingress::authoring_native_compilation()
+            },
+            native_entry: Some(Arc::new(native)),
+            ..Default::default()
+        };
+        let bindings = SourceCommandBindings::analyse_with_options(
+            source,
+            config,
+            context.commands(),
+            entry.options(),
+        );
+        let image = tcl_lexer::SourceImage::document(source);
+        let segments =
+            crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+                .unwrap();
+        let tokens = segments
+            .iter()
+            .map(|segment| {
+                let mut tokens =
+                    crate::ir::CommandTokens::from_segmented(&image.source_map(), config, segment);
+                bindings.stamp_original_tokens(&mut tokens);
+                tokens
+            })
+            .collect();
+        Fixture {
+            input,
+            tokens,
+            _owner: owner,
+        }
+    }
+
+    #[test]
+    fn original_inline_control_source_requires_the_actual_compiler_and_complete_owner() {
+        // Source-only compiler structure; no runtime handler or Native execution grant.
+        for environment in ["tcl8.4", "tcl9.1"] {
+            let fixture = fixture(
+                "if {$a} {set one 1}; if {$b} {set two 2}; if {$c} {set three 3}",
+                environment,
+            );
+            let registry = fixture.input.borrowed_context_registry().commands();
+            let tokens = fixture.tokens.last().unwrap();
+            let binding = tokens.source_binding.as_ref().unwrap();
+            assert!(
+                binding
+                    .original_inline_control_metadata_for_input(tokens, &fixture.input, registry)
+                    .is_some()
+            );
+            let mut changed = tokens.clone();
+            changed.argv_texts[1].push('x');
+            assert!(
+                binding
+                    .original_inline_control_metadata_for_input(&changed, &fixture.input, registry)
+                    .is_none()
+            );
+            let mut changed_word = tokens.clone();
+            let crate::ir::WordExpr::BracedLiteral { text, .. } = &mut changed_word.word_exprs[1]
+            else {
+                panic!("original literal predicate")
+            };
+            text.push('x');
+            changed_word.argv_texts[1].push('x');
+            assert!(
+                binding
+                    .original_inline_control_metadata_for_input(
+                        &changed_word,
+                        &fixture.input,
+                        registry
+                    )
+                    .is_none()
+            );
+            let foreign_context =
+                tcl_registry::model::ingress::resolve_known_environment(environment)
+                    .unwrap()
+                    .default_context_registry();
+            let foreign = ResolvedAnalysisInput::new(
+                fixture.input.analyser_profile(),
+                fixture.input.unit_profile(),
+                foreign_context,
+                fixture.input.lexer_config(),
+            );
+            assert!(
+                binding
+                    .original_inline_control_metadata_for_input(tokens, &foreign, registry)
+                    .is_none()
+            );
+            let mut changed_config = fixture.input.lexer_config();
+            changed_config.leading_bom = tcl_lexer::LeadingBom::Skip;
+            let changed_input = ResolvedAnalysisInput::new(
+                fixture.input.analyser_profile(),
+                fixture.input.unit_profile(),
+                fixture.input.context_registry(),
+                changed_config,
+            );
+            assert!(
+                binding
+                    .original_inline_control_metadata_for_input(tokens, &changed_input, registry)
+                    .is_none()
+            );
+            for axis in 0..4 {
+                let mut withdrawn = tokens.clone();
+                let actual = withdrawn.source_binding.as_mut().unwrap();
+                match axis {
+                    0 => actual.compiler_lookup_state = None,
+                    1 => actual.compiler_policy = None,
+                    2 => {
+                        let snapshot =
+                            Arc::make_mut(actual.compiler_lookup_state.as_mut().unwrap());
+                        Arc::make_mut(&mut snapshot.state.baseline).native_entry = None;
+                    }
+                    _ => {
+                        let preparation =
+                            Arc::make_mut(actual.native_structured_preparation.as_mut().unwrap());
+                        preparation.dependency.compiler_prerequisite = None;
+                    }
+                }
+                assert!(
+                    actual
+                        .original_inline_control_metadata_for_input(
+                            tokens,
+                            &fixture.input,
+                            registry
+                        )
+                        .is_none(),
+                    "{environment} axis={axis}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_inline_control_source_keeps_generic_rejected_and_missing_purposes_unavailable() {
+        use tcl_registry::native_control_compilation::NativeControlOutcome;
+        use tcl_registry::native_instruction_plan::NativeInstructionPlan;
+        let selected = fixture("if {$a} {set one 1}; if {$b} {set two 2}", "tcl9.1");
+        let registry = selected.input.borrowed_context_registry().commands();
+        let tokens = selected.tokens.last().unwrap();
+        let mut generic = tokens.clone();
+        let binding = generic.source_binding.as_mut().unwrap();
+        let preparation = Arc::make_mut(binding.native_structured_preparation.as_mut().unwrap());
+        let NativeInstructionPlan::Control(control) = &mut preparation.recipe else {
+            panic!("genuine original Control")
+        };
+        control.outcome = NativeControlOutcome::Generic;
+        assert!(
+            binding
+                .original_inline_control_metadata_for_input(tokens, &selected.input, registry)
+                .is_none()
+        );
+        let dynamic = fixture("if {$a} $body", "tcl9.1");
+        let dynamic_tokens = dynamic.tokens.first().unwrap();
+        assert!(
+            dynamic_tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_inline_control_compilation(dynamic_tokens)
+                .is_none()
+        );
+        let rejected = fixture("if {)} {set one 1}", "tcl9.1");
+        let rejected_tokens = rejected.tokens.first().unwrap();
+        assert!(
+            rejected_tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_inline_control_compilation(rejected_tokens)
+                .is_none()
+        );
+        let mut missing = tokens.clone();
+        missing.source_binding = None;
+        let context = InvocationMetadataContext::for_source_input(
+            registry,
+            &selected.input,
+            selected.input.lexer_config(),
+            Some(selected.input.unit_profile()),
+        )
+        .unwrap();
+        assert!(
+            crate::registry_invocation::original_structured_invocation_with_metadata_context(
+                registry, context, &missing
+            )
+            .is_none()
+        );
     }
 }

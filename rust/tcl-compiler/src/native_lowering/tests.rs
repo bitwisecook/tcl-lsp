@@ -1158,3 +1158,91 @@ fn original_boolean_lowering_keeps_cell_objects_and_withholds_unproved_literal_c
         0
     );
 }
+
+#[test]
+fn original_inline_control_structure_retains_compiler_only_conditions_and_direct_refusal() {
+    // Actual retained C compiler structure; no entered handler or callback chronology.
+    let source = "if {$a} {set one 1}; if {$b} {set two 2}; if {$c} {set three 3}";
+    for environment in ["tcl8.4", "tcl9.1"] {
+        let (_owner, context, unit) = original_boolean_unit_with_compilation(
+            source,
+            environment,
+            tcl_registry::native_compilation::NativeCompilationContext {
+                mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
+                frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
+                ..crate::environment_ingress::authoring_native_compilation()
+            },
+        );
+        assert_eq!(unit.ir_module.top_level.statements.len(), 3);
+        assert!(
+            unit.ir_module
+                .top_level
+                .statements
+                .iter()
+                .all(|statement| matches!(statement, crate::ir::Statement::If { .. }))
+        );
+        let script = &unit.ir_module.top_level;
+        let last = script
+            .retained_source_tokens_for_statement(script.statements.last().unwrap())
+            .unwrap();
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
+            context.commands(),
+            &unit.ir_module,
+        )
+        .unwrap();
+        assert!(
+            last.source_binding
+                .as_ref()
+                .unwrap()
+                .original_inline_control_metadata_for_input(
+                    last,
+                    unit.ir_module.source_metadata_input.as_ref().unwrap(),
+                    context.commands()
+                )
+                .is_some()
+        );
+        assert!(
+            crate::registry_invocation::resolved_handler_invocation_with_metadata_context(
+                context.commands(),
+                Some(metadata),
+                last
+            )
+            .is_none()
+        );
+        assert!(
+            crate::registry_invocation::original_structured_invocation_with_metadata_context(
+                context.commands(),
+                metadata,
+                last
+            )
+            .is_some()
+        );
+        assert!(
+            unit.top_level
+                .semantic_facts
+                .executable()
+                .function()
+                .is_some()
+        );
+        let (_direct_owner, direct_context, direct) = original_boolean_unit(source, environment);
+        let direct_script = &direct.ir_module.top_level;
+        let direct_tokens = direct_script
+            .retained_source_tokens_for_statement(direct_script.statements.first().unwrap())
+            .unwrap();
+        assert!(
+            direct_tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_inline_control_compilation(direct_tokens)
+                .is_none()
+        );
+        assert!(
+            crate::registry_invocation::InvocationMetadataContext::for_module(
+                direct_context.commands(),
+                &direct.ir_module
+            )
+            .is_some()
+        );
+    }
+}

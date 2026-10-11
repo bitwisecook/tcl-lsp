@@ -392,6 +392,12 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
         #[cfg(test)]
         trace_original_structure("original_declaration", tokens, selected.is_some());
         selected
+    });
+    let selected = selected.or_else(|| {
+        let selected = original_inline_control_structured_invocation(registry, context, tokens);
+        #[cfg(test)]
+        trace_original_structure("original_inline_control", tokens, selected.is_some());
+        selected
     })?;
     let source_roles = if context.permits_logical_source_names() {
         let binding = tokens.source_binding.as_ref()?;
@@ -575,6 +581,37 @@ fn original_declared_structured_invocation<'a>(
     #[cfg(test)]
     trace_original_structure("declaration_facts", tokens, selected.is_some());
     selected
+}
+
+/// Conditional source structure retained by a genuine Inline Control compiler.
+/// This purpose does not repair an unavailable runtime declaration or handler.
+fn original_inline_control_structured_invocation(
+    registry: &CommandRegistry,
+    context: InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+) -> Option<ResolvedStatementInvocation> {
+    if !context.matches_registry(registry) || context.permits_logical_source_names() {
+        return None;
+    }
+    let binding = tokens.source_binding.as_ref()?;
+    let metadata = binding.original_inline_control_metadata_for_input(
+        tokens,
+        context.source_analysis_input()?,
+        registry,
+    )?;
+    let preparation = binding.original_inline_control_compilation(tokens)?;
+    let advice = binding.original_compilation_lookup_advice(tokens)?;
+    if !advice.closed_lookup()
+        || advice.has_opaque_handler_alternatives()
+        || advice.namespace() != &preparation.dependency().namespace_key
+        || !advice
+            .targets()
+            .iter()
+            .all(|target| target == &preparation.dependency().target)
+    {
+        return None;
+    }
+    resolve_original_declared_layout(registry, metadata, tokens, &advice)
 }
 
 /// Conditional option topology of the retained original invocation. Captured

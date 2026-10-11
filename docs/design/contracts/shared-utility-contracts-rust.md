@@ -3725,3 +3725,17 @@ prevents further preparation continuation. Intentional entry into the new method
 frame follows settlement of the original caller context. This continuation
 check grants no Native Class pointer lifetime, native procedure callback
 chronology, command publication or whole-frame cleanup equivalence.
+
+The Compiler's original Inline Control source purpose is separate from reached
+handler structure. `SourceInvocationBinding::original_inline_control_compilation`
+requires the retained physical entry and compiler registration, unchanged whole
+compiler words, full configuration and actual Inline Control outcome.
+`original_inline_control_metadata_for_input` joins that original point to the
+caller's exact retained input and command store. Nested producers supply their
+explicit nested input before this join.
+The shared original structure selector uses the same original lookup target and
+registry schema; generic, rejected and unavailable recipes remain unavailable.
+The retained compiler site may supply lexical body geometry, while compiled
+child namespace selection keeps its existing independent inventory checks. These
+projections create no handler, Normal completion, body activation, numeric
+normalisation or Native execution authority.

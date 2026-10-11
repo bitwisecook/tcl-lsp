@@ -26,7 +26,10 @@ impl SourceInvocationBinding {
         if self.original_lexer_config_for_tokens(parent)? != config {
             return None;
         }
-        let site = self.invocation_site()?;
+        let site = self.invocation_site().or_else(|| {
+            self.original_inline_control_compilation(parent)
+                .map(super::compiled_invocation::SourceNativeStructuredPreparation::compilation_site)
+        })?;
         let original = site
             .source
             .original_lexical_command(parent.words(), site.offset, config)?;
