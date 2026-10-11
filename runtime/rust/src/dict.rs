@@ -734,7 +734,7 @@ impl PreparedNativeDictionary {
             }
             None => obj::Owned::fresh(new_dict_obj(&[])),
         };
-        let reached = (|| {
+        let reached: Result<Option<std::rc::Weak<()>>, ValueError> = (|| {
             dictionary_stage_current_checked(value.as_ptr(), None, stage_check)?;
             ensure_dict_native_with_stage_handlers(
                 value.as_ptr(),
