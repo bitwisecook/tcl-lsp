@@ -25,7 +25,6 @@ fn native(profile: &str) -> Interp {
     )
     .unwrap()
 }
-extern "C" fn duplicate(_: *mut TclObj, _: *mut TclObj) {}
 extern "C" fn retire(_: *mut TclObj) {
     if !ARMED.with(|value| value.replace(false)) {
         return;
@@ -70,15 +69,17 @@ extern "C" fn retire(_: *mut TclObj) {
 static BODY: obj::TclObjType = obj::TclObjType {
     name: c"originalCopiedProcedure".as_ptr(),
     free_int_rep_proc: Some(retire),
-    dup_int_rep_proc: Some(duplicate),
+    dup_int_rep_proc: None,
     update_string_proc: None,
     set_from_any_proc: None,
 };
 #[test]
-fn original_namespace_copy_checks_duplicate_cleanup_before_original_holder_publication() {
+fn original_namespace_copy_checks_occupied_procedure_retirement_before_original_holder_publication()
+{
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-    // Actual duplicate primary retirement; no C copy chronology or Class grant.
+    // Actual occupied destination Proc retirement precedes original namespace publication.
+    // This software callback does not measure Native copy chronology or Class lifetime.
     for mode in 0..4 {
         crate::counters::reset();
         {
@@ -89,8 +90,8 @@ fn original_namespace_copy_checks_duplicate_cleanup_before_original_holder_publi
             let destination = interpreter
                 .namespaces_mut()
                 .ensure_namespace(GLOBAL, b"Destination");
-            let body = Owned::fresh(obj::alloc_typed(&BODY, 0));
-            unsafe { obj::set_string_rep(body.as_ptr(), b"return OLD") };
+            let body = Owned::fresh(obj::new_string_bytes(b"return NEW"));
+            let source_body = body.as_ptr();
             let definition = crate::interp::NativeProcedureDefinition {
                 location: crate::interp::ProcLocation {
                     namespace: source,
@@ -105,6 +106,22 @@ fn original_namespace_copy_checks_duplicate_cleanup_before_original_holder_publi
             };
             let command = crate::interp::NativeProcedureCommand::new(Vec::new(), body, definition);
             interpreter.bind_command_replacement(source, b"p", Command::Proc(command));
+            let displaced = Owned::fresh(obj::alloc_typed(&BODY, 0));
+            unsafe { obj::set_string_rep(displaced.as_ptr(), b"return OLD") };
+            let prior = crate::interp::NativeProcedureDefinition {
+                location: crate::interp::ProcLocation {
+                    namespace: destination,
+                    qualified_name: b"::Destination::p".to_vec(),
+                    jim_namespace: None,
+                },
+                jim_parameters: None,
+                source: None,
+                body_line_base: 0,
+                native: None,
+                statics: None,
+            };
+            let prior = crate::interp::NativeProcedureCommand::new(Vec::new(), displaced, prior);
+            interpreter.bind_command_replacement(destination, b"p", Command::Proc(prior));
             OWNER.with(|value| *value.borrow_mut() = Some(interpreter.downgrade()));
             let _cleanup = Cleanup;
             MODE.with(|value| value.set(mode));
@@ -122,6 +139,17 @@ fn original_namespace_copy_checks_duplicate_cleanup_before_original_holder_publi
                     .is_some(),
                 mode == 0
             );
+            if mode == 0 {
+                let Some(Command::Proc(copied)) =
+                    interpreter.namespaces().command_in(destination, b"p")
+                else {
+                    panic!("successful occupied copy publishes its selected procedure");
+                };
+                assert_eq!(
+                    copied.declaration().body.checked_ptr().unwrap(),
+                    source_body
+                );
+            }
             assert_eq!(interpreter.native_execution_refusal().is_some(), mode != 0);
             assert_eq!(obj::bytes_of(interpreter.result_obj()), b"REACHED COPY");
             if mode == 3 {
