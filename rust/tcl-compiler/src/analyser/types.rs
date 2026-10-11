@@ -3691,7 +3691,7 @@ impl AnalysisResult {
         let commands = crate::segmenter::segment_commands_with_offset_and_config(
             source.get(start..)?,
             allocation.site.offset,
-            config,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
         );
         Some(
             commands
@@ -5369,3 +5369,71 @@ mod lexical_source_advice_domain_tests;
 
 #[cfg(test)]
 mod original_source_context_tests;
+
+#[cfg(test)]
+mod original_definition_suffix_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_definition_suffix_keeps_bom_definer_and_authored_allocation() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Retained authored declaration navigation; no completed call or editable definition grant.
+        let mut prepared = crate::analyser::Analyser::new();
+        let base = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..base.lexer_config()
+        };
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            base.analyser_profile(),
+            base.unit_profile(),
+            base.context_registry(),
+            config,
+        );
+        let source = "\u{feff}rename proc {\u{feff}Maker}\n\u{feff}Maker p {} {return BODY}\np";
+        let mut result = crate::analyser::Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, "presentation");
+        let offset = u32::try_from(source.rfind('p').unwrap()).unwrap();
+        let definition = result
+            .command_invocations
+            .iter()
+            .find(|call| call.range.start() == offset)
+            .unwrap()
+            .resolved_definition
+            .clone()
+            .unwrap();
+        let declaration = result
+            .original_procedure_declarations()
+            .find(|record| record.metadata().name == "p")
+            .unwrap()
+            .metadata()
+            .name_span;
+        let tokens = result.definition_tokens(&definition, source).unwrap();
+        assert!(tokens.contains(&declaration));
+        assert_eq!(
+            definition.allocation().site.offset,
+            u32::try_from(source.find("\u{feff}Maker p").unwrap()).unwrap()
+        );
+        assert_eq!(result.resolved_input.as_ref(), Some(&input));
+        assert_eq!(result.body_lexer_config, Some(config));
+        result.original_procedure_metadata.clear();
+        assert_eq!(
+            result
+                .proc_for_definition(&definition, source)
+                .unwrap()
+                .name_span,
+            declaration
+        );
+        assert!(
+            result
+                .definition_tokens(&definition, &source.replace("BODY", "OTHER"))
+                .is_none()
+        );
+        result.body_lexer_config = None;
+        assert!(result.definition_tokens(&definition, source).is_none());
+    }
+}

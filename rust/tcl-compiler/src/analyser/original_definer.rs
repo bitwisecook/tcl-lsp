@@ -168,7 +168,7 @@ fn original_argument_projection(
     let mut projection = crate::segmenter::segment_commands_with_offset_and_config(
         word.try_text().ok()?,
         word.word_span().start(),
-        word.config(),
+        tcl_lexer::SourceSegmentationPurpose::NestedScript.config(word.config()),
     );
     if projection.len() != 1 {
         return None;
@@ -501,5 +501,47 @@ mod tests {
                 "{name}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod original_argument_source_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_definer_argument_keeps_bom_and_complete_parent_word_geometry() {
+        // naming.source.original-class-constructor-call
+        // docs/design/analysis/name-resolution-proofs/source-original-class-constructor-call.md
+        // Original word projection only; selection and argument value ownership remain independent.
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::default()
+        };
+        let source = "\u{feff}puts \u{feff}Name {*}{value}";
+        let image = tcl_lexer::SourceImage::document(source);
+        let plan = tcl_lexer::native_script_words_in(
+            image.clone(),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let word = &plan.commands[0].words[1];
+        assert_eq!(word.config(), config);
+        assert_eq!(word.image(), &image);
+        let (value, token) = original_argument_projection(word, "\u{feff}Name".as_bytes()).unwrap();
+        assert_eq!(value, "\u{feff}Name");
+        assert_eq!(token, word.tokens()[0]);
+        assert_eq!(
+            tcl_lexer::word_span(&SourceMap::from_image(&image), token),
+            word.word_span()
+        );
+        assert_eq!(
+            &image.bytes()[word.word_span().as_range()],
+            "\u{feff}Name".as_bytes()
+        );
+        assert!(original_argument_projection(word, &[0xff]).is_none());
+        assert!(original_argument_projection(&plan.commands[0].words[2], b"value").is_none());
     }
 }

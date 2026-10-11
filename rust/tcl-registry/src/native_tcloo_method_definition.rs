@@ -5,7 +5,7 @@
 //! preparation, body object or native registration capability.
 
 use crate::InvocationDialect;
-use tcl_dialect::{model::Family, TclVersion};
+use tcl_dialect::{TclVersion, model::Family};
 
 const EXPORT_MODES: &[&str] = &["-export", "-private", "-unexport"];
 
@@ -56,6 +56,39 @@ impl NativeTclooMethodRenameFailure {
             ],
             Self::SameEntry => vec![b"TCL", b"OO", b"RENAME_TO_SELF"],
             Self::OccupiedDestination => vec![b"TCL", b"OO", b"RENAME_OVER"],
+        }
+    }
+}
+
+/// The reached call-context role issued by a genuine native entry producer.
+/// A method's name text cannot establish a constructor or destructor role.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeTclooMethodReportRole {
+    /// Ordinary named method, including a literal sentinel-looking name.
+    Named,
+    /// Actual constructor call context, inherited unchanged by `next`.
+    Constructor,
+    /// Actual destructor call context, inherited unchanged by `next`.
+    Destructor,
+}
+
+/// Selected pure report semantics, independent of physical Foundation headers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NativeTclooMethodReportProtocol;
+impl NativeTclooMethodReportProtocol {
+    /// Select through the existing actual TclOO declaration availability owner.
+    #[must_use]
+    pub fn select(dialect: InvocationDialect) -> Option<Self> {
+        NativeTclooMethodDefinitionProtocol::select(dialect).map(|_| Self)
+    }
+    /// Literal for the actual Foundation's separately owned special-role header.
+    /// Named records own their own name and have no Foundation report header.
+    #[must_use]
+    pub const fn foundation_name(self, role: NativeTclooMethodReportRole) -> Option<&'static [u8]> {
+        match role {
+            NativeTclooMethodReportRole::Named => None,
+            NativeTclooMethodReportRole::Constructor => Some(b"<constructor>"),
+            NativeTclooMethodReportRole::Destructor => Some(b"<destructor>"),
         }
     }
 }

@@ -5,6 +5,7 @@ use super::{
     method_report_bytes, native_method_key, ok,
 };
 use std::ops::Deref;
+use tcl_registry::native_tcloo_method_definition::NativeTclooMethodReportRole;
 
 pub(super) type MethodOwner = Rc<RefCell<Method>>;
 #[derive(Default)]
@@ -91,14 +92,19 @@ impl MethodTable {
     }
 }
 
-pub(super) fn retain_owners(state: &OoState, mut chain: Vec<Step>, method: &str) -> Vec<Step> {
+pub(super) fn retain_owners(
+    state: &OoState,
+    mut chain: Vec<Step>,
+    method: &str,
+    role: NativeTclooMethodReportRole,
+) -> Vec<Step> {
     for step in &mut chain {
-        step.method_owner = if method.is_empty() {
+        step.method_owner = if role == NativeTclooMethodReportRole::Constructor {
             state
                 .classes
                 .get(&step.provider)
                 .and_then(|class| class.constructor.owner())
-        } else if method == "<destructor>" {
+        } else if role == NativeTclooMethodReportRole::Destructor {
             state
                 .classes
                 .get(&step.provider)
@@ -136,12 +142,21 @@ struct NativeMethodContext {
 pub(super) struct ReachedMethodChain {
     steps: Rc<Vec<Step>>,
     _context: Option<Rc<NativeMethodContext>>,
+    report_role: NativeTclooMethodReportRole,
 }
 impl ReachedMethodChain {
+    pub(super) fn with_report_role(mut self, role: NativeTclooMethodReportRole) -> Self {
+        self.report_role = role;
+        self
+    }
+    pub(super) fn report_role(&self) -> NativeTclooMethodReportRole {
+        self.report_role
+    }
     fn from_cached(chain: Rc<NativeMethodChain>) -> Self {
         Self {
             steps: Rc::clone(&chain.steps),
             _context: Some(Rc::new(NativeMethodContext { _chain: chain })),
+            report_role: NativeTclooMethodReportRole::Named,
         }
     }
 }
@@ -156,6 +171,7 @@ impl From<Vec<Step>> for ReachedMethodChain {
         Self {
             steps: Rc::new(steps),
             _context: None,
+            report_role: NativeTclooMethodReportRole::Named,
         }
     }
 }
@@ -164,6 +180,7 @@ impl From<Rc<Vec<Step>>> for ReachedMethodChain {
         Self {
             steps,
             _context: None,
+            report_role: NativeTclooMethodReportRole::Named,
         }
     }
 }

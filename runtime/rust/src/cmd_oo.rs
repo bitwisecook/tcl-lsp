@@ -47,6 +47,10 @@ pub(crate) mod native_method_cache;
 mod native_object_info;
 pub(crate) mod native_variables;
 
+use tcl_registry::native_tcloo_method_definition::{
+    NativeTclooMethodReportProtocol, NativeTclooMethodReportRole,
+};
+
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
@@ -320,10 +324,39 @@ struct ObjectPublication {
     report: Vec<u8>,
 }
 
+struct FoundationMethodReports {
+    constructor: obj::Owned,
+    destructor: obj::Owned,
+}
+impl FoundationMethodReports {
+    fn new(protocol: NativeTclooMethodReportProtocol) -> Self {
+        Self {
+            constructor: obj::Owned::fresh(obj::new_string_bytes(
+                protocol
+                    .foundation_name(NativeTclooMethodReportRole::Constructor)
+                    .expect("selected constructor literal"),
+            )),
+            destructor: obj::Owned::fresh(obj::new_string_bytes(
+                protocol
+                    .foundation_name(NativeTclooMethodReportRole::Destructor)
+                    .expect("selected destructor literal"),
+            )),
+        }
+    }
+    fn report(&self, role: NativeTclooMethodReportRole) -> Option<*mut TclObj> {
+        match role {
+            NativeTclooMethodReportRole::Named => None,
+            NativeTclooMethodReportRole::Constructor => Some(self.constructor.as_ptr()),
+            NativeTclooMethodReportRole::Destructor => Some(self.destructor.as_ptr()),
+        }
+    }
+}
+
 /// The interpreter's TclOO state.
 #[derive(Default)]
 pub struct OoState {
     native_methods: native_method_cache::NativeMethodWorld,
+    method_reports: Option<FoundationMethodReports>,
     property_foundation_epoch: u64,
     property_my_name: Option<obj::Owned>,
     property_members: BTreeMap<(OoId, bool, bool), BTreeMap<Vec<u8>, obj::Owned>>,
@@ -490,6 +523,9 @@ impl OoState {
 
 /// Register the `oo::*` commands and the definition / context commands.
 pub fn install(interp: &mut Interp) {
+    let reports = NativeTclooMethodReportProtocol::select(interp.native_invocation_dialect())
+        .map(FoundationMethodReports::new);
+    interp.oo.borrow_mut().method_reports = reports;
     interp.oo.borrow_mut().define_name =
         Some(obj::Owned::fresh(obj::new_string_bytes(b"::oo::define")));
     interp.register_builtin(b"oo::define", oo_define_cmd);
@@ -3295,16 +3331,45 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Some(b"method") => {
                 // TclOOSelfObjCmd reports the entered current Method name, not
                 // the selector spelling retained when its chain was assembled.
-                let original = chain
-                    .get(index)
-                    .and_then(|step| step.method_owner.as_ref())
-                    .and_then(|record| record.original_name());
+                let role = chain.report_role();
+                let selected =
+                    NativeTclooMethodReportProtocol::select(interp.native_invocation_dialect());
+                let Some(_) = selected else {
+                    return interp.report_cmd_error(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "native method report protocol",
+                        )
+                        .into(),
+                    );
+                };
+                let original = if role == NativeTclooMethodReportRole::Named {
+                    chain
+                        .get(index)
+                        .and_then(|step| step.method_owner.as_ref())
+                        .and_then(|record| record.original_name())
+                } else {
+                    let original = interp
+                        .oo
+                        .borrow()
+                        .method_reports
+                        .as_ref()
+                        .and_then(|reports| reports.report(role));
+                    let Some(original) = original else {
+                        return interp.report_cmd_error(
+                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "original Foundation method report header",
+                            )
+                            .into(),
+                        );
+                    };
+                    Some(original)
+                };
                 if let Some(original) = original {
                     oo_checked!(interp, obj::check_native_liveness(original));
                     interp.set_result(original);
                 } else {
-                    // Unnamed constructor/destructor reporting keeps its
-                    // existing explicit sentinel path; it owns no table name.
+                    // Synthetic named intrinsics have no declaration name;
+                    // this path cannot reconstruct a special-role header.
                     interp.set_result(obj::new_string_bytes(&method));
                 }
             }
@@ -3527,7 +3592,7 @@ fn next_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         );
         interp.oo.borrow_mut().filter_handling = saved_fh;
         code
-    } else if target.is_empty() {
+    } else if chain.report_role() == NativeTclooMethodReportRole::Constructor {
         // Past the last constructor in the chain — a no-op (C's default).
         interp.set_result_bytes(b"");
         Code::Ok
@@ -3608,9 +3673,9 @@ fn nextto_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
         }
         // Not reachable ahead: distinguish "behind us" from "not in the chain".
-        let method_type: &[u8] = if target.is_empty() {
+        let method_type: &[u8] = if chain.report_role() == NativeTclooMethodReportRole::Constructor {
             b"constructor"
-        } else if target == b"<destructor>" {
+        } else if chain.report_role() == NativeTclooMethodReportRole::Destructor {
             b"destructor"
         } else {
             b"method"
@@ -5508,6 +5573,8 @@ impl Interp {
             })
             .collect();
         if !chain.is_empty() {
+            let chain = native_method_cache::ReachedMethodChain::from(chain)
+                .with_report_role(NativeTclooMethodReportRole::Constructor);
             let code = self.oo_run(object, chain, 0, b"", args, invocation);
             if code == Code::Error {
                 // A failed constructor tears the partially-built object down,
@@ -5840,7 +5907,11 @@ impl Interp {
             self.oo.borrow_mut().unknown_external = saved_external;
             return code;
         }
-        steps = native_method_cache::retain_owners(&self.oo.borrow(), steps);
+        steps = native_method_cache::retain_owners(
+            &self.oo.borrow(),
+            steps,
+            NativeTclooMethodReportRole::Named,
+        );
         // Filters wrap a method call (public or `my`) — prepend each active
         // filter as its own step — unless we're already handling a filter (C's
         // `FILTER_HANDLING`): a filter's own synchronous calls are not
@@ -5850,8 +5921,11 @@ impl Interp {
         if !self.oo.borrow().filter_handling {
             let filters = self.active_filters(obj, &providers);
             if !filters.is_empty() {
-                let mut chain: Vec<CallStep> =
-                    native_method_cache::retain_owners(&self.oo.borrow(), filters);
+                let mut chain: Vec<CallStep> = native_method_cache::retain_owners(
+                    &self.oo.borrow(),
+                    filters,
+                    NativeTclooMethodReportRole::Named,
+                );
                 chain.append(&mut steps);
                 let invocation = oo_checked!(
                     self,
@@ -6633,14 +6707,16 @@ impl Interp {
         invocation: MethodInvocation,
     ) -> Code {
         let chain: native_method_cache::ReachedMethodChain = chain.into();
-        let chain = if chain.iter().any(|step| {
-            step.method_owner.is_none()
-                && (step.method.is_empty() || step.method == b"<destructor>")
-        }) {
+        let report_role = chain.report_role();
+        let chain = if report_role != NativeTclooMethodReportRole::Named
+            && chain.iter().any(|step| step.method_owner.is_none())
+        {
             native_method_cache::ReachedMethodChain::from(native_method_cache::retain_owners(
                 &self.oo.borrow(),
                 chain.to_vec(),
+                report_role,
             ))
+            .with_report_role(report_role)
         } else {
             chain
         };
@@ -6657,7 +6733,9 @@ impl Interp {
         // The `::oo::class` synthetic constructor: instantiating a metaclass
         // runs the (optional) definition-script argument on the new class. C's
         // `oo::class` constructor is `{{definitionScript ""}}`.
-        if method.is_empty() && Some(prov) == self.oo.borrow().class_root {
+        if report_role == NativeTclooMethodReportRole::Constructor
+            && Some(prov) == self.oo.borrow().class_root
+        {
             return native_context::with_original_arguments(self, args, |interp, originals| {
                 let owner = oo_checked!(
                     interp,
@@ -6678,13 +6756,13 @@ impl Interp {
         }
         let m = if let Some(owner) = &chain[index].method_owner {
             Some(owner.borrow().clone())
-        } else if method.is_empty() {
+        } else if report_role == NativeTclooMethodReportRole::Constructor {
             self.oo
                 .borrow()
                 .classes
                 .get(&prov)
                 .and_then(|c| c.constructor.get())
-        } else if method == b"<destructor>" {
+        } else if report_role == NativeTclooMethodReportRole::Destructor {
             self.oo
                 .borrow()
                 .classes
@@ -6900,7 +6978,7 @@ impl Interp {
         // formal of the same name. Explicit `my variable X` still uses the
         // ordinary link path and reports a collision.
         vars.retain(|(local, _)| !params.iter().any(|param| param.name == *local));
-        let name = if method.is_empty() {
+        let name = if report_role == NativeTclooMethodReportRole::Constructor {
             b"<constructor>".to_vec()
         } else {
             method.clone()
@@ -6909,9 +6987,9 @@ impl Interp {
         // the *declaring* entity — `object`/`class` per whether the provider is
         // the object itself or one of its classes.
         let kind: &[u8] = if is_object { b"object" } else { b"class" };
-        let what = if method.is_empty() {
+        let what = if report_role == NativeTclooMethodReportRole::Constructor {
             MethodFrameWhat::Constructor
-        } else if method == b"<destructor>" {
+        } else if report_role == NativeTclooMethodReportRole::Destructor {
             MethodFrameWhat::Destructor
         } else {
             MethodFrameWhat::Named(&method)
@@ -6934,7 +7012,7 @@ impl Interp {
         // the invoking `obj method` (external) / `my method` (internal). Only
         // regular methods (constructors/destructors keep their synthetic name).
         let forwarded_usage = self.oo.borrow_mut().fwd_usage.take();
-        let usage_prefix: Option<Vec<u8>> = if method.is_empty() || method == b"<destructor>" {
+        let usage_prefix: Option<Vec<u8>> = if report_role != NativeTclooMethodReportRole::Named {
             None
         } else if let Some(u) = forwarded_usage {
             Some(u)
@@ -7147,7 +7225,8 @@ impl Interp {
         // ignores it (routing to `bgerror`).
         self.oo_run(
             obj,
-            chain,
+            native_method_cache::ReachedMethodChain::from(chain)
+                .with_report_role(NativeTclooMethodReportRole::Destructor),
             0,
             b"<destructor>",
             &[],
@@ -7321,6 +7400,9 @@ fn c3_merge(mut seqs: Vec<Vec<OoId>>) -> Vec<OoId> {
 
 #[cfg(test)]
 mod native_eval_tests;
+
+#[cfg(test)]
+mod native_method_report_tests;
 
 #[cfg(test)]
 mod tests {

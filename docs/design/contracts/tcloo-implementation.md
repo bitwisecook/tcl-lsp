@@ -450,3 +450,24 @@ separates stock worker stages from public Eval error-context and code-reset
 stages for C 8.6.18, 9.0.4 and 9.1.0. Its custom MethodType payload does not
 attest Runtime procedure, forward or property execution. Initialised C 8.4.20,
 8.5.19 and Jim availability controls supply no supported OO rename purpose.
+
+The reached method chain carries a selected `Named`, `Constructor` or
+`Destructor` report role. The constructor and destructor entry producers issue
+those roles; `next` inherits the same chain context. A literal method name such
+as `<constructor>` or `<destructor>` stays `Named`.
+
+The actual OO bootstrap separately owns the constructor and destructor report
+headers selected by `NativeTclooMethodReportProtocol`. `self method` returns the
+current named Method's original header in Runtime, or the actual Foundation
+header for a special role. Unnamed Method records acquire no table-name hold.
+Missing Foundation ownership or unsupported selected semantics refuse instead
+of reconstructing a report header from a sentinel-looking name. The VM retains
+its actual Foundation values and reports the same selected roles; its value
+identity assertions make no physical C refcount claim.
+
+The inspected initialization, teardown, worker and call-context source joins
+are tracked by
+[naming.tcloo.original-selected-method-role-report](../analysis/name-resolution-proofs/tcloo-original-selected-method-role-report.md).
+Ordinary CLI report values are an independent observation channel. Method cache
+and mutable client-data lifetime observations do not establish these report
+header roles.

@@ -42,6 +42,10 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+use tcl_registry::native_tcloo_method_definition::{
+    NativeTclooMethodReportProtocol, NativeTclooMethodReportRole,
+};
+
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -226,9 +230,38 @@ enum DefTarget {
 }
 
 /// The whole object system's runtime state, held by the [`Vm`].
+struct FoundationMethodReports {
+    constructor: Value,
+    destructor: Value,
+}
+impl FoundationMethodReports {
+    fn new(protocol: NativeTclooMethodReportProtocol) -> Self {
+        Self {
+            constructor: Value::new_native_string_bytes(
+                protocol
+                    .foundation_name(NativeTclooMethodReportRole::Constructor)
+                    .expect("selected constructor literal"),
+            ),
+            destructor: Value::new_native_string_bytes(
+                protocol
+                    .foundation_name(NativeTclooMethodReportRole::Destructor)
+                    .expect("selected destructor literal"),
+            ),
+        }
+    }
+    fn report(&self, role: NativeTclooMethodReportRole) -> Option<Value> {
+        match role {
+            NativeTclooMethodReportRole::Named => None,
+            NativeTclooMethodReportRole::Constructor => Some(self.constructor.clone()),
+            NativeTclooMethodReportRole::Destructor => Some(self.destructor.clone()),
+        }
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct OoState {
     native_methods: native_method_cache::NativeMethodWorld,
+    method_reports: Option<FoundationMethodReports>,
     property_foundation_epoch: u64,
     property_my_name: Option<Value>,
     property_members: BTreeMap<(OoId, bool, bool), BTreeMap<String, Value>>,
@@ -1010,6 +1043,9 @@ fn accessor_result(
 /// Seed the two root classes `::oo::object` and `::oo::class`. Each is a class,
 /// an object (instance of `::oo::class`), and a command.
 fn bootstrap(vm: &mut Vm) {
+    vm.oo.method_reports =
+        NativeTclooMethodReportProtocol::select(vm.actual_native_invocation_dialect())
+            .map(FoundationMethodReports::new);
     // TclOO is compiled into the VM, so — like C Tcl's core at startup — provide
     // the `tcl::oo` package and seed the `::oo` version variables. Without the
     // package the `package require tcl::oo` at the top of every `oo*` test file
@@ -1333,8 +1369,14 @@ fn oo_new(
                 .is_some_and(|c| c.constructor.is_some())
         })
         .collect();
-    let chain: native_method_cache::ReachedMethodChain =
-        native_method_cache::retain_owners(&vm.oo, chain, "").into();
+    let chain: native_method_cache::ReachedMethodChain = native_method_cache::retain_owners(
+        &vm.oo,
+        chain,
+        "",
+        NativeTclooMethodReportRole::Constructor,
+    )
+    .into();
+    let chain = chain.with_report_role(NativeTclooMethodReportRole::Constructor);
     if !chain.is_empty() {
         let res = run_step(
             vm,
@@ -1706,7 +1748,12 @@ fn invocation_method_chain(
         {
             return Err(unknown_method(vm, obj_key, method, external));
         }
-        let chain = native_method_cache::retain_owners(&vm.oo, chain, method);
+        let chain = native_method_cache::retain_owners(
+            &vm.oo,
+            chain,
+            method,
+            NativeTclooMethodReportRole::Named,
+        );
         if cacheable {
             match native_method_cache::remember(
                 vm,
@@ -1818,12 +1865,12 @@ fn run_step_inner(
     // Resolve the method body for this step.
     let m = if let Some(owner) = &step.method_owner {
         Some(owner.borrow().clone())
-    } else if method.is_empty() {
+    } else if chain.report_role() == NativeTclooMethodReportRole::Constructor {
         vm.oo
             .classes
             .get(&step.provider)
             .and_then(|c| c.constructor.get())
-    } else if method == "<destructor>" {
+    } else if chain.report_role() == NativeTclooMethodReportRole::Destructor {
         vm.oo
             .classes
             .get(&step.provider)
@@ -2026,11 +2073,11 @@ fn run_step_inner(
             {
                 current.compiled_body = refreshed.compiled_body;
             }
-        } else if method.is_empty() {
+        } else if chain.report_role() == NativeTclooMethodReportRole::Constructor {
             if let Some(class) = vm.oo.classes.get_mut(&step.provider) {
                 class.constructor.install(refreshed);
             }
-        } else if method == "<destructor>" {
+        } else if chain.report_role() == NativeTclooMethodReportRole::Destructor {
             if let Some(class) = vm.oo.classes.get_mut(&step.provider) {
                 class.destructor.install(refreshed);
             }
@@ -2301,9 +2348,40 @@ fn cmd_self(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 step.provider,
             )))
         }
-        Some("method") => ok(Value::from_native_string_bytes(
-            vm.oo.method_name_bytes(&fr.method).to_vec(),
-        )),
+        Some("method") => {
+            let role = fr.chain.report_role();
+            if NativeTclooMethodReportProtocol::select(vm.actual_native_invocation_dialect())
+                .is_none()
+            {
+                return crate::command::completion_from_cmd_error(
+                    vm,
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "native method report protocol",
+                    )
+                    .into(),
+                );
+            }
+            if role == NativeTclooMethodReportRole::Named {
+                ok(Value::from_native_string_bytes(
+                    vm.oo.method_name_bytes(&fr.method).to_vec(),
+                ))
+            } else if let Some(original) = vm
+                .oo
+                .method_reports
+                .as_ref()
+                .and_then(|reports| reports.report(role))
+            {
+                ok(original)
+            } else {
+                crate::command::completion_from_cmd_error(
+                    vm,
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original Foundation method report header",
+                    )
+                    .into(),
+                )
+            }
+        }
         Some("call") => {
             let steps: Vec<Value> = fr
                 .chain
@@ -2350,9 +2428,9 @@ pub(crate) fn cmd_next_original(vm: &mut Vm, head: &Value, args: &[Value]) -> Co
     let usage = fr.usage_prefix.clone();
     if index + 1 >= chain.len() {
         // Past the end there is no further implementation of this kind.
-        let kind = if method.is_empty() {
+        let kind = if chain.report_role() == NativeTclooMethodReportRole::Constructor {
             "constructor"
-        } else if method == "<destructor>" {
+        } else if chain.report_role() == NativeTclooMethodReportRole::Destructor {
             "destructor"
         } else {
             "method"
@@ -2475,8 +2553,14 @@ fn oo_destroy(vm: &mut Vm, obj_key: OoId) -> Completion<Value> {
                     .is_some_and(|c| c.destructor.is_some())
             })
             .collect();
-        let chain: native_method_cache::ReachedMethodChain =
-            native_method_cache::retain_owners(&vm.oo, chain, "<destructor>").into();
+        let chain: native_method_cache::ReachedMethodChain = native_method_cache::retain_owners(
+            &vm.oo,
+            chain,
+            "<destructor>",
+            NativeTclooMethodReportRole::Destructor,
+        )
+        .into();
+        let chain = chain.with_report_role(NativeTclooMethodReportRole::Destructor);
         if !chain.is_empty() {
             let d = Value::from_native_string_bytes(display_oo_bytes(vm, obj_key));
             let call_identity = Vec::new();
@@ -4493,3 +4577,6 @@ mod native_property_counted_tests;
 
 #[cfg(test)]
 mod native_original_holder_tests;
+
+#[cfg(test)]
+mod native_method_report_tests;

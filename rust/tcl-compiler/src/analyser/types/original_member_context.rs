@@ -248,7 +248,7 @@ impl OriginalLexicalNextCall {
         let command = crate::segmenter::segment_commands_with_offset_and_config(
             body,
             range.start(),
-            context.input.lexer_config(),
+            tcl_lexer::SourceSegmentationPurpose::NestedScript.config(context.input.lexer_config()),
         )
         .into_iter()
         .find(|command| command.argv.first() == Some(head))?;
@@ -724,5 +724,91 @@ mod tests {
                 .source_arity(&analysis, source)
                 .is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod original_member_body_purpose_tests {
+    use super::*;
+    use crate::analyser::{Analyser, Scope};
+
+    fn member(scope: &Scope) -> Option<&OriginalLexicalMemberContext> {
+        scope
+            .original_member_context
+            .as_deref()
+            .filter(|context| context.class_publication().slot().simple.as_bytes() == b"C")
+            .or_else(|| scope.children.iter().find_map(member))
+    }
+
+    #[test]
+    fn original_next_body_keeps_bom_alias_and_complete_member_input() {
+        // naming.tcloo.original-lexical-member-context
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-lexical-member-context.md
+        // Lexical helper schema/count only; the class body supplies no entered receiver frame.
+        let mut prepared = Analyser::new();
+        let base = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let config = LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..base.lexer_config()
+        };
+        let input = ResolvedAnalysisInput::new(
+            base.analyser_profile(),
+            base.unit_profile(),
+            base.context_registry(),
+            config,
+        );
+        let source = "\u{feff}interp alias {} \u{feff}chain {} ::oo::Helpers::next\noo::class create Base {method f {arg} {}}\noo::class create C {superclass Base; method f {} {\u{feff}chain VALUE}}";
+        let analysis = Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, "presentation");
+        let context = member(&analysis.global_scope).unwrap();
+        assert_eq!(context.resolved_input(), &input);
+        assert_eq!(context.body_word().config(), config);
+        assert_eq!(context.body_word().image(), &SourceImage::document(source));
+        let range = context.body_word().content_span().unwrap();
+        let body = source.get(range.as_range()).unwrap();
+        assert_eq!(body, "\u{feff}chain VALUE");
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            body,
+            range.start(),
+            tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+        );
+        let head = commands[0].argv[0];
+        let call = OriginalLexicalNextCall::from_source(context, &analysis, source, &head).unwrap();
+        assert_eq!(call.source_argument_count().unwrap().minimum, 1);
+        assert_eq!(
+            call.source_arity(&analysis, source),
+            Some(tcl_registry::Arity::exact(1))
+        );
+        assert_eq!(
+            call.original_words()[0].try_text().unwrap(),
+            "\u{feff}chain"
+        );
+        assert!(
+            call.original_words()
+                .iter()
+                .all(|word| word.config() == config && word.image() == context.body_word().image())
+        );
+        assert!(
+            OriginalLexicalNextCall::from_source(
+                context,
+                &analysis,
+                &source.replace("VALUE", "OTHER"),
+                &head
+            )
+            .is_none()
+        );
+        let mut foreign = analysis.clone();
+        foreign.resolved_input = Some(ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            config.nested(),
+        ));
+        assert!(OriginalLexicalNextCall::from_source(context, &foreign, source, &head).is_none());
+        foreign.resolved_input = None;
+        assert!(OriginalLexicalNextCall::from_source(context, &foreign, source, &head).is_none());
     }
 }

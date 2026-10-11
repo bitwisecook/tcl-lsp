@@ -2,6 +2,7 @@
 //! Original TclOO method records retained by table and reached call-chain owners.
 use super::*;
 use std::ops::Deref;
+use tcl_registry::native_tcloo_method_definition::NativeTclooMethodReportRole;
 
 /// A Method record retains its current native name independently of the table key.
 pub(super) struct NativeMethodRecord {
@@ -205,14 +206,18 @@ impl MethodTable {
     }
 }
 
-pub(super) fn retain_owners(state: &OoState, mut chain: Vec<CallStep>) -> Vec<CallStep> {
+pub(super) fn retain_owners(
+    state: &OoState,
+    mut chain: Vec<CallStep>,
+    role: NativeTclooMethodReportRole,
+) -> Vec<CallStep> {
     for step in &mut chain {
-        step.method_owner = if step.method.is_empty() {
+        step.method_owner = if role == NativeTclooMethodReportRole::Constructor {
             state
                 .classes
                 .get(&step.provider)
                 .and_then(|class| class.constructor.owner())
-        } else if step.method == b"<destructor>" {
+        } else if role == NativeTclooMethodReportRole::Destructor {
             state
                 .classes
                 .get(&step.provider)
@@ -275,8 +280,16 @@ struct NativeMethodContext {
 pub(super) struct ReachedMethodChain {
     steps: Rc<Vec<CallStep>>,
     _context: Option<Rc<NativeMethodContext>>,
+    report_role: NativeTclooMethodReportRole,
 }
 impl ReachedMethodChain {
+    pub(super) fn with_report_role(mut self, role: NativeTclooMethodReportRole) -> Self {
+        self.report_role = role;
+        self
+    }
+    pub(super) fn report_role(&self) -> NativeTclooMethodReportRole {
+        self.report_role
+    }
     fn from_cached(chain: Rc<NativeMethodChain>) -> Option<Self> {
         // TclOOInvokeContext retains EVERY original Method in an entered chain.
         // A missing original weak record cannot be replaced by its display name.
@@ -288,6 +301,7 @@ impl ReachedMethodChain {
         Some(Self {
             steps: Rc::new(steps),
             _context: Some(Rc::new(NativeMethodContext { _chain: chain })),
+            report_role: NativeTclooMethodReportRole::Named,
         })
     }
 }
@@ -302,6 +316,7 @@ impl From<Vec<CallStep>> for ReachedMethodChain {
         Self {
             steps: Rc::new(steps),
             _context: None,
+            report_role: NativeTclooMethodReportRole::Named,
         }
     }
 }
@@ -310,6 +325,7 @@ impl From<Rc<Vec<CallStep>>> for ReachedMethodChain {
         Self {
             steps,
             _context: None,
+            report_role: NativeTclooMethodReportRole::Named,
         }
     }
 }
