@@ -713,10 +713,14 @@ pub fn segment_commands_incremental(
         .filter(|c| c.span.start() < lo)
         .cloned()
         .collect();
+    // `lo` is the retained whole-document command boundary. A suffix at
+    // zero remains the actual file input; a nonzero suffix is an extracted
+    // mid-file region, so its first BOM is content rather than a file marker.
+    let suffix_config = if lo == 0 { config } else { config.nested() };
     out.extend(segment_commands_with_offset_and_config(
         &new_text[lo as usize..],
         lo,
-        config,
+        suffix_config,
     ));
     out
 }
@@ -1263,6 +1267,66 @@ mod tests {
                 .wrapping_add(1);
             (self.0 >> 33) as u32
         }
+    }
+
+    #[test]
+    fn original_incremental_suffix_keeps_whole_file_and_midfile_bom_purposes() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Original Document command geometry only; no entered/native source grant.
+        let mut analyser = crate::analyser::Analyser::new();
+        let input = analyser.prepare_analysis_input("tcl9.1").unwrap();
+        for leading_bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let config = tcl_lexer::LexerConfig {
+                leading_bom,
+                ..input.lexer_config()
+            };
+            let old = "\u{feff}set prefix OLD\n\u{feff}unknown old";
+            let new = "\u{feff}set prefix OLD\n\u{feff}unknown new";
+            let previous = segment_commands_with_offset_and_config(old, 0, config);
+            assert_eq!(previous.len(), 2);
+            assert!(previous[1].span.start() > 0);
+            let incremental = segment_commands_incremental(old, &previous, new, config);
+            let complete = segment_commands_with_offset_and_config(new, 0, config);
+            assert_eq!(projected(&incremental), projected(&complete));
+            assert_eq!(incremental[1].texts[0], "\u{feff}unknown");
+            assert_eq!(
+                new.get(incremental[1].argv[0].span.as_range()),
+                Some("\u{feff}unknown")
+            );
+
+            // An edit before the first retained command actually reparses the
+            // whole input, and must keep its explicitly selected file policy.
+            let old = "set prefix OLD\nputs tail";
+            let new = "\u{feff}set prefix OLD\nputs tail";
+            let previous = segment_commands_with_offset_and_config(old, 0, config);
+            assert_eq!(previous[0].span.start(), 0);
+            let incremental = segment_commands_incremental(old, &previous, new, config);
+            assert_eq!(
+                projected(&incremental),
+                projected(&segment_commands_with_offset_and_config(new, 0, config))
+            );
+            assert_eq!(
+                incremental[0].texts[0],
+                if leading_bom == tcl_lexer::LeadingBom::Skip {
+                    "set"
+                } else {
+                    "\u{feff}set"
+                }
+            );
+        }
+        // Genuine non-BOM grammar override remains selected in the suffix.
+        let config = tcl_lexer::LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..input.lexer_config()
+        };
+        let old = "puts prefix\n\u{feff}puts ${name{inner}} OLD";
+        let new = "puts prefix\n\u{feff}puts ${name{inner}} NEW";
+        let previous = segment_commands_with_offset_and_config(old, 0, config);
+        assert_eq!(
+            projected(&segment_commands_incremental(old, &previous, new, config)),
+            projected(&segment_commands_with_offset_and_config(new, 0, config))
+        );
     }
 
     #[test]
