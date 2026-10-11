@@ -324,7 +324,7 @@ pub(crate) struct OoState {
     /// Active definition targets with issued variable activations and caller namespaces.
     def_stack: Vec<(DefTarget, u64, NsId, u64)>,
     /// Original single-directive invocation words for native usage rewriting.
-    definition_usage: Option<Vec<Value>>,
+    definition_usage: native_context::DefinitionUsage,
 }
 
 /// The per-flow OO execution stacks — the subset of [`OoState`] that a coroutine
@@ -335,7 +335,7 @@ pub(crate) struct OoExec {
     call_stack: Vec<OoFrame>,
     def_stack: Vec<(DefTarget, u64, NsId, u64)>,
     private_depth: usize,
-    definition_usage: Option<Vec<Value>>,
+    definition_usage: native_context::DefinitionUsage,
 }
 
 impl OoState {
@@ -1457,6 +1457,8 @@ fn oo_new(
     )
     .into();
     let chain = chain.with_report_role(NativeTclooMethodReportRole::Constructor);
+    let construction = crate::interp::oo_cleanup::OriginalOoCleanup::enter(vm);
+    let original_record = OriginalConstructedRecord::capture(&vm.oo, object_id);
     if !chain.is_empty() {
         let res = run_step(
             vm,
@@ -1470,16 +1472,16 @@ fn oo_new(
             ctor_usage.to_vec(),
             ctor_identity,
         );
+        if let Err(error) = construction.check(vm) {
+            crate::interp::oo_cleanup::retain_error(vm, &error);
+        }
         drop(chain);
-        if !res.code.is_ok() && res.code != Code::Return {
-            // Tear the half-built object down and re-raise.
-            if let Err(error) = teardown_checked(vm, object_id) {
-                return crate::command::completion_from_cmd_error(vm, error);
-            }
-            return res;
+        if (!res.code.is_ok() && res.code != Code::Return) || construction.check(vm).is_err() {
+            return finish_failed_constructor(vm, object_id, &original_record, &construction, res);
         }
     }
-    ok(native_context::object_name(vm, object_id))
+    let result = ok(native_context::object_name(vm, object_id));
+    construction.finish_completion(vm, result)
 }
 
 // Method resolution + execution.
@@ -2804,6 +2806,62 @@ fn teardown_checked(vm: &mut Vm, obj_key: OoId) -> Result<(), tcl_cmd_core::CmdE
     let owner = crate::interp::oo_cleanup::OriginalOoCleanup::enter(vm);
     teardown_original(vm, obj_key, &owner)
 }
+struct OriginalConstructedRecord {
+    creation: u64,
+    name: Weak<RefCell<Option<Value>>>,
+}
+impl OriginalConstructedRecord {
+    fn capture(oo: &OoState, object: OoId) -> Self {
+        let actual = &oo.objects[&object];
+        Self {
+            creation: actual.creation_id,
+            name: Rc::downgrade(&actual.cached_name),
+        }
+    }
+}
+
+/// Failure cleanup follows the allocated record in its original physical interpreter.
+fn finish_failed_constructor(
+    vm: &mut Vm,
+    object: OoId,
+    original_record: &OriginalConstructedRecord,
+    owner: &crate::interp::oo_cleanup::OriginalOoCleanup,
+    result: Completion<Value>,
+) -> Completion<Value> {
+    if let Err(error) = owner.check(vm) {
+        crate::interp::oo_cleanup::retain_error(vm, &error);
+    }
+    let same_record = owner.oo_mut(vm).map(|oo| {
+        oo.objects.get(&object).is_none_or(|actual| {
+            actual.creation_id == original_record.creation
+                && Weak::ptr_eq(&original_record.name, &Rc::downgrade(&actual.cached_name))
+        })
+    });
+    let retired = match same_record {
+        Ok(true) => teardown_original(vm, object, owner),
+        Ok(false) => {
+            let error = tcl_cmd_core::CmdError::from(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original constructed OO record",
+                ),
+            );
+            crate::interp::oo_cleanup::retain_error(vm, &error);
+            Err(error)
+        }
+        Err(error) => Err(error),
+    };
+    if let Err(error) = retired {
+        crate::interp::oo_cleanup::retain_error(vm, &error);
+        if owner.check(vm).is_err() {
+            return owner.finish_completion(vm, result);
+        }
+        drop(result);
+        let completion = crate::command::completion_from_cmd_error(vm, error);
+        return owner.finish_completion(vm, completion);
+    }
+    owner.finish_completion(vm, result)
+}
+
 fn teardown_original(
     vm: &mut Vm,
     obj_key: OoId,
@@ -2991,31 +3049,24 @@ fn run_define(vm: &mut Vm, args: &[Value], is_class: bool) -> Completion<Value> 
                 b" does not refer to a class",
             ));
         }
-        let dt = if is_class {
-            DefTarget::Class(target)
-        } else {
-            DefTarget::Object(target)
-        };
         if let Err(error) = original_names.select_target(vm, is_class, target) {
             return crate::command::completion_from_cmd_error(vm, error);
         }
-        let caller = vm.current_ns_id();
-        let caller_activation = vm.native_oo_variable_activation();
         let mut invocation = vec![
             vm.invoked_name_value()
                 .unwrap_or_else(|| Value::string(verb)),
         ];
         invocation.extend_from_slice(args);
         let usage = (args.len() > 2).then(|| invocation[..3].to_vec());
-        if let Err(completion) = native_context::enter_definition(vm, is_class, target, invocation)
-        {
-            return completion;
+        let mut definition =
+            match native_context::enter_definition(vm, is_class, target, invocation) {
+                Ok(definition) => definition,
+                Err(completion) => return completion,
+            };
+        if let Err(error) = definition.replace_usage(vm, usage) {
+            let completion = crate::command::completion_from_cmd_error(vm, error);
+            return definition.finish(vm, completion);
         }
-        let previous_usage = std::mem::replace(&mut vm.oo.definition_usage, usage);
-        let activation = vm.native_oo_variable_activation();
-        vm.oo
-            .def_stack
-            .push((dt, activation, caller, caller_activation));
         let result = original_names.in_current_frame(vm, |vm, original_names| {
             if args.len() == 2 {
                 // Script form: evaluate the body with the def target active. An error
@@ -3039,10 +3090,7 @@ fn run_define(vm: &mut Vm, args: &[Value], is_class: bool) -> Completion<Value> 
                 native_context::magic_definition_invoke(vm, &args[1], &args[2..])
             }
         });
-        vm.oo.def_stack.pop();
-        native_context::leave_definition(vm);
-        vm.oo.definition_usage = previous_usage;
-        result
+        definition.finish(vm, result)
     })
 }
 
@@ -3050,7 +3098,7 @@ fn run_define(vm: &mut Vm, args: &[Value], is_class: bool) -> Completion<Value> 
 /// words. Script form has no outer directive prefix; nested directives restore
 /// the previous rewrite after leaving their authentic definition activation.
 fn definition_wrong_args(vm: &mut Vm, usage: &str) -> Completion<Value> {
-    let Some(words) = vm.oo.definition_usage.clone() else {
+    let Some(words) = vm.oo.definition_usage.words().cloned() else {
         return crate::command::native_wrong_args(vm, usage);
     };
     let mut header = match vm.native_argument_usage_header(&words) {
@@ -4663,22 +4711,20 @@ fn make_class_bytes(
     vm.oo
         .command_keys
         .insert(class_id, CommandSidecarKey::visible(command_key));
+    let construction = crate::interp::oo_cleanup::OriginalOoCleanup::enter(vm);
+    let original_record = OriginalConstructedRecord::capture(&vm.oo, class_id);
     if let Some(body) = body {
         let res = evaluate_class_definition(vm, class_id, body);
-        if !res.code.is_ok() && res.code != Code::Return {
-            if let Err(error) = teardown_checked(vm, class_id) {
-                return crate::command::completion_from_cmd_error(vm, error);
-            }
-            return res;
+        if (!res.code.is_ok() && res.code != Code::Return) || construction.check(vm).is_err() {
+            return finish_failed_constructor(vm, class_id, &original_record, &construction, res);
         }
     }
-    ok(native_context::object_name(vm, class_id))
+    let result = ok(native_context::object_name(vm, class_id));
+    construction.finish_completion(vm, result)
 }
 
 fn evaluate_class_definition(vm: &mut Vm, class_id: OoId, body: &Value) -> Completion<Value> {
     original_name_operands::run(vm, Some((true, class_id)), |vm, original_names| {
-        let caller = vm.current_ns_id();
-        let caller_activation = vm.native_oo_variable_activation();
         let argv = vec![
             vm.oo
                 .define_name
@@ -4688,16 +4734,10 @@ fn evaluate_class_definition(vm: &mut Vm, class_id: OoId, body: &Value) -> Compl
             native_context::object_name(vm, class_id),
             body.clone(),
         ];
-        if let Err(completion) = native_context::enter_definition(vm, true, class_id, argv) {
-            return completion;
-        }
-        let activation = vm.native_oo_variable_activation();
-        vm.oo.def_stack.push((
-            DefTarget::Class(class_id),
-            activation,
-            caller,
-            caller_activation,
-        ));
+        let definition = match native_context::enter_definition(vm, true, class_id, argv) {
+            Ok(definition) => definition,
+            Err(completion) => return completion,
+        };
         let res = original_names.in_current_frame(vm, |vm, original_names| {
             let source = match original_names.read(vm, body) {
                 Ok(bytes) => tcl_lexer::SourceImage::native(bytes.as_ref()),
@@ -4715,9 +4755,7 @@ fn evaluate_class_definition(vm: &mut Vm, class_id: OoId, body: &Value) -> Compl
                 Err(e) => definition_error(vm, true, class_id, e),
             }
         });
-        vm.oo.def_stack.pop();
-        native_context::leave_definition(vm);
-        res
+        definition.finish(vm, res)
     })
 }
 

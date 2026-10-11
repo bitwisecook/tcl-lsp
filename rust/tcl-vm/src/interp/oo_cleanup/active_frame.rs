@@ -277,6 +277,29 @@ impl OriginalOoActivation {
         }
         Ok(())
     }
+    /// The existing actual physical cleanup owner, independently of Method purpose.
+    pub(crate) fn cleanup(&self) -> &OriginalOoCleanup {
+        &self.original
+    }
+    /// Require the same genuinely pushed call and namespace activations.
+    pub(crate) fn check_call_and_namespace(&self, vm: &mut Vm) -> Result<(), CmdError> {
+        self.original.check(vm)?;
+        let state = self.original.state_mut(vm)?;
+        let current = self
+            .call
+            .as_ref()
+            .is_some_and(|call| call.present(state) && state.frames.len() == call.position + 1)
+            && self.namespace.as_ref().is_some_and(|namespace| {
+                namespace.original_present(&state.resolution_stacks)
+                    && state.resolution_stacks.ns_stack.len() == namespace.position + 1
+            });
+        if !current {
+            return Err(self
+                .original
+                .refuse(vm, "original OO definition activation"));
+        }
+        Ok(())
+    }
     pub(crate) fn saved_call_exit(&self) -> Option<OriginalOoCallExit> {
         Some(OriginalOoCallExit {
             original: self.original.saved(),

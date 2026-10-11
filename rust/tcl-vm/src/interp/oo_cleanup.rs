@@ -274,3 +274,9 @@ impl OriginalOoCleanup {
         self.check_cleanup(vm)
     }
 }
+
+/// Test-only transport through the real existing physical interpreter switch.
+#[cfg(test)]
+pub(crate) fn select_cleanup_fixture_interpreter(vm: &mut Vm, target: InterpId) {
+    vm.switch_to(target);
+}

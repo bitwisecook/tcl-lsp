@@ -23,6 +23,9 @@ use super::{
     display_oo_bytes, err, err_code, ok, run_define,
 };
 
+mod definition_exit;
+pub(super) use definition_exit::DefinitionUsage;
+
 pub(super) fn install_object_helpers(vm: &mut Vm, namespace: &str) -> NsId {
     let token = vm.definition_namespace_token(namespace);
     let helpers = vm.definition_namespace_token("oo::Helpers");
@@ -234,36 +237,8 @@ pub(super) fn enter_definition(
     class: bool,
     target: OoId,
     argv: Vec<Value>,
-) -> Result<(), Completion<Value>> {
-    let name = if class {
-        "::oo::define"
-    } else {
-        "::oo::objdefine"
-    };
-    let selected = super::native_bootstrap::definition_namespace(vm, target, class);
-    let namespace = if let Some(namespace) = selected {
-        namespace
-    } else {
-        let namespace = match tcl_runtime_api::Namespaces::find_namespace_bytes_checked(
-            vm,
-            vm.current_ns_id(),
-            name.as_bytes(),
-        ) {
-            Ok(namespace) => namespace,
-            Err(error) => return Err(vm.refuse_host_command(error.to_string())),
-        };
-        let Some(namespace) = namespace else {
-            return Err(err("cannot process definitions; support namespace deleted"));
-        };
-        namespace
-    };
-    vm.push_ns_eval_token_frame(namespace, argv);
-    Ok(())
-}
-
-pub(super) fn leave_definition(vm: &mut Vm) {
-    vm.pop_call_frame();
-    vm.pop_ns();
+) -> Result<definition_exit::OriginalDefinitionExit, Completion<Value>> {
+    definition_exit::enter(vm, class, target, argv)
 }
 
 pub(super) fn unknown_definition(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -470,15 +445,12 @@ fn definition_worker(vm: &mut Vm, args: &[Value], class: bool, member: &str) -> 
         return err_code("attempt to misuse API", &["TCL", "OO", "MONKEY_BUSINESS"]);
     }
     let index = definition_index(vm).expect("selected definition activation");
-    let original = vm.oo.def_stack[index].0;
-    vm.oo.def_stack[index].0 = if class {
+    let target = if class {
         DefTarget::Class(object)
     } else {
         DefTarget::Object(object)
     };
-    let result = def_body_cmd(vm, member, args);
-    vm.oo.def_stack[index].0 = original;
-    result
+    definition_exit::with_target(vm, index, target, |vm| def_body_cmd(vm, member, args))
 }
 
 fn definition_self_at(vm: &mut Vm, args: &[Value], class: bool) -> Completion<Value> {
@@ -489,15 +461,12 @@ fn definition_self_at(vm: &mut Vm, args: &[Value], class: bool) -> Completion<Va
         return err_code("attempt to misuse API", &["TCL", "OO", "MONKEY_BUSINESS"]);
     }
     let index = definition_index(vm).expect("selected definition activation");
-    let original = vm.oo.def_stack[index].0;
-    vm.oo.def_stack[index].0 = if class {
+    let target = if class {
         DefTarget::Class(object)
     } else {
         DefTarget::Object(object)
     };
-    let result = definition_self(vm, args);
-    vm.oo.def_stack[index].0 = original;
-    result
+    definition_exit::with_target(vm, index, target, |vm| definition_self(vm, args))
 }
 
 fn definition_self(vm: &mut Vm, args: &[Value]) -> Completion<Value> {

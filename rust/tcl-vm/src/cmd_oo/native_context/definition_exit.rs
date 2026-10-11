@@ -1,0 +1,313 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! The entered definition row, usage slot and physical frame have independent cleanup roles.
+
+use super::{Completion, DefTarget, NsId, OoId, Value, Vm};
+use crate::interp::oo_cleanup::{OriginalOoActivation, retain_error};
+use std::rc::{Rc, Weak};
+use tcl_cmd_core::CmdError;
+use tcl_runtime_api::Namespaces;
+use tcl_syntax::value::ValueError;
+
+/// Existing invocation words and a pure slot birth move together through OO flow transport.
+#[derive(Default)]
+pub(in crate::cmd_oo) struct DefinitionUsage {
+    words: Option<Vec<Value>>,
+    birth: Rc<()>,
+    activation: Option<u64>,
+}
+impl DefinitionUsage {
+    pub(in crate::cmd_oo) fn words(&self) -> Option<&Vec<Value>> {
+        self.words.as_ref()
+    }
+    fn new(words: Option<Vec<Value>>, activation: u64) -> Self {
+        Self {
+            words,
+            birth: Rc::new(()),
+            activation: Some(activation),
+        }
+    }
+}
+
+type DefinitionRow = (DefTarget, u64, NsId, u64);
+
+fn same_target(left: DefTarget, right: DefTarget) -> bool {
+    matches!((left, right), (DefTarget::Class(a), DefTarget::Class(b))
+        | (DefTarget::Object(a), DefTarget::Object(b)) if a == b)
+}
+fn same_row(left: &DefinitionRow, right: &DefinitionRow) -> bool {
+    same_target(left.0, right.0) && same_activation(left, right)
+}
+fn same_activation(left: &DefinitionRow, right: &DefinitionRow) -> bool {
+    left.1 == right.1 && left.2 == right.2 && left.3 == right.3
+}
+fn refuse(vm: &mut Vm, active: &OriginalOoActivation, purpose: &'static str) -> CmdError {
+    let error = CmdError::from(ValueError::CommandProtocolUnavailable(purpose));
+    retain_error(vm, &error);
+    active.cleanup().check(vm).err().unwrap_or(error)
+}
+fn retain_check(vm: &mut Vm, reached: Result<(), CmdError>) {
+    if let Err(error) = reached {
+        retain_error(vm, &error);
+    }
+}
+
+struct UsageRestore {
+    selected: Weak<()>,
+    previous: DefinitionUsage,
+}
+
+/// Issued only by the actual definition-frame push; observations add no native references.
+pub(in crate::cmd_oo) struct OriginalDefinitionExit {
+    active: OriginalOoActivation,
+    row: Option<(usize, DefinitionRow)>,
+    usage: Option<UsageRestore>,
+}
+impl OriginalDefinitionExit {
+    fn check(&self, vm: &mut Vm) -> Result<(), CmdError> {
+        self.active.check_call_and_namespace(vm)?;
+        let current = self.row.as_ref().is_some_and(|(position, row)| {
+            vm.oo.def_stack.len() == *position + 1
+                && vm
+                    .oo
+                    .def_stack
+                    .get(*position)
+                    .is_some_and(|actual| same_row(actual, row))
+        }) && self.usage.as_ref().is_none_or(|usage| {
+            Weak::ptr_eq(
+                &usage.selected,
+                &Rc::downgrade(&vm.oo.definition_usage.birth),
+            )
+        });
+        if !current {
+            return Err(refuse(vm, &self.active, "original OO definition row/usage"));
+        }
+        Ok(())
+    }
+    pub(in crate::cmd_oo) fn replace_usage(
+        &mut self,
+        vm: &mut Vm,
+        words: Option<Vec<Value>>,
+    ) -> Result<(), CmdError> {
+        if let Err(first) = self.check(vm) {
+            retain_error(vm, &first);
+            drop(words);
+            return Err(self.active.cleanup().check(vm).err().unwrap_or(first));
+        }
+        let incoming = DefinitionUsage::new(words, vm.native_oo_variable_activation());
+        let selected = Rc::downgrade(&incoming.birth);
+        let previous = std::mem::replace(&mut vm.oo.definition_usage, incoming);
+        self.usage = Some(UsageRestore { selected, previous });
+        self.check(vm)
+    }
+    pub(in crate::cmd_oo) fn finish(
+        mut self,
+        vm: &mut Vm,
+        result: Completion<Value>,
+    ) -> Completion<Value> {
+        let reached = self.check(vm);
+        retain_check(vm, reached);
+        if let Some((_position, row)) = self.row.take() {
+            let removed = self.active.cleanup().oo_mut(vm).map(|oo| {
+                if let Some(actual) = oo
+                    .def_stack
+                    .iter()
+                    .position(|actual| same_activation(actual, &row))
+                {
+                    let last = oo.def_stack.len() == actual + 1;
+                    oo.def_stack.remove(actual);
+                    last
+                } else {
+                    false
+                }
+            });
+            match removed {
+                Ok(true) => {}
+                Ok(false) => {
+                    let error = refuse(vm, &self.active, "original OO definition row retirement");
+                    retain_error(vm, &error);
+                }
+                Err(error) => retain_error(vm, &error),
+            }
+        }
+        self.active.retire_call(vm, false);
+        self.active.retire_namespace(vm, false);
+        if let Some(usage) = self.usage.take() {
+            let restored = self.active.cleanup().oo_mut(vm).map(|oo| {
+                if Weak::ptr_eq(&usage.selected, &Rc::downgrade(&oo.definition_usage.birth)) {
+                    let previous_live = usage.previous.activation.is_none_or(|activation| {
+                        oo.def_stack.iter().any(|row| row.1 == activation)
+                    });
+                    let (previous, withdrawn) = if previous_live {
+                        (usage.previous, None)
+                    } else {
+                        (DefinitionUsage::default(), Some(usage.previous))
+                    };
+                    Ok((
+                        std::mem::replace(&mut oo.definition_usage, previous),
+                        withdrawn,
+                    ))
+                } else {
+                    Err(usage.previous)
+                }
+            });
+            match restored {
+                Ok(Ok(retired)) => drop(retired),
+                Ok(Err(previous)) => {
+                    let error =
+                        refuse(vm, &self.active, "original OO definition usage restoration");
+                    retain_error(vm, &error);
+                    drop(previous);
+                }
+                Err(error) => retain_error(vm, &error),
+            }
+            let reached = self.active.cleanup().check(vm);
+            retain_check(vm, reached);
+        }
+        self.active.finish(vm, result)
+    }
+}
+
+pub(super) fn enter(
+    vm: &mut Vm,
+    class: bool,
+    target: OoId,
+    argv: Vec<Value>,
+) -> Result<OriginalDefinitionExit, Completion<Value>> {
+    let mut active = OriginalOoActivation::enter(vm);
+    if let Err(error) = active.cleanup().check(vm) {
+        retain_error(vm, &error);
+        drop(argv);
+        let completion = crate::command::completion_from_cmd_error(vm, error);
+        return Err(active.finish(vm, completion));
+    }
+    let caller = vm.current_ns_id();
+    let caller_activation = vm.native_oo_variable_activation();
+    let selected = super::super::native_bootstrap::definition_namespace(vm, target, class);
+    let reached = if let Some(namespace) = selected {
+        Ok(Some(namespace))
+    } else {
+        let name = if class {
+            "::oo::define"
+        } else {
+            "::oo::objdefine"
+        };
+        Namespaces::find_namespace_bytes_checked(vm, vm.current_ns_id(), name.as_bytes())
+    };
+    let checked = active.cleanup().check(vm);
+    let namespace = match (reached, checked) {
+        (_, Err(error)) | (Err(error), _) => {
+            retain_error(vm, &error);
+            drop(argv);
+            let completion = crate::command::completion_from_cmd_error(vm, error);
+            return Err(active.finish(vm, completion));
+        }
+        (Ok(Some(namespace)), Ok(())) => namespace,
+        (Ok(None), Ok(())) => {
+            drop(argv);
+            return Err(active.finish(
+                vm,
+                super::super::err("cannot process definitions; support namespace deleted"),
+            ));
+        }
+    };
+    vm.push_ns_eval_token_frame(namespace, argv);
+    let captured = active.capture_call_and_namespace(vm);
+    let mut exit = OriginalDefinitionExit {
+        active,
+        row: None,
+        usage: None,
+    };
+    if let Err(error) = captured {
+        let completion = crate::command::completion_from_cmd_error(vm, error);
+        return Err(exit.finish(vm, completion));
+    }
+    let row = (
+        if class {
+            DefTarget::Class(target)
+        } else {
+            DefTarget::Object(target)
+        },
+        vm.native_oo_variable_activation(),
+        caller,
+        caller_activation,
+    );
+    let position = vm.oo.def_stack.len();
+    vm.oo.def_stack.push(row);
+    exit.row = Some((position, row));
+    Ok(exit)
+}
+
+/// Temporary worker facets restore only their exact original row after callback-bearing work.
+pub(super) fn with_target(
+    vm: &mut Vm,
+    position: usize,
+    target: DefTarget,
+    work: impl FnOnce(&mut Vm) -> Completion<Value>,
+) -> Completion<Value> {
+    let selected = vm.oo.def_stack.get(position).copied();
+    let mut active = OriginalOoActivation::enter(vm);
+    let captured = active.capture_call_and_namespace(vm);
+    if let Err(error) = captured {
+        let completion = crate::command::completion_from_cmd_error(vm, error);
+        return active.finish(vm, completion);
+    }
+    let current = selected.as_ref().is_some_and(|row| {
+        row.1 == vm.native_oo_variable_activation()
+            && vm
+                .oo
+                .def_stack
+                .get(position)
+                .is_some_and(|actual| same_row(actual, row))
+    });
+    if !current {
+        let error = refuse(vm, &active, "original OO definition worker row");
+        let completion = crate::command::completion_from_cmd_error(vm, error);
+        return active.finish(vm, completion);
+    }
+    let row = selected.expect("same retained definition row");
+    vm.oo.def_stack[position].0 = target;
+    let result = work(vm);
+    let reached = active.check_call_and_namespace(vm);
+    retain_check(vm, reached);
+    let restored = active.cleanup().oo_mut(vm).map(|oo| {
+        if let Some(actual) = oo
+            .def_stack
+            .get_mut(position)
+            .filter(|actual| same_activation(actual, &row) && same_target(actual.0, target))
+        {
+            actual.0 = row.0;
+            true
+        } else {
+            false
+        }
+    });
+    match restored {
+        Ok(true) => {}
+        Ok(false) => {
+            let error = refuse(vm, &active, "original OO definition worker restoration");
+            retain_error(vm, &error);
+        }
+        Err(error) => retain_error(vm, &error),
+    }
+    active.finish(vm, result)
+}
+
+#[cfg(test)]
+mod tests;
