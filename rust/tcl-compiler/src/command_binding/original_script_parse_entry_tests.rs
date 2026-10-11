@@ -140,6 +140,10 @@ fn original_jim_whole_script_parse_refuses_prefix_publication_but_keeps_valid_sc
 fn original_jim_nested_script_parse_stops_body_prefix_and_later_outer_commands() {
     // naming.source.original-configured-script-completeness
     // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+    // naming.source.jim-nested-direct-entry-and-prefix-effects
+    // docs/design/analysis/name-resolution-proofs/source-jim-nested-direct-entry-and-prefix-effects.md
+    // Fixed native probes bound physical Direct effects; this is a held-entry
+    // software source-model control with independent input and binding guards.
     let source = "eval {proc inner {} {}; {a}b}; proc later {} {}";
     let (bindings, input, _owner) = original_direct(source, "jimtcl", false);
     assert_eq!(bindings.lexer_config, Some(input.lexer_config()));
@@ -161,6 +165,10 @@ fn original_jim_nested_script_parse_stops_body_prefix_and_later_outer_commands()
 fn original_jim_command_child_parse_keeps_root_prefix_but_refuses_child_prefix() {
     // naming.source.original-configured-script-completeness
     // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+    // naming.source.jim-nested-direct-entry-and-prefix-effects
+    // docs/design/analysis/name-resolution-proofs/source-jim-nested-direct-entry-and-prefix-effects.md
+    // Fixed native probes bound physical Direct effects; this is a held-entry
+    // software source-model control with independent input and binding guards.
     let source = "proc before {} {}; list [proc inner {} {}; list {a}b]; proc after {} {}";
     let (bindings, input, _owner) = original_direct(source, "jimtcl", false);
     assert_eq!(bindings.lexer_config, Some(input.lexer_config()));
@@ -175,6 +183,10 @@ fn original_jim_command_child_parse_keeps_root_prefix_but_refuses_child_prefix()
 fn original_jim_direct_delimiter_scan_does_not_borrow_c_bare_brace_syntax() {
     // naming.source.original-configured-script-completeness
     // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+    // naming.source.jim-nested-direct-entry-and-prefix-effects
+    // docs/design/analysis/name-resolution-proofs/source-jim-nested-direct-entry-and-prefix-effects.md
+    // Fixed native probes bound physical Direct effects; this is a held-entry
+    // software source-model control with independent input and binding guards.
     // These held-entry software controls use the selected syntax owner;
     // separate fixed native probes record the physical Direct observations.
     for child in ["list {a", "list ${a", "list x{"] {
