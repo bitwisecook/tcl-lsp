@@ -750,6 +750,67 @@ impl super::SourceCommandBindings {
                 input: input.clone(),
             })
     }
+    /// A materialized original body retains the exact written parent allocation
+    /// and argument. The parent inventory, full metadata and canonical operand
+    /// projection authenticate this geometry without issuing a child entry.
+    pub(crate) fn original_body_written_word_owner_at_parent(
+        &self,
+        body: &super::ExecutedScriptSource,
+        config: tcl_lexer::LexerConfig,
+        registry: &tcl_registry::CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        parent: &crate::ir::CommandTokens,
+    ) -> Option<OriginalBodyWrittenWordOwner> {
+        if self.root_origin.as_ref() == Some(&body.origin) {
+            return self.original_body_written_word_owner(body, config, registry, input);
+        }
+        let super::SourceOriginKind::Derived {
+            parent: site,
+            arguments,
+            source,
+            ..
+        } = body.origin.kind()
+        else {
+            return None;
+        };
+        let [argument] = arguments.as_slice() else {
+            return None;
+        };
+        let point = self.source_metadata_owner().source_analysis_input()?;
+        let binding = parent.source_binding.as_ref()?;
+        if (point != input && point != &input.for_nested_source())
+            || self.lexer_config != Some(config)
+            || self.root_origin.as_ref() != Some(&site.source)
+            || source != &body.text
+            || body.text.channel() != tcl_lexer::SourceChannel::NativeValue
+            || binding.invocation_site() != Some(site)
+            || &self.invocation_at_source("", site.offset) != binding
+        {
+            return None;
+        }
+        let metadata = binding.original_invocation_metadata_for_input(parent, input, registry)?;
+        if metadata.source_analysis_input() != Some(input) {
+            return None;
+        }
+        let word = parent.words().get(argument.checked_add(1)?)?;
+        if binding
+            .original_body_source_for_word(parent, word.source().span, config)
+            .as_ref()
+            != Some(body)
+        {
+            return None;
+        }
+        body.try_text().ok()?;
+        let base = usize::try_from(body.base()).ok()?;
+        let end = base.checked_add(body.text.len())?;
+        (body.origin.source_image().bytes().get(base..end) == Some(body.text.bytes())).then(|| {
+            OriginalBodyWrittenWordOwner {
+                body: body.clone(),
+                config,
+                input: input.clone(),
+            }
+        })
+    }
 }
 
 impl OriginalBodyWrittenWordOwner {

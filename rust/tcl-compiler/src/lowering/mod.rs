@@ -1768,12 +1768,22 @@ impl<'r> Lowerer<'r> {
         // Keep the authentic pre-selection owner. A namespace projection memo
         // can filter observations but cannot issue written source geometry.
         let word_source = self.source_bindings.as_ref().and_then(|owner| {
-            owner.original_body_written_word_owner(
-                &source,
-                self.config,
-                self.registry,
-                self.invocation_metadata_context()?.source_analysis_input()?,
-            )
+            let input = self.invocation_metadata_context()?.source_analysis_input()?;
+            match self.structured_source_parent.as_deref() {
+                Some(parent) => owner.original_body_written_word_owner_at_parent(
+                    &source,
+                    self.config,
+                    self.registry,
+                    input,
+                    parent,
+                ),
+                None => owner.original_body_written_word_owner(
+                    &source,
+                    self.config,
+                    self.registry,
+                    input,
+                ),
+            }
         });
         let enclosing_word_source =
             std::mem::replace(&mut self.original_body_word_source, word_source);

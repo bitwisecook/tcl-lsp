@@ -341,3 +341,280 @@ fn original_body_geometry_is_absent_without_namespace_descent_or_retained_owner(
             .is_none()
     );
 }
+
+fn folded_fixture(environment: &str) -> (Fixture, CommandTokens) {
+    let source = "if {$condition} {set result \\\n café}";
+    let environment = tcl_registry::model::ingress::resolve_known_environment(environment).unwrap();
+    let context = environment.default_context_registry();
+    let profile = environment.unit_profile();
+    let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+    let input = ResolvedAnalysisInput::new(profile, profile, Arc::clone(&context), config);
+    let (owner, native) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+    let entry = SourceAnalysisEntry {
+        metadata_context: OwnedInvocationMetadataContext::for_source_input(Some(&input)),
+        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        native_compilation: crate::environment_ingress::authoring_native_compilation(),
+        native_entry: Some(Arc::new(native)),
+        ..Default::default()
+    };
+    let bindings = SourceCommandBindings::analyse_with_options(
+        source,
+        config,
+        context.commands(),
+        entry.options(),
+    );
+    let image = tcl_lexer::SourceImage::document(source);
+    let segments =
+        crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config).unwrap();
+    let mut parent = CommandTokens::from_segmented(&image.source_map(), config, &segments[0]);
+    bindings.stamp_original_tokens(&mut parent);
+    let binding = parent.source_binding.as_ref().unwrap();
+    let body = binding
+        .original_body_source_for_word(&parent, parent.words()[2].source().span, config)
+        .unwrap();
+    let request =
+        InvocationMetadataContext::for_analysis_input(context.commands(), &input).unwrap();
+    let namespace = binding
+        .original_body_namespace_context(context.commands(), request, &parent, &body)
+        .unwrap();
+    (
+        Fixture {
+            context,
+            input,
+            entry,
+            bindings,
+            body,
+            namespace,
+            _owner: owner,
+        },
+        parent,
+    )
+}
+
+#[test]
+fn original_derived_body_geometry_retains_the_exact_parent_word_and_namespace() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    // Authentic held provider and original source projection; syntax only.
+    for environment in ["tcl8.4", "tcl9.0"] {
+        let (fixture, parent) = folded_fixture(environment);
+        assert!(matches!(
+            fixture.body.origin.kind(),
+            crate::command_binding::SourceOriginKind::Derived { .. }
+        ));
+        assert_ne!(fixture.bindings.source_origin(), Some(&fixture.body.origin));
+        assert!(
+            fixture
+                .bindings
+                .original_body_written_word_owner(
+                    &fixture.body,
+                    fixture.input.lexer_config(),
+                    fixture.context.commands(),
+                    &fixture.input
+                )
+                .is_none()
+        );
+        let _geometry_owner = fixture
+            .bindings
+            .original_body_written_word_owner_at_parent(
+                &fixture.body,
+                fixture.input.lexer_config(),
+                fixture.context.commands(),
+                &fixture.input,
+                &parent,
+            )
+            .expect("exact original materialized parent word");
+        let mut lowerer =
+            Lowerer::with_config(fixture.context.commands(), fixture.input.lexer_config())
+                .with_dialect(Some(fixture.input.unit_profile()))
+                .with_resolved_analysis_input(fixture.input.clone());
+        lowerer.set_source_analysis_options(fixture.entry.options());
+        lowerer.source_bindings = Some(fixture.bindings.clone().into());
+        lowerer.structured_source_parent = Some(Box::new(parent));
+        let script = lowerer.lower_original_body(fixture.body.clone(), Some(&fixture.namespace));
+        assert_eq!(
+            script.namespace_context.as_deref(),
+            Some(&fixture.namespace)
+        );
+        assert_eq!(script.statements.len(), 1);
+        let original = script
+            .retained_source_tokens_for_statement(&script.statements[0])
+            .unwrap();
+        assert_eq!(original.argv_texts, ["set", "result", "café"]);
+        let binding = original.source_binding.as_ref().unwrap();
+        assert_eq!(
+            binding.original_lexer_config_for_tokens(original),
+            Some(fixture.input.lexer_config())
+        );
+        assert_eq!(
+            binding.invocation_site().unwrap().source,
+            fixture.body.origin
+        );
+        assert!(binding.lookup_state.is_none());
+        assert!(binding.proved_execution_target().is_none());
+        assert!(
+            binding
+                .original_invocation_metadata_for_input(
+                    original,
+                    &fixture.input,
+                    fixture.context.commands()
+                )
+                .is_none()
+        );
+        assert!(lowerer.original_body_word_source.is_none());
+    }
+}
+
+#[test]
+fn original_derived_body_geometry_refuses_changed_parent_vector_span_and_input() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    let (fixture, parent) = folded_fixture("tcl8.4");
+    let config = fixture.input.lexer_config();
+    let mut changed_text = parent.clone();
+    changed_text.argv_texts[2].push('!');
+    let mut changed_word = parent.clone();
+    let WordExpr::BracedLiteral { text, .. } = &mut changed_word.word_exprs[2] else {
+        panic!("original whole body word")
+    };
+    text.push('!');
+    changed_word.argv_texts[2].push('!');
+    let mut changed_span = parent.clone();
+    crate::lattice_rebase::rebase_command_tokens(&mut changed_span, 1);
+    let mut missing = parent.clone();
+    missing.source_binding = None;
+    let mut arguments_only = parent.clone();
+    arguments_only.synthetic = Some(crate::ir::SyntheticMarker::EvaluatedArguments);
+    for changed in [
+        changed_text,
+        changed_word,
+        changed_span,
+        missing,
+        arguments_only,
+    ] {
+        assert!(
+            fixture
+                .bindings
+                .original_body_written_word_owner_at_parent(
+                    &fixture.body,
+                    config,
+                    fixture.context.commands(),
+                    &fixture.input,
+                    &changed
+                )
+                .is_none()
+        );
+    }
+    let changed_config = tcl_lexer::LexerConfig {
+        strict_quoting: !config.strict_quoting,
+        ..config
+    };
+    let changed_input = ResolvedAnalysisInput::new(
+        fixture.input.analyser_profile(),
+        fixture.input.unit_profile(),
+        fixture.input.context_registry(),
+        changed_config,
+    );
+    assert!(
+        fixture
+            .bindings
+            .original_body_written_word_owner_at_parent(
+                &fixture.body,
+                changed_config,
+                fixture.context.commands(),
+                &changed_input,
+                &parent
+            )
+            .is_none()
+    );
+    let foreign_context = tcl_registry::model::ingress::resolve_known_environment("tcl8.5")
+        .unwrap()
+        .default_context_registry();
+    let foreign_input = ResolvedAnalysisInput::new(
+        fixture.input.analyser_profile(),
+        fixture.input.unit_profile(),
+        foreign_context.clone(),
+        config,
+    );
+    assert!(
+        fixture
+            .bindings
+            .original_body_written_word_owner_at_parent(
+                &fixture.body,
+                config,
+                fixture.context.commands(),
+                &foreign_input,
+                &parent
+            )
+            .is_none()
+    );
+    assert!(
+        fixture
+            .bindings
+            .original_body_written_word_owner_at_parent(
+                &fixture.body,
+                config,
+                foreign_context.commands(),
+                &fixture.input,
+                &parent
+            )
+            .is_none()
+    );
+}
+
+#[test]
+fn original_derived_body_geometry_refuses_counterfeit_source_ordinal_and_parent_site() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    let (fixture, parent) = folded_fixture("tcl8.4");
+    let site = parent
+        .source_binding
+        .as_ref()
+        .unwrap()
+        .invocation_site()
+        .unwrap()
+        .clone();
+    let mut changed_text = fixture.body.clone();
+    changed_text.text = tcl_lexer::SourceImage::native(b"set result OTHER".as_slice());
+    let wrong_ordinal =
+        ExecutedScriptSource::materialised(site.clone(), vec![2], fixture.body.try_text().unwrap());
+    let shifted_parent = crate::command_binding::CommandAllocationSite {
+        offset: site.offset + 1,
+        ..site.clone()
+    };
+    let counterfeit_span = ExecutedScriptSource::materialised(
+        shifted_parent,
+        vec![1],
+        fixture.body.try_text().unwrap(),
+    );
+    let foreign_parent = crate::command_binding::CommandAllocationSite {
+        source: Arc::new(crate::command_binding::SourceOriginId::authored(
+            &Arc::from("if {$condition} {set result OTHER}"),
+        )),
+        offset: site.offset,
+    };
+    let foreign_source = ExecutedScriptSource::materialised(
+        foreign_parent,
+        vec![1],
+        fixture.body.try_text().unwrap(),
+    );
+    for body in [
+        changed_text,
+        wrong_ordinal,
+        counterfeit_span,
+        foreign_source,
+    ] {
+        assert!(
+            fixture
+                .bindings
+                .original_body_written_word_owner_at_parent(
+                    &body,
+                    fixture.input.lexer_config(),
+                    fixture.context.commands(),
+                    &fixture.input,
+                    &parent
+                )
+                .is_none()
+        );
+    }
+}
