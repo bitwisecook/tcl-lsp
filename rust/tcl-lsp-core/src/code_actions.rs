@@ -1100,7 +1100,8 @@ fn is_static_command_name(name: &str) -> bool {
 /// library code writes to be unambiguous, and splitting it on `::` without
 /// stripping yields an empty component.
 fn package_named_by_namespace(head: &str, catalogue: &[String]) -> Option<String> {
-    let qualified = head.trim_start_matches("::");
+    let written = tcl_syntax::naming::canonical_written_command(head);
+    let qualified = tcl_syntax::naming::unroot_rooted_key(&written).unwrap_or(&written);
     let (namespace, _rest) = qualified.split_once("::")?;
     if namespace.is_empty() {
         return None;
@@ -3382,6 +3383,39 @@ mod tests {
         assert_eq!(package_named_by_namespace("httpd::start", &catalogue), None);
         // Nor is a bare name, which has no namespace at all.
         assert_eq!(package_named_by_namespace("httpget", &catalogue), None);
+    }
+
+    #[test]
+    fn logical_package_hint_keeps_shared_written_colon_geometry() {
+        // naming.core.original-package-source-action-context
+        // docs/design/analysis/name-resolution-proofs/core-original-package-source-action-context.md
+        // Authored catalogue hints only; no package loader or callable identity.
+        let catalogue = vec!["http".to_owned(), ":http".to_owned()];
+        for written in [
+            "http::get",
+            "http:::get",
+            "::http::get",
+            ":::http::get",
+            ":::::http:::get",
+            "http::",
+        ] {
+            assert_eq!(
+                package_named_by_namespace(written, &catalogue),
+                Some("http".to_owned()),
+                "{written}"
+            );
+        }
+        assert_eq!(
+            package_named_by_namespace(":http::get", &catalogue),
+            Some(":http".to_owned())
+        );
+        for written in ["http", "::http", ":::http", ":::", "http:get", "httpd::get"] {
+            assert_eq!(
+                package_named_by_namespace(written, &catalogue),
+                None,
+                "{written}"
+            );
+        }
     }
 
     /// A document with no `# noqa` and no file-level directive.

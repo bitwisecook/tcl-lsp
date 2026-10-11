@@ -399,7 +399,7 @@ async fn shared_recovery_names(
         }
     }
     for name in ctx.package_resolver.read().await.auto_command_names() {
-        names.insert(name.trim_start_matches("::").to_owned());
+        tcl_compiler::analyser::utils::insert_qualified_and_tail(&mut names, name);
     }
     let names = Arc::new(names);
     ctx.cache.lock().await.shared = Some((key.clone(), Arc::clone(&names)));

@@ -449,3 +449,26 @@ async fn original_base_completeness_retains_indexed_and_untracked_input_owners()
     assert!(driver.is_none());
     assert!(!original_document_is_complete("set x 1", &missing));
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn malformed_recovery_preserves_original_autoload_labels_and_root_marker() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    // Actual parser recognition candidates; neither Native lookup nor loader execution.
+    let backend = crate::tests::test_backend();
+    backend.package_resolver.write().await.add_tcl_index(vec![
+        tcl_lsp_core::package_resolver::AutoIndexEntry {
+            proc_name: ":::::owner::command".to_owned(),
+            source_file: PathBuf::from("/library/original.tcl"),
+        },
+    ]);
+    let uri = Uri::from_file_path("/caller/autoload-incomplete.tcl").unwrap();
+    let source = ":::::owner::command\nproc unfinished {";
+    let _ = recover(&backend, &uri, source).await;
+    let cache = backend.recovery_names.lock().await;
+    let names = &cache.shared.as_ref().unwrap().1;
+    assert!(names.contains(":::::owner::command"));
+    assert!(names.contains(":::owner::command"));
+    assert!(names.contains("command"));
+    assert!(!names.contains(":owner::command"));
+}
