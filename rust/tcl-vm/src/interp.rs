@@ -102,6 +102,7 @@ pub(crate) mod native_jim_lookup;
 #[cfg(test)]
 mod native_legacy_increment_tests;
 mod native_name_world;
+mod native_name_operands;
 mod native_namespace_names;
 #[cfg(test)]
 mod native_namespace_root_tests;

@@ -1,0 +1,8 @@
+{
+  "actual_selectors": [
+    "analyser::diagnostics::var_command::original_abstract_factory_context_tests::original_abstract_factory_advice_keeps_actual_context_alias_and_nested_source",
+    "analyser::handlers::tests::original_logical_static_completion_keeps_alias_ordinals_and_source_owners"
+  ],
+  "own_image_sha256": "fcd5878d3424112d6461acc1ad672c022315fcb4287be5d21f9348bd77bc7137",
+  "list_sha256": "80385a545048a42484df8295581d89fc440112366c87371d5d579a6f563bbfbb"
+}

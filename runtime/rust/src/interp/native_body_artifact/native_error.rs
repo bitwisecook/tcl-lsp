@@ -22,7 +22,7 @@ impl Builder<'_> {
         words: &NativeCompilerWords<'_>,
         recipe: NativeErrorInstruction,
         depth: u32,
-    ) -> Result<ErrorOperation, ValueError> {
+    ) -> Result<ErrorOperation, tcl_cmd_core::CmdError> {
         let mut prepared_words = HashMap::new();
         let mut steps = Vec::with_capacity(recipe.steps.len());
         for step in recipe.steps {

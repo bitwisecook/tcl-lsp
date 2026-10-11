@@ -131,3 +131,14 @@ six complete-baseline refusals. Six known-environment model constructions
 include point-projected Jim; they do not execute C/Jim/BIG-IP binaries.
 No matching owned-image assertion, applied rewrite or measured performance
 result is attached to this source contract.
+
+
+## Exact original-source Compiler software outcomes
+
+The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
+
+| Original operation | Passed | Failed | Incomplete |
+| --- | ---: | ---: | ---: |
+| `integration-compiler-focused-consumer-tests344` | 3 | 0 | 0 |
+
+[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.

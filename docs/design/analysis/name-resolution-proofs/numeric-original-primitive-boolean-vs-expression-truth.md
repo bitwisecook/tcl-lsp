@@ -2342,3 +2342,18 @@ These are current source bindings, with verified actual declaring modules or int
 ## Replay
 
 Restore original required absolute inputs using recorded-path-map.json, then reproduce each exact recorded compile, independent CLI-version and direct observer command with its selected environment. Retain all fixed ASCII script files and their exact counted newlines; install original constructor values through the actual public variable API rather than source interpolation. Complete raw streams, request, source, compiler/version and executable receipts are retained. No launcher source or historical configure/compiler invocation was recorded and none is invented. Any new run/provider/ABI is independent evidence; no implementation pass or application issuer follows.
+
+
+## Exact original-source Compiler software outcomes
+
+The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
+
+| Original operation | Passed | Failed | Incomplete |
+| --- | ---: | ---: | ---: |
+| `integration-compiler-original-operand-tests341b` | 1 | 3 | 0 |
+| `integration-compiler-original-namespace-trace341b` | 0 | 3 | 0 |
+| `integration-compiler-original-operand-tests344` | 3 | 1 | 0 |
+| `integration-compiler-focused-consumer-tests344` | 3 | 1 | 0 |
+| `integration-compiler-original-child-guards344` | 0 | 1 | 0 |
+
+[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.

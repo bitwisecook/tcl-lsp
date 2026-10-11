@@ -182,7 +182,7 @@ impl Builder<'_> {
         captured: &NativeCompilerWords<'_>,
         recipe: tcl_registry::native_expression_program::NativeExpressionInstruction,
         depth: u32,
-    ) -> Result<ExpressionOperation, ValueError> {
+    ) -> Result<ExpressionOperation, tcl_cmd_core::CmdError> {
         let static_program = recipe
             .program
             .as_ref()
@@ -211,7 +211,7 @@ impl Builder<'_> {
         &mut self,
         program: &NativeExpressionProgram,
         depth: u32,
-    ) -> Result<PreparedNativeExpression, ValueError> {
+    ) -> Result<PreparedNativeExpression, tcl_cmd_core::CmdError> {
         let mut prepared = PreparedNativeExpression {
             program: program.clone(),
             literals: HashMap::new(),
@@ -232,7 +232,7 @@ impl Builder<'_> {
                 else {
                     unreachable!()
                 };
-                return Err(self.reject_native_compilation(
+                return Err((self.reject_native_compilation(
                     tcl_registry::native_compilation::NativeCompilationFailure {
                         message: String::from_utf8(message.clone()).ok(),
                         error_code: error_code
@@ -240,13 +240,14 @@ impl Builder<'_> {
                             .and_then(|bytes| String::from_utf8(bytes.clone()).ok()),
                         error_info: None,
                     },
-                ));
+                ))
+                .into());
             }
             if !program.evaluation_policy_matches(
                 self.stamp.expression_policy.as_ref(),
                 tcl_registry::InvocationDialect::for_version(self.stamp.physical),
             ) {
-                return Err(unavailable("native expression error evaluation policy"));
+                return Err((unavailable("native expression error evaluation policy")).into());
             }
             let NativeExpressionTree::Rejected {
                 message,
@@ -294,7 +295,7 @@ impl Builder<'_> {
             physical,
         ) != tcl_registry::native_expression_program::ExpressionProgramEmission::Native
         {
-            return Err(unavailable("native expression evaluation policy"));
+            return Err((unavailable("native expression evaluation policy")).into());
         }
         enum Preparation<'a> {
             Node(&'a tcl_syntax::expr::NativeExprNode),
@@ -312,7 +313,7 @@ impl Builder<'_> {
                     continue;
                 }
                 Preparation::Failure(failure) => {
-                    return Err(self.reject_native_compilation(failure));
+                    return Err((self.reject_native_compilation(failure)).into());
                 }
             };
             if tcl_registry::runtime_expr_validation::native_expression_pooled_subtrees(
@@ -355,7 +356,7 @@ impl Builder<'_> {
                                         if self.stamp.physical == tcl_dialect::TclVersion::V8_4 => {
                                         self.literals.intern_expression_boolean84(&bytes)
                                     }
-                                    Some(_) => return Err(unavailable("native resident constant primary")),
+                                    Some(_) => return Err((unavailable("native resident constant primary")).into()),
                                 }
                             } else {
                                 self.original_literal(original)
@@ -377,7 +378,9 @@ impl Builder<'_> {
                             {
                                 self.interp.refuse_native_execution(first);
                             }
-                            return Err(unavailable("native constant expression execution"));
+                            return Err(
+                                (unavailable("native constant expression execution")).into()
+                            );
                         }
                         let message = self.expression_syntax_message(&error.msg);
                         let options = self.literals.register_private_return_options(
@@ -400,7 +403,7 @@ impl Builder<'_> {
                         {
                             self.literals.retain_syntax_error_info(options, message);
                         }
-                        Err((message, options))
+                        Err(((message, options)).into())
                     }
                 };
                 prepared.folded.insert(node.clone(), folded);
@@ -528,7 +531,7 @@ impl Builder<'_> {
                             Actual::Present(binding) => Some(binding.clone()),
                             Actual::Absent => None,
                             Actual::Unknown => {
-                                return Err(unavailable("native fixed-function registration"))
+                                return Err((unavailable("native fixed-function registration")).into())
                             }
                         };
                         if binding.as_ref().and_then(|binding| binding.arity) != Some(args.len()) {
@@ -565,7 +568,7 @@ impl Builder<'_> {
                             .map(str::as_bytes)
                             != Some(function.as_slice())
                         {
-                            return Err(unavailable("native fixed-function implementation"));
+                            return Err((unavailable("native fixed-function implementation")).into());
                         }
                         prepared.fixed_functions.insert(*start, binding);
                     }
@@ -573,7 +576,7 @@ impl Builder<'_> {
                         pending.push(Preparation::Node(arg));
                     }
                 }
-                _ => return Err(unavailable("native expression executable tree")),
+                _ => return Err((unavailable("native expression executable tree")).into()),
             }
         }
         Ok(prepared)
@@ -584,10 +587,10 @@ impl Builder<'_> {
         captured: &NativeCompilerWords<'_>,
         mut recipe: NativeControlCompilation<NativeControlInstruction>,
         depth: u32,
-    ) -> Result<ControlOperation, ValueError> {
+    ) -> Result<ControlOperation, tcl_cmd_core::CmdError> {
         let prepared = self.prepare_control_steps(captured, &recipe.preparations, depth)?;
         if let NativeControlOutcome::Rejected(failure) = &recipe.outcome {
-            return Err(self.reject_native_compilation(failure.clone()));
+            return Err((self.reject_native_compilation(failure.clone())).into());
         }
         self.validate_control_boolean_probes(captured, &recipe.preparations)?;
         if prepared.declined_script {

@@ -43,7 +43,7 @@ impl Interp {
             // return, with no command lookup or command counter increment.
             return match self.reset_original_c_result() {
                 Ok(()) => Code::Ok,
-                Err(error) => self.report_cmd_error(error.into()),
+                Err(first) => self.refuse_native_execution(first),
             };
         }
         let pins = protocol.pins_arguments().then(|| {

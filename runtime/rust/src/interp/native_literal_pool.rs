@@ -121,7 +121,7 @@ impl Interp {
         &mut self,
         source: *mut obj::TclObj,
         literals: &[NativeRuntimeLiteral],
-    ) -> Result<Rc<NativeRuntimeLiteralArray>, ValueError> {
+    ) -> Result<Rc<NativeRuntimeLiteralArray>, tcl_cmd_core::CmdError> {
         let actions: Vec<_> = (0..literals.len())
             .map(NativeRuntimeLiteralAction::Register)
             .collect();
@@ -133,173 +133,191 @@ impl Interp {
         source: *mut obj::TclObj,
         literals: &[NativeRuntimeLiteral],
         actions: &[NativeRuntimeLiteralAction],
-    ) -> Result<Rc<NativeRuntimeLiteralArray>, ValueError> {
-        let dialect = self.native_invocation_dialect();
-        let protocol = dialect
-            .native_string_protocol()
-            .filter(|p| p.tcl_version().is_some())
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "actual C literal array",
-            ))?;
-        // Validate every private allocation before acquiring any global leases.
-        for literal in literals {
-            if let NativeRuntimeLiteral::PrivateConstantList {
-                protocol: supplied, ..
-            } = literal
-            {
-                if *supplied != protocol
-                    || protocol
-                        .tcl_version()
-                        .is_none_or(|version| version < tcl_dialect::TclVersion::V8_6)
+    ) -> Result<Rc<NativeRuntimeLiteralArray>, tcl_cmd_core::CmdError> {
+        let scope = super::native_operation_currency::NativeOperationScope::enter(self)?;
+        obj::check_native_liveness(source)?;
+        let source_lifetime = obj::NativeObjectLifetime::retain(source);
+        let reached = (|| -> Result<_, tcl_cmd_core::CmdError> {
+            let dialect = self.native_invocation_dialect();
+            let protocol = dialect
+                .native_string_protocol()
+                .filter(|p| p.tcl_version().is_some())
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "actual C literal array",
+                ))?;
+            // Validate every private allocation before acquiring any global leases.
+            for literal in literals {
+                if let NativeRuntimeLiteral::PrivateConstantList {
+                    protocol: supplied, ..
+                } = literal
                 {
-                    return Err(ValueError::CommandProtocolUnavailable(
-                        "native constant List allocation",
-                    ));
+                    if *supplied != protocol
+                        || protocol
+                            .tcl_version()
+                            .is_none_or(|version| version < tcl_dialect::TclVersion::V8_6)
+                    {
+                        return Err((ValueError::CommandProtocolUnavailable(
+                            "native constant List allocation",
+                        ))
+                        .into());
+                    }
                 }
             }
-        }
-        let mut array = NativeRuntimeLiteralArray {
-            values: Vec::with_capacity(literals.len()),
-            registrations: Vec::with_capacity(literals.len()),
-            world: Rc::downgrade(&self.native_literal_world),
-            protocol,
-        };
-        for action in actions {
-            let index = match action {
-                NativeRuntimeLiteralAction::RetainSyntaxErrorInfo { options, message } => {
-                    if protocol != NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1) {
-                        return Err(ValueError::CommandProtocolUnavailable(
-                            "C91 Syntax original error-info issuer",
-                        ));
-                    }
-                    let message =
-                        array
-                            .original(*message)
-                            .ok_or(ValueError::CommandProtocolUnavailable(
+            let mut array = NativeRuntimeLiteralArray {
+                values: Vec::with_capacity(literals.len()),
+                registrations: Vec::with_capacity(literals.len()),
+                world: Rc::downgrade(&self.native_literal_world),
+                protocol,
+            };
+            for action in actions {
+                scope.currency().ensure_current_or_refuse()?;
+                let index = match action {
+                    NativeRuntimeLiteralAction::RetainSyntaxErrorInfo { options, message } => {
+                        if protocol != NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1) {
+                            return Err((ValueError::CommandProtocolUnavailable(
+                                "C91 Syntax original error-info issuer",
+                            ))
+                            .into());
+                        }
+                        let message = array.original(*message).ok_or(
+                            ValueError::CommandProtocolUnavailable(
                                 "Syntax message before registration",
-                            ))?;
-                    let options_original =
-                        array
-                            .original(*options)
-                            .ok_or(ValueError::CommandProtocolUnavailable(
-                                "Syntax options before registration",
-                            ))?;
-                    let key = obj::Owned::fresh(obj::new_string_bytes(b"-errorinfo"));
-                    let mut dictionary = crate::dict::PreparedNativeDictionary::prepare(
-                        Some(options_original),
-                        protocol,
-                    )?;
-                    dictionary.set_member(key.as_ptr(), message)?;
-                    *array.values[*options].borrow_mut() = Some(dictionary.into_value());
-                    self.publish_original_compiler_syntax(
-                        message,
-                        array.original(*options).expect("installed Syntax options"),
-                    )?;
-                    continue;
-                }
-                NativeRuntimeLiteralAction::PrimeExpressionBoolean84(index) => {
-                    if protocol.tcl_version() != Some(tcl_dialect::TclVersion::V8_4) {
-                        return Err(ValueError::CommandProtocolUnavailable(
-                            "C84 Boolean literal issuer",
-                        ));
-                    }
-                    let original =
-                        array
-                            .original(*index)
-                            .ok_or(ValueError::CommandProtocolUnavailable(
-                                "Boolean getter before literal registration",
-                            ))?;
-                    crate::typed_value::native_boolean(
-                        original,
-                        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4),
-                    )?;
-                    continue;
-                }
-                NativeRuntimeLiteralAction::AdoptExpressionNumber {
-                    index,
-                    version,
-                    value,
-                } => {
-                    if protocol.tcl_version() != Some(*version)
-                        || *version < tcl_dialect::TclVersion::V8_5
-                    {
-                        return Err(ValueError::CommandProtocolUnavailable(
-                            "native constant cache transfer issuer",
-                        ));
-                    }
-                    let original =
-                        array
-                            .original(*index)
-                            .ok_or(ValueError::CommandProtocolUnavailable(
-                                "constant cache transfer before registration",
-                            ))?;
-                    if obj::obj_type_ptr(original).is_null() {
-                        obj::adopt_native_scalar_cache(
-                            original,
-                            tcl_syntax::scalar_getter::NativeScalarCache::Number(value.number()),
-                            tcl_registry::InvocationDialect::for_version(*version)
-                                .native_scalar_getter_protocol()
-                                .ok_or(ValueError::ScalarNumericInputUnavailable)?,
+                            ),
                         )?;
-                    }
-                    continue;
-                }
-                NativeRuntimeLiteralAction::Register(index) => *index,
-                NativeRuntimeLiteralAction::Hide(index) => {
-                    if protocol != NativeStringProtocol::C(tcl_dialect::TclVersion::V8_5) {
-                        return Err(ValueError::CommandProtocolUnavailable(
-                            "native hidden literal action",
-                        ));
-                    }
-                    let original =
-                        array
-                            .original(*index)
-                            .ok_or(ValueError::CommandProtocolUnavailable(
-                                "hidden literal before allocation",
-                            ))?;
-                    // TclHideLiteral makes a full ordinary header duplicate;
-                    // source-cycle prevention is a later String-only operation.
-                    let hidden = obj::Owned::fresh(obj::duplicate(original));
-                    if let Some(registration) = array.registrations[*index].take() {
-                        let retired = self.native_literal_world.borrow_mut().release(registration);
+                        let options_original = array.original(*options).ok_or(
+                            ValueError::CommandProtocolUnavailable(
+                                "Syntax options before registration",
+                            ),
+                        )?;
+                        let key = obj::Owned::fresh(obj::new_string_bytes(b"-errorinfo"));
+                        let mut dictionary = crate::dict::PreparedNativeDictionary::prepare(
+                            Some(options_original),
+                            protocol,
+                        )?;
+                        let changed = dictionary.set_member(key.as_ptr(), message);
+                        scope.currency().ensure_current_or_refuse()?;
+                        changed?;
+                        let retired = array.values[*options].replace(Some(dictionary.into_value()));
                         drop(retired);
+                        scope.currency().ensure_current_or_refuse()?;
+                        self.publish_original_compiler_syntax(
+                            message,
+                            array.original(*options).expect("installed Syntax options"),
+                        )?;
+                        continue;
                     }
-                    *array.values[*index].borrow_mut() = Some(hidden);
-                    continue;
-                }
-                NativeRuntimeLiteralAction::PrimeCommandName { index, receipt } => {
-                    let original =
-                        array
-                            .original(*index)
-                            .ok_or(ValueError::CommandProtocolUnavailable(
+                    NativeRuntimeLiteralAction::PrimeExpressionBoolean84(index) => {
+                        if protocol.tcl_version() != Some(tcl_dialect::TclVersion::V8_4) {
+                            return Err((ValueError::CommandProtocolUnavailable(
+                                "C84 Boolean literal issuer",
+                            ))
+                            .into());
+                        }
+                        let original = array.original(*index).ok_or(
+                            ValueError::CommandProtocolUnavailable(
+                                "Boolean getter before literal registration",
+                            ),
+                        )?;
+                        crate::typed_value::native_boolean(
+                            original,
+                            tcl_registry::InvocationDialect::for_version(
+                                tcl_dialect::TclVersion::V8_4,
+                            ),
+                        )?;
+                        continue;
+                    }
+                    NativeRuntimeLiteralAction::AdoptExpressionNumber {
+                        index,
+                        version,
+                        value,
+                    } => {
+                        if protocol.tcl_version() != Some(*version)
+                            || *version < tcl_dialect::TclVersion::V8_5
+                        {
+                            return Err((ValueError::CommandProtocolUnavailable(
+                                "native constant cache transfer issuer",
+                            ))
+                            .into());
+                        }
+                        let original = array.original(*index).ok_or(
+                            ValueError::CommandProtocolUnavailable(
+                                "constant cache transfer before registration",
+                            ),
+                        )?;
+                        if obj::obj_type_ptr(original).is_null() {
+                            obj::adopt_native_scalar_cache(
+                                original,
+                                tcl_syntax::scalar_getter::NativeScalarCache::Number(
+                                    value.number(),
+                                ),
+                                tcl_registry::InvocationDialect::for_version(*version)
+                                    .native_scalar_getter_protocol()
+                                    .ok_or(ValueError::ScalarNumericInputUnavailable)?,
+                            )?;
+                        }
+                        continue;
+                    }
+                    NativeRuntimeLiteralAction::Register(index) => *index,
+                    NativeRuntimeLiteralAction::Hide(index) => {
+                        if protocol != NativeStringProtocol::C(tcl_dialect::TclVersion::V8_5) {
+                            return Err((ValueError::CommandProtocolUnavailable(
+                                "native hidden literal action",
+                            ))
+                            .into());
+                        }
+                        let original = array.original(*index).ok_or(
+                            ValueError::CommandProtocolUnavailable(
+                                "hidden literal before allocation",
+                            ),
+                        )?;
+                        // TclHideLiteral makes a full ordinary header duplicate;
+                        // source-cycle prevention is a later String-only operation.
+                        let hidden = obj::Owned::fresh(obj::duplicate(original));
+                        if let Some(registration) = array.registrations[*index].take() {
+                            let retired =
+                                self.native_literal_world.borrow_mut().release(registration);
+                            drop(retired);
+                        }
+                        let retired = array.values[*index].replace(Some(hidden));
+                        drop(retired);
+                        scope.currency().ensure_current_or_refuse()?;
+                        continue;
+                    }
+                    NativeRuntimeLiteralAction::PrimeCommandName { index, receipt } => {
+                        let original = array.original(*index).ok_or(
+                            ValueError::CommandProtocolUnavailable(
                                 "command priming before allocation",
+                            ),
+                        )?;
+                        let origin = usize::try_from(receipt.context.namespace_token)
+                            .ok()
+                            .ok_or(ValueError::CommandProtocolUnavailable(
+                                "native literal namespace token",
                             ))?;
-                    let origin = usize::try_from(receipt.context.namespace_token)
-                        .ok()
-                        .ok_or(ValueError::CommandProtocolUnavailable(
-                            "native literal namespace token",
-                        ))?;
-                    if receipt.context.interpreter != self.native_command_interpreter
-                        || protocol.tcl_version() != Some(receipt.version)
-                        || self
-                            .namespaces
-                            .borrow()
-                            .native_context_path(origin)
-                            .as_ref()
-                            != Some(&receipt.context.namespace_path)
-                        || self
-                            .native_compiler_cache_epochs(origin)
-                            .map(|epochs| epochs.0)
-                            != Some(receipt.context.entry_epoch)
-                    {
-                        return Err(ValueError::CommandProtocolUnavailable(
-                            "stale or foreign command literal priming context",
-                        ));
-                    }
-                    let name_protocol = dialect.native_command_name_protocol().ok_or(
-                        ValueError::CommandProtocolUnavailable("native command literal priming"),
-                    )?;
-                    let mut cache = match &receipt.authority {
+                        if receipt.context.interpreter != self.native_command_interpreter
+                            || protocol.tcl_version() != Some(receipt.version)
+                            || self
+                                .namespaces
+                                .borrow()
+                                .native_context_path(origin)
+                                .as_ref()
+                                != Some(&receipt.context.namespace_path)
+                            || self
+                                .native_compiler_cache_epochs(origin)
+                                .map(|epochs| epochs.0)
+                                != Some(receipt.context.entry_epoch)
+                        {
+                            return Err((ValueError::CommandProtocolUnavailable(
+                                "stale or foreign command literal priming context",
+                            ))
+                            .into());
+                        }
+                        let name_protocol = dialect.native_command_name_protocol().ok_or(
+                            ValueError::CommandProtocolUnavailable(
+                                "native command literal priming",
+                            ),
+                        )?;
+                        let mut cache = match &receipt.authority {
                         tcl_runtime_api::native_command_name::NativeCommandNamePrimingAuthority::OriginalLookup => self
                             .native_command_name_from_binding(origin, receipt.original.as_bytes())?
                             .ok_or(ValueError::CommandProtocolUnavailable("retired compiled command literal binding"))?,
@@ -311,177 +329,206 @@ impl Interp {
                                 || required.selected_worker.as_ref() != Some(&receipt.binding)
                                 || !registrations_match
                             {
-                                return Err(ValueError::CommandProtocolUnavailable("stale original selected-worker compiler priming"));
+                                return Err((ValueError::CommandProtocolUnavailable("stale original selected-worker compiler priming")).into());
                             }
                             self.namespaces.borrow().native_command_name_cache_from_binding(
                                 self.native_command_interpreter, &receipt.binding, name_protocol,
                             ).ok_or(ValueError::CommandProtocolUnavailable("retired original selected worker"))?
                         }
                     };
-                    if cache.token != receipt.binding.token
-                        || cache.implementation_generation
-                            != receipt.binding.implementation_generation
-                    {
-                        return Err(ValueError::CommandProtocolUnavailable(
-                            "replaced compiled command literal binding",
-                        ));
-                    }
-                    cache.reference = name_protocol.priming_reference(
-                        receipt.fully_qualified,
-                        self.namespaces.borrow().native_command_reference(origin),
-                    );
-                    let scope = super::native_operation_currency::NativeOperationScope::enter(self)
-                        .map_err(|first| {
-                            self.refuse_native_execution(first);
-                            ValueError::CommandProtocolUnavailable("original compiler command priming entry")
-                        })?;
-                    let check = || {
-                        self.original_command_cache_current(scope.currency(), original, &cache, origin)?;
-                        if self.native_compiler_cache_epochs(origin).map(|epochs| epochs.0)
-                            != Some(receipt.context.entry_epoch)
+                        if cache.token != receipt.binding.token
+                            || cache.implementation_generation
+                                != receipt.binding.implementation_generation
                         {
-                            return Err(ValueError::CommandProtocolUnavailable("captured compiler command priming context"));
+                            return Err((ValueError::CommandProtocolUnavailable(
+                                "replaced compiled command literal binding",
+                            ))
+                            .into());
                         }
-                        Ok(())
-                    };
-                    let reached = obj::prime_native_command_name_cache_with_stage_check(
-                        original, cache.clone(), dialect, Some(&check),
-                    );
-                    check()?;
-                    reached?;
-                    continue;
-                }
-            };
-            if index != array.values.len() {
-                return Err(ValueError::CommandProtocolUnavailable(
-                    "native literal allocation order",
-                ));
-            }
-            let literal = literals
-                .get(index)
-                .ok_or(ValueError::CommandProtocolUnavailable(
-                    "native literal slot",
-                ))?;
-            let (registration, value) = match literal {
-                NativeRuntimeLiteral::RegisteredBytes { bytes, namespace } => {
-                    let (index, value) = self.native_literal_world.borrow_mut().register(
-                        NativeLiteralKey {
-                            protocol,
-                            namespace: *namespace,
-                            original: bytes.clone(),
-                        },
-                        |value| dict::native_object_bytes(value.as_ptr(), protocol),
-                        || registered_string(bytes, dialect),
-                    )?;
-                    (Some(index), value)
-                }
-                NativeRuntimeLiteral::UnsharedBytes(bytes) => {
-                    (None, obj::Owned::fresh(obj::new_string_bytes(bytes)))
-                }
-                NativeRuntimeLiteral::PrivateConcatString(bytes) => {
-                    if protocol != NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1) {
-                        return Err(ValueError::CommandProtocolUnavailable(
-                            "native constant concat String issuer",
-                        ));
+                        cache.reference = name_protocol.priming_reference(
+                            receipt.fully_qualified,
+                            self.namespaces.borrow().native_command_reference(origin),
+                        );
+                        let check = || {
+                            self.original_command_cache_current(
+                                scope.currency(),
+                                original,
+                                &cache,
+                                origin,
+                            )?;
+                            if self
+                                .native_compiler_cache_epochs(origin)
+                                .map(|epochs| epochs.0)
+                                != Some(receipt.context.entry_epoch)
+                            {
+                                return Err((ValueError::CommandProtocolUnavailable(
+                                    "captured compiler command priming context",
+                                ))
+                                .into());
+                            }
+                            Ok(())
+                        };
+                        let reached = obj::prime_native_command_name_cache_with_stage_check(
+                            original,
+                            cache.clone(),
+                            dialect,
+                            Some(&check),
+                        );
+                        let checked = check();
+                        scope.currency().ensure_current_or_refuse()?;
+                        checked?;
+                        reached?;
+                        continue;
                     }
-                    let original = obj::Owned::fresh(obj::new_string_bytes(bytes));
-                    obj::set_native_append_string(
-                        original.as_ptr(),
-                        protocol,
-                        Some((
-                            std::rc::Rc::from(bytes.as_slice()),
-                            tcl_syntax::native_string::NativeStringStorageIdentity::Allocated,
-                        )),
-                        None,
-                        None,
-                    )?;
-                    (None, original)
+                };
+                if index != array.values.len() {
+                    return Err((ValueError::CommandProtocolUnavailable(
+                        "native literal allocation order",
+                    ))
+                    .into());
                 }
-                NativeRuntimeLiteral::PrivateLogicalBoolean85(value) => {
-                    if protocol != NativeStringProtocol::C(tcl_dialect::TclVersion::V8_5) {
-                        return Err(ValueError::CommandProtocolUnavailable(
-                            "native C85 logical fold origin",
-                        ));
-                    }
-                    let bytes = if *value { b"1" } else { b"0" };
-                    let (registration, original) =
-                        self.native_literal_world.borrow_mut().register(
+                let literal = literals
+                    .get(index)
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "native literal slot",
+                    ))?;
+                let (registration, value) = match literal {
+                    NativeRuntimeLiteral::RegisteredBytes { bytes, namespace } => {
+                        let (index, value) = self.native_literal_world.borrow_mut().register(
                             NativeLiteralKey {
                                 protocol,
-                                namespace: None,
-                                original: bytes.to_vec(),
+                                namespace: *namespace,
+                                original: bytes.clone(),
                             },
                             |value| dict::native_object_bytes(value.as_ptr(), protocol),
                             || registered_string(bytes, dialect),
                         )?;
-                    let retired = self.native_literal_world.borrow_mut().release(registration);
-                    drop(retired);
-                    (None, original)
-                }
-                NativeRuntimeLiteral::UnsharedOriginal(original) => (None, original.clone()),
-                NativeRuntimeLiteral::PrivateConstantList { members, .. } => {
-                    let children: Vec<_> = members
-                        .iter()
-                        .map(|bytes| obj::Owned::fresh(obj::new_string_bytes(bytes)))
-                        .collect();
-                    let pointers: Vec<_> = children.iter().map(obj::Owned::as_ptr).collect();
-                    (
-                        None,
-                        obj::Owned::fresh(list::new_list_obj_native(&pointers, protocol)),
-                    )
-                }
-            };
-            array.registrations.push(registration);
-            array.values.push(RefCell::new(Some(value)));
-        }
-        if array.values.len() != literals.len() {
-            return Err(ValueError::CommandProtocolUnavailable(
-                "unallocated native literal slot",
-            ));
-        }
-        for slot in 0..array.values.len() {
-            if array.original(slot) != Some(source) {
-                continue;
-            }
-            match source_literal_action(protocol, true) {
-                NativeSourceLiteralAction::CopySourceString => {
-                    let bytes = dict::native_object_bytes(source, protocol)?;
-                    let copied = obj::Owned::fresh(obj::new_string_bytes(&bytes));
-                    if let Some(registration) = array.registrations[slot].take() {
+                        (Some(index), value)
+                    }
+                    NativeRuntimeLiteral::UnsharedBytes(bytes) => {
+                        (None, obj::Owned::fresh(obj::new_string_bytes(bytes)))
+                    }
+                    NativeRuntimeLiteral::PrivateConcatString(bytes) => {
+                        if protocol != NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1) {
+                            return Err((ValueError::CommandProtocolUnavailable(
+                                "native constant concat String issuer",
+                            ))
+                            .into());
+                        }
+                        let original = obj::Owned::fresh(obj::new_string_bytes(bytes));
+                        obj::set_native_append_string(
+                            original.as_ptr(),
+                            protocol,
+                            Some((
+                                std::rc::Rc::from(bytes.as_slice()),
+                                tcl_syntax::native_string::NativeStringStorageIdentity::Allocated,
+                            )),
+                            None,
+                            None,
+                        )?;
+                        (None, original)
+                    }
+                    NativeRuntimeLiteral::PrivateLogicalBoolean85(value) => {
+                        if protocol != NativeStringProtocol::C(tcl_dialect::TclVersion::V8_5) {
+                            return Err((ValueError::CommandProtocolUnavailable(
+                                "native C85 logical fold origin",
+                            ))
+                            .into());
+                        }
+                        let bytes = if *value { b"1" } else { b"0" };
+                        let (registration, original) =
+                            self.native_literal_world.borrow_mut().register(
+                                NativeLiteralKey {
+                                    protocol,
+                                    namespace: None,
+                                    original: bytes.to_vec(),
+                                },
+                                |value| dict::native_object_bytes(value.as_ptr(), protocol),
+                                || registered_string(bytes, dialect),
+                            )?;
                         let retired = self.native_literal_world.borrow_mut().release(registration);
                         drop(retired);
+                        (None, original)
                     }
-                    *array.values[slot].borrow_mut() = Some(copied);
-                }
-                NativeSourceLiteralAction::RetainSourceCycle => {
-                    let registration =
-                        array.registrations[slot].ok_or(ValueError::CommandProtocolUnavailable(
-                            "unregistered C84 source self-reference",
-                        ))?;
-                    if !self
-                        .native_literal_world
-                        .borrow()
-                        .registration_value(registration)
-                        .is_some_and(|value| value.as_ptr() == source)
-                    {
-                        return Err(ValueError::CommandProtocolUnavailable(
-                            "foreign C84 source registration",
-                        ));
+                    NativeRuntimeLiteral::UnsharedOriginal(original) => (None, original.clone()),
+                    NativeRuntimeLiteral::PrivateConstantList { members, .. } => {
+                        let children: Vec<_> = members
+                            .iter()
+                            .map(|bytes| obj::Owned::fresh(obj::new_string_bytes(bytes)))
+                            .collect();
+                        let pointers: Vec<_> = children.iter().map(obj::Owned::as_ptr).collect();
+                        (
+                            None,
+                            obj::Owned::fresh(list::new_list_obj_native(&pointers, protocol)),
+                        )
                     }
-                }
-                NativeSourceLiteralAction::UnsupportedSelfReference => {
-                    return Err(ValueError::CommandProtocolUnavailable(
-                        "native source self-reference producer",
-                    ));
-                }
-                NativeSourceLiteralAction::Preserve => unreachable!("actual source-pointer match"),
+                };
+                array.registrations.push(registration);
+                array.values.push(RefCell::new(Some(value)));
             }
-        }
-        let array = Rc::new(array);
-        self.native_literal_arrays
-            .borrow_mut()
-            .push(Rc::downgrade(&array));
-        Ok(array)
+            if array.values.len() != literals.len() {
+                return Err((ValueError::CommandProtocolUnavailable(
+                    "unallocated native literal slot",
+                ))
+                .into());
+            }
+            for slot in 0..array.values.len() {
+                if array.original(slot) != Some(source) {
+                    continue;
+                }
+                match source_literal_action(protocol, true) {
+                    NativeSourceLiteralAction::CopySourceString => {
+                        let bytes = dict::native_object_bytes(source, protocol)?;
+                        let copied = obj::Owned::fresh(obj::new_string_bytes(&bytes));
+                        if let Some(registration) = array.registrations[slot].take() {
+                            let retired =
+                                self.native_literal_world.borrow_mut().release(registration);
+                            drop(retired);
+                        }
+                        let retired = array.values[slot].replace(Some(copied));
+                        drop(retired);
+                        scope.currency().ensure_current_or_refuse()?;
+                    }
+                    NativeSourceLiteralAction::RetainSourceCycle => {
+                        let registration = array.registrations[slot].ok_or(
+                            ValueError::CommandProtocolUnavailable(
+                                "unregistered C84 source self-reference",
+                            ),
+                        )?;
+                        if !self
+                            .native_literal_world
+                            .borrow()
+                            .registration_value(registration)
+                            .is_some_and(|value| value.as_ptr() == source)
+                        {
+                            return Err((ValueError::CommandProtocolUnavailable(
+                                "foreign C84 source registration",
+                            ))
+                            .into());
+                        }
+                    }
+                    NativeSourceLiteralAction::UnsupportedSelfReference => {
+                        return Err((ValueError::CommandProtocolUnavailable(
+                            "native source self-reference producer",
+                        ))
+                        .into());
+                    }
+                    NativeSourceLiteralAction::Preserve => {
+                        unreachable!("actual source-pointer match")
+                    }
+                }
+            }
+            let array = Rc::new(array);
+            self.native_literal_arrays
+                .borrow_mut()
+                .push(Rc::downgrade(&array));
+            Ok(array)
+        })();
+        scope.currency().ensure_current_or_refuse()?;
+        obj::check_native_liveness(source_lifetime.as_ptr())?;
+        drop(source_lifetime);
+        scope.currency().ensure_current_or_refuse()?;
+        reached
     }
 }
 

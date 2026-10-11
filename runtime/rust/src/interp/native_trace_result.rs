@@ -124,6 +124,8 @@ impl Interp {
             self.return_level.set(state.level);
             let _ = self.restore_native_error_trace_state(state.error);
             if let Some(stack) = state.stack {
+                let mut stack = stack;
+                stack.renew_incarnation();
                 let retired = self.error_stack.replace(stack);
                 drop(retired);
             }

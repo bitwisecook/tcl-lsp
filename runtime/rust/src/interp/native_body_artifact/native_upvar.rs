@@ -34,7 +34,7 @@ impl Builder<'_> {
         words: &NativeCompilerWords<'_>,
         recipe: NativeUpvarInstruction,
         depth: u32,
-    ) -> Result<UpvarOperation, ValueError> {
+    ) -> Result<UpvarOperation, tcl_cmd_core::CmdError> {
         let mut prepared_words = HashMap::new();
         let level = match recipe.level {
             Some(level) => self.namespace_operand(words, &level, &mut prepared_words, depth)?,

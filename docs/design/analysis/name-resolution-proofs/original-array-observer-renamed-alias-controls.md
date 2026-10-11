@@ -110,3 +110,14 @@ Recorded argument vector:
 ```
 
 The retained runner uses its original absolute SDK queue and creates provider output directories. Exact SDK/executable/environment associations and a fresh output directory are required. The builtin and renamed reads are direct source actions; only alias setup and supported alias evaluation are caught. Compiler source assertions and later Rust execution remain independent.
+
+
+## Exact original-source Compiler software outcomes
+
+The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
+
+| Original operation | Passed | Failed | Incomplete |
+| --- | ---: | ---: | ---: |
+| `integration-compiler-focused-consumer-tests344` | 0 | 1 | 0 |
+
+[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.

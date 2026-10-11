@@ -52,7 +52,7 @@ impl Builder<'_> {
         words: &NativeCompilerWords<'_>,
         compilation: NativeArrayCompilation,
         depth: u32,
-    ) -> Result<Operation, ValueError> {
+    ) -> Result<Operation, tcl_cmd_core::CmdError> {
         let Some(recipe) = compilation.instruction else {
             for name in compilation.declarations {
                 self.local(&name, None);
@@ -63,7 +63,7 @@ impl Builder<'_> {
         let receiver = match &recipe.receiver {
             NativeInfoExistsReceiver::Original(original) => {
                 let NativeCompilerWordOperand::Original(word) = recipe.operand else {
-                    return Err(unavailable("original Array name geometry"));
+                    return Err((unavailable("original Array name geometry")).into());
                 };
                 let target = self.target(original.clone(), depth)?;
                 if matches!(original, NativeVariableWordOperand::DynamicWord) {
@@ -76,7 +76,7 @@ impl Builder<'_> {
             }
             NativeInfoExistsReceiver::ExpandedLiteral { name, index } => {
                 if index.is_some() {
-                    return Err(unavailable("scalar Array expanded receiver"));
+                    return Err((unavailable("scalar Array expanded receiver")).into());
                 }
                 let slot = self.local(name, None);
                 let literal = slot.is_none().then(|| self.literals.intern_bytes(name));

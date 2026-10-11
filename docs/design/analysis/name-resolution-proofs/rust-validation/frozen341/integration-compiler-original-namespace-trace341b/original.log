@@ -1,0 +1,234 @@
+
+running 4 tests
+test command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix ... ORIGINAL_DECLARATION offset=32 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 1, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 1, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=0 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=0 stage=body-unavailable
+ORIGINAL_DECLARATION offset=32 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 1, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=32 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=32 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=32 stage=body-unavailable
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 1, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=32 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 1, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=17 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 1, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+
+thread 'command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix' (1277979) panicked at rust/tcl-compiler/src/command_binding/original_body_namespace.rs:207:14:
+whole original written body
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test native_lowering::tests::original_boolean_lowering_keeps_reached_operand_purposes_and_c84_left_identity ... ORIGINAL_DECLARATION offset=27 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 2, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 2, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=0 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=0 stage=body-unavailable
+ORIGINAL_DECLARATION offset=27 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 2, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=27 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=27 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=27 stage=body-unavailable
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 2, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=27 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 2, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=54 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 2, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=12 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 2, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 2, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 2, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 2, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 2, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 2, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 2, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 2, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 2, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 2, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=12 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=12 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=12 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 2, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=12 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=12 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=12 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=12 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 2, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=12 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=12 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=12 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=12 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=12 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 2, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 2, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 2, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=27 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 2, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+NATIVE_BOOLEAN_SOURCE path=[] statements=4 source=Some((0, 135, Authored(SourceImage { bytes: [105, 102, 32, 123, 33, 36, 108, 104, 115, 125, 32, 123, 115, 101, 116, 32, 114, 101, 115, 117, 108, 116, 32, 65, 125, 59, 32, 105, 102, 32, 123, 36, 108, 104, 115, 32, 63, 32, 36, 114, 104, 115, 32, 58, 32, 36, 111, 116, 104, 101, 114, 125, 32, 123, 115, 101, 116, 32, 114, 101, 115, 117, 108, 116, 32, 66, 125, 59, 32, 105, 102, 32, 123, 36, 108, 104, 115, 32, 38, 38, 32, 36, 114, 104, 115, 125, 32, 123, 115, 101, 116, 32, 114, 101, 115, 117, 108, 116, 32, 67, 125, 59, 32, 105, 102, 32, 123, 36, 108, 104, 115, 32, 124, 124, 32, 36, 114, 104, 115, 125, 32, 123, 115, 101, 116, 32, 114, 101, 115, 117, 108, 116, 32, 68, 125], channel: Document, geometry: SourceImageGeometry { byte_hash: 9984517553895499281, line_index: Some(LineIndex { line_starts: [0] }) } }))) namespace=None sites=2
+NATIVE_BOOLEAN_STATEMENT path=[] index=0 kind=If reason=None span=Span { start: 0, end: 25 } inline_words=None retained_words=Some(3) synthetic=None
+NATIVE_BOOLEAN_STATEMENT path=[] index=1 kind=If reason=None span=Span { start: 27, end: 67 } inline_words=None retained_words=Some(3) synthetic=None
+NATIVE_BOOLEAN_STATEMENT path=[] index=2 kind=Call reason=None span=Span { start: 69, end: 101 } inline_words=Some(3) retained_words=Some(3) synthetic=None
+NATIVE_BOOLEAN_STATEMENT path=[] index=3 kind=Call reason=None span=Span { start: 103, end: 135 } inline_words=Some(3) retained_words=Some(3) synthetic=None
+NATIVE_BOOLEAN_SOURCE path=[1, 0] statements=1 source=Some((54, 12, Authored(SourceImage { bytes: [105, 102, 32, 123, 33, 36, 108, 104, 115, 125, 32, 123, 115, 101, 116, 32, 114, 101, 115, 117, 108, 116, 32, 65, 125, 59, 32, 105, 102, 32, 123, 36, 108, 104, 115, 32, 63, 32, 36, 114, 104, 115, 32, 58, 32, 36, 111, 116, 104, 101, 114, 125, 32, 123, 115, 101, 116, 32, 114, 101, 115, 117, 108, 116, 32, 66, 125, 59, 32, 105, 102, 32, 123, 36, 108, 104, 115, 32, 38, 38, 32, 36, 114, 104, 115, 125, 32, 123, 115, 101, 116, 32, 114, 101, 115, 117, 108, 116, 32, 67, 125, 59, 32, 105, 102, 32, 123, 36, 108, 104, 115, 32, 124, 124, 32, 36, 114, 104, 115, 125, 32, 123, 115, 101, 116, 32, 114, 101, 115, 117, 108, 116, 32, 68, 125], channel: Document, geometry: SourceImageGeometry { byte_hash: 9984517553895499281, line_index: Some(LineIndex { line_starts: [0] }) } }))) namespace=None sites=0
+NATIVE_BOOLEAN_STATEMENT path=[1, 0] index=0 kind=Barrier reason=Some("original body namespace context is unavailable") span=Span { start: 54, end: 66 } inline_words=None retained_words=None synthetic=None
+NATIVE_BOOLEAN_SOURCE path=[0, 0] statements=1 source=Some((12, 12, Authored(SourceImage { bytes: [105, 102, 32, 123, 33, 36, 108, 104, 115, 125, 32, 123, 115, 101, 116, 32, 114, 101, 115, 117, 108, 116, 32, 65, 125, 59, 32, 105, 102, 32, 123, 36, 108, 104, 115, 32, 63, 32, 36, 114, 104, 115, 32, 58, 32, 36, 111, 116, 104, 101, 114, 125, 32, 123, 115, 101, 116, 32, 114, 101, 115, 117, 108, 116, 32, 66, 125, 59, 32, 105, 102, 32, 123, 36, 108, 104, 115, 32, 38, 38, 32, 36, 114, 104, 115, 125, 32, 123, 115, 101, 116, 32, 114, 101, 115, 117, 108, 116, 32, 67, 125, 59, 32, 105, 102, 32, 123, 36, 108, 104, 115, 32, 124, 124, 32, 36, 114, 104, 115, 125, 32, 123, 115, 101, 116, 32, 114, 101, 115, 117, 108, 116, 32, 68, 125], channel: Document, geometry: SourceImageGeometry { byte_hash: 9984517553895499281, line_index: Some(LineIndex { line_starts: [0] }) } }))) namespace=None sites=0
+NATIVE_BOOLEAN_STATEMENT path=[0, 0] index=0 kind=Barrier reason=Some("original body namespace context is unavailable") span=Span { start: 12, end: 24 } inline_words=None retained_words=None synthetic=None
+
+thread 'native_lowering::tests::original_boolean_lowering_keeps_reached_operand_purposes_and_c84_left_identity' (1277980) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:161:9:
+actual source builds executable IR; retained availability=SourceDeclined(MissingCommandTokens { statement_index: 0 }); module metadata current=true; function metadata current=true; module grammar=LexerConfig { expand_syntax: false, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl84, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict }; function grammar=LexerConfig { expand_syntax: false, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl84, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict }
+FAILED
+test native_lowering::tests::original_boolean_lowering_refuses_missing_point_or_changed_actual_source_owner ... ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 3, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=0 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=0 stage=body-unavailable
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 3, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=17 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 3, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 3, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 3, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=17 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=17 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=17 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 3, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=17 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=17 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=17 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=17 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 3, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=17 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=17 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=17 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=17 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=17 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 3, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+NATIVE_BOOLEAN_SOURCE path=[] statements=1 source=Some((0, 32, Authored(SourceImage { bytes: [105, 102, 32, 123, 36, 99, 111, 110, 100, 105, 116, 105, 111, 110, 125, 32, 123, 115, 101, 116, 32, 114, 101, 115, 117, 108, 116, 32, 121, 101, 115, 125], channel: Document, geometry: SourceImageGeometry { byte_hash: 15746426959366367231, line_index: Some(LineIndex { line_starts: [0] }) } }))) namespace=None sites=1
+NATIVE_BOOLEAN_STATEMENT path=[] index=0 kind=If reason=None span=Span { start: 0, end: 32 } inline_words=None retained_words=Some(3) synthetic=None
+NATIVE_BOOLEAN_SOURCE path=[0, 0] statements=1 source=Some((17, 14, Authored(SourceImage { bytes: [105, 102, 32, 123, 36, 99, 111, 110, 100, 105, 116, 105, 111, 110, 125, 32, 123, 115, 101, 116, 32, 114, 101, 115, 117, 108, 116, 32, 121, 101, 115, 125], channel: Document, geometry: SourceImageGeometry { byte_hash: 15746426959366367231, line_index: Some(LineIndex { line_starts: [0] }) } }))) namespace=None sites=0
+NATIVE_BOOLEAN_STATEMENT path=[0, 0] index=0 kind=Barrier reason=Some("original body namespace context is unavailable") span=Span { start: 17, end: 31 } inline_words=None retained_words=None synthetic=None
+
+thread 'native_lowering::tests::original_boolean_lowering_refuses_missing_point_or_changed_actual_source_owner' (1277981) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:161:9:
+actual source builds executable IR; retained availability=SourceDeclined(MissingCommandTokens { statement_index: 0 }); module metadata current=true; function metadata current=true; module grammar=LexerConfig { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl86, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict }; function grammar=LexerConfig { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl86, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict }
+FAILED
+test native_lowering::tests::original_boolean_lowering_separates_inline_and_public_expression_result_producers ... ORIGINAL_DECLARATION offset=32 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 4, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 4, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=0 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=0 stage=body-unavailable
+ORIGINAL_DECLARATION offset=32 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 4, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=32 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=32 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=32 stage=body-unavailable
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 4, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=32 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 4, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=17 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 4, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 4, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 4, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 4, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 4, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 4, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 4, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 4, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 4, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 4, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=17 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=17 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=17 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 4, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=17 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=17 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=17 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=17 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 4, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=17 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=17 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=17 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=17 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=17 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 4, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 4, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 4, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=layout logical=false frame=NamespaceIdentity { namespace: Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 4, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }), frame: Global } targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=32 stage=owner entry=true config=true words=true frame=true origin=true context=true
+NATIVE_BOOLEAN_SOURCE path=[] statements=2 source=Some((0, 67, Authored(SourceImage { bytes: [105, 102, 32, 123, 36, 99, 111, 110, 100, 105, 116, 105, 111, 110, 125, 32, 123, 115, 101, 116, 32, 114, 101, 115, 117, 108, 116, 32, 65, 125, 59, 32, 105, 102, 32, 123, 91, 115, 101, 116, 32, 99, 111, 110, 100, 105, 116, 105, 111, 110, 93, 125, 32, 123, 115, 101, 116, 32, 114, 101, 115, 117, 108, 116, 32, 66, 125], channel: Document, geometry: SourceImageGeometry { byte_hash: 5493237769274533154, line_index: Some(LineIndex { line_starts: [0] }) } }))) namespace=None sites=2
+NATIVE_BOOLEAN_STATEMENT path=[] index=0 kind=If reason=None span=Span { start: 0, end: 30 } inline_words=None retained_words=Some(3) synthetic=None
+NATIVE_BOOLEAN_STATEMENT path=[] index=1 kind=If reason=None span=Span { start: 32, end: 67 } inline_words=None retained_words=Some(3) synthetic=None
+NATIVE_BOOLEAN_SOURCE path=[1, 0] statements=1 source=Some((54, 12, Authored(SourceImage { bytes: [105, 102, 32, 123, 36, 99, 111, 110, 100, 105, 116, 105, 111, 110, 125, 32, 123, 115, 101, 116, 32, 114, 101, 115, 117, 108, 116, 32, 65, 125, 59, 32, 105, 102, 32, 123, 91, 115, 101, 116, 32, 99, 111, 110, 100, 105, 116, 105, 111, 110, 93, 125, 32, 123, 115, 101, 116, 32, 114, 101, 115, 117, 108, 116, 32, 66, 125], channel: Document, geometry: SourceImageGeometry { byte_hash: 5493237769274533154, line_index: Some(LineIndex { line_starts: [0] }) } }))) namespace=None sites=0
+NATIVE_BOOLEAN_STATEMENT path=[1, 0] index=0 kind=Barrier reason=Some("original body namespace context is unavailable") span=Span { start: 54, end: 66 } inline_words=None retained_words=None synthetic=None
+NATIVE_BOOLEAN_SOURCE path=[0, 0] statements=1 source=Some((17, 12, Authored(SourceImage { bytes: [105, 102, 32, 123, 36, 99, 111, 110, 100, 105, 116, 105, 111, 110, 125, 32, 123, 115, 101, 116, 32, 114, 101, 115, 117, 108, 116, 32, 65, 125, 59, 32, 105, 102, 32, 123, 91, 115, 101, 116, 32, 99, 111, 110, 100, 105, 116, 105, 111, 110, 93, 125, 32, 123, 115, 101, 116, 32, 114, 101, 115, 117, 108, 116, 32, 66, 125], channel: Document, geometry: SourceImageGeometry { byte_hash: 5493237769274533154, line_index: Some(LineIndex { line_starts: [0] }) } }))) namespace=None sites=0
+NATIVE_BOOLEAN_STATEMENT path=[0, 0] index=0 kind=Barrier reason=Some("original body namespace context is unavailable") span=Span { start: 17, end: 29 } inline_words=None retained_words=None synthetic=None
+
+thread 'native_lowering::tests::original_boolean_lowering_separates_inline_and_public_expression_result_producers' (1277982) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:161:9:
+actual source builds executable IR; retained availability=SourceDeclined(MissingCommandTokens { statement_index: 0 }); module metadata current=true; function metadata current=true; module grammar=LexerConfig { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl86, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict }; function grammar=LexerConfig { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl86, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict }
+FAILED
+
+failures:
+
+failures:
+    command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix
+    native_lowering::tests::original_boolean_lowering_keeps_reached_operand_purposes_and_c84_left_identity
+    native_lowering::tests::original_boolean_lowering_refuses_missing_point_or_changed_actual_source_owner
+    native_lowering::tests::original_boolean_lowering_separates_inline_and_public_expression_result_producers
+
+test result: FAILED. 0 passed; 4 failed; 0 ignored; 0 measured; 9384 filtered out; finished in 3.30s
+

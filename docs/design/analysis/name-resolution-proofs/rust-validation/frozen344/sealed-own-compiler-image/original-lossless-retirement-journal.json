@@ -1,0 +1,21 @@
+{
+  "files": [
+    {
+      "source": "/tmp/naming-owned344/pinned-compiler344.elf",
+      "archive": "/tmp/closed-compiler344-own-image380/0.json.gz",
+      "sha256": "fcd5878d3424112d6461acc1ad672c022315fcb4287be5d21f9348bd77bc7137",
+      "gzip_sha256": "df15fc56f6be571f9017da80946c25934163b9605b26808ddede92314c9c52cd",
+      "size": 210225872,
+      "gzip_size": 41342652,
+      "device": 33,
+      "inode": 991067,
+      "links": 1,
+      "mode": 33216,
+      "atime_ns": 1791715525710229764,
+      "mtime_ns": 1791715141370354101,
+      "roundtrip_verified": true
+    }
+  ],
+  "closed_only": true,
+  "rule": "Original full bytes, hashes, modes and times are retained losslessly. Restore the specific leaf before replay or rechecking a packed source image. No ownership, execution, inode or result credit is transferred."
+}

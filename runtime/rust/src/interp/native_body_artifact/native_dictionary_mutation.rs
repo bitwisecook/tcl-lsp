@@ -17,7 +17,7 @@ impl Builder<'_> {
         captured: &NativeCompilerWords<'_>,
         recipe: tcl_registry::native_dictionary_compilation::NativeDictionaryMutationInstruction,
         depth: u32,
-    ) -> Result<DictionaryMutationOperation, ValueError> {
+    ) -> Result<DictionaryMutationOperation, tcl_cmd_core::CmdError> {
         let slot = self
             .local(&recipe.receiver, None)
             .ok_or_else(|| unavailable("native dictionary mutation receiver slot"))?;

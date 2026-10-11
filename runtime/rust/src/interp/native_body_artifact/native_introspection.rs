@@ -36,7 +36,7 @@ impl Builder<'_> {
         words: &NativeCompilerWords<'_>,
         recipe: NativeIntrospectionInstruction,
         depth: u32,
-    ) -> Result<IntrospectionOperation, ValueError> {
+    ) -> Result<IntrospectionOperation, tcl_cmd_core::CmdError> {
         let code_prefix = (recipe.kind == Kind::NamespaceCode).then(|| {
             [
                 self.literals.intern_bytes(b"::namespace"),

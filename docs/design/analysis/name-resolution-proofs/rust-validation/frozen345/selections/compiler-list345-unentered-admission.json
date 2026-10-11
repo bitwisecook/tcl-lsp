@@ -1,0 +1,14 @@
+{
+  "status": "unentered",
+  "producer": "integration-compiler-own-test-build345",
+  "own_seal_attempt_target": "lib",
+  "reason": "Strict helper expected actual Cargo target name tcl_compiler, selection had zero candidates; no own ELF was sealed. Follow-on list could not launch absent path.",
+  "list_command": [
+    "/tmp/naming-owned345/pinned-compiler345.elf",
+    "--list"
+  ],
+  "list_process_started": false,
+  "assertions": 0,
+  "raw_log": "/workspace/.proofs/integration-compiler-own-list345.log",
+  "corrected_request": "tcl_compiler with new list label345b"
+}

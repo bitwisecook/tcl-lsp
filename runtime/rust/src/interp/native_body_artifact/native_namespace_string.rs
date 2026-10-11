@@ -19,7 +19,7 @@ impl Builder<'_> {
         words: &NativeCompilerWords<'_>,
         recipe: NativeNamespaceStringInstruction,
         depth: u32,
-    ) -> Result<NamespaceStringOperation, ValueError> {
+    ) -> Result<NamespaceStringOperation, tcl_cmd_core::CmdError> {
         let mut prepared_words = HashMap::new();
         let operand = self.namespace_operand(words, &recipe.operand, &mut prepared_words, depth)?;
         let separator = self.literals.intern_bytes(b"::");

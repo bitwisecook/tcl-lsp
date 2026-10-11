@@ -34,11 +34,11 @@ impl Builder<'_> {
         words: &NativeCompilerWords<'_>,
         recipe: NativeScalarInstruction,
         depth: u32,
-    ) -> Result<ScalarOperation, ValueError> {
+    ) -> Result<ScalarOperation, tcl_cmd_core::CmdError> {
         if recipe.operands.len() != recipe.operation.arity() {
-            return Err(ValueError::CommandProtocolUnavailable(
-                "native scalar operand geometry",
-            ));
+            return Err(
+                (ValueError::CommandProtocolUnavailable("native scalar operand geometry")).into(),
+            );
         }
         let mut prepared_words = HashMap::new();
         let operands = recipe

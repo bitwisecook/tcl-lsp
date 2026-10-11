@@ -129,3 +129,17 @@ No assertion outcome is attached to these source bindings; software outcomes ret
 ## Replay
 
 Fixed Rust selectors are linked without an attached execution receipt. Physical native layout fixtures and separate empirical compiler comparison outcomes do not grant activation, observer, value, Normal, relocation or edit authority.
+
+
+## Exact original-source Compiler software outcomes
+
+The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
+
+| Original operation | Passed | Failed | Incomplete |
+| --- | ---: | ---: | ---: |
+| `integration-compiler-original-operand-tests341b` | 0 | 1 | 0 |
+| `integration-compiler-original-operand-tests344` | 0 | 1 | 0 |
+| `integration-compiler-focused-consumer-tests344` | 0 | 1 | 0 |
+| `integration-compiler-original-child-guards344` | 0 | 1 | 0 |
+
+[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.

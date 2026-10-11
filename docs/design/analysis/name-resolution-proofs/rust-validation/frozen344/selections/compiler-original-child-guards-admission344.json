@@ -1,0 +1,11 @@
+{
+  "exact_selectors": [
+    "native_lowering::tests::original_boolean_lowering_keeps_reached_operand_purposes_and_c84_left_identity",
+    "codegen::wasm::pipeline::tests::incoming_native_operands_use_declared_arguments_without_inventing_ssa",
+    "unit_scope::tests::original_argument_caller_child_keeps_its_own_expression_roles",
+    "unit_scope::tests::original_argument_caller_owner_refusal_stays_distinct_from_effect_only_empty",
+    "unit_scope::tests::original_argument_caller_phase_keeps_real_return_and_direct_argument_counts"
+  ],
+  "own_list_sha256": "80385a545048a42484df8295581d89fc440112366c87371d5d579a6f563bbfbb",
+  "owned_elf_sha256": "fcd5878d3424112d6461acc1ad672c022315fcb4287be5d21f9348bd77bc7137"
+}

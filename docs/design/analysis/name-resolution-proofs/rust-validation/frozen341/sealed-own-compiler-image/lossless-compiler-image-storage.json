@@ -1,0 +1,44 @@
+{
+  "image": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen341/sealed-own-compiler-image/pinned-compiler341.elf.gz",
+    "sha256": "661612ca990d44cf14dd7755de6806a2f0d2d40bd2b41b965c70179401abb472"
+  },
+  "original_sha256": "986dc256e9f23f3d12e0192e1ae65b38390b552a75728c65b82be3abb6b8bee6",
+  "original_bytes": 209952352,
+  "original_path": "/tmp/naming-owned341/pinned-compiler341.elf",
+  "original_stat": {
+    "source": "/tmp/naming-owned341/pinned-compiler341.elf",
+    "archive": "/tmp/closed-compiler341-own-image368/0.json.gz",
+    "sha256": "986dc256e9f23f3d12e0192e1ae65b38390b552a75728c65b82be3abb6b8bee6",
+    "gzip_sha256": "661612ca990d44cf14dd7755de6806a2f0d2d40bd2b41b965c70179401abb472",
+    "size": 209952352,
+    "gzip_size": 41114593,
+    "device": 33,
+    "inode": 971316,
+    "links": 1,
+    "mode": 33216,
+    "atime_ns": 1791710771035095941,
+    "mtime_ns": 1791710609841647558,
+    "roundtrip_verified": true
+  },
+  "pin": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen341/sealed-own-compiler-image/pinned-compiler341.json",
+    "sha256": "9e0677eb286cf89ebcd6142e7b6984d16cf16d922b391f8dbd7ae6e66d0766df"
+  },
+  "original_retirement_journal": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen341/sealed-own-compiler-image/original-lossless-retirement-journal.json",
+    "sha256": "cd1d2da74929138c1bbab805a0b796881bf68092dbb2a0cac04127cc9a9a84fd"
+  },
+  "build_receipt_id": "rust.frozen341.integration-compiler-clean-own-test-build341b",
+  "build_receipt_sha256": "967ff3e12f969e66a9d18dc2cd0eb94fb83226bf3fd44b488719a555ba7217b4",
+  "source_snapshot": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen341/source-snapshot.json.gz",
+    "sha256": "de7f2ff02ba630ac93174089e1e036a17d88800a533526e226d121b524e2fcd3",
+    "compression": "gzip",
+    "uncompressed_sha256": "b6a536a56cc98c38d8aedb5bd5ce3fa604394b8aab2aa70bb59bd875bf3a5cb2",
+    "json_pointer": "/source",
+    "authority": "Whole original 38,755-leaf Source341 snapshot; the complete source object equals each attached operation's receipt source object. The inventory records provenance, not an assertion or present-source outcome."
+  },
+  "verification": "Complete independent gzip decompression verifies every original executable byte and the strict full SHA/size. Original fresh:false own library-test artifact, pin, build receipt and exact source snapshot joins agree. Compressed bytes are retained unchanged; no raw executable is created.",
+  "replay": "Verify compressed and full decompressed SHA/size, then restore the exact original path and available original mode/timestamps from the unchanged journal before replaying original argv. Do not replace an active executable. Original inode identity and unrecorded ownership/stat fields cannot be reconstructed by inference. Restoring an image executes no assertion."
+}

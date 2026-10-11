@@ -1344,3 +1344,259 @@ fn original_jim_consumed_trace_cleanup_keeps_the_failed_entry_during_destructor_
         assert_eq!(interpreter.entered_native_operation_count(), 0);
     });
 }
+
+#[test]
+fn original_result_reset_retires_complete_exception_before_later_return_state() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Real software reset/destructor stages, without provider chronology inference.
+    for mode in 0..3 {
+        leak_free(|interpreter| {
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            interpreter.set_result_bytes(b"PRIOR RESULT");
+            interpreter.set_return_state(7, Code::Break);
+            let (value, calls, observed) = original(interpreter, mode);
+            let memory = obj::NativeObjectLifetime::retain(value);
+            interpreter.retain_native_error_option(false, value);
+            assert_eq!(unsafe { (*value).ref_count }, 1);
+            interpreter.reset_result();
+            assert_eq!(calls.get(), 1);
+            assert_eq!(&*observed.borrow(), b"");
+            assert!(!obj::allocation_is_live(memory.as_ptr()));
+            assert_eq!(obj::bytes_of(interpreter.result_obj()), b"");
+            assert!(interpreter.exc.borrow().native.code.is_none());
+            assert!(interpreter.exc.borrow().native.info.is_none());
+            assert_eq!(
+                interpreter.return_level.get(),
+                if mode == 0 { 1 } else { 7 }
+            );
+            assert_eq!(
+                interpreter.return_code.get(),
+                if mode == 0 { Code::Ok } else { Code::Break }
+            );
+            assert_refusal(interpreter, mode);
+            assert_eq!(interpreter.entered_native_operation_count(), 0);
+        });
+    }
+}
+
+#[test]
+fn original_private_reset_checks_each_real_retirement_before_the_next_field() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Private roles are released in the selected reset order even without a setter copy.
+    for fail_role in 0..2 {
+        for mode in 0..3 {
+            leak_free(|interpreter| {
+                interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+                interpreter.set_result_bytes(b"PRIOR RESULT");
+                let mut records = Vec::new();
+                for role in 0..2 {
+                    let (value, calls, observed) =
+                        original(interpreter, if role == fail_role { mode } else { 0 });
+                    let memory = obj::NativeObjectLifetime::retain(value);
+                    interpreter.retain_native_error_option(role == 1, value);
+                    assert_eq!(unsafe { (*value).ref_count }, 1);
+                    records.push((memory, calls, observed));
+                }
+                assert!(!interpreter.exc.borrow().native.legacy_copy);
+                let scope =
+                    native_operation_currency::NativeOperationScope::enter(interpreter).unwrap();
+                let reached = interpreter.publish_native_error_objects_checked(scope.currency());
+                assert_eq!(reached.is_ok(), mode == 0);
+                let stopped_after_code = mode != 0 && fail_role == 0;
+                assert_eq!(records[0].1.get(), 1);
+                assert!(!obj::allocation_is_live(records[0].0.as_ptr()));
+                assert_eq!(records[1].1.get(), usize::from(!stopped_after_code));
+                assert_eq!(
+                    obj::allocation_is_live(records[1].0.as_ptr()),
+                    stopped_after_code
+                );
+                assert!(interpreter.exc.borrow().native.code.is_none());
+                assert_eq!(
+                    interpreter.exc.borrow().native.info.is_some(),
+                    stopped_after_code
+                );
+                assert_eq!(obj::bytes_of(interpreter.result_obj()), b"PRIOR RESULT");
+                assert_refusal(interpreter, mode);
+                // Remaining actual owned state still receives mandatory teardown,
+                // independently of whether another reset stage was licensed.
+                let retired = interpreter.exc.take();
+                drop(retired);
+                assert_eq!(records[1].1.get(), 1);
+                drop(scope);
+                assert_eq!(interpreter.entered_native_operation_count(), 0);
+            });
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct OriginalResetRow {
+    variable: tcl_registry::special_vars::NativeErrorStorageVariable,
+    code: Option<*mut TclObj>,
+    info: Option<*mut TclObj>,
+    refs: obj::TclSize,
+}
+
+struct OriginalResetHeader {
+    interpreter: WeakInterp,
+    variable: tcl_registry::special_vars::NativeErrorStorageVariable,
+    rows: Rc<RefCell<Vec<OriginalResetRow>>>,
+    mode: u8,
+}
+
+extern "C" fn original_reset_header_free(value: *mut TclObj) {
+    // SAFETY: this actual free worker consumes its boxed original record.
+    let state =
+        unsafe { Box::from_raw(obj::internal_rep(value) as usize as *mut OriginalResetHeader) };
+    let Some(mut interpreter) = state.interpreter.upgrade() else {
+        return;
+    };
+    use tcl_registry::special_vars::NativeErrorStorageVariable::{ErrorCode, ErrorInfo};
+    state.rows.borrow_mut().push(OriginalResetRow {
+        variable: state.variable,
+        code: interpreter.native_error_header_for_observation(ErrorCode),
+        info: interpreter.native_error_header_for_observation(ErrorInfo),
+        refs: unsafe { (*value).ref_count },
+    });
+    // This Rust metadata projection adds no native hold on the retiring field.
+    drop(interpreter.snapshot_error());
+    match state.mode {
+        1 => {
+            interpreter.refuse_host_command("first selected reset retirement");
+        }
+        2 => {
+            let original = interpreter.runtime_context();
+            let mut changed = original.clone();
+            changed.packages = vec![("original-reset-retirement".into(), "1.0".into())];
+            interpreter.pin_context(&changed).unwrap();
+            interpreter.pin_context(&original).unwrap();
+        }
+        _ => {}
+    }
+}
+
+static ORIGINAL_RESET_HEADER: obj::TclObjType = obj::TclObjType {
+    name: c"originalSelectedResetHeader".as_ptr(),
+    free_int_rep_proc: Some(original_reset_header_free),
+    dup_int_rep_proc: None,
+    update_string_proc: None,
+    set_from_any_proc: None,
+};
+
+#[test]
+fn original_private_reset_decrement_keeps_each_raw_role_without_a_native_reference() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Reset order is source-derived here:614c executed only the distinct setter.
+    // These real software callbacks check raw roles and first-cause cleanup.
+    use tcl_registry::special_vars::NativeErrorStorageVariable::{ErrorCode, ErrorInfo};
+    for environment in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        for fail_role in [ErrorCode, ErrorInfo] {
+            for mode in 0..3 {
+                crate::counters::reset();
+                {
+                    let selected =
+                        tcl_registry::model::ingress::resolve_known_environment(environment)
+                            .unwrap();
+                    let mut interpreter = Interp::with_native_core(
+                        default_host(),
+                        selected.unit_profile(),
+                        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                    )
+                    .unwrap();
+                    interpreter.set_result_bytes(b"PRIOR RESULT");
+                    let result = interpreter.get_obj_result();
+                    let rows = Rc::new(RefCell::new(Vec::new()));
+                    let mut originals = Vec::new();
+                    for variable in [ErrorCode, ErrorInfo] {
+                        let state = Box::new(OriginalResetHeader {
+                            interpreter: interpreter.downgrade(),
+                            variable,
+                            rows: rows.clone(),
+                            mode: if variable == fail_role { mode } else { 0 },
+                        });
+                        let pointer = obj::alloc_typed(
+                            &ORIGINAL_RESET_HEADER,
+                            Box::into_raw(state) as usize as u64,
+                        );
+                        // A resident original spelling needs no updater at installation.
+                        unsafe {
+                            obj::set_native_updater_string_rep(
+                                pointer,
+                                b"ORIGINAL RESET FIELD",
+                                false,
+                            )
+                        };
+                        let memory = obj::NativeObjectLifetime::retain(pointer);
+                        interpreter.retain_native_error_option(variable == ErrorInfo, pointer);
+                        assert_eq!(unsafe { (*pointer).ref_count }, 1);
+                        originals.push(memory);
+                    }
+                    let code = originals[0].as_ptr();
+                    let info = originals[1].as_ptr();
+                    assert!(!interpreter.exc.borrow().native.legacy_copy);
+                    let scope =
+                        native_operation_currency::NativeOperationScope::enter(&interpreter)
+                            .unwrap();
+                    let reached =
+                        interpreter.publish_native_error_objects_checked(scope.currency());
+                    assert_eq!(
+                        reached.is_ok(),
+                        mode == 0,
+                        "{environment}, {fail_role:?}, mode{mode}"
+                    );
+                    let stopped_after_code = mode != 0 && fail_role == ErrorCode;
+                    let mut expected = vec![OriginalResetRow {
+                        variable: ErrorCode,
+                        code: Some(code),
+                        info: Some(info),
+                        refs: 0,
+                    }];
+                    if !stopped_after_code {
+                        expected.push(OriginalResetRow {
+                            variable: ErrorInfo,
+                            code: None,
+                            info: Some(info),
+                            refs: 0,
+                        });
+                    }
+                    assert_eq!(&*rows.borrow(), &expected);
+                    assert!(!obj::allocation_is_live(code));
+                    assert_eq!(obj::allocation_is_live(info), stopped_after_code);
+                    assert_eq!(
+                        interpreter.native_error_header_for_observation(ErrorCode),
+                        None
+                    );
+                    assert_eq!(
+                        interpreter.native_error_header_for_observation(ErrorInfo),
+                        if stopped_after_code { Some(info) } else { None }
+                    );
+                    assert_eq!(interpreter.get_obj_result(), result);
+                    if mode == 1 {
+                        let Some(tcl_runtime_api::NativeExecutionError::HostCommandRefusal(first)) =
+                            reached.err()
+                        else {
+                            panic!("lost reset Host cause");
+                        };
+                        assert_eq!(first.reason, "first selected reset retirement");
+                    } else if mode == 2 {
+                        assert_eq!(reached.err(), Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("stale entered native operation")
+                        )));
+                    }
+                    // Teardown of an unreached next role remains mandatory and
+                    // follows whole-state publication, not this selected reset.
+                    let retired = interpreter.exc.take();
+                    drop(retired);
+                    assert_eq!(rows.borrow().len(), 2);
+                    drop(scope);
+                    assert_eq!(interpreter.entered_native_operation_count(), 0);
+                }
+                assert_eq!(crate::counters::finalize(), 0);
+                assert_eq!(crate::counters::double_free_count(), 0);
+            }
+        }
+    }
+}

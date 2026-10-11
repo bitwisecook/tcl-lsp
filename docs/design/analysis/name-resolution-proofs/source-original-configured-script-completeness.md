@@ -2876,3 +2876,14 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 Restore each recorded absolute input through recorded-path-map.json and independently reproduce the exact version/main argv, cwd and explicit environment overlay. The original sealed request/probe/cases/version source/launcher, all complete process streams/receipts and 159 pins are retained. The original launcher refuses to overwrite its capture directory; any fresh capture path/request and execution is a new observation. Compiler and unlisted inherited environment cannot be reconstructed. Candidate String construction must retain each original scalar vector; do not substitute raw binary source or a strlen API. Source excerpts are independently LF-indexed interpretation; proposed configured owners and Rust assertion outcomes are not published as established here.
+
+
+## Exact original-source Compiler software outcomes
+
+The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
+
+| Original operation | Passed | Failed | Incomplete |
+| --- | ---: | ---: | ---: |
+| `integration-compiler-focused-consumer-tests344` | 36 | 9 | 0 |
+
+[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.

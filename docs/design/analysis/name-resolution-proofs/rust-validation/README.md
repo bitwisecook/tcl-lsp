@@ -4243,3 +4243,40 @@ preserve original path, mode, ownership and timestamps. Exact verified
 restoration is required before original argv replay; inode identity cannot
 be restored. A separate replay supplies no replacement result for a closed
 operation.
+
+
+## Original Compiler Source341–345 validation
+
+Nineteen independently closed operations retain their complete original receipts, source snapshots, streams and argv. Three successful Compiler library-test producers retain exact owned images with features `[]`; their inventories list 9,388, 9,394 and 9,399 unique tests. Each selected result is limited to its original source snapshot, admitted owned image and invocation. External providers and other source/image outcomes remain independent.
+
+| Operation | Exit | Seconds | Completed selected assertions |
+| --- | ---: | ---: | --- |
+| `integration-compiler-own-test-build341` | 101 | 228.899898 | no assertions; no own target test artifact |
+| `integration-compiler-clean-own-test-build341b` | 0 | 285.744070 | no assertions; own test artifact emitted |
+| `integration-compiler-own-list341b` | 0 | 0.042325 | 9388 names; listing executes no assertion |
+| `integration-compiler-original-operand-tests341b` | 101 | 7.389323 | 1 passed; 4 failed; 0 incomplete |
+| `integration-compiler-original-namespace-trace341b` | 101 | 3.388454 | 0 passed; 4 failed; 0 incomplete |
+| `integration-compiler-original-large-regex-test341b` | 124 | 300.404513 | 0 passed; 0 failed; 1 incomplete |
+| `integration-compiler-own-test-build342` | 101 | 38.225628 | no assertions; no own target test artifact |
+| `integration-compiler-own-test-build344` | 0 | 273.106025 | no assertions; own test artifact emitted |
+| `integration-compiler-own-list344` | 0 | 0.016319 | 9394 names; listing executes no assertion |
+| `integration-compiler-original-operand-tests344` | 101 | 4.931048 | 3 passed; 2 failed; 0 incomplete |
+| `integration-compiler-focused-consumer-tests344` | 101 | 234.456682 | 168 passed; 71 failed; 0 incomplete |
+| `integration-compiler-original-child-guards344` | 101 | 6.693285 | 0 passed; 5 failed; 0 incomplete |
+| `integration-compiler-original-factory-completion344` | 101 | 2.917569 | 0 passed; 2 failed; 0 incomplete |
+| `integration-compiler-own-test-build345` | 0 | 320.394669 | no assertions; own test artifact emitted |
+| `integration-compiler-own-list345b` | 0 | 0.100983 | 9399 names; listing executes no assertion |
+| `integration-compiler-root-owner-controls345` | 101 | 2.380378 | 13 passed; 5 failed; 0 incomplete |
+| `integration-compiler-original-large-regex345` | 124 | 600.766680 | 0 passed; 0 failed; 1 incomplete |
+| `integration-compiler-own-test-build343` | 101 | 83.105113 | no assertions; no own target test artifact |
+| `integration-vm-own-test-build345` | 101 | 103.573573 | no assertions; no own target test artifact |
+
+The Source341 failed producer reports a linker Bus error; the independent own341b producer and its assertions use the same exact source snapshot. Source342 reports 27 Registry `missing_docs` errors, and Source343 reports 25 VM `E0624` private-method errors. The independent VM345 producer reports LLVM output-stream ENOSPC in its Compiler dependency and emits no VM image, list or assertion result. These are distinct closed producer outcomes.
+
+The original 600-procedure regex test has no terminal assertion summary in either admitted invocation: Source341b closes with timeout exit124 after 300.404513 seconds, and Source345 after 600.766680 seconds. The original 950-byte test and its unchanged whole-source hash are retained. Reached trace counters establish no completed benchmark, correctness result, termination cause or performance gain.
+
+The initial Source345 list admission is unentered: strict target-name selection finds no own artifact for the requested name `lib`, so no list process or receipt exists for that attempt. Its empty original log and admission metadata are retained separately from the genuine `tcl_compiler` own image and successful list345b.
+
+Source344 focused admission retains source-request SHA `3dfb8ab3dd2d0cb7deab3e94a75a2bb42887ac2f98f92d00e8c9996862ed0d1c` as a hash-only prerequisite. The request payload/path is unavailable in this publication; its 239 exact admitted names, inventory, image and run argv remain explicit. Source345 joins its exact retained request, all 19 admitted names, original 600-procedure source and unchanged assertion body.
+
+[Exact operations, original-source test bodies and authored question pairs](compiler-owned341345-experiments.json) retain the complete per-selector outcomes. [Bounded publication checks](compiler-owned341345-fragment-verification.json) verify every payload digest and each recorded admission against its own inventory/image. Those publication checks execute no Rust assertion. Restore original executable paths, full bytes and available metadata from each retained lossless journal before replay; original inode identity and unrecorded metadata cannot be inferred.

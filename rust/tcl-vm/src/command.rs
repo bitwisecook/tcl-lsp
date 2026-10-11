@@ -3890,10 +3890,17 @@ pub(crate) fn runtime_frame_selection(
         && protocol.probes_single_script_list_first()
         && original.resident_string_bytes().is_none()
     {
-        let reached = tcl_syntax::value::ValueOps::list_len(vm, original);
+        let reached =
+            crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(vm, &scope)
+                .and_then(|ops| {
+                    ops.with_vm_for_value(original, |vm| {
+                        Ok(tcl_syntax::value::ValueOps::list_len(vm, original))
+                    })
+                });
         scope
             .check(vm)
             .map_err(|error| completion_from_cmd_error(vm, error))?;
+        let reached = reached.map_err(|error| completion_from_cmd_error(vm, error))?;
         match reached {
             Ok(length) if length > 1 => return default_target(vm),
             Err(error) if error.native_access_refusal().is_some() => {

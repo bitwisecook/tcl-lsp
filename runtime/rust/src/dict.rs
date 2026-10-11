@@ -472,7 +472,7 @@ fn ensure_dict_native_with_stage_check(
         string_protocol: Cell::new(Some(protocol)),
     })));
     dictionary_stage_current_checked(value, currency, stage_check)?;
-    if currency.is_some() && !obj::obj_type_ptr(value).is_null() {
+    if (currency.is_some() || stage_check.is_some()) && !obj::obj_type_ptr(value).is_null() {
         if obj::has_string_rep(value) {
             obj::discard_native_internal_representation(value)?;
         } else {
@@ -543,16 +543,39 @@ impl PreparedNativeDictionary {
         original: Option<*mut TclObj>,
         protocol: NativeStringProtocol,
     ) -> Result<Self, ValueError> {
+        Self::prepare_with_stage_check(original, protocol, None)
+    }
+
+    pub(crate) fn prepare_using<E>(
+        original: Option<*mut TclObj>,
+        protocol: NativeStringProtocol,
+        check: &impl Fn() -> Result<(), E>,
+        refuse: &impl Fn(ValueError) -> E,
+    ) -> Result<Self, E> {
+        crate::list::with_native_conversion_check(check, refuse, |stage| {
+            Self::prepare_with_stage_check(original, protocol, Some(stage))
+        })
+    }
+
+    fn prepare_with_stage_check(
+        original: Option<*mut TclObj>,
+        protocol: NativeStringProtocol,
+        stage_check: Option<&dyn Fn() -> Result<(), ValueError>>,
+    ) -> Result<Self, ValueError> {
+        if let Some(original) = original {
+            dictionary_stage_current_checked(original, None, stage_check)?;
+        }
         // Observe actual ownership before creating the receipt's reference.
         let value = match original {
             Some(value) if obj::is_shared(value) => obj::Owned::fresh(obj::duplicate(value)),
             Some(value) => {
-                ensure_dict_native(value, protocol)?;
+                ensure_dict_native_with_stage_check(value, protocol, None, stage_check)?;
                 obj::Owned::retain(value)
             }
             None => obj::Owned::fresh(new_dict_obj(&[])),
         };
-        ensure_dict_native(value.as_ptr(), protocol)?;
+        dictionary_stage_current_checked(value.as_ptr(), None, stage_check)?;
+        ensure_dict_native_with_stage_check(value.as_ptr(), protocol, None, stage_check)?;
         Ok(Self { value, protocol })
     }
     pub(crate) fn prepare_after_conversion(
@@ -608,7 +631,9 @@ impl PreparedNativeDictionary {
 
 /// Observe only a genuinely installed Dictionary backing. The weak token keeps
 /// its incarnation distinct after retirement without retaining native members.
-fn original_dictionary_backing(value: *mut TclObj) -> Result<std::rc::Weak<()>, ValueError> {
+pub(crate) fn original_dictionary_backing(
+    value: *mut TclObj,
+) -> Result<std::rc::Weak<()>, ValueError> {
     obj::check_native_liveness(value)?;
     if obj::obj_type_ptr(value) != &TCL_DICT_TYPE {
         return Err(ValueError::CommandProtocolUnavailable(
@@ -617,7 +642,7 @@ fn original_dictionary_backing(value: *mut TclObj) -> Result<std::rc::Weak<()>, 
     }
     Ok(std::rc::Rc::downgrade(&unsafe { dict_ref(value) }.birth))
 }
-fn original_dictionary_backing_current(
+pub(crate) fn original_dictionary_backing_current(
     value: *mut TclObj,
     original: &std::rc::Weak<()>,
 ) -> Result<(), ValueError> {
@@ -974,6 +999,35 @@ pub(crate) fn native_dict_pairs(
     Ok(unsafe { dict_ref(value) }.entries.clone())
 }
 
+/// Borrow converted members through the same worker and original typed checks.
+pub(crate) fn native_dict_pairs_using<E>(
+    value: *mut TclObj,
+    protocol: NativeStringProtocol,
+    check: &(impl Fn() -> Result<(), E> + ?Sized),
+    refuse: &impl Fn(ValueError) -> E,
+) -> Result<Vec<(*mut TclObj, *mut TclObj)>, E> {
+    crate::list::with_native_conversion_check(check, refuse, |stage| {
+        ensure_dict_native_with_stage_check(value, protocol, None, Some(stage))?;
+        Ok(unsafe { dict_ref(value) }.entries.clone())
+    })
+}
+
+/// Inspect only the exact converted backing and original prepared member roles.
+/// This performs no conversion, getter, native retain or reissued admission.
+pub(crate) fn original_dictionary_pairs_current(
+    value: *mut TclObj,
+    backing: &std::rc::Weak<()>,
+    pairs: &[(*mut TclObj, *mut TclObj)],
+) -> Result<(), ValueError> {
+    original_dictionary_backing_current(value, backing)?;
+    if unsafe { dict_ref(value) }.entries.as_slice() != pairs {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "changed original Dictionary option members",
+        ));
+    }
+    Ok(())
+}
+
 // error
 
 /// Why a value could not be parsed as a dict (`SetDictFromAny`/`FindElement`
@@ -1078,40 +1132,81 @@ pub fn new_dict_obj_with_hash_bucket_count(
     pairs: &[(*mut TclObj, *mut TclObj)],
     bucket_count: Option<usize>,
 ) -> *mut TclObj {
-    let mut entries: Vec<(*mut TclObj, *mut TclObj)> = Vec::with_capacity(pairs.len());
-    let mut index = Index::default();
-    let mut hash_order = TclStringHashOrder::default();
-    if let Some(bucket_count) = bucket_count {
-        hash_order.retain_bucket_count(bucket_count);
+    match new_dict_obj_with_hash_bucket_count_using(pairs, bucket_count, &|| {
+        Ok::<(), std::convert::Infallible>(())
+    }) {
+        Ok(value) => value,
+        Err(never) => match never {},
     }
-    for &(k, v) in pairs {
-        let key = obj::bytes_of(k);
-        if let Some(&pos) = index.get(&key) {
-            // SAFETY: overwrite value (retain new, release old); keep the key.
-            unsafe {
-                obj::incr_ref_count(v);
-                obj::decr_ref_count(entries[pos].1);
-            }
-            entries[pos].1 = v;
-        } else {
-            // SAFETY: the dict takes a +1 on both key and value.
-            unsafe {
-                obj::incr_ref_count(k);
-                obj::incr_ref_count(v);
-            }
-            hash_order.insert(&key);
-            index.insert(key, entries.len());
-            entries.push((k, v));
+}
+
+fn new_dict_obj_with_hash_bucket_count_checked(
+    pairs: &[(*mut TclObj, *mut TclObj)],
+    bucket_count: Option<usize>,
+    check: &dyn Fn() -> Result<(), tcl_runtime_api::NativeExecutionError>,
+) -> Result<*mut TclObj, tcl_cmd_core::CmdError> {
+    new_dict_obj_with_hash_bucket_count_using(pairs, bucket_count, &|| {
+        check()?;
+        for &(key, value) in pairs {
+            obj::check_native_liveness(key)?;
+            obj::check_native_liveness(value)?;
         }
-    }
-    let boxed = Box::new(TclDict {
+        Ok::<(), tcl_cmd_core::CmdError>(())
+    })
+}
+
+fn new_dict_obj_with_hash_bucket_count_using<E>(
+    pairs: &[(*mut TclObj, *mut TclObj)],
+    bucket_count: Option<usize>,
+    check: &dyn Fn() -> Result<(), E>,
+) -> Result<*mut TclObj, E> {
+    check()?;
+    let mut prepared = PreparedDictionaryBacking(Some(Box::new(TclDict {
         birth: std::rc::Rc::new(()),
-        entries,
-        index,
-        hash_order,
+        entries: Vec::with_capacity(pairs.len()),
+        index: Index::default(),
+        hash_order: TclStringHashOrder::default(),
         string_protocol: Cell::new(None),
-    });
-    obj::alloc_typed(&TCL_DICT_TYPE, Box::into_raw(boxed) as usize as u64)
+    })));
+    if let Some(bucket_count) = bucket_count {
+        prepared
+            .0
+            .as_mut()
+            .expect("prepared Dictionary backing")
+            .hash_order
+            .retain_bucket_count(bucket_count);
+    }
+    for &(key, value) in pairs {
+        let bytes = obj::bytes_of(key);
+        check()?;
+        let retired = {
+            let backing = prepared.0.as_mut().expect("prepared Dictionary backing");
+            if let Some(&position) = backing.index.get(&bytes) {
+                // Transfer the same genuine value role before its predecessor's
+                // mandatory free; this prepared backing is not yet published.
+                unsafe { obj::incr_ref_count(value) };
+                Some(std::mem::replace(&mut backing.entries[position].1, value))
+            } else {
+                unsafe {
+                    obj::incr_ref_count(key);
+                    obj::incr_ref_count(value);
+                }
+                backing.hash_order.insert(&bytes);
+                backing.index.insert(bytes, backing.entries.len());
+                backing.entries.push((key, value));
+                None
+            }
+        };
+        if let Some(retired) = retired {
+            unsafe { obj::decr_ref_count(retired) };
+        }
+        check()?;
+    }
+    check()?;
+    Ok(obj::alloc_typed(
+        &TCL_DICT_TYPE,
+        Box::into_raw(prepared.0.take().expect("prepared Dictionary backing")) as usize as u64,
+    ))
 }
 
 /// Construct original Dictionary members after checked native key conversion.
@@ -1125,6 +1220,51 @@ pub(crate) fn new_dict_obj_native(
     }
     let value = new_dict_obj_with_hash_bucket_count(pairs, bucket_count);
     seal_string_protocol(value, protocol)?;
+    Ok(value)
+}
+
+/// Construct actual original option members, checking the retained operation
+/// after each reached key getter and before the next key or allocation.
+pub(crate) fn new_dict_obj_native_with_stage_check(
+    pairs: &[(*mut TclObj, *mut TclObj)],
+    bucket_count: Option<usize>,
+    protocol: NativeStringProtocol,
+    check: &dyn Fn() -> Result<(), tcl_runtime_api::NativeExecutionError>,
+) -> Result<*mut TclObj, tcl_cmd_core::CmdError> {
+    check()?;
+    let lifetimes = pairs
+        .iter()
+        .map(|&(key, value)| {
+            obj::check_native_liveness(key)?;
+            obj::check_native_liveness(value)?;
+            Ok((
+                obj::NativeObjectLifetime::retain(key),
+                obj::NativeObjectLifetime::retain(value),
+            ))
+        })
+        .collect::<Result<Vec<_>, ValueError>>()?;
+    for &(key, _) in pairs {
+        let bytes = native_object_bytes(key, protocol);
+        check()?;
+        obj::check_native_liveness(key)?;
+        drop(bytes?);
+    }
+    let value = new_dict_obj_with_hash_bucket_count_checked(pairs, bucket_count, check)?;
+    let reached = seal_string_protocol(value, protocol);
+    let current = check();
+    if let Err(error) = current {
+        crate::interp::drop_fresh(value);
+        return Err(error.into());
+    }
+    if let Err(error) = reached {
+        crate::interp::drop_fresh(value);
+        return Err(error.into());
+    }
+    drop(lifetimes);
+    if let Err(error) = check() {
+        crate::interp::drop_fresh(value);
+        return Err(error.into());
+    }
     Ok(value)
 }
 

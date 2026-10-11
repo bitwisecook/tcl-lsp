@@ -55,21 +55,55 @@ impl NativeReturnOptions {
             other: Default::default(),
         })
     }
-    /// Retain the exact already-merged instruction operand, with no second
-    /// key/value inventory and no string conversion of its values.
-    pub(super) fn from_original(
+    /// The original instruction retains its merged operand before conversion.
+    /// The supplied check belongs to that actual entered operation, not a new
+    /// Dict or source issuer. No key getter runs under interpreter state borrows.
+    pub(super) fn from_original_checked(
         original: *mut TclObj,
         protocol: NativeStringProtocol,
-    ) -> Result<Self, ValueError> {
+        check: &dyn Fn() -> Result<(), tcl_runtime_api::NativeExecutionError>,
+    ) -> Result<Self, tcl_cmd_core::CmdError> {
+        check()?;
+        obj::check_native_liveness(original)?;
         let header = obj::Owned::retain(original);
-        let pairs = crate::dict::native_dict_pairs(original, protocol)?;
+        let reached = crate::dict::native_dict_pairs_using(
+            original,
+            protocol,
+            &|| check().map_err(tcl_cmd_core::CmdError::from),
+            &tcl_cmd_core::CmdError::from,
+        );
+        check()?;
+        let pairs = reached?;
+        let backing = crate::dict::original_dictionary_backing(original)?;
+        let lifetimes = pairs
+            .iter()
+            .map(|&(key, value)| {
+                obj::check_native_liveness(key)?;
+                obj::check_native_liveness(value)?;
+                Ok((
+                    obj::NativeObjectLifetime::retain(key),
+                    obj::NativeObjectLifetime::retain(value),
+                ))
+            })
+            .collect::<Result<Vec<_>, ValueError>>()?;
         let mut keys = Vec::new();
-        for (key, _) in pairs {
-            let key = crate::dict::native_object_bytes(key, protocol)?;
+        for &(key, value) in &pairs {
+            obj::check_native_liveness(key)?;
+            obj::check_native_liveness(value)?;
+            let key_lifetime = obj::NativeObjectLifetime::retain(key);
+            let reached = crate::dict::native_object_bytes(key, protocol);
+            check()?;
+            crate::dict::original_dictionary_pairs_current(original, &backing, &pairs)?;
+            obj::check_native_liveness(key_lifetime.as_ptr())?;
+            let key = reached?;
             if !keys.contains(&key) {
                 keys.push(key);
             }
+            drop(key_lifetime);
+            check()?;
         }
+        drop(lifetimes);
+        check()?;
         Ok(Self {
             header: Some(header),
             protocol: Some(protocol),
@@ -77,6 +111,7 @@ impl NativeReturnOptions {
             other: Default::default(),
         })
     }
+
     pub(super) fn is_original(&self, original: *mut TclObj) -> bool {
         self.header
             .as_ref()
@@ -109,6 +144,7 @@ impl NativeReturnOptions {
 
 #[derive(Clone, Default)]
 pub(super) struct NativeErrorStack {
+    incarnation: std::rc::Rc<()>,
     header: Option<obj::Owned>,
     // Exception snapshots share this interpreter role instead of retaining or
     // restoring the mutable native innerContext header.
@@ -117,6 +153,15 @@ pub(super) struct NativeErrorStack {
     metadata: ErrorStack<()>,
 }
 impl NativeErrorStack {
+    // Pure Rust mutation identity is not a native header reference or policy.
+    pub(super) fn renew_incarnation(&mut self) {
+        self.incarnation = std::rc::Rc::new(());
+    }
+
+    #[cfg(test)]
+    pub(super) fn original_header(&self) -> Option<*mut TclObj> {
+        self.header.as_ref().map(obj::Owned::as_ptr)
+    }
     #[cfg(test)]
     pub(super) fn original_inner_context(&self) -> Option<*mut TclObj> {
         self.inner_context
@@ -131,6 +176,7 @@ impl NativeErrorStack {
             .filter(|recipe| recipe.has_error_stack())
             .map(|recipe| recipe.strings());
         if self.protocol != protocol {
+            self.renew_incarnation();
             self.protocol = protocol;
             self.header = protocol
                 .map(|protocol| obj::Owned::fresh(crate::list::new_list_obj_native(&[], protocol)));
@@ -146,9 +192,11 @@ impl NativeErrorStack {
         self.metadata.is_reset()
     }
     pub(super) fn mark_reset(&mut self) {
+        self.renew_incarnation();
         self.metadata.mark_reset();
     }
     fn replace_objects(&mut self, values: &[*mut TclObj]) {
+        self.renew_incarnation();
         if let (Some(header), Some(protocol)) = (&self.header, self.protocol) {
             self.header = Some(
                 crate::list::replace_elements_native(header.as_ptr(), values, protocol)
@@ -170,6 +218,7 @@ impl NativeErrorStack {
         self.replace_bytes(&values);
         self.metadata.adopt(vec![(); values.len()])
     }
+    #[cfg(test)]
     pub(super) fn adopt_original(&mut self, original: *mut TclObj) -> Result<(), ValueError> {
         let protocol = self.protocol.ok_or(ValueError::CommandProtocolUnavailable(
             "private error-stack header",
@@ -215,6 +264,7 @@ impl NativeErrorStack {
         if !self.is_reset() {
             return;
         }
+        self.renew_incarnation();
         let protocol = self.protocol.expect("selected original innerContext");
         let instruction = obj::Owned::fresh(obj::native_instruction_name::fresh(name));
         let mut values = Vec::with_capacity(operands.len() + 1);
@@ -251,6 +301,7 @@ impl NativeErrorStack {
             ErrorStackFrame::Redirect(value) => (b"UP".as_slice(), value),
             ErrorStackFrame::Call(value) => (b"CALL".as_slice(), value),
         };
+        self.renew_incarnation();
         if let (Some(header), Some(protocol)) = (&self.header, self.protocol) {
             let tag = obj::Owned::fresh(obj::new_string_bytes(tag));
             self.header = Some(
@@ -282,6 +333,222 @@ impl NativeErrorStack {
 }
 
 impl super::Interp {
+    /// Prepare the genuine C private stack without state borrows across List
+    /// conversion, duplication or actual member/header retirement callbacks.
+    pub(super) fn seed_original_error_stack_checked(
+        &self,
+        original: *mut TclObj,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        let scope = super::native_operation_currency::NativeOperationScope::enter(self)?;
+        let reached = (|| -> Result<(), tcl_cmd_core::CmdError> {
+            let (mut header, protocol, mut ticket) = {
+                let stack = self.error_stack.borrow();
+                (
+                    stack.header.as_ref().map(obj::Owned::as_ptr),
+                    stack.protocol,
+                    std::rc::Rc::clone(&stack.incarnation),
+                )
+            };
+            let protocol = protocol.ok_or(ValueError::CommandProtocolUnavailable(
+                "private error-stack header",
+            ))?;
+            let original_header = header.ok_or(ValueError::CommandProtocolUnavailable(
+                "private error-stack header",
+            ))?;
+            obj::check_native_liveness(original_header)?;
+            obj::check_native_liveness(original)?;
+            let header_lifetime = obj::NativeObjectLifetime::retain(original_header);
+            let original_lifetime = obj::NativeObjectLifetime::retain(original);
+            self.check_original_error_stack_projection(scope.currency(), header, &ticket)?;
+            // The native worker duplicates its shared private header before
+            // converting the supplied operand, which may be that same header.
+            if obj::is_shared(original_header) {
+                let duplicate = obj::Owned::fresh(obj::duplicate(original_header));
+                crate::list::duplicate_native_backing(
+                    original_header,
+                    duplicate.as_ptr(),
+                    protocol,
+                );
+                self.check_original_error_stack_projection(scope.currency(), header, &ticket)?;
+                let retired = {
+                    let mut stack = self.error_stack.borrow_mut();
+                    let retired = stack.header.replace(duplicate);
+                    stack.renew_incarnation();
+                    header = stack.header.as_ref().map(obj::Owned::as_ptr);
+                    ticket = std::rc::Rc::clone(&stack.incarnation);
+                    retired
+                };
+                drop(retired);
+                self.check_original_error_stack_projection(scope.currency(), header, &ticket)?;
+            }
+            let members = crate::list::list_elements_native_using(
+                original,
+                protocol,
+                &|| self.check_original_error_stack_projection(scope.currency(), header, &ticket),
+                &|error| self.clone().refuse_completion_value_access(error),
+            );
+            self.check_original_error_stack_projection(scope.currency(), header, &ticket)?;
+            obj::check_native_liveness(original_lifetime.as_ptr())?;
+            let members = members?;
+            if members.len() % 2 != 0 {
+                return Err(
+                    ValueError::CommandProtocolUnavailable("validated error-stack pairs").into(),
+                );
+            }
+            let current =
+                || self.check_original_error_stack_projection(scope.currency(), header, &ticket);
+            let refuse = |error| self.clone().refuse_completion_value_access(error);
+            let value = crate::list::replace_elements_native_checked(
+                header.expect("checked existing header"),
+                &members,
+                protocol,
+                &current,
+                &refuse,
+            )?;
+            current()?;
+            let retired = {
+                let mut stack = self.error_stack.borrow_mut();
+                let retired = stack.header.replace(value);
+                stack
+                    .metadata
+                    .adopt(vec![(); members.len()])
+                    .expect("validated pairs");
+                stack.renew_incarnation();
+                header = stack.header.as_ref().map(obj::Owned::as_ptr);
+                ticket = std::rc::Rc::clone(&stack.incarnation);
+                retired
+            };
+            drop(retired);
+            drop(original_lifetime);
+            drop(header_lifetime);
+            self.check_original_error_stack_projection(scope.currency(), header, &ticket)?;
+            Ok(())
+        })();
+        scope.currency().ensure_current_or_refuse()?;
+        reached
+    }
+
+    fn check_original_error_stack_projection(
+        &self,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+        header: Option<*mut TclObj>,
+        ticket: &std::rc::Rc<()>,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        currency.ensure_current_or_refuse()?;
+        let current = {
+            let stack = self.error_stack.borrow();
+            stack.header.as_ref().map(obj::Owned::as_ptr) == header
+                && std::rc::Rc::ptr_eq(ticket, &stack.incarnation)
+        };
+        if !current {
+            return Err(self.clone().refuse_completion_value_access(
+                ValueError::CommandProtocolUnavailable("changed original error-stack projection"),
+            ));
+        }
+        if let Some(header) = header {
+            obj::check_native_liveness(header)
+                .map_err(|error| self.clone().refuse_completion_value_access(error))?;
+        }
+        Ok(())
+    }
+
+    /// Read the existing carried option roles without a return-options borrow
+    /// across Dict/key getters. The current header and backing remain exact;
+    /// allocation-only leases add no native member or header references.
+    pub(crate) fn pending_return_option_objects_checked(
+        &self,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+    ) -> Result<Vec<ReturnOptionPair<obj::Owned>>, tcl_runtime_api::NativeExecutionError> {
+        currency.ensure_current_or_refuse()?;
+        let (header, protocol, keys, other) = {
+            let options = self.return_options.borrow();
+            (
+                options.header(),
+                options.protocol,
+                options.keys.clone(),
+                std::rc::Rc::clone(&options.other),
+            )
+        };
+        let (Some(header), Some(protocol)) = (header, protocol) else {
+            return Ok(other.as_ref().clone());
+        };
+        obj::check_native_liveness(header)
+            .map_err(|error| self.clone().refuse_completion_value_access(error))?;
+        let original = obj::NativeObjectLifetime::retain(header);
+        let reached = crate::dict::native_dict_pairs_using(
+            header,
+            protocol,
+            &|| self.check_original_return_option_header(currency, header),
+            &|error| self.clone().refuse_completion_value_access(error),
+        );
+        currency.ensure_current_or_refuse()?;
+        self.check_original_return_option_header(currency, header)?;
+        let pairs = reached?;
+        let backing = crate::dict::original_dictionary_backing(header)
+            .map_err(|error| self.clone().refuse_completion_value_access(error))?;
+        let lifetimes = pairs
+            .iter()
+            .map(|&(key, value)| {
+                obj::check_native_liveness(key)?;
+                obj::check_native_liveness(value)?;
+                Ok((
+                    obj::NativeObjectLifetime::retain(key),
+                    obj::NativeObjectLifetime::retain(value),
+                ))
+            })
+            .collect::<Result<Vec<_>, ValueError>>()
+            .map_err(|error| self.clone().refuse_completion_value_access(error))?;
+        let mut converted = Vec::with_capacity(pairs.len());
+        for &(key, value) in &pairs {
+            let reached = crate::dict::native_object_bytes(key, protocol);
+            currency.ensure_current_or_refuse()?;
+            self.check_original_return_option_header(currency, header)?;
+            crate::dict::original_dictionary_pairs_current(header, &backing, &pairs)
+                .map_err(|error| self.clone().refuse_completion_value_access(error))?;
+            obj::check_native_liveness(key)
+                .map_err(|error| self.clone().refuse_completion_value_access(error))?;
+            obj::check_native_liveness(value)
+                .map_err(|error| self.clone().refuse_completion_value_access(error))?;
+            let bytes =
+                reached.map_err(|error| self.clone().refuse_completion_value_access(error))?;
+            converted.push((key, value, bytes));
+        }
+        let values = keys
+            .iter()
+            .filter_map(|key| {
+                converted.iter().find(|(_, _, bytes)| bytes == key).map(
+                    |&(original, value, ref bytes)| ReturnOptionPair {
+                        key: obj::Owned::retain(original),
+                        value: obj::Owned::retain(value),
+                        key_bytes: bytes.clone(),
+                    },
+                )
+            })
+            .collect();
+        drop(lifetimes);
+        drop(original);
+        currency.ensure_current_or_refuse()?;
+        Ok(values)
+    }
+
+    fn check_original_return_option_header(
+        &self,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+        original: *mut TclObj,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        currency.ensure_current_or_refuse()?;
+        obj::check_native_liveness(original)
+            .map_err(|error| self.clone().refuse_completion_value_access(error))?;
+        if self.return_options.borrow().header() != Some(original) {
+            return Err(self.clone().refuse_completion_value_access(
+                ValueError::CommandProtocolUnavailable(
+                    "original return options replaced during getter",
+                ),
+            ));
+        }
+        Ok(())
+    }
+
     /// Duplicate the actual private return-options header before overlaying live
     /// metadata. Retaining its members alone loses dictionary storage history.
     pub(crate) fn duplicate_original_return_options(

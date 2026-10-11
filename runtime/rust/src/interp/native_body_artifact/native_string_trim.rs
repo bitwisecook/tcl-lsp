@@ -35,7 +35,7 @@ impl Builder<'_> {
         words: &NativeCompilerWords<'_>,
         recipe: NativeStringTrimInstruction,
         depth: u32,
-    ) -> Result<StringTrimOperation, ValueError> {
+    ) -> Result<StringTrimOperation, tcl_cmd_core::CmdError> {
         let mut prepared_words = HashMap::new();
         let subject = self.namespace_operand(words, &recipe.subject, &mut prepared_words, depth)?;
         let characters = match recipe.characters {

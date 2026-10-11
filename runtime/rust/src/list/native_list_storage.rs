@@ -168,166 +168,358 @@ fn apply_native_list_range(
     }
 }
 
-impl NativeListStorage {
-    pub(super) fn replace_native(
-        &mut self,
-        first: usize,
-        delete: usize,
-        insert: &[*mut TclObj],
-        version: TclVersion,
-    ) -> Result<bool, ValueError> {
-        use tcl_cmd_core::native_list_storage::{NativeListReplaceStorage, replace_layout};
-        self.checked_generation()?;
-        let first = first.min(self.len());
-        let delete = delete.min(self.len() - first);
-        if insert.is_empty() && delete == 0 {
-            return Ok(false);
+// A replacement observer pins only allocation/backing identity. It does not
+// add a native header or member reference, and is renewed only by this worker's
+// own short mutation stages, before any external retirement callback.
+struct ReplacementObserver {
+    backing: Rc<NativeListStorageData>,
+    generation: u64,
+    window: Option<std::ops::Range<usize>>,
+    span: bool,
+}
+impl ReplacementObserver {
+    fn capture(original: *mut TclObj) -> Self {
+        let storage = &unsafe { list_ref(original) }.elems;
+        Self {
+            backing: Rc::clone(&storage.backing),
+            generation: storage.generation,
+            window: storage.window.clone(),
+            span: storage.span,
         }
-        if version >= TclVersion::V9_0
-            && insert.is_empty()
-            && (first == 0 || first + delete == self.len())
+    }
+    fn check<E>(&self, original: *mut TclObj, refuse: &impl Fn(ValueError) -> E) -> Result<(), E> {
+        obj::check_native_liveness(original).map_err(refuse)?;
+        if obj::obj_type_ptr(original) != &TCL_LIST_TYPE {
+            return Err(refuse(ValueError::CommandProtocolUnavailable(
+                "changed native List replacement header",
+            )));
+        }
+        let storage = &unsafe { list_ref(original) }.elems;
+        if !Rc::ptr_eq(&self.backing, &storage.backing)
+            || self.generation != storage.generation
+            || self.generation != storage.backing.generation.get()
+            || self.window != storage.window
+            || self.span != storage.span
         {
-            return self.delete_end_range(first, delete, version);
+            return Err(refuse(ValueError::CommandProtocolUnavailable(
+                "changed native List replacement backing",
+            )));
         }
-        self.collect_unreferenced();
-        let layout = if version >= TclVersion::V9_0 {
-            Some(replace_layout(
-                NativeListReplaceStorage {
-                    length: self.len(),
-                    used: self.backing.elements.borrow().0.len(),
-                    allocated: self.backing.capacity.get().ok_or(
-                        ValueError::CommandProtocolUnavailable("native List allocation extent"),
-                    )?,
-                    first_used: self.backing.first_used.get(),
-                    window_start: self
-                        .window
-                        .as_ref()
-                        .map_or(self.backing.first_used.get(), |window| window.start),
-                    has_span: self.span,
-                    store_shared: self.native_is_shared(),
-                },
-                first,
-                delete,
-                insert.len(),
-            ))
-        } else {
+        Ok(())
+    }
+}
+
+// A displaced real native header is dismantled outside the live receiver
+// borrow. Child retirement remains in its original order, including mandatory
+// remaining releases after the first operational refusal.
+fn retire_storage(storage: &mut NativeListStorage) -> Vec<*mut TclObj> {
+    if !storage.header {
+        return Vec::new();
+    }
+    storage.header = false;
+    storage.backing.headers.set(
+        storage
+            .backing
+            .headers
+            .get()
+            .checked_sub(1)
+            .expect("native List header retirement"),
+    );
+    if storage.backing.headers.get() != 0 {
+        return Vec::new();
+    }
+    let elements = storage.backing.elements.borrow();
+    if !elements.1.get() {
+        return Vec::new();
+    }
+    elements.2.replace(
+        elements
+            .0
+            .iter()
+            .map(|&value| obj::NativeObjectLifetime::retain(value))
+            .collect(),
+    );
+    elements.1.set(false);
+    elements.0.clone()
+}
+
+fn drain_replacement_members<E>(
+    original: *mut TclObj,
+    retired: Vec<*mut TclObj>,
+    observer: &ReplacementObserver,
+    check: &impl Fn() -> Result<(), E>,
+    refuse: &impl Fn(ValueError) -> E,
+) -> Result<(), E> {
+    let pins = retired
+        .iter()
+        .map(|&value| obj::NativeObjectLifetime::retain(value))
+        .collect::<Vec<_>>();
+    let mut first = None;
+    for value in retired {
+        unsafe { obj::decr_ref_count(value) };
+        let reached = check().and_then(|()| observer.check(original, refuse));
+        if first.is_none() {
+            first = reached.err();
+        }
+    }
+    drop(pins);
+    let reached = check().and_then(|()| observer.check(original, refuse));
+    match first {
+        Some(error) => Err(error),
+        None => reached,
+    }
+}
+
+pub(super) fn replace_storage<E>(
+    original: *mut TclObj,
+    replacement: NativeListStorage,
+    check: &impl Fn() -> Result<(), E>,
+    refuse: &impl Fn(ValueError) -> E,
+) -> Result<(), E> {
+    let mut retired = {
+        let list = unsafe { list_mut(original) };
+        std::mem::replace(&mut list.elems, replacement)
+    };
+    let observer = ReplacementObserver::capture(original);
+    let values = retire_storage(&mut retired);
+    let outcome = drain_replacement_members(original, values, &observer, check, refuse);
+    drop(retired);
+    let settled = check().and_then(|()| observer.check(original, refuse));
+    outcome.and(settled)
+}
+
+fn select_replacement_window<E>(
+    original: *mut TclObj,
+    range: std::ops::Range<usize>,
+    span: bool,
+    check: &impl Fn() -> Result<(), E>,
+    refuse: &impl Fn(ValueError) -> E,
+) -> Result<(), E> {
+    let stage = {
+        let storage = &mut unsafe { list_mut(original) }.elems;
+        let offset = storage
+            .window
+            .as_ref()
+            .map_or(0, |window| window.start - storage.backing.first_used.get());
+        let start = offset + range.start;
+        let end = offset + range.end;
+        if storage.native_is_shared() {
+            storage.window = Some(
+                storage.backing.first_used.get() + start..storage.backing.first_used.get() + end,
+            );
+            storage.span = span;
             None
-        };
-        if let Some(layout) = layout.filter(|layout| layout.shared_prepend) {
-            let start = self
-                .window
-                .as_ref()
-                .map_or(self.backing.first_used.get(), |window| window.start);
-            let end = start + self.len();
-            for &value in insert {
-                unsafe { obj::incr_ref_count(value) };
-            }
-            self.backing
-                .elements
-                .borrow_mut()
-                .0
-                .splice(0..0, insert.iter().copied());
-            self.backing.first_used.set(layout.first_used);
-            self.window = Some(start - insert.len()..end);
-            self.span = true;
-            return Ok(false);
+        } else {
+            let retired = {
+                let mut elements = storage.backing.elements.borrow_mut();
+                let mut retired = elements.0.drain(end..).collect::<Vec<_>>();
+                retired.extend(elements.0.drain(..start));
+                retired
+            };
+            Some((start, retired))
         }
-        if let Some(layout) = layout.filter(|layout| layout.new_store) {
-            let members = self.elements();
-            let elements = members[..first]
+    };
+    if let Some((start, retired)) = stage {
+        let observer = ReplacementObserver::capture(original);
+        drain_replacement_members(original, retired, &observer, check, refuse)?;
+        let storage = &mut unsafe { list_mut(original) }.elems;
+        storage.backing.first_used.set(if span {
+            storage.backing.first_used.get() + start
+        } else {
+            0
+        });
+        storage.window = None;
+        storage.note_mutation();
+        storage.span = span;
+    }
+    check()
+}
+
+fn collect_replacement_unreferenced<E>(
+    original: *mut TclObj,
+    check: &impl Fn() -> Result<(), E>,
+    refuse: &impl Fn(ValueError) -> E,
+) -> Result<(), E> {
+    let range = {
+        let storage = &unsafe { list_ref(original) }.elems;
+        (!storage.native_is_shared() && storage.window.is_some())
+            .then(|| (0..storage.len(), storage.span))
+    };
+    if let Some((range, span)) = range {
+        select_replacement_window(original, range, span, check, refuse)?;
+    }
+    Ok(())
+}
+
+fn replace_selected_native_storage<E>(
+    original: *mut TclObj,
+    first: usize,
+    delete: usize,
+    insert: &[*mut TclObj],
+    version: TclVersion,
+    check: &impl Fn() -> Result<(), E>,
+    refuse: &impl Fn(ValueError) -> E,
+) -> Result<bool, E> {
+    use tcl_cmd_core::native_list_storage::{
+        range_storage_action, replace_layout, NativeListReplaceStorage,
+    };
+    unsafe { list_ref(original) }
+        .elems
+        .checked_generation()
+        .map_err(refuse)?;
+    let length = unsafe { list_ref(original) }.elems.len();
+    let first = first.min(length);
+    let delete = delete.min(length - first);
+    if insert.is_empty() && delete == 0 {
+        return Ok(false);
+    }
+    if version >= TclVersion::V9_0 && insert.is_empty() && (first == 0 || first + delete == length)
+    {
+        collect_replacement_unreferenced(original, check, refuse)?;
+        let range = if first == 0 { delete..length } else { 0..first };
+        if range.is_empty() {
+            replace_storage(original, NativeListStorage::new(Vec::new()), check, refuse)?;
+            return Ok(true);
+        }
+        let action = {
+            let storage = &unsafe { list_ref(original) }.elems;
+            range_storage_action(
+                version,
+                range,
+                NativeListRangeStorage {
+                    length: storage.len(),
+                    header_shared: false,
+                    store_shared: storage.native_is_shared(),
+                    has_span: storage.span,
+                    used: storage.backing.elements.borrow().0.len(),
+                    allocated: storage.backing.capacity.get(),
+                    string: tcl_cmd_core::native_list_storage::NativeListStringState::Nonempty,
+                },
+            )
+            .map_err(refuse)?
+        };
+        return match action {
+            NativeListRangeAction::Window { range, span } => {
+                select_replacement_window(original, range, span, check, refuse)?;
+                Ok(!span)
+            }
+            NativeListRangeAction::FreshMembers(range) => {
+                let elements = unsafe { list_ref(original) }.elems.elements()[range].to_vec();
+                for &value in &elements {
+                    unsafe { obj::incr_ref_count(value) };
+                }
+                replace_storage(original, NativeListStorage::new(elements), check, refuse)?;
+                Ok(true)
+            }
+            NativeListRangeAction::Whole => Ok(false),
+            _ => unreachable!("nonempty private List range"),
+        };
+    }
+    collect_replacement_unreferenced(original, check, refuse)?;
+    let layout = if version >= TclVersion::V9_0 {
+        let storage = &unsafe { list_ref(original) }.elems;
+        Some(replace_layout(
+            NativeListReplaceStorage {
+                length: storage.len(),
+                used: storage.backing.elements.borrow().0.len(),
+                allocated: storage.backing.capacity.get().ok_or_else(|| {
+                    refuse(ValueError::CommandProtocolUnavailable(
+                        "native List allocation extent",
+                    ))
+                })?,
+                first_used: storage.backing.first_used.get(),
+                window_start: storage
+                    .window
+                    .as_ref()
+                    .map_or(storage.backing.first_used.get(), |window| window.start),
+                has_span: storage.span,
+                store_shared: storage.native_is_shared(),
+            },
+            first,
+            delete,
+            insert.len(),
+        ))
+    } else {
+        None
+    };
+    if let Some(layout) = layout.filter(|layout| layout.shared_prepend) {
+        let storage = &mut unsafe { list_mut(original) }.elems;
+        let start = storage
+            .window
+            .as_ref()
+            .map_or(storage.backing.first_used.get(), |window| window.start);
+        let end = start + storage.len();
+        for &value in insert {
+            unsafe { obj::incr_ref_count(value) };
+        }
+        storage
+            .backing
+            .elements
+            .borrow_mut()
+            .0
+            .splice(0..0, insert.iter().copied());
+        storage.backing.first_used.set(layout.first_used);
+        storage.window = Some(start - insert.len()..end);
+        storage.span = true;
+        return Ok(false);
+    }
+    if let Some(layout) = layout.filter(|layout| layout.new_store) {
+        let elements = {
+            let members = unsafe { list_ref(original) }.elems.elements();
+            members[..first]
                 .iter()
                 .chain(insert)
                 .chain(&members[first + delete..])
                 .copied()
-                .collect::<Vec<_>>();
-            for &value in &elements {
-                unsafe { obj::incr_ref_count(value) };
-            }
-            drop(members);
-            *self = Self::new(elements);
-            self.set_capacity(layout.allocated);
-            self.backing.first_used.set(layout.first_used);
-            self.span = layout.span;
-            return Ok(true);
+                .collect::<Vec<_>>()
+        };
+        for &value in &elements {
+            unsafe { obj::incr_ref_count(value) };
         }
-        if self.native_is_shared() {
-            *self = self.copied_header();
-        }
-        self.collect_unreferenced();
+        replace_storage(original, NativeListStorage::new(elements), check, refuse)?;
+        let storage = &mut unsafe { list_mut(original) }.elems;
+        storage.set_capacity(layout.allocated);
+        storage.backing.first_used.set(layout.first_used);
+        storage.span = layout.span;
+        return Ok(true);
+    }
+    let copy = {
+        let storage = &unsafe { list_ref(original) }.elems;
+        storage.native_is_shared().then(|| storage.copied_header())
+    };
+    if let Some(copy) = copy {
+        replace_storage(original, copy, check, refuse)?;
+    }
+    collect_replacement_unreferenced(original, check, refuse)?;
+    let retired = {
+        let storage = &mut unsafe { list_mut(original) }.elems;
         for &value in insert {
             unsafe { obj::incr_ref_count(value) };
         }
-        let retired = self
+        let retired = storage
             .backing
             .elements
             .borrow_mut()
             .0
             .splice(first..first + delete, insert.iter().copied())
             .collect::<Vec<_>>();
-        for value in retired {
-            unsafe { obj::decr_ref_count(value) };
-        }
-        self.note_mutation();
-        if let Some(layout) = layout {
-            self.set_capacity(layout.allocated);
-            self.backing.first_used.set(layout.first_used);
-            self.span = layout.span;
-        } else {
-            self.backing.capacity.set(None);
-            self.backing.first_used.set(0);
-            self.span = false;
-        }
-        self.window = None;
-        Ok(version >= TclVersion::V9_0 && !(delete == 0 && first + insert.len() == self.len()))
+        retired
+    };
+    let observer = ReplacementObserver::capture(original);
+    drain_replacement_members(original, retired, &observer, check, refuse)?;
+    let storage = &mut unsafe { list_mut(original) }.elems;
+    storage.note_mutation();
+    if let Some(layout) = layout {
+        storage.set_capacity(layout.allocated);
+        storage.backing.first_used.set(layout.first_used);
+        storage.span = layout.span;
+    } else {
+        storage.backing.capacity.set(None);
+        storage.backing.first_used.set(0);
+        storage.span = false;
     }
-
-    fn delete_end_range(
-        &mut self,
-        first: usize,
-        delete: usize,
-        version: TclVersion,
-    ) -> Result<bool, ValueError> {
-        use tcl_cmd_core::native_list_storage::range_storage_action;
-        self.collect_unreferenced();
-        let range = if first == 0 {
-            delete..self.len()
-        } else {
-            0..first
-        };
-        if range.is_empty() {
-            *self = Self::new(Vec::new());
-            return Ok(true);
-        }
-        let action = range_storage_action(
-            version,
-            range,
-            NativeListRangeStorage {
-                length: self.len(),
-                header_shared: false,
-                store_shared: self.native_is_shared(),
-                has_span: self.span,
-                used: self.backing.elements.borrow().0.len(),
-                allocated: self.backing.capacity.get(),
-                string: tcl_cmd_core::native_list_storage::NativeListStringState::Nonempty,
-            },
-        )?;
-        match action {
-            NativeListRangeAction::Window { range, span } => {
-                self.select_window(range, span);
-                Ok(!span)
-            }
-            NativeListRangeAction::FreshMembers(range) => {
-                let elements = self.elements()[range].to_vec();
-                for &value in &elements {
-                    unsafe { obj::incr_ref_count(value) };
-                }
-                *self = Self::new(elements);
-                Ok(true)
-            }
-            NativeListRangeAction::Whole => Ok(false),
-            _ => unreachable!("nonempty private List range"),
-        }
-    }
+    storage.window = None;
+    Ok(version >= TclVersion::V9_0 && !(delete == 0 && first + insert.len() == storage.len()))
 }
 
 /// Replace members on the physically selected header. All original index and
@@ -340,16 +532,49 @@ pub(crate) fn replace_prepared_native_elements(
     protocol: NativeStringProtocol,
     invalidate: bool,
 ) -> Result<(), ValueError> {
-    let version = protocol
-        .tcl_version()
-        .ok_or(ValueError::CommandProtocolUnavailable(
+    replace_prepared_native_elements_using(
+        original,
+        first,
+        delete,
+        insert,
+        protocol,
+        invalidate,
+        &|| Ok(()),
+        &|error| error,
+    )
+}
+
+pub(super) fn replace_prepared_native_elements_using<E>(
+    original: *mut TclObj,
+    first: usize,
+    delete: usize,
+    insert: &[*mut TclObj],
+    protocol: NativeStringProtocol,
+    invalidate: bool,
+    check: &impl Fn() -> Result<(), E>,
+    refuse: &impl Fn(ValueError) -> E,
+) -> Result<(), E> {
+    check()?;
+    let version = protocol.tcl_version().ok_or_else(|| {
+        refuse(ValueError::CommandProtocolUnavailable(
             "native List replacement release",
-        ))?;
-    prepare_native_list_mutation(original, protocol)?;
+        ))
+    })?;
+    let pins = std::iter::once(original)
+        .chain(insert.iter().copied())
+        .map(|value| {
+            obj::check_native_liveness(value).map_err(refuse)?;
+            Ok(obj::NativeObjectLifetime::retain(value))
+        })
+        .collect::<Result<Vec<_>, E>>()?;
+    prepare_native_list_mutation_using(original, protocol, check, refuse)?;
+    let observer = ReplacementObserver::capture(original);
+    observer.check(original, refuse)?;
+    let previous = unsafe { list_ref(original) }.canonical.get();
+    let backing = Rc::clone(&unsafe { list_ref(original) }.elems.backing);
+    let reset =
+        replace_selected_native_storage(original, first, delete, insert, version, check, refuse)?;
     let list = unsafe { list_mut(original) };
-    let previous = list.canonical.get();
-    let backing = Rc::clone(&list.elems.backing);
-    let reset = list.elems.replace_native(first, delete, insert, version)?;
     if !Rc::ptr_eq(&backing, &list.elems.backing) {
         list.canonical = Rc::new(Cell::new(if reset {
             false
@@ -362,7 +587,8 @@ pub(crate) fn replace_prepared_native_elements(
     if invalidate {
         obj::invalidate_string(original);
     }
-    Ok(())
+    drop(pins);
+    check()
 }
 
 #[cfg(test)]

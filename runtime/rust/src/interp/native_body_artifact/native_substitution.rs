@@ -48,130 +48,156 @@ impl Interp {
         original: *mut TclObj,
         flags: NativeSubstitutionFlags,
     ) -> Result<Rc<NativeSubstitutionArtifact>, Code> {
-        let namespace = self.current_ns.get();
-        let mut stamp = self.native_body_stamp(namespace, None).ok_or_else(|| {
-            self.report_cmd_error(unavailable("native substitution compiler context").into())
-        })?;
-        if !matches!(
-            stamp.physical,
-            tcl_dialect::TclVersion::V8_6
-                | tcl_dialect::TclVersion::V9_0
-                | tcl_dialect::TclVersion::V9_1
-        ) || stamp.source_protocol != NativeStringProtocol::C(stamp.physical)
-        {
-            return Err(
-                self.report_cmd_error(unavailable("native C substitution compiler release").into())
-            );
-        }
-        if let Some(current) = cache(original)
-            .filter(|current| current.flags == flags && current.program.stamp == stamp)
-        {
-            return Ok(current);
-        }
-        if cache(original).is_some() {
-            obj::change_type(original, core::ptr::null(), 0);
-        }
-        let bytes = ValueOps::native_string_bytes(self, &original)
-            .map_err(|error| self.report_cmd_error(error.into()))?;
-        stamp = self
-            .native_body_stamp(self.current_ns.get(), None)
-            .ok_or_else(|| {
-                self.report_cmd_error(
-                    unavailable("native substitution source callback context").into(),
-                )
+        let scope = native_operation_currency::NativeOperationScope::enter(self)
+            .map_err(|first| self.refuse_native_execution(first))?;
+        let reached = (|| -> Result<Rc<NativeSubstitutionArtifact>, Code> {
+            obj::check_native_liveness(original)
+                .map_err(|error| self.report_cmd_error(error.into()))?;
+            let original_lifetime = obj::NativeObjectLifetime::retain(original);
+            let namespace = self.current_ns.get();
+            let mut stamp = self.native_body_stamp(namespace, None).ok_or_else(|| {
+                self.report_cmd_error(unavailable("native substitution compiler context").into())
             })?;
-        if !matches!(
-            stamp.physical,
-            tcl_dialect::TclVersion::V8_6
-                | tcl_dialect::TclVersion::V9_0
-                | tcl_dialect::TclVersion::V9_1
-        ) || stamp.source_protocol != NativeStringProtocol::C(stamp.physical)
-        {
-            return Err(self.report_cmd_error(
-                unavailable("native substitution source callback engine").into(),
-            ));
-        }
-        let image = SourceImage::native(bytes.as_ref());
-        let end = u32::try_from(image.len()).map_err(|_| {
-            self.report_cmd_error(unavailable("native substitution source extent").into())
-        })?;
-        let region = Span::new(0, end);
-        let policy = tcl_registry::substitution::TemplateParseErrors::for_dialect(
-            self.native_invocation_dialect(),
-        )
-        .ok_or_else(|| self.report_cmd_error(unavailable("native substitution grammar").into()))?;
-        let arena = ExecutablePartArena::decompose_template(
-            image.clone(),
-            region,
-            flags.lexer_flags(),
-            stamp.grammar,
-            policy.variable_syntax(),
-        )
-        .map_err(|_| {
-            self.report_cmd_error(unavailable("native substitution template geometry").into())
-        })?;
-        let (lvt, local_cache) = self.native_body_local_table(&stamp, &[])?;
-        let mut builder = Builder {
-            interp: self,
-            image: image.clone(),
-            context: Context {
-                mode: NativeCompilationMode::BytecodeObject,
-                frame: NativeCompilationFrame::ScriptCode,
-                loop_depth: 0,
-                catch_depth: Some(1),
-            },
-            stamp: stamp.clone(),
-            lvt,
-            literals: LiteralTable::new(),
-            scripts: HashMap::new(),
-            parse_failure: None,
-            compilation_failure: None,
-            private_objects: HashMap::new(),
-            procedure: None,
-        };
-        let empty = arena
-            .list(arena.root())
-            .first()
-            .is_none_or(|part| !matches!(part.part, ExecutablePart::Text(_)))
-            .then(|| builder.literals.intern_bytes(b""));
-        let arena = builder
-            .arena_in(&arena, 0, true)
-            .map_err(|error| builder.report_compilation_error(error))?;
-        let literals = builder
-            .materialize_body_literals(original)
-            .map_err(|error| builder.report_compilation_error(error))?;
-        if builder
-            .interp
-            .native_body_stamp(stamp.namespace, None)
-            .as_ref()
-            != Some(&stamp)
-        {
-            return Err(builder.interp.report_cmd_error(
-                unavailable("native substitution compiler currency changed").into(),
-            ));
-        }
-        let artifact = Rc::new(NativeSubstitutionArtifact {
-            program: NativeBodyArtifact {
-                stamp,
-                owner: BodyContext::Script,
-                image,
+            if !matches!(
+                stamp.physical,
+                tcl_dialect::TclVersion::V8_6
+                    | tcl_dialect::TclVersion::V9_0
+                    | tcl_dialect::TclVersion::V9_1
+            ) || stamp.source_protocol != NativeStringProtocol::C(stamp.physical)
+            {
+                return Err(self.report_cmd_error(
+                    unavailable("native C substitution compiler release").into(),
+                ));
+            }
+            if let Some(current) = cache(original)
+                .filter(|current| current.flags == flags && current.program.stamp == stamp)
+            {
+                return Ok(current);
+            }
+            if cache(original).is_some() {
+                obj::change_type(original, core::ptr::null(), 0);
+                scope
+                    .currency()
+                    .ensure_current_or_refuse()
+                    .map_err(|first| self.refuse_native_execution(first))?;
+                obj::check_native_liveness(original_lifetime.as_ptr())
+                    .map_err(|error| self.report_cmd_error(error.into()))?;
+            }
+            let bytes = ValueOps::native_string_bytes(self, &original);
+            scope
+                .currency()
+                .ensure_current_or_refuse()
+                .map_err(|first| self.refuse_native_execution(first))?;
+            obj::check_native_liveness(original_lifetime.as_ptr())
+                .map_err(|error| self.report_cmd_error(error.into()))?;
+            let bytes = bytes.map_err(|error| self.report_cmd_error(error.into()))?;
+            stamp = self
+                .native_body_stamp(self.current_ns.get(), None)
+                .ok_or_else(|| {
+                    self.report_cmd_error(
+                        unavailable("native substitution source callback context").into(),
+                    )
+                })?;
+            if !matches!(
+                stamp.physical,
+                tcl_dialect::TclVersion::V8_6
+                    | tcl_dialect::TclVersion::V9_0
+                    | tcl_dialect::TclVersion::V9_1
+            ) || stamp.source_protocol != NativeStringProtocol::C(stamp.physical)
+            {
+                return Err(self.report_cmd_error(
+                    unavailable("native substitution source callback engine").into(),
+                ));
+            }
+            let image = SourceImage::native(bytes.as_ref());
+            let end = u32::try_from(image.len()).map_err(|_| {
+                self.report_cmd_error(unavailable("native substitution source extent").into())
+            })?;
+            let region = Span::new(0, end);
+            let policy = tcl_registry::substitution::TemplateParseErrors::for_dialect(
+                self.native_invocation_dialect(),
+            )
+            .ok_or_else(|| {
+                self.report_cmd_error(unavailable("native substitution grammar").into())
+            })?;
+            let arena = ExecutablePartArena::decompose_template(
+                image.clone(),
                 region,
-                scripts: builder.scripts,
-                literals,
-                locals: None,
-                _borrowed_table: local_cache.as_ref().map(Rc::downgrade),
-            },
-            arena,
-            flags,
-            empty,
-            _local_cache: local_cache,
-        });
-        obj::change_type(
-            original,
-            &SUBSTITUTION_TYPE,
-            Box::into_raw(Box::new(Rc::clone(&artifact))) as usize as u64,
-        );
-        Ok(artifact)
+                flags.lexer_flags(),
+                stamp.grammar,
+                policy.variable_syntax(),
+            )
+            .map_err(|_| {
+                self.report_cmd_error(unavailable("native substitution template geometry").into())
+            })?;
+            let (lvt, local_cache) = self.native_body_local_table(&stamp, &[])?;
+            let mut builder = Builder {
+                interp: self,
+                image: image.clone(),
+                context: Context {
+                    mode: NativeCompilationMode::BytecodeObject,
+                    frame: NativeCompilationFrame::ScriptCode,
+                    loop_depth: 0,
+                    catch_depth: Some(1),
+                },
+                stamp: stamp.clone(),
+                lvt,
+                literals: LiteralTable::new(),
+                scripts: HashMap::new(),
+                parse_failure: None,
+                compilation_failure: None,
+                private_objects: HashMap::new(),
+                procedure: None,
+            };
+            let empty = arena
+                .list(arena.root())
+                .first()
+                .is_none_or(|part| !matches!(part.part, ExecutablePart::Text(_)))
+                .then(|| builder.literals.intern_bytes(b""));
+            let arena = builder
+                .arena_in(&arena, 0, true)
+                .map_err(|error| builder.report_compilation_error(error))?;
+            let literals = builder
+                .materialize_body_literals(original)
+                .map_err(|error| builder.report_compilation_error(error))?;
+            if builder
+                .interp
+                .native_body_stamp(stamp.namespace, None)
+                .as_ref()
+                != Some(&stamp)
+            {
+                return Err(builder.interp.report_cmd_error(
+                    unavailable("native substitution compiler currency changed").into(),
+                ));
+            }
+            let artifact = Rc::new(NativeSubstitutionArtifact {
+                program: NativeBodyArtifact {
+                    stamp,
+                    owner: BodyContext::Script,
+                    image,
+                    region,
+                    scripts: builder.scripts,
+                    literals,
+                    locals: None,
+                    _borrowed_table: local_cache.as_ref().map(Rc::downgrade),
+                },
+                arena,
+                flags,
+                empty,
+                _local_cache: local_cache,
+            });
+            obj::change_type(
+                original,
+                &SUBSTITUTION_TYPE,
+                Box::into_raw(Box::new(Rc::clone(&artifact))) as usize as u64,
+            );
+            Ok(artifact)
+        })();
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| self.refuse_native_execution(first))?;
+        reached
     }
 
     pub(crate) fn substitute_original_c_template(

@@ -1,0 +1,40 @@
+{
+  "fragments_sha256": "b03f59634b7530d55ea33b418aeadc46e3d55f99c26f7eefc8839bb4e4b7e94f",
+  "all_156_payload_digests_verified": true,
+  "duplicate_paths": false,
+  "admissions": [
+    {
+      "admission": "compiler-original-operand-admission341b.json",
+      "source": "341",
+      "selected": 5,
+      "zero_missing": true
+    },
+    {
+      "admission": "compiler-focused-consumer-admission344.json",
+      "source": "344",
+      "selected": 239,
+      "zero_missing": true
+    },
+    {
+      "admission": "compiler-original-child-guards-admission344.json",
+      "source": "344",
+      "selected": 5,
+      "zero_missing": true
+    },
+    {
+      "admission": "compiler-original-factory-completion-admission344.json",
+      "source": "344",
+      "selected": 2,
+      "zero_missing": true
+    },
+    {
+      "admission": "compiler-root-owner-admission345.json",
+      "source": "345",
+      "selected": 19,
+      "zero_missing": true
+    }
+  ],
+  "executed_operations": 19,
+  "original_source_questions": 45,
+  "limits": "Bounded publication validation only. No Rust assertion, external-provider result or whole current-source hash is created by these checks. The Source344 request payload is not substituted from another request: its original admission retains SHA3dfb8ab3dd2d0cb7deab3e94a75a2bb42887ac2f98f92d00e8c9996862ed0d1c as a hash-only prerequisite until an exact retained path is identified."
+}

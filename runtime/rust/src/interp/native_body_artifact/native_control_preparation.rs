@@ -18,13 +18,13 @@ impl Builder<'_> {
         captured: &NativeCompilerWords<'_>,
         visits: &[Visit],
         depth: u32,
-    ) -> Result<PreparedControlOperands, ValueError> {
+    ) -> Result<PreparedControlOperands, tcl_cmd_core::CmdError> {
         let mut prepared = PreparedControlOperands::default();
         for visit in visits {
             match visit {
                 Visit::BooleanProbe(probe) => {
                     if !probe.matches_original(captured, self.stamp.physical) {
-                        return Err(unavailable("original native Boolean probe operand"));
+                        return Err((unavailable("original native Boolean probe operand")).into());
                     }
                 }
                 Visit::DeclareLocal(name) => {
@@ -83,6 +83,7 @@ impl Builder<'_> {
                     };
                     let result = self.script(*span, depth + 1);
                     self.context = previous;
+                    let result = self.check_compilation_stage(result);
                     if speculative {
                         let rejected =
                             self.parse_failure.is_some() || self.compilation_failure.is_some();

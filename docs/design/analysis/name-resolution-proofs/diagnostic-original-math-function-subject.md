@@ -93,3 +93,14 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 Linked Rust selectors bind source/provenance/reporting obligations. Root must attach an exact frozen Rust validation receipt before any test-pass claim. Existing native math dispatch observations remain separate; no new provider launch or expression/function equivalence result is implied.
+
+
+## Exact original-source Compiler software outcomes
+
+The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
+
+| Original operation | Passed | Failed | Incomplete |
+| --- | ---: | ---: | ---: |
+| `integration-compiler-focused-consumer-tests344` | 2 | 0 | 0 |
+
+[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.

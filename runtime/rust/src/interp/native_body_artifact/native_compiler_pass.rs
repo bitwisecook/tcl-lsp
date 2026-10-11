@@ -79,17 +79,16 @@ impl Builder<'_> {
         &mut self,
         region: Span,
         original: *mut TclObj,
-    ) -> Result<Rc<NativeRuntimeLiteralArray>, ValueError> {
+    ) -> Result<Rc<NativeRuntimeLiteralArray>, tcl_cmd_core::CmdError> {
         let first_pass = self.materialize_body_literals(original)?;
+        self.interp.check_entered_native_operation()?;
         let procedure = self.procedure.as_ref().and_then(Weak::upgrade);
         let current = self
             .interp
             .native_body_stamp(self.stamp.namespace, procedure.as_ref())
             .ok_or_else(|| unavailable("native compiler context after callbacks"))?;
         if current != self.stamp {
-            return Err(unavailable(
-                "native compiler context changed during preparation",
-            ));
+            return Err((unavailable("native compiler context changed during preparation")).into());
         }
         // Limits select this reached compaction attempt; changing them does
         // not invalidate an already installed native Bytecode artifact.
@@ -120,6 +119,7 @@ impl Builder<'_> {
         self.scripts.clear();
         self.literals = LiteralTable::new();
         self.private_objects.clear();
+        self.interp.check_entered_native_operation()?;
         self.parse_failure = None;
         self.compilation_failure = None;
         self.script(region, 0)?;
@@ -129,7 +129,7 @@ impl Builder<'_> {
     pub(super) fn materialize_body_literals(
         &mut self,
         original: *mut TclObj,
-    ) -> Result<Rc<NativeRuntimeLiteralArray>, ValueError> {
+    ) -> Result<Rc<NativeRuntimeLiteralArray>, tcl_cmd_core::CmdError> {
         let entries = self
             .literals
             .entries()

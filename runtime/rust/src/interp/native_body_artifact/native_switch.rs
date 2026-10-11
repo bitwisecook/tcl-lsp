@@ -7,7 +7,7 @@ impl Builder<'_> {
         &mut self,
         switch: &mut SwitchOperation,
         depth: u32,
-    ) -> Result<(), ValueError> {
+    ) -> Result<(), tcl_cmd_core::CmdError> {
         if let tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand::LiteralExpansion {value,..} = &switch.recipe.subject {
             switch.subject_literal = Some(self.literals.intern_bytes(value));
         }

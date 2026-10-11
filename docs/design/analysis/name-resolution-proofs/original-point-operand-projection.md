@@ -101,3 +101,14 @@ These are current source bindings, with verified actual declaring modules or int
 ## Replay
 
 Linked Rust selectors do not establish execution or timing. The unchanged 80-depth default-stack selector and its 60-second result require separate actual execution.
+
+
+## Exact original-source Compiler software outcomes
+
+The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
+
+| Original operation | Passed | Failed | Incomplete |
+| --- | ---: | ---: | ---: |
+| `integration-compiler-focused-consumer-tests344` | 1 | 2 | 0 |
+
+[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.

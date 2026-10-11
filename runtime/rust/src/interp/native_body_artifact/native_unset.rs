@@ -31,14 +31,14 @@ impl Builder<'_> {
         captured: &NativeCompilerWords<'_>,
         recipe: NativeUnsetInstruction,
         depth: u32,
-    ) -> Result<UnsetOperation, ValueError> {
+    ) -> Result<UnsetOperation, tcl_cmd_core::CmdError> {
         let mut variables = Vec::with_capacity(recipe.variables.len());
         let mut prepared_words = HashMap::new();
         for variable in recipe.variables {
             let target = match variable.receiver {
                 NativeUnsetReceiver::Original(original) => {
                     let NativeCompilerWordOperand::Original(word) = variable.operand else {
-                        return Err(unavailable("original native unset word geometry"));
+                        return Err((unavailable("original native unset word geometry")).into());
                     };
                     let target = self.target(original, depth)?;
                     if matches!(target.original, NativeVariableWordOperand::DynamicWord) {

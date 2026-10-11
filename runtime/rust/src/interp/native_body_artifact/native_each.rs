@@ -21,12 +21,12 @@ impl Builder<'_> {
         captured: &NativeCompilerWords<'_>,
         selected: NativeControlCompilation<NativeEachInstruction>,
         depth: u32,
-    ) -> Result<Operation, ValueError> {
+    ) -> Result<Operation, tcl_cmd_core::CmdError> {
         let prepared = self.prepare_control_steps(captured, &selected.preparations, depth)?;
         let recipe = match selected.outcome {
             NativeControlOutcome::Generic => return Ok(Operation::Invoke),
             NativeControlOutcome::Rejected(failure) => {
-                return Err(self.reject_native_compilation(failure));
+                return Err((self.reject_native_compilation(failure)).into());
             }
             NativeControlOutcome::Inline(recipe) => recipe,
         };

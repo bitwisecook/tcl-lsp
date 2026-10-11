@@ -11,6 +11,42 @@ pub(super) struct NativeErrorObjects {
     pub(super) code: Option<obj::Owned>,
     pub(super) legacy_copy: bool,
     pub(super) global_code_set: bool,
+    info_retirement: Option<std::rc::Rc<NativeErrorObjectRetirement>>,
+    code_retirement: Option<std::rc::Rc<NativeErrorObjectRetirement>>,
+}
+
+/// A raw role during the real decrement, without a native object reference.
+/// Its allocation lease cannot revive a retired header or authorise a getter.
+struct NativeErrorObjectRetirement {
+    original: obj::NativeObjectLifetime,
+    active: std::cell::Cell<bool>,
+}
+
+/// These selected workers decrement the old header before clearing its role.
+/// Generic byte-authored state replacement keeps its distinct publication order.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum NativeErrorObjectRetirementPurpose {
+    OriginalSetter,
+    SelectedReset,
+}
+
+impl NativeErrorObjects {
+    fn retirement(&self, variable: Variable) -> &Option<std::rc::Rc<NativeErrorObjectRetirement>> {
+        match variable {
+            Variable::ErrorInfo => &self.info_retirement,
+            Variable::ErrorCode => &self.code_retirement,
+        }
+    }
+
+    fn retirement_mut(
+        &mut self,
+        variable: Variable,
+    ) -> &mut Option<std::rc::Rc<NativeErrorObjectRetirement>> {
+        match variable {
+            Variable::ErrorInfo => &mut self.info_retirement,
+            Variable::ErrorCode => &mut self.code_retirement,
+        }
+    }
 }
 
 pub(super) struct NativeGlobalErrorFlags {
@@ -43,8 +79,14 @@ impl Interp {
     /// Clear C8.4's error-in-progress, already-logged and error-code-set state.
     /// No global variable setter or header publication belongs to this reset.
     pub(super) fn reset_native_global_error_episode(&self) {
+        let Ok(scope) = super::native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
         if self.uses_c84_global_error_info() {
-            *self.exc.borrow_mut() = super::ExceptionState::default();
+            let _ = self.replace_exception_state_checked(
+                scope.currency(),
+                super::ExceptionState::default(),
+            );
         }
     }
 
@@ -222,6 +264,9 @@ impl Interp {
             return;
         }
         let name = variable.global_name().as_bytes();
+        if self.check_native_error_object_readable(variable).is_err() {
+            return;
+        }
         let defined = match self.read_captured_byte_variable(GLOBAL, None, name, None, false) {
             Ok(value) => value.is_some(),
             Err(_) => return,
@@ -260,6 +305,131 @@ impl Interp {
         obj::Owned::fresh(crate::list::new_list_obj_native(&pointers, protocol))
     }
 
+    /// Refuse semantic access to a header in its actual decr/free stage.
+    /// The raw retirement role is not an absent guest value or an owned value.
+    pub(super) fn check_native_error_object_readable(
+        &self,
+        variable: Variable,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let retiring = self
+            .exc
+            .borrow()
+            .native
+            .retirement(variable)
+            .as_ref()
+            .is_some_and(|role| role.active.get());
+        if retiring {
+            return Err(self.clone().refuse_completion_value_access(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "retiring private error header",
+                ),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Complete one selected old-header decrement outside the exception borrow.
+    /// OriginalSetter checks before retirement; SelectedReset also completes
+    /// the reached setter's mandatory cleanup under its retained first cause.
+    pub(super) fn retire_native_error_object_checked(
+        &self,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+        variable: Variable,
+        purpose: NativeErrorObjectRetirementPurpose,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let reached = currency.ensure_current_or_refuse();
+        if purpose == NativeErrorObjectRetirementPurpose::OriginalSetter && reached.is_err() {
+            return reached;
+        }
+        self.check_native_error_object_readable(variable)?;
+        let original = {
+            let exc = self.exc.borrow();
+            match variable {
+                Variable::ErrorInfo => &exc.native.info,
+                Variable::ErrorCode => &exc.native.code,
+            }
+            .as_ref()
+            .map(obj::Owned::as_ptr)
+        };
+        let Some(original) = original else {
+            currency.ensure_current_or_refuse()?;
+            return reached;
+        };
+        obj::check_native_liveness(original)
+            .map_err(|error| self.clone().refuse_completion_value_access(error))?;
+        let role = std::rc::Rc::new(NativeErrorObjectRetirement {
+            original: obj::NativeObjectLifetime::retain(original),
+            active: std::cell::Cell::new(true),
+        });
+        let retired = {
+            let mut exc = self.exc.borrow_mut();
+            let retired = match variable {
+                Variable::ErrorInfo => exc.native.info.take(),
+                Variable::ErrorCode => exc.native.code.take(),
+            };
+            *exc.native.retirement_mut(variable) = Some(role.clone());
+            retired
+        };
+        // The actual native +1 is decremented here. During a free callback the
+        // descriptor keeps only the allocation and the selected raw field role.
+        drop(retired);
+        role.active.set(false);
+        let (same, displaced, replaced) = {
+            let mut exc = self.exc.borrow_mut();
+            let same = exc
+                .native
+                .retirement(variable)
+                .as_ref()
+                .is_some_and(|current| std::rc::Rc::ptr_eq(current, &role));
+            let displaced = if same {
+                exc.native.retirement_mut(variable).take()
+            } else {
+                None
+            };
+            let replaced = match variable {
+                Variable::ErrorInfo => exc.native.info.is_some(),
+                Variable::ErrorCode => exc.native.code.is_some(),
+            };
+            (same, displaced, replaced)
+        };
+        drop(displaced);
+        drop(role);
+        currency.ensure_current_or_refuse()?;
+        reached?;
+        if !same || replaced {
+            return Err(self.clone().refuse_completion_value_access(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "private error retirement role replaced during callback",
+                ),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Raw header-only observer for the selected field's actual decrement.
+    /// The pointer grants no getter, retain, cache access or owned-value role.
+    #[cfg(test)]
+    pub(super) fn native_error_header_for_observation(
+        &self,
+        variable: Variable,
+    ) -> Option<*mut obj::TclObj> {
+        let exc = self.exc.borrow();
+        if let Some(role) = exc
+            .native
+            .retirement(variable)
+            .as_ref()
+            .filter(|role| role.active.get())
+        {
+            return Some(role.original.as_ptr());
+        }
+        match variable {
+            Variable::ErrorInfo => &exc.native.info,
+            Variable::ErrorCode => &exc.native.code,
+        }
+        .as_ref()
+        .map(obj::Owned::as_ptr)
+    }
+
     /// Replace one genuine private owner and complete its retirement before
     /// the next getter or field publication. This supplies no object authority.
     pub(super) fn replace_native_error_object_checked(
@@ -270,6 +440,7 @@ impl Interp {
         info_len: Option<usize>,
     ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
         currency.ensure_current_or_refuse()?;
+        self.check_native_error_object_readable(variable)?;
         let published = original
             .as_ref()
             .map(|value| obj::NativeObjectLifetime::retain(value.as_ptr()));
@@ -318,6 +489,7 @@ impl Interp {
         original: &obj::NativeObjectLifetime,
     ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
         currency.ensure_current_or_refuse()?;
+        self.check_native_error_object_readable(variable)?;
         obj::check_native_liveness(original.as_ptr())
             .map_err(|error| self.clone().refuse_completion_value_access(error))?;
         let current = {
@@ -532,6 +704,8 @@ impl Interp {
         currency: &super::native_operation_currency::NativeOperationCurrency,
     ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
         currency.ensure_current_or_refuse()?;
+        self.check_native_error_object_readable(Variable::ErrorInfo)?;
+        self.check_native_error_object_readable(Variable::ErrorCode)?;
         if self.exc.borrow().info.is_some() {
             return Ok(());
         }
@@ -576,6 +750,8 @@ impl Interp {
         currency: &super::native_operation_currency::NativeOperationCurrency,
     ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
         currency.ensure_current_or_refuse()?;
+        self.check_native_error_object_readable(Variable::ErrorInfo)?;
+        self.check_native_error_object_readable(Variable::ErrorCode)?;
         if self.uses_c84_global_error_info() {
             self.append_c84_global_error_info();
             return currency.ensure_current_or_refuse();
@@ -744,27 +920,89 @@ impl Interp {
     /// Publish the SAME private header at `Tcl_LogCommandInfo`'s reached
     /// compatibility setter without creating an additional object owner.
     pub(super) fn publish_traced_native_error_info(&mut self) {
+        let Ok(scope) = super::native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
+        let _ = self.publish_traced_native_error_info_checked(scope.currency());
+    }
+
+    fn publish_traced_native_error_info_checked(
+        &mut self,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        currency.ensure_current_or_refuse()?;
         let original = self
             .exc
             .borrow()
             .native
             .info
             .as_ref()
-            .map(obj::Owned::as_ptr);
-        if let Some(original) = original {
-            // The private interpreter field lends this pointer. The variable
-            // setter and its trace-state snapshot retain their actual roles.
-            let _ = self.var_set(b"::errorInfo", original);
-        } else if !self.host_refusal_pending() {
-            self.refuse_native_access(
-                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
-                    "private errorInfo logging publication",
-                ),
-            );
+            .map(|value| obj::NativeObjectLifetime::retain(value.as_ptr()))
+            .ok_or_else(|| {
+                self.refuse_completion_value_access(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "private errorInfo logging publication",
+                    ),
+                )
+            })?;
+        self.check_native_error_object(currency, Variable::ErrorInfo, &original)?;
+        // The current private field lends its actual pointer. The selected
+        // variable setter and trace saved state own their independent roles.
+        let _ = self.var_set(b"::errorInfo", original.as_ptr());
+        self.check_native_error_object(currency, Variable::ErrorInfo, &original)?;
+        drop(original);
+        currency.ensure_current_or_refuse()
+    }
+
+    pub(crate) fn native_private_error_object_checked(
+        &self,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+        info: bool,
+    ) -> Result<Option<obj::Owned>, tcl_runtime_api::NativeExecutionError> {
+        let variable = if info {
+            Variable::ErrorInfo
+        } else {
+            Variable::ErrorCode
+        };
+        currency.ensure_current_or_refuse()?;
+        self.check_native_error_object_readable(variable)?;
+        if self
+            .native_invocation_dialect()
+            .native_error_variable_protocol()
+            .is_none()
+        {
+            return Ok(None);
         }
+        let pointer = {
+            let exc = self.exc.borrow();
+            if info {
+                &exc.native.info
+            } else {
+                &exc.native.code
+            }
+            .as_ref()
+            .map(obj::Owned::as_ptr)
+        };
+        let Some(pointer) = pointer else {
+            return Ok(None);
+        };
+        obj::check_native_liveness(pointer)
+            .map_err(|error| self.clone().refuse_completion_value_access(error))?;
+        let original = obj::NativeObjectLifetime::retain(pointer);
+        self.check_native_error_object(currency, variable, &original)?;
+        let held = obj::Owned::retain(pointer);
+        drop(original);
+        currency.ensure_current_or_refuse()?;
+        Ok(Some(held))
     }
 
     pub(crate) fn native_private_error_object(&self, info: bool) -> Option<obj::Owned> {
+        self.check_native_error_object_readable(if info {
+            Variable::ErrorInfo
+        } else {
+            Variable::ErrorCode
+        })
+        .ok()?;
         self.native_invocation_dialect()
             .native_error_variable_protocol()?;
         let exc = self.exc.borrow();
@@ -782,14 +1020,25 @@ impl Interp {
     }
 
     pub(super) fn publish_native_error_objects(&mut self) {
+        let Ok(scope) = super::native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
+        let _ = self.publish_native_error_objects_checked(scope.currency());
+    }
+
+    pub(super) fn publish_native_error_objects_checked(
+        &mut self,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        currency.ensure_current_or_refuse()?;
         let Some(protocol) = self
             .native_invocation_dialect()
             .native_error_variable_protocol()
         else {
-            return;
+            return Ok(());
         };
-        for variable in protocol.reset_order() {
-            let pointer = {
+        for &variable in protocol.reset_order() {
+            let original = {
                 let exc = self.exc.borrow();
                 if !exc.native.legacy_copy {
                     None
@@ -799,23 +1048,30 @@ impl Interp {
                         Variable::ErrorCode => &exc.native.code,
                     }
                     .as_ref()
-                    .map(obj::Owned::as_ptr)
+                    .map(|value| obj::NativeObjectLifetime::retain(value.as_ptr()))
                 }
             };
-            if let Some(pointer) = pointer {
-                // The private field lends its object to ObjSetVar2. The variable
-                // and TclCallVarTraces saved state own their actual references.
-                let _ = self.var_set(variable.global_name().as_bytes(), pointer);
+            if let Some(original) = &original {
+                self.check_native_error_object(currency, variable, original)?;
+                // Preserve the genuine borrowed private role throughout this
+                // reached setter. This allocation lease adds no native +1.
+                let _ = self.var_set(variable.global_name().as_bytes(), original.as_ptr());
             }
-            // Tcl_ResetResult releases each current private field immediately
-            // after its setter, so info callbacks already see code == NULL.
-            match variable {
-                Variable::ErrorCode => self.exc.borrow_mut().native.code = None,
-                Variable::ErrorInfo => self.exc.borrow_mut().native.info = None,
-            }
+            // The reached setter's field cleanup is mandatory, including when
+            // its callback retained a first cause. The shared descriptor keeps
+            // the old raw role until the actual native decrement completes.
+            let reached = self.retire_native_error_object_checked(
+                currency,
+                variable,
+                NativeErrorObjectRetirementPurpose::SelectedReset,
+            );
+            drop(original);
+            currency.ensure_current_or_refuse()?;
+            reached?;
         }
         self.exc.borrow_mut().native.legacy_copy = false;
         self.clear_return_options();
+        currency.ensure_current_or_refuse()
     }
 }
 
@@ -1339,6 +1595,7 @@ mod tests {
                     code: Some(code.clone()),
                     legacy_copy: false,
                     global_code_set: false,
+                    ..NativeErrorObjects::default()
                 };
                 assert_eq!(
                     obj_bytes(interp.read_named_variable(b"::errorInfo").unwrap()),

@@ -57,6 +57,17 @@ impl<'a> OriginalNumericOps<'a> {
         reached
     }
 
+    pub(crate) fn with_vm_for_value<T>(
+        &self,
+        value: &Value,
+        operation: impl FnOnce(&mut Vm) -> Result<T, CmdError>,
+    ) -> Result<T, CmdError> {
+        self.current_for_value(value)?;
+        let reached = operation(&mut self.vm.borrow_mut());
+        self.current_for_value(value)?;
+        reached
+    }
+
     pub(crate) fn in_original_scope(
         vm: &'a mut Vm,
         scope: &NativeOperationScope,

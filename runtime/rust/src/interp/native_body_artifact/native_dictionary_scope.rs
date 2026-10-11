@@ -27,13 +27,13 @@ impl Builder<'_> {
         captured: &NativeCompilerWords<'_>,
         selected: NativeControlCompilation<NativeDictionaryScopeInstruction>,
         depth: u32,
-    ) -> Result<Operation, ValueError> {
+    ) -> Result<Operation, tcl_cmd_core::CmdError> {
         let prepared = self.prepare_control_steps(captured, &selected.preparations, depth)?;
         let recipe = match selected.outcome {
             NativeControlOutcome::Inline(recipe) => recipe,
             NativeControlOutcome::Generic => return Ok(Operation::Invoke),
             NativeControlOutcome::Rejected(failure) => {
-                return Err(self.reject_native_compilation(failure));
+                return Err((self.reject_native_compilation(failure)).into());
             }
         };
         let protocol = self

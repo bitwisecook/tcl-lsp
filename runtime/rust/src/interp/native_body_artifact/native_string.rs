@@ -19,7 +19,7 @@ impl Builder<'_> {
         words: &NativeCompilerWords<'_>,
         recipe: NativeStringMatchInstruction,
         depth: u32,
-    ) -> Result<StringMatchOperation, ValueError> {
+    ) -> Result<StringMatchOperation, tcl_cmd_core::CmdError> {
         let mut prepared_words = HashMap::new();
         let pattern = self.namespace_operand(words, &recipe.pattern, &mut prepared_words, depth)?;
         let subject = self.namespace_operand(words, &recipe.subject, &mut prepared_words, depth)?;

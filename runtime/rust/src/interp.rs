@@ -37,22 +37,18 @@
 //! + retain-into-result is the whole discipline.
 
 #[cfg(test)]
+mod anonymous_cell_cleanup_tests;
+#[cfg(test)]
 mod bootstrap_context_tests;
+#[cfg(test)]
+mod byte_store_retirement_tests;
+#[cfg(test)]
+mod c_api_error_tests;
+mod captured_rmw;
 #[cfg(test)]
 mod container_access_tests;
 #[cfg(test)]
 mod container_removal_tests;
-#[cfg(test)]
-mod byte_store_retirement_tests;
-#[cfg(test)]
-mod anonymous_cell_cleanup_tests;
-#[cfg(test)]
-mod c_api_error_tests;
-#[cfg(test)]
-mod original_trace_outcome_tests;
-#[cfg(test)]
-mod original_error_code_setter_tests;
-mod captured_rmw;
 mod jim_local;
 mod jim_teardown;
 mod native_append;
@@ -62,6 +58,10 @@ mod native_command_names;
 mod native_command_recreation;
 #[cfg(not(target_arch = "wasm32"))]
 mod native_coroutine_names;
+#[cfg(test)]
+mod original_error_code_setter_tests;
+#[cfg(test)]
+mod original_trace_outcome_tests;
 pub use native_children::ChildInterpreterCommand;
 mod native_compilation;
 mod native_dictionary;
@@ -9908,11 +9908,35 @@ impl Interp {
     /// starts its own `errorInfo`, `-errorcode` and error stack) and no pending
     /// `return`, so its level and code are the defaults again.
     pub(crate) fn reset_result(&mut self) {
+        if self
+            .native_invocation_dialect()
+            .native_error_log_protocol()
+            .is_some()
+        {
+            if let Err(first) = self.reset_original_c_result() {
+                self.refuse_native_execution(first);
+            }
+            return;
+        }
+        // The separately selected Jim compatibility entry retains its actual
+        // common reset state; it does not borrow the C private-field recipe.
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
         self.set_result_bytes(b"");
-        *self.exc.borrow_mut() = ExceptionState::default();
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
+        }
+        if self
+            .replace_exception_state_checked(scope.currency(), ExceptionState::default())
+            .is_err()
+        {
+            return;
+        }
         self.mark_error_stack_reset();
         self.set_return_state(1, Code::Ok);
         self.clear_return_options();
+        let _ = scope.currency().ensure_current_or_refuse();
     }
 
     /// An error a C API call reports: `message` as the result and, when given,
@@ -9987,8 +10011,11 @@ impl Interp {
             .native_error_variable_protocol()
             .is_some()
         {
-            let retired = self.exc.borrow_mut().native.code.take();
-            drop(retired);
+            self.retire_native_error_object_checked(
+                scope.currency(),
+                tcl_registry::special_vars::NativeErrorStorageVariable::ErrorCode,
+                native_error_variables::NativeErrorObjectRetirementPurpose::OriginalSetter,
+            )?;
             scope.currency().ensure_current_or_refuse()?;
             obj::check_native_liveness(original)
                 .map_err(|error| self.refuse_completion_value_access(error))?;
@@ -10465,6 +10492,7 @@ impl Interp {
         std::mem::swap(&mut *self.arg_lines.borrow_mut(), &mut ctx.arg_lines);
         std::mem::swap(&mut *self.exc.borrow_mut(), &mut ctx.exc);
         std::mem::swap(&mut *self.error_stack.borrow_mut(), &mut ctx.error_stack);
+        self.error_stack.borrow_mut().renew_incarnation();
         self.error_stack.borrow_mut().configure(
             self.native_invocation_dialect()
                 .native_error_objects_protocol(),
@@ -10800,7 +10828,9 @@ impl Interp {
         let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
             return;
         };
-        self.propagate_error_stage();
+        if self.propagate_error_stage().is_err() {
+            return;
+        }
         if self.uses_jim_error_stack() {
             let _ = self.capture_jim_error_stack();
             return;
@@ -11520,6 +11550,9 @@ impl Interp {
         if let Some(error) = self.native_execution_refusal() {
             return Err(error);
         }
+        self.check_native_error_object_readable(
+            tcl_registry::special_vars::NativeErrorStorageVariable::ErrorCode,
+        )?;
         let (original, stamped, explicit) = {
             let exc = self.exc.borrow();
             (
@@ -11707,8 +11740,8 @@ impl Interp {
     pub(crate) fn seed_original_error_stack(
         &self,
         original: *mut TclObj,
-    ) -> Result<(), tcl_syntax::value::ValueError> {
-        self.error_stack.borrow_mut().adopt_original(original)
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        self.seed_original_error_stack_checked(original)
     }
 
     /// The innermost error command's 1-based source line.
@@ -11734,16 +11767,14 @@ impl Interp {
 
     /// Primitive callers retain their result and state. Script propagation owns
     /// the separate message projection and selected expression error-code update.
-    fn propagate_error_stage(&mut self) {
-        if self.host_refusal_pending() {
-            return;
-        }
+    fn propagate_error_stage(&mut self) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
         let stage = self.exc.borrow_mut().expression_error_stage.take();
         if let Some(stage) = stage {
             if let tcl_registry::native_numeric_error::NativeExpressionErrorCodeUpdate::Set(code) =
                 stage.eval_update()
             {
-                self.replace_native_error_code(code);
+                self.replace_native_error_code_checked(scope.currency(), code)?;
                 let mut exc = self.exc.borrow_mut();
                 exc.code.clone_from(code);
                 exc.code_explicit = false;
@@ -11755,30 +11786,50 @@ impl Interp {
                 primitive.eval_error_code_update()
             {
                 if self.uses_c84_global_error_info() {
-                    // Tcl_AddObjErrorInfo's default-code setter is a normal
-                    // global write, not Tcl_SetObjErrorCode's explicit flag.
+                    // This selected default-code setter is a normal global
+                    // write, without Tcl_SetObjErrorCode's explicit flag.
                     let original = obj::Owned::fresh(new_string(code));
                     let _ = self.var_set(b"::errorCode", original.as_ptr());
+                    drop(original);
+                    scope.currency().ensure_current_or_refuse()?;
                 } else {
-                    self.replace_native_error_code(code);
+                    self.replace_native_error_code_checked(scope.currency(), code)?;
                 }
                 let mut exc = self.exc.borrow_mut();
                 exc.code.clone_from(code);
                 exc.code_explicit = false;
             }
-            let current = self.result_bytes();
+            let original = obj::NativeObjectLifetime::retain(self.result.get());
+            let reached = self.completion_result_bytes_checked();
+            scope.currency().ensure_current_or_refuse()?;
+            obj::check_native_liveness(original.as_ptr())
+                .map_err(|error| self.refuse_completion_value_access(error))?;
+            if self.result.get() != original.as_ptr() {
+                return Err(self.refuse_completion_value_access(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "primitive error result replaced during getter",
+                    ),
+                ));
+            }
+            let current = reached?;
             let projected = primitive.eval_result_bytes(&current);
-            // An unchanged byte projection preserves the command's original
-            // result header and its producer-owned primary representation.
             if projected.len() != current.len() {
                 self.set_result_bytes(projected);
             }
+            drop(original);
+            scope.currency().ensure_current_or_refuse()?;
         }
+        scope.currency().ensure_current_or_refuse()
     }
 
     /// Publish and consume the accumulated exception at a native result reset.
     fn publish_error(&mut self) {
-        self.propagate_error_stage();
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
+        if self.propagate_error_stage().is_err() {
+            return;
+        }
         if self
             .native_invocation_dialect()
             .error_arguments()
@@ -11789,37 +11840,54 @@ impl Interp {
                 .native_error_variable_protocol()
                 .is_some()
             {
-                self.publish_native_error_objects();
+                if self
+                    .publish_native_error_objects_checked(scope.currency())
+                    .is_err()
+                {
+                    return;
+                }
             } else if !self.uses_c84_global_error_info() || !self.exc.borrow().native.legacy_copy {
                 let info = match self.completion_error_info_bytes_checked() {
                     Ok(info) => info,
                     Err(_) => return,
                 };
+                if scope.currency().ensure_current_or_refuse().is_err() {
+                    return;
+                }
                 let code = match self.error_code_bytes_checked() {
                     Ok(code) => code,
                     Err(_) => return,
                 };
-                let ei = new_string(&info);
-                if self.var_set(b"::errorInfo", ei).is_err() {
-                    drop_fresh(ei);
-                }
-                if self.host_refusal_pending() {
+                if scope.currency().ensure_current_or_refuse().is_err() {
                     return;
                 }
-                let ec = new_string(&code);
-                if self.var_set(b"::errorCode", ec).is_err() {
-                    drop_fresh(ec);
+                for (name, bytes) in [
+                    (b"::errorInfo".as_slice(), info),
+                    (b"::errorCode".as_slice(), code),
+                ] {
+                    let original = new_string(&bytes);
+                    let memory = obj::NativeObjectLifetime::retain(original);
+                    let reached = self.var_set(name, original);
+                    if reached.is_err() && obj::allocation_is_live(memory.as_ptr()) {
+                        drop_fresh(original);
+                    }
+                    drop(memory);
+                    if scope.currency().ensure_current_or_refuse().is_err() {
+                        return;
+                    }
                 }
             }
         }
-        if self.host_refusal_pending() {
+        if self
+            .replace_exception_state_checked(scope.currency(), ExceptionState::default())
+            .is_err()
+        {
             return;
         }
-        *self.exc.borrow_mut() = ExceptionState::default();
-        // The exception is consumed: drop any `-during` chain link with it.
         self.clear_during();
-        // A new error episode starts fresh: the next logged command rebuilds the
-        // TIP 348 error stack (C's `Tcl_ResetResult` sets `resetErrorStack`).
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
+        }
         self.mark_error_stack_reset();
     }
 
@@ -12112,6 +12180,9 @@ impl Interp {
     /// Apply the one outermost-evaluation tail after any result/options
     /// projection has observed the live completion state.
     fn finish_outermost_eval(&mut self, code: Code) {
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
         if self.host_refusal_pending() || self.eval_depth.get() != 0 {
             return;
         }
@@ -12121,10 +12192,15 @@ impl Interp {
                 .native_error_variable_protocol()
                 .is_some()
             {
-                self.propagate_error_stage();
+                if self.propagate_error_stage().is_err() {
+                    return;
+                }
             } else {
                 self.publish_error();
             }
+        }
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
         }
         // Between top-level commands, drain any queued background errors with the
         // current handler — the event loop's behaviour, so errors from one
@@ -12953,6 +13029,9 @@ impl Interp {
             return Code::Error;
         }
         self.reset_native_global_error_episode();
+        if self.check_entered_native_operation().is_err() {
+            return Code::Error;
+        }
         self.cmd_count.set(self.cmd_count.get() + 1);
         // An embedder's limits are charged here, where every command passes:
         // past one, the command fails instead of running.
@@ -13623,6 +13702,9 @@ impl Interp {
     /// procedure left in the interpreter through `Tcl_SetObjResult`, which
     /// dispatch emptied before the call.
     fn invoke_obj_cmd(&mut self, command: &ObjCommand, argv: &[*mut TclObj]) -> Code {
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return Code::Error;
+        };
         let Ok(objc) = c_int::try_from(argv.len()) else {
             self.set_result_bytes(b"too many arguments for a C command");
             return Code::Error;
@@ -13641,14 +13723,18 @@ impl Interp {
             )
         };
         let code = Code::from_int(code);
-        if self.check_entered_native_operation().is_err() {
+        if scope.currency().ensure_current_or_refuse().is_err() {
             return Code::Error;
         }
         // C Tcl starts every command with no error in flight, so an error the
         // procedure returned without stating a code through the C API is
         // `NONE`, whatever error came before it.
         if code == Code::Error && self.c_api_errors.get() == stated {
-            *self.exc.borrow_mut() = ExceptionState::default();
+            if let Err(first) =
+                self.replace_exception_state_checked(scope.currency(), ExceptionState::default())
+            {
+                return self.refuse_native_execution(first);
+            }
         }
         code
     }
@@ -18076,7 +18162,7 @@ mod tests {
                 before.cache,
                 tcl_syntax::native_object::NativeObjectCacheSnapshot::String { .. }
             ));
-            interp.propagate_error_stage();
+            interp.propagate_error_stage().unwrap();
             assert_eq!(interp.result_obj(), original.as_ptr(), "{engine}");
             assert_eq!(
                 obj::native_object_snapshot(interp.result_obj())

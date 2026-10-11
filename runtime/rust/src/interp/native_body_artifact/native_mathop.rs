@@ -26,7 +26,7 @@ impl Builder<'_> {
         words: &NativeCompilerWords<'_>,
         recipe: NativeMathopInstruction,
         depth: u32,
-    ) -> Result<MathopOperation, ValueError> {
+    ) -> Result<MathopOperation, tcl_cmd_core::CmdError> {
         let mut prepared_words = HashMap::new();
         let mut steps = Vec::new();
         let mut temporary = None;

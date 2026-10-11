@@ -71,8 +71,8 @@ use tcl_registry::native_compilation::{
 };
 use tcl_registry::native_compiler_words::{NativeCompiledListRecipe, NativeCompilerWords};
 use tcl_registry::native_instruction_plan::{
-    NativeAppendInstruction, NativeAppendOperands, NativeArgumentListStep, NativeInstructionPlan,
-    native_instruction_plan,
+    native_instruction_plan, NativeAppendInstruction, NativeAppendOperands, NativeArgumentListStep,
+    NativeInstructionPlan,
 };
 use tcl_runtime_api::native_compilation::{
     NativeCompiledLocalLayout, NativeCompiledLocalLayoutKind,
@@ -316,7 +316,10 @@ impl Builder<'_> {
         self.compilation_failure = Some(failure);
         unavailable("native registered compiler rejected original source")
     }
-    fn report_compilation_error(&mut self, error: ValueError) -> Code {
+    fn report_compilation_error(&mut self, error: tcl_cmd_core::CmdError) -> Code {
+        if let Err(first) = self.interp.check_entered_native_operation() {
+            return self.interp.refuse_native_execution(first);
+        }
         if let Some(failure) = self.compilation_failure.take() {
             return self
                 .interp
@@ -341,6 +344,14 @@ impl Builder<'_> {
         }
         self.interp.report_cmd_error(error.into())
     }
+    fn check_compilation_stage<T>(
+        &mut self,
+        outcome: Result<T, tcl_cmd_core::CmdError>,
+    ) -> Result<T, tcl_cmd_core::CmdError> {
+        self.interp.check_entered_native_operation()?;
+        outcome
+    }
+
     fn original_literal(&mut self, original: obj::Owned) -> usize {
         let index = self.literals.register_private_original();
         self.private_objects.insert(index, original);
@@ -349,7 +360,7 @@ impl Builder<'_> {
     fn syntax_instruction(
         &mut self,
         cut: tcl_lexer::NativeScriptWordCut,
-    ) -> Result<SyntaxInstruction, ValueError> {
+    ) -> Result<SyntaxInstruction, tcl_cmd_core::CmdError> {
         let (message, options) = self.syntax_literal_objects(cut.cut.message.as_bytes())?;
         Ok(SyntaxInstruction {
             cut,
@@ -360,7 +371,7 @@ impl Builder<'_> {
     fn syntax_literal_objects(
         &mut self,
         message_bytes: &[u8],
-    ) -> Result<(usize, usize), ValueError> {
+    ) -> Result<(usize, usize), tcl_cmd_core::CmdError> {
         use tcl_registry::native_return_options::{
             NativeReturnOptionsApplication::Syntax, NativeSyntaxMessageAllocation,
         };
@@ -370,6 +381,7 @@ impl Builder<'_> {
             .native_return_options_application(Syntax)
             .ok_or_else(|| unavailable("native syntax instruction producer"))?;
         self.interp.error(message_bytes);
+        self.interp.check_entered_native_operation()?;
         let message = match protocol
             .syntax_message_allocation()
             .ok_or_else(|| unavailable("native syntax message allocation"))?
@@ -580,7 +592,7 @@ impl Builder<'_> {
         &mut self,
         original: &ExecutablePartArena,
         depth: u32,
-    ) -> Result<ArenaInstruction, ValueError> {
+    ) -> Result<ArenaInstruction, tcl_cmd_core::CmdError> {
         self.arena_in(original, depth, false)
     }
     fn arena_in(
@@ -588,7 +600,7 @@ impl Builder<'_> {
         original: &ExecutablePartArena,
         depth: u32,
         template: bool,
-    ) -> Result<ArenaInstruction, ValueError> {
+    ) -> Result<ArenaInstruction, tcl_cmd_core::CmdError> {
         let mut syntax = HashMap::new();
         let mut texts = HashMap::new();
         let mut locals = HashMap::new();
@@ -627,13 +639,15 @@ impl Builder<'_> {
                 }
                 ExecutablePart::Command { body } => self.script(*body, depth + 1)?,
                 ExecutablePart::Expression { .. } => {
-                    return Err(unavailable(
-                        "native body expression-sugar compiler instruction",
-                    ));
+                    return Err(
+                        (unavailable("native body expression-sugar compiler instruction")).into(),
+                    );
                 }
                 ExecutablePart::ParseError(message) => {
                     if !template {
-                        return Err(unavailable("native body complete word parse ownership"));
+                        return Err(
+                            (unavailable("native body complete word parse ownership")).into()
+                        );
                     }
                     syntax.insert(
                         component.span,
@@ -655,7 +669,7 @@ impl Builder<'_> {
         &mut self,
         original: NativeVariableWordOperand,
         depth: u32,
-    ) -> Result<Target, ValueError> {
+    ) -> Result<Target, tcl_cmd_core::CmdError> {
         let slot = match &original {
             NativeVariableWordOperand::Literal { name, .. }
             | NativeVariableWordOperand::CompoundArray { name, .. } => self.local(name, None),
@@ -697,7 +711,7 @@ impl Builder<'_> {
         &mut self,
         words: &[NativeWord],
         depth: u32,
-    ) -> Result<Option<Operation>, ValueError> {
+    ) -> Result<Option<Operation>, tcl_cmd_core::CmdError> {
         let captured = NativeCompilerWords::capture(words, self.stamp.source_protocol)
             .map_err(|_| unavailable("native body original compiler words"))?;
         if captured
@@ -1103,16 +1117,16 @@ impl Builder<'_> {
             NativeInstructionPlan::Break => Operation::Break,
             NativeInstructionPlan::Continue => Operation::Continue,
             NativeInstructionPlan::Try(_) => {
-                return Err(unavailable("native try preparation entry"));
+                return Err((unavailable("native try preparation entry")).into());
             }
             NativeInstructionPlan::Control(_) => {
-                return Err(unavailable("native control preparation entry"));
+                return Err((unavailable("native control preparation entry")).into());
             }
             NativeInstructionPlan::Each(_) => {
-                return Err(unavailable("native iterator preparation entry"));
+                return Err((unavailable("native iterator preparation entry")).into());
             }
             NativeInstructionPlan::NamespaceBindings(_) => {
-                return Err(unavailable("native namespace binding preparation entry"));
+                return Err((unavailable("native namespace binding preparation entry")).into());
             }
             NativeInstructionPlan::TclOoHelper(recipe) => {
                 use tcl_registry::native_tcloo_compilation::NativeTclOoInstruction as Helper;
@@ -1225,7 +1239,7 @@ impl Builder<'_> {
         index: usize,
         command_head: bool,
         depth: u32,
-    ) -> Result<WordInstruction, ValueError> {
+    ) -> Result<WordInstruction, tcl_cmd_core::CmdError> {
         let original = captured
             .original_words()
             .get(index)
@@ -1261,7 +1275,7 @@ impl Builder<'_> {
         operand: &tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand,
         prepared_words: &mut HashMap<usize, WordInstruction>,
         depth: u32,
-    ) -> Result<NamespaceOperand, ValueError> {
+    ) -> Result<NamespaceOperand, tcl_cmd_core::CmdError> {
         use tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand;
         match operand {
             NativeCompilerWordOperand::Original(index) => {
@@ -1293,7 +1307,7 @@ impl Builder<'_> {
         captured: &NativeCompilerWords<'_>,
         recipe: tcl_registry::native_namespace_binding_compilation::NativeNamespaceBindingCompilation,
         depth: u32,
-    ) -> Result<NamespaceOperation, ValueError> {
+    ) -> Result<NamespaceOperation, tcl_cmd_core::CmdError> {
         use tcl_registry::native_namespace_binding_compilation::{
             NativeNamespaceBindingOutcome, NativeNamespaceBindingVisit,
         };
@@ -1396,12 +1410,12 @@ impl Builder<'_> {
         })
     }
 
-    fn script(&mut self, region: Span, depth: u32) -> Result<(), ValueError> {
+    fn script(&mut self, region: Span, depth: u32) -> Result<(), tcl_cmd_core::CmdError> {
         if self.scripts.contains_key(&region) {
             return Ok(());
         }
         if NATIVE_EVAL_DEPTH_LIMIT.exceeded(depth) {
-            return Err(unavailable("native body compiler script depth"));
+            return Err((unavailable("native body compiler script depth")).into());
         }
         let plan =
             tcl_lexer::native_script_words_in(self.image.clone(), region, self.stamp.grammar)
@@ -1409,14 +1423,14 @@ impl Builder<'_> {
         if plan.fatal_tail.is_some() && self.stamp.physical == tcl_dialect::TclVersion::V8_4 {
             // C8.4 has no executable parse-error instruction to publish.
             self.parse_failure = plan.fatal_tail;
-            return Err(ValueError::CommandProtocolUnavailable(
-                "native C8.4 failed body parse",
-            ));
+            return Err(
+                (ValueError::CommandProtocolUnavailable("native C8.4 failed body parse")).into(),
+            );
         }
         let mut commands = Vec::with_capacity(plan.commands.len());
         for command in plan.commands {
             let Some(mut operation) = self.operation(&command.words, depth)? else {
-                return Err(unavailable("native body registered instruction capability"));
+                return Err((unavailable("native body registered instruction capability")).into());
             };
             let capture = NativeCompilerWords::capture(&command.words, self.stamp.source_protocol)
                 .map_err(|_| unavailable("native body original word value geometry"))?;
@@ -1845,145 +1859,182 @@ impl Interp {
         namespace: NsId,
         procedure: Option<&Rc<ProcDef>>,
     ) -> Result<Option<Rc<NativeBodyArtifact>>, Code> {
-        if let Some(procedure) = procedure {
-            let live = procedure
-                .body
-                .checked_ptr()
+        let scope = native_operation_currency::NativeOperationScope::enter(self)
+            .map_err(|first| self.refuse_native_execution(first))?;
+        let reached = (|| -> Result<Option<Rc<NativeBodyArtifact>>, Code> {
+            obj::check_native_liveness(original)
                 .map_err(|error| self.report_cmd_error(error.into()))?;
-            if live != original {
-                return Err(self.report_cmd_error(
-                    unavailable("native procedure body original identity").into(),
-                ));
-            }
-        }
-        let Some(mut stamp) = self.native_body_stamp(namespace, procedure) else {
-            return Ok(None);
-        };
-        let matches_owner = |owner: &BodyContext| match (owner, procedure) {
-            (BodyContext::Script, None) => true,
-            (BodyContext::Procedure(owner), Some(procedure)) => {
-                Weak::ptr_eq(owner, &Rc::downgrade(procedure))
-            }
-            _ => false,
-        };
-        if let Some(current) = cache(original)
-            .filter(|current| current.stamp == stamp && matches_owner(&current.owner))
-        {
-            return Ok(Some(current));
-        }
-        let bytes = ValueOps::native_string_bytes(self, &original)
-            .map_err(|error| self.report_cmd_error(error.into()))?;
-        if cache(original).is_some() {
-            obj::change_type(original, core::ptr::null(), 0);
-        }
-        stamp = self
-            .native_body_stamp(namespace, procedure)
-            .ok_or_else(|| {
-                self.report_cmd_error(unavailable("native body source callback context").into())
-            })?;
-        let image = SourceImage::native(bytes.as_ref());
-        let end = u32::try_from(image.len())
-            .map_err(|_| self.report_cmd_error(unavailable("native body source extent").into()))?;
-        let region = Span::new(0, end);
-        if stamp.physical == tcl_dialect::TclVersion::V8_4 {
-            let plan = tcl_lexer::native_script_words_in(image.clone(), region, stamp.grammar)
-                .map_err(|_| {
-                    self.report_cmd_error(
-                        unavailable("native body executable script geometry").into(),
-                    )
-                })?;
-            if let Some(fatal) = plan.fatal_tail {
-                // C8.4 parses the complete compiled body before entering its
-                // first command. A later malformed command therefore prevents
-                // an earlier return from executing and leaves no Bytecode.
-                return Err(self.error(fatal.cut.message.as_bytes()));
-            }
-        }
-        let context = Context {
-            mode: NativeCompilationMode::BytecodeObject,
-            frame: if procedure.is_some() {
-                NativeCompilationFrame::ProcedureCode
-            } else {
-                NativeCompilationFrame::ScriptCode
-            },
-            loop_depth: 0,
-            catch_depth: Some(0),
-        };
-        let names: Vec<_> = procedure.map_or_else(Vec::new, |procedure| {
-            procedure
-                .params
-                .iter()
-                .map(|param| tcl_runtime_api::NameBytes::from(param.name.as_slice()))
-                .collect()
-        });
-        let (lvt, borrowed_table) = self.native_body_local_table(&stamp, &names)?;
-        let mut builder = Builder {
-            interp: self,
-            image: image.clone(),
-            context,
-            stamp: stamp.clone(),
-            lvt,
-            literals: LiteralTable::new(),
-            scripts: HashMap::new(),
-            parse_failure: None,
-            compilation_failure: None,
-            private_objects: HashMap::new(),
-            procedure: procedure.map(Rc::downgrade),
-        };
-        let compilation = builder
-            .script(region, 0)
-            .and_then(|()| builder.finish_compactible_body(region, original));
-        let literals = match compilation {
-            Ok(literals) => literals,
-            Err(error) => {
-                if builder.compilation_failure.is_some() || builder.parse_failure.is_some() {
-                    return Err(builder.report_compilation_error(error));
+            let original_lifetime = obj::NativeObjectLifetime::retain(original);
+            if let Some(procedure) = procedure {
+                let live = procedure
+                    .body
+                    .checked_ptr()
+                    .map_err(|error| self.report_cmd_error(error.into()))?;
+                if live != original {
+                    return Err(self.report_cmd_error(
+                        unavailable("native procedure body original identity").into(),
+                    ));
                 }
-                if matches!(
-                    &error,
-                    ValueError::CommandProtocolUnavailable(
+            }
+            let Some(mut stamp) = self.native_body_stamp(namespace, procedure) else {
+                return Ok(None);
+            };
+            let matches_owner = |owner: &BodyContext| match (owner, procedure) {
+                (BodyContext::Script, None) => true,
+                (BodyContext::Procedure(owner), Some(procedure)) => {
+                    Weak::ptr_eq(owner, &Rc::downgrade(procedure))
+                }
+                _ => false,
+            };
+            if let Some(current) = cache(original)
+                .filter(|current| current.stamp == stamp && matches_owner(&current.owner))
+            {
+                return Ok(Some(current));
+            }
+            let bytes = ValueOps::native_string_bytes(self, &original);
+            scope
+                .currency()
+                .ensure_current_or_refuse()
+                .map_err(|first| self.refuse_native_execution(first))?;
+            obj::check_native_liveness(original_lifetime.as_ptr())
+                .map_err(|error| self.report_cmd_error(error.into()))?;
+            let bytes = bytes.map_err(|error| self.report_cmd_error(error.into()))?;
+            if cache(original).is_some() {
+                obj::change_type(original, core::ptr::null(), 0);
+                scope
+                    .currency()
+                    .ensure_current_or_refuse()
+                    .map_err(|first| self.refuse_native_execution(first))?;
+                obj::check_native_liveness(original_lifetime.as_ptr())
+                    .map_err(|error| self.report_cmd_error(error.into()))?;
+            }
+            stamp = self
+                .native_body_stamp(namespace, procedure)
+                .ok_or_else(|| {
+                    self.report_cmd_error(unavailable("native body source callback context").into())
+                })?;
+            let image = SourceImage::native(bytes.as_ref());
+            let end = u32::try_from(image.len()).map_err(|_| {
+                self.report_cmd_error(unavailable("native body source extent").into())
+            })?;
+            let region = Span::new(0, end);
+            if stamp.physical == tcl_dialect::TclVersion::V8_4 {
+                let plan = tcl_lexer::native_script_words_in(image.clone(), region, stamp.grammar)
+                    .map_err(|_| {
+                        self.report_cmd_error(
+                            unavailable("native body executable script geometry").into(),
+                        )
+                    })?;
+                if let Some(fatal) = plan.fatal_tail {
+                    // C8.4 parses the complete compiled body before entering its
+                    // first command. A later malformed command therefore prevents
+                    // an earlier return from executing and leaves no Bytecode.
+                    return Err(self.error(fatal.cut.message.as_bytes()));
+                }
+            }
+            let context = Context {
+                mode: NativeCompilationMode::BytecodeObject,
+                frame: if procedure.is_some() {
+                    NativeCompilationFrame::ProcedureCode
+                } else {
+                    NativeCompilationFrame::ScriptCode
+                },
+                loop_depth: 0,
+                catch_depth: Some(0),
+            };
+            let names: Vec<_> = procedure.map_or_else(Vec::new, |procedure| {
+                procedure
+                    .params
+                    .iter()
+                    .map(|param| tcl_runtime_api::NameBytes::from(param.name.as_slice()))
+                    .collect()
+            });
+            let (lvt, borrowed_table) = self.native_body_local_table(&stamp, &names)?;
+            let mut builder = Builder {
+                interp: self,
+                image: image.clone(),
+                context,
+                stamp: stamp.clone(),
+                lvt,
+                literals: LiteralTable::new(),
+                scripts: HashMap::new(),
+                parse_failure: None,
+                compilation_failure: None,
+                private_objects: HashMap::new(),
+                procedure: procedure.map(Rc::downgrade),
+            };
+            let compilation = builder
+                .script(region, 0)
+                .and_then(|()| builder.finish_compactible_body(region, original));
+            let compilation = builder.check_compilation_stage(compilation);
+            let literals = match compilation {
+                Ok(literals) => literals,
+                Err(error) => {
+                    if builder.compilation_failure.is_some() || builder.parse_failure.is_some() {
+                        return Err(builder.report_compilation_error(error));
+                    }
+                    if matches!(
+                    error.native_access_refusal(),
+                    Some(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
                         "native body registered instruction capability"
-                    )
+                    ))
                 ) {
                     return Ok(None);
                 }
-                return Err(builder.interp.report_cmd_error(error.into()));
+                    return Err(builder.interp.report_cmd_error(error.into()));
+                }
+            };
+            if builder
+                .interp
+                .native_body_stamp(namespace, procedure)
+                .as_ref()
+                != Some(&stamp)
+            {
+                return Err(builder.interp.report_cmd_error(
+                    unavailable("native body compiler context changed during publication").into(),
+                ));
             }
-        };
-        if builder
-            .interp
-            .native_body_stamp(namespace, procedure)
-            .as_ref()
-            != Some(&stamp)
-        {
-            return Err(builder.interp.report_cmd_error(
-                unavailable("native body compiler context changed during publication").into(),
-            ));
-        }
-        let locals = procedure.map(|_| NativeCompiledLocalLayout {
-            owner: stamp.interpreter,
-            token: next_layout_token(),
-            epoch: stamp.epochs.0,
-            kind: NativeCompiledLocalLayoutKind::Procedure,
-            names: builder.lvt.native_slot_names(),
-        });
-        let artifact = Rc::new(NativeBodyArtifact {
-            stamp,
-            owner: procedure.map_or(BodyContext::Script, |procedure| {
-                BodyContext::Procedure(Rc::downgrade(procedure))
-            }),
-            image,
-            region,
-            scripts: builder.scripts,
-            literals,
-            locals,
-            _borrowed_table: borrowed_table.as_ref().map(Rc::downgrade),
-        });
-        if let (Some(procedure), Some(layout)) = (procedure, artifact.locals.as_ref()) {
-            procedure.retain_native_compiled_names(layout);
-        }
-        install(original, &artifact);
-        Ok(Some(artifact))
+            let locals = procedure.map(|_| NativeCompiledLocalLayout {
+                owner: stamp.interpreter,
+                token: next_layout_token(),
+                epoch: stamp.epochs.0,
+                kind: NativeCompiledLocalLayoutKind::Procedure,
+                names: builder.lvt.native_slot_names(),
+            });
+            let artifact = Rc::new(NativeBodyArtifact {
+                stamp,
+                owner: procedure.map_or(BodyContext::Script, |procedure| {
+                    BodyContext::Procedure(Rc::downgrade(procedure))
+                }),
+                image,
+                region,
+                scripts: builder.scripts,
+                literals,
+                locals,
+                _borrowed_table: borrowed_table.as_ref().map(Rc::downgrade),
+            });
+            if let (Some(procedure), Some(layout)) = (procedure, artifact.locals.as_ref()) {
+                procedure.retain_native_compiled_names(layout);
+            }
+            install(original, &artifact);
+            scope
+                .currency()
+                .ensure_current_or_refuse()
+                .map_err(|first| self.refuse_native_execution(first))?;
+            obj::check_native_liveness(original_lifetime.as_ptr())
+                .map_err(|error| self.report_cmd_error(error.into()))?;
+            drop(original_lifetime);
+            scope
+                .currency()
+                .ensure_current_or_refuse()
+                .map_err(|first| self.refuse_native_execution(first))?;
+            Ok(Some(artifact))
+        })();
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| self.refuse_native_execution(first))?;
+        reached
     }
 
     pub(super) fn execute_original_c_body(

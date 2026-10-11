@@ -700,6 +700,53 @@ pub(crate) fn list_elements_native_with_stage_check(
     result
 }
 
+/// Carry the original typed check through an existing neutral conversion worker.
+/// The neutral error only unwinds that worker; the actual check error is retained
+/// directly and never reconstructed from text. Cleanup precedes the final check.
+pub(crate) fn with_native_conversion_check<T, E>(
+    check: &(impl Fn() -> Result<(), E> + ?Sized),
+    refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
+    worker: impl FnOnce(
+        &dyn Fn() -> Result<(), tcl_syntax::value::ValueError>,
+    ) -> Result<T, tcl_syntax::value::ValueError>,
+) -> Result<T, E> {
+    let first = std::cell::RefCell::new(None);
+    let stage = || {
+        if first.borrow().is_some() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original native conversion stage",
+            ));
+        }
+        match check() {
+            Ok(()) => Ok(()),
+            Err(error) => {
+                *first.borrow_mut() = Some(error);
+                Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original native conversion stage",
+                ))
+            }
+        }
+    };
+    let reached = worker(&stage);
+    check()?;
+    if let Some(error) = first.into_inner() {
+        return Err(error);
+    }
+    reached.map_err(refuse)
+}
+
+/// The same selected List converter with the caller's original typed check.
+pub(crate) fn list_elements_native_using<E>(
+    value: *mut TclObj,
+    protocol: NativeStringProtocol,
+    check: &(impl Fn() -> Result<(), E> + ?Sized),
+    refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
+) -> Result<Vec<*mut TclObj>, E> {
+    with_native_conversion_check(check, refuse, |stage| {
+        list_elements_native_with_stage_check(value, protocol, None, Some(stage))
+    })
+}
+
 fn list_stage_current(
     value: *mut TclObj,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
@@ -733,7 +780,7 @@ fn install_list_backing(
     stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
 ) -> Result<(), tcl_syntax::value::ValueError> {
     list_stage_current_checked(value, currency, stage_check)?;
-    if currency.is_some() && !obj::obj_type_ptr(value).is_null() {
+    if (currency.is_some() || stage_check.is_some()) && !obj::obj_type_ptr(value).is_null() {
         if obj::has_string_rep(value) {
             obj::discard_native_internal_representation(value)?;
         } else {
@@ -863,7 +910,26 @@ fn prepare_native_list_mutation(
     value: *mut TclObj,
     protocol: NativeStringProtocol,
 ) -> Result<(), tcl_syntax::value::ValueError> {
-    let elements = list_elements_native_checked(value, protocol)?;
+    prepare_native_list_mutation_with_stage_check(value, protocol, None)
+}
+
+fn prepare_native_list_mutation_using<E>(
+    value: *mut TclObj,
+    protocol: NativeStringProtocol,
+    check: &impl Fn() -> Result<(), E>,
+    refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
+) -> Result<(), E> {
+    with_native_conversion_check(check, refuse, |stage| {
+        prepare_native_list_mutation_with_stage_check(value, protocol, Some(stage))
+    })
+}
+
+fn prepare_native_list_mutation_with_stage_check(
+    value: *mut TclObj,
+    protocol: NativeStringProtocol,
+    stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    let elements = list_elements_native_with_stage_check(value, protocol, None, stage_check)?;
     if crate::native_arithseries::is_series(value) {
         for &element in &elements {
             // SAFETY: actual new List backing owns each original cached member.
@@ -874,11 +940,7 @@ fn prepare_native_list_mutation(
             canonical: Rc::new(Cell::new(false)),
             string_protocol: Cell::new(Some(protocol)),
         });
-        obj::change_type(
-            value,
-            &TCL_LIST_TYPE,
-            Box::into_raw(backing) as usize as u64,
-        );
+        install_list_backing(value, backing, None, stage_check)?;
     }
     Ok(())
 }
@@ -1126,28 +1188,73 @@ pub(crate) fn replace_elements_native(
     elements: &[*mut TclObj],
     protocol: NativeStringProtocol,
 ) -> Result<obj::Owned, tcl_syntax::value::ValueError> {
+    replace_elements_native_using(original, elements, protocol, &|| Ok(()), &|error| error)
+}
+
+pub(crate) fn replace_elements_native_checked(
+    original: *mut TclObj,
+    elements: &[*mut TclObj],
+    protocol: NativeStringProtocol,
+    check: &impl Fn() -> Result<(), tcl_runtime_api::NativeExecutionError>,
+    refuse: &impl Fn(tcl_syntax::value::ValueError) -> tcl_runtime_api::NativeExecutionError,
+) -> Result<obj::Owned, tcl_cmd_core::CmdError> {
+    replace_elements_native_using(
+        original,
+        elements,
+        protocol,
+        &|| check().map_err(tcl_cmd_core::CmdError::from),
+        &|error| tcl_cmd_core::CmdError::from(refuse(error)),
+    )
+}
+
+fn replace_elements_native_using<E>(
+    original: *mut TclObj,
+    elements: &[*mut TclObj],
+    protocol: NativeStringProtocol,
+    check: &impl Fn() -> Result<(), E>,
+    refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
+) -> Result<obj::Owned, E> {
+    check()?;
+    obj::check_native_liveness(original).map_err(refuse)?;
+    let original_lifetime = obj::NativeObjectLifetime::retain(original);
     let value = if obj::is_shared(original) {
         obj::Owned::fresh(obj::duplicate(original))
     } else {
         obj::Owned::retain(original)
     };
-    prepare_native_list_mutation(value.as_ptr(), protocol)?;
-    // SAFETY: the checked receiver owns a List header. Retain all replacement
-    // members before releasing the old backing, including overlapping inputs.
-    unsafe {
-        let list = list_mut(value.as_ptr());
-        if protocol.tcl_version().is_some() {
-            let length = list.elems.len();
-            replace_prepared_native_elements(value.as_ptr(), 0, length, elements, protocol, false)?;
-        } else {
-            for &element in elements {
-                obj::incr_ref_count(element);
-            }
-            list.elems = NativeListStorage::new(elements.to_vec());
-            list.canonical = Rc::new(Cell::new(false));
+    check()?;
+    obj::check_native_liveness(original_lifetime.as_ptr()).map_err(refuse)?;
+    prepare_native_list_mutation_using(value.as_ptr(), protocol, check, refuse)?;
+    if protocol.tcl_version().is_some() {
+        let length = unsafe { list_ref(value.as_ptr()) }.elems.len();
+        native_list_storage::replace_prepared_native_elements_using(
+            value.as_ptr(),
+            0,
+            length,
+            elements,
+            protocol,
+            false,
+            check,
+            refuse,
+        )?;
+    } else {
+        // Jim's distinct whole member store replacement retains the original
+        // selected members before its old backing is retired.
+        for &element in elements {
+            unsafe { obj::incr_ref_count(element) };
         }
+        native_list_storage::replace_storage(
+            value.as_ptr(),
+            NativeListStorage::new(elements.to_vec()),
+            check,
+            refuse,
+        )?;
+        // Keep the later canonical-field stage after real old-member retirement.
+        unsafe { list_mut(value.as_ptr()) }.canonical = Rc::new(Cell::new(false));
     }
     obj::invalidate_string(value.as_ptr());
+    drop(original_lifetime);
+    check()?;
     Ok(value)
 }
 

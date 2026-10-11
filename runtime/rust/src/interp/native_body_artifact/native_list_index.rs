@@ -35,7 +35,7 @@ impl Builder<'_> {
         words: &NativeCompilerWords<'_>,
         recipe: NativeListIndexInstruction,
         depth: u32,
-    ) -> Result<ListIndexOperation, ValueError> {
+    ) -> Result<ListIndexOperation, tcl_cmd_core::CmdError> {
         let mut prepared_words = HashMap::new();
         let mut operands = Vec::with_capacity(recipe.operands.len());
         for operand in recipe.operands {

@@ -246,3 +246,14 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 Original exact script/version argv and own process receipts are retained unchanged. Explicit canonical joins identify shared property335 original ELF gzip payloads; restore exact whole SHA/size before original replay. Complete inherited environment, shared-library bytes and configure/build replay are absent. Ordinary public visibility output does not measure constructor-handler/native frame behavior; no native or Rust replay is performed by publication.
+
+
+## Exact original-source Compiler software outcomes
+
+The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
+
+| Original operation | Passed | Failed | Incomplete |
+| --- | ---: | ---: | ---: |
+| `integration-compiler-focused-consumer-tests344` | 1 | 2 | 0 |
+
+[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.

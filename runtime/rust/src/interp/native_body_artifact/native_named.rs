@@ -36,7 +36,7 @@ impl Builder<'_> {
             &tcl_runtime_api::native_compilation::NativeCommandCompilerPrerequisite,
         >,
         depth: u32,
-    ) -> Result<NamedOperation, ValueError> {
+    ) -> Result<NamedOperation, tcl_cmd_core::CmdError> {
         self.prepare_control_steps(captured, &recipe.preparations, depth)?;
         let direct = recipe.protocol == NativeNamedInvocationProtocol::Direct;
         let head = if direct {

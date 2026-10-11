@@ -288,3 +288,132 @@ fn original_frame_string_stage_keeps_formatter_reference_role_and_stops_retired_
         }
     }
 }
+
+#[test]
+fn original_frame_single_script_list_checks_header_before_default_selection() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Closed VM List/header controls do not attest an external updater callback.
+    for engine in ["tcl9.0", "tcl9.1"] {
+        for retire in [false, true] {
+            let mut vm =
+                crate::native_fixture::core(crate::environment::profile_for_dialect(engine));
+            vm.push_call_frame(None, vec![]);
+            let protocol = vm
+                .actual_native_invocation_dialect()
+                .native_string_protocol()
+                .unwrap();
+            let mut owner = Some(Value::native_list_constructor(
+                vec![Value::string("set"), Value::string("x")],
+                protocol,
+            ));
+            let original = owner.as_ref().unwrap().native_lifetime_lease();
+            let before = original.value().native_object_snapshot();
+            let references = original.value().native_object_reference_count();
+            assert!(original.value().resident_string_bytes().is_none());
+            // The public refusal assertion belongs to this same active operation.
+            let scope = NativeOperationScope::enter(&mut vm).unwrap();
+            if retire {
+                drop(owner.take());
+            }
+            let reached = crate::command::runtime_frame_selection(
+                &mut vm,
+                tcl_registry::FrameEffectSpec::UPLEVEL,
+                std::slice::from_ref(original.value()),
+            );
+            if retire {
+                assert_eq!(reached.unwrap_err().code, tcl_runtime_api::Code::Error);
+                let first = vm.execution_refusal.clone().unwrap();
+                assert_eq!(first, tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "retired native object header",
+                    ),
+                ));
+                assert!(!original.value().native_object_is_live());
+                assert!(original.value().resident_string_bytes().is_none());
+                assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
+                assert_eq!(vm.try_invoke_command("set", &[]).unwrap_err(), first);
+            } else {
+                scope.check(&mut vm).unwrap();
+                assert_eq!(reached.unwrap(), (0, 0));
+                assert_eq!(original.value().native_object_snapshot(), before);
+                assert_eq!(original.value().native_object_reference_count(), references);
+                assert!(vm.execution_refusal.is_none());
+            }
+            vm.pop_call_frame();
+        }
+    }
+}
+
+#[test]
+fn original_frame_list_worker_checks_header_after_ok_and_guest_error() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // The closure retires the real closed VM owner after the actual cached List probe.
+    for engine in ["tcl9.0", "tcl9.1"] {
+        for retire in [false, true] {
+            for guest_error in [false, true] {
+                let mut vm =
+                    crate::native_fixture::core(crate::environment::profile_for_dialect(engine));
+                let protocol = vm
+                    .actual_native_invocation_dialect()
+                    .native_string_protocol()
+                    .unwrap();
+                let mut owner = Some(Value::native_list_constructor(
+                    vec![Value::string("set"), Value::string("x")],
+                    protocol,
+                ));
+                let original = owner.as_ref().unwrap().native_lifetime_lease();
+                let before = original.value().native_object_snapshot();
+                let references = original.value().native_object_reference_count();
+                let scope = NativeOperationScope::enter(&mut vm).unwrap();
+                let ops = OriginalNumericOps::in_original_scope(&mut vm, &scope).unwrap();
+                let reached = ops.with_vm_for_value(original.value(), |vm| {
+                    let length = tcl_syntax::value::ValueOps::list_len(vm, original.value())
+                        .map_err(CmdError::from)?;
+                    assert_eq!(length, 2);
+                    assert_eq!(original.value().native_object_reference_count(), references);
+                    if retire {
+                        drop(owner.take());
+                    }
+                    if guest_error {
+                        Err(CmdError::with_error_code(
+                            "original List worker guest error",
+                            "TEST GUEST",
+                        ))
+                    } else {
+                        Ok(length)
+                    }
+                });
+                drop(ops);
+                if retire {
+                    let first = vm.execution_refusal.clone().unwrap();
+                    assert_eq!(first, tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                        tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                            "retired native object header",
+                        ),
+                    ));
+                    assert_eq!(
+                        reached.unwrap_err().native_execution_refusal(),
+                        Some(&first)
+                    );
+                    assert!(!original.value().native_object_is_live());
+                    assert!(original.value().resident_string_bytes().is_none());
+                    assert_eq!(vm.try_invoke_command("set", &[]).unwrap_err(), first);
+                } else {
+                    if guest_error {
+                        let error = reached.unwrap_err();
+                        assert_eq!(error.message_bytes(), b"original List worker guest error");
+                        assert_eq!(error.error_code_bytes(), Some(b"TEST GUEST".as_slice()));
+                        assert!(error.native_execution_refusal().is_none());
+                    } else {
+                        assert_eq!(reached.unwrap(), 2);
+                    }
+                    assert_eq!(original.value().native_object_snapshot(), before);
+                    assert_eq!(original.value().native_object_reference_count(), references);
+                    assert!(vm.execution_refusal.is_none());
+                }
+            }
+        }
+    }
+}

@@ -46,12 +46,12 @@ impl Builder<'_> {
         words: &NativeCompilerWords<'_>,
         recipe: NativeInfoExistsInstruction,
         depth: u32,
-    ) -> Result<InfoExistsOperation, ValueError> {
+    ) -> Result<InfoExistsOperation, tcl_cmd_core::CmdError> {
         let mut prepared_words = HashMap::new();
         let (target, word) = match recipe.receiver {
             NativeInfoExistsReceiver::Original(original) => {
                 let NativeCompilerWordOperand::Original(word) = recipe.operand else {
-                    return Err(unavailable("original existence operand geometry"));
+                    return Err((unavailable("original existence operand geometry")).into());
                 };
                 if matches!(original, NativeVariableWordOperand::DynamicWord) {
                     prepared_words.insert(word, self.namespace_word(words, word, false, depth)?);
@@ -65,7 +65,7 @@ impl Builder<'_> {
                 let NativeCompilerWordOperand::LiteralExpansion { original_word, .. } =
                     recipe.operand
                 else {
-                    return Err(unavailable("expanded existence operand geometry"));
+                    return Err((unavailable("expanded existence operand geometry")).into());
                 };
                 let slot = self.local(&name, None);
                 let root_literal = slot.is_none().then(|| self.literals.intern_bytes(&name));

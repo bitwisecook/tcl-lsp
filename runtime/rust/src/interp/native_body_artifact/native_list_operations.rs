@@ -68,7 +68,7 @@ impl Builder<'_> {
         words: &NativeCompilerWords<'_>,
         recipe: Plan,
         depth: u32,
-    ) -> Result<ListOperationsOperation, ValueError> {
+    ) -> Result<ListOperationsOperation, tcl_cmd_core::CmdError> {
         let mut prepared_words = HashMap::new();
         let operation = match recipe {
             Plan::Range { list, first, last } => ListOperation::Range {
@@ -91,7 +91,7 @@ impl Builder<'_> {
                     targets: prepared,
                 }
             }
-            _ => return Err(unavailable("original list replacement storage transaction")),
+            _ => return Err((unavailable("original list replacement storage transaction")).into()),
         };
         Ok(ListOperationsOperation {
             operation,
@@ -104,7 +104,7 @@ impl Builder<'_> {
         original: NativeListVariableOperand,
         prepared_words: &mut HashMap<usize, WordInstruction>,
         depth: u32,
-    ) -> Result<ListTarget, ValueError> {
+    ) -> Result<ListTarget, tcl_cmd_core::CmdError> {
         Ok(match original {
             NativeListVariableOperand::Original {
                 operand: NativeCompilerWordOperand::Original(word),
@@ -129,7 +129,7 @@ impl Builder<'_> {
                     index_literal,
                 }
             }
-            _ => return Err(unavailable("original list target geometry")),
+            _ => return Err((unavailable("original list target geometry")).into()),
         })
     }
 }

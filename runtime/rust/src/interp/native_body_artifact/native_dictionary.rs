@@ -18,7 +18,7 @@ impl Builder<'_> {
         captured: &NativeCompilerWords<'_>,
         recipe: NativeDictionaryLookupInstruction,
         depth: u32,
-    ) -> Result<DictionaryLookupOperation, ValueError> {
+    ) -> Result<DictionaryLookupOperation, tcl_cmd_core::CmdError> {
         let mut prepared_words = HashMap::new();
         let mut operands = Vec::with_capacity(recipe.operands.len());
         for operand in &recipe.operands {
