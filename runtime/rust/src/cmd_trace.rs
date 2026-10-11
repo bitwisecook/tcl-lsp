@@ -48,7 +48,8 @@ use tcl_runtime_api::Namespaces;
 use tcl_syntax::value::ValueOps;
 
 use crate::frame::VarError;
-use crate::interp::{Code, Interp, new_string, obj_bytes};
+use crate::interp::native_arguments::OriginalArguments;
+use crate::interp::{Code, Interp, new_string};
 use crate::namespace::NsId;
 use crate::obj::TclObj;
 
@@ -384,11 +385,28 @@ pub(crate) fn trace_var_error(interp: &mut Interp, name: &[u8], error: VarError)
 }
 
 fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = trace_cmd_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn trace_cmd_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"trace option ?arg ...?");
     }
     let protocol = interp.native_invocation_dialect().native_string_protocol();
-    let option = match core_trace::resolve_option_original(interp, &argv[1], protocol) {
+    let selected = core_trace::resolve_option_original(interp, &argv[1], protocol);
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
+    let option = match selected {
         Ok(option) => option,
         Err(e) => return interp.report_cmd_error(e),
     };
@@ -403,7 +421,11 @@ fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     b"trace remove type ?arg ...?"
                 });
             }
-            match core_trace::resolve_type_original(interp, &argv[2]) {
+            let selected = core_trace::resolve_type_original(interp, &argv[2]);
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            match selected {
                 Ok(core_trace::TraceKind::Variable) => trace_var_add_remove(interp, argv, is_add),
                 Ok(core_trace::TraceKind::Command) => {
                     cmd_trace_add_remove(interp, argv, is_add, ops::CMD_ANY)
@@ -418,7 +440,11 @@ fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() < 3 {
                 return interp.wrong_args(b"trace info type name");
             }
-            match core_trace::resolve_type_original(interp, &argv[2]) {
+            let selected = core_trace::resolve_type_original(interp, &argv[2]);
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            match selected {
                 Ok(core_trace::TraceKind::Variable) => trace_var_info(interp, argv),
                 Ok(core_trace::TraceKind::Command) => cmd_trace_info(interp, argv, ops::CMD_ANY),
                 Ok(core_trace::TraceKind::Execution) => cmd_trace_info(interp, argv, ops::EXEC_ANY),
@@ -876,10 +902,26 @@ fn var_trace_apply(
 /// `trace info variable name` — the registered traces, most-recent first, each
 /// as a `{opList command}` pair.
 fn trace_var_info(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = trace_var_info_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn trace_var_info_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
     if argv.len() != 4 {
         return interp.wrong_args(b"trace info variable name");
     }
-    let name = obj_bytes(argv[3]);
+    let name = match arguments.bytes(3) {
+        Ok(bytes) => bytes,
+        Err(error) => return interp.report_cmd_error(error),
+    };
     let query = match var_trace_query(interp, &name) {
         Ok(query) => query,
         Err(error) => return trace_var_error(interp, &name, error),
@@ -944,10 +986,26 @@ fn legacy_var_add_remove(interp: &mut Interp, argv: &[*mut TclObj], is_add: bool
 /// with each op set rendered as the `rwua` letter string C's `TRACE_OLD_VINFO`
 /// arm builds instead of a word list.
 fn legacy_var_info(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = legacy_var_info_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn legacy_var_info_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
     if argv.len() != 3 {
         return interp.wrong_args(b"trace vinfo name");
     }
-    let name = obj_bytes(argv[2]);
+    let name = match arguments.bytes(2) {
+        Ok(bytes) => bytes,
+        Err(error) => return interp.report_cmd_error(error),
+    };
     let query = match var_trace_query(interp, &name) {
         Ok(query) => query,
         Err(error) => return trace_var_error(interp, &name, error),
@@ -2358,6 +2416,54 @@ mod tests {
                 probe(profile, legacy),
                 "1:bad option \"variable\": must be add, info, or remove"
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_operand_tests {
+    use super::*;
+    use crate::cmd_alias::original_operand_tests::{
+        Update, UpdaterOwner, first, native, seed, unchanged, words,
+    };
+    use crate::obj::Owned;
+    #[test]
+    fn original_variable_trace_queries_preserve_cells_and_first_host() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for legacy in [false, true] {
+            for mode in [Update::Host, Update::Restore] {
+                let mut interp = native("tcl8.6");
+                assert_eq!(
+                    interp.eval_str(b"trace add variable v write callback"),
+                    Code::Ok
+                );
+                let registrations: Vec<_> =
+                    interp.traces.borrow().traces.iter().map(|t| t.id).collect();
+                assert!(!registrations.is_empty());
+                let _updater = UpdaterOwner::enter(&interp, mode);
+                let failed = first();
+                let owned = words(if legacy {
+                    &[b"trace", b"vinfo", b"name"]
+                } else {
+                    &[b"trace", b"info", b"variable", b"name"]
+                });
+                let mut argv: Vec<_> = owned.iter().map(Owned::as_ptr).collect();
+                *argv.last_mut().unwrap() = failed.as_ptr();
+                let prior = seed(&mut interp);
+                assert_eq!(super::trace_cmd(&mut interp, &argv), Code::Error);
+                unchanged(&interp, &prior, mode);
+                assert_eq!(
+                    interp
+                        .traces
+                        .borrow()
+                        .traces
+                        .iter()
+                        .map(|t| t.id)
+                        .collect::<Vec<_>>(),
+                    registrations
+                );
+            }
         }
     }
 }

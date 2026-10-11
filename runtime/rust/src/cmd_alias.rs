@@ -34,7 +34,8 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-use crate::interp::{Code, CommandVisibilityOp, Interp, drop_fresh, obj_bytes};
+use crate::interp::native_arguments::OriginalArguments;
+use crate::interp::{Code, CommandVisibilityOp, Interp, drop_fresh};
 use crate::namespace::RenameOutcome;
 use crate::obj::{self, TclObj};
 use tcl_syntax::value::ValueOps;
@@ -175,6 +176,19 @@ pub(crate) fn resolve_interp_option(
 /// cheap; the bad-option list below advertises only what actually dispatches
 /// here, rather than tclsh's full list.
 fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = interp_cmd_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn interp_cmd_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
     if interp
         .native_invocation_dialect()
         .native_jim_lookup_protocol()
@@ -195,7 +209,11 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"interp cmd ?arg ...?");
     }
-    let sub = match interp.native_interpreter_option_from_original(argv[1], false) {
+    let selected = interp.native_interpreter_option_from_original(argv[1], false);
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
+    let sub = match selected {
         Ok(name) => name.as_bytes(),
         Err(error) => return interp.report_cmd_error(error),
     };
@@ -329,7 +347,14 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 Ok(path) => path,
                 Err(code) => return code,
             };
-            let newlimit = argv.get(3).map(|&a| obj_bytes(a));
+            let newlimit = if argv.len() == 4 {
+                match arguments.bytes(3) {
+                    Ok(bytes) => Some(bytes),
+                    Err(error) => return interp.report_cmd_error(error),
+                }
+            } else {
+                None
+            };
             match interp.with_child_path(&path, |c| c.recursion_limit_apply(newlimit.as_deref())) {
                 Some(Ok(n)) => {
                     interp.set_result_bytes(n.to_string().as_bytes());
@@ -356,6 +381,19 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// implement; unlike `target` they need infrastructure (script cancellation,
 /// cross-interp channel sharing) this runtime has none of.
 fn interp_target(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = interp_target_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn interp_target_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
     if argv.len() != 4 {
         return interp.wrong_args(b"interp target path alias");
     }
@@ -363,7 +401,10 @@ fn interp_target(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(path) => path,
         Err(code) => return code,
     };
-    let alias = obj_bytes(argv[3]);
+    let alias = match arguments.bytes(3) {
+        Ok(bytes) => bytes,
+        Err(error) => return interp.report_cmd_error(error),
+    };
     match interp.alias_target_path(&path, &alias) {
         Some(target_path) => {
             let elems: Vec<*mut TclObj> = target_path
@@ -380,7 +421,11 @@ fn interp_target(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let mut m = b"alias \"".to_vec();
             m.extend_from_slice(&alias);
             m.extend_from_slice(b"\" in path \"");
-            m.extend_from_slice(&obj_bytes(argv[2]));
+            let original_path = match arguments.bytes(2) {
+                Ok(bytes) => bytes,
+                Err(error) => return interp.report_cmd_error(error),
+            };
+            m.extend_from_slice(&original_path);
             m.extend_from_slice(b"\" not found");
             let code = crate::interp::error_code_list(&[b"TCL", b"LOOKUP", b"ALIAS", &alias]);
             interp.error_with_code(&m, &code)
@@ -406,6 +451,19 @@ const HIDDEN_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
 /// host-touching commands; it does not re-alias `source`/`load`/`file`
 /// through the Safe Base.
 fn interp_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = interp_create_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn interp_create_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
     // C's "weird historical rule": `-safe` is accepted anywhere before `--`
     // (`interp create a -safe` is valid), and the path is the lone non-option
     // word — so scan all args rather than stopping at the first non-flag.
@@ -414,14 +472,17 @@ fn interp_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut last = false;
     let mut i = 2;
     while i < argv.len() {
-        let a = obj_bytes(argv[i]);
+        let a = match arguments.bytes(i) {
+            Ok(bytes) => bytes,
+            Err(error) => return interp.report_cmd_error(error),
+        };
         if !last && a.first() == Some(&b'-') {
-            match interp.native_static_option_index(
-                argv[i],
-                CREATE_OPTIONS.names(),
-                false,
-                "option",
-            ) {
+            let selected =
+                interp.native_static_option_index(argv[i], CREATE_OPTIONS.names(), false, "option");
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            match selected {
                 Ok(0) => {
                     safe = true;
                     i += 1;
@@ -531,20 +592,28 @@ pub(crate) fn interp_path(
     interp: &mut Interp,
     original: *mut TclObj,
 ) -> Result<Vec<Vec<u8>>, Code> {
+    let arguments = OriginalArguments::enter(interp, &[original])
+        .map_err(|error| interp.report_cmd_error(error))?;
     let policy = interp.name_policy_protocol().ok_or_else(|| {
         interp.report_cmd_error(
             tcl_syntax::value::ValueError::CommandProtocolUnavailable("interpreter path protocol")
                 .into(),
         )
     })?;
-    let elements = crate::list::list_elements_native_checked(original, policy.string_protocol())
-        .map_err(|error| interp.report_cmd_error(error.into()))?;
-    elements
-        .into_iter()
-        .map(|element| {
-            let bytes = interp
-                .native_string_bytes(&element)
-                .map_err(|error| interp.report_cmd_error(error.into()))?;
+    let elements = ValueOps::list_elements(interp, &original);
+    arguments
+        .check()
+        .map_err(|error| interp.report_cmd_error(error))?;
+    let elements = elements.map_err(|error| interp.report_cmd_error(error.into()))?;
+    let members = OriginalArguments::enter(interp, &elements)
+        .map_err(|error| interp.report_cmd_error(error))?;
+    let selected = (0..elements.len())
+        .map(|index| {
+            let bytes = members.bytes(index);
+            arguments
+                .check()
+                .map_err(|error| interp.report_cmd_error(error))?;
+            let bytes = bytes.map_err(|error| interp.report_cmd_error(error))?;
             let selected = policy
                 .recipe()
                 .interpreter_child_input(&bytes)
@@ -558,7 +627,14 @@ pub(crate) fn interp_path(
                 })?;
             Ok(selected.selected().to_vec())
         })
-        .collect()
+        .collect::<Result<Vec<_>, Code>>()?;
+    members
+        .check()
+        .map_err(|error| interp.report_cmd_error(error))?;
+    arguments
+        .check()
+        .map_err(|error| interp.report_cmd_error(error))?;
+    Ok(selected)
 }
 
 pub(crate) fn not_found_original_path(interp: &mut Interp, original: *mut TclObj) -> Code {
@@ -604,21 +680,40 @@ pub(crate) fn not_found_original_path(interp: &mut Interp, original: *mut TclObj
 /// resolve, rendering the path as a Tcl list.
 fn not_found_path(interp: &mut Interp, path: &[Vec<u8>]) -> Code {
     let elems: Vec<*mut TclObj> = path.iter().map(|n| obj::new_string_bytes(n)).collect();
-    let joined = interp.new_list_object(&elems);
-    let rendered = obj_bytes(joined);
+    let joined = obj::Owned::fresh(interp.new_list_object(&elems));
     for e in elems {
         drop_fresh(e);
     }
-    drop_fresh(joined);
+    let arguments = match OriginalArguments::enter(interp, &[joined.as_ptr()]) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let rendered = match arguments.bytes(0) {
+        Ok(bytes) => bytes,
+        Err(error) => return interp.report_cmd_error(error),
+    };
     let mut m = b"could not find interpreter \"".to_vec();
     m.extend_from_slice(&rendered);
     m.push(b'"');
-    interp.set_error(&m)
+    arguments.finish(interp.set_error(&m))
 }
 
 /// `interp limit path limitType ?-option value …?` — query/configure the
 /// `commands` or `time` limit on a child interp.
 fn interp_limit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = interp_limit_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn interp_limit_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
     // argv = [interp, limit, path, limitType, opts…]
     if argv.len() < 4 {
         return interp.wrong_args(b"interp limit path limitType ?-option value ...?");
@@ -640,7 +735,10 @@ fn interp_limit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if path.is_empty() {
         return interp.set_error(b"limits on current interpreter inaccessible");
     }
-    let ltype = obj_bytes(argv[3]);
+    let ltype = match arguments.bytes(3) {
+        Ok(bytes) => bytes,
+        Err(error) => return interp.report_cmd_error(error),
+    };
     let opts: Vec<*mut TclObj> = argv[4..].to_vec();
     match interp.with_child_path(&path, |c| c.limit_apply(&ltype, &opts)) {
         Some(Ok(o)) => {
@@ -726,8 +824,33 @@ pub(crate) fn hidectl_in(
     op: CommandVisibilityOp,
     words: &[*mut TclObj],
 ) -> Code {
-    let cmd = obj_bytes(words[0]);
-    let token = words.get(1).map_or_else(|| cmd.clone(), |&w| obj_bytes(w));
+    let arguments = match OriginalArguments::enter(interp, words) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = hidectl_in_original(interp, path, op, words, &arguments);
+    arguments.finish(code)
+}
+
+fn hidectl_in_original(
+    interp: &mut Interp,
+    path: &[Vec<u8>],
+    op: CommandVisibilityOp,
+    words: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
+    let cmd = match arguments.bytes(0) {
+        Ok(bytes) => bytes,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let token = if words.len() == 2 {
+        match arguments.bytes(1) {
+            Ok(bytes) => bytes,
+            Err(error) => return interp.report_cmd_error(error),
+        }
+    } else {
+        cmd.clone()
+    };
     if tcl_syntax::naming::is_qualified(&token) {
         return match op {
             CommandVisibilityOp::Hide => interp.error_with_code(
@@ -744,6 +867,9 @@ pub(crate) fn hidectl_in(
         CommandVisibilityOp::Hide => c.hide_command(&cmd, &token),
         CommandVisibilityOp::Expose => c.expose_command(&cmd, &token),
     });
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
     let Some(moved) = moved else {
         return not_found_path(interp, path);
     };
@@ -800,9 +926,9 @@ fn interp_hidectl(interp: &mut Interp, argv: &[*mut TclObj], op: CommandVisibili
 /// `TCL_GLOBAL_ONLY` (tclsh-pinned: `-namespace bar` from inside `::foo`
 /// still names `::bar`, not `::foo::bar`).
 ///
-/// Simplification: unlike C's `Tcl_GetIndexFromObj`, this does not accept an
-/// *abbreviated* option name (`-g` for `-global`) — only the three exact
-/// spellings.
+/// Original option words use the selected shared static-option owner, including
+/// the declared unique-prefix abbreviations. Counted String production and
+/// namespace/command name selection remain separate operations.
 fn interp_invokehidden(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     const USAGE: &[u8] = b"interp invokehidden path ?-namespace ns? ?-global? ?--? cmd ?arg ..?";
     if argv.len() < 4 {
@@ -834,14 +960,37 @@ pub(crate) fn invokehidden_in(
     words: &[*mut TclObj],
     usage: &[u8],
 ) -> Code {
+    let arguments = match OriginalArguments::enter(interp, words) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = invokehidden_in_original(interp, path, words, usage, &arguments);
+    arguments.finish(code)
+}
+
+fn invokehidden_in_original(
+    interp: &mut Interp,
+    path: &[Vec<u8>],
+    words: &[*mut TclObj],
+    usage: &[u8],
+    arguments: &OriginalArguments,
+) -> Code {
     let mut ns_name: Option<Vec<u8>> = None;
     let mut i = 0;
     while i < words.len() {
-        let opt = obj_bytes(words[i]);
+        let opt = match arguments.bytes(i) {
+            Ok(bytes) => bytes,
+            Err(error) => return interp.report_cmd_error(error),
+        };
         if opt.first() != Some(&b'-') {
             break;
         }
-        match interp.native_static_option_index(words[i], HIDDEN_OPTIONS.names(), false, "option") {
+        let selected =
+            interp.native_static_option_index(words[i], HIDDEN_OPTIONS.names(), false, "option");
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
+        match selected {
             Ok(0) => {
                 ns_name = Some(b"::".to_vec());
                 i += 1;
@@ -853,7 +1002,10 @@ pub(crate) fn invokehidden_in(
                     // options and fall through to the arg-count check below.
                     break;
                 }
-                ns_name = Some(obj_bytes(words[i]));
+                ns_name = match arguments.bytes(i) {
+                    Ok(bytes) => Some(bytes.to_vec()),
+                    Err(error) => return interp.report_cmd_error(error),
+                };
                 i += 1;
             }
             Ok(_) => {
@@ -869,7 +1021,10 @@ pub(crate) fn invokehidden_in(
     if interp.is_safe() {
         return interp.set_error(b"not allowed to invoke hidden commands from safe interpreter");
     }
-    let cmd = obj_bytes(words[i]);
+    let cmd = match arguments.bytes(i) {
+        Ok(bytes) => bytes,
+        Err(error) => return interp.report_cmd_error(error),
+    };
     // Build the hidden command's argv (cmd + remaining args).
     let mut hidden_argv: Vec<*mut TclObj> = Vec::with_capacity(words.len() - i);
     for &a in &words[i..] {
@@ -878,30 +1033,74 @@ pub(crate) fn invokehidden_in(
     }
     // Run in the addressed interp (the current one for an empty path), in the
     // requested namespace context if any, copying its result back up the path.
-    let code = match interp.with_child_path(path, |c| {
+    let outcome = interp.with_child_path(path, |c| {
+        let scope = match crate::interp::native_operation_currency::NativeOperationScope::enter(c) {
+            Ok(scope) => scope,
+            Err(first) => {
+                c.refuse_native_execution(first);
+                return Err(c.clone());
+            }
+        };
         let saved_ns = c.current_ns();
         if let Some(name) = &ns_name {
             let target = c.ensure_global_namespace(name);
             c.set_current_ns(target);
         }
-        let result = (c.invoke_hidden(&cmd, &hidden_argv), c.result_bytes());
+        let code = c.invoke_hidden(&cmd, &hidden_argv);
+        let result = scope.currency().ensure_current_or_refuse().and_then(|()| {
+            let original = obj::Owned::retain(c.get_obj_result());
+            let bytes = c
+                .native_object_string_bytes(original.as_ptr())
+                .map_err(|error| c.refuse_completion_value_access(error));
+            drop(original);
+            scope.currency().ensure_current_or_refuse()?;
+            bytes
+        });
+        // Namespace restoration remains mandatory after Guest or Host failure.
         c.set_current_ns(saved_ns);
-        result
-    }) {
-        Some((code, res)) => {
-            interp.set_result_bytes(&res);
-            code
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            c.refuse_native_execution(first);
+            return Err(c.clone());
         }
-        None => not_found_path(interp, path),
-    };
+        match result {
+            Ok(bytes) => Ok((code, bytes)),
+            Err(first) => {
+                c.refuse_native_execution(first);
+                Err(c.clone())
+            }
+        }
+    });
     for a in hidden_argv {
         unsafe { obj::decr_ref_count(a) };
     }
-    code
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
+    match outcome {
+        Some(Ok((code, result))) => {
+            interp.set_result_bytes(&result);
+            code
+        }
+        Some(Err(child)) => interp.transport_host_refusal_from(&child),
+        None => not_found_path(interp, path),
+    }
 }
 
 /// `interp eval path arg ?arg ...?` — evaluate a script in a child interpreter.
 fn interp_eval(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = interp_eval_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn interp_eval_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
     if argv.len() < 4 {
         return interp.wrong_args(b"interp eval path arg ?arg ...?");
     }
@@ -917,14 +1116,43 @@ fn interp_eval(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Err(error) => return interp.report_cmd_error(error),
         }
     };
-    match interp.with_child_path(&path, |target| {
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
+    let outcome = interp.with_child_path(&path, |target| {
+        let scope =
+            match crate::interp::native_operation_currency::NativeOperationScope::enter(target) {
+                Ok(scope) => scope,
+                Err(first) => {
+                    target.refuse_native_execution(first);
+                    return Err(target.clone());
+                }
+            };
         let code = target.eval_body_obj(script.as_ptr());
-        (code, obj::Owned::retain(target.get_obj_result()))
-    }) {
-        Some((code, result)) => {
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            target.refuse_native_execution(first);
+            return Err(target.clone());
+        }
+        // Preserve the actual owned result, without an extra options getter or
+        // a String reconstruction that would change this existing contract.
+        let result = obj::Owned::retain(target.get_obj_result());
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            target.refuse_native_execution(first);
+            return Err(target.clone());
+        }
+        Ok((code, result))
+    });
+    drop(script);
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
+    match outcome {
+        Some(Ok((code, result))) => {
             interp.set_result(result.as_ptr());
+            drop(result);
             code
         }
+        Some(Err(child)) => interp.transport_host_refusal_from(&child),
         None => not_found_original_path(interp, argv[2]),
     }
 }
@@ -951,6 +1179,19 @@ fn interp_delete(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 /// `interp alias {} aliasName ?{} target ?arg ...??` — create / query / delete.
 fn interp_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = interp_alias_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn interp_alias_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
     // argv: interp alias srcPath aliasName ?targetPath target ?arg ...??
     if argv.len() < 4 {
         return interp.wrong_args(b"interp alias srcPath srcCmd ?targetPath targetCmd? ?arg ...?");
@@ -968,9 +1209,9 @@ fn interp_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         );
     }
     let src = source_path.first().cloned().unwrap_or_default();
-    let original_name = match interp.native_string_bytes(&argv[3]) {
+    let original_name = match arguments.bytes(3) {
         Ok(name) => name,
-        Err(error) => return interp.report_cmd_error(error.into()),
+        Err(error) => return interp.report_cmd_error(error),
     };
     let policy = interp
         .name_policy_protocol()
@@ -1008,13 +1249,52 @@ fn interp_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return only_single_interp(interp);
         }
         if argv.len() == 5 {
-            interp.with_child(&src, |c| c.delete_command(&name));
+            let deleted = interp.with_child(&src, |child| {
+                let scope =
+                    match crate::interp::native_operation_currency::NativeOperationScope::enter(
+                        child,
+                    ) {
+                        Ok(scope) => scope,
+                        Err(first) => {
+                            child.refuse_native_execution(first);
+                            return Err(child.clone());
+                        }
+                    };
+                child.delete_command(&name);
+                match scope.currency().ensure_current_or_refuse() {
+                    Ok(()) => Ok(()),
+                    Err(first) => {
+                        child.refuse_native_execution(first);
+                        Err(child.clone())
+                    }
+                }
+            });
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            if let Some(Err(child)) = deleted {
+                return interp.transport_host_refusal_from(&child);
+            }
             interp.set_result_bytes(b"");
             return Code::Ok;
         }
-        let target = obj_bytes(argv[5]);
-        let prefix: Vec<Vec<u8>> = argv[6..].iter().map(|&a| obj_bytes(a)).collect();
-        if !interp.install_parent_alias(&src, &original_name, target, prefix) {
+        let target = match arguments.bytes(5) {
+            Ok(bytes) => bytes,
+            Err(error) => return interp.report_cmd_error(error),
+        };
+        let target = target.to_vec();
+        let mut prefix = Vec::with_capacity(argv.len() - 6);
+        for index in 6..argv.len() {
+            match arguments.bytes(index) {
+                Ok(bytes) => prefix.push(bytes.to_vec()),
+                Err(error) => return interp.report_cmd_error(error),
+            }
+        }
+        let installed = interp.install_parent_alias(&src, &original_name, target, prefix);
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
+        if !installed {
             if interp.host_refusal_pending() {
                 return Code::Error;
             }
@@ -1054,14 +1334,31 @@ fn interp_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // Delete: `interp alias {} aliasName {}`.
     if argv.len() == 5 {
         interp.delete_command(&name);
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
         interp.set_result_bytes(b"");
         return Code::Ok;
     }
 
     // Create: `interp alias {} aliasName {} target ?arg ...?`.
-    let target = obj_bytes(argv[5]);
-    let prefix: Vec<Vec<u8>> = argv[6..].iter().map(|&a| obj_bytes(a)).collect();
-    match interp.install_alias(&original_name, target, prefix) {
+    let target = match arguments.bytes(5) {
+        Ok(bytes) => bytes,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let target = target.to_vec();
+    let mut prefix = Vec::with_capacity(argv.len() - 6);
+    for index in 6..argv.len() {
+        match arguments.bytes(index) {
+            Ok(bytes) => prefix.push(bytes.to_vec()),
+            Err(error) => return interp.report_cmd_error(error),
+        }
+    }
+    let installed = interp.install_alias(&original_name, target, prefix);
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
+    match installed {
         Ok(()) => {
             interp.set_result(argv[3]);
             Code::Ok
@@ -2454,3 +2751,391 @@ mod tests {
 
 #[cfg(test)]
 mod native_option_tables;
+
+#[cfg(test)]
+pub(crate) mod original_operand_tests {
+    use super::*;
+    use crate::obj::Owned;
+    use std::cell::{Cell, RefCell};
+    use tcl_runtime_api::NativeExecutionError;
+    use tcl_syntax::raw_string::NativeValueAccessRefusal;
+
+    #[derive(Clone, Copy)]
+    pub(crate) enum Update {
+        Host,
+        Restore,
+        Normal,
+    }
+    thread_local! {
+        static INTERPRETER: RefCell<Option<Interp>> = const { RefCell::new(None) };
+        static FIRST_CAUSE: RefCell<Option<NativeExecutionError>> = const { RefCell::new(None) };
+        static MODE: Cell<Update> = const { Cell::new(Update::Host) };
+        static FIRST: Cell<usize> = const { Cell::new(0) };
+        static LATER: Cell<usize> = const { Cell::new(0) };
+    }
+    pub(crate) struct UpdaterOwner;
+    impl UpdaterOwner {
+        pub(crate) fn enter(interp: &Interp, mode: Update) -> Self {
+            INTERPRETER.with(|slot| *slot.borrow_mut() = Some(interp.clone()));
+            MODE.with(|selected| selected.set(mode));
+            FIRST.with(|count| count.set(0));
+            FIRST_CAUSE.with(|cause| cause.borrow_mut().take());
+            LATER.with(|count| count.set(0));
+            Self
+        }
+    }
+    impl Drop for UpdaterOwner {
+        fn drop(&mut self) {
+            INTERPRETER.with(|slot| slot.borrow_mut().take());
+        }
+    }
+    pub(crate) fn native(version: &str) -> Interp {
+        Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect(version),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap()
+    }
+    fn restore(interp: &mut Interp) {
+        let original = interp.runtime_context();
+        let mut changed = original.clone();
+        changed.packages = vec![("alias-trace-original-stage".to_owned(), "1.0".to_owned())];
+        interp.pin_context(&changed).unwrap();
+        interp.pin_context(&original).unwrap();
+    }
+    extern "C" fn first_getter(original: *mut TclObj) {
+        FIRST.with(|count| count.set(count.get() + 1));
+        let mut interp = INTERPRETER.with(|slot| slot.borrow().as_ref().unwrap().clone());
+        let reached = Owned::fresh(obj::new_string_bytes(b"REACHED"));
+        interp
+            .var_set(b"original_argument_effect", reached.as_ptr())
+            .unwrap();
+        match MODE.with(Cell::get) {
+            Update::Host => {
+                interp.refuse_host_command("first alias/trace original getter");
+                FIRST_CAUSE.with(|cause| *cause.borrow_mut() = interp.native_execution_refusal());
+            }
+            Update::Restore => restore(&mut interp),
+            Update::Normal => {}
+        }
+        unsafe { obj::set_native_updater_string_rep(original, b"reached\0\xff", false) };
+    }
+    extern "C" fn later_getter(original: *mut TclObj) {
+        LATER.with(|count| count.set(count.get() + 1));
+        unsafe { obj::set_native_updater_string_rep(original, b"LATER", false) };
+    }
+    static FIRST_TYPE: obj::TclObjType = obj::TclObjType {
+        name: c"originalAliasTraceGetter".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(first_getter),
+        set_from_any_proc: None,
+    };
+    static LATER_TYPE: obj::TclObjType = obj::TclObjType {
+        name: c"originalAliasTraceLaterGetter".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(later_getter),
+        set_from_any_proc: None,
+    };
+    pub(crate) fn first() -> Owned {
+        Owned::fresh(obj::alloc_typed(&FIRST_TYPE, 0))
+    }
+    fn later() -> Owned {
+        Owned::fresh(obj::alloc_typed(&LATER_TYPE, 0))
+    }
+    pub(crate) fn words(values: &[&[u8]]) -> Vec<Owned> {
+        values
+            .iter()
+            .map(|bytes| Owned::fresh(obj::new_string_bytes(bytes)))
+            .collect()
+    }
+    fn expected(mode: Update) -> NativeExecutionError {
+        match mode {
+            Update::Host => FIRST_CAUSE.with(|cause| {
+                cause
+                    .borrow()
+                    .as_ref()
+                    .expect("actual updater first cause")
+                    .clone()
+            }),
+            Update::Restore => NativeExecutionError::ValueAccessRefusal(
+                NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "stale entered native operation",
+                ),
+            ),
+            Update::Normal => unreachable!(),
+        }
+    }
+    pub(crate) fn seed(interp: &mut Interp) -> Owned {
+        interp.set_result_bytes(b"PRIOR\0\xff");
+        interp.set_return_state(2, Code::Other(7));
+        interp.set_return_options(vec![(b"-original".to_vec(), b"OPTIONS".to_vec())]);
+        Owned::retain(interp.get_obj_result())
+    }
+    pub(crate) fn unchanged(interp: &Interp, result: &Owned, mode: Update) {
+        assert_eq!(interp.native_execution_refusal(), Some(expected(mode)));
+        assert_eq!(interp.get_obj_result(), result.as_ptr());
+        assert_eq!(obj::bytes_of(result.as_ptr()), b"PRIOR\0\xff");
+        assert_eq!(interp.pending_return_level(), 2);
+        assert_eq!(interp.pending_return_code(), Code::Other(7));
+        assert_eq!(interp.pending_return_option_objects().len(), 1);
+        assert_eq!(FIRST.with(Cell::get), 1);
+        assert_eq!(LATER.with(Cell::get), 0);
+        assert_eq!(interp.entered_native_operation_count(), 0);
+    }
+
+    #[test]
+    fn original_alias_reads_stop_before_later_prefix_and_publication() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Genuine original extension updater controls; no external Native order result.
+        for mode in [Update::Host, Update::Restore] {
+            for child in [false, true] {
+                for failed_position in [3, 5, 6] {
+                    let mut interp = native("tcl8.6");
+                    if child {
+                        assert_eq!(interp.eval_str(b"interp create child"), Code::Ok);
+                    }
+                    let _updater = UpdaterOwner::enter(&interp, mode);
+                    let failed = first();
+                    let unread = later();
+                    let owned = words(&[
+                        b"interp",
+                        b"alias",
+                        if child { b"child" } else { b"" },
+                        b"original_alias",
+                        b"",
+                        b"list",
+                    ]);
+                    let mut argv: Vec<_> = owned.iter().map(Owned::as_ptr).collect();
+                    if failed_position == 6 {
+                        argv.push(failed.as_ptr());
+                    } else {
+                        argv[failed_position] = failed.as_ptr();
+                    }
+                    argv.push(unread.as_ptr());
+                    let count = unsafe { (*failed.as_ptr()).ref_count };
+                    let before = interp.namespaces().native_command_generations();
+                    let prior = seed(&mut interp);
+                    assert_eq!(super::interp_cmd(&mut interp, &argv), Code::Error);
+                    unchanged(&interp, &prior, mode);
+                    assert_eq!(unsafe { (*failed.as_ptr()).ref_count }, count);
+                    assert_eq!(obj::bytes_of(failed.as_ptr()), b"reached\0\xff");
+                    assert!(!obj::has_string_rep(unread.as_ptr()));
+                    assert_eq!(interp.namespaces().native_command_generations(), before);
+                    if child {
+                        interp
+                            .with_child(b"child", |owner| {
+                                assert!(owner.resolve_cmd_token(b"original_alias").is_none())
+                            })
+                            .unwrap();
+                    } else {
+                        assert!(interp.resolve_cmd_token(b"original_alias").is_none());
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn original_interpreter_options_and_names_keep_actual_read_order_and_refusal() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let cases: &[(&[&[u8]], usize)] = &[
+            (&[b"interp", b"create", b"flag", b"LATER"], 2),
+            (&[b"interp", b"target", b"", b"name"], 3),
+            (&[b"interp", b"hide", b"", b"name", b"LATER"], 3),
+            (&[b"interp", b"hide", b"", b"puts", b"token"], 4),
+            (&[b"interp", b"invokehidden", b"", b"option", b"LATER"], 3),
+            (
+                &[
+                    b"interp",
+                    b"invokehidden",
+                    b"",
+                    b"-namespace",
+                    b"ns",
+                    b"LATER",
+                ],
+                4,
+            ),
+            (
+                &[b"interp", b"invokehidden", b"", b"--", b"head", b"LATER"],
+                4,
+            ),
+        ];
+        for mode in [Update::Host, Update::Restore] {
+            for &(texts, selected) in cases {
+                let mut interp = native("tcl8.6");
+                let _updater = UpdaterOwner::enter(&interp, mode);
+                let owned = words(texts);
+                let failed = first();
+                let unread = later();
+                let mut argv: Vec<_> = owned.iter().map(Owned::as_ptr).collect();
+                argv[selected] = failed.as_ptr();
+                if selected + 1 < argv.len() {
+                    argv[selected + 1] = unread.as_ptr();
+                }
+                let before = interp.namespaces().native_command_generations();
+                let prior = seed(&mut interp);
+                assert_eq!(
+                    super::interp_cmd(&mut interp, &argv),
+                    Code::Error,
+                    "{texts:?}"
+                );
+                unchanged(&interp, &prior, mode);
+                assert!(!obj::has_string_rep(unread.as_ptr()));
+                assert_eq!(interp.namespaces().native_command_generations(), before);
+                assert!(interp.child_names().is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn original_interpreter_path_reads_selected_list_and_original_elements() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut interp = native("tcl8.6");
+        let child = Owned::fresh(obj::new_string_bytes(b"child\0ignored"));
+        let path = Owned::fresh(interp.new_list_object(&[child.as_ptr()]));
+        assert!(!obj::has_string_rep(path.as_ptr()));
+        assert_eq!(
+            super::interp_path(&mut interp, path.as_ptr()).unwrap(),
+            vec![b"child".to_vec()]
+        );
+        assert!(!obj::has_string_rep(path.as_ptr()));
+        assert_eq!(obj::bytes_of(child.as_ptr()), b"child\0ignored");
+        let _updater = UpdaterOwner::enter(&interp, Update::Restore);
+        let failed = first();
+        let unread = later();
+        let path = Owned::fresh(interp.new_list_object(&[failed.as_ptr(), unread.as_ptr()]));
+        let prior = seed(&mut interp);
+        assert_eq!(
+            super::interp_path(&mut interp, path.as_ptr()),
+            Err(Code::Error)
+        );
+        unchanged(&interp, &prior, Update::Restore);
+        assert!(!obj::has_string_rep(path.as_ptr()));
+        assert!(!obj::has_string_rep(unread.as_ptr()));
+    }
+
+    fn original_child_worker(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
+        match MODE.with(Cell::get) {
+            Update::Host => {
+                interp.refuse_host_command("first alias/trace child worker");
+            }
+            Update::Restore => restore(interp),
+            Update::Normal => {}
+        }
+        let result = Owned::fresh(obj::new_string_bytes(b"CHILD\0\xff"));
+        interp.set_result(result.as_ptr());
+        Code::Other(7)
+    }
+    fn original_child_lazy_result(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
+        INTERPRETER.with(|slot| *slot.borrow_mut() = Some(interp.clone()));
+        let result = first();
+        interp.set_result(result.as_ptr());
+        Code::Other(7)
+    }
+
+    #[test]
+    fn original_hidden_child_result_getter_preserves_namespace_cleanup_and_first_cause() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual child lazy result getter and mandatory cleanup, not a Native provider assertion.
+        for mode in [Update::Host, Update::Restore] {
+            let mut interp = native("tcl8.6");
+            assert_eq!(interp.eval_str(b"interp create child"), Code::Ok);
+            interp
+                .with_child(b"child", |child| {
+                    child.register_builtin(b"original_lazy", original_child_lazy_result);
+                    assert!(matches!(
+                        child.hide_command(b"original_lazy", b"original_lazy"),
+                        crate::interp::CommandVisibilityOutcome::Moved
+                    ));
+                })
+                .unwrap();
+            let _updater = UpdaterOwner::enter(&interp, mode);
+            let owned = words(&[
+                b"interp",
+                b"invokehidden",
+                b"child",
+                b"-namespace",
+                b"::child_work",
+                b"original_lazy",
+            ]);
+            let argv: Vec<_> = owned.iter().map(Owned::as_ptr).collect();
+            let prior = seed(&mut interp);
+            assert_eq!(super::interp_cmd(&mut interp, &argv), Code::Error);
+            assert_eq!(interp.get_obj_result(), prior.as_ptr());
+            assert_eq!(FIRST.with(Cell::get), 1);
+            let cause = interp.native_execution_refusal().unwrap();
+            assert_eq!(cause, expected(mode));
+            interp
+                .with_child(b"child", |child| {
+                    assert_eq!(child.native_execution_refusal(), Some(cause));
+                    assert_eq!(child.current_ns(), crate::namespace::GLOBAL);
+                    assert_eq!(obj::bytes_of(child.get_obj_result()), b"reached\0\xff");
+                    assert_eq!(child.entered_native_operation_count(), 0);
+                })
+                .unwrap();
+            assert_eq!(interp.entered_native_operation_count(), 0);
+        }
+    }
+
+    #[test]
+    fn original_child_alias_adapters_keep_guest_code_result_and_typed_refusal() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for hidden in [false, true] {
+            for mode in [Update::Normal, Update::Host, Update::Restore] {
+                let mut interp = native("tcl8.6");
+                assert_eq!(interp.eval_str(b"interp create child"), Code::Ok);
+                interp
+                    .with_child(b"child", |child| {
+                        child.register_builtin(b"original_worker", original_child_worker);
+                        if hidden {
+                            child.hide_command(b"original_worker", b"original_worker");
+                        }
+                    })
+                    .unwrap();
+                let _updater = UpdaterOwner::enter(&interp, mode);
+                let owned = words(&[
+                    b"interp",
+                    if hidden { b"invokehidden" } else { b"eval" },
+                    b"child",
+                    b"original_worker",
+                ]);
+                let argv: Vec<_> = owned.iter().map(Owned::as_ptr).collect();
+                let prior = seed(&mut interp);
+                assert_eq!(
+                    super::interp_cmd(&mut interp, &argv),
+                    if matches!(mode, Update::Normal) {
+                        Code::Other(7)
+                    } else {
+                        Code::Error
+                    }
+                );
+                if matches!(mode, Update::Normal) {
+                    assert!(interp.native_execution_refusal().is_none());
+                    assert_eq!(obj::bytes_of(interp.get_obj_result()), b"CHILD\0\xff");
+                } else {
+                    assert_eq!(interp.get_obj_result(), prior.as_ptr());
+                    let cause = interp.native_execution_refusal().unwrap();
+                    let child_cause = interp
+                        .with_child(b"child", |child| child.native_execution_refusal())
+                        .unwrap();
+                    assert_eq!(child_cause, Some(cause));
+                }
+                interp
+                    .with_child(b"child", |child| {
+                        assert_eq!(child.current_ns(), crate::namespace::GLOBAL);
+                        assert_eq!(child.entered_native_operation_count(), 0);
+                    })
+                    .unwrap();
+                assert_eq!(interp.entered_native_operation_count(), 0);
+            }
+        }
+    }
+}
