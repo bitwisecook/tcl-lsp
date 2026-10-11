@@ -2232,88 +2232,129 @@ impl Interp {
         execution: &mut BodyExecution,
         range: std::ops::Range<usize>,
     ) -> Result<obj::Owned, Code> {
-        // One component passes its actual object through; concatenation reaches
-        // the native getter only when multiple components require bytes.
-        let mut pending: Vec<NativeArenaFrame> =
-            vec![(arena.original.root(), range.start, Vec::new(), None)];
-        loop {
-            let root = pending.len() == 1;
-            let frame = pending.last_mut().expect("native word root");
-            let Some(component) = arena
-                .original
-                .list(frame.0)
-                .get(frame.1)
-                .filter(|_| !root || frame.1 < range.end)
-            else {
-                let (_, _, values, _) = pending.pop().expect("completed native operand");
-                let value = self.concatenate_body_values(values)?;
-                let Some(parent) = pending.last_mut() else {
-                    return Ok(value);
-                };
-                let (name, slot) = parent.3.take().expect("actual array index owner");
-                let mut evaluated = self.body_variable_substitution_target(artifact, arena, name);
-                evaluated.original_index = Some(value);
-                evaluated.combined = false;
-                let read = self.body_read_original_parts(&evaluated, slot)?;
-                parent.2.push(read);
-                continue;
-            };
-            frame.1 += 1;
-            let value = match &component.part {
-                ExecutablePart::Text(_) => obj::Owned::retain(
-                    artifact
-                        .literals
-                        .original(
-                            *arena
-                                .texts
-                                .get(&component.span)
-                                .expect("actual emitted TEXT literal"),
-                        )
-                        .expect("actual TEXT object"),
-                ),
-                ExecutablePart::Variable {
-                    name,
-                    index: Some(index),
-                } => {
-                    frame.3 = Some((*name, arena.locals.get(name).copied()));
-                    pending.push((*index, 0, Vec::new(), None));
+        let original = native_list_conversion::BodyObjectOperation::capture(self)
+            .map_err(|error| self.report_cmd_error(error))?;
+        let reached = (|| {
+            // One component passes its actual object through; concatenation reaches
+            // the native getter only when multiple components require bytes.
+            let mut pending: Vec<NativeArenaFrame> =
+                vec![(arena.original.root(), range.start, Vec::new(), None)];
+            loop {
+                original
+                    .check(self)
+                    .map_err(|error| self.report_cmd_error(error))?;
+                let root = pending.len() == 1;
+                let frame = pending.last_mut().expect("native word root");
+                let Some(component) = arena
+                    .original
+                    .list(frame.0)
+                    .get(frame.1)
+                    .filter(|_| !root || frame.1 < range.end)
+                else {
+                    let (_, _, values, _) = pending.pop().expect("completed native operand");
+                    let value = self
+                        .concatenate_body_values_using(values, Some(&original))
+                        .map_err(|error| self.report_cmd_error(error))?;
+                    let Some(parent) = pending.last_mut() else {
+                        return Ok(value);
+                    };
+                    let (name, slot) = parent.3.take().expect("actual array index owner");
+                    let mut evaluated =
+                        self.body_variable_substitution_target(artifact, arena, name);
+                    evaluated.original_index = Some(value);
+                    evaluated.combined = false;
+                    let read = self.body_read_original_parts(&evaluated, slot)?;
+                    original
+                        .check(self)
+                        .map_err(|error| self.report_cmd_error(error))?;
+                    parent.2.push(read);
                     continue;
-                }
-                ExecutablePart::Variable { name, index: None } => self.body_read_original_parts(
-                    &self.body_variable_substitution_target(artifact, arena, *name),
-                    arena.locals.get(name).copied(),
-                )?,
-                ExecutablePart::Command { body } => {
-                    let saved = self.cmd_frames.borrow().last().map(|frame| {
-                        (
-                            frame.line,
-                            frame.cmd.clone(),
-                            frame.original_command.clone(),
-                        )
-                    });
-                    let code = self.execute_body_region(artifact, *body, execution);
-                    if let (Some((line, cmd, original)), Some(frame)) =
-                        (saved, self.cmd_frames.borrow_mut().last_mut())
-                    {
-                        frame.line = line;
-                        frame.cmd = cmd;
-                        frame.original_command = original;
+                };
+                frame.1 += 1;
+                let value = match &component.part {
+                    ExecutablePart::Text(_) => obj::Owned::retain(
+                        artifact
+                            .literals
+                            .original(
+                                *arena
+                                    .texts
+                                    .get(&component.span)
+                                    .expect("actual emitted TEXT literal"),
+                            )
+                            .expect("actual TEXT object"),
+                    ),
+                    ExecutablePart::Variable {
+                        name,
+                        index: Some(index),
+                    } => {
+                        frame.3 = Some((*name, arena.locals.get(name).copied()));
+                        pending.push((*index, 0, Vec::new(), None));
+                        continue;
                     }
-                    if code != Code::Ok {
-                        return Err(code);
+                    ExecutablePart::Variable { name, index: None } => self
+                        .body_read_original_parts(
+                            &self.body_variable_substitution_target(artifact, arena, *name),
+                            arena.locals.get(name).copied(),
+                        )?,
+                    ExecutablePart::Command { body } => {
+                        let mut saved = self.cmd_frames.borrow().last().map(|frame| {
+                            (
+                                frame.line,
+                                frame.cmd.clone(),
+                                frame.original_command.clone(),
+                            )
+                        });
+                        let code = self.execute_body_region(artifact, *body, execution);
+                        // Saved command metadata is mandatory cleanup even when
+                        // the reached command withdrew this original operation.
+                        let current = original.check(self);
+                        let retired = {
+                            let mut frames = self.cmd_frames.borrow_mut();
+                            match (frames.last_mut(), saved.as_mut()) {
+                                (Some(frame), Some((line, cmd, saved_original))) => {
+                                    frame.line = *line;
+                                    frame.cmd = core::mem::take(cmd);
+                                    core::mem::replace(
+                                        &mut frame.original_command,
+                                        saved_original.take(),
+                                    )
+                                }
+                                _ => None,
+                            }
+                        };
+                        drop(retired);
+                        drop(saved);
+                        current.map_err(|error| self.report_cmd_error(error))?;
+                        original
+                            .check(self)
+                            .map_err(|error| self.report_cmd_error(error))?;
+                        if code != Code::Ok {
+                            return Err(code);
+                        }
+                        obj::Owned::retain(self.result_obj())
                     }
-                    obj::Owned::retain(self.result_obj())
-                }
-                ExecutablePart::ParseError(message) => {
-                    if let Some(&(message, options)) = arena.syntax.get(&component.span) {
-                        return Err(self.execute_body_syntax_objects(artifact, message, options));
+                    ExecutablePart::ParseError(message) => {
+                        if let Some(&(message, options)) = arena.syntax.get(&component.span) {
+                            return Err(
+                                self.execute_body_syntax_objects(artifact, message, options)
+                            );
+                        }
+                        return Err(self.error(message.as_bytes()));
                     }
-                    return Err(self.error(message.as_bytes()));
-                }
-                ExecutablePart::Expression { .. } => unreachable!("unadmitted expression sugar"),
-            };
-            frame.2.push(value);
-        }
+                    ExecutablePart::Expression { .. } => {
+                        unreachable!("unadmitted expression sugar")
+                    }
+                };
+                original
+                    .check(self)
+                    .map_err(|error| self.report_cmd_error(error))?;
+                frame.2.push(value);
+            }
+        })();
+        original
+            .check(self)
+            .map_err(|error| self.report_cmd_error(error))?;
+        reached
     }
 
     fn body_variable_substitution_target(
@@ -2400,33 +2441,64 @@ impl Interp {
         code
     }
 
-    fn concatenate_body_values(&mut self, mut values: Vec<obj::Owned>) -> Result<obj::Owned, Code> {
-        if values.len() == 1 {
-            return Ok(values.pop().expect("sole component"));
-        }
-        let dialect = self.native_invocation_dialect();
-        let protocol = dialect
-            .native_string_protocol()
-            .filter(|protocol| protocol.tcl_version().is_some())
-            .ok_or_else(|| {
-                self.report_cmd_error(
-                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+    #[cfg(test)]
+    fn concatenate_body_values(&mut self, values: Vec<obj::Owned>) -> Result<obj::Owned, Code> {
+        self.concatenate_body_values_using(values, None)
+            .map_err(|error| self.report_cmd_error(error))
+    }
+
+    fn concatenate_body_values_using(
+        &mut self,
+        mut values: Vec<obj::Owned>,
+        original: Option<&Rc<native_list_conversion::BodyObjectOperation>>,
+    ) -> Result<obj::Owned, tcl_cmd_core::CmdError> {
+        let actual = self.clone();
+        let objects = original
+            .map(|original| original.objects(&actual))
+            .transpose()?;
+        let check = || original.map_or(Ok(()), |original| original.check(&actual));
+        check()?;
+        let reached = (|| {
+            if values.len() == 1 {
+                return Ok(values.pop().expect("sole component"));
+            }
+            let dialect = actual.native_invocation_dialect();
+            let protocol = dialect
+                .native_string_protocol()
+                .filter(|protocol| protocol.tcl_version().is_some())
+                .ok_or_else(|| {
+                    tcl_cmd_core::CmdError::from(unavailable(
                         "C original body word concatenation issuer",
-                    )
-                    .into(),
-                )
-            })?;
-        let objects = crate::value_ops::RuntimeAppendObjects {
-            dialect,
-            binary_recipe: dialect.byte_array_string_recipe(None),
-        };
-        let originals = values
-            .iter()
-            .map(|value| crate::value_ops::RuntimeAppendValue::borrowed(value.as_ptr()))
-            .collect::<Vec<_>>();
-        let result = tcl_cmd_core::native_cat::concatenate_compiled(&objects, protocol, &originals)
-            .map_err(|error| self.report_cmd_error(error.into()))?;
-        Ok(obj::Owned::retain(result.as_ptr()))
+                    ))
+                })?;
+            let base = crate::value_ops::RuntimeAppendObjects {
+                dialect,
+                binary_recipe: dialect.byte_array_string_recipe(None),
+            };
+            let originals = values
+                .iter()
+                .map(|value| crate::value_ops::RuntimeAppendValue::borrowed(value.as_ptr()))
+                .collect::<Vec<_>>();
+            let result = if let Some(objects) = &objects {
+                let append = objects.original_append_objects(base)?;
+                append.finish(tcl_cmd_core::native_cat::concatenate_compiled(
+                    &append, protocol, &originals,
+                ))?
+            } else {
+                tcl_cmd_core::native_cat::concatenate_compiled(&base, protocol, &originals)
+                    .map_err(tcl_cmd_core::CmdError::from)?
+            };
+            Ok(obj::Owned::retain(result.as_ptr()))
+        })();
+        // Keep the genuine operation through actual component-owner retirement.
+        // Operational mapper retention happens before any unused owner cleanup.
+        let reached = reached.map_err(|error| match &objects {
+            Some(objects) => objects.original_retain(error),
+            None => error,
+        });
+        drop(values);
+        check()?;
+        reached
     }
 
     fn body_target(
@@ -4415,3 +4487,7 @@ mod tests {
 #[cfg(test)]
 #[path = "native_body_artifact/original_return_parent_tests.rs"]
 mod original_return_parent_tests;
+
+#[cfg(test)]
+#[path = "native_body_artifact/original_word_input_tests.rs"]
+mod original_word_input_tests;
