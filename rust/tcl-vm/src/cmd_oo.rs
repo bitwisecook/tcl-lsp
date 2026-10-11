@@ -54,6 +54,7 @@ pub(crate) mod native_context;
 pub(crate) mod native_method_cache;
 pub(crate) mod native_variables;
 mod variable_mapping;
+mod method_preparation;
 mod original_name_operands;
 use tcl_syntax::mro::{MroError, tcloo_linearise};
 
@@ -2073,6 +2074,11 @@ fn run_step_inner(
         return res;
     }
 
+    let preparation =
+        match method_preparation::OriginalMethodPreparation::enter(vm, obj_key, chain, index) {
+            Ok(preparation) => preparation,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
     let obj_ns = vm
         .oo
         .objects
@@ -2155,7 +2161,8 @@ fn run_step_inner(
     // Refresh through the shared proc owner, then persist the replacement on
     // its defining facet.  Recompiling on every method call after a profile
     // switch is both wasteful and makes the class cache lie about its body.
-    let proc = match vm.ensure_proc_traced(crate::command::NativeProcedureCommand::new(proc)) {
+    let reached = vm.ensure_proc_traced(crate::command::NativeProcedureCommand::new(proc));
+    let proc = match preparation.settle(vm, reached) {
         Ok(proc) => proc,
         Err(error) => return crate::command::completion_from_tcl_error(vm, error),
     };
@@ -2181,6 +2188,12 @@ fn run_step_inner(
             }
         };
         drop(retired);
+        if let Err(error) = preparation.check(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+    }
+    if let Err(error) = preparation.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
     let frame = OoFrame {
         name_owner: Rc::clone(&vm.oo.objects[&obj_key].cached_name),

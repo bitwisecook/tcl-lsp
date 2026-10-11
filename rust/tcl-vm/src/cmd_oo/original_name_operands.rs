@@ -136,6 +136,20 @@ impl OriginalOoNameScope {
         }
         self.check_target(vm)
     }
+    /// The actual reached method step selects its declaring facet before preparation.
+    pub(super) fn select_entered_provider(
+        &mut self,
+        vm: &mut Vm,
+        class: bool,
+        id: OoId,
+    ) -> Result<(), CmdError> {
+        self.check(vm)?;
+        let selected = OriginalOoTarget::capture(vm, class, id);
+        self.context
+            .require(vm, selected.is_some(), "original OO method declaring facet")?;
+        self.declaring = selected;
+        self.check_target(vm)
+    }
     /// The target joins the original operation independently of frame transitions.
     pub(super) fn check_target(&self, vm: &mut Vm) -> Result<(), CmdError> {
         let current = self

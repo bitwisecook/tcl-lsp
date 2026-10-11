@@ -99,7 +99,7 @@ impl OriginalMethodFrame {
             role: frame.chain.report_role(),
         })
     }
-    fn is_current(&self, vm: &Vm) -> bool {
+    pub(super) fn is_current(&self, vm: &Vm) -> bool {
         let selected = vm
             .oo
             .call_stack

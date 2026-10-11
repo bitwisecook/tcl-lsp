@@ -3706,3 +3706,22 @@ preserves its ignored Guest registration result and terminal operational cause.
 C8.4 string-key and later object-key source schedules remain independent;
 software callbacks establish no external Native chronology. Detached-generation
 destruction and unset callback dispatch are separate current owners.
+
+
+The OO procedure-method preparation continuation retains the original object,
+declaring facet, entered chain record and actual caller frame before the shared
+procedure owner requests body String or compiler services. These are weak
+observations of independently owned state; they acquire no additional Method or
+native payload reference. Both outcomes return through the same check before
+compiled-cache publication or a new method frame. A reached complete Host cause
+is retained before a refused prepared activation retires, and displaced cache
+payloads retire before the next original-owner check.
+
+The reached chain remains the implementation owner after deletion or replacement
+of a same-named table entry. Ordinary record-flag, method and declaration-roster
+mutation does not invalidate that chain. Original object or declaring-facet
+withdrawal, replacement of the actual caller frame, or execution-context change
+prevents further preparation continuation. Intentional entry into the new method
+frame follows settlement of the original caller context. This continuation
+check grants no Native Class pointer lifetime, native procedure callback
+chronology, command publication or whole-frame cleanup equivalence.
