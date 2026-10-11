@@ -303,7 +303,7 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // Original software seed getter stops before the real PRNG mutation.
         let mut interpreter = native("tcl8.6");
-        let mut control = native("tcl8.6");
+        let control = native("tcl8.6");
         let _ = interpreter.srand(123);
         let _ = control.srand(123);
         interpreter.set_result_bytes(b"PRIOR\0\xff");

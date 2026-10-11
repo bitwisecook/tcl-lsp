@@ -1080,7 +1080,12 @@ fn interpolation_carve_out(
 /// dynamic.
 fn leading_literal_prefix_char(value: &str, config: tcl_lexer::LexerConfig) -> Option<char> {
     let source_map = SourceMap::new(value);
-    let tokens = Lexer::with_config(value, config).tokenise_all().ok()?;
+    let tokens = Lexer::with_config(
+        value,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+    )
+    .tokenise_all()
+    .ok()?;
     for tok in tokens {
         match tok.kind {
             // End of input, or a dynamic (variable/command) prefix — no
@@ -1114,7 +1119,11 @@ fn leading_literal_prefix_char(value: &str, config: tcl_lexer::LexerConfig) -> O
 /// the scan.
 fn literal_contains_crlf(value: &str, config: tcl_lexer::LexerConfig) -> bool {
     let source_map = SourceMap::new(value);
-    let Ok(tokens) = Lexer::with_config(value, config).tokenise_all() else {
+    let Ok(tokens) = Lexer::with_config(
+        value,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+    )
+    .tokenise_all() else {
         return false;
     };
     for tok in tokens {
@@ -12363,5 +12372,50 @@ mod original_taint_local_parser_purpose_tests {
                 .is_none()
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod original_taint_word_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_interpolation_literals_keep_bom_prefix_and_rendered_line_breaks() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Authored interpolation syntax; no value/effect or Native observer receipt.
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::default()
+        };
+        let text = "\u{feff}#prefix\\n$x";
+        assert_eq!(leading_literal_prefix_char(text, config), Some('\u{feff}'));
+        assert!(literal_contains_crlf(text, config));
+        assert_eq!(
+            leading_literal_prefix_char("\u{feff}/$x", config),
+            Some('\u{feff}')
+        );
+        assert!(!literal_contains_crlf("{\u{feff}#prefix\\n$x}", config));
+        let joined =
+            TaintLattice::tainted().with(TaintColour::CRLF_FREE | TaintColour::PATH_PREFIXED);
+        let colour = interpolation_carve_out(text, joined, config);
+        assert!(
+            colour
+                .colours
+                .contains(TaintColour::TAINTED | TaintColour::NON_DASH_PREFIXED)
+        );
+        assert!(
+            !colour
+                .colours
+                .intersects(TaintColour::CRLF_FREE | TaintColour::PATH_PREFIXED)
+        );
+        assert_eq!(
+            colour,
+            interpolation_carve_out(text, joined, config.nested())
+        );
+        assert_eq!(leading_literal_prefix_char("${a{b}", config), None);
+        assert_eq!(config.leading_bom, tcl_lexer::LeadingBom::Skip);
     }
 }

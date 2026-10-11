@@ -506,7 +506,11 @@ fn single_command_body(
         let origin = span.start()
             + u32::try_from(raw.len() - raw.trim_start().len())
                 .map_err(|_| "the body is too large".to_owned())?;
-        let commands = segment_commands_with_offset_and_config(text, origin, config);
+        let commands = segment_commands_with_offset_and_config(
+            text,
+            origin,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+        );
         let [command] = commands.as_slice() else {
             return Err(format!("the proc body is {} commands", commands.len()));
         };
@@ -550,7 +554,7 @@ fn single_command_body(
                     .unwrap_or(0),
             )
             .unwrap_or(0),
-        config,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
     )
     .into_iter()
     .filter(|command| !command.name().is_empty())
@@ -1514,5 +1518,57 @@ p";
         let proc_def = analysis.all_procs.get("::p").unwrap();
         let body = single_command_body(source, proc_def, &analysis, walk.config).unwrap();
         assert!(reject_frame_sensitive_body(source, &body, &[], &walk).is_err());
+    }
+}
+
+#[cfg(test)]
+mod original_inline_body_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_inline_body_keeps_bom_head_and_retained_parent_correspondence() {
+        // naming.refactor.original-procedure-inline-binding
+        // docs/design/analysis/name-resolution-proofs/refactor-original-procedure-inline-binding.md
+        // Original body syntax/geometry only; no complete inline edit permission.
+        let source = "\u{feff}proc p {x} {\u{feff}#prefix $x}\np VALUE";
+        let mut prepared = tcl_compiler::analyser::Analyser::new();
+        let base = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let config = LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..base.lexer_config()
+        };
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            base.analyser_profile(),
+            base.unit_profile(),
+            base.context_registry(),
+            config,
+        );
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, "tcl9.1");
+        assert!(!analysis.allows_lexical_declaration_advice());
+        let procedure = analysis
+            .all_procs
+            .get("::p")
+            .expect("actual original procedure header");
+        let body = single_command_body(source, procedure, &analysis, config).unwrap();
+        assert_eq!(body.command.name(), "\u{feff}#prefix");
+        assert_eq!(
+            body.origin,
+            u32::try_from(source.find("\u{feff}#prefix").unwrap()).unwrap()
+        );
+        assert_eq!(
+            source.get(body.command.argv[0].span.as_range()),
+            Some("\u{feff}#prefix")
+        );
+        assert_eq!(body.text, "\u{feff}#prefix $x");
+        assert!(
+            single_command_body("different original document", procedure, &analysis, config)
+                .is_err()
+        );
+        assert!(single_command_body(source, procedure, &analysis, config.nested()).is_err());
+        assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
     }
 }

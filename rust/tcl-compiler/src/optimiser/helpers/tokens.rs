@@ -44,7 +44,11 @@ pub fn extract_body_text(
     config: tcl_lexer::LexerConfig,
 ) -> Option<String> {
     let raw = source.get(body_span.as_range())?;
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(raw, 0, config);
+    let commands = crate::segmenter::segment_commands_with_offset_and_config(
+        raw,
+        0,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+    );
     let [command] = commands.as_slice() else {
         return None;
     };
@@ -66,7 +70,11 @@ pub fn extract_body_text(
     // An empty selected body returns the empty Tcl value; removing it can
     // expose the preceding command's result. The caller needs an explicit
     // result-use proof before this case can be rewritten.
-    let body_commands = crate::segmenter::segment_commands_with_offset_and_config(&text, 0, config);
+    let body_commands = crate::segmenter::segment_commands_with_offset_and_config(
+        &text,
+        0,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+    );
     if body_commands.is_empty() || body_commands.iter().any(|command| command.is_partial) {
         return None;
     }
@@ -172,5 +180,62 @@ mod tests {
         }
         assert_eq!(extract_body_text("é", Span::new(1, 2), config), None);
         assert_eq!(extract_body_text("hi", Span::new(5, 10), config), None);
+    }
+}
+
+#[cfg(test)]
+mod original_selected_body_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_selected_body_keeps_bom_value_and_complete_parent_word_geometry() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Selected-word/value syntax only; callers retain independent rewrite permissions.
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::default()
+        };
+        let source = "\u{feff}if {1} {\u{feff}#prefix $x}";
+        let image = tcl_lexer::SourceImage::document(source);
+        let plan = tcl_lexer::native_script_words_in(
+            &image,
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let body = &plan.commands[0].words[2];
+        assert_eq!(body.config(), config);
+        assert_eq!(body.image(), &image);
+        assert_eq!(
+            extract_body_text(source, body.span(), config),
+            Some("\u{feff}#prefix $x\n".into())
+        );
+        assert_eq!(
+            extract_body_text(source, body.span(), config.nested()),
+            Some("\u{feff}#prefix $x\n".into())
+        );
+        let word = "\u{feff}#prefix";
+        assert_eq!(
+            extract_body_text(
+                word,
+                Span::new(0, u32::try_from(word.len()).unwrap()),
+                config
+            ),
+            Some(format!("{word}\n"))
+        );
+        let comment = "{#prefix $x}";
+        assert_eq!(
+            extract_body_text(
+                comment,
+                Span::new(0, u32::try_from(comment.len()).unwrap()),
+                config
+            ),
+            None
+        );
+        assert_eq!(extract_body_text(source, Span::new(1, 2), config), None);
+        assert_eq!(config.leading_bom, tcl_lexer::LeadingBom::Skip);
     }
 }

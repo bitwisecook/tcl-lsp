@@ -283,7 +283,11 @@ fn word_uses_from_versions(
 ) -> HashMap<Symbol, u32> {
     let mut uses: HashMap<Symbol, u32> = HashMap::new();
     let source_map = SourceMap::new(text);
-    let Ok(tokens) = Lexer::with_config(text, config).tokenise_all() else {
+    let Ok(tokens) = Lexer::with_config(
+        text,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+    )
+    .tokenise_all() else {
         return uses;
     };
     for tok in tokens {
@@ -1812,5 +1816,64 @@ mod tests {
         // Wrong arity → untainted.
         let out = apply_proc_return_summary(&summary, &[TaintLattice::tainted()]);
         assert!(!out.is_tainted());
+    }
+}
+
+#[cfg(test)]
+mod original_return_taint_word_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_return_word_keeps_bom_and_actual_ssa_exit_versions() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Lexical SSA-use projection only; no executable return-taint closure.
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::default()
+        };
+        let registry = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for_with_config(
+            "\u{feff}set x VALUE\nreturn $x",
+            &registry,
+            false,
+            config,
+        );
+        let function = &unit.top_level;
+        assert_eq!(function.source_lexer_config(), config);
+        let symbol = function.ssa.var_symbol("x").expect("actual SSA variable");
+        let versions = function
+            .ssa
+            .blocks
+            .values()
+            .find_map(|block| {
+                block
+                    .exit_versions
+                    .contains_key(&symbol)
+                    .then_some(&block.exit_versions)
+            })
+            .expect("actual exit version");
+        let expected = HashMap::from([(symbol, versions[&symbol])]);
+        let text = "\u{feff}#prefix $x $not_in_this_ssa";
+        assert_eq!(
+            word_uses_from_versions(
+                text,
+                versions,
+                &function.ssa,
+                function.source_lexer_config()
+            ),
+            expected
+        );
+        assert_eq!(
+            word_uses_from_versions(text, versions, &function.ssa, config.nested()),
+            expected
+        );
+        assert!(
+            word_uses_from_versions("{\u{feff}#prefix $x}", versions, &function.ssa, config)
+                .is_empty()
+        );
+        assert_eq!(config.leading_bom, tcl_lexer::LeadingBom::Skip);
     }
 }

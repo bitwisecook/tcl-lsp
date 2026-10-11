@@ -2186,7 +2186,7 @@ pub unsafe extern "C" fn tcl_codegen_guard_check(
 /// `tcl_codegen_guard_release(token)` — release a token exactly once.
 #[no_mangle]
 pub extern "C" fn tcl_codegen_guard_release(token: u64) {
-    if let Some(mut interpreter) = original_frame_owner::cleanup_interpreter() {
+    if let Some(interpreter) = original_frame_owner::cleanup_interpreter() {
         let _ = interpreter.release_command_guard(GuardToken::from_raw(token));
     }
 }

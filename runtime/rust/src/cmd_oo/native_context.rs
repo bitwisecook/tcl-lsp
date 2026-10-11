@@ -1221,7 +1221,7 @@ mod original_definition_frame_tests {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // Allocation-only frame retention is independent of native header liveness.
-        let mut interpreter = native("tcl8.6");
+        let interpreter = native("tcl8.6");
         let member = obj::Owned::fresh(obj::alloc_typed(&MEMBER, 0));
         let pointer = member.as_ptr();
         interpreter
