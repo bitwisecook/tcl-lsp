@@ -88,3 +88,64 @@ C9 eligibility uses the proper ByteArray object type even when a String is resid
 The [original index/range proof](../analysis/name-resolution-proofs/string-original-counted-index-range-storage-and-results.md) retains 116 actual command outcomes and four explicit Jim constructor omissions. Software controls compare original public type names, result residency, deterministic bytes and supported alias predicates. Direct software owners supply their own references; the controls do not infer the native `EvalObjv` temporary reference schedule, private C cache contents or callback lifetime from those public rows. Separate source-backed software controls exercise eager/lazy cache admission, actual extension callbacks and original storage retirement.
 
 To extend this interface, identify the selected getter and constructor first. Preserve whether it reads the original bytes, a native Unicode unit, a proper binary payload or a counted raw slice. Use the checked physical String and byte-cache siblings at reached conversions, retain the full original failure before mandatory fresh-result cleanup, and carry actual constructor/result roles. A release's replacement observation does not establish its index/range behavior.
+
+
+## Search and sort option paths
+
+`NativeIndexOps::original_c_option_path` prepares original `-index` operands
+through `native_option_index::prepare_original`. Actual C adapters select this
+worker; explicit neutral adapters retain lexical paths. Jim keeps its own
+original index/path consumer. `PreparedPath` stores either neutral spellings or
+pure `NativeCompiledListIndex` coordinates. A prepared native path never parses
+its original header again while selecting keys or building subindices.
+
+C8.4 `lsort` has one scalar index, so it does not first convert that original
+operand to a List. Its `-1` coordinate selects the entire key. C8.4 `lsearch`
+uses its native option table without `-index`. C8.5 converts each original path
+member with the native biased end value `-2`. C8.6 selects its distinct Int32,
+end-offset and limited arithmetic encoding. C9 uses the original wide-index
+producer and original offset-primary sign, with the actual local backend's
+`Tcl_Size` width and distinct `LIST_MAX` allocation bound controlling encoding.
+`NativeOptionIndexLayout` derives `ListStore` slot alignment and pointer width
+from the local C target. Fixed source controls cover both standard 32-bit and
+64-bit geometry and the exact numeric/relative encoding boundaries. The 192
+command observations do not measure these large bounds. This descriptive local layout
+cannot authenticate a foreign C library or BIG-IP build.
+
+Every `lsort -index` occurrence is validated when reached. C8.6 and C9 then
+quietly prepare only the last original operand after all options and before
+input List conversion. The quiet pass uses the same owner and actual original
+headers. Neither an empty input nor a later replacement option bypasses the
+reached validation. C8.6's CString suffix integer getter has a separate local
+temporary with type NULL, resident CString bytes and native reference count
+one. It uses the selected Int32 worker and mandatory cleanup. The original
+option/member header gains no temporary reference or donated numeric cache.
+A local allocated temporary does not claim the provider's C stack location.
+
+The option member view retains allocation safety, selected original header
+identity and backing generation. It adds no original header or child native
+references. Each reached coordinate checks the original view again before
+using the next member. Runtime's immutable C9 arithmetic-series cache uses its
+own reached array and child allocation leases; it does not convert through a
+textual path. Withdrawn original backing cannot donate still-live old children
+to another operation. `retain_index_failure` uses the actual interpreter's
+unconditional first-cause latch before mandatory temporary, view or key cleanup.
+All neutral implementations explicitly use a no-op latch.
+
+`Path::drill` uses the shared `IndexedKey` roles and reaches selected Length
+before Member. End-relative encoding stays in `NativeCompiledListIndex`.
+Consumers must use `Path::decode` with their actual meaning of `end`, rather
+than decoding a path through a current Unicode spelling. Guest error metadata
+is structured: native index error codes, option-item propagation, CString
+message extents and the independently selected String result producer travel
+in `CmdError` without message reparsing.
+
+The original command/child-cache observations and their bounds are recorded in
+[list-original-option-index-path-preparation-and-results.md](../analysis/name-resolution-proofs/list-original-option-index-path-preparation-and-results.md).
+Software controls compare exact success/error result bytes and original child
+cache types from all 192 measured C/Jim cases. They compare child residency only
+on successful commands, because native EvalObjv error propagation can separately
+format argv. Provider temporary reference counts, private caches, error-stack
+frames and callback chronology are not inferred from those public predicates.
+The extension callback control independently checks actual software backing
+withdrawal, preservation of the first cause and absence of a protective hold.

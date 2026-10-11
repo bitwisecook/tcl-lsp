@@ -24,7 +24,7 @@ use crate::{
 };
 use tcl_cmd_core::{
     CmdError,
-    native_list_index::{self, NativeListIndexOps},
+    native_list_index::{self, NativeIndexMembers, NativeListIndexOps},
 };
 use tcl_dialect::TclVersion;
 use tcl_syntax::{
@@ -59,9 +59,53 @@ impl RuntimeIndexOwner {
         &self._owner
     }
 }
+/// Checked original option backing; allocation-only transport never supplies
+/// a new original header/member native reference.
+pub struct RuntimeOptionMembers {
+    original: obj::NativePrimaryReceipt,
+    pointer: *mut TclObj,
+    backing: Option<list::NativeListBacking>,
+    _members: Vec<obj::NativeObjectLifetime>,
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+    members: Vec<*mut TclObj>,
+}
+impl NativeIndexMembers<*mut TclObj> for RuntimeOptionMembers {
+    fn index_elements(&self) -> Result<&[*mut TclObj], ValueError> {
+        self.original.check(self.pointer)?;
+        if let Some(backing) = &self.backing {
+            backing.check_generation()?;
+            drop(backing.elements()?);
+        } else {
+            let (current, length) =
+                crate::native_arithseries::cached_elements_raw(self.pointer, self.protocol)?;
+            if length != self.members.len() {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "changed original abstract option path",
+                ));
+            }
+            // SAFETY: the same checked original immutable series owns this
+            // reached array; every captured child allocation is independently leased.
+            let current = if length == 0 {
+                &[][..]
+            } else {
+                unsafe { core::slice::from_raw_parts(current, length) }
+            };
+            if current != self.members {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "changed original abstract option members",
+                ));
+            }
+            for &member in &self.members {
+                obj::check_native_liveness(member)?;
+            }
+        }
+        Ok(&self.members)
+    }
+}
 impl NativeListIndexOps for Interp {
     type Owner = RuntimeIndexOwner;
     type Members = Vec<*mut TclObj>;
+    type OptionMembers = RuntimeOptionMembers;
     fn index_version(&self) -> Result<TclVersion, ValueError> {
         self.native_invocation_dialect()
             .native_string_protocol()
@@ -69,6 +113,12 @@ impl NativeListIndexOps for Interp {
             .ok_or(ValueError::CommandProtocolUnavailable(
                 "original C ListIndex issuer",
             ))
+    }
+    fn index_option_layout(
+        &self,
+    ) -> Result<tcl_cmd_core::native_option_index::NativeOptionIndexLayout, CmdError> {
+        self.index_version()?;
+        tcl_cmd_core::native_option_index::NativeOptionIndexLayout::local().map_err(Into::into)
     }
     fn index_original(owner: &RuntimeIndexOwner) -> &*mut TclObj {
         &owner.pointer
@@ -78,6 +128,65 @@ impl NativeListIndexOps for Interp {
     }
     fn index_empty(&mut self) -> RuntimeIndexOwner {
         RuntimeIndexOwner::from_owned(obj::Owned::fresh(obj::new_string_bytes(b"")))
+    }
+    fn index_int_c_string(&mut self, source: &[u8]) -> Result<Option<i32>, CmdError> {
+        let operation = crate::interp::native_arguments::OriginalArguments::enter(self, &[])?;
+        if self.index_version()? != TclVersion::V8_6 {
+            return Err(
+                ValueError::CommandProtocolUnavailable("C8.6 suffix CString Int issuer").into(),
+            );
+        }
+        operation.check_for(self)?;
+        // Pinned Tcl_GetInt uses a distinct typeNULL resident CString object at
+        // refCount1. This genuine local temporary does not retain the original.
+        let temporary = obj::Owned::fresh(obj::new_string_bytes(tcl_core_types::c_string_extent(
+            source,
+        )));
+        let reached = self
+            .index_number_checked(&temporary.as_ptr())
+            .map(|number| match number {
+                Some(Number::Int(integer)) => {
+                    Some(tcl_syntax::number::native_int32_low_bits(integer))
+                }
+                _ => None,
+            })
+            .map_err(|error| operation.retain_refusal(error));
+        drop(temporary);
+        operation.check_for(self)?;
+        reached
+    }
+    fn index_option_members_checked(
+        &mut self,
+        original: &*mut TclObj,
+    ) -> Result<RuntimeOptionMembers, CmdError> {
+        let operation =
+            crate::interp::native_arguments::OriginalArguments::enter(self, &[*original])?;
+        let members = self.index_members_checked(original)?;
+        operation.check_original_for(self, 0, *original)?;
+        let primary = obj::NativePrimaryReceipt::capture(*original)
+            .map_err(|error| operation.retain_refusal(error.into()))?;
+        let backing = list::native_list_backing(*original);
+        if backing.is_none() && !crate::native_arithseries::is_series(*original) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original option path List storage",
+            )
+            .into());
+        }
+        let protocol = tcl_syntax::native_string::NativeStringProtocol::C(self.index_version()?);
+        let leases = members
+            .iter()
+            .map(|&member| obj::NativeObjectLifetime::retain(member))
+            .collect();
+        let view = RuntimeOptionMembers {
+            original: primary,
+            pointer: *original,
+            backing,
+            _members: leases,
+            members,
+            protocol,
+        };
+        view.index_elements()?;
+        Ok(view)
     }
     fn index_is_list(original: &*mut TclObj) -> bool {
         core::ptr::eq(obj::obj_type_ptr(*original), &list::TCL_LIST_TYPE)
@@ -387,3 +496,7 @@ mod returned_owner_controls {
         assert_eq!(unsafe { (*original.as_ptr()).ref_count }, 1);
     }
 }
+
+#[cfg(test)]
+#[path = "native_option_path_controls.rs"]
+mod native_option_path_controls;

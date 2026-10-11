@@ -48,6 +48,7 @@
 use core::cmp::Ordering;
 
 use crate::index::NativeIndexOps;
+use crate::native_option_index::{OptionCommand, Path, PreparedPath};
 use tcl_dialect::TclVersion;
 use tcl_syntax::value::ValueOps;
 
@@ -187,7 +188,7 @@ struct Opts {
     bisect: bool,
     subindices: bool,
     group: usize,
-    index_path: Vec<Vec<u8>>,
+    index_path: PreparedPath,
     start_argument: Option<usize>,
 }
 
@@ -315,7 +316,7 @@ impl Opts {
             bisect: false,
             subindices: false,
             group: 1,
-            index_path: Vec::new(),
+            index_path: PreparedPath::default(),
             start_argument: None,
         }
     }
@@ -328,10 +329,49 @@ fn parse_options<O: NativeIndexOps>(ops: &mut O, args: &[O::Value]) -> Result<Op
     let last_opt = n - 2; // first non-option index
     let mut i = 0;
     while i < last_opt {
-        match OPTIONS
-            .index_of_original(ops, &args[i])
-            .map_err(LsearchError::from_command)?
-        {
+        let option = if ops.index_c_version() == Some(TclVersion::V8_4) {
+            const MAPPING: [usize; 14] = [
+                OPT_ALL,
+                OPT_ASCII,
+                OPT_DECREASING,
+                OPT_DICTIONARY,
+                OPT_EXACT,
+                OPT_GLOB,
+                OPT_INCREASING,
+                OPT_INLINE,
+                OPT_INTEGER,
+                OPT_NOT,
+                OPT_REAL,
+                OPT_REGEXP,
+                OPT_SORTED,
+                OPT_START,
+            ];
+            static NAMES: [&str; 14] = [
+                "-all",
+                "-ascii",
+                "-decreasing",
+                "-dictionary",
+                "-exact",
+                "-glob",
+                "-increasing",
+                "-inline",
+                "-integer",
+                "-not",
+                "-real",
+                "-regexp",
+                "-sorted",
+                "-start",
+            ];
+            static SELECTED: OptionTable<'static> = OptionTable::abbreviating("option", &NAMES);
+            MAPPING[SELECTED
+                .index_of_original(ops, &args[i])
+                .map_err(LsearchError::from_command)?]
+        } else {
+            OPTIONS
+                .index_of_original(ops, &args[i])
+                .map_err(LsearchError::from_command)?
+        };
+        match option {
             OPT_ALL => o.all = true,
             OPT_ASCII => o.dtype = SortMode::Ascii,
             OPT_DICTIONARY => o.dtype = SortMode::Dictionary,
@@ -378,8 +418,17 @@ fn parse_options<O: NativeIndexOps>(ops: &mut O, args: &[O::Value]) -> Result<Op
                         "\"-index\" option must be followed by list index",
                     ));
                 }
-                o.index_path = split_index(&ops.as_bytes(&args[i + 1]))?;
-                validate_index_path(ops, &o.index_path)?;
+                o.index_path = match ops
+                    .original_c_option_path(&args[i + 1], OptionCommand::Search, true)
+                    .map_err(LsearchError::from_command)?
+                {
+                    Some(path) => PreparedPath::original(path),
+                    None => {
+                        let path = split_index(&ops.as_bytes(&args[i + 1]))?;
+                        validate_index_path(ops, &path)?;
+                        PreparedPath::neutral(path)
+                    }
+                };
                 i += 1;
             }
             _ => unreachable!("the option table is closed"),
@@ -387,7 +436,7 @@ fn parse_options<O: NativeIndexOps>(ops: &mut O, args: &[O::Value]) -> Result<Op
         i += 1;
     }
     // `-subindices` only makes sense alongside `-index` (C's BAD_OPTION_MIX).
-    if o.subindices && o.index_path.is_empty() {
+    if o.subindices && o.index_path.path().is_empty() {
         return Err(LsearchError::coded(
             "-subindices cannot be used without -index option",
             b"TCL OPERATION LSEARCH BAD_OPTION_MIX",
@@ -402,7 +451,7 @@ struct SearchInput<'a, V> {
     options: &'a Opts,
     start: usize,
     group_offset: usize,
-    key_path: &'a [Vec<u8>],
+    key_path: Path<'a>,
     pattern: Option<&'a [u8]>,
 }
 
@@ -449,9 +498,9 @@ fn lsearch_with<O: NativeIndexOps, R>(
         // -stride + -index: the leading index value picks the key element within
         // each group; the rest of the path applies inside it.
         let mut group_offset = 0usize;
-        let mut key_path: &[Vec<u8>] = &o.index_path;
-        if o.group > 1 && !o.index_path.is_empty() {
-            match index::resolve_for_ops(ops, &str_of(&o.index_path[0]), o.group) {
+        let mut key_path = o.index_path.path();
+        if o.group > 1 && !o.index_path.path().is_empty() {
+            match key_path.decode(ops, 0, o.group - 1) {
                 Ok(g) if g >= 0 && (g as usize) < o.group => {
                     group_offset = usize::try_from(g).unwrap_or(0);
                 }
@@ -464,7 +513,7 @@ fn lsearch_with<O: NativeIndexOps, R>(
                     ));
                 }
             }
-            key_path = &o.index_path[1..];
+            key_path = key_path.tail();
         }
 
         // Resolve -start (relative to listc, then clamped to a group boundary).
@@ -645,7 +694,7 @@ fn select_key<O: NativeIndexOps>(
     elems: &[O::Value],
     base: usize,
     group_offset: usize,
-    key_path: &[Vec<u8>],
+    key_path: Path<'_>,
 ) -> Result<index::IndexedKey<O::IndexKeyOwner>, LsearchError> {
     select_by_index(ops, &elems[base + group_offset], key_path)
 }
@@ -655,9 +704,9 @@ fn select_key<O: NativeIndexOps>(
 fn select_by_index<O: NativeIndexOps>(
     ops: &mut O,
     value: &O::Value,
-    path: &[Vec<u8>],
+    path: Path<'_>,
 ) -> Result<index::IndexedKey<O::IndexKeyOwner>, LsearchError> {
-    index::drill(ops, value, path).map_err(LsearchError::from_command)
+    path.drill(ops, value).map_err(LsearchError::from_command)
 }
 
 /// Compare the search `pattern` against key `obj` under `dtype` (`-exact`/
@@ -712,7 +761,7 @@ fn result_one<O: NativeIndexOps>(
     index: isize,
     o: &Opts,
     group_offset: usize,
-    key_path: &[Vec<u8>],
+    key_path: Path<'_>,
     listc: usize,
 ) -> Result<index::IndexResult<O::Value>, LsearchError> {
     if o.inline {
@@ -745,7 +794,7 @@ fn result_all<O: NativeIndexOps>(
     matches: &[usize],
     o: &Opts,
     group_offset: usize,
-    key_path: &[Vec<u8>],
+    key_path: Path<'_>,
     listc: usize,
 ) -> Result<index::IndexResult<O::Value>, LsearchError> {
     let mut out: Vec<index::IndexResult<O::Value>> = Vec::new();
@@ -812,7 +861,7 @@ fn inline_item<O: NativeIndexOps>(
     base: usize,
     o: &Opts,
     group_offset: usize,
-    key_path: &[Vec<u8>],
+    key_path: Path<'_>,
 ) -> Result<index::IndexResult<O::Value>, LsearchError> {
     if !o.subindices && o.group > 1 {
         let group: Vec<O::Value> = elems[base..base + o.group].to_vec();
@@ -830,7 +879,7 @@ fn inline_leaf<O: NativeIndexOps>(
     base: usize,
     o: &Opts,
     group_offset: usize,
-    key_path: &[Vec<u8>],
+    key_path: Path<'_>,
 ) -> Result<index::IndexResult<O::Value>, LsearchError> {
     if o.subindices && !key_path.is_empty() {
         let key = select_by_index(ops, &elems[base + group_offset], key_path)?;
@@ -848,12 +897,12 @@ fn inline_leaf<O: NativeIndexOps>(
 fn subindex_obj<O: NativeIndexOps>(
     ops: &mut O,
     base: usize,
-    key_path: &[Vec<u8>],
+    key_path: Path<'_>,
     listc: usize,
 ) -> Result<O::Value, LsearchError> {
     let mut out = vec![ops.new_int(i64::try_from(base).unwrap_or(i64::MAX))];
-    for spec in key_path {
-        let v = match index::resolve_for_ops(ops, &str_of(spec), listc + 1) {
+    for ordinal in 0..key_path.len() {
+        let v = match key_path.decode(ops, ordinal, listc) {
             Ok(value) => value,
             Err(error) if error.native_execution_refusal().is_some() => {
                 for created in out {
@@ -1012,6 +1061,9 @@ mod tests {
         }
         fn check_index_operation(&mut self, _: &()) -> Result<(), crate::CmdError> {
             Ok(())
+        }
+        fn retain_index_failure(&mut self, _error: &crate::CmdError) {
+            // Pure neutral adapter has no interpreter first-cause owner.
         }
         fn discard_owned_index_result(&mut self, created: Self::Value) {
             drop(created);

@@ -35,9 +35,30 @@ impl NativeIndexMembers<Value> for NativeListItems {
         self.elements()
     }
 }
+/// Borrow the actual selected option header and its original native List array.
+/// Neither the header lease nor its member snapshot supplies a native +1.
+pub struct VmOptionMembers {
+    original: Value,
+    members: NativeListItems,
+}
+impl NativeIndexMembers<Value> for VmOptionMembers {
+    fn index_elements(&self) -> Result<&[Value], ValueError> {
+        self.original.check_native_header()?;
+        let (current, _) = self.original.cached_list_representation().ok_or(
+            ValueError::CommandProtocolUnavailable("withdrawn original option List backing"),
+        )?;
+        if !self.members.same_backing(&current) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "changed original option List backing",
+            ));
+        }
+        self.members.elements()
+    }
+}
 impl NativeListIndexOps for Vm {
     type Owner = Value;
     type Members = NativeListItems;
+    type OptionMembers = VmOptionMembers;
     fn index_version(&self) -> Result<TclVersion, ValueError> {
         self.actual_native_invocation_dialect()
             .native_string_protocol()
@@ -45,6 +66,12 @@ impl NativeListIndexOps for Vm {
             .ok_or(ValueError::CommandProtocolUnavailable(
                 "original C ListIndex issuer",
             ))
+    }
+    fn index_option_layout(
+        &self,
+    ) -> Result<tcl_cmd_core::native_option_index::NativeOptionIndexLayout, CmdError> {
+        self.index_version()?;
+        tcl_cmd_core::native_option_index::NativeOptionIndexLayout::local().map_err(Into::into)
     }
     fn index_original(owner: &Value) -> &Value {
         owner
@@ -54,6 +81,47 @@ impl NativeListIndexOps for Vm {
     }
     fn index_empty(&mut self) -> Value {
         Value::empty()
+    }
+    fn index_int_c_string(&mut self, source: &[u8]) -> Result<Option<i32>, CmdError> {
+        use crate::interp::{
+            native_numeric_ops::OriginalNumericOps, native_operation_currency::NativeOperationScope,
+        };
+        let operation = NativeOperationScope::enter(self)?;
+        if self.index_version()? != TclVersion::V8_6 {
+            return Err(
+                ValueError::CommandProtocolUnavailable("C8.6 suffix CString Int issuer").into(),
+            );
+        }
+        operation.check(self)?;
+        let temporary = Value::new_native_string_bytes(tcl_core_types::c_string_extent(source))
+            .into_native_reference();
+        let numeric = OriginalNumericOps::in_original_scope(self, &operation)?;
+        let reached = numeric
+            .probe(&temporary, NativeScalarGetterKind::Int)
+            .map(|outcome| match outcome {
+                Ok(NativeScalarGetterValue::Wide(integer)) => {
+                    Some(tcl_syntax::number::native_int32_low_bits(integer))
+                }
+                _ => None,
+            });
+        if let Err(error) = &reached {
+            numeric.retain_failure(error);
+        }
+        drop(temporary);
+        numeric.current()?;
+        reached
+    }
+    fn index_option_members_checked(
+        &mut self,
+        original: &Value,
+    ) -> Result<VmOptionMembers, CmdError> {
+        let members = self.index_members_checked(original)?;
+        let view = VmOptionMembers {
+            original: original.native_lifetime_lease().into_value(),
+            members,
+        };
+        view.index_elements()?;
+        Ok(view)
     }
     fn index_is_list(original: &Value) -> bool {
         original.cached_list_representation().is_some()

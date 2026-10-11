@@ -147,6 +147,12 @@ pub trait NativeIndexOps: ValueOps {
     /// The complete first refusal, including change-and-restore.
     fn check_index_operation(&mut self, original: &Self::IndexOperation) -> Result<(), CmdError>;
 
+    /// Retain an intrinsic first Host refusal before mandatory cleanup.
+    /// This latch grants no operation, getter, header or result role. Neutral
+    /// adapters explicitly choose a no-op; physical adapters use their actual
+    /// interpreter's unconditional first-cause owner.
+    fn retain_index_failure(&mut self, error: &CmdError);
+
     /// Discard a reached Created, Detached or ReturnedOwnedTransport result.
     /// Borrowed input transport is released by the shared role owner instead.
     /// Mandatory retirement continues after refusal and grants no new role.
@@ -226,6 +232,23 @@ pub trait NativeIndexOps: ValueOps {
     /// # Errors
     /// Original header, operation or selected getter/engine refusal, or bad index.
     fn original_jim_index(&mut self, _original: &Self::Value) -> Result<Option<i32>, CmdError> {
+        Ok(None)
+    }
+
+    /// Prepare original C search/sort option members before the input List.
+    /// None is an explicit neutral/Jim adapter, never a recreated original.
+    /// `report` selects the public validation versus source-selected quiet
+    /// second preparation of the last lsort path.
+    ///
+    /// # Errors
+    /// Original member/getter/width failure or complete first Host refusal.
+    fn original_c_option_path(
+        &mut self,
+        _original: &Self::Value,
+        _command: crate::native_option_index::OptionCommand,
+        _report: bool,
+    ) -> Result<Option<Vec<tcl_syntax::native_compiled_index::NativeCompiledListIndex>>, CmdError>
+    {
         Ok(None)
     }
 
@@ -468,6 +491,9 @@ pub(crate) fn run_index_metadata<O: NativeIndexOps, T>(
 ) -> Result<T, CmdError> {
     let original = ops.enter_index_operation()?;
     let reached = worker(ops);
+    if let Err(error) = &reached {
+        ops.retain_index_failure(error);
+    }
     ops.check_index_operation(&original)?;
     reached
 }
@@ -1034,7 +1060,30 @@ pub fn bad_index_for_ops<O: ValueOps>(
     };
     let error = bad_index_in(diagnostic, syntax);
     match ops.index_error_string_protocol() {
-        Ok(Some(protocol)) => error.with_native_string_result(protocol),
+        Ok(Some(protocol)) => {
+            let mut details = error.into_byte_details();
+            let mut string_result = true;
+            if let Some(version) = protocol.tcl_version() {
+                if tcl_syntax::number::native_index_octal_hint(spec.as_ref(), version) {
+                    details
+                        .message
+                        .extend_from_slice(b" (looks like invalid octal number)");
+                    // C84 Tcl_AppendResult reaches the interpreter CString
+                    // result, later materialised as a fresh NULL-primary object.
+                    string_result = version != TclVersion::V8_4;
+                }
+                if version >= TclVersion::V8_6 {
+                    details.error_code =
+                        crate::error::CmdErrorCodeUpdate::Set(b"TCL VALUE INDEX".to_vec());
+                }
+            }
+            let error = CmdError::from_byte_details(details);
+            if string_result {
+                error.with_native_string_result(protocol)
+            } else {
+                error
+            }
+        }
         Ok(None) => error,
         Err(refusal) => refusal.into(),
     }
@@ -1074,7 +1123,13 @@ fn step_key<O: NativeIndexOps>(
     selected: IndexResult<O::Value>,
 ) -> Result<IndexedKey<O::IndexKeyOwner>, CmdError> {
     let (next, created) = match selected {
-        IndexResult::Borrowed(member) => (ops.index_borrowed_key(&member)?, false),
+        IndexResult::Borrowed(member) => {
+            let selected = ops.index_borrowed_key(&member);
+            if let Err(error) = &selected {
+                ops.retain_index_failure(error);
+            }
+            (selected?, false)
+        }
         IndexResult::Created(created)
         | IndexResult::Detached(created)
         | IndexResult::ReturnedOwnedTransport(created) => (ops.index_created_key(created)?, true),
@@ -1134,6 +1189,87 @@ pub fn drill<O: NativeIndexOps>(
         },
         |_, key| drop(key),
         |error| error,
+    )
+}
+
+/// Select prepared original C coordinates, without reparsing an index object.
+/// Original Length precedes the independently selected member getter.
+///
+/// # Errors
+/// Reached original List/member/diagnostic or complete first Host refusal.
+pub fn drill_prepared_c<O: NativeIndexOps>(
+    ops: &mut O,
+    original: &O::Value,
+    path: &[tcl_syntax::native_compiled_index::NativeCompiledListIndex],
+) -> Result<IndexedKey<O::IndexKeyOwner>, CmdError> {
+    run_index_output(
+        ops,
+        |ops| {
+            let version = ops
+                .index_c_version()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "prepared original C option path issuer",
+                ))?;
+            let mut current = IndexedKey {
+                selected: ops.index_borrowed_key(original)?,
+                created: false,
+                ancestors: Vec::new(),
+            };
+            for coordinate in path {
+                let value = O::index_key_value(&current.selected);
+                let reached_length = ops.index_list_length(value);
+                if let Err(error) = &reached_length {
+                    ops.retain_index_failure(error);
+                }
+                let length = reached_length?;
+                let end = i128::try_from(length).map_err(|_| {
+                    let error = CmdError::from(ValueError::CommandProtocolUnavailable(
+                        "original option List length",
+                    ));
+                    ops.retain_index_failure(&error);
+                    error
+                })? - 1;
+                let decoded = coordinate.decode(end);
+                let reached_member = match usize::try_from(decoded) {
+                    Ok(index) => ops.index_list_member(value, index),
+                    Err(_) => Ok(None),
+                };
+                if let Err(error) = &reached_member {
+                    ops.retain_index_failure(error);
+                }
+                let member = reached_member?;
+                if let Some(member) = member {
+                    current = step_key(ops, current, member)?;
+                    continue;
+                }
+                let mut message = b"element ".to_vec();
+                if version >= TclVersion::V9_0 && decoded < 0 {
+                    message.extend_from_slice(
+                        format!("end-{}", -2_i64 - i64::from(coordinate.encoded())).as_bytes(),
+                    );
+                } else {
+                    message.extend_from_slice(decoded.to_string().as_bytes());
+                }
+                message.extend_from_slice(b" missing from sublist \"");
+                let reached_bytes = ops.index_operand_bytes(value);
+                if let Err(error) = &reached_bytes {
+                    ops.retain_index_failure(error);
+                }
+                message.extend_from_slice(tcl_core_types::c_string_extent(&reached_bytes?));
+                message.push(b'"');
+                return Err(if version >= TclVersion::V8_6 {
+                    CmdError::with_error_code_bytes(
+                        message,
+                        b"TCL OPERATION LSORT INDEXFAILED".to_vec(),
+                    )
+                } else {
+                    CmdError::new_bytes(message)
+                });
+            }
+            Ok(current)
+        },
+        |_, key| drop(key),
+        std::convert::identity,
     )
 }
 

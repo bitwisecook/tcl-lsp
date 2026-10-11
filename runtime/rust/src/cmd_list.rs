@@ -26,7 +26,7 @@
 
 use tcl_cmd_core::list as list_core;
 
-use crate::interp::{obj_bytes, Code, Interp};
+use crate::interp::{Code, Interp, obj_bytes};
 use crate::list;
 use crate::obj::{self, TclObj};
 
@@ -733,7 +733,7 @@ fn parse_wide(b: &[u8]) -> Option<i128> {
 /// the core; `-command` is split (the core prepares, this adapter runs the merge
 /// sort over the user comparator via `lsort_cmd_compare`, then the core builds).
 fn lsort(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    use tcl_cmd_core::lsort::{build_command, prepare, sort_command, Lsort};
+    use tcl_cmd_core::lsort::{Lsort, build_command, prepare, sort_command};
     let job = match prepare(interp, &argv[1..]) {
         Ok(Lsort::Done(v)) => {
             interp.set_result(v);
@@ -1702,3 +1702,7 @@ mod native_jim_lsearch_controls {
         assert_eq!(count, 24);
     }
 }
+
+#[cfg(all(test, have_tommath))]
+#[path = "cmd_list/native_original_option_index_controls.rs"]
+mod native_original_option_index_controls;

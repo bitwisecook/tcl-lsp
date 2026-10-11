@@ -38,6 +38,7 @@
 //! Semantics follow tclsh 9.0.
 
 use crate::index::NativeIndexOps;
+use crate::native_option_index::{OptionCommand, PreparedPath};
 use tcl_syntax::list::split_list;
 use tcl_syntax::value::ValueOps;
 
@@ -170,17 +171,48 @@ pub fn prepare<O: NativeIndexOps>(
             let (mut nocase, mut increasing, mut unique, mut indices_out) =
                 (false, true, false, false);
             let mut group = 1usize;
-            let mut index_path: Vec<Vec<u8>> = Vec::new();
+            let mut index_path = PreparedPath::default();
+            let mut last_index_argument = None;
             let mut jim_path: Option<Vec<O::Value>> = None;
             let mut cmd_prefix: Option<O::Value> = None;
 
             let last = args.len() - 1; // the list
             let mut i = 0;
             while i < last {
-                match OPTIONS
-                    .index_of_original(ops, &args[i])
-                    .map_err(LsortError::from_command)?
-                {
+                let option = if ops.index_c_version() == Some(tcl_dialect::TclVersion::V8_4) {
+                    const MAPPING: [usize; 9] = [
+                        OPT_ASCII,
+                        OPT_COMMAND,
+                        OPT_DECREASING,
+                        OPT_DICTIONARY,
+                        OPT_INCREASING,
+                        OPT_INDEX,
+                        OPT_INTEGER,
+                        OPT_REAL,
+                        OPT_UNIQUE,
+                    ];
+                    static NAMES: [&str; 9] = [
+                        "-ascii",
+                        "-command",
+                        "-decreasing",
+                        "-dictionary",
+                        "-increasing",
+                        "-index",
+                        "-integer",
+                        "-real",
+                        "-unique",
+                    ];
+                    static SELECTED: OptionTable<'static> =
+                        OptionTable::abbreviating("option", &NAMES);
+                    MAPPING[SELECTED
+                        .index_of_original(ops, &args[i])
+                        .map_err(LsortError::from_command)?]
+                } else {
+                    OPTIONS
+                        .index_of_original(ops, &args[i])
+                        .map_err(LsortError::from_command)?
+                };
+                match option {
                     OPT_ASCII => mode = SortMode::Ascii,
                     OPT_DICTIONARY => mode = SortMode::Dictionary,
                     OPT_INTEGER => mode = SortMode::Integer,
@@ -205,8 +237,17 @@ pub fn prepare<O: NativeIndexOps>(
                             }
                         }
                         if jim_path.is_none() {
-                            index_path = split_index(&ops.as_bytes(&args[i + 1]))?;
+                            index_path = match ops
+                                .original_c_option_path(&args[i + 1], OptionCommand::Sort, true)
+                                .map_err(LsortError::from_command)?
+                            {
+                                Some(path) => PreparedPath::original(path),
+                                None => {
+                                    PreparedPath::neutral(split_index(&ops.as_bytes(&args[i + 1]))?)
+                                }
+                            };
                         }
+                        last_index_argument = Some(i + 1);
                         i += 1;
                     }
                     OPT_STRIDE => {
@@ -237,6 +278,26 @@ pub fn prepare<O: NativeIndexOps>(
                 i += 1;
             }
 
+            // C86/C9 prescreen every option, then quietly prepare only the last
+            // original path before input conversion. The same worker owns both.
+            if ops
+                .index_c_version()
+                .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_6)
+                && let Some(slot) = last_index_argument
+            {
+                let path = ops
+                    .original_c_option_path(&args[slot], OptionCommand::Sort, false)
+                    .map_err(LsortError::from_command)?
+                    .ok_or_else(|| {
+                        LsortError::from_command(
+                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "original C sort option path issuer",
+                            )
+                            .into(),
+                        )
+                    })?;
+                index_path = PreparedPath::original(path);
+            }
             let elems = ops
                 .index_list_elements(&args[last])
                 .map_err(|e| LsortError::from_command(e.into()))?;
@@ -248,19 +309,15 @@ pub fn prepare<O: NativeIndexOps>(
             // -stride groups the flat list; the leading -index value (default 0) picks
             // the key element within each group, the rest of the path applies within it.
             let mut group_offset = 0usize;
-            let mut key_path: &[Vec<u8>] = &index_path;
+            let mut key_path = index_path.path();
             if group > 1 {
                 if len % group != 0 {
                     return Err(LsortError::msg(
                         "list size must be a multiple of the stride length",
                     ));
                 }
-                if !index_path.is_empty() {
-                    match index::resolve_for_ops(
-                        ops,
-                        &String::from_utf8_lossy(&index_path[0]),
-                        group,
-                    ) {
+                if !key_path.is_empty() {
+                    match key_path.decode(ops, 0, group - 1) {
                         Ok(g) if g >= 0 && (g as usize) < group => group_offset = g as usize,
                         Err(error) if error.native_execution_refusal().is_some() => {
                             return Err(LsortError::from_command(error));
@@ -271,7 +328,7 @@ pub fn prepare<O: NativeIndexOps>(
                             ));
                         }
                     }
-                    key_path = &index_path[1..];
+                    key_path = key_path.tail();
                 }
             }
             let logical = len / group;
@@ -287,7 +344,7 @@ pub fn prepare<O: NativeIndexOps>(
                         Some(path) => {
                             index::drill_original_jim(ops, &elems[base + group_offset], path)
                         }
-                        None => index::drill(ops, &elems[base + group_offset], key_path),
+                        None => key_path.drill(ops, &elems[base + group_offset]),
                     }
                     .map_err(LsortError::from_command)?;
                     items.push((base, key));
@@ -309,7 +366,7 @@ pub fn prepare<O: NativeIndexOps>(
                 let base = l * group;
                 let key = match &jim_path {
                     Some(path) => index::drill_original_jim(ops, &elems[base + group_offset], path),
-                    None => index::drill(ops, &elems[base + group_offset], key_path),
+                    None => key_path.drill(ops, &elems[base + group_offset]),
                 }
                 .map_err(LsortError::from_command)?;
                 items.push((base, ops.as_bytes(index::key_value::<O>(&key)).to_vec()));

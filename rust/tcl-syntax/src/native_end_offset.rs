@@ -37,6 +37,11 @@ impl NativeEndOffset {
     pub const fn version(self) -> TclVersion {
         self.version
     }
+    /// Original stored coordinate, separate from its resolved integer.
+    #[must_use]
+    pub const fn encoded(self) -> i64 {
+        self.encoded
+    }
     /// Resolve the stored representation against the actual last index.
     #[must_use]
     pub fn resolve(self, end: i64) -> i64 {

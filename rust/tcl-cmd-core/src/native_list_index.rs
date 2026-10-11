@@ -46,17 +46,42 @@ pub trait NativeListIndexOps: crate::index::NativeIndexOps {
     type Owner;
     /// Borrowed original members; inspection never adds child references.
     type Members: NativeIndexMembers<Self::Value>;
+    /// Original option-path member storage; this lifetime view adds no native
+    /// member references and refuses a withdrawn or mutated selected backing.
+    type OptionMembers: NativeIndexMembers<Self::Value>;
     /// Selected physical C release, independently of the analysis profile.
     ///
     /// # Errors
     /// The actual C object issuer is missing.
     fn index_version(&self) -> Result<TclVersion, ValueError>;
+    /// Actual local backend Tcl_Size and ListStore bounds, independently of original Int32.
+    /// This descriptive layout does not grant a foreign C library issuer.
+    ///
+    /// # Errors
+    /// The authentic original C operation/layout is unavailable.
+    fn index_option_layout(
+        &self,
+    ) -> Result<crate::native_option_index::NativeOptionIndexLayout, CmdError>;
     /// Borrow the original header from its real owner.
     fn index_original(owner: &Self::Owner) -> &Self::Value;
     /// Retain one native header reference.
     fn index_retain(value: &Self::Value) -> Self::Owner;
     /// Allocate and own native `Tcl_NewObj`.
     fn index_empty(&mut self) -> Self::Owner;
+    /// Independently selected CString Int32 temporary, separate from an
+    /// original index/member header and its primary cache.
+    ///
+    /// # Errors
+    /// Actual CString/Int32 worker or complete first Host refusal.
+    fn index_int_c_string(&mut self, source: &[u8]) -> Result<Option<i32>, CmdError>;
+    /// Original option-path List getter with a checked allocation-only view.
+    ///
+    /// # Errors
+    /// Original conversion, selected backing withdrawal or full Host refusal.
+    fn index_option_members_checked(
+        &mut self,
+        original: &Self::Value,
+    ) -> Result<Self::OptionMembers, CmdError>;
     /// Actual List representation, without a getter.
     fn index_is_list(value: &Self::Value) -> bool;
     /// Original List getter with a memory-only member view.

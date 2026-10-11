@@ -1273,6 +1273,40 @@ fn parse_inf_nan(b: &[u8], start: usize, negative: bool, syntax: NumberSyntax) -
     None
 }
 
+/// Native C8 TclCheckBadOctal diagnostic on an already rejected index.
+/// This CString hint does not classify numeric parsing or accept an index.
+#[must_use]
+pub fn native_index_octal_hint(bytes: &[u8], version: tcl_dialect::TclVersion) -> bool {
+    use tcl_dialect::TclVersion;
+    if version >= TclVersion::V9_0 {
+        return false;
+    }
+    let bytes = tcl_core_types::c_string_extent(bytes);
+    let skipped = if version == TclVersion::V8_4 && bytes.starts_with(b"end") {
+        &bytes[3..]
+    } else if bytes.starts_with(b"end-") {
+        &bytes[4..]
+    } else {
+        bytes
+    };
+    let skipped = skipped.trim_ascii_start();
+    let mut skipped = skipped
+        .strip_prefix(b"+")
+        .or_else(|| skipped.strip_prefix(b"-"))
+        .unwrap_or(skipped);
+    if skipped.first() != Some(&b'0') {
+        return false;
+    }
+    if version != TclVersion::V8_4 && matches!(skipped.get(1), Some(b'o' | b'O')) {
+        skipped = &skipped[2..];
+    }
+    let end = skipped
+        .iter()
+        .position(|byte| !byte.is_ascii_digit())
+        .unwrap_or(skipped.len());
+    skipped[end..].trim_ascii().is_empty()
+}
+
 #[cfg(test)]
 mod tests {
     use std::fmt::Write as _;

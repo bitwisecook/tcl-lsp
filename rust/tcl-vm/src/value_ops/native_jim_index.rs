@@ -140,6 +140,11 @@ impl NativeIndexOps for Vm {
     fn check_index_operation(&mut self, original: &Self::IndexOperation) -> Result<(), CmdError> {
         original.0.currency().check(self)
     }
+    fn retain_index_failure(&mut self, error: &CmdError) {
+        if let Some(first) = error.native_execution_refusal() {
+            self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(first.clone()));
+        }
+    }
     fn discard_owned_index_result(&mut self, created: Value) {
         drop(created);
     }
@@ -178,6 +183,19 @@ impl NativeIndexOps for Vm {
         self.actual_native_invocation_dialect()
             .native_string_protocol()
             .and_then(|protocol| protocol.tcl_version())
+    }
+    fn original_c_option_path(
+        &mut self,
+        original: &Value,
+        command: tcl_cmd_core::native_option_index::OptionCommand,
+        report: bool,
+    ) -> Result<Option<Vec<tcl_syntax::native_compiled_index::NativeCompiledListIndex>>, CmdError>
+    {
+        if self.index_c_version().is_none() {
+            return Ok(None);
+        }
+        tcl_cmd_core::native_option_index::prepare_original(self, original, command, report)
+            .map(Some)
     }
     fn original_c_index(
         &mut self,

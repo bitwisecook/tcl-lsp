@@ -696,6 +696,9 @@ mod tests {
         fn check_index_operation(&mut self, _: &()) -> Result<(), tcl_cmd_core::CmdError> {
             Ok(())
         }
+        fn retain_index_failure(&mut self, _error: &tcl_cmd_core::CmdError) {
+            // Pure neutral adapter has no interpreter first-cause owner.
+        }
         fn discard_owned_index_result(&mut self, created: Self::Value) {
             drop(created);
         }
