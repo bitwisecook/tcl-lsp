@@ -20,6 +20,10 @@ pub struct EncodingStages {
     pub after_read: RefCell<Option<Box<dyn FnMut()>>>,
     /// Optional same-object/currency withdrawal during mandatory close.
     pub after_close: RefCell<Option<Box<dyn FnMut()>>>,
+    /// Optional original-header/currency withdrawal at the supplied filename converter.
+    pub after_filename: RefCell<Option<Box<dyn FnMut()>>>,
+    /// Actual supplied external filename bytes, or unavailable conversion capability.
+    pub filename_conversion: RefCell<Option<Result<Vec<u8>, HostError>>>,
     /// Optional software read failure, reached only after successful open/configuration.
     pub read_error: RefCell<Option<HostError>>,
     /// Whether the Host actually supplies catalogue knowledge.
@@ -156,6 +160,23 @@ impl Filesystem for EncodingHost {
             stages: Rc::clone(&self.stages),
             script: Rc::clone(&self.script),
         }))
+    }
+    fn source_filename_bytes(
+        &self,
+        _units: &[u32],
+        _encoding: SystemEncoding,
+    ) -> Result<Vec<u8>, HostError> {
+        self.stages.events.borrow_mut().push("filename-conversion");
+        let reached = self
+            .stages
+            .filename_conversion
+            .borrow()
+            .clone()
+            .unwrap_or(Err(HostError::Unsupported));
+        if let Some(callback) = &mut *self.stages.after_filename.borrow_mut() {
+            callback();
+        }
+        reached
     }
     fn write(&self, _path: &str, _data: &[u8]) -> Result<(), HostError> {
         Err(HostError::Unsupported)

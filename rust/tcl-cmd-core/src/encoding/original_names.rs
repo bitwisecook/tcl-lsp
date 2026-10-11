@@ -75,7 +75,13 @@ pub fn resolve_original_encoding_name(
             ].concat()).with_native_string_result(NativeStringProtocol::C(protocol.version)))
         };
     }
-    let known = implemented_encoding(name);
+    // C9 has an anonymous binary encoding but no stock named identity codec.
+    // A separately supplied catalogue may still establish an installed name.
+    let known = if protocol.version >= TclVersion::V9_0 && name == b"identity" {
+        None
+    } else {
+        implemented_encoding(name)
+    };
     let encoding = match known {
         Some(encoding) => Some(encoding),
         None => catalogue(name)?,
@@ -163,7 +169,19 @@ impl NativeSourceFileProtocol {
 pub trait OriginalSourceFileOps {
     /// Reach one original counted String at its selected effective argv index.
     fn original_bytes(&mut self, index: usize) -> Result<Rc<[u8]>, CmdError>;
-    /// Current source-channel default at the actual backend boundary.
+    /// Convert shared selected native units with this backend's actual codec.
+    /// The reached system encoding is distinct from explicit source decoding.
+    ///
+    /// # Errors
+    /// Returns typed unavailable when the actual filesystem lacks that converter.
+    fn external_filename_bytes(
+        &mut self,
+        _units: &[u32],
+        _encoding: SystemEncoding,
+    ) -> Result<Vec<u8>, CmdError> {
+        Err(ValueError::CommandProtocolUnavailable("source filesystem filename conversion").into())
+    }
+    /// Actual current system encoding at this reached source stage.
     fn system_encoding(&self) -> SystemEncoding;
     /// Reach the original file open without reading bytes; the handle is mandatory cleanup.
     fn open_file(
@@ -185,10 +203,111 @@ pub trait OriginalSourceFileOps {
 
 /// Original path and decoded script; package/frame/evaluation ownership stays with the caller.
 pub struct PreparedSourceFile {
-    /// Original counted C filesystem path or selected Jim C-string filename extent.
+    /// Original counted C source label, or the selected raw Jim C-string filename.
     pub path: Vec<u8>,
     /// Selected existing conversion worker's native script bytes.
     pub script: Vec<u8>,
+}
+
+struct SourceFilename {
+    backend: Vec<u8>,
+    reported: Vec<u8>,
+    label: Vec<u8>,
+}
+
+fn filename_encoding_error(reported: &[u8]) -> CmdError {
+    CmdError::with_error_code_bytes(
+        [
+            b"couldn't read file \"".as_slice(),
+            reported,
+            b"\": invalid or incomplete multibyte or wide character",
+        ]
+        .concat(),
+        b"POSIX EILSEQ {invalid or incomplete multibyte or wide character}".to_vec(),
+    )
+}
+
+fn external_iso88591_filename(
+    version: TclVersion,
+    original: &[u8],
+    reported: &[u8],
+) -> Result<Vec<u8>, CmdError> {
+    let units = tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version);
+    let mut external = Vec::with_capacity(original.len());
+    let mut offset = 0;
+    let mut previous = None;
+    while let Some(unit) = units.decode_unit(&original[offset..], previous) {
+        match u8::try_from(unit.value) {
+            Ok(byte) => external.push(byte),
+            Err(_) if version < TclVersion::V9_0 => external.push(b'?'),
+            Err(_) => return Err(filename_encoding_error(reported)),
+        }
+        offset += unit.width;
+        previous = Some(unit.value);
+    }
+    Ok(external)
+}
+
+fn prepare_source_filename<O: OriginalSourceFileOps>(
+    ops: &mut O,
+    protocol: NativeSourceFileProtocol,
+    system: SystemEncoding,
+    original: &[u8],
+) -> Result<SourceFilename, CmdError> {
+    // naming.source.original-counted-filename-filesystem-extent
+    // docs/design/analysis/name-resolution-proofs/source-original-counted-filename-filesystem-extent.md
+    let reported = tcl_core_types::c_string_extent(original).to_vec();
+    if protocol == NativeSourceFileProtocol::Jim {
+        return Ok(SourceFilename {
+            backend: reported.clone(),
+            label: reported.clone(),
+            reported,
+        });
+    }
+    let version = match protocol {
+        NativeSourceFileProtocol::CSystem(version) | NativeSourceFileProtocol::CUtf8(version) => {
+            version
+        }
+        NativeSourceFileProtocol::Jim => unreachable!("Jim filename returned separately"),
+    };
+    let converted: Result<Vec<u8>, CmdError> = match system {
+        SystemEncoding::Utf8 => super::external_utf8_octets(version, original)
+            .map_err(|_| filename_encoding_error(&reported)),
+        SystemEncoding::Iso88591 => external_iso88591_filename(version, original, &reported),
+        SystemEncoding::Identity => Ok(original.to_vec()),
+        _ => {
+            let units = tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version)
+                .decode_units(original);
+            ops.external_filename_bytes(&units, system)
+        }
+    };
+    if let Err(error) = &converted {
+        ops.retain_failure(error);
+    }
+    ops.check()?;
+    let converted = converted?;
+    let backend = if version == TclVersion::V8_4 {
+        // The actual Unix worker applies CString extent AFTER external conversion.
+        tcl_core_types::c_string_extent(&converted).to_vec()
+    } else {
+        if converted.contains(&0) {
+            return Err(CmdError::with_error_code_bytes(
+                [
+                    b"couldn't read file \"".as_slice(),
+                    &reported,
+                    b"\": invalid argument",
+                ]
+                .concat(),
+                b"POSIX EINVAL {invalid argument}".to_vec(),
+            ));
+        }
+        converted
+    };
+    Ok(SourceFilename {
+        backend,
+        reported,
+        label: original.to_vec(),
+    })
 }
 
 /// Obtain encoding String, open the actual file, select encoding, read, and always close it.
@@ -202,6 +321,7 @@ pub fn prepare_source_file<O: OriginalSourceFileOps>(
     path_at: usize,
     encoding_at: Option<usize>,
 ) -> Result<PreparedSourceFile, CmdError> {
+    ops.check()?;
     let name = encoding_at
         .map(|index| ops.original_bytes(index))
         .transpose();
@@ -210,13 +330,11 @@ pub fn prepare_source_file<O: OriginalSourceFileOps>(
     let path = ops.original_bytes(path_at);
     ops.check()?;
     let path = path?;
-    let path = if protocol == NativeSourceFileProtocol::Jim {
-        tcl_core_types::c_string_extent(&path).to_vec()
-    } else {
-        path.to_vec()
-    };
+    let filename_system = ops.system_encoding();
+    let filename = prepare_source_filename(ops, protocol, filename_system, &path)?;
     let default = ops.system_encoding();
-    let opened = ops.open_file(&path);
+    let path = filename.reported;
+    let opened = ops.open_file(&filename.backend);
     let after_open = ops.check();
     let mut file = match opened {
         Ok(Ok(file)) => file,
@@ -258,7 +376,7 @@ pub fn prepare_source_file<O: OriginalSourceFileOps>(
         let bytes = read.map_err(|error| protocol.read_error(&path, error))?;
         if protocol == NativeSourceFileProtocol::Jim {
             return Ok(PreparedSourceFile {
-                path: path.clone(),
+                path: filename.label.clone(),
                 script: bytes,
             });
         }
@@ -291,7 +409,7 @@ pub fn prepare_source_file<O: OriginalSourceFileOps>(
         };
         ops.check()?;
         Ok(PreparedSourceFile {
-            path: path.clone(),
+            path: filename.label.clone(),
             script,
         })
     })();

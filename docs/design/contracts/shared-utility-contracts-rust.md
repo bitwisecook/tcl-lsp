@@ -3739,3 +3739,27 @@ The retained compiler site may supply lexical body geometry, while compiled
 child namespace selection keeps its existing independent inventory checks. These
 projections create no handler, Normal completion, body activation, numeric
 normalisation or Native execution authority.
+
+
+Source filename facts distinguish backend bytes from diagnostic bytes and the
+original source label. The actual current system encoding at the reached filesystem stage determines
+filename conversion independently of explicit source decoding. It is read after
+original option/path String stages, so legal same-owner setting changes remain
+visible; execution/name policy and currency stay captured from entry. UTF-8 delegates to the
+shared external-octet worker. ISO-8859-1 uses the same selected native-unit decoder:
+C8 maps units through FF and substitutes question marks for unrepresentable
+units, while C9 refuses unrepresentable units with EILSEQ. Identity preserves
+raw bytes on its supported C8 path; C9 named identity needs actual catalogue
+knowledge rather than a fabricated builtin. UTF-8 strict surrogate failures use
+filesystem EILSEQ presentation rather than converter unavailability. Other codecs
+require an independently supplied filesystem converter receiving shared selected
+native units, not raw dialect bytes. A conversion callback
+uses the same original operation and reached-header checks on both outcomes.
+
+The selected Unix C8.4 filename worker applies C-string extent after conversion;
+C8.5 and later refuse embedded external zero with EINVAL before file effects.
+Jim applies raw C-string extent without C external encoding conversion. Error
+presentation uses the original String's C-string extent, so a modified zero can
+remain visible in a diagnostic even when it terminates the converted lookup.
+These are separate source filename facts and do not confer filesystem callback,
+path normalization, platform-wide codec or Native header/reference chronology.

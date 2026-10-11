@@ -288,6 +288,21 @@ pub trait Filesystem {
     fn open_source_bytes(&self, _path: &[u8]) -> Result<Box<dyn SourceFile>, HostError> {
         Err(HostError::Unsupported)
     }
+    /// Convert selected native filename units into this backend's external bytes.
+    /// The caller decodes its counted extent with the shared selected native-unit
+    /// worker and supplies the actual system encoding reached at conversion.
+    /// UTF-8, ISO-8859-1 and identity use the core worker; other codecs require
+    /// this independent capability, without borrowing the script's encoding.
+    ///
+    /// # Errors
+    /// Returns `Unsupported` when no actual filename converter is available.
+    fn source_filename_bytes(
+        &self,
+        _units: &[u32],
+        _encoding: SystemEncoding,
+    ) -> Result<Vec<u8>, HostError> {
+        Err(HostError::Unsupported)
+    }
     /// Write (creating/truncating) an entire file.
     fn write(&self, path: &str, data: &[u8]) -> Result<(), HostError>;
     /// The entry names (not full paths) directly under `path`.

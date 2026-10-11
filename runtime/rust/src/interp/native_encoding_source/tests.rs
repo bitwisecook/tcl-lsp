@@ -152,3 +152,100 @@ fn original_unknown_io_refusal_is_retained_before_mandatory_close_callback() {
         ["filesystem", "open", "read", "close"]
     );
 }
+
+#[test]
+fn original_filename_external_zero_refuses_before_open_and_keeps_report_bytes() {
+    // naming.source.original-counted-filename-filesystem-extent
+    // docs/design/analysis/name-resolution-proofs/source-original-counted-filename-filesystem-extent.md
+    for suffix in [b"\0TAIL".as_slice(), b"\xc0\x80TAIL".as_slice()] {
+        let (mut interpreter, stages) = supplied(b"set ::SHOULD_NOT_RUN YES");
+        assert_eq!(
+            invoke(&mut interpreter, &[b"encoding", b"system", b"utf-8"]),
+            super::super::Code::Ok
+        );
+        let original = [b"/source.tcl".as_slice(), suffix].concat();
+        assert_eq!(
+            invoke(&mut interpreter, &[b"source", &original]),
+            super::super::Code::Error
+        );
+        assert_eq!(
+            interpreter.result_bytes(),
+            [
+                b"couldn't read file \"".as_slice(),
+                tcl_core_types::c_string_extent(&original),
+                b"\": invalid argument"
+            ]
+            .concat()
+        );
+        assert_eq!(
+            interpreter.eval_str(b"set ::errorCode"),
+            super::super::Code::Ok
+        );
+        assert_eq!(
+            interpreter.result_bytes(),
+            b"POSIX EINVAL {invalid argument}"
+        );
+        assert!(stages.events.borrow().is_empty());
+        assert!(interpreter.native_execution_refusal().is_none());
+    }
+}
+
+#[test]
+fn original_filename_supplied_codec_checks_currency_before_open() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let (mut interpreter, stages) = supplied(b"set ::SHOULD_NOT_RUN YES");
+    assert_eq!(
+        invoke(&mut interpreter, &[b"encoding", b"system", b"ascii"]),
+        super::super::Code::Ok
+    );
+    *stages.filename_conversion.borrow_mut() = Some(Ok(b"/source.tcl".to_vec()));
+    let scope =
+        super::super::native_operation_currency::NativeOperationScope::enter(&interpreter).unwrap();
+    let mut callback = interpreter.clone();
+    *stages.after_filename.borrow_mut() = Some(Box::new(move || {
+        let original = callback.runtime_context();
+        let mut changed = original.clone();
+        changed.packages = vec![("source-filename-callback".to_owned(), "1.0".to_owned())];
+        callback.pin_context(&changed).unwrap();
+        callback.pin_context(&original).unwrap();
+    }));
+    assert_eq!(
+        invoke(&mut interpreter, &[b"source", b"/source.tcl"]),
+        super::super::Code::Error
+    );
+    let first = interpreter
+        .native_execution_refusal()
+        .expect("actual original converter currency refusal");
+    assert_eq!(scope.currency().ensure_current_or_refuse(), Err(first));
+    assert_eq!(
+        stages.events.borrow().as_slice(),
+        ["filesystem", "filename-conversion"]
+    );
+}
+
+#[test]
+fn original_filename_iso88591_selected_system_keeps_plain_source_working() {
+    // naming.source.original-counted-filename-filesystem-extent
+    // docs/design/analysis/name-resolution-proofs/source-original-counted-filename-filesystem-extent.md
+    let (mut interpreter, stages) = supplied(b"set ::filename_effect YES; return DONE");
+    assert_eq!(
+        invoke(&mut interpreter, &[b"encoding", b"system", b"iso8859-1"]),
+        super::super::Code::Ok
+    );
+    assert_eq!(interpreter.system_encoding(), SystemEncoding::Iso88591);
+    assert_eq!(
+        invoke(&mut interpreter, &[b"source", b"/source.tcl"]),
+        super::super::Code::Ok
+    );
+    assert_eq!(
+        interpreter.eval_str(b"set ::filename_effect"),
+        super::super::Code::Ok
+    );
+    assert_eq!(interpreter.result_bytes(), b"YES");
+    assert_eq!(
+        stages.events.borrow().as_slice(),
+        ["filesystem", "open", "read", "close"]
+    );
+    assert!(interpreter.native_execution_refusal().is_none());
+}

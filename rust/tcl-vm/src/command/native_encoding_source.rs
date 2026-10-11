@@ -105,6 +105,38 @@ impl OriginalSourceFileOps for SourceOps<'_> {
         self.reached.push(index);
         self.names.read(self.vm, &self.args[index])
     }
+    fn external_filename_bytes(
+        &mut self,
+        units: &[u32],
+        encoding: SystemEncoding,
+    ) -> Result<Vec<u8>, CmdError> {
+        let host = self.vm.host_rc();
+        let filesystem = host.filesystem();
+        self.check()?;
+        let reached = filesystem.map_or_else(
+            || {
+                Err(
+                    ValueError::CommandProtocolUnavailable("source filesystem filename conversion")
+                        .into(),
+                )
+            },
+            |filesystem| {
+                filesystem
+                    .source_filename_bytes(units, encoding)
+                    .map_err(|_| {
+                        ValueError::CommandProtocolUnavailable(
+                            "source filesystem filename conversion",
+                        )
+                        .into()
+                    })
+            },
+        );
+        if let Err(error) = &reached {
+            retain(self.vm, error);
+        }
+        self.check()?;
+        reached
+    }
     fn system_encoding(&self) -> SystemEncoding {
         self.vm.system_encoding()
     }
