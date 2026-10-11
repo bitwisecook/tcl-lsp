@@ -18573,6 +18573,17 @@ mod tests {
         });
     }
 
+    /// Seed the actual selected error-code storage used by the native probes.
+    /// ExceptionState bytes alone do not publish C8.4's global errorCode cell.
+    fn seed_original_getter_code(interp: &mut Interp, bytes: &[u8]) {
+        interp.set_error_state(bytes);
+        let code = crate::obj::Owned::fresh(new_string(bytes));
+        // SAFETY: the actual interpreter and borrowed original code header are live.
+        unsafe { crate::capi::Tcl_SetObjErrorCode(interp, code.as_ptr()) };
+        assert!(interp.native_execution_refusal().is_none());
+        assert_eq!(interp.error_code(), bytes);
+    }
+
     #[test]
     fn c84_primitive_invalid_code_is_preserved_until_actual_script_propagation() {
         // naming.numeric.original-capi-scalar-publication-width
@@ -18595,7 +18606,7 @@ mod tests {
                 NativeScalarGetterKind::Double,
                 NativeScalarGetterKind::Boolean,
             ] {
-                interp.set_error_state(b"SEEDED CODE");
+                seed_original_getter_code(interp, b"SEEDED CODE");
                 let record = protocol
                     .failure_presentation(kind, NativeScalarGetterFailure::Invalid, b"bad")
                     .unwrap();
@@ -18608,7 +18619,7 @@ mod tests {
                 assert_eq!(interp.error_code(), b"NONE", "{kind:?} Eval");
                 assert!(interp.exc.borrow().primitive_getter.is_none());
             }
-            interp.set_error_state(b"SEEDED CODE");
+            seed_original_getter_code(interp, b"SEEDED CODE");
             let record = protocol
                 .failure_presentation(
                     NativeScalarGetterKind::Long,
@@ -18693,7 +18704,7 @@ mod tests {
         leak_free(|interp| {
             interp.set_runtime_version(tcl_dialect::TclVersion::V8_4);
             for source in [b"\"bad\" + 1".as_slice(), b"\"bad\" ? 1 : 0".as_slice()] {
-                interp.set_error_state(b"PROBE BEFORE");
+                seed_original_getter_code(interp, b"PROBE BEFORE");
                 assert_eq!(
                     crate::builtins::eval_expr_obj(interp, source),
                     Err(Code::Error)
@@ -18703,7 +18714,7 @@ mod tests {
                 interp.log_command_bytes(1, b"expr");
                 assert_eq!(interp.error_code(), b"NONE");
             }
-            interp.set_error_state(b"PROBE BEFORE");
+            seed_original_getter_code(interp, b"PROBE BEFORE");
             assert_eq!(
                 crate::builtins::eval_expr_obj(interp, b"NaN + 1"),
                 Err(Code::Error)
