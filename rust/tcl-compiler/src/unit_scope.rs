@@ -5122,8 +5122,9 @@ mod tests {
     fn original_argument_caller_phase_keeps_real_return_and_direct_argument_counts() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // The actual catch region captures this Return as an argv phase.
         let (_, unit) = native_argument_caller_unit(
-            "proc add {b c} {return [expr {$b + $c}]}; add 2 4; add 3 5",
+            "proc add {b c} {catch {return [expr {$b + $c}]}}; add 2 4; add 3 5",
         );
         let function = &unit.cfg_module.procedures["::add"];
         assert!(
@@ -5183,7 +5184,8 @@ mod tests {
     fn original_argument_caller_owner_refusal_stays_distinct_from_effect_only_empty() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
-        let source = "proc add {b c} {return [expr {$b + $c}]}; add 2 4; add 3 5";
+        // The actual catch region captures this Return as an argv phase.
+        let source = "proc add {b c} {catch {return [expr {$b + $c}]}}; add 2 4; add 3 5";
         let (context, unit) = native_argument_caller_unit(source);
         let module = &unit.ir_module;
         let input = module.source_metadata_input.as_ref().unwrap();
@@ -5608,5 +5610,37 @@ mod tests {
                 "{source}"
             );
         }
+    }
+
+    #[test]
+    fn original_direct_return_keeps_terminator_argv_without_captured_phase_marker() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // A procedure exit retains its original argv as a terminator. Captured
+        // completions use the distinct EvaluatedArguments statement purpose.
+        let (_, unit) = native_argument_caller_unit(
+            "proc add {b c} {return [expr {$b + $c}]}; add 2 4; add 3 5",
+        );
+        let function = &unit.cfg_module.procedures["::add"];
+        let returns = function.blocks.iter().filter_map(|(&block, data)| {
+            matches!(data.terminator, Some(crate::cfg::Terminator::Return { .. }))
+                .then(|| function.source_tokens_at(block, usize::MAX))
+                .flatten()
+                .filter(|tokens| tokens.argv_texts.first().is_some_and(|head| head == "return"))
+        }).collect::<Vec<_>>();
+        assert_eq!(returns.len(), 1);
+        assert!(returns[0].synthetic.is_none());
+        assert_eq!(returns[0].argv_texts, ["return", "[expr {$b + $c}]"]);
+        assert!(function.blocks.values().all(|data| data.statements.iter().all(|statement| {
+            statement.tokens().is_none_or(|tokens| {
+                tokens.synthetic != Some(crate::ir::SyntheticMarker::EvaluatedArguments)
+                    || !tokens.argv_texts.first().is_some_and(|head| head == "return")
+            })
+        })));
+        let evidence = unit.caller_scope.call_sites.get("::add").unwrap();
+        assert!(!evidence.opaque_caller, "{evidence:?}");
+        assert_eq!(evidence.arg_counts, BTreeSet::from([2]));
+        assert_eq!(evidence.slots[&0].values, BTreeSet::from(["2".into(), "3".into()]));
+        assert_eq!(evidence.slots[&1].values, BTreeSet::from(["4".into(), "5".into()]));
     }
 }
