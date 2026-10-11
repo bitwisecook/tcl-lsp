@@ -177,6 +177,7 @@ impl SourceCommandBindings {
         Some(())
     }
 
+    #[cfg(test)]
     pub(crate) fn symbolic_formal_value_at(
         &self,
         origin: &Arc<SourceOriginId>,

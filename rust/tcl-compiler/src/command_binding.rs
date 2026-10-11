@@ -22933,7 +22933,7 @@ mod shared_noop_source_join_tests {
         let removed_namespaces = previous
             .namespaces
             .iter()
-            .filter(|namespace| !actual.namespaces.contains(namespace))
+            .filter(|namespace| !actual.namespaces.contains(*namespace))
             .cloned()
             .collect::<Vec<_>>();
         assert_eq!(

@@ -2414,9 +2414,6 @@ fn resolve_unit_scope(
                 registry,
                 module: ir_module,
                 declared: options.declared_commands,
-                dialect: options
-                    .dialect
-                    .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
                 input: module_source_metadata_input(ir_module, registry),
                 identities: &identities,
             },

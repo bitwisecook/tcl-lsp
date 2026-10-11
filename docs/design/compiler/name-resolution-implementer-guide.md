@@ -7665,6 +7665,14 @@ executable `proven_word_value` family retains its separate execution-fact
 contract. Source contents carry no representation or folded-type proof and
 supply no new command lookup, child frame or evaluation permission.
 
+Logical template refinement uses `OriginalDiagnosticValues::template_plans`
+over that authenticated semantic producer. Each plan must still match a reached
+original statement and complete word vector; the consumer joins its selected
+effective operand and switch geometry separately. `DiagnosticValueFacts` lends
+the readonly semantic plan records. Native refinement retains the independently
+proved execution-SCCP plans. Advisory plans never populate executable values,
+physical stores or completion facts.
+
 W303 pattern advice shares `authored_source_pattern_arguments` and
 `authored_source_case_pattern_layout`. A case-list pattern retains genuine
 static list-element ancestry inside its whole original word; the typed
@@ -9483,9 +9491,8 @@ Possible object results with an owning Module use
 `registry_invocation::retained_module_metadata_context(registry, module)`.
 That shared adapter applies `InvocationMetadataContext::for_module` before
 joining availability to the command store: the Module's unit profile, complete
-lexer policy and retained input must agree. The input-only
-`retained_source_metadata_context` adapter serves requests with no owning
-Module. Consumers then call `advisory_value_assignments_in_context` and
+lexer policy and retained input must agree. Consumers then call
+`advisory_value_assignments_in_context` and
 `advisory_return_values_in_context`. The analyser independently verifies the
 exact source image and its correspondence with `Module.source_metadata_input`.
 Missing, foreign or mismatched context supplies no factory advice. A possible
@@ -9608,6 +9615,14 @@ write set. Embedded expression calls also participate in the source procedure
 summary closure. These are conditional source footprints, not measured writes
 or selected Native frames and cells.
 
+Automatic CFG/SSA diagnostic emission retains the complete input from the
+returned `AnalysisResult`. `emit_cfg_ssa_diagnostics` checks the current source,
+retained image, lexer configuration, unit profile and command-store availability
+before calling `CompilationUnit::build_with_analysis_input`. Missing, unavailable
+or changed supplied owners decline before construction. The named test-only
+`emit_cfg_ssa_diagnostics_standalone_for_test` uses the explicit Standalone
+fixture contract. A complete analytical input does not supply a Native entry.
+
 Diagnostic definition places and existence guards take the same function
 metadata. Missing/foreign input, refused availability and a mismatched source
 grammar withdraw advice. Existence-query operands describe a conditional guard;
@@ -9694,6 +9709,25 @@ source-only declaration projection creates no reached lookup state, successful
 handler, Native preparation, physical frame or completed effects. Source-value
 queries still require their independent Module/FunctionUnit semantic projection
 and original SSA-read correspondence; metadata cannot repair missing definitions.
+
+Source-role and child-schema consumers obtain their descriptive realm through
+`SourceInvocationBinding::original_source_realm_for_input(tokens, input, registry)`.
+It first validates the exact current input, configuration, command store, original
+vector and origin. A present reached owner must remain valid. With no reached
+owner, only positively Logical sealed declaration advice with a closed original
+source lookup can supply the realm. This query creates no reached snapshot.
+Logical completion, structured roles, option layouts, lifted expression inventory
+and case-fold children share this purpose; Native consumers keep their reached
+operation requirements.
+
+Logical lifted inventory selects `authored_logical_source_role_projection` on
+the actual descriptor and effective operands. It keeps genuine alias captures
+and maps each Expr operand to its original Written ordinal. An uncertain option
+or case layout, unknown expansion, captured Expr producer without written
+geometry, or missing child sidecar declines the inventory. This source projection
+does not complete Native `InvocationFacts::arg_roles_complete`. Each OO statement
+checks its own full source owner before selecting the operation purpose; recursive
+children retain the request input and authenticate their independent carriers.
 
 Expression suppression starts with the original Expr operand content base.
 `OriginalRegistryWords::source_expression_script_bodies_at` selects its unique
