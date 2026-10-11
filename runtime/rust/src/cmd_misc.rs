@@ -28,16 +28,16 @@ use crate::obj::TclObj;
 
 /// Register the misc bootstrap commands.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"encoding", encoding_cmd);
+    interp.register_stock_builtin(b"encoding", encoding_cmd);
     // init.tcl calls this clock configuration helper during startup. The
     // runtime has no clock configuration state, so the helper is a no-op.
-    interp.register_builtin(b"::tcl::unsupported::clock::configure", noop);
+    interp.register_stock_builtin(b"::tcl::unsupported::clock::configure", noop);
     // `tcl::build-info` — build metadata; the tcltest helper (`tcltests.tcl`)
     // queries it for the `debug`/`purify`/`memdebug`/`deprecated` constraints.
-    interp.register_builtin(b"::tcl::build-info", build_info_cmd);
+    interp.register_stock_builtin(b"::tcl::build-info", build_info_cmd);
     // `pid ?channelId?` — the process id (a channel argument would list the pids
     // of the pipeline behind it, which the WASM runtime has none of).
-    interp.register_builtin(b"pid", pid_cmd);
+    interp.register_stock_builtin(b"pid", pid_cmd);
     // Commands with a registry spec but no portable WASM backing: report an
     // explicit "not supported under the WASM runtime" error rather than the
     // generic `invalid command name` an unregistered command yields.
@@ -174,22 +174,39 @@ fn encoding_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             // naming.encoding.original-utf8-convertto-object-storage
             // docs/design/analysis/name-resolution-proofs/encoding-original-utf8-convertto-object-storage.md
             let data = match argv {
-                [_, _, data] if interp.system_encoding() == tcl_platform::SystemEncoding::Utf8 => *data,
+                [_, _, data] if interp.system_encoding() == tcl_platform::SystemEncoding::Utf8 => {
+                    *data
+                }
                 [_, _, encoding, data] => {
                     let encoding = match interp.native_object_string_bytes(*encoding) {
                         Ok(bytes) => bytes,
                         Err(error) => return interp.report_cmd_error(error.into()),
                     };
                     if encoding.as_ref() != b"utf-8" {
-                        return interp.report_cmd_error(tcl_syntax::value::ValueError::CommandProtocolUnavailable("external encoding target").into());
+                        return interp.report_cmd_error(
+                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "external encoding target",
+                            )
+                            .into(),
+                        );
                     }
                     *data
                 }
-                [_, _, _] => return interp.report_cmd_error(tcl_syntax::value::ValueError::CommandProtocolUnavailable("external system encoding target").into()),
+                [_, _, _] => {
+                    return interp.report_cmd_error(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "external system encoding target",
+                        )
+                        .into(),
+                    )
+                }
                 _ => return interp.wrong_args(b"encoding convertto ?encoding? data"),
             };
             match tcl_cmd_core::encoding::convert_to_utf8(interp, &data) {
-                Ok(result) => { interp.set_result(result); Code::Ok }
+                Ok(result) => {
+                    interp.set_result(result);
+                    Code::Ok
+                }
                 Err(error) => interp.report_cmd_error(error),
             }
         }

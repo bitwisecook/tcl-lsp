@@ -462,6 +462,8 @@ pub struct Namespaces {
     retired_ensemble_roles: std::cell::RefCell<Vec<std::rc::Rc<crate::ensemble::EnsembleToken>>>,
     native_command_version: Option<tcl_dialect::TclVersion>,
     native_compiler_epoch: Option<u64>,
+    /// Software lookup-policy mutations, separate from native compiler epochs.
+    guard_lookup_environment_revision: Option<u64>,
     jim_previous_commands: BTreeMap<u64, CommandBinding>,
     jim_previous_locations: BTreeMap<u64, (NsId, Vec<u8>)>,
     jim_upcalls: BTreeMap<u64, usize>,
@@ -770,6 +772,7 @@ impl Namespaces {
 
     pub(crate) fn invalidate_native_command_lookup(&mut self, ns: NsId) {
         if !self.arena[ns].exports.is_empty() {
+            self.note_guard_lookup_environment_mutation();
             self.advance_ensemble_export_epoch(ns);
         }
 
@@ -1420,6 +1423,7 @@ impl Namespaces {
             retired_ensemble_roles: std::cell::RefCell::new(Vec::new()),
             native_command_version: Some(tcl_dialect::TclVersion::V9_0),
             native_compiler_epoch: Some(0),
+            guard_lookup_environment_revision: Some(0),
             jim_previous_commands: BTreeMap::new(),
             jim_previous_locations: BTreeMap::new(),
             jim_upcalls: BTreeMap::new(),
@@ -2458,8 +2462,25 @@ impl Namespaces {
             .collect()
     }
 
+    pub(crate) fn guard_lookup_environment_revision(&self) -> Option<u64> {
+        self.guard_lookup_environment_revision
+    }
+
+    #[cfg(test)]
+    pub(crate) fn exhaust_guard_lookup_environment_revision_for_test(&mut self) {
+        self.guard_lookup_environment_revision = Some(u64::MAX);
+        self.note_guard_lookup_environment_mutation();
+    }
+
+    fn note_guard_lookup_environment_mutation(&mut self) {
+        self.guard_lookup_environment_revision = self
+            .guard_lookup_environment_revision
+            .and_then(|revision| revision.checked_add(1));
+    }
+
     /// Set namespace `ns`'s `namespace path` to the given namespaces.
     pub fn set_path(&mut self, ns: NsId, path: Vec<NsId>) {
+        self.note_guard_lookup_environment_mutation();
         self.arena[ns].path = path;
         if self
             .native_command_version
@@ -2620,6 +2641,7 @@ impl Namespaces {
     /// `dying_children` edge is recorded — unlike the synchronous window, the
     /// name is free for a fresh token straight away (C nulls `parentPtr`).
     pub(crate) fn defer_namespace(&mut self, ns: NsId) -> Option<crate::obj::Owned> {
+        self.note_guard_lookup_environment_mutation();
         self.namespace_name_begin_deletion(ns);
         self.dead.insert(ns);
         self.deferred.insert(ns);
@@ -2873,6 +2895,7 @@ impl Namespaces {
     /// caller's job via [`clear_exports`](Self::clear_exports).
     pub fn export(&mut self, ns: NsId, pattern: &[u8]) {
         if !self.arena[ns].exports.iter().any(|p| p == pattern) {
+            self.note_guard_lookup_environment_mutation();
             self.arena[ns].exports.push(pattern.to_vec());
             self.advance_ensemble_export_epoch(ns);
         }
@@ -2881,6 +2904,7 @@ impl Namespaces {
     /// Drop all of `ns`'s export patterns (`namespace export -clear`).
     pub fn clear_exports(&mut self, ns: NsId) {
         if !self.arena[ns].exports.is_empty() {
+            self.note_guard_lookup_environment_mutation();
             self.advance_ensemble_export_epoch(ns);
         }
         self.arena[ns].exports.clear();
@@ -3075,6 +3099,7 @@ impl Namespaces {
         ns: NsId,
         handler: Option<crate::obj::Owned>,
     ) -> Option<crate::obj::Owned> {
+        self.note_guard_lookup_environment_mutation();
         std::mem::replace(&mut self.arena[ns].unknown, handler)
     }
 
@@ -3254,6 +3279,7 @@ impl Namespaces {
     /// Mark a synchronous token dying while its original variable table and
     /// parent edge remain available to the variable deletion callbacks.
     pub(crate) fn begin_namespace_variable_teardown(&mut self, ns: NsId) {
+        self.note_guard_lookup_environment_mutation();
         self.namespace_name_begin_deletion(ns);
         self.dying.insert(ns);
         if ns != GLOBAL {
@@ -3275,6 +3301,9 @@ impl Namespaces {
 
     /// Drop the temporary lookup edges after the final post-callback sweep.
     pub(crate) fn finish_namespace_teardown(&mut self, victims: &[NsId]) {
+        if !victims.is_empty() {
+            self.note_guard_lookup_environment_mutation();
+        }
         let victim_set: BTreeSet<NsId> = victims.iter().copied().collect();
         self.dying.retain(|id| !victim_set.contains(id));
         self.dying_children.retain(|_, id| !victim_set.contains(id));
@@ -3301,6 +3330,7 @@ impl Namespaces {
     /// Deleting the global namespace clears its contents but keeps the node
     /// (it has no parent to unlink from) — matching `namespace delete ::`.
     pub fn delete_namespace_by_id(&mut self, ns: NsId) {
+        self.note_guard_lookup_environment_mutation();
         let victims = self.descendant_ids(ns);
         // The global namespace is a permanent interpreter root: deleting it
         // clears its contents but does not invalidate its token. Every other
@@ -3387,6 +3417,9 @@ impl Namespaces {
         &mut self,
         ids: &[NsId],
     ) -> (Vec<VarTable>, Vec<crate::obj::Owned>) {
+        if !ids.is_empty() {
+            self.note_guard_lookup_environment_mutation();
+        }
         let mut retired = Vec::new();
         let mut tables = Vec::new();
         for &id in ids.iter().rev() {
@@ -3428,6 +3461,7 @@ impl Namespaces {
 
     /// Unlink native paths after this token's ordinary commands are deleted.
     pub(crate) fn finish_native_namespace_command_path(&mut self, ns: NsId) {
+        self.note_guard_lookup_environment_mutation();
         self.arena[ns].path.clear();
         self.invalidate_native_path_dependents(ns);
         for node in &mut self.arena {
@@ -3491,6 +3525,9 @@ impl Namespaces {
     /// walk); returns whether it existed. For `namespace forget`.
     pub fn remove_in(&mut self, ns: NsId, name: &[u8]) -> bool {
         self.remove_native_binding(ns, name).is_some_and(|binding| {
+            if matches!(&binding.command, Command::Imported { .. }) {
+                self.note_guard_lookup_environment_mutation();
+            }
             Self::mark_command_deleted(&binding.command, &self.retired_ensemble_roles);
             true
         })
@@ -3584,6 +3621,9 @@ impl Namespaces {
         if let Some(&id) = self.arena[parent].children.get(name) {
             return id;
         }
+        // Existing child selection above is observation; only this new child
+        // changes the shared namespace lookup environment.
+        self.note_guard_lookup_environment_mutation();
         let id = self.arena.len();
         let mut path = self.arena[parent].constructed_path.clone().into_segments();
         path.push(tcl_core_types::NameBytes::from(name));

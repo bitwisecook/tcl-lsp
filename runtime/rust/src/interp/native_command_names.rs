@@ -457,11 +457,11 @@ impl Interp {
                     &cache,
                     &self.native_command_name_lookup_state_at(&cache, current)?,
                 ) {
-                    if let Some((command, fqn)) =
+                    if let Some((command, _)) =
                         self.namespaces.borrow().native_command_at_node(cache.token)
                     {
                         return Ok(self
-                            .command_visible_for_surface_at(&command, &fqn, Some(cache.token))
+                            .command_visible_for_surface_at(&command, Some(cache.token))
                             .then_some((command, Some(cache.token))));
                     }
                 }
@@ -501,9 +501,9 @@ impl Interp {
             let state = self.native_command_name_lookup_state_at(&cache, origin)?;
             if protocol.cache_is_current(&cache, &state) {
                 let binding = self.namespaces.borrow().native_command_at_node(cache.token);
-                if let Some((command, fqn)) = binding {
+                if let Some((command, _)) = binding {
                     return Ok(self
-                        .command_visible_for_surface_at(&command, &fqn, Some(cache.token))
+                        .command_visible_for_surface_at(&command, Some(cache.token))
                         .then_some((command, Some(cache.token))));
                 }
             }
@@ -523,9 +523,9 @@ impl Interp {
             // Cache preparation observes a token; actual worker ownership starts
             // only after the reached old representation has retired.
             let node = self.namespaces.borrow().native_command_at_node(cache.token);
-            if let Some((command, fqn)) = node {
+            if let Some((command, _)) = node {
                 return Ok(self
-                    .command_visible_for_surface_at(&command, &fqn, Some(cache.token))
+                    .command_visible_for_surface_at(&command, Some(cache.token))
                     .then_some((command, Some(cache.token))));
             }
         } else {

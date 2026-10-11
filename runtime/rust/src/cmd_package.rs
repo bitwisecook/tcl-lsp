@@ -22,9 +22,10 @@ use crate::interp::{native_arguments::OriginalArguments, Code, Interp};
 use crate::obj::{self, TclObj};
 use std::collections::BTreeMap;
 use tcl_dialect::{
-    PackagePrefer, TclVersion, compare_versions_bytes_for, select_package_version_bytes_for,
+    compare_versions_bytes_for, select_package_version_bytes_for,
     select_package_version_exact_bytes_for, validate_requirement_bytes_for,
     validate_version_bytes_for, version_matches_exact_bytes_for, version_satisfies_bytes_for,
+    PackagePrefer, TclVersion,
 };
 use tcl_registry::native_package::{NativePackageProtocol, PackageDispatch};
 use tcl_syntax::value::ValueOps;
@@ -100,7 +101,7 @@ impl PackageState {
 }
 
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"package", package_cmd);
+    interp.register_stock_builtin(b"package", package_cmd);
 }
 
 fn operand(

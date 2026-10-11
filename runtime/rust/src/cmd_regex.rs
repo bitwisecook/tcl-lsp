@@ -46,8 +46,8 @@ pub(crate) use tcl_regex::cmd_core::AreEngine;
 
 /// Register `regexp` and `regsub`.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"regexp", regexp_cmd);
-    interp.register_builtin(b"regsub", regsub_cmd);
+    interp.register_stock_builtin(b"regexp", regexp_cmd);
+    interp.register_stock_builtin(b"regsub", regsub_cmd);
 }
 
 /// Jim match consumers call the actual original regexp command, including replacements.

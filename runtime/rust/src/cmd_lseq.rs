@@ -25,7 +25,7 @@ use tcl_cmd_core::lseq::{self, LseqError};
 
 /// Register `lseq`.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"lseq", lseq);
+    interp.register_stock_builtin(b"lseq", lseq);
 }
 
 fn lseq(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {

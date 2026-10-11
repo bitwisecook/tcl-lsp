@@ -49,11 +49,11 @@ use tcl_syntax::value::ValueOps;
 /// `builtins::install` (installed later still wins; nothing registered
 /// after this module re-registers `set`/`incr`).
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"global", global);
-    interp.register_builtin(b"variable", variable);
-    interp.register_builtin(b"upvar", upvar);
-    interp.register_builtin(b"set", set_cmd);
-    interp.register_builtin(b"incr", installed_incr());
+    interp.register_stock_builtin(b"global", global);
+    interp.register_stock_builtin(b"variable", variable);
+    interp.register_stock_builtin(b"upvar", upvar);
+    interp.register_stock_builtin(b"set", set_cmd);
+    interp.register_stock_builtin(b"incr", installed_incr());
 }
 
 // set / incr: return-after-trace

@@ -89,7 +89,7 @@ impl Interp {
             namespaces: Vec::new(),
             nested: Vec::new(),
         };
-        if let Some(namespace) = self
+        let generation = if let Some(namespace) = self
             .native_invocation_dialect()
             .ensemble_implementation_namespace(family)
         {
@@ -114,7 +114,7 @@ impl Interp {
                     target.extend_from_slice(b"::");
                     target.extend_from_slice(member);
                 }
-                self.register_stock_worker(&target, callback, &mut installed);
+                let _ = self.register_stock_worker(&target, callback, &mut installed);
                 map.push((member.to_vec(), vec![target]));
             }
             let config = EnsembleConfig {
@@ -126,13 +126,17 @@ impl Interp {
                 parameters: Vec::new(),
                 unknown: Vec::new(),
             };
-            self.create_ensemble(public, config.clone());
+            let Some(generation) = self.create_ensemble(public, config.clone()) else {
+                return;
+            };
             installed.config = Some(config);
+            generation
         } else {
-            self.register_builtin(public, compiler);
-        }
-        let Some(generation) = self.resolve_cmd_token(public) else {
-            return;
+            let generation = self.register_stock_builtin(public, compiler);
+            if generation == 0 {
+                return;
+            }
+            generation
         };
         installed.generation = generation;
         self.native_compilation
@@ -166,8 +170,9 @@ impl Interp {
             let parameters = crate::cmd_proc::parse_params_in(self, ingress.parameters.as_bytes())
                 .expect("audited distribution formal grammar");
             for (name, callback) in ingress.members.iter().zip(callbacks) {
-                self.register_stock_worker(name.as_bytes(), *callback, &mut installed);
-                if let Some(token) = self.resolve_cmd_token(name.as_bytes()) {
+                if let Some(token) =
+                    self.register_stock_worker(name.as_bytes(), *callback, &mut installed)
+                {
                     // These helpers belong to the scripted distribution; no
                     // C primitive compiler identity is donated to them.
                     self.native_compilation.borrow_mut().stock.remove(&token);
@@ -214,21 +219,22 @@ impl Interp {
         name: &[u8],
         callback: BuiltinFn,
         installed: &mut InstalledFamily,
-    ) {
+    ) -> Option<u64> {
         // A host or script may already own the private spelling when a host
         // changes release. Its live handler remains the map's actual target.
         if self.resolve_cmd_token(name).is_some() {
-            return;
+            return None;
         }
-        self.register_builtin(name, callback);
-        let generation = self
-            .resolve_cmd_token(name)
-            .expect("installed private token");
+        let generation = self.register_stock_builtin(name, callback);
+        if generation == 0 {
+            return None;
+        }
         self.native_compilation
             .borrow_mut()
             .stock
             .insert(generation, name.to_vec());
         installed.members.push((name.to_vec(), generation));
+        Some(generation)
     }
 
     /// Replace a just-installed codec-root worker with its real nested ensemble.
@@ -258,14 +264,13 @@ impl Interp {
             slot == name && self.resolve_cmd_token(slot) == Some(*generation)
         });
         if let Some(index) = owned {
-            installed.members.remove(index);
             let ns = self.ensure_stock_namespace(name, &mut installed);
             let mut map = Vec::new();
             for &(member, worker) in members {
                 let mut target = name.to_vec();
                 target.extend_from_slice(b"::");
                 target.extend_from_slice(member);
-                self.register_stock_worker(&target, worker, &mut installed);
+                let _ = self.register_stock_worker(&target, worker, &mut installed);
                 map.push((member.to_vec(), vec![target]));
             }
             let config = EnsembleConfig {
@@ -277,10 +282,16 @@ impl Interp {
                 parameters: Vec::new(),
                 unknown: Vec::new(),
             };
-            self.create_ensemble(name, config.clone());
-            let generation = self
-                .resolve_cmd_token(name)
-                .expect("installed codec ensemble");
+            let Some(generation) = self.create_ensemble(name, config.clone()) else {
+                // Keep reached installer records, including the old exact worker
+                // observation. Refusal cannot label a callback-created slot.
+                self.stock_ensembles
+                    .borrow_mut()
+                    .families
+                    .insert(family, installed);
+                return;
+            };
+            installed.members.remove(index);
             self.native_compilation
                 .borrow_mut()
                 .stock
@@ -358,9 +369,10 @@ impl Interp {
                 .iter()
                 .all(|(name, generation)| self.resolve_cmd_token(name) == Some(*generation))
         {
-            let registry = tcl_registry::default_registry();
-            if let Some(spec) = registry.get("string") {
-                self.attest_spec_implementation(spec);
+            let registry = crate::environment::store_for_profile(self.dialect_profile());
+            if let Some(spec) = registry.get_exact("string") {
+                self.retire_guarded_command_identities();
+                self.attest_spec_at(spec, installed.generation);
             }
         }
     }
@@ -503,6 +515,52 @@ impl Interp {
                 installed.scripted_helpers.push((name.to_vec(), generation));
             }
         }
+    }
+
+    /// Original stock root identity follows its allocation, including a rename.
+    /// Scripted distribution roots have their independent selected admission.
+    pub(super) fn stock_ensemble_registry_identity(&self, generation: u64) -> Option<Vec<u8>> {
+        self.stock_ensembles
+            .borrow()
+            .families
+            .values()
+            .find_map(|installed| {
+                if installed.generation == generation && !installed.scripted {
+                    Some(installed.public.to_vec())
+                } else {
+                    installed.nested.iter().find_map(|(name, token, _, _)| {
+                        (*token == generation).then(|| name.clone())
+                    })
+                }
+            })
+    }
+
+    /// Writable maps and private worker replacements cannot retain a semantic
+    /// attestation merely because the public root token still exists.
+    pub(super) fn stock_ensemble_implementation_is_current(&self, generation: u64) -> bool {
+        let registrations = self.stock_ensembles.borrow();
+        registrations.families.values().any(|installed| {
+            if installed.generation == generation {
+                !installed.scripted
+                    && self.stock_ensemble_config_matches(installed)
+                    && installed.members.iter().all(|(name, token)| {
+                        self.namespaces().resolve_generation(GLOBAL, name) == Some(*token)
+                    })
+                    && installed.nested.iter().all(|(_, token, config, _)| {
+                        matches!(self.raw_command_by_generation(*token),
+                            Some(Command::Ensemble(ensemble)) if ensemble.config() == *config)
+                    })
+            } else {
+                installed.nested.iter().any(|(_, token, config, _)| {
+                    *token == generation
+                        && installed.members.iter().all(|(name, worker)| {
+                            self.namespaces().resolve_generation(GLOBAL, name) == Some(*worker)
+                        })
+                        && matches!(self.raw_command_by_generation(*token),
+                            Some(Command::Ensemble(ensemble)) if ensemble.config() == *config)
+                })
+            }
+        })
     }
 
     /// Compiler identity comes from the installed token and unchanged real map.

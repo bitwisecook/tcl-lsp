@@ -509,6 +509,11 @@ impl<Owner: PartialEq> OwnedGuardManager<Owner> {
         self.epochs.release(token)
     }
 
+    /// Permanently refuse snapshots and issuance in an exhausted owner domain.
+    pub fn poison(&mut self, domain: GuardDomain) {
+        self.epochs.poison(domain);
+    }
+
     /// Invalidate every snapshot that depends on the selected domain.
     pub fn invalidate(&mut self, domain: GuardDomain) {
         self.epochs.invalidate(domain);

@@ -48,12 +48,12 @@ use crate::obj::{self, TclObj};
 
 /// Register `coroutine`, `yield`, `yieldto`, and the `info coroutine` hook.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"coroutine", coroutine_cmd);
-    interp.register_builtin(b"yield", yield_cmd);
-    interp.register_builtin(b"yieldto", yieldto_cmd);
-    interp.register_builtin(b"coroprobe", coroprobe_cmd);
-    interp.register_builtin(b"coroinject", coroinject_cmd);
-    interp.register_builtin(b"::tcl::unsupported::corotype", corotype_cmd);
+    interp.register_stock_builtin(b"coroutine", coroutine_cmd);
+    interp.register_stock_builtin(b"yield", yield_cmd);
+    interp.register_stock_builtin(b"yieldto", yieldto_cmd);
+    interp.register_stock_builtin(b"coroprobe", coroprobe_cmd);
+    interp.register_stock_builtin(b"coroinject", coroinject_cmd);
+    interp.register_stock_builtin(b"::tcl::unsupported::corotype", corotype_cmd);
 }
 
 // the cross-thread plumbing

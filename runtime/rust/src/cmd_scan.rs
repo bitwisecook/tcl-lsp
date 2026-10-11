@@ -30,7 +30,7 @@ use crate::obj::{new_double_obj, new_string_bytes, new_wide_int_obj, TclObj};
 
 /// Register `scan`.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"scan", scan_cmd);
+    interp.register_stock_builtin(b"scan", scan_cmd);
 }
 
 /// Build the runtime object for a scanned value: `%d`→wide int, `%f`→double,

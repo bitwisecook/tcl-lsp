@@ -43,14 +43,14 @@ use tcl_syntax::value::ValueOps;
 
 /// Register `rename`, `interp`, and the selected Jim core `alias`.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"rename", rename);
-    interp.register_builtin(b"interp", interp_cmd);
+    interp.register_stock_builtin(b"rename", rename);
+    interp.register_stock_builtin(b"interp", interp_cmd);
     if interp
         .native_invocation_dialect()
         .native_jim_lookup_protocol()
         .is_some()
     {
-        interp.register_builtin(b"alias", jim_alias);
+        interp.register_stock_builtin(b"alias", jim_alias);
     }
     // `update` is registered by `cmd_event` (the real event loop).
 }

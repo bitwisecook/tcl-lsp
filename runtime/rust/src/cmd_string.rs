@@ -36,9 +36,9 @@ use crate::obj::{self, TclObj};
 
 /// Register `append` + the `string` ensemble.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"append", append);
+    interp.register_stock_builtin(b"append", append);
     // Prefix is a separate command, with its own installed token.
-    interp.register_builtin(b"::tcl::prefix", tcl_prefix);
+    interp.register_stock_builtin(b"::tcl::prefix", tcl_prefix);
     install_ensemble(interp);
 }
 

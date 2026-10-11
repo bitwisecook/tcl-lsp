@@ -34,21 +34,21 @@ use tcl_syntax::value::ValueOps;
 
 /// Register the control-flow commands.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"break", break_cmd);
-    interp.register_builtin(b"continue", continue_cmd);
-    interp.register_builtin(b"foreach", foreach);
-    interp.register_builtin(b"lmap", lmap);
+    interp.register_stock_builtin(b"break", break_cmd);
+    interp.register_stock_builtin(b"continue", continue_cmd);
+    interp.register_stock_builtin(b"foreach", foreach);
+    interp.register_stock_builtin(b"lmap", lmap);
     // `time` only evaluates a body `count` times — no numeric tower needed (the
     // count parses through the shared radix grammar, not `expr`).
-    interp.register_builtin(b"time", time_cmd);
-    interp.register_builtin(b"timerate", timerate_cmd);
-    interp.register_builtin(b"tailcall", tailcall_cmd);
+    interp.register_stock_builtin(b"time", time_cmd);
+    interp.register_stock_builtin(b"timerate", timerate_cmd);
+    interp.register_stock_builtin(b"tailcall", tailcall_cmd);
     // `if`/`while`/`for` test Tcl expressions → need the numeric tower.
     #[cfg(have_tommath)]
     {
-        interp.register_builtin(b"if", if_cmd);
-        interp.register_builtin(b"while", while_cmd);
-        interp.register_builtin(b"for", for_cmd);
+        interp.register_stock_builtin(b"if", if_cmd);
+        interp.register_stock_builtin(b"while", while_cmd);
+        interp.register_stock_builtin(b"for", for_cmd);
     }
 }
 

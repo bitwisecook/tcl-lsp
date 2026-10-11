@@ -53,13 +53,13 @@ fn install_for_bootstrap(
     interp: &mut Interp,
     protocol: Option<tcl_registry::special_vars::NativeBootstrapProtocol>,
 ) {
-    interp.register_builtin(b"set", set);
-    interp.register_builtin(b"incr", incr);
-    interp.register_builtin(b"const", const_cmd);
-    interp.register_builtin(b"return", ret);
-    interp.register_builtin(b"unset", unset);
-    interp.register_builtin(b"exit", exit_cmd);
-    interp.register_builtin(b"subst", subst_cmd);
+    interp.register_stock_builtin(b"set", set);
+    interp.register_stock_builtin(b"incr", incr);
+    interp.register_stock_builtin(b"const", const_cmd);
+    interp.register_stock_builtin(b"return", ret);
+    interp.register_stock_builtin(b"unset", unset);
+    interp.register_stock_builtin(b"exit", exit_cmd);
+    interp.register_stock_builtin(b"subst", subst_cmd);
     crate::cmd_scan::install(interp);
     crate::cmd_format::install(interp);
     if protocol.is_none_or(|protocol| protocol.registers_core_binary()) {
@@ -68,7 +68,7 @@ fn install_for_bootstrap(
     crate::cmd_clock::install(interp);
     // `expr` needs the numeric tower (libtommath); registered only when linked.
     #[cfg(have_tommath)]
-    interp.register_builtin(b"expr", expr_cmd);
+    interp.register_stock_builtin(b"expr", expr_cmd);
     // `::tcl::mathfunc::*` are real commands `expr`'s function path resolves
     // through (overridable); they need the tower too.
     #[cfg(have_tommath)]

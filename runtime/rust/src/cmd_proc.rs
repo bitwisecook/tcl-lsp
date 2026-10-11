@@ -44,8 +44,8 @@ mod native_static_original_tests;
 
 /// Register `proc`, `apply`, and `puts`.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"proc", proc_cmd);
-    interp.register_builtin(b"apply", apply_cmd);
+    interp.register_stock_builtin(b"proc", proc_cmd);
+    interp.register_stock_builtin(b"apply", apply_cmd);
 }
 
 /// Install audited distribution wrappers without replacing host or user commands.

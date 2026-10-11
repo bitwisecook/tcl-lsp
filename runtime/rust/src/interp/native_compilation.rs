@@ -442,7 +442,6 @@ impl Interp {
                     return self
                         .command_visible_for_surface_at(
                             &Command::Builtin(handler),
-                            &identity,
                             Some(generation),
                         )
                         .then_some((identity, handler, generation, lookup_generation));

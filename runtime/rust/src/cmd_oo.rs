@@ -671,16 +671,16 @@ pub fn install(interp: &mut Interp) {
     interp.oo.borrow_mut().method_reports = reports;
     interp.oo.borrow_mut().define_name =
         Some(obj::Owned::fresh(obj::new_string_bytes(b"::oo::define")));
-    interp.register_builtin(b"oo::define", oo_define_cmd);
-    interp.register_builtin(b"oo::objdefine", oo_objdefine_cmd);
-    interp.register_builtin(b"oo::copy", oo_copy_cmd);
+    interp.register_stock_builtin(b"oo::define", oo_define_cmd);
+    interp.register_stock_builtin(b"oo::objdefine", oo_objdefine_cmd);
+    interp.register_stock_builtin(b"oo::copy", oo_copy_cmd);
     // Method-context commands. `my` is created *per object* (in each object's
     // namespace) like C TclOO — never global — so a test's `rename ::my {}`
     // can't break it. `self`/`next` resolve via the call stack.
-    interp.register_builtin(b"::oo::Helpers::self", native_context::helper_self);
-    interp.register_builtin(b"::oo::Helpers::next", next_cmd);
-    interp.register_builtin(b"::oo::Helpers::nextto", nextto_cmd);
-    interp.register_builtin(b"classvariable", classvariable_cmd);
+    interp.register_stock_builtin(b"::oo::Helpers::self", native_context::helper_self);
+    interp.register_stock_builtin(b"::oo::Helpers::next", next_cmd);
+    interp.register_stock_builtin(b"::oo::Helpers::nextto", nextto_cmd);
+    interp.register_stock_builtin(b"classvariable", classvariable_cmd);
     // Root classes (so `superclass`-less classes inherit `object` and
     // `superclass oo::class`/`oo::object` validate). Both are themselves
     // objects (instances of `::oo::class`) and dispatch through `oo_dispatch`

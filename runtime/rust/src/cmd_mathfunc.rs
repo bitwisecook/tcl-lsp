@@ -43,7 +43,7 @@ pub fn install(interp: &mut Interp) {
     for name in crate::builtins::mathfunc_names() {
         let mut full = b"::tcl::mathfunc::".to_vec();
         full.extend_from_slice(name.as_bytes());
-        interp.register_builtin(&full, mathfunc);
+        interp.register_stock_builtin(&full, mathfunc);
     }
 }
 

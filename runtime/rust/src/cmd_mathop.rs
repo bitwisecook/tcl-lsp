@@ -37,7 +37,7 @@ pub fn install(interp: &mut Interp) {
     for op in crate::builtins::mathop_names() {
         let mut full = b"::tcl::mathop::".to_vec();
         full.extend_from_slice(op.as_bytes());
-        interp.register_builtin(&full, mathop);
+        interp.register_stock_builtin(&full, mathop);
     }
     if interp
         .native_invocation_dialect()

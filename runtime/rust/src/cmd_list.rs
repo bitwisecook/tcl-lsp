@@ -26,7 +26,7 @@
 
 use tcl_cmd_core::list as list_core;
 
-use crate::interp::{Code, Interp, obj_bytes};
+use crate::interp::{obj_bytes, Code, Interp};
 use crate::list;
 use crate::obj::{self, TclObj};
 
@@ -45,25 +45,25 @@ fn adapt(interp: &mut Interp, result: Result<*mut TclObj, tcl_cmd_core::CmdError
 
 /// Register the list commands.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"list", list_cmd);
-    interp.register_builtin(b"llength", llength);
-    interp.register_builtin(b"lindex", lindex);
-    interp.register_builtin(b"lappend", lappend);
-    interp.register_builtin(b"lrange", lrange);
-    interp.register_builtin(b"lreverse", lreverse);
-    interp.register_builtin(b"concat", concat);
-    interp.register_builtin(b"join", join);
-    interp.register_builtin(b"split", split);
-    interp.register_builtin(b"lassign", lassign);
-    interp.register_builtin(b"lrepeat", lrepeat);
-    interp.register_builtin(b"linsert", linsert);
-    interp.register_builtin(b"lreplace", lreplace);
-    interp.register_builtin(b"lset", lset);
-    interp.register_builtin(b"ledit", ledit);
-    interp.register_builtin(b"lpop", lpop);
-    interp.register_builtin(b"lremove", lremove);
-    interp.register_builtin(b"lsearch", lsearch);
-    interp.register_builtin(b"lsort", lsort);
+    interp.register_stock_builtin(b"list", list_cmd);
+    interp.register_stock_builtin(b"llength", llength);
+    interp.register_stock_builtin(b"lindex", lindex);
+    interp.register_stock_builtin(b"lappend", lappend);
+    interp.register_stock_builtin(b"lrange", lrange);
+    interp.register_stock_builtin(b"lreverse", lreverse);
+    interp.register_stock_builtin(b"concat", concat);
+    interp.register_stock_builtin(b"join", join);
+    interp.register_stock_builtin(b"split", split);
+    interp.register_stock_builtin(b"lassign", lassign);
+    interp.register_stock_builtin(b"lrepeat", lrepeat);
+    interp.register_stock_builtin(b"linsert", linsert);
+    interp.register_stock_builtin(b"lreplace", lreplace);
+    interp.register_stock_builtin(b"lset", lset);
+    interp.register_stock_builtin(b"ledit", ledit);
+    interp.register_stock_builtin(b"lpop", lpop);
+    interp.register_stock_builtin(b"lremove", lremove);
+    interp.register_stock_builtin(b"lsearch", lsearch);
+    interp.register_stock_builtin(b"lsort", lsort);
 }
 
 // helpers
@@ -732,7 +732,7 @@ fn parse_wide(b: &[u8]) -> Option<i128> {
 /// the core; `-command` is split (the core prepares, this adapter runs the merge
 /// sort over the user comparator via `lsort_cmd_compare`, then the core builds).
 fn lsort(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    use tcl_cmd_core::lsort::{Lsort, build_command, prepare, sort_command};
+    use tcl_cmd_core::lsort::{build_command, prepare, sort_command, Lsort};
     let job = match prepare(interp, &argv[1..]) {
         Ok(Lsort::Done(v)) => {
             interp.set_result(v);

@@ -194,18 +194,18 @@ impl ChannelTable {
 
 /// Register the channel commands.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"open", open_cmd);
-    interp.register_builtin(b"close", close_cmd);
-    interp.register_builtin(b"read", read_cmd);
-    interp.register_builtin(b"gets", gets_cmd);
-    interp.register_builtin(b"puts", puts_cmd);
-    interp.register_builtin(b"flush", flush_cmd);
-    interp.register_builtin(b"eof", eof_cmd);
-    interp.register_builtin(b"fconfigure", fconfigure_cmd);
-    interp.register_builtin(b"fblocked", fblocked_cmd);
-    interp.register_builtin(b"seek", seek_cmd);
-    interp.register_builtin(b"tell", tell_cmd);
-    interp.register_builtin(b"chan", chan_cmd);
+    interp.register_stock_builtin(b"open", open_cmd);
+    interp.register_stock_builtin(b"close", close_cmd);
+    interp.register_stock_builtin(b"read", read_cmd);
+    interp.register_stock_builtin(b"gets", gets_cmd);
+    interp.register_stock_builtin(b"puts", puts_cmd);
+    interp.register_stock_builtin(b"flush", flush_cmd);
+    interp.register_stock_builtin(b"eof", eof_cmd);
+    interp.register_stock_builtin(b"fconfigure", fconfigure_cmd);
+    interp.register_stock_builtin(b"fblocked", fblocked_cmd);
+    interp.register_stock_builtin(b"seek", seek_cmd);
+    interp.register_stock_builtin(b"tell", tell_cmd);
+    interp.register_stock_builtin(b"chan", chan_cmd);
 }
 
 /// `chan subcommand ?arg ...?` — the core channel ensemble. Its subcommand set

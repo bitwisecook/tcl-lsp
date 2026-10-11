@@ -49,7 +49,7 @@ use tcl_syntax::value::ValueOps;
 
 use crate::frame::VarError;
 use crate::interp::native_arguments::OriginalArguments;
-use crate::interp::{Code, Interp, new_string};
+use crate::interp::{new_string, Code, Interp};
 use crate::namespace::NsId;
 use crate::obj::TclObj;
 
@@ -85,9 +85,9 @@ pub struct VarTrace {
         tcl_runtime_api::native_variable_trace::NativeVariableTraceToken,
         std::rc::Rc<
             dyn tcl_runtime_api::native_variable_trace::NativeVariableObserver<
-                    Interp,
-                    Error = tcl_cmd_core::CmdError,
-                >,
+                Interp,
+                Error = tcl_cmd_core::CmdError,
+            >,
         >,
     )>,
     /// For a trace on a **proc-local** variable, the call-frame level it lives
@@ -353,7 +353,7 @@ pub fn same_variable(
 
 /// Register `trace`.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"trace", trace_cmd);
+    interp.register_stock_builtin(b"trace", trace_cmd);
 }
 
 /// The variable resolver supplies the reason, while `trace` owns the command
@@ -2424,7 +2424,7 @@ mod tests {
 mod original_operand_tests {
     use super::*;
     use crate::cmd_alias::original_operand_tests::{
-        Update, UpdaterOwner, first, native, seed, unchanged, words,
+        first, native, seed, unchanged, words, Update, UpdaterOwner,
     };
     use crate::obj::Owned;
     #[test]

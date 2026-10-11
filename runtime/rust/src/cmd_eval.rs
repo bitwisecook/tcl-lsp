@@ -36,8 +36,8 @@ mod native_frame_reference_tests;
 
 /// Register `eval` and `uplevel`.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"eval", eval_cmd);
-    interp.register_builtin(b"uplevel", uplevel_cmd);
+    interp.register_stock_builtin(b"eval", eval_cmd);
+    interp.register_stock_builtin(b"uplevel", uplevel_cmd);
 }
 
 /// Assemble multiple original script operands with the selected native concat

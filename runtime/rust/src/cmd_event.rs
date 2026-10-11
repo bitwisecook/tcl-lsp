@@ -17,9 +17,9 @@ use tcl_syntax::value::{ValueError, ValueOps};
 pub(crate) type EventQueue = tcl_cmd_core::event::EventQueue<obj::Owned>;
 /// Register the selected after, vwait and update handlers.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"after", after_cmd);
-    interp.register_builtin(b"vwait", vwait_cmd);
-    interp.register_builtin(b"update", update_cmd);
+    interp.register_stock_builtin(b"after", after_cmd);
+    interp.register_stock_builtin(b"vwait", vwait_cmd);
+    interp.register_stock_builtin(b"update", update_cmd);
 }
 fn selected(interp: &mut Interp) -> Result<NativeEventProtocol, Code> {
     interp

@@ -1289,6 +1289,7 @@ pub struct InterpState {
     active_var_trace_scopes: RefCell<Vec<crate::cmd_trace::VarTraceScope>>,
     /// Runtime-issued speculative guards and explicitly attested builtin IDs.
     guards: RefCell<OwnedGuardManager<u64>>,
+    guard_lookup_environment_revision: Cell<Option<u64>>,
     guarded_commands:
         RefCell<std::collections::BTreeMap<u64, std::collections::BTreeSet<GuardIdentity>>>,
     /// Registry identity of each engine-installed builtin command generation.
@@ -1927,6 +1928,7 @@ impl Interp {
             array_operation_targets: RefCell::new(Vec::new()),
             active_var_trace_scopes: RefCell::new(Vec::new()),
             guards: RefCell::new(OwnedGuardManager::new(guards)),
+            guard_lookup_environment_revision: Cell::new(Some(0)),
             guarded_commands: RefCell::new(std::collections::BTreeMap::new()),
             registry_builtin_names: RefCell::new(std::collections::HashMap::new()),
             native_compilation: RefCell::new(native_compilation::CompilationState::default()),
@@ -2813,12 +2815,7 @@ impl Interp {
     /// command token. Engine builtins retain their registry identity by exact
     /// generation across rename and hide; other native commands use their
     /// current Tcl-facing spelling as before.
-    fn command_visible_for_surface_at(
-        &self,
-        command: &Command,
-        fqn: &[u8],
-        generation: Option<u64>,
-    ) -> bool {
+    fn command_visible_for_surface_at(&self, command: &Command, generation: Option<u64>) -> bool {
         match command {
             Command::Builtin(_) => {
                 if generation.is_some_and(|token| self.is_stock_scripted_worker(token)) {
@@ -2831,8 +2828,13 @@ impl Interp {
                         .get(&generation)
                         .cloned()
                 });
-                self.builtin_command_visible_for_surface(registry_name.as_deref().unwrap_or(fqn))
+                registry_name
+                    .as_deref()
+                    .is_none_or(|name| self.builtin_command_visible_for_surface(name))
             }
+            Command::Ensemble(_) => generation
+                .and_then(|generation| self.stock_ensemble_registry_identity(generation))
+                .is_none_or(|name| self.builtin_command_visible_for_surface(&name)),
             Command::OoObject(id) => self
                 .0
                 .registry_object_roots
@@ -2877,15 +2879,14 @@ impl Interp {
         origin: NsId,
         name: &[u8],
     ) -> Option<(Command, Option<u64>)> {
-        let (command, fqn, generation) = {
+        let (command, generation) = {
             let ns = self.namespaces.borrow();
             (
                 ns.resolve(origin, name)?,
-                ns.resolve_fqn(origin, name)?,
                 ns.resolve_generation(origin, name),
             )
         };
-        self.command_visible_for_surface_at(&command, &fqn, generation)
+        self.command_visible_for_surface_at(&command, generation)
             .then_some((command, generation))
     }
 
@@ -2983,10 +2984,26 @@ impl Interp {
 
     // command registry
 
-    /// Register a built-in command (a possibly-qualified `name`, creating
-    /// intermediate namespaces; overwrites any existing command of `name`).
+    /// Register a host handler at a possibly-qualified name. This replaces the
+    /// actual binding without claiming stock dialect or compiler identity.
     pub fn register_builtin(&mut self, name: &[u8], f: BuiltinFn) {
         self.bind_builtin(name, f);
+    }
+
+    /// Only engine installation identifies an actual stock handler token.
+    pub(crate) fn register_stock_builtin(&mut self, name: &[u8], f: BuiltinFn) -> u64 {
+        let generation = self.bind_builtin(name, f);
+        if generation == 0 {
+            return 0;
+        }
+        let Some((fqn, _)) = self.raw_command_location_by_generation(generation) else {
+            return 0;
+        };
+        self.registry_builtin_names
+            .borrow_mut()
+            .insert(generation, fqn.clone());
+        self.record_scripted_helper_registration(&fqn, generation);
+        generation
     }
 
     /// Bind a builtin through its actual publication owner.
@@ -3025,12 +3042,6 @@ impl Interp {
         if self.host_refusal_pending() {
             return 0;
         }
-        let fqn = self.namespaces().command_fqn_at(ns, &tail);
-        self.0
-            .registry_builtin_names
-            .borrow_mut()
-            .insert(generation, fqn.clone());
-        self.record_scripted_helper_registration(&fqn, generation);
         generation
     }
 
@@ -3056,26 +3067,28 @@ impl Interp {
     /// offline-generated code. Ordinary registration never infers identity
     /// from a spelling or function address.
     pub fn register_guarded_builtin(&mut self, name: &[u8], f: BuiltinFn, identity: GuardIdentity) {
-        self.register_builtin(name, f);
-        self.retire_guarded_command_identities();
-        if let Some(generation) = self.namespaces.borrow().resolve_generation(GLOBAL, name) {
-            self.guarded_commands
-                .borrow_mut()
-                .entry(generation)
-                .or_default()
-                .insert(identity);
+        let generation = self.bind_builtin(name, f);
+        if generation != 0 {
+            self.retire_guarded_command_identities();
+            self.attest(
+                generation,
+                None,
+                std::collections::BTreeSet::from([identity]),
+            );
         }
     }
 
     /// Register a builtin and derive every semantic identity from its registry
     /// command, subcommand, and invocation-form descriptors.
     pub fn register_spec_builtin(&mut self, spec: &tcl_registry::CommandSpec, f: BuiltinFn) {
-        self.register_builtin(spec.name.as_bytes(), f);
-        self.attest_spec_implementation(spec);
+        let generation = self.bind_builtin(spec.name.as_bytes(), f);
+        if generation != 0 {
+            self.retire_guarded_command_identities();
+            self.attest_spec_at(spec, generation);
+        }
     }
 
-    pub(crate) fn attest_spec_implementation(&self, spec: &tcl_registry::CommandSpec) {
-        self.retire_guarded_command_identities();
+    fn attest_spec_at(&self, spec: &tcl_registry::CommandSpec, generation: u64) {
         let identities: std::collections::BTreeSet<_> = spec
             .intrinsic_ids()
             .into_iter()
@@ -3085,17 +3098,7 @@ impl Interp {
                 })
             })
             .collect();
-        if !identities.is_empty() {
-            if let Some(generation) = self
-                .namespaces
-                .borrow()
-                .resolve_generation(GLOBAL, spec.name.as_bytes())
-            {
-                self.guarded_commands
-                    .borrow_mut()
-                    .insert(generation, identities);
-            }
-        }
+        self.attest(generation, None, identities);
     }
 
     /// Register a builtin that only refuses: a call answers "not supported"
@@ -3103,8 +3106,10 @@ impl Interp {
     /// backing report says so ([`RegisteredBacking::Unsupported`]) rather than
     /// counting it as a handler.
     pub(crate) fn register_unsupported(&mut self, name: &[u8], f: BuiltinFn) {
-        let generation = self.bind_builtin(name, f);
-        self.0.unsupported_builtins.borrow_mut().insert(generation);
+        let generation = self.register_stock_builtin(name, f);
+        if generation != 0 {
+            self.unsupported_builtins.borrow_mut().insert(generation);
+        }
     }
 
     /// Attach the registry's intrinsic identities to the builtins this
@@ -3117,9 +3122,9 @@ impl Interp {
     /// since redefined or renamed over gains no attestation for a procedure,
     /// and a builtin moved to another name keeps the one it already has (the
     /// table is keyed by the command token's generation, which a rename
-    /// carries). It runs once, at the end of registration: the table survives
-    /// the profile pin, and a later sweep would attest whatever an embedder
-    /// registered at a registry name as the registry's command.
+    /// carries). The sweep runs after stock installation and retains its
+    /// attestations through a profile pin. Public host registration never adds
+    /// a shipped token, even when its spelling belongs to this registry.
     pub(crate) fn attach_identities(&mut self) {
         let registry = crate::environment::store_for_profile(self.dialect_profile());
         self.attach_identities_from(registry);
@@ -3197,6 +3202,15 @@ impl Interp {
                                 RegisteredBacking::Builtin
                             }
                         }
+                        Some(Command::Ensemble(_))
+                            if namespaces.command_generation(ns, name).is_some_and(
+                                |generation| {
+                                    self.stock_ensemble_registry_identity(generation).is_some()
+                                },
+                            ) =>
+                        {
+                            RegisteredBacking::Builtin
+                        }
                         Some(Command::OoObject(id)) if roots.contains_key(&id) => {
                             RegisteredBacking::Object
                         }
@@ -3239,19 +3253,25 @@ impl Interp {
         &self,
         name: &[u8],
     ) -> Option<std::collections::BTreeSet<GuardIdentity>> {
-        let current = self.current_ns.get();
-        let (fqn, generation, command) = {
-            let namespaces = self.namespaces.borrow();
-            (
-                namespaces.resolve_fqn(current, name)?,
-                namespaces.resolve_generation(current, name)?,
-                namespaces.resolve(current, name)?,
-            )
-        };
-        if !self.command_visible_for_surface_at(&command, &fqn, Some(generation)) {
+        self.attested_command_identity(name)
+            .map(|(_, identities)| identities)
+    }
+
+    fn attested_command_identity(
+        &self,
+        name: &[u8],
+    ) -> Option<(u64, std::collections::BTreeSet<GuardIdentity>)> {
+        let (command, generation) =
+            self.resolve_dispatchable_with_generation(self.current_ns.get(), name)?;
+        let generation = generation?;
+        if matches!(command, Command::Ensemble(_))
+            && self.stock_ensemble_registry_identity(generation).is_some()
+            && !self.stock_ensemble_implementation_is_current(generation)
+        {
             return None;
         }
-        self.guarded_commands.borrow().get(&generation).cloned()
+        let identities = self.guarded_commands.borrow().get(&generation).cloned()?;
+        Some((generation, identities))
     }
 
     /// Verify live command identity and issue a guard over `domains`.
@@ -3266,6 +3286,7 @@ impl Interp {
         expected: GuardIdentity,
         domains: GuardDomains,
     ) -> Result<GuardToken, GuardError> {
+        self.synchronise_command_environment_guards();
         if !domains.covers(tcl_registry::IntrinsicId::required_guard_domains(expected)) {
             return Err(GuardError::DomainsInsufficient);
         }
@@ -3276,22 +3297,14 @@ impl Interp {
             return Err(GuardError::PrerequisiteUnsatisfied);
         }
         drop(traces);
-        let generation = self
-            .namespaces
-            .borrow()
-            .resolve_generation(self.current_ns.get(), name)
+        let (generation, identities) = self
+            .attested_command_identity(name)
             .ok_or(GuardError::IdentityUnavailable)?;
-        let observed = self
-            .guarded_commands
-            .borrow()
-            .get(&generation)
-            .and_then(|identities| {
-                Some(if identities.contains(&expected) {
-                    expected
-                } else {
-                    *identities.first()?
-                })
-            });
+        let observed = if identities.contains(&expected) {
+            Some(expected)
+        } else {
+            identities.first().copied()
+        };
         self.guards
             .borrow_mut()
             .prepare(expected, observed, domains, generation)
@@ -3300,15 +3313,8 @@ impl Interp {
     /// Re-check a guard against the current resolved implementation identity.
     #[must_use]
     pub fn check_command_guard(&self, token: GuardToken, name: &[u8]) -> bool {
-        let Some(generation) = self
-            .namespaces
-            .borrow()
-            .resolve_generation(self.current_ns.get(), name)
-        else {
-            return false;
-        };
-        let identities = self.guarded_commands.borrow();
-        let Some(identities) = identities.get(&generation) else {
+        self.synchronise_command_environment_guards();
+        let Some((generation, identities)) = self.attested_command_identity(name) else {
             return false;
         };
         identities.iter().any(|identity| {
@@ -3330,18 +3336,11 @@ impl Interp {
         name: &[u8],
         expected: GuardIdentity,
     ) -> bool {
-        let Some(generation) = self
-            .namespaces
-            .borrow()
-            .resolve_generation(self.current_ns.get(), name)
-        else {
+        self.synchronise_command_environment_guards();
+        let Some((generation, identities)) = self.attested_command_identity(name) else {
             return false;
         };
-        let identities = self.guarded_commands.borrow();
-        if !identities
-            .get(&generation)
-            .is_some_and(|identities| identities.contains(&expected))
-        {
+        if !identities.contains(&expected) {
             return false;
         }
         self.guards
@@ -3405,15 +3404,32 @@ impl Interp {
         });
     }
 
+    /// Observe the actual table owner's policy revision before any guard door.
+    /// A mutable namespace borrow alone is not a lookup-policy mutation.
+    fn synchronise_command_environment_guards(&self) {
+        let revision = self.namespaces().guard_lookup_environment_revision();
+        let previous = self.guard_lookup_environment_revision.replace(revision);
+        if revision.is_none() {
+            let mut guards = self.guards.borrow_mut();
+            for domain in [
+                GuardDomain::CommandEnvironment,
+                GuardDomain::Namespace,
+                GuardDomain::UnknownHandling,
+            ] {
+                guards.poison(domain);
+            }
+        } else if previous != revision {
+            self.invalidate_command_environment();
+        }
+    }
+
     /// Invalidate the guard domains that depend on the command lookup
     /// environment: namespace structure and lifecycle, and interpreter topology.
     ///
-    /// A command-table mutation does not come here. What a guard needs of its
-    /// command is decided when it is checked, by resolving the guarded name to
-    /// a token generation and finding an attestation there
-    /// ([`Self::attested_identities`]), so replacing, deleting, renaming,
-    /// hiding, or aliasing one command invalidates that command's guards and no
-    /// other's.
+    /// Ordinary command mutations are checked by resolving the guarded name
+    /// to its actual generation and semantic attestation. Renaming that same
+    /// token preserves its guard; replacing, deleting, hiding or resolving a
+    /// different token refuses it without invalidating unrelated commands.
     fn invalidate_command_environment(&self) {
         let mut guards = self.guards.borrow_mut();
         guards.invalidate(GuardDomain::CommandEnvironment);
@@ -4297,14 +4313,19 @@ impl Interp {
         removed
     }
 
-    /// Install a stock ensemble using the selected C registration owner.
-    pub(crate) fn create_ensemble(&mut self, name: &[u8], cfg: crate::ensemble::EnsembleConfig) {
+    /// Return the actual shared publisher's generation after its cleanup.
+    /// Stock installation must never derive this receipt from a later name lookup.
+    pub(crate) fn create_ensemble(
+        &mut self,
+        name: &[u8],
+        cfg: crate::ensemble::EnsembleConfig,
+    ) -> Option<u64> {
         let (ns, tail) = self
             .namespaces
             .borrow_mut()
             .command_publication_at(self.current_ns.get(), name)
             .expect("stock ensemble has a native publication context");
-        self.create_ensemble_in_slot(ns, &tail, cfg);
+        self.create_ensemble_in_slot_with_publication(ns, &tail, cfg)
     }
 
     /// Install one ensemble in its already selected physical command holder.
@@ -4314,17 +4335,34 @@ impl Interp {
         tail: &[u8],
         cfg: crate::ensemble::EnsembleConfig,
     ) {
+        // This void facade retains the existing caller contract; publication
+        // refusal is already latched by the same checked worker.
+        let _publication = self.create_ensemble_in_slot_with_publication(ns, tail, cfg);
+    }
+
+    fn create_ensemble_in_slot_with_publication(
+        &mut self,
+        ns: NsId,
+        tail: &[u8],
+        cfg: crate::ensemble::EnsembleConfig,
+    ) -> Option<u64> {
         let scope = match native_operation_currency::NativeOperationScope::enter(self) {
             Ok(scope) => scope,
             Err(first) => {
                 self.refuse_native_execution(first);
-                return;
+                return None;
             }
         };
-        self.create_ensemble_in_slot_entered(ns, tail, cfg, &scope);
+        let reached = self.create_ensemble_in_slot_entered(ns, tail, cfg, &scope);
+        // The entered worker's original token/configuration cleanup has finished.
+        // A recreated spelling cannot become this publication's receipt.
         if let Err(first) = scope.currency().ensure_current_or_refuse() {
             self.refuse_native_execution(first);
+            return None;
         }
+        let generation = reached?;
+        self.original_command_publication_is_current(ns, tail, generation)
+            .then_some(generation)
     }
 
     fn create_ensemble_in_slot_entered(
@@ -4333,14 +4371,14 @@ impl Interp {
         tail: &[u8],
         mut cfg: crate::ensemble::EnsembleConfig,
         scope: &native_operation_currency::NativeOperationScope,
-    ) {
+    ) -> Option<u64> {
         let Some(holder) = self.native_namespace_token_at(ns) else {
             self.refuse_native_access(
                 tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
                     "original ensemble publication namespace",
                 ),
             );
-            return;
+            return None;
         };
         let holder_lifecycle = holder.lifecycle();
         let Some(configuration_holder) = self.native_namespace_token_at(cfg.ns) else {
@@ -4349,7 +4387,7 @@ impl Interp {
                     "original ensemble configuration namespace",
                 ),
             );
-            return;
+            return None;
         };
         let configuration_namespace = cfg.ns;
         let configuration_lifecycle = configuration_holder.lifecycle();
@@ -4362,7 +4400,7 @@ impl Interp {
                 configuration_lifecycle,
             )
         {
-            return;
+            return None;
         }
         let fqn = self.namespaces.borrow().command_fqn_at(ns, tail);
         let displaced = self.namespaces.borrow().command_in(ns, tail);
@@ -4398,9 +4436,18 @@ impl Interp {
                 configuration_lifecycle,
             )
         {
-            return;
+            return None;
         }
-        self.bind_command_replacement(ns, tail, Command::Ensemble(Rc::clone(&new_token)));
+        let OriginalCommandPublication::Published(new_generation) = self
+            .bind_command_replacement_with_jim_key(
+                ns,
+                tail,
+                Command::Ensemble(Rc::clone(&new_token)),
+                None,
+            )
+        else {
+            return None;
+        };
         if scope.currency().ensure_current_or_refuse().is_err()
             || !self.original_publication_namespace_is_current(ns, &holder, holder_lifecycle)
             || !self.original_publication_namespace_is_current(
@@ -4409,25 +4456,18 @@ impl Interp {
                 configuration_lifecycle,
             )
         {
-            return;
+            return None;
         }
         new_token.config().originals.activate();
         self.namespaces
             .borrow_mut()
             .advance_ensemble_export_epoch(new_token.config().ns);
-        let (new_fqn, new_generation) = {
-            let namespaces = self.namespaces.borrow();
-            (
-                namespaces.command_fqn_at(ns, tail),
-                namespaces
-                    .command_generation(ns, tail)
-                    .expect("the new ensemble was just bound"),
-            )
-        };
+        let new_fqn = self.namespaces.borrow().command_fqn_at(ns, tail);
         if had_displaced {
             self.reattach_missing_import_sources(&new_fqn, new_generation);
         }
         self.retarget_imports_to_ensemble(new_generation, &new_token);
+        Some(new_generation)
     }
 
     /// Define a user proc (`proc name params body`). The proc's defining
@@ -4828,13 +4868,13 @@ impl Interp {
         tail: &[u8],
         command: Command,
         incoming: Option<tcl_syntax::naming::NativeJimCommandTableKey>,
-    ) {
+    ) -> OriginalCommandPublication {
         let scope = match native_operation_currency::NativeOperationScope::enter(self) {
             Ok(scope) => scope,
             Err(first) => {
                 self.refuse_native_execution(first);
                 drop(command);
-                return;
+                return OriginalCommandPublication::Refused;
             }
         };
         let reached = self.generated_jim_command_key(
@@ -4843,16 +4883,16 @@ impl Interp {
             tcl_syntax::naming::NativeNamePurpose::CommandCApiPublication,
         );
         if scope.currency().ensure_current_or_refuse().is_err() {
-            return;
+            return OriginalCommandPublication::Refused;
         }
         let original_key = match reached {
             Ok(key) => key,
             Err(error) => {
                 self.report_cmd_error(error.into());
-                return;
+                return OriginalCommandPublication::Refused;
             }
         };
-        self.bind_command_replacement_with_original_jim_key(
+        let reached = self.bind_command_replacement_with_original_jim_key(
             ns,
             tail,
             command,
@@ -4861,7 +4901,9 @@ impl Interp {
         );
         if let Err(first) = scope.currency().ensure_current_or_refuse() {
             self.refuse_native_execution(first);
+            return OriginalCommandPublication::Refused;
         }
+        reached
     }
 
     fn bind_command_replacement_with_original_jim_key(
@@ -5450,7 +5492,7 @@ impl Interp {
         let Some((fqn, command)) = self.raw_command_location_by_generation(generation) else {
             return CommandGenerationLookup::Missing;
         };
-        if !self.command_visible_for_surface_at(&command, &fqn, Some(generation)) {
+        if !self.command_visible_for_surface_at(&command, Some(generation)) {
             return CommandGenerationLookup::Unavailable;
         }
         CommandGenerationLookup::Found { fqn, command }
@@ -6002,8 +6044,8 @@ impl Interp {
     /// The namespace tree (mutable) — for the `namespace` builtin's mutations
     /// (`export`/`import`/`forget`/`path`).
     pub(crate) fn namespaces_mut(&self) -> std::cell::RefMut<'_, Namespaces> {
-        // This escape hatch is used only by namespace/OO mutators. Invalidate
-        // conservatively before exposing mutable namespace state.
+        // The actual mutators record lookup-policy revisions; an ordinary
+        // command publication must not invalidate unrelated command guards.
         self.namespaces.borrow_mut()
     }
 
@@ -10188,10 +10230,6 @@ impl Interp {
     /// `info commands` adapter and internal namespace listings.
     pub(crate) fn visible_command_names_in(&self, id: NsId) -> Vec<Vec<u8>> {
         let ns = self.namespaces.borrow();
-        let mut prefix = ns.qualified_name(id);
-        if prefix != b"::" {
-            prefix.extend_from_slice(b"::");
-        }
         ns.command_names(id)
             .iter()
             .filter_map(|name| {
@@ -10204,9 +10242,7 @@ impl Interp {
                 // the exact generation too, so a renamed builtin is gated by
                 // the same stable registry identity as dispatch.
                 let command = ns.command_in(id, name)?;
-                let mut fqn = prefix.clone();
-                fqn.extend_from_slice(name);
-                self.command_visible_for_surface_at(&command, &fqn, ns.command_generation(id, name))
+                self.command_visible_for_surface_at(&command, ns.command_generation(id, name))
                     .then(|| name.to_vec())
             })
             .collect()
@@ -19042,6 +19078,666 @@ mod tests {
         assert!(!interp.check_command_guard(token, b"guarded"));
     }
 
+    fn registration_host_worker(interpreter: &mut Interp, _: &[*mut TclObj]) -> Code {
+        interpreter.set_result_bytes(b"HOST");
+        Code::Ok
+    }
+
+    #[test]
+    fn namespace_child_birth_and_export_clear_use_the_shared_lookup_revision() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        leak_free(|interpreter| {
+            let namespace = interpreter
+                .namespaces_mut()
+                .ensure_namespace(GLOBAL, b"::RegistrationExisting");
+            interpreter.register_guarded_builtin(
+                b"registrationGuarded",
+                registration_host_worker,
+                GUARDED_IDENTITY,
+            );
+            let domains = [
+                GuardDomain::CommandEnvironment,
+                GuardDomain::Namespace,
+                GuardDomain::UnknownHandling,
+            ];
+            let prepare = |interpreter: &mut Interp| {
+                domains.map(|domain| {
+                    interpreter
+                        .prepare_command_guard(
+                            b"registrationGuarded",
+                            GUARDED_IDENTITY,
+                            GuardDomains::one(domain),
+                        )
+                        .unwrap()
+                })
+            };
+            let tokens = prepare(interpreter);
+            assert_eq!(
+                interpreter
+                    .namespaces_mut()
+                    .ensure_namespace(GLOBAL, b"::RegistrationExisting"),
+                namespace
+            );
+            interpreter.namespaces_mut().clear_exports(namespace);
+            interpreter.register_builtin(
+                b"::RegistrationExisting::unrelated",
+                registration_host_worker,
+            );
+            assert!(tokens
+                .iter()
+                .all(|token| interpreter.check_command_guard(*token, b"registrationGuarded")));
+            // This is the actual command-publication child birth, rather than
+            // an Interp facade adding an invalidation after table mutation.
+            interpreter
+                .register_builtin(b"::RegistrationBorn::unrelated", registration_host_worker);
+            assert!(tokens
+                .iter()
+                .all(|token| !interpreter.check_command_guard(*token, b"registrationGuarded")));
+            for token in tokens {
+                assert!(interpreter.release_command_guard(token));
+            }
+            interpreter.namespaces_mut().export(namespace, b"unrelated");
+            let tokens = prepare(interpreter);
+            interpreter.namespaces_mut().clear_exports(namespace);
+            assert!(tokens
+                .iter()
+                .all(|token| !interpreter.check_command_guard(*token, b"registrationGuarded")));
+            for token in tokens {
+                assert!(interpreter.release_command_guard(token));
+            }
+        });
+    }
+
+    unsafe extern "C" fn registration_ensemble_retirement(data: *mut c_void) {
+        // The actual old ObjCommand transfers its sole client record here.
+        let state = unsafe { Box::from_raw(data.cast::<PublicationRetirement>()) };
+        state.calls.set(state.calls.get() + 1);
+        let mut interpreter = state.interpreter.upgrade().map(Interp).unwrap();
+        match state.mode {
+            0 => interpreter.register_builtin(b"retiring", registration_host_worker),
+            1 => {
+                interpreter.refuse_native_access(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "original ensemble delete refusal",
+                    ),
+                );
+            }
+            2 => {
+                let original = interpreter.runtime_context();
+                let mut changed = original.clone();
+                changed.packages = vec![("ensemble-publication-retirement".into(), "1.0".into())];
+                interpreter.pin_context(&changed).unwrap();
+                interpreter.pin_context(&original).unwrap();
+            }
+            _ => {}
+        }
+    }
+
+    #[test]
+    fn stock_root_installation_keeps_the_actual_publication_receipt_after_retirement() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Runtime callbacks check custody/refusal, not native ensemble chronology.
+        for mode in 0..4 {
+            leak_free(|interpreter| {
+                interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+                let state = retirement_state(interpreter, mode);
+                let calls = state.calls.clone();
+                let old = interpreter
+                    .create_obj_command(
+                        b"retiring",
+                        ObjCommand::new(
+                            publication_noop,
+                            Box::into_raw(state).cast(),
+                            Some(registration_ensemble_retirement),
+                        ),
+                    )
+                    .unwrap();
+                interpreter.register_stock_ensemble(
+                    tcl_registry::invocation_words::EnsembleImplementationFamily::String,
+                    b"retiring",
+                    registration_host_worker,
+                    &[(b"length", registration_host_worker)],
+                    &[b"length".as_slice()],
+                );
+                assert_eq!(calls.get(), 1);
+                let current = interpreter.resolve_cmd_token(b"retiring");
+                if mode == 3 {
+                    let generation = current.unwrap();
+                    assert_ne!(generation, old);
+                    assert!(interpreter.native_execution_refusal().is_none());
+                    assert_eq!(
+                        interpreter
+                            .native_compilation
+                            .borrow()
+                            .stock
+                            .get(&generation),
+                        Some(&b"retiring".to_vec())
+                    );
+                    assert!(matches!(
+                        interpreter.raw_command_by_generation(generation),
+                        Some(Command::Ensemble(_))
+                    ));
+                } else {
+                    assert!(interpreter.native_execution_refusal().is_some());
+                    if let Some(generation) = current {
+                        assert!(!interpreter
+                            .native_compilation
+                            .borrow()
+                            .stock
+                            .contains_key(&generation));
+                        assert!(!interpreter
+                            .registry_builtin_names
+                            .borrow()
+                            .contains_key(&generation));
+                    }
+                    if mode == 0 {
+                        assert!(matches!(
+                            interpreter.raw_command_by_generation(current.unwrap()),
+                            Some(Command::Builtin(_))
+                        ));
+                    }
+                }
+            });
+        }
+    }
+
+    std::thread_local! {
+        static REGISTRATION_NESTED_RETIREMENT_MODE: std::cell::Cell<u8> = const { std::cell::Cell::new(3) };
+        static REGISTRATION_NESTED_RETIREMENT_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    fn registration_nested_retirement(interpreter: &mut Interp, _: &[*mut TclObj]) -> Code {
+        REGISTRATION_NESTED_RETIREMENT_CALLS.with(|calls| calls.set(calls.get() + 1));
+        match REGISTRATION_NESTED_RETIREMENT_MODE.with(std::cell::Cell::get) {
+            0 => interpreter.register_builtin(b"::tcl::binary::encode", registration_host_worker),
+            1 => {
+                interpreter.refuse_native_access(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "original nested ensemble delete refusal",
+                    ),
+                );
+            }
+            2 => {
+                let original = interpreter.runtime_context();
+                let mut changed = original.clone();
+                changed.packages = vec![("nested-ensemble-retirement".into(), "1.0".into())];
+                interpreter.pin_context(&changed).unwrap();
+                interpreter.pin_context(&original).unwrap();
+            }
+            _ => {}
+        }
+        Code::Ok
+    }
+
+    #[test]
+    fn stock_nested_installation_stops_before_attesting_a_refused_or_recreated_slot() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // The actual command delete trace, not an invented native delete role,
+        // supplies this software callback on the installed nested ensemble.
+        for mode in 0..4 {
+            leak_free(|interpreter| {
+                interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+                REGISTRATION_NESTED_RETIREMENT_MODE.with(|value| value.set(mode));
+                REGISTRATION_NESTED_RETIREMENT_CALLS.with(|value| value.set(0));
+                interpreter.register_builtin(
+                    b"registrationNestedRetirement",
+                    registration_nested_retirement,
+                );
+                let name = b"::tcl::binary::encode";
+                let old = interpreter.resolve_cmd_token(name).unwrap();
+                assert_eq!(interpreter.eval_str(
+                    b"trace add command ::tcl::binary::encode delete registrationNestedRetirement"
+                ), Code::Ok);
+                interpreter.register_stock_nested_ensemble(
+                    tcl_registry::invocation_words::EnsembleImplementationFamily::Binary,
+                    name,
+                    registration_host_worker,
+                    &[(b"hex", registration_host_worker)],
+                );
+                assert_eq!(
+                    REGISTRATION_NESTED_RETIREMENT_CALLS.with(std::cell::Cell::get),
+                    1
+                );
+                let current = interpreter.resolve_cmd_token(name);
+                if mode == 3 {
+                    let generation = current.unwrap();
+                    assert_ne!(generation, old);
+                    assert!(interpreter.native_execution_refusal().is_none());
+                    assert_eq!(
+                        interpreter
+                            .native_compilation
+                            .borrow()
+                            .stock
+                            .get(&generation),
+                        Some(&name.to_vec())
+                    );
+                    assert!(matches!(
+                        interpreter.raw_command_by_generation(generation),
+                        Some(Command::Ensemble(_))
+                    ));
+                } else {
+                    assert!(interpreter.native_execution_refusal().is_some());
+                    if let Some(generation) = current {
+                        assert!(!interpreter
+                            .native_compilation
+                            .borrow()
+                            .stock
+                            .contains_key(&generation));
+                    }
+                    if mode == 0 {
+                        assert!(matches!(
+                            interpreter.raw_command_by_generation(current.unwrap()),
+                            Some(Command::Builtin(_))
+                        ));
+                    }
+                }
+                REGISTRATION_NESTED_RETIREMENT_MODE.with(|value| value.set(3));
+                REGISTRATION_NESTED_RETIREMENT_CALLS.with(|value| value.set(0));
+            });
+        }
+    }
+
+    #[test]
+    fn dynamic_builtin_registration_preserves_native_namespace_fallback_without_stock_identity() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // These are Runtime registration/lookup controls, not external execution proofs.
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            leak_free(|interpreter| {
+                *interpreter = Interp::with_native_core(
+                    default_host(),
+                    crate::environment::profile_for_dialect(profile),
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .unwrap();
+                interpreter.register_builtin(b"registrationHostWorker", registration_host_worker);
+                let generation = interpreter
+                    .resolve_cmd_token(b"registrationHostWorker")
+                    .unwrap();
+                assert!(!interpreter
+                    .registry_builtin_names
+                    .borrow()
+                    .contains_key(&generation));
+                assert!(!interpreter
+                    .native_compilation
+                    .borrow()
+                    .stock
+                    .contains_key(&generation));
+                assert!(interpreter
+                    .guarded_commands
+                    .borrow()
+                    .get(&generation)
+                    .is_none());
+                assert_eq!(
+                    interpreter
+                        .eval_str(b"namespace eval RegistrationHost {registrationHostWorker}"),
+                    Code::Ok,
+                    "{profile}: result={:?}, refusal={:?}",
+                    interpreter.result_bytes(),
+                    interpreter.native_execution_refusal(),
+                );
+                assert_eq!(interpreter.result_bytes(), b"HOST", "{profile}");
+                assert!(interpreter.native_execution_refusal().is_none());
+            });
+        }
+    }
+
+    #[test]
+    fn explicitly_guarded_host_replacement_has_no_stock_release_floor() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        leak_free(|interpreter| {
+            interpreter.register_guarded_builtin(
+                b"lassign",
+                registration_host_worker,
+                GUARDED_IDENTITY,
+            );
+            let generation = interpreter.resolve_cmd_token(b"lassign").unwrap();
+            let token = interpreter
+                .prepare_command_guard(
+                    b"lassign",
+                    GUARDED_IDENTITY,
+                    GuardDomains::one(GuardDomain::CommandEnvironment),
+                )
+                .unwrap();
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+            assert_eq!(interpreter.eval_str(b"lassign"), Code::Ok);
+            assert_eq!(interpreter.result_bytes(), b"HOST");
+            assert!(interpreter.check_command_guard_identity(token, b"lassign", GUARDED_IDENTITY));
+            assert!(!interpreter
+                .registry_builtin_names
+                .borrow()
+                .contains_key(&generation));
+            assert!(!interpreter
+                .native_compilation
+                .borrow()
+                .stock
+                .contains_key(&generation));
+            assert!(interpreter.release_command_guard(token));
+        });
+    }
+
+    #[test]
+    fn stock_ensemble_attestation_requires_the_original_worker_at_its_actual_map_slot() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for move_original in [false, true] {
+            leak_free(|interpreter| {
+                let intrinsic = tcl_registry::IntrinsicId::StringLength;
+                let identity = GuardIdentity::registry_intrinsic_with_semantics(
+                    intrinsic.stable_id(),
+                    intrinsic.guard_semantics_key(interpreter.runtime_version()),
+                );
+                let token = interpreter
+                    .prepare_command_guard(
+                        b"string",
+                        identity,
+                        GuardDomains::one(GuardDomain::CommandEnvironment),
+                    )
+                    .unwrap();
+                let worker = interpreter
+                    .resolve_cmd_token(b"::tcl::string::length")
+                    .unwrap();
+                if move_original {
+                    assert_eq!(
+                        interpreter
+                            .eval_str(b"rename ::tcl::string::length ::registrationOriginalLength"),
+                        Code::Ok
+                    );
+                    assert!(interpreter
+                        .raw_command_location_by_generation(worker)
+                        .is_some());
+                }
+                interpreter.register_builtin(b"::tcl::string::length", registration_host_worker);
+                assert!(!interpreter.check_command_guard_identity(token, b"string", identity));
+                assert!(interpreter.attested_identities(b"string").is_none());
+                assert_eq!(interpreter.eval_str(b"string length abc"), Code::Ok);
+                assert_eq!(interpreter.result_bytes(), b"HOST");
+                assert!(interpreter.release_command_guard(token));
+            });
+        }
+    }
+
+    #[test]
+    fn stock_ensemble_attestation_refuses_a_changed_actual_mapping() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        leak_free(|interpreter| {
+            let intrinsic = tcl_registry::IntrinsicId::StringLength;
+            let identity = GuardIdentity::registry_intrinsic_with_semantics(
+                intrinsic.stable_id(),
+                intrinsic.guard_semantics_key(interpreter.runtime_version()),
+            );
+            let token = interpreter
+                .prepare_command_guard(
+                    b"string",
+                    identity,
+                    GuardDomains::one(GuardDomain::CommandEnvironment),
+                )
+                .unwrap();
+            interpreter.register_builtin(b"registrationMappedLength", registration_host_worker);
+            assert_eq!(
+                interpreter.eval_str(
+                    b"namespace ensemble configure string -map {length ::registrationMappedLength}",
+                ),
+                Code::Ok
+            );
+            assert!(!interpreter.check_command_guard_identity(token, b"string", identity));
+            assert_eq!(interpreter.eval_str(b"string length abc"), Code::Ok);
+            assert_eq!(interpreter.result_bytes(), b"HOST");
+            assert!(interpreter.release_command_guard(token));
+        });
+    }
+
+    #[test]
+    fn namespace_mutation_owner_synchronises_all_lookup_guard_domains() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for mutation in 0..10 {
+            leak_free(|interpreter| {
+                assert_eq!(interpreter.eval_str(
+                    b"namespace eval RegistrationSource {proc target {} {}; namespace export target};
+                      namespace eval RegistrationImports {namespace import ::RegistrationSource::target}",
+                ), Code::Ok);
+                let namespace = interpreter
+                    .namespaces()
+                    .find_namespace(GLOBAL, b"RegistrationImports")
+                    .unwrap();
+                if mutation == 4 {
+                    interpreter.namespaces_mut().export(namespace, b"target");
+                } else if mutation == 5 {
+                    interpreter
+                        .namespaces_mut()
+                        .set_path(namespace, vec![GLOBAL]);
+                } else if mutation == 9 {
+                    interpreter
+                        .namespaces_mut()
+                        .begin_namespace_teardown(namespace);
+                }
+                interpreter.register_guarded_builtin(
+                    b"registrationGuarded",
+                    registration_host_worker,
+                    GUARDED_IDENTITY,
+                );
+                let tokens = [
+                    GuardDomain::CommandEnvironment,
+                    GuardDomain::Namespace,
+                    GuardDomain::UnknownHandling,
+                ]
+                .map(|domain| {
+                    interpreter
+                        .prepare_command_guard(
+                            b"registrationGuarded",
+                            GUARDED_IDENTITY,
+                            GuardDomains::one(domain),
+                        )
+                        .unwrap()
+                });
+                interpreter.register_builtin(b"registrationUnrelated", registration_host_worker);
+                assert!(tokens
+                    .iter()
+                    .all(|token| interpreter.check_command_guard(*token, b"registrationGuarded")));
+                match mutation {
+                    0 => interpreter.namespaces_mut().set_path(GLOBAL, vec![GLOBAL]),
+                    1 => interpreter
+                        .namespaces_mut()
+                        .export(GLOBAL, b"registrationNewExport"),
+                    2 => {
+                        let handler = obj::Owned::fresh(new_string(b"registrationUnknown"));
+                        let previous = interpreter
+                            .namespaces_mut()
+                            .set_unknown_handler(GLOBAL, Some(handler));
+                        drop(previous);
+                    }
+                    3 => assert!(interpreter.namespaces_mut().remove_in(namespace, b"target")),
+                    4 => interpreter.namespaces_mut().clear_exports(namespace),
+                    5 => interpreter
+                        .namespaces_mut()
+                        .finish_native_namespace_command_path(namespace),
+                    6 => interpreter
+                        .namespaces_mut()
+                        .delete_namespace_by_id(namespace),
+                    7 => {
+                        let retired = interpreter
+                            .namespaces_mut()
+                            .clear_namespace_ids(&[namespace]);
+                        drop(retired);
+                    }
+                    8 => interpreter
+                        .namespaces_mut()
+                        .begin_namespace_variable_teardown(namespace),
+                    _ => interpreter
+                        .namespaces_mut()
+                        .finish_namespace_teardown(&[namespace]),
+                }
+                assert!(tokens
+                    .iter()
+                    .all(|token| !interpreter.check_command_guard(*token, b"registrationGuarded")));
+                for token in tokens {
+                    assert!(interpreter.release_command_guard(token));
+                }
+            });
+        }
+    }
+
+    #[test]
+    fn exhausted_namespace_lookup_revision_permanently_poisons_its_guard_domains() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        leak_free(|interpreter| {
+            interpreter.register_guarded_builtin(
+                b"registrationGuarded",
+                registration_host_worker,
+                GUARDED_IDENTITY,
+            );
+            let domains = [
+                GuardDomain::CommandEnvironment,
+                GuardDomain::Namespace,
+                GuardDomain::UnknownHandling,
+            ];
+            let tokens = domains.map(|domain| {
+                interpreter
+                    .prepare_command_guard(
+                        b"registrationGuarded",
+                        GUARDED_IDENTITY,
+                        GuardDomains::one(domain),
+                    )
+                    .unwrap()
+            });
+            let independent = interpreter
+                .prepare_command_guard(
+                    b"registrationGuarded",
+                    GUARDED_IDENTITY,
+                    GuardDomains::one(GuardDomain::Interpreter),
+                )
+                .unwrap();
+            interpreter
+                .namespaces_mut()
+                .exhaust_guard_lookup_environment_revision_for_test();
+            assert!(tokens
+                .iter()
+                .all(|token| !interpreter.check_command_guard(*token, b"registrationGuarded")));
+            assert!(interpreter.check_command_guard(independent, b"registrationGuarded"));
+            interpreter.namespaces_mut().set_path(GLOBAL, vec![GLOBAL]);
+            for domain in domains {
+                assert_eq!(
+                    interpreter.prepare_command_guard(
+                        b"registrationGuarded",
+                        GUARDED_IDENTITY,
+                        GuardDomains::one(domain),
+                    ),
+                    Err(GuardError::Poisoned)
+                );
+            }
+            for token in tokens {
+                assert!(interpreter.release_command_guard(token));
+            }
+            assert!(interpreter.release_command_guard(independent));
+        });
+    }
+
+    unsafe extern "C" fn registration_recreate_on_retirement(data: *mut c_void) {
+        // SAFETY: the actual retiring command transfers this sole client record.
+        let state = unsafe { Box::from_raw(data.cast::<PublicationRetirement>()) };
+        state.calls.set(state.calls.get() + 1);
+        let mut interpreter = state.interpreter.upgrade().map(Interp).unwrap();
+        interpreter.register_builtin(b"retiring", registration_host_worker);
+    }
+
+    #[test]
+    fn refused_guarded_registration_cannot_attest_a_callback_created_generation() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // This checks the Runtime receipt; it claims no native discard chronology.
+        leak_free(|interpreter| {
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            let state = retirement_state(interpreter, 0);
+            let calls = state.calls.clone();
+            interpreter
+                .create_obj_command(
+                    b"retiring",
+                    ObjCommand::new(
+                        publication_noop,
+                        Box::into_raw(state).cast(),
+                        Some(registration_recreate_on_retirement),
+                    ),
+                )
+                .unwrap();
+            interpreter.register_guarded_builtin(b"retiring", resultless_builtin, GUARDED_IDENTITY);
+            assert_eq!(calls.get(), 1);
+            assert!(interpreter.native_execution_refusal().is_some());
+            let replacement = interpreter.resolve_cmd_token(b"retiring").unwrap();
+            assert!(interpreter
+                .guarded_commands
+                .borrow()
+                .get(&replacement)
+                .is_none());
+            assert!(interpreter.attested_identities(b"retiring").is_none());
+            assert!(!interpreter
+                .registry_builtin_names
+                .borrow()
+                .contains_key(&replacement));
+        });
+    }
+
+    #[test]
+    fn renamed_stock_ensemble_keeps_its_release_identity_and_dynamic_replacement_does_not() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        leak_free(|interpreter| {
+            assert_eq!(
+                interpreter.eval_str(b"rename dict registrationMovedDict"),
+                Code::Ok
+            );
+            let stock = interpreter
+                .resolve_cmd_token(b"registrationMovedDict")
+                .unwrap();
+            assert!(matches!(
+                interpreter.raw_command_by_generation(stock),
+                Some(Command::Ensemble(_))
+            ));
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+            assert!(interpreter
+                .resolve_dispatchable(GLOBAL, b"registrationMovedDict")
+                .is_none());
+            interpreter.register_builtin(b"registrationMovedDict", registration_host_worker);
+            let replacement = interpreter
+                .resolve_cmd_token(b"registrationMovedDict")
+                .unwrap();
+            assert_ne!(replacement, stock);
+            assert_eq!(interpreter.eval_str(b"registrationMovedDict"), Code::Ok);
+            assert_eq!(interpreter.result_bytes(), b"HOST");
+        });
+    }
+
+    #[test]
+    fn release_visibility_does_not_donate_a_foreign_list_backing_origin() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // The explicit origin refusal is separate from command-table visibility.
+        use tcl_syntax::value::ValueOps;
+        leak_free(|interpreter| {
+            let member = obj::Owned::fresh(new_string(b"A"));
+            let list = obj::Owned::fresh(interpreter.new_list(vec![member.as_ptr()]));
+            assert_eq!(
+                interpreter.list_elements(&list.as_ptr()).unwrap(),
+                vec![member.as_ptr()]
+            );
+            let before = obj::native_object_snapshot(list.as_ptr()).unwrap();
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            assert!(matches!(
+                interpreter.list_elements(&list.as_ptr()),
+                Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "native List string recipe origin"
+                ))
+            ));
+            assert_eq!(obj::native_object_snapshot(list.as_ptr()).unwrap(), before);
+        });
+    }
+
     #[test]
     fn native_jim_core_keeps_only_constructor_empty_roles() {
         let interp = Interp::with_native_core(
@@ -19395,6 +20091,8 @@ mod tests {
     /// token brings it back; a profile pin keeps the attestation.
     #[test]
     fn an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         leak_free(|i| {
             i.register_guarded_builtin(b"guarded", guarded_builtin, GUARDED_IDENTITY);
             let domains = GuardDomains::one(GuardDomain::CommandEnvironment);
@@ -19546,6 +20244,8 @@ mod tests {
     /// only the runtime may attest.
     #[test]
     fn identities_come_from_the_pinned_generation_never_an_overlay() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         use tcl_registry::{CommandSpec, IntrinsicId, SemanticOperationId};
         leak_free(|i| {
             // A generation an overlay installed under this interpreter's own
@@ -19576,9 +20276,14 @@ mod tests {
                 "and still attests the shipped command"
             );
 
-            // Control: the fixture is sound, a sweep over the overlay's own
-            // store would attest the builtin.
+            // A store cannot attest an ordinary host handler by its spelling.
             i.attach_identities_from(&overlaid);
+            assert!(i.attested_identities(b"overlay_length").is_none());
+            // Explicit spec registration supplies the independent semantic claim.
+            i.register_spec_builtin(
+                overlaid.get_exact("overlay_length").unwrap(),
+                guarded_builtin,
+            );
             assert!(i.attested_identities(b"overlay_length").is_some());
         });
     }
@@ -19685,6 +20390,8 @@ mod tests {
     /// defines.
     #[test]
     fn the_backing_report_says_what_the_handler_table_holds() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         leak_free(|i| {
             let report =
                 |i: &Interp| tcl_runtime_api::BackingReport::from_entries(i.backing_report());
@@ -19699,7 +20406,8 @@ mod tests {
             assert_eq!(before.of("oo::object"), RegisteredBacking::Object);
             assert_eq!(before.of("my"), RegisteredBacking::Object);
             assert_eq!(before.of("zipfs"), RegisteredBacking::Absent);
-            assert_eq!(before.of("tcl::dict::get"), RegisteredBacking::Absent);
+            // The selected native ensemble owns this real private worker.
+            assert_eq!(before.of("tcl::dict::get"), RegisteredBacking::Builtin);
             #[cfg(have_tommath)]
             assert_eq!(before.of("expr"), RegisteredBacking::Builtin);
             #[cfg(not(have_tommath))]
@@ -19800,6 +20508,8 @@ mod tests {
 
     #[test]
     fn command_identity_survives_unrelated_mutation_and_follows_its_actual_generation() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         leak_free(|i| {
             let token = prepare_interpreter_guard(i);
             i.register_builtin(b"unrelated", resultless_builtin);
@@ -19815,7 +20525,8 @@ mod tests {
                 i.rename_command(b"guarded", b"moved"),
                 RenameOutcome::Renamed
             );
-            assert!(!i.check_command_guard(fresh, b"moved"));
+            // A rename preserves the actual command token and both guards.
+            assert!(i.check_command_guard(fresh, b"moved"));
             assert!(i.check_command_guard(token, b"moved"));
             let moved = i
                 .prepare_command_guard(
@@ -20275,25 +20986,32 @@ mod tests {
     /// again under a release that has it.
     #[test]
     fn a_pin_to_a_release_without_the_command_leaves_it_unattested() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         leak_free(|i| {
-            // `lassign` is a command Tcl 8.4 does not have.
-            i.register_guarded_builtin(b"lassign", guarded_builtin, GUARDED_IDENTITY);
-            let domains = GuardDomains::one(GuardDomain::CommandEnvironment);
+            // This is the actual shipped allocation, not a same-name host handler.
+            let intrinsic = tcl_registry::IntrinsicId::ListAssign;
+            let identity = GuardIdentity::registry_intrinsic_with_semantics(
+                intrinsic.stable_id(),
+                intrinsic.guard_semantics_key(i.runtime_version()),
+            );
+            let domains =
+                GuardDomains::one(GuardDomain::CommandEnvironment).with(GuardDomain::VariableTrace);
             let token = i
-                .prepare_command_guard(b"lassign", GUARDED_IDENTITY, domains)
+                .prepare_command_guard(b"lassign", identity, domains)
                 .expect("attested in the default release");
             assert!(i.check_command_guard(token, b"lassign"));
 
             i.set_runtime_version(tcl_dialect::TclVersion::V8_4);
             assert!(!i.check_command_guard(token, b"lassign"));
             assert_eq!(
-                i.prepare_command_guard(b"lassign", GUARDED_IDENTITY, domains),
+                i.prepare_command_guard(b"lassign", identity, domains),
                 Err(GuardError::IdentityUnavailable)
             );
 
             i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
             assert!(i
-                .prepare_command_guard(b"lassign", GUARDED_IDENTITY, domains)
+                .prepare_command_guard(b"lassign", identity, domains)
                 .is_ok());
         });
     }
@@ -21362,6 +22080,8 @@ mod tests {
     /// path that deliberately bypasses ordinary command visibility.
     #[test]
     fn an_imported_hidden_builtin_keeps_its_release_gate() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         use tcl_dialect::TclVersion;
 
         leak_free(|i| {
@@ -21383,7 +22103,16 @@ mod tests {
             assert_eq!(i.result_bytes(), b"invalid command name \"::hp\"");
             assert_eq!(ok(i, b"set l"), b"a b");
 
-            assert_eq!(i.eval_str(b"interp invokehidden {} hp l"), Code::Ok);
+            // Release visibility grants no cross-provider List backing. Supply
+            // fresh current-release input after observing the earlier effect.
+            assert_eq!(ok(i, b"set l {a b}"), b"a b");
+            assert_eq!(
+                i.eval_str(b"interp invokehidden {} hp l"),
+                Code::Ok,
+                "result={:?}, refusal={:?}",
+                i.result_bytes(),
+                i.native_execution_refusal(),
+            );
             assert_eq!(i.result_bytes(), b"b");
 
             i.set_runtime_version(TclVersion::V9_0);

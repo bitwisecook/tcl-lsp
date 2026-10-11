@@ -40,13 +40,13 @@ pub(crate) fn install_for_bootstrap(
     interp: &mut Interp,
     native: Option<tcl_registry::special_vars::NativeBootstrapProtocol>,
 ) {
-    interp.register_builtin(b"catch", catch_cmd);
-    interp.register_builtin(b"error", error_cmd);
+    interp.register_stock_builtin(b"catch", catch_cmd);
+    interp.register_stock_builtin(b"error", error_cmd);
     if native.is_none_or(|protocol| protocol.registers_core_try()) {
-        interp.register_builtin(b"try", try_cmd);
+        interp.register_stock_builtin(b"try", try_cmd);
     }
     if native.is_none_or(|protocol| protocol.registers_core_throw()) {
-        interp.register_builtin(b"throw", throw_cmd);
+        interp.register_stock_builtin(b"throw", throw_cmd);
     }
 }
 

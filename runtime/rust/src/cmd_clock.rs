@@ -29,18 +29,18 @@ use crate::obj::TclObj;
 
 /// Register `clock`.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"clock", clock_cmd);
+    interp.register_stock_builtin(b"clock", clock_cmd);
     // The ensemble's implementation members: the real `clock.tcl` rewrites
     // `clock` into an ensemble whose subcommands dispatch to `::tcl::clock::…`,
     // and library/framework code calls those fully-qualified forms directly.
     // Each prepends its subcommand and reuses the same dispatch.
-    interp.register_builtin(b"::tcl::clock::seconds", clock_seconds);
-    interp.register_builtin(b"::tcl::clock::milliseconds", clock_milliseconds);
-    interp.register_builtin(b"::tcl::clock::microseconds", clock_microseconds);
-    interp.register_builtin(b"::tcl::clock::clicks", clock_clicks);
-    interp.register_builtin(b"::tcl::clock::format", clock_format);
-    interp.register_builtin(b"::tcl::clock::add", clock_add);
-    interp.register_builtin(b"::tcl::clock::scan", clock_scan);
+    interp.register_stock_builtin(b"::tcl::clock::seconds", clock_seconds);
+    interp.register_stock_builtin(b"::tcl::clock::milliseconds", clock_milliseconds);
+    interp.register_stock_builtin(b"::tcl::clock::microseconds", clock_microseconds);
+    interp.register_stock_builtin(b"::tcl::clock::clicks", clock_clicks);
+    interp.register_stock_builtin(b"::tcl::clock::format", clock_format);
+    interp.register_stock_builtin(b"::tcl::clock::add", clock_add);
+    interp.register_stock_builtin(b"::tcl::clock::scan", clock_scan);
 }
 
 /// Dispatch an `::tcl::clock::<sub>` ensemble member by prepending `sub` to the

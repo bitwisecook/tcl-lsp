@@ -39,7 +39,7 @@ use tcl_cmd_core::ensemble::resolve_subcommand;
 
 /// Register the `zlib` ensemble.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"zlib", zlib_cmd);
+    interp.register_stock_builtin(b"zlib", zlib_cmd);
 }
 
 // checksums

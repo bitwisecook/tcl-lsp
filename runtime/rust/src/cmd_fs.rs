@@ -30,19 +30,19 @@
 //! Path handling is `/`-separated (Tcl's portable convention); fine on Unix /
 //! WASI.
 
-use tcl_dialect::model::{SurfaceQuery, surface_admits};
+use tcl_dialect::model::{surface_admits, SurfaceQuery};
 use tcl_platform::{Filesystem, HostError};
 
-use crate::interp::{Code, Interp, new_string, obj_bytes};
+use crate::interp::{new_string, obj_bytes, Code, Interp};
 use crate::obj::TclObj;
 
 /// Register `source`, `file`, `glob`, `pwd`, `cd`.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"source", source_cmd);
+    interp.register_stock_builtin(b"source", source_cmd);
     install_file(interp);
-    interp.register_builtin(b"glob", glob_cmd);
-    interp.register_builtin(b"pwd", pwd_cmd);
-    interp.register_builtin(b"cd", cd_cmd);
+    interp.register_stock_builtin(b"glob", glob_cmd);
+    interp.register_stock_builtin(b"pwd", pwd_cmd);
+    interp.register_stock_builtin(b"cd", cd_cmd);
 }
 
 pub(crate) fn install_file(interp: &mut Interp) {

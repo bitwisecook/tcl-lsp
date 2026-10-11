@@ -41,7 +41,7 @@ use crate::obj::TclObj;
 
 /// Register `switch`.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"switch", switch_cmd);
+    interp.register_stock_builtin(b"switch", switch_cmd);
 }
 
 fn switch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {

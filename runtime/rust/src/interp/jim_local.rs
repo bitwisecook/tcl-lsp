@@ -43,7 +43,7 @@ impl Interp {
                 .resolve(crate::namespace::GLOBAL, name)
                 .is_none()
             {
-                self.register_builtin(name, handler);
+                self.register_stock_builtin(name, handler);
             }
         }
     }
