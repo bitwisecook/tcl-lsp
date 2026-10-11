@@ -158,7 +158,23 @@ impl Interp {
                     &original_lifetime,
                 )?;
                 if crate::obj::is_shared(original) {
-                    let copied = crate::obj::Owned::fresh(crate::obj::duplicate(original));
+                    let actual = self.clone();
+                    let copied = crate::obj::duplicate_with_stage_check::<
+                        tcl_runtime_api::NativeExecutionError,
+                    >(
+                        original,
+                        &mut || {
+                            actual.check_native_error_object(
+                                scope.currency(),
+                                Variable::ErrorInfo,
+                                &original_lifetime,
+                            )
+                        },
+                        &mut |first| {
+                            actual.clone().refuse_native_execution(first.clone());
+                        },
+                    )?;
+                    let copied = crate::obj::Owned::fresh(copied);
                     self.check_native_error_object(
                         scope.currency(),
                         Variable::ErrorInfo,
@@ -1121,6 +1137,105 @@ mod original_syntax_transport_tests {
                     retire_test_state(&interpreter);
                     drop(value);
                     assert_eq!(frees.get(), 1);
+                }
+                assert_eq!(crate::counters::finalize(), 0);
+                assert_eq!(crate::counters::double_free_count(), 0);
+            }
+        }
+    }
+
+    thread_local! {
+        static COPY_OWNER: RefCell<Option<WeakInterp>> = const { RefCell::new(None) };
+        static COPY_CHANGE: Cell<bool> = const { Cell::new(false) };
+        static COPY_DUPLICATES: Cell<usize> = const { Cell::new(0) };
+        static COPY_FREES: Cell<usize> = const { Cell::new(0) };
+        static COPY_REFS: Cell<obj::TclSize> = const { Cell::new(-1) };
+    }
+    extern "C" fn copied_unused_free(value: *mut TclObj) {
+        COPY_FREES.set(COPY_FREES.get() + 1);
+        COPY_REFS.set(unsafe { (*value).ref_count });
+        if COPY_CHANGE.get() {
+            let actual = COPY_OWNER.with(|owner| owner.borrow().as_ref().and_then(WeakInterp::upgrade));
+            actual.unwrap().refuse_host_command("later unused Syntax duplicate retirement");
+        }
+    }
+    static COPY_UNUSED: obj::TclObjType = obj::TclObjType {
+        name: c"originalSyntaxUnusedCopy".as_ptr(),
+        free_int_rep_proc: Some(copied_unused_free),
+        dup_int_rep_proc: None,
+        update_string_proc: None,
+        set_from_any_proc: None,
+    };
+    extern "C" fn copy_primary(source: *mut TclObj, destination: *mut TclObj) {
+        COPY_DUPLICATES.set(COPY_DUPLICATES.get() + 1);
+        assert_eq!(unsafe { (*source).ref_count }, 2);
+        obj::change_type(destination, &COPY_UNUSED, 77);
+        if COPY_CHANGE.get() {
+            obj::change_type(source, core::ptr::null(), 0);
+            obj::change_type(source, &COPY_PRIMARY, 77);
+        }
+    }
+    static COPY_PRIMARY: obj::TclObjType = obj::TclObjType {
+        name: c"originalSyntaxCopyPrimary".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: Some(copy_primary),
+        update_string_proc: None,
+        set_from_any_proc: None,
+    };
+    #[test]
+    fn original_syntax_copy_primary_aba_precedes_actual_unused_copy_host_retirement() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Software duplicate/private-role currentness, not Native614c setter or reset chronology.
+        for profile in ["tcl8.5", "tcl8.6"] {
+            for change in [false, true] {
+                crate::counters::reset();
+                {
+                    let mut actual = native(profile);
+                    let value = Owned::fresh(obj::alloc_typed(&COPY_PRIMARY, 77));
+                    unsafe { obj::set_native_updater_string_rep(value.as_ptr(), b"ORIGINAL PRIVATE INFO", false) };
+                    let scope = super::super::native_operation_currency::NativeOperationScope::enter(&actual).unwrap();
+                    actual.replace_native_error_object_checked(
+                        scope.currency(),
+                        tcl_registry::special_vars::NativeErrorStorageVariable::ErrorInfo,
+                        Some(Owned::retain(value.as_ptr())),
+                        None,
+                    ).unwrap();
+                    actual.set_result_bytes(b"PRIOR");
+                    let prior = actual.get_obj_result();
+                    COPY_OWNER.with(|owner| *owner.borrow_mut()=Some(actual.downgrade()));
+                    COPY_CHANGE.set(change);
+                    COPY_DUPLICATES.set(0);
+                    COPY_FREES.set(0);
+                    COPY_REFS.set(-1);
+                    let reached = actual.capture_original_c_syntax_options();
+                    assert_eq!(COPY_DUPLICATES.get(), 1);
+                    assert_eq!(actual.get_obj_result(), prior);
+                    if change {
+                        let error = reached.err().expect("original copy primary ABA refuses before private adoption");
+                        let first = actual.native_execution_refusal().unwrap();
+                        assert_eq!(first, tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("changed original duplicate source primary")
+                        ));
+                        assert_eq!(error.native_execution_refusal(), Some(&first));
+                        assert_eq!(COPY_FREES.get(), 1);
+                        assert_eq!(COPY_REFS.get(), 0);
+                        assert_eq!(actual.exc.borrow().native.info.as_ref().unwrap().as_ptr(), value.as_ptr());
+                        assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 2);
+                        assert!(scope.currency().ensure_current_or_refuse().is_err());
+                    } else {
+                        let options = reached.unwrap();
+                        assert_ne!(actual.exc.borrow().native.info.as_ref().unwrap().as_ptr(), value.as_ptr());
+                        assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 1);
+                        assert_eq!(COPY_FREES.get(), 0);
+                        scope.currency().ensure_current_or_refuse().unwrap();
+                        drop(options);
+                    }
+                    COPY_CHANGE.set(false);
+                    retire_test_state(&actual);
+                    COPY_OWNER.with(|owner| *owner.borrow_mut()=None);
+                    drop(value);
+                    assert_eq!(COPY_FREES.get(), 1);
                 }
                 assert_eq!(crate::counters::finalize(), 0);
                 assert_eq!(crate::counters::double_free_count(), 0);
