@@ -357,7 +357,7 @@ fn original_compiled_alias_distinguishes_c84_target_reference_from_later_hash_on
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     // Actual installed compiled cells exercise the selected source recipe; software counters are not native measurements.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-        let mut interpreter = native(profile);
+        let interpreter = native(profile);
         let protocol = interpreter
             .native_invocation_dialect()
             .native_compiled_variable_protocol()

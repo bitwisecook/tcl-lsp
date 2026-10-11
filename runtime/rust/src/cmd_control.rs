@@ -31,7 +31,6 @@
 use crate::interp::native_arguments::OriginalArguments;
 use crate::interp::{drop_fresh, new_string, obj_bytes, Code, Interp};
 use crate::obj::TclObj;
-use tcl_syntax::value::ValueOps;
 
 /// Register the control-flow commands.
 pub fn install(interp: &mut Interp) {

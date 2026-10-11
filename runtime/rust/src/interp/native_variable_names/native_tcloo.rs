@@ -28,7 +28,7 @@ impl Interp {
                 tcl_syntax::naming::NativeVariableFailureSite::NameLookup,
             );
         }
-        let mut target = match self.prepare_selected_c_namespace_target(original, &selected) {
+        let target = match self.prepare_selected_c_namespace_target(original, &selected) {
             Ok(target) => target,
             Err(code) => return code,
         };

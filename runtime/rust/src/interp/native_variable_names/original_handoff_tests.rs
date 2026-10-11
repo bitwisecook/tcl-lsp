@@ -260,7 +260,7 @@ fn original_indexed_selection_retirement_refuses_reborn_frame_at_the_same_slot()
     // Actual compiled ordinal observation; this supplies no fabricated Local cache or Proc issuer.
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in [0, 5] {
-            let mut interpreter = native(profile);
+            let interpreter = native(profile);
             let protocol = interpreter
                 .native_invocation_dialect()
                 .native_compiled_variable_protocol()
