@@ -8239,6 +8239,14 @@ written spans to captures. The declaration-owned family grammar and original
 member ledger select manufacturer shape/visibility; report metaclass strings
 supply neither. Unknown expansion length stays unknown.
 
+`source_class` requires the retained `SourceAdviceNameInput::Native` issuer
+before joining canonical class metadata. `logical_source_class` instead checks
+its full Logical input, selected factory, original name/body spans and unique
+Observed inventory. A present source-name metadata key must correspond to that
+same original declaration; it supplies no Native output or lookup authority.
+Updates to the same original class may change readonly member metadata without
+replacing its original source ownership.
+
 `OriginalConstructorArityAdvice` retains the assessed expected signature and
 actual count for Core transport, independently of diagnostic messages. Genuine
 TclOO constructor parameter words and mandatory object-name positions remain
@@ -8836,7 +8844,9 @@ captured descriptor identity under that same availability context. Source
 procedure targets must correspond to the unit's original declaration source and
 offset; the procedure inventory only corroborates the already-selected target.
 A Logical source declaration is independent of a physical implementation
-allocation. Missing, changed, foreign, opaque, absent and tokenless ownership
+allocation. The returned target clears `implementation_allocation` only after
+full raw target consensus; original snapshots and Native callee advice retain
+their independent allocation observations. Missing, changed, foreign, opaque, absent and tokenless ownership
 remains unavailable without retrying catalogue or reporting names.
 
 Unavailable local bodies retain literal variable-name argument candidates for

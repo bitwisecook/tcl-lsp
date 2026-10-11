@@ -2313,7 +2313,11 @@ impl super::SourceInvocationBinding {
         if self.unknown || self.may_be_absent || self.targets.as_slice() != advice.targets() {
             return None;
         }
-        Some(advice.targets().to_vec())
+        let mut targets = advice.targets().to_vec();
+        for target in &mut targets {
+            target.implementation_allocation = None;
+        }
+        Some(targets)
     }
 
     fn original_unanimous_declared_layout_advice(
@@ -3238,3 +3242,7 @@ mod original_nested_root_activation_purpose_tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "logical_purpose_tests.rs"]
+mod logical_purpose_tests;

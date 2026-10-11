@@ -78,7 +78,11 @@ impl OriginalSourceClassDeclaration {
     ) -> Option<&'a SourceDeclarationMetadata<ClassDef>> {
         let input = analysis.resolved_input.as_ref()?;
         let context = input.context_registry();
-        let original = self.name.original_word()?;
+        let original = self
+            .name
+            .native_input()?
+            .original_word_key()?
+            .original_word();
         self.factory
             .matches_source(original.image(), input.lexer_config())
             .then_some(())?;
@@ -129,9 +133,20 @@ impl OriginalSourceClassDeclaration {
         let body = &self.factory.arguments.get(body_at)?.original;
         let name_span = name.tokens().first()?.span;
         let body_span = body.tokens().first()?.span;
+        let mut declarations = analysis
+            .original_class_declarations()
+            .filter(|record| self.matches_source_declaration(record));
+        let declaration = declarations.next();
+        declarations.next().is_none().then_some(())?;
         let mut matching = analysis.all_classes.values().filter(|class| {
             class.metaclass_provenance == crate::analyser::MetaclassProvenance::Observed
-                && class.source_name.is_none()
+                && class.source_name.as_ref().is_none_or(|key| {
+                    declaration.is_some_and(|record| {
+                        record.name() == key
+                            && record.metadata().name_span == name_span
+                            && record.metadata().body_span == body_span
+                    })
+                })
                 && class.name_span == name_span
                 && class.body_span == body_span
         });
