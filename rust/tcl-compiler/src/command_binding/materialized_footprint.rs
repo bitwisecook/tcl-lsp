@@ -3180,7 +3180,7 @@ mod tests {
         // naming.compiler.original-positioned-callee-body-availability
         // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
         // naming.source.original-point-operand-projection
-        // docs/design/analysis/name-resolution-proofs/source-original-point-operand-projection.md
+        // docs/design/analysis/name-resolution-proofs/original-point-operand-projection.md
         let context = logical_script_context();
         for source in [
             "proc selected {value} {}; selected VALUE",

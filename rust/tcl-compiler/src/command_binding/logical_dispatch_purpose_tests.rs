@@ -17,27 +17,58 @@ fn logical_input() -> ResolvedAnalysisInput {
     )
 }
 
+fn logical_original_statement(
+    input: &ResolvedAnalysisInput,
+    source: &str,
+    offset: u32,
+) -> crate::ir::CommandTokens {
+    let mut lowerer = crate::lowering::Lowerer::with_config(
+        input.borrowed_context_registry().commands(),
+        input.lexer_config(),
+    )
+    .with_resolved_analysis_input(input.clone());
+    lowerer.lower(source);
+    let module = lowerer.finish_module(source);
+    assert_eq!(module.source_metadata_input.as_ref(), Some(input));
+    assert_eq!(module.lexer_config, input.lexer_config());
+    let mut found = Vec::new();
+    let mut collect = |statement: &crate::ir::Statement| {
+        if statement.span().start() == offset {
+            found.push(statement.tokens().expect("original statement vector").clone());
+        }
+    };
+    crate::ir::for_each_statement(&module.top_level, &mut collect);
+    for procedure in module.procedures.values() {
+        crate::ir::for_each_statement(&procedure.body, &mut collect);
+    }
+    assert_eq!(found.len(), 1);
+    found.pop().unwrap()
+}
+
 #[test]
 fn original_logical_root_and_nested_dispatch_keep_conditional_targets_and_original_owners() {
     // naming.source.logical-original-operation-transfer
     // docs/design/analysis/name-resolution-proofs/logical-original-operation-transfer.md
     let input = logical_input();
     let context = input.context_registry();
-    for (source, selected, captured) in [
-        ("package require Tcl", "package require Tcl", false),
+    for (source, selected, captured, nested) in [
+        ("package require Tcl", "package require Tcl", false, false),
         (
             "interp alias {} ensure {} package require; ensure Tcl",
             "ensure Tcl",
             true,
+            false,
         ),
         (
             "proc subject {} {package require Tcl}",
             "package require Tcl",
             false,
+            true,
         ),
         (
             "interp alias {} ensure {} package require; proc subject {} {ensure Tcl}",
             "ensure Tcl",
+            true,
             true,
         ),
     ] {
@@ -48,10 +79,52 @@ fn original_logical_root_and_nested_dispatch_keep_conditional_targets_and_origin
             SourceAnalysisOptions::for_logical_source(&input).unwrap(),
         );
         let offset = u32::try_from(source.rfind(selected).unwrap()).unwrap();
-        let binding = bindings.invocation_at_source("caller label", offset);
-        let target = binding
-            .proved_target()
-            .expect("exact original source target");
+        let original = bindings.invocation_at_source("caller label", offset);
+        // A declaration-only body uses the actual Lowerer's stamped source
+        // vector. Its conditional source target does not denote dispatch.
+        let tokens = nested.then(|| logical_original_statement(&input, source, offset));
+        let binding = tokens
+            .as_ref()
+            .map(|tokens| tokens.source_binding.as_ref().expect("original declaration binding"))
+            .unwrap_or(&original);
+        let target = if let Some(tokens) = &tokens {
+            let targets = binding
+                .original_logical_declaration_call_targets(tokens, &input, context.commands())
+                .expect("exact original declaration source target");
+            let [target] = targets.as_slice() else {
+                panic!("one original source target")
+            };
+            assert!(original.lookup_state.is_none());
+            assert_ne!(original.runtime_reachability(), SourceRuntimeReachability::Conditional);
+            assert_ne!(original.runtime_reachability(), SourceRuntimeReachability::Reached);
+            assert!(original.proved_target().is_none());
+            assert!(original.unknown);
+            assert!(original.targets.is_empty());
+            assert!(binding.proved_target().is_none());
+            assert!(binding.unknown);
+            assert!(binding.targets.is_empty());
+            assert!(binding.lookup_state.is_none());
+            assert!(binding.logical_source_name_advice_input().is_none());
+            assert_ne!(binding.runtime_reachability(), SourceRuntimeReachability::Conditional);
+            assert_ne!(binding.runtime_reachability(), SourceRuntimeReachability::Reached);
+            let metadata = binding
+                .original_invocation_metadata_for_input(tokens, &input, context.commands())
+                .expect("complete original Logical source owner");
+            let owner = metadata.source_analysis_input().expect("retained source input");
+            assert!(owner == &input || owner == &input.for_nested_source());
+            target.clone()
+        } else {
+            assert!(original.lookup_state.is_some());
+            assert_eq!(binding.logical_source_name_advice_input(), Some(&input));
+            assert_eq!(
+                binding.runtime_reachability(),
+                SourceRuntimeReachability::Conditional
+            );
+            binding
+                .proved_target()
+                .expect("exact original source target")
+                .clone()
+        };
         assert!(target.registry_backed, "{source}");
         assert_eq!(
             target.prepended,
@@ -61,11 +134,6 @@ fn original_logical_root_and_nested_dispatch_keep_conditional_targets_and_origin
                 Vec::new()
             },
             "{source}"
-        );
-        assert_eq!(binding.logical_source_name_advice_input(), Some(&input));
-        assert_eq!(
-            binding.runtime_reachability(),
-            SourceRuntimeReachability::Conditional
         );
         assert!(binding.execution_is_unknown());
         assert!(binding.proved_execution_target().is_none());
