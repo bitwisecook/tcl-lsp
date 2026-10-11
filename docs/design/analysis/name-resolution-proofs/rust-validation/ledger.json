@@ -214350,6 +214350,51 @@
       "question_ids": [],
       "sealed_images": {},
       "limits": "The own Runtime325 engine library-test no-run producer closes exit101 with seven cfg(test) compile errors: one E0616 private namespaces field access and six E0716 temporary-borrow errors in the alias and array fixtures. No executable creation event, own Runtime image, inventory or assertion is admitted. The original36960-leaf immutable source/head and actual naming-current-validation323 compile root remain distinct exact associations. This failed producer has no executable or assertion result. Independent successful producers and external Native observations do not establish an outcome for this run."
+    },
+    {
+      "id": "rust.frozen327.integration-compiler-own-test-build327",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen327/integration-compiler-own-test-build327/receipt.json.gz",
+        "sha256": "9b71fabedd0326350539bef7c31a3e559608670efd551ead4678703ec43747d4",
+        "compression": "gzip",
+        "uncompressed_sha256": "c6f9a10b7437c6d575d96d386a61bcf95d1f36755592f1e95b8198ef2641f2c0"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen327/integration-compiler-own-test-build327/tests.log",
+        "sha256": "6dec7f72e29c5e31f2ce851381f75d8c0f1c3f2da142785f9df94a1715404fc7"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 230.7562913330039,
+      "uniform_source": true,
+      "status": "compile-failed",
+      "result": null,
+      "source_inventory": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen327/integration-compiler-own-test-build327/source-snapshot.json.gz",
+        "sha256": "1730342ba268842873cff360ea6c4f340b7ab2209d1fe950c412e1d2ba292407",
+        "compression": "gzip",
+        "uncompressed_sha256": "336298b61334dd73ec960acc7e498a58bcd99425226a9879a8249ebdb1bd51b8",
+        "json_pointer": "/source",
+        "authority": "Complete original37109-leaf immutable Source327 independently verified by every whole-file SHA and exactly equal to the failed own receipt source. The actual compile root and original error-source body retain recorded associations; no source, artifact or operation substitution."
+      },
+      "tests": [],
+      "question_ids": [],
+      "sealed_images": {},
+      "limits": "The own Compiler327 library-test no-run producer closes exit101 with one cfg(test) E0308 type mismatch at optimiser/helpers/tokens.rs:204. No executable creation event, own Compiler image, inventory or assertion is admitted. The complete original37109-leaf immutable source/head and actual naming-current-validation323 compile root retain their exact receipt associations. This failed producer has no executable or assertion result; independent producers and external Native observations do not establish an outcome for this run."
     }
   ]
 }

@@ -3861,3 +3861,25 @@ root `naming-current-validation323`. The checkpoint number does not
 substitute a derived compile-root path. Receipt and snapshot gzip copies
 round-trip to their exact original bytes; the original source and Native
 provider observations retain their separate scopes.
+
+## Source327 Compiler compilation failure
+
+The own Compiler327 library-test no-run producer closes exit `101` after
+230.7562913330039 seconds with uniform source `true`. Its original log
+records one cfg(test) `E0308` type mismatch at
+`optimiser/helpers/tokens.rs:204`. No executable creation event, own
+Compiler image, executable inventory or assertion is admitted.
+
+The [whole original log](frozen327/integration-compiler-own-test-build327/tests.log) and
+[exact failed receipt](frozen327/integration-compiler-own-test-build327/receipt.json.gz)
+retain the actual command, exit and empty assertion summaries. This failed
+producer has no executable or assertion result. Other producers and external
+Native observations do not establish an outcome for this run.
+
+The [complete original source snapshot](frozen327/integration-compiler-own-test-build327/source-snapshot.json.gz)
+retains all 37,109 independently verified source leaves, HEAD
+`2da5278571ef028abba03c1c315a661d1a7249af`, immutable archive `naming327` and the recorded compile
+root `naming-current-validation323`. The checkpoint number does not
+substitute a derived compile-root path. Receipt and snapshot gzip copies
+round-trip to their exact original bytes; source and provider observations
+retain their separate scopes.
