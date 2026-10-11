@@ -3388,3 +3388,12 @@ only Guest failures can follow a selected command continuation. Open channels
 retain their original checked path, and invalid seek targets reject before
 cursor publication. The [scalar contract](native-scalar-getters.md) specifies
 adapter usage and the distinct public versus software callback evidence.
+
+Runtime active OO frames retain the reached method chain and original name owner
+through invocation. Their shared retirement extracts the actual frame under a
+short OO borrow and releases its owning roles after that borrow ends. The
+original entered operation spans all method and eval temporaries; mandatory
+filter, forward rewrite, Tcl frame, namespace and activation restoration
+continues after refusal, before the final full first-cause verdict. These
+software cleanup checks do not attest Native callback chronology or physical
+Method/clientData reference counts.

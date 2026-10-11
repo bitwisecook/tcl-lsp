@@ -47,6 +47,8 @@ pub(crate) mod native_method_cache;
 mod native_object_info;
 pub(crate) mod native_variables;
 #[cfg(test)]
+mod original_active_frame_tests;
+#[cfg(test)]
 mod original_call_report_tests;
 #[cfg(test)]
 mod original_classvariable_tests;
@@ -6852,6 +6854,34 @@ impl Interp {
         external: bool,
         original_argv: Option<&[*mut TclObj]>,
     ) -> Option<Code> {
+        let scope =
+            match crate::interp::native_operation_currency::NativeOperationScope::enter(self) {
+                Ok(scope) => scope,
+                Err(first) => return Some(self.report_cmd_error(first.into())),
+            };
+        let reached = self.oo_builtin_method_entered(
+            obj,
+            method,
+            args,
+            external,
+            original_argv,
+            scope.currency(),
+        );
+        match scope.currency().ensure_current_or_refuse() {
+            Ok(()) => reached,
+            Err(first) => Some(self.report_cmd_error(first.into())),
+        }
+    }
+
+    fn oo_builtin_method_entered(
+        &mut self,
+        obj: OoId,
+        method: &[u8],
+        args: &[*mut TclObj],
+        external: bool,
+        original_argv: Option<&[*mut TclObj]>,
+        currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
+    ) -> Option<Code> {
         let var_ns = self.oo.borrow().objects.get(&obj).map(|o| o.var_ns)?;
         match method {
             // Link each named instance variable into the calling method frame.
@@ -7008,10 +7038,13 @@ impl Interp {
                     external,
                 });
                 let code = self.eval_generic_control_body(script);
-                self.oo.borrow_mut().call_stack.pop();
+                self.retire_oo_call_frame(currency);
                 let popped = self.pop_native_call_frame();
                 self.set_current_ns(caller);
                 self.leave_namespace_activation(popped);
+                if let Err(first) = currency.ensure_current_or_refuse() {
+                    return Some(self.report_cmd_error(first.into()));
+                }
                 // C's FinalizeEval: on error append `(in "<name> eval" script
                 // line N)`, where name is the object's name for a public call
                 // and the literal `my` for an internal (non-public) one.
@@ -7031,7 +7064,6 @@ impl Interp {
             _ => None,
         }
     }
-
     /// The active filter steps for `obj` (object filters, then class filters
     /// along the MRO), each resolved to the chain provider defining it.
     fn active_filters(&self, obj: OoId, providers: &[(OoId, bool)]) -> Vec<CallStep> {
@@ -7677,7 +7709,55 @@ impl Interp {
         args: &[*mut TclObj],
         invocation: MethodInvocation,
     ) -> Code {
-        let chain: native_method_cache::ReachedMethodChain = chain.into();
+        let scope =
+            match crate::interp::native_operation_currency::NativeOperationScope::enter(self) {
+                Ok(scope) => scope,
+                Err(first) => {
+                    self.refuse_native_execution(first.clone());
+                    drop(chain);
+                    drop(invocation);
+                    return self.report_cmd_error(first.into());
+                }
+            };
+        let reached = self.oo_run_entered(
+            obj,
+            chain.into(),
+            index,
+            target,
+            args,
+            (invocation, scope.currency()),
+        );
+        match scope.currency().ensure_current_or_refuse() {
+            Ok(()) => reached,
+            Err(first) => self.report_cmd_error(first.into()),
+        }
+    }
+
+    /// Extract the actual active context before releasing its owning roles.
+    /// Its caller retains this original currency through mandatory restoration.
+    fn retire_oo_call_frame(
+        &mut self,
+        currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
+    ) {
+        let _ = currency.ensure_current_or_refuse();
+        let retired = { self.oo.borrow_mut().call_stack.pop() };
+        drop(retired);
+        let _ = currency.ensure_current_or_refuse();
+    }
+
+    fn oo_run_entered(
+        &mut self,
+        obj: OoId,
+        chain: native_method_cache::ReachedMethodChain,
+        index: usize,
+        target: &[u8],
+        args: &[*mut TclObj],
+        entered: (
+            MethodInvocation,
+            &crate::interp::native_operation_currency::NativeOperationCurrency,
+        ),
+    ) -> Code {
+        let (invocation, currency) = entered;
         let report_role = chain.report_role();
         let MethodInvocation {
             external,
@@ -7739,7 +7819,7 @@ impl Interp {
                 args,
                 original_argv.as_deref(),
             );
-            self.oo.borrow_mut().call_stack.pop();
+            self.retire_oo_call_frame(currency);
             return code;
         }
 
@@ -7757,7 +7837,7 @@ impl Interp {
                 external,
             });
             let code = handler(self, obj, args);
-            self.oo.borrow_mut().call_stack.pop();
+            self.retire_oo_call_frame(currency);
             return code;
         }
 
@@ -7827,7 +7907,7 @@ impl Interp {
                 external,
             });
             let code = self.dispatch_in_lookup_namespace(namespace, &new_argv);
-            self.oo.borrow_mut().call_stack.pop();
+            self.retire_oo_call_frame(currency);
             if is_root {
                 self.clear_ensemble_rewrite();
             }
@@ -8014,10 +8094,9 @@ impl Interp {
             },
         );
         self.oo.borrow_mut().filter_handling = saved_fh;
-        self.oo.borrow_mut().call_stack.pop();
+        self.retire_oo_call_frame(currency);
         code
     }
-
     /// Destroy an object during implicit teardown, routing a destructor error to
     /// the `interp bgerror` handler (C's `AfterNRDestructor` → background error).
     fn oo_destroy_bg(&mut self, obj: OoId) {
