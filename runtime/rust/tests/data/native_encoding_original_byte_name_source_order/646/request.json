@@ -1,0 +1,22 @@
+{
+  "qid": "naming.encoding.original-byte-name-lookup-and-source-order",
+  "status": "READY private unrun refinement request",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "Jim5bac7c99"
+  ],
+  "cases_per_provider": 8,
+  "question": "When a runner-owned directory is addressed as source with supported, unknown and binary encoding, which exact result/errorCode and source effects occur, relative to plain-directory and regular/missing file controls? Does this provider actually permit directory open and fail at read, or refuse earlier?",
+  "arguments": [
+    "runner-owned-existing-ascii-file",
+    "runner-owned-guaranteed-absent-file",
+    "runner-owned-empty-directory"
+  ],
+  "source_content_ascii": "set ::R2286_ENCODING_LOADED YES; return SOURCE_OK\n",
+  "execution": "Root compiles exact probe independently against retained six provider headers/libraries, establishes the three owned paths, retains full outputs and provider/executable/source/library before-after pins. Eight fresh initialized interpreters per process; public object vector and raw constructor channel unchanged from original643. No /proc, network or security fixtures.",
+  "limits": "No execution performed; directory open/read stage is not assumed. This refinement cannot by itself establish custom-VFS callback timing, native refcount, complete errno or close-failure behavior."
+}

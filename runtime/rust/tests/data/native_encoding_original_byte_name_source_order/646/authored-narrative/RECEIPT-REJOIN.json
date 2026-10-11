@@ -1,0 +1,19 @@
+{
+  "raw_results_sha256": "b218e6915a3bc767242d3855fc35af8f2895236330be7211821023249d8347fb",
+  "library_version_results_sha256": "c7dcfead8b0e283b923587a608668b5ca6beff0d7297036e67eb79d14e5f70db",
+  "probe_sha256": "d2ddffb4264c43266ec6d4b026245ed5c13002c2fcecbfee716eebefa9d8acdc",
+  "request_sha256": "4c6723edb9979fb48653604faa97ed9b7653006259126d75afb2bc97f0876e4f",
+  "input_manifest_sha256": "0c6cc5e902f02143f48f3e4d424c3dadc8dd34a345989a55cd54aa6ec7d7bc2c",
+  "provider_count": 6,
+  "fresh_interpreters_each": 8,
+  "blocks": 48,
+  "return_code_counts": {
+    "1": 44,
+    "0": 4
+  },
+  "all_receipt_streams_and_actual_ELF_join": true,
+  "all_recorded_before_after_pin_match": true,
+  "original_request_scope": "Unrun request text is preserved; closed outcomes are separate.",
+  "original643_manifest": "/workspace/.proofs/grammar-native-encoding-source-publication643c/manifest.json",
+  "original643_manifest_sha256": "4e82db7179a571915e64bbc22462e0e736fbc7995b7ce6c3c7e3c3f610d01b4f"
+}

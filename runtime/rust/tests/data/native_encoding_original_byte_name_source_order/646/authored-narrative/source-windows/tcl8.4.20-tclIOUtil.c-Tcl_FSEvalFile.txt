@@ -1,0 +1,107 @@
+Tcl_FSEvalFile(interp, pathPtr)
+    Tcl_Interp *interp;		/* Interpreter in which to process file. */
+    Tcl_Obj *pathPtr;		/* Path of file to process.  Tilde-substitution
+				 * will be performed on this name. */
+{
+    int result, length;
+    Tcl_StatBuf statBuf;
+    Tcl_Obj *oldScriptFile;
+    Interp *iPtr;
+    char *string;
+    Tcl_Channel chan;
+    Tcl_Obj *objPtr;
+
+    if (Tcl_FSGetNormalizedPath(interp, pathPtr) == NULL) {
+	return TCL_ERROR;
+    }
+
+    result = TCL_ERROR;
+    objPtr = Tcl_NewObj();
+    Tcl_IncrRefCount(objPtr);
+
+    if (Tcl_FSStat(pathPtr, &statBuf) == -1) {
+        Tcl_SetErrno(errno);
+	Tcl_AppendResult(interp, "couldn't read file \"", 
+		Tcl_GetString(pathPtr),
+		"\": ", Tcl_PosixError(interp), (char *) NULL);
+	goto end;
+    }
+    chan = Tcl_FSOpenFileChannel(interp, pathPtr, "r", 0644);
+    if (chan == (Tcl_Channel) NULL) {
+        Tcl_ResetResult(interp);
+	Tcl_AppendResult(interp, "couldn't read file \"", 
+		Tcl_GetString(pathPtr),
+		"\": ", Tcl_PosixError(interp), (char *) NULL);
+	goto end;
+    }
+    /*
+     * The eofchar is \32 (^Z).  This is the usual on Windows, but we
+     * effect this cross-platform to allow for scripted documents.
+     * [Bug: 2040]
+     */
+    Tcl_SetChannelOption(interp, chan, "-eofchar", "\32");
+    /* Try to read first character of stream, so we can
+     * check for utf-8 BOM to be handled especially.
+     */
+    if (Tcl_ReadChars(chan, objPtr, 1, 0) < 0) {
+	Tcl_Close(interp, chan);
+	Tcl_AppendResult(interp, "couldn't read file \"", 
+		Tcl_GetString(pathPtr),	"\": ", Tcl_PosixError(interp), NULL);
+	goto end;
+    }
+    string = Tcl_GetString(objPtr);
+    /*
+     * If first character is not a BOM, append the remaining characters,
+     * otherwise replace them [Bug 3466099].
+     */
+    if (Tcl_ReadChars(chan, objPtr, -1,
+	    memcmp(string, "\xef\xbb\xbf", 3)) < 0) {
+	Tcl_Close(interp, chan);
+	Tcl_AppendResult(interp, "couldn't read file \"",
+		Tcl_GetString(pathPtr), "\": ", Tcl_PosixError(interp), NULL);
+	goto end;
+    }
+    if (Tcl_Close(interp, chan) != TCL_OK) {
+        goto end;
+    }
+
+    iPtr = (Interp *) interp;
+    oldScriptFile = iPtr->scriptFile;
+    iPtr->scriptFile = pathPtr;
+    Tcl_IncrRefCount(iPtr->scriptFile);
+    string = Tcl_GetStringFromObj(objPtr, &length);
+
+#ifdef TCL_TIP280
+    /* TIP #280 Force the evaluator to open a frame for a sourced
+     * file. */
+    iPtr->evalFlags |= TCL_EVAL_FILE;
+#endif
+    result = Tcl_EvalEx(interp, string, length, 0);
+    /* 
+     * Now we have to be careful; the script may have changed the
+     * iPtr->scriptFile value, so we must reset it without
+     * assuming it still points to 'pathPtr'.
+     */
+    if (iPtr->scriptFile != NULL) {
+	Tcl_DecrRefCount(iPtr->scriptFile);
+    }
+    iPtr->scriptFile = oldScriptFile;
+
+    if (result == TCL_RETURN) {
+	result = TclUpdateReturnInfo(iPtr);
+    } else if (result == TCL_ERROR) {
+	char msg[200 + TCL_INTEGER_SPACE];
+
+	/*
+	 * Record information telling where the error occurred.
+	 */
+
+	sprintf(msg, "\n    (file \"%.150s\" line %d)", Tcl_GetString(pathPtr),
+		interp->errorLine);
+	Tcl_AddErrorInfo(interp, msg);
+    }
+
+    end:
+    Tcl_DecrRefCount(objPtr);
+    return result;
+}

@@ -6,17 +6,25 @@ Kind: `native-observation`
 
 Encoding catalogue names are original String bytes, not Unicode identifiers. Source gets an explicit encoding String before opening the file but resolves its catalogue name after successful open. A Unicode validator, replacement-character rewrite, early lookup or ignored encoding operand changes the public result and source effects. Empty system reset is a stored platform default, distinct from the current system encoding.
 
+Source file configuration and reading: Reading a whole file before resolving its source encoding changes the winning error when a file opens but cannot be read. Source must retain early encoding String access, opened channel identity, configuration before read and mandatory same-handle cleanup.
+
 ## Question
 
 For the exact counted String names, including literal and modified zero and invalid UTF-8 bytes, what encoding system and explicit source results, errorCode bytes, system changes and file effects occur on each actual initialized provider, and which source stage wins when the file is missing?
+
+Source file configuration and reading: For the owned empty directory, existing ASCII script and absent file, which exact completion, errorCode, system-query and effect bytes occur with UTF-8, unknown and binary encoding on each original provider? Which configuration failure precedes an opened directory read failure?
 
 ## Conclusion
 
 All measured C providers use original byte encoding names with a literal-zero C-string extent: utf-8 followed by raw zero and a tail is accepted, uppercase UTF-8 is rejected, and raw FF/C0AF and modified-zero names produce original byte unknown-encoding diagnostics rather than a Unicode validation error. Empty system names restore the actual stored default: identity on the measured C8.4/C8.5 initialized processes and iso8859-1 on the measured C8.6/C9 processes; these are environment observations, not release-derived defaults. Binary is unknown for encoding system. C8.5/C8.6 explicit source accepts empty/binary channel names; C9 rejects them with its no-longer-supported diagnostic and NONE. Every explicit-source missing-file case on C8.5+ reports POSIX ENOENT before encoding lookup, including invalid and unsupported names. C8.4 rejects the explicit form by arity. Jim has no encoding command and accepts only the source filename grammar. Successful existing-file cases execute the exact script and return SOURCE_OK. Full result/errorCode/system/effect bytes remain in the original streams.
 
+Source file configuration and reading: Measured C8.5/C8.6 supported UTF-8 and binary directory cases reach EISDIR, while unknown encoding fails first. Measured C9.0/C9.1 UTF-8 reaches EISDIR; unknown encoding and removed binary configuration fail first. Existing UTF-8 scripts run and absent paths produce ENOENT before lookup on all four providers. Selected original source confirms open before encoding configuration and configuration before read. C8.4/Jim refuse explicit encoding by arity; separate plain-directory cases retain their recorded read errors. Full bytes and separate system-query codes remain captured.
+
 ## Scope
 
 Six separately compiled and executed probe processes, each process exit0, contain 41 fresh initialized interpreters: 13 exact public counted String constructor names across system setter, explicit-source existing and explicit-source missing workers, plus two plain-source controls. This is 246 interpreter blocks, not 246 subprocesses. C uses Tcl_CreateInterp/Tcl_Init and Jim uses its recorded initialized provider sequence; each block seeds errorCode and the source effect and observes the current system value separately. Each C block explicitly establishes utf-8 before the tested operation. Exact compiler/link commands, CLI versions, independent same-library versions, original probe ELF and library/header/source bytes and before/after pins are retained. Source excerpts support getter-before-open versus catalogue-after-open stages; public outputs establish file-failure precedence. No callback/updater/free chronology, Native reference-count or protective-hold schedule, complete encoding catalogue, non-ASCII file codec/profile/eof/BOM semantics, Rust build/assertion outcome, universal platform/default or BIG-IP result is established.
+
+Source file configuration and reading: Six separately compiled probe processes, eight fresh initialized interpreters each:48 public operation blocks, four SOURCE_OK successes and44 Guest failures. Compile/CLI/run and six independent same-library diagnostics exit0 with matching versions and all before/after pins equal. Directory cases are distinct from ordinary file controls. This finite observation plus inspected source establishes selected open/configure/read order, not arbitrary VFS callbacks, updater/free chronology, native refcounts, full errno/close behavior, codecs/BOM/EOF, Rust assertions or BIG-IP. The original six-process246-block encoding evidence and fields remain unchanged.
 
 ## Provider answers
 
@@ -26,11 +34,15 @@ Status: `observed`. Version: 8.4.20. Build: Original compile/link command and co
 
 Original unknown encoding diagnostics retain raw bytes and set NONE. Literal-zero tails truncate; modified zero remains in the name. Empty system reset returns the measured identity default. Binary and uppercase are unknown. All 26 explicit-source calls fail by source fileName arity, with no script effect. Plain source succeeds on the existing file and reports ENOENT on the absent file.
 
+Source file configuration and reading: All seven explicit-encoding workers refuse by source fileName arity with NONE and no source effect. The separate plain-directory worker reaches POSIX EISDIR {illegal operation on a directory}. Unsupported explicit grammar establishes no encoding lookup stage.
+
 ### tcl8.5
 
 Status: `observed`. Version: 8.5.19. Build: Original compile/link command and compiler bytes, source/header/configuration/archive or shared-library bytes, invoked CLI and probe ELF bytes, CLI and independent same-library version captures, and before/after whole-byte pins are retained. A complete system toolchain and loaded dynamic-library closure is unrecorded.. Channel: One original compiled public object-vector probe process with 41 fresh initialized interpreters. Names come from public counted String constructors over exact C arrays; original literal and modified zero bytes are not source-decoded or rewritten.. Dialect: tcl8.5.
 
 System empty restores the measured identity default; binary/uppercase/raw invalid/modified-zero names are unknown with TCL LOOKUP ENCODING and exact original bytes. Existing explicit source accepts empty/binary and the supported names and executes the script; absent files always report POSIX ENOENT before lookup. Literal-zero names use the truncated prefix.
+
+Source file configuration and reading: Supported UTF-8 and binary directory cases reach POSIX EISDIR {illegal operation on a directory}; unknown encoding instead reports TCL LOOKUP ENCODING R2286_missing_encoding, with no source effect. Existing UTF-8 executes SOURCE_OK; both missing controls report POSIX ENOENT before lookup. Actual source opens, configures encoding and then reads.
 
 ### tcl8.6
 
@@ -38,11 +50,15 @@ Status: `observed`. Version: 8.6.18. Build: Original compile/link command and co
 
 System empty restores the measured iso8859-1 default. Exact byte unknown names retain TCL LOOKUP ENCODING. Existing explicit source accepts empty/binary; absent files report POSIX ENOENT first. Literal-zero prefixes are selected and modified zero is not a terminator.
 
+Source file configuration and reading: Supported UTF-8 and binary directory cases reach POSIX EISDIR {illegal operation on a directory}; unknown encoding instead reports TCL LOOKUP ENCODING R2286_missing_encoding, with no source effect. Existing UTF-8 executes SOURCE_OK; both missing controls report POSIX ENOENT before lookup. Actual source opens, configures encoding and then reads.
+
 ### tcl9.0
 
 Status: `observed`. Version: 9.0.4. Build: Original compile/link command and compiler bytes, source/header/configuration/archive or shared-library bytes, invoked CLI and probe ELF bytes, CLI and independent same-library version captures, and before/after whole-byte pins are retained. A complete system toolchain and loaded dynamic-library closure is unrecorded.. Channel: One original compiled public object-vector probe process with 41 fresh initialized interpreters. Names come from public counted String constructors over exact C arrays; original literal and modified zero bytes are not source-decoded or rewritten.. Dialect: tcl9.0.
 
 System empty restores the measured iso8859-1 default. Existing explicit source rejects empty/binary with the exact no-longer-supported diagnostic and NONE. Missing files report POSIX ENOENT before that configuration/lookup failure. Other original unknown names preserve byte diagnostics and TCL LOOKUP ENCODING.
+
+Source file configuration and reading: Supported UTF-8 and plain directory cases reach POSIX EISDIR {is a directory}. Unknown encoding reports TCL LOOKUP ENCODING R2286_missing_encoding instead; binary reports its exact no-longer-supported diagnostic and NONE before read. Existing UTF-8 executes SOURCE_OK; both missing controls report POSIX ENOENT before lookup.
 
 ### tcl9.1
 
@@ -50,11 +66,15 @@ Status: `observed`. Version: 9.1.0. Build: Original compile/link command and com
 
 System empty restores the measured iso8859-1 default. Existing explicit source rejects empty/binary with the exact no-longer-supported diagnostic and NONE. Missing files report POSIX ENOENT before configuration/lookup failure. Literal-zero prefix and original invalid-byte lookup results match the recorded C9.0 cases.
 
+Source file configuration and reading: Supported UTF-8 and plain directory cases reach POSIX EISDIR {is a directory}. Unknown encoding reports TCL LOOKUP ENCODING R2286_missing_encoding instead; binary reports its exact no-longer-supported diagnostic and NONE before read. Existing UTF-8 executes SOURCE_OK; both missing controls report POSIX ENOENT before lookup.
+
 ### jim
 
 Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Original compile/link command and compiler bytes, source/header/configuration/archive or shared-library bytes, invoked CLI and probe ELF bytes, CLI and independent same-library version captures, and before/after whole-byte pins are retained. A complete system toolchain and loaded dynamic-library closure is unrecorded.. Channel: One original compiled public object-vector probe process with 41 fresh initialized interpreters. Names come from public counted String constructors over exact C arrays; original literal and modified zero bytes are not source-decoded or rewritten.. Dialect: jim.
 
 Encoding is unavailable: its original command lookup error is retained for all13 system attempts and each separate before/after system query. All26 explicit source attempts fail the filename-only arity and preserve the seeded errorCode. Plain existing source runs the script and normalizes return to SOURCE_OK; plain missing source uses its measured capitalized No such file or directory and preserves the seeded errorCode.
+
+Source file configuration and reading: All seven explicit-encoding workers refuse by source fileName arity and preserve R2286 ENCODING SEEDED. Encoding system queries separately report invalid command name encoding. Plain-directory reports failed to load file followed by Is a directory and preserves the seeded errorCode; no encoding lookup stage is reached.
 
 ### bigip
 
@@ -154,6 +174,73 @@ No original BIG-IP encoding or source worker observation is available.
 - `jim-cli-version-stdout` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/cli-version.stdout](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/cli-version.stdout). SHA-256 `f9752899fa012cf994a528e0250402609067a6f67a144a1172644a9329386803`. Actual invoked CLI patchlevel bytes, independently receipt-bound.
 - `jim-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/same-library-version/receipt.json). SHA-256 `654052a8eed20369ade32ea3b3fa851d6fd463f8e3152edf9f17be29326b786d`. Independent version driver bound to the identical selected static library and original input pins.
 - `jim-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/same-library-version/execute.stdout). SHA-256 `d7ce62ac8c979a247ad4edf0a43c9133dc8b547cdfc8e5b540fccd9bbe848166`. Actual linked-library patchlevel and C public version fields.
+- `read646-original-probe` (input): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/probe.c](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/probe.c). SHA-256 `d2ddffb4264c43266ec6d4b026245ed5c13002c2fcecbfee716eebefa9d8acdc`. Exact eight-case counted-object source read-order probe.
+- `read646-original-request` (input): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/request.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/request.json). SHA-256 `4c6723edb9979fb48653604faa97ed9b7653006259126d75afb2bc97f0876e4f`. Input requirements for source file configuration and directory reading.
+- `read646-original-process-results` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/results.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/results.json). SHA-256 `b218e6915a3bc767242d3855fc35af8f2895236330be7211821023249d8347fb`. Six original closed provider processes and original receipt hashes.
+- `read646-actual-block-projection` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/interpretation.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/interpretation.json). SHA-256 `0cd8ce8b6eb7e4cbdc5efc9ec25d3afd961151829aa41451705dca100ec21b38`. All48 actual blocks: four tested successes and44 Guest failures, independent queries retained.
+- `read646-exact-input-map` (provider): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/pinned-input-map.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/pinned-input-map.json). SHA-256 `c21b951c2bc6cbcb1e9271c0b1a47559a0514da406ac6441fbd7abdc136b4b3e`. Every original pin mapped to a complete archived payload.
+- `read646-exact-input-bytes` (provider): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/pinned-input-bytes.tar.gz](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/pinned-input-bytes.tar.gz). SHA-256 `e76747c4633776bfe9b969f3e8f040fe54901f8dd92cbb39d0c93da2c1be5ebd`. Whole measured source/header/library/compiler/CLI/input payloads, round-trip verified.
+- `read646-original-retention` (provider): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/retention.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/retention.json). SHA-256 `9b68ccf06ab134aae473411ab0add7ec73cb54f6869185af22145af5f5ae0d18`. All original receipts/streams and twelve complete compressed probe/version ELFs.
+- `read646-original-existing-source` (input): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-existing.tcl](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-existing.tcl). SHA-256 `cdaaef7587b816c22bd7b78ff9c021d288afebf82978477fc698692e20e8b4a6`. Runner-owned ASCII script, distinct from missing and empty directory controls.
+- `read646-original-input-manifest` (input): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/input-manifest.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/input-manifest.json). SHA-256 `0c6cc5e902f02143f48f3e4d424c3dadc8dd34a345989a55cd54aa6ec7d7bc2c`. Input manifest for source file configuration and directory reading.
+- `read646-original-compiler` (provider): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/compiler.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/compiler.json). SHA-256 `891ce0b5346750b1553fff9f0201595b1089c5a5a6cec4e5a88ff34242141d66`. Actual compiler bytes and version capture.
+- `read646-same-library-results` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/library-version-results.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/library-version-results.json). SHA-256 `c7dcfead8b0e283b923587a608668b5ca6beff0d7297036e67eb79d14e5f70db`. Six independent same-library version diagnostics.
+- `read646-replay-path-adaptation` (input): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/REPLAY-PATH-ADAPTATION.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/REPLAY-PATH-ADAPTATION.json). SHA-256 `a5b8a9dbbb52f4d0bcb6176d47916adec3b4ec13927678261c55e95dbdc38947`. Exact path-only replay mapping; original launch scripts stay unchanged.
+- `read646-replay` (input): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/supplement-replay.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/supplement-replay.json). SHA-256 `fe2733a9b84349193c766825e18f2c891a8c088d57efc023140d5f354aa06530`. Commands and scope for directory read-order measurements.
+- `read646-source-window-0` (source-anchor): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json). SHA-256 `8e74d234e99156755d29cff55eb096d426be1de45790c8e330b70b9a6fd13bba`. JSON pointer `/anchors/0/snippet`. Tcl_SourceObjCmd: whole source and exact physical-LF snippet join.
+- `read646-source-window-1` (source-anchor): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json). SHA-256 `8e74d234e99156755d29cff55eb096d426be1de45790c8e330b70b9a6fd13bba`. JSON pointer `/anchors/1/snippet`. Tcl_SourceObjCmd: whole source and exact physical-LF snippet join.
+- `read646-source-window-2` (source-anchor): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json). SHA-256 `8e74d234e99156755d29cff55eb096d426be1de45790c8e330b70b9a6fd13bba`. JSON pointer `/anchors/2/snippet`. Tcl_FSEvalFileEx: whole source and exact physical-LF snippet join.
+- `read646-source-window-3` (source-anchor): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json). SHA-256 `8e74d234e99156755d29cff55eb096d426be1de45790c8e330b70b9a6fd13bba`. JSON pointer `/anchors/3/snippet`. TclNRSourceObjCmd: whole source and exact physical-LF snippet join.
+- `read646-source-window-4` (source-anchor): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json). SHA-256 `8e74d234e99156755d29cff55eb096d426be1de45790c8e330b70b9a6fd13bba`. JSON pointer `/anchors/4/snippet`. Tcl_FSEvalFileEx: whole source and exact physical-LF snippet join.
+- `read646-source-window-5` (source-anchor): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json). SHA-256 `8e74d234e99156755d29cff55eb096d426be1de45790c8e330b70b9a6fd13bba`. JSON pointer `/anchors/5/snippet`. TclNRSourceObjCmd: whole source and exact physical-LF snippet join.
+- `read646-source-window-6` (source-anchor): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json). SHA-256 `8e74d234e99156755d29cff55eb096d426be1de45790c8e330b70b9a6fd13bba`. JSON pointer `/anchors/6/snippet`. Tcl_FSEvalFileEx: whole source and exact physical-LF snippet join.
+- `read646-source-window-7` (source-anchor): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json). SHA-256 `8e74d234e99156755d29cff55eb096d426be1de45790c8e330b70b9a6fd13bba`. JSON pointer `/anchors/7/snippet`. TclNRSourceObjCmd: whole source and exact physical-LF snippet join.
+- `read646-source-window-8` (source-anchor): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json). SHA-256 `8e74d234e99156755d29cff55eb096d426be1de45790c8e330b70b9a6fd13bba`. JSON pointer `/anchors/8/snippet`. Tcl_FSEvalFileEx: whole source and exact physical-LF snippet join.
+- `read646-source-window-9` (source-anchor): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json). SHA-256 `8e74d234e99156755d29cff55eb096d426be1de45790c8e330b70b9a6fd13bba`. JSON pointer `/anchors/9/snippet`. Jim_SourceCoreCommand: whole source and exact physical-LF snippet join.
+- `read646-source-window-10` (source-anchor): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json). SHA-256 `8e74d234e99156755d29cff55eb096d426be1de45790c8e330b70b9a6fd13bba`. JSON pointer `/anchors/10/snippet`. Tcl_FSEvalFile: whole source and exact physical-LF snippet join.
+- `read646-source-window-11` (source-anchor): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json). SHA-256 `8e74d234e99156755d29cff55eb096d426be1de45790c8e330b70b9a6fd13bba`. JSON pointer `/anchors/11/snippet`. Jim_EvalFile: whole source and exact physical-LF snippet join.
+- `read646-tcl8.4-receipt-json` (provider): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/receipt.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/receipt.json). SHA-256 `5c90919f04a1c04ec3df3565dd9252956707919772b8926e31d43495ccbed52b`. Actual original compile/link/launch and same-file/owned-directory pins.
+- `read646-tcl8.4-execute-stdout` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/execute.stdout](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/execute.stdout). SHA-256 `42191e68761b4260daab2c1ad6b387730cfaf08083e3b2c1db1f662a55098c83`. Unchanged raw output for eight fresh initialized interpreters.
+- `read646-tcl8.4-execute-stderr` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/execute.stderr](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/execute.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Unchanged original probe stderr.
+- `read646-tcl8.4-observations-json` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/observations.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/observations.json). SHA-256 `4108e52a678a84cf4a27fdab14de054b6b4a4f5da7cb5dbc2443624411e09e86`. Exact original raw-byte projection, separately checked against stdout.
+- `read646-tcl8.4-cli-version-stdout` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/cli-version.stdout](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/cli-version.stdout). SHA-256 `c4a268983bec029286482df6caa3aaae81571c33d467c0a13f258e335da5954f`. Actual CLI patchlevel bytes.
+- `read646-tcl8.4-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/same-library-version/receipt.json). SHA-256 `1beee117abf7c78c42695f1dc6e60763f9a9008ded534a4fcb3b86503a177991`. Independent version process linked against the exact selected library.
+- `read646-tcl8.4-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/same-library-version/execute.stdout). SHA-256 `ef18d09813e9c05fbd397154e6f786ea0221f2ce8981597665e917a08a5c5d7f`. Actual linked-library version output.
+- `read646-tcl8.5-receipt-json` (provider): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/receipt.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/receipt.json). SHA-256 `bbd45e752afaec3a6bb912c81f7e95a6a191199e1479b40a9dccc9a0f54d5101`. Actual original compile/link/launch and same-file/owned-directory pins.
+- `read646-tcl8.5-execute-stdout` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/execute.stdout](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/execute.stdout). SHA-256 `3b6cd7809fd1510051f72dcb9590989059d69b0cb57d86b78e7add4af3ab7cca`. Unchanged raw output for eight fresh initialized interpreters.
+- `read646-tcl8.5-execute-stderr` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/execute.stderr](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/execute.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Unchanged original probe stderr.
+- `read646-tcl8.5-observations-json` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/observations.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/observations.json). SHA-256 `65b0354d9be946eaaf1905925ec9cae478ebdf334136bef3244402808fec8166`. Exact original raw-byte projection, separately checked against stdout.
+- `read646-tcl8.5-cli-version-stdout` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/cli-version.stdout](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/cli-version.stdout). SHA-256 `6b58793c92a3db92926bdacbe0a52a520d417fe876aaa7cf8c29fed54a1fea71`. Actual CLI patchlevel bytes.
+- `read646-tcl8.5-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/same-library-version/receipt.json). SHA-256 `aa8d9d8ffa5917ef8de2e76399df1346c3a4362a353bf286bdcbaf18eefab411`. Independent version process linked against the exact selected library.
+- `read646-tcl8.5-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/same-library-version/execute.stdout). SHA-256 `1bd253489464d3ed255f286efdc8deb3768100a5b873e0a062f5026291fcf9bb`. Actual linked-library version output.
+- `read646-tcl8.6-receipt-json` (provider): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/receipt.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/receipt.json). SHA-256 `6d623021fcfa24314deed4a646c12206e661a6aa9b11d3f3f03862e7c6361c98`. Actual original compile/link/launch and same-file/owned-directory pins.
+- `read646-tcl8.6-execute-stdout` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/execute.stdout](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/execute.stdout). SHA-256 `87361dcaae0e29eb6fc0d1e7f13a8df1282e35f11e958d92c0220892756f1a3f`. Unchanged raw output for eight fresh initialized interpreters.
+- `read646-tcl8.6-execute-stderr` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/execute.stderr](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/execute.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Unchanged original probe stderr.
+- `read646-tcl8.6-observations-json` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/observations.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/observations.json). SHA-256 `da14e51dae25a31f9cdab21d14870c16ec5c5fd2fc36a504370cbd72c10ba2ca`. Exact original raw-byte projection, separately checked against stdout.
+- `read646-tcl8.6-cli-version-stdout` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/cli-version.stdout](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/cli-version.stdout). SHA-256 `7523e113df6c321e18099a10ec22086db746e2fcc31a879e16d961e5d3878d01`. Actual CLI patchlevel bytes.
+- `read646-tcl8.6-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/same-library-version/receipt.json). SHA-256 `45893d772e03e534477cdc4ac9b3e710df4300a5c94aa61a85b4d92a5aec244e`. Independent version process linked against the exact selected library.
+- `read646-tcl8.6-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/same-library-version/execute.stdout). SHA-256 `dd12d5dc76bfc80ae3033ac87b1932541f275a888adf9e03dabbcb5878b0df8c`. Actual linked-library version output.
+- `read646-tcl9.0-receipt-json` (provider): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/receipt.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/receipt.json). SHA-256 `e8c069727ae20eaa813064d04065657a04a9ebe0c7bb7fecf603dad17ef1b643`. Actual original compile/link/launch and same-file/owned-directory pins.
+- `read646-tcl9.0-execute-stdout` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/execute.stdout](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/execute.stdout). SHA-256 `af4d32f67c73c1c24f8870b72b5ef67bfde4367e7b70384c7840c76886e8738f`. Unchanged raw output for eight fresh initialized interpreters.
+- `read646-tcl9.0-execute-stderr` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/execute.stderr](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/execute.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Unchanged original probe stderr.
+- `read646-tcl9.0-observations-json` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/observations.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/observations.json). SHA-256 `f0e6a143878ad38fdf31f53f1e6929665305f9fbda428b95d058759b8cb70e7e`. Exact original raw-byte projection, separately checked against stdout.
+- `read646-tcl9.0-cli-version-stdout` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/cli-version.stdout](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/cli-version.stdout). SHA-256 `b83920bac1b2d47c3840f588f95bee9dc69b85e26117f471541cdf85d7da52a2`. Actual CLI patchlevel bytes.
+- `read646-tcl9.0-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/same-library-version/receipt.json). SHA-256 `0157a3e6a5264d2be6a537259af6b3049215687dcb89c1d8fc1652d0b65c1236`. Independent version process linked against the exact selected library.
+- `read646-tcl9.0-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/same-library-version/execute.stdout). SHA-256 `d016aed0da5636f83bfe6d76f7c26b06e30ce7951203b5d3543001780eb51a2c`. Actual linked-library version output.
+- `read646-tcl9.1-receipt-json` (provider): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/receipt.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/receipt.json). SHA-256 `86001c402181f452851774f8f7dc9b8aae1e0c1f9f98284888a9318fa8d5e921`. Actual original compile/link/launch and same-file/owned-directory pins.
+- `read646-tcl9.1-execute-stdout` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/execute.stdout](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/execute.stdout). SHA-256 `5c8f998a7a14fcf6a499c65ab22880b47c985489b2996acc746f599175b50e11`. Unchanged raw output for eight fresh initialized interpreters.
+- `read646-tcl9.1-execute-stderr` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/execute.stderr](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/execute.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Unchanged original probe stderr.
+- `read646-tcl9.1-observations-json` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/observations.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/observations.json). SHA-256 `ab0fd20f8590c8a2279606d37d462b6ae58be94accb9c2f8ff548a69e8d514c6`. Exact original raw-byte projection, separately checked against stdout.
+- `read646-tcl9.1-cli-version-stdout` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/cli-version.stdout](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/cli-version.stdout). SHA-256 `077ee5b3a3a7fc2622ceff6466fea0c28f3fb08b24653dcc7f4baab29b9aef36`. Actual CLI patchlevel bytes.
+- `read646-tcl9.1-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/same-library-version/receipt.json). SHA-256 `81ec2fa4a1b287f3fd2700a8e08f6ff8b79a625c1706a97dcc4e50aea3654b94`. Independent version process linked against the exact selected library.
+- `read646-tcl9.1-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/same-library-version/execute.stdout). SHA-256 `b225f15b75641002abfa4f29d4d1be66051123c85bc897b9a7234b22317ea071`. Actual linked-library version output.
+- `read646-jim-receipt-json` (provider): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/receipt.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/receipt.json). SHA-256 `fdc68df11efadb1ada53b9b73a44d5738d021cb238bd8b7161e5b317f29f1500`. Actual original compile/link/launch and same-file/owned-directory pins.
+- `read646-jim-execute-stdout` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/execute.stdout](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/execute.stdout). SHA-256 `7b6760417ee9fdb24bd0b9fede2810b32e6a86750f710c4b9b7c9d73340fc74a`. Unchanged raw output for eight fresh initialized interpreters.
+- `read646-jim-execute-stderr` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/execute.stderr](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/execute.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Unchanged original probe stderr.
+- `read646-jim-observations-json` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/observations.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/observations.json). SHA-256 `b5e92a60aa0406a1b81223cc4d0000c9e9927f4f4507e66be7837b7e646193c5`. Exact original raw-byte projection, separately checked against stdout.
+- `read646-jim-cli-version-stdout` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/cli-version.stdout](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/cli-version.stdout). SHA-256 `f9752899fa012cf994a528e0250402609067a6f67a144a1172644a9329386803`. Actual CLI patchlevel bytes.
+- `read646-jim-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/same-library-version/receipt.json). SHA-256 `4d9791b4bafa859cb3a0df3ad15ff5c8294e7b7e752086144ba19e4b33bdb765`. Independent version process linked against the exact selected library.
+- `read646-jim-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/same-library-version/execute.stdout). SHA-256 `d7ce62ac8c979a247ad4edf0a43c9133dc8b547cdfc8e5b540fccd9bbe848166`. Actual linked-library version output.
 
 ## Source inspection
 
@@ -2421,6 +2508,954 @@ TclInitEncodingSubsystem(void)
     systemEncoding	= Tcl_GetEncoding(NULL, type.encodingName);
 
     encodingsInitialized = 1;
+}
+
+```
+
+tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdMZ.c`, function `Tcl_SourceObjCmd`, lines 1056–1068. Line unit: physical LF only. Original byte range [28791, 29163). Full-source SHA-256 `b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc`; snippet SHA-256 `80de1b70d48625832263c3f6e20b399261beb02b8599d9bcbb595bf6ae7ce8dd`; retained evidence `read646-source-window-0`.
+
+```text
+Tcl_SourceObjCmd(dummy, interp, objc, objv)
+    ClientData dummy;		/* Not used. */
+    Tcl_Interp *interp;		/* Current interpreter. */
+    int objc;			/* Number of arguments. */
+    Tcl_Obj *CONST objv[];	/* Argument objects. */
+{
+    if (objc != 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "fileName");
+	return TCL_ERROR;
+    }
+
+    return Tcl_FSEvalFile(interp, objv[1]);
+}
+
+```
+
+tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdMZ.c`, function `Tcl_SourceObjCmd`, lines 936–966. Line unit: physical LF only. Original byte range [22991, 23739). Full-source SHA-256 `fe2c67a2097ece2e07d9345a5edf416b5fbc891276349e360f9c25da1cc8f348`; snippet SHA-256 `9043e538bce92348d2adf6272ef579201f852415b8be5381f75edf8d0bae8c1f`; retained evidence `read646-source-window-1`.
+
+```text
+Tcl_SourceObjCmd(
+    ClientData dummy,		/* Not used. */
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument objects. */
+{
+    const char *encodingName = NULL;
+    Tcl_Obj *fileName;
+
+    if (objc != 2 && objc !=4) {
+	Tcl_WrongNumArgs(interp, 1, objv, "?-encoding name? fileName");
+	return TCL_ERROR;
+    }
+
+    fileName = objv[objc-1];
+
+    if (objc == 4) {
+	static const char *options[] = {
+	    "-encoding", NULL
+	};
+	int index;
+
+	if (TCL_ERROR == Tcl_GetIndexFromObj(interp, objv[1], options,
+		"option", TCL_EXACT, &index)) {
+	    return TCL_ERROR;
+	}
+	encodingName = TclGetString(objv[2]);
+    }
+
+    return Tcl_FSEvalFileEx(interp, fileName, encodingName);
+}
+
+```
+
+tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclIOUtil.c`, function `Tcl_FSEvalFileEx`, lines 1770–1892. Line unit: physical LF only. Original byte range [50144, 53829). Full-source SHA-256 `24e13e612b8207a7109d6cb6175a8972d4b5233ec1088b7fbfbf632bf47b9b73`; snippet SHA-256 `c72fbb10de3ee199a7d63037bc78d1f2419e0ecbdeb854503cbf70d1a8c3e738`; retained evidence `read646-source-window-2`.
+
+```text
+Tcl_FSEvalFileEx(
+    Tcl_Interp *interp,		/* Interpreter in which to process file. */
+    Tcl_Obj *pathPtr,		/* Path of file to process. Tilde-substitution
+				 * will be performed on this name. */
+    const char *encodingName)	/* If non-NULL, then use this encoding for the
+				 * file. NULL means use the system encoding. */
+{
+    int length, result = TCL_ERROR;
+    Tcl_StatBuf statBuf;
+    Tcl_Obj *oldScriptFile;
+    Interp *iPtr;
+    char *string;
+    Tcl_Channel chan;
+    Tcl_Obj *objPtr;
+
+    if (Tcl_FSGetNormalizedPath(interp, pathPtr) == NULL) {
+	return result;
+    }
+
+    if (Tcl_FSStat(pathPtr, &statBuf) == -1) {
+	Tcl_SetErrno(errno);
+	Tcl_AppendResult(interp, "couldn't read file \"",
+		Tcl_GetString(pathPtr), "\": ", Tcl_PosixError(interp), NULL);
+	return result;
+    }
+    chan = Tcl_FSOpenFileChannel(interp, pathPtr, "r", 0644);
+    if (chan == (Tcl_Channel) NULL) {
+	Tcl_ResetResult(interp);
+	Tcl_AppendResult(interp, "couldn't read file \"",
+		Tcl_GetString(pathPtr), "\": ", Tcl_PosixError(interp), NULL);
+	return result;
+    }
+
+    /*
+     * The eofchar is \32 (^Z). This is the usual on Windows, but we effect
+     * this cross-platform to allow for scripted documents. [Bug: 2040]
+     */
+
+    Tcl_SetChannelOption(interp, chan, "-eofchar", "\32");
+
+    /*
+     * If the encoding is specified, set it for the channel. Else don't touch
+     * it (and use the system encoding) Report error on unknown encoding.
+     */
+
+    if (encodingName != NULL) {
+	if (Tcl_SetChannelOption(interp, chan, "-encoding", encodingName)
+		!= TCL_OK) {
+	    Tcl_Close(interp,chan);
+	    return result;
+	}
+    }
+
+    objPtr = Tcl_NewObj();
+    Tcl_IncrRefCount(objPtr);
+    /* Try to read first character of stream, so we can
+     * check for utf-8 BOM to be handled especially.
+     */
+    if (Tcl_ReadChars(chan, objPtr, 1, 0) < 0) {
+	Tcl_Close(interp, chan);
+	Tcl_AppendResult(interp, "couldn't read file \"",
+		Tcl_GetString(pathPtr), "\": ", Tcl_PosixError(interp), NULL);
+	goto end;
+    }
+    string = Tcl_GetString(objPtr);
+    /*
+     * If first character is not a BOM, append the remaining characters,
+     * otherwise replace them [Bug 3466099].
+     */
+    if (Tcl_ReadChars(chan, objPtr, -1,
+	    memcmp(string, "\xef\xbb\xbf", 3)) < 0) {
+	Tcl_Close(interp, chan);
+	Tcl_AppendResult(interp, "couldn't read file \"",
+		Tcl_GetString(pathPtr), "\": ", Tcl_PosixError(interp), NULL);
+	goto end;
+    }
+
+    if (Tcl_Close(interp, chan) != TCL_OK) {
+	goto end;
+    }
+
+    iPtr = (Interp *) interp;
+    oldScriptFile = iPtr->scriptFile;
+    iPtr->scriptFile = pathPtr;
+    Tcl_IncrRefCount(iPtr->scriptFile);
+    string = Tcl_GetStringFromObj(objPtr, &length);
+    /* TIP #280 Force the evaluator to open a frame for a sourced
+     * file. */
+    iPtr->evalFlags |= TCL_EVAL_FILE;
+    result = Tcl_EvalEx(interp, string, length, 0);
+
+    /*
+     * Now we have to be careful; the script may have changed the
+     * iPtr->scriptFile value, so we must reset it without assuming it still
+     * points to 'pathPtr'.
+     */
+
+    if (iPtr->scriptFile != NULL) {
+	Tcl_DecrRefCount(iPtr->scriptFile);
+    }
+    iPtr->scriptFile = oldScriptFile;
+
+    if (result == TCL_RETURN) {
+	result = TclUpdateReturnInfo(iPtr);
+    } else if (result == TCL_ERROR) {
+	/*
+	 * Record information telling where the error occurred.
+	 */
+
+	const char *pathString = Tcl_GetStringFromObj(pathPtr, &length);
+	int limit = 150;
+	int overflow = (length > limit);
+
+	Tcl_AppendObjToErrorInfo(interp, Tcl_ObjPrintf(
+		"\n    (file \"%.*s%s\" line %d)",
+		(overflow ? limit : length), pathString,
+		(overflow ? "..." : ""), interp->errorLine));
+    }
+
+  end:
+    Tcl_DecrRefCount(objPtr);
+    return result;
+}
+
+```
+
+tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdMZ.c`, function `TclNRSourceObjCmd`, lines 985–1015. Line unit: physical LF only. Original byte range [24875, 25627). Full-source SHA-256 `c2fe2deb95449c94c2719dca830d4e57ec4a436741199da39122d772888e849e`; snippet SHA-256 `7e90d5fcad7d151b938fba44889b4e0812424f7a8dfb248bc63c2ba1a4658122`; retained evidence `read646-source-window-3`.
+
+```text
+TclNRSourceObjCmd(
+    ClientData dummy,		/* Not used. */
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument objects. */
+{
+    const char *encodingName = NULL;
+    Tcl_Obj *fileName;
+
+    if (objc != 2 && objc !=4) {
+	Tcl_WrongNumArgs(interp, 1, objv, "?-encoding name? fileName");
+	return TCL_ERROR;
+    }
+
+    fileName = objv[objc-1];
+
+    if (objc == 4) {
+	static const char *const options[] = {
+	    "-encoding", NULL
+	};
+	int index;
+
+	if (TCL_ERROR == Tcl_GetIndexFromObj(interp, objv[1], options,
+		"option", TCL_EXACT, &index)) {
+	    return TCL_ERROR;
+	}
+	encodingName = TclGetString(objv[2]);
+    }
+
+    return TclNREvalFile(interp, fileName, encodingName);
+}
+
+```
+
+tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclIOUtil.c`, function `Tcl_FSEvalFileEx`, lines 1727–1860. Line unit: physical LF only. Original byte range [48406, 52138). Full-source SHA-256 `efc2579a7e21c6e4490116ddee386d3ea83819a3bcad76215127b480f5934f00`; snippet SHA-256 `99708366d088e82ca8ec9adf808d926816f676cbfc3a1944439346f19288601a`; retained evidence `read646-source-window-4`.
+
+```text
+Tcl_FSEvalFileEx(
+    Tcl_Interp *interp,		/* Interpreter in which to process file. */
+    Tcl_Obj *pathPtr,		/* Path of file to process. Tilde-substitution
+				 * will be performed on this name. */
+    const char *encodingName)	/* If non-NULL, then use this encoding for the
+				 * file. NULL means use the system encoding. */
+{
+    int length, result = TCL_ERROR;
+    Tcl_StatBuf statBuf;
+    Tcl_Obj *oldScriptFile;
+    Interp *iPtr;
+    const char *string;
+    Tcl_Channel chan;
+    Tcl_Obj *objPtr;
+
+    if (Tcl_FSGetNormalizedPath(interp, pathPtr) == NULL) {
+	return result;
+    }
+
+    if (Tcl_FSStat(pathPtr, &statBuf) == -1) {
+	Tcl_SetErrno(errno);
+	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		"couldn't read file \"%s\": %s",
+		TclGetString(pathPtr), Tcl_PosixError(interp)));
+	return result;
+    }
+    chan = Tcl_FSOpenFileChannel(interp, pathPtr, "r", 0644);
+    if (chan == NULL) {
+	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		"couldn't read file \"%s\": %s",
+		TclGetString(pathPtr), Tcl_PosixError(interp)));
+	return result;
+    }
+
+    /*
+     * The eofchar is \32 (^Z). This is the usual on Windows, but we effect
+     * this cross-platform to allow for scripted documents. [Bug: 2040]
+     */
+
+    Tcl_SetChannelOption(interp, chan, "-eofchar", "\32 {}");
+
+    /*
+     * If the encoding is specified, set it for the channel. Else don't touch
+     * it (and use the system encoding) Report error on unknown encoding.
+     */
+
+    if (encodingName != NULL) {
+	if (Tcl_SetChannelOption(interp, chan, "-encoding", encodingName)
+		!= TCL_OK) {
+	    Tcl_Close(interp,chan);
+	    return result;
+	}
+    }
+
+    TclNewObj(objPtr);
+    Tcl_IncrRefCount(objPtr);
+
+    /*
+     * Try to read first character of stream, so we can check for utf-8 BOM to
+     * be handled especially.
+     */
+
+    if (Tcl_ReadChars(chan, objPtr, 1, 0) < 0) {
+	Tcl_Close(interp, chan);
+	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		"couldn't read file \"%s\": %s",
+		TclGetString(pathPtr), Tcl_PosixError(interp)));
+	goto end;
+    }
+    string = TclGetString(objPtr);
+
+    /*
+     * If first character is not a BOM, append the remaining characters,
+     * otherwise replace them. [Bug 3466099]
+     */
+
+    if (Tcl_ReadChars(chan, objPtr, -1,
+	    memcmp(string, "\xEF\xBB\xBF", 3)) < 0) {
+	Tcl_Close(interp, chan);
+	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		"couldn't read file \"%s\": %s",
+		TclGetString(pathPtr), Tcl_PosixError(interp)));
+	goto end;
+    }
+
+    if (Tcl_Close(interp, chan) != TCL_OK) {
+	goto end;
+    }
+
+    iPtr = (Interp *) interp;
+    oldScriptFile = iPtr->scriptFile;
+    iPtr->scriptFile = pathPtr;
+    Tcl_IncrRefCount(iPtr->scriptFile);
+    string = TclGetStringFromObj(objPtr, &length);
+
+    /*
+     * TIP #280 Force the evaluator to open a frame for a sourced file.
+     */
+
+    iPtr->evalFlags |= TCL_EVAL_FILE;
+    result = TclEvalEx(interp, string, length, 0, 1, NULL, string);
+
+    /*
+     * Now we have to be careful; the script may have changed the
+     * iPtr->scriptFile value, so we must reset it without assuming it still
+     * points to 'pathPtr'.
+     */
+
+    if (iPtr->scriptFile != NULL) {
+	Tcl_DecrRefCount(iPtr->scriptFile);
+    }
+    iPtr->scriptFile = oldScriptFile;
+
+    if (result == TCL_RETURN) {
+	result = TclUpdateReturnInfo(iPtr);
+    } else if (result == TCL_ERROR) {
+	/*
+	 * Record information telling where the error occurred.
+	 */
+
+	const char *pathString = TclGetStringFromObj(pathPtr, &length);
+	int limit = 150;
+	int overflow = (length > limit);
+
+	Tcl_AppendObjToErrorInfo(interp, Tcl_ObjPrintf(
+		"\n    (file \"%.*s%s\" line %d)",
+		(overflow ? limit : length), pathString,
+		(overflow ? "..." : ""), Tcl_GetErrorLine(interp)));
+    }
+
+  end:
+    Tcl_DecrRefCount(objPtr);
+    return result;
+}
+
+```
+
+tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdMZ.c`, function `TclNRSourceObjCmd`, lines 1104–1158. Line unit: physical LF only. Original byte range [28601, 30131). Full-source SHA-256 `080e201d1a09760aad4fedd9835e2091fd663d405d32d034f32dd0918d9006cc`; snippet SHA-256 `0a690aa7c36dc4393d6eae55827a952cf5f4197178d5c4679a6ec0b2f4f993f2`; retained evidence `read646-source-window-5`.
+
+```text
+TclNRSourceObjCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument objects. */
+{
+    const char *encodingName = NULL;
+    Tcl_Obj *fileName;
+    int result;
+    void **pkgFiles = NULL;
+    void *names = NULL;
+
+    if (objc < 2 || objc > 4) {
+	Tcl_WrongNumArgs(interp, 1, objv, "?-encoding encoding? fileName");
+	return TCL_ERROR;
+    }
+
+    fileName = objv[objc-1];
+
+    if (objc == 4) {
+	static const char *const options[] = {
+	    "-encoding", NULL
+	};
+	int index;
+
+	if (TCL_ERROR == Tcl_GetIndexFromObj(interp, objv[1], options,
+		"option", TCL_EXACT, &index)) {
+	    return TCL_ERROR;
+	}
+	encodingName = TclGetString(objv[2]);
+    } else if (objc == 3) {
+	/* Handle undocumented -nopkg option. This should only be
+	 * used by the internal ::tcl::Pkg::source utility function. */
+	static const char *const nopkgoptions[] = {
+	    "-nopkg", NULL
+	};
+	int index;
+
+	if (TCL_ERROR == Tcl_GetIndexFromObj(interp, objv[1], nopkgoptions,
+		"option", TCL_EXACT, &index)) {
+	    return TCL_ERROR;
+	}
+	pkgFiles = (void **)Tcl_GetAssocData(interp, "tclPkgFiles", NULL);
+	/* Make sure that during the following TclNREvalFile no filenames
+	 * are recorded for inclusion in the "package files" command */
+	names = *pkgFiles;
+	*pkgFiles = NULL;
+    }
+    result = TclNREvalFile(interp, fileName, encodingName);
+    if (pkgFiles) {
+	/* restore "tclPkgFiles" assocdata to how it was. */
+	*pkgFiles = names;
+    }
+    return result;
+}
+
+```
+
+tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclIOUtil.c`, function `Tcl_FSEvalFileEx`, lines 1691–1826. Line unit: physical LF only. Original byte range [44401, 48127). Full-source SHA-256 `a92cd056226140169ef4789870156962b7219d99cb72218a999ca5b8d9ce8770`; snippet SHA-256 `ad8317f27808f6fc0469edab8bcbed953f0982e409c93f4b70aa9d731778e93d`; retained evidence `read646-source-window-6`.
+
+```text
+Tcl_FSEvalFileEx(
+    Tcl_Interp *interp,		/* Interpreter that evaluates the script. */
+    Tcl_Obj *pathPtr,		/* Pathname of the file to process.
+				 * Tilde-substitution is performed on this
+				 * pathname. */
+    const char *encodingName)	/* Either the name of an encoding or NULL to
+				 * use the utf-8 encoding. */
+{
+    Tcl_Size length;
+    int result = TCL_ERROR;
+    Tcl_StatBuf statBuf;
+    Tcl_Obj *oldScriptFile;
+    Interp *iPtr;
+    const char *string;
+    Tcl_Channel chan;
+    Tcl_Obj *objPtr;
+
+    if (Tcl_FSGetNormalizedPath(interp, pathPtr) == NULL) {
+	return result;
+    }
+
+    if (Tcl_FSStat(pathPtr, &statBuf) == -1) {
+	Tcl_SetErrno(errno);
+	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		"couldn't read file \"%s\": %s",
+		TclGetString(pathPtr), Tcl_PosixError(interp)));
+	return result;
+    }
+    chan = Tcl_FSOpenFileChannel(interp, pathPtr, "r", 0644);
+    if (chan == NULL) {
+	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		"couldn't read file \"%s\": %s",
+		TclGetString(pathPtr), Tcl_PosixError(interp)));
+	return result;
+    }
+
+    /*
+     * The eof character is \x1A (^Z). Tcl uses it on every platform to allow
+     * for scripted documents. [Bug: 2040]
+     */
+
+    Tcl_SetChannelOption(interp, chan, "-eofchar", "\x1A");
+
+    /*
+     * If the encoding is specified, set the channel to that encoding.
+     * Otherwise use utf-8.  If the encoding is unknown report an error.
+     */
+
+    if (encodingName == NULL) {
+	encodingName = "utf-8";
+    }
+    if (Tcl_SetChannelOption(interp, chan, "-encoding", encodingName)
+	    != TCL_OK) {
+	Tcl_CloseEx(interp,chan,0);
+	return result;
+    }
+
+    TclNewObj(objPtr);
+    Tcl_IncrRefCount(objPtr);
+
+    /*
+     * Read first character of stream to check for utf-8 BOM
+     */
+
+    if (Tcl_ReadChars(chan, objPtr, 1, 0) == TCL_IO_FAILURE) {
+	Tcl_CloseEx(interp, chan, 0);
+	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		"couldn't read file \"%s\": %s",
+		TclGetString(pathPtr), Tcl_PosixError(interp)));
+	goto end;
+    }
+    string = TclGetString(objPtr);
+
+    /*
+     * If first character is not a BOM, append the remaining characters.
+     * Otherwise, replace them. [Bug 3466099]
+     */
+
+    if (Tcl_ReadChars(chan, objPtr, TCL_INDEX_NONE,
+	    memcmp(string, "\xEF\xBB\xBF", 3)) == TCL_IO_FAILURE) {
+	Tcl_CloseEx(interp, chan, 0);
+	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		"couldn't read file \"%s\": %s",
+		TclGetString(pathPtr), Tcl_PosixError(interp)));
+	goto end;
+    }
+
+    if (Tcl_CloseEx(interp, chan, 0) != TCL_OK) {
+	goto end;
+    }
+
+    iPtr = (Interp *) interp;
+    oldScriptFile = iPtr->scriptFile;
+    iPtr->scriptFile = pathPtr;
+    Tcl_IncrRefCount(iPtr->scriptFile);
+    string = TclGetStringFromObj(objPtr, &length);
+
+    /*
+     * TIP #280:  Open a frame for the evaluated script.
+     */
+
+    iPtr->evalFlags |= TCL_EVAL_FILE;
+    result = TclEvalEx(interp, string, length, 0, 1, NULL, string);
+
+    /*
+     * Restore the original iPtr->scriptFile value, but because the value may
+     * have hanged during evaluation, don't assume it currently points to
+     * pathPtr.
+     */
+
+    if (iPtr->scriptFile != NULL) {
+	Tcl_DecrRefCount(iPtr->scriptFile);
+    }
+    iPtr->scriptFile = oldScriptFile;
+
+    if (result == TCL_RETURN) {
+	result = TclUpdateReturnInfo(iPtr);
+    } else if (result == TCL_ERROR) {
+	/*
+	 * Record information about where the error occurred.
+	 */
+
+	const char *pathString = TclGetStringFromObj(pathPtr, &length);
+	int limit = 150;
+	int overflow = (length > limit);
+
+	Tcl_AppendObjToErrorInfo(interp, Tcl_ObjPrintf(
+		"\n    (file \"%.*s%s\" line %d)",
+		(overflow ? limit : (int)length), pathString,
+		(overflow ? "..." : ""), Tcl_GetErrorLine(interp)));
+    }
+
+  end:
+    Tcl_DecrRefCount(objPtr);
+    return result;
+}
+
+```
+
+tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdMZ.c`, function `TclNRSourceObjCmd`, lines 1169–1223. Line unit: physical LF only. Original byte range [31813, 33346). Full-source SHA-256 `62be408d1faa29a35d3e30eacc4986fd9f1a973f7efcd474b3a2a9082ded512f`; snippet SHA-256 `f17dd80b646a218b4a9e91bd3a6909741b527ebd3096290e6f1de7ba2dd5bda4`; retained evidence `read646-source-window-7`.
+
+```text
+TclNRSourceObjCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,		/* Current interpreter. */
+    Tcl_Size objc,		/* Number of arguments. */
+    Tcl_Obj *const *objv)	/* Argument objects. */
+{
+    const char *encodingName = NULL;
+    Tcl_Obj *fileName;
+    int result;
+    void **pkgFiles = NULL;
+    void *names = NULL;
+
+    if (objc < 2 || objc > 4) {
+	Tcl_WrongNumArgs(interp, 1, objv, "?-encoding encoding? fileName");
+	return TCL_ERROR;
+    }
+
+    fileName = objv[objc-1];
+
+    if (objc == 4) {
+	static const char *const options[] = {
+	    "-encoding", NULL
+	};
+	int index;
+
+	if (TCL_ERROR == Tcl_GetIndexFromObj(interp, objv[1], options,
+		"option", TCL_EXACT, &index)) {
+	    return TCL_ERROR;
+	}
+	encodingName = TclGetString(objv[2]);
+    } else if (objc == 3) {
+	/* Handle undocumented -nopkg option. This should only be
+	 * used by the internal ::tcl::Pkg::source utility function. */
+	static const char *const nopkgoptions[] = {
+	    "-nopkg", NULL
+	};
+	int index;
+
+	if (TCL_ERROR == Tcl_GetIndexFromObj(interp, objv[1], nopkgoptions,
+		"option", TCL_EXACT, &index)) {
+	    return TCL_ERROR;
+	}
+	pkgFiles = (void **)Tcl_GetAssocData(interp, "tclPkgFiles", NULL);
+	/* Make sure that during the following TclNREvalFile no filenames
+	 * are recorded for inclusion in the "package files" command */
+	names = *pkgFiles;
+	*pkgFiles = NULL;
+    }
+    result = TclNREvalFile(interp, fileName, encodingName);
+    if (pkgFiles) {
+	/* restore "tclPkgFiles" assocdata to how it was. */
+	*pkgFiles = names;
+    }
+    return result;
+}
+
+```
+
+tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclIOUtil.c`, function `Tcl_FSEvalFileEx`, lines 1690–1825. Line unit: physical LF only. Original byte range [44472, 48198). Full-source SHA-256 `0e7e89671b5840ab90267b9ef5a4a9cac35b702c1a5b62a8a42de066dff514fd`; snippet SHA-256 `ad8317f27808f6fc0469edab8bcbed953f0982e409c93f4b70aa9d731778e93d`; retained evidence `read646-source-window-8`.
+
+```text
+Tcl_FSEvalFileEx(
+    Tcl_Interp *interp,		/* Interpreter that evaluates the script. */
+    Tcl_Obj *pathPtr,		/* Pathname of the file to process.
+				 * Tilde-substitution is performed on this
+				 * pathname. */
+    const char *encodingName)	/* Either the name of an encoding or NULL to
+				 * use the utf-8 encoding. */
+{
+    Tcl_Size length;
+    int result = TCL_ERROR;
+    Tcl_StatBuf statBuf;
+    Tcl_Obj *oldScriptFile;
+    Interp *iPtr;
+    const char *string;
+    Tcl_Channel chan;
+    Tcl_Obj *objPtr;
+
+    if (Tcl_FSGetNormalizedPath(interp, pathPtr) == NULL) {
+	return result;
+    }
+
+    if (Tcl_FSStat(pathPtr, &statBuf) == -1) {
+	Tcl_SetErrno(errno);
+	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		"couldn't read file \"%s\": %s",
+		TclGetString(pathPtr), Tcl_PosixError(interp)));
+	return result;
+    }
+    chan = Tcl_FSOpenFileChannel(interp, pathPtr, "r", 0644);
+    if (chan == NULL) {
+	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		"couldn't read file \"%s\": %s",
+		TclGetString(pathPtr), Tcl_PosixError(interp)));
+	return result;
+    }
+
+    /*
+     * The eof character is \x1A (^Z). Tcl uses it on every platform to allow
+     * for scripted documents. [Bug: 2040]
+     */
+
+    Tcl_SetChannelOption(interp, chan, "-eofchar", "\x1A");
+
+    /*
+     * If the encoding is specified, set the channel to that encoding.
+     * Otherwise use utf-8.  If the encoding is unknown report an error.
+     */
+
+    if (encodingName == NULL) {
+	encodingName = "utf-8";
+    }
+    if (Tcl_SetChannelOption(interp, chan, "-encoding", encodingName)
+	    != TCL_OK) {
+	Tcl_CloseEx(interp,chan,0);
+	return result;
+    }
+
+    TclNewObj(objPtr);
+    Tcl_IncrRefCount(objPtr);
+
+    /*
+     * Read first character of stream to check for utf-8 BOM
+     */
+
+    if (Tcl_ReadChars(chan, objPtr, 1, 0) == TCL_IO_FAILURE) {
+	Tcl_CloseEx(interp, chan, 0);
+	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		"couldn't read file \"%s\": %s",
+		TclGetString(pathPtr), Tcl_PosixError(interp)));
+	goto end;
+    }
+    string = TclGetString(objPtr);
+
+    /*
+     * If first character is not a BOM, append the remaining characters.
+     * Otherwise, replace them. [Bug 3466099]
+     */
+
+    if (Tcl_ReadChars(chan, objPtr, TCL_INDEX_NONE,
+	    memcmp(string, "\xEF\xBB\xBF", 3)) == TCL_IO_FAILURE) {
+	Tcl_CloseEx(interp, chan, 0);
+	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		"couldn't read file \"%s\": %s",
+		TclGetString(pathPtr), Tcl_PosixError(interp)));
+	goto end;
+    }
+
+    if (Tcl_CloseEx(interp, chan, 0) != TCL_OK) {
+	goto end;
+    }
+
+    iPtr = (Interp *) interp;
+    oldScriptFile = iPtr->scriptFile;
+    iPtr->scriptFile = pathPtr;
+    Tcl_IncrRefCount(iPtr->scriptFile);
+    string = TclGetStringFromObj(objPtr, &length);
+
+    /*
+     * TIP #280:  Open a frame for the evaluated script.
+     */
+
+    iPtr->evalFlags |= TCL_EVAL_FILE;
+    result = TclEvalEx(interp, string, length, 0, 1, NULL, string);
+
+    /*
+     * Restore the original iPtr->scriptFile value, but because the value may
+     * have hanged during evaluation, don't assume it currently points to
+     * pathPtr.
+     */
+
+    if (iPtr->scriptFile != NULL) {
+	Tcl_DecrRefCount(iPtr->scriptFile);
+    }
+    iPtr->scriptFile = oldScriptFile;
+
+    if (result == TCL_RETURN) {
+	result = TclUpdateReturnInfo(iPtr);
+    } else if (result == TCL_ERROR) {
+	/*
+	 * Record information about where the error occurred.
+	 */
+
+	const char *pathString = TclGetStringFromObj(pathPtr, &length);
+	int limit = 150;
+	int overflow = (length > limit);
+
+	Tcl_AppendObjToErrorInfo(interp, Tcl_ObjPrintf(
+		"\n    (file \"%.*s%s\" line %d)",
+		(overflow ? limit : (int)length), pathString,
+		(overflow ? "..." : ""), Tcl_GetErrorLine(interp)));
+    }
+
+  end:
+    Tcl_DecrRefCount(objPtr);
+    return result;
+}
+
+```
+
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_SourceCoreCommand`, lines 16711–16716. Line unit: physical LF only. Original byte range [529211, 529412). Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `06f50ddd7d96c6cf52b7de221ead820052a94493441f3e1f3d016bb7708981b5`; retained evidence `read646-source-window-9`.
+
+```text
+static int Jim_SourceCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+    int retval = Jim_EvalFile(interp, Jim_String(argv[1]));
+
+    return retval == JIM_RETURN ? JIM_OK : retval;
+}
+
+```
+
+tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclIOUtil.c`, function `Tcl_FSEvalFile`, lines 1704–1810. Line unit: physical LF only. Original byte range [52367, 55548). Full-source SHA-256 `fa8dbfd1c3a77b0538cece015df9efa56354f3d58272073bb91837537479c73d`; snippet SHA-256 `e6d2b7855932cbbb21d0e1cc821d7f0ed600f58b4b08bfd80051d71a902b90fa`; retained evidence `read646-source-window-10`.
+
+```text
+Tcl_FSEvalFile(interp, pathPtr)
+    Tcl_Interp *interp;		/* Interpreter in which to process file. */
+    Tcl_Obj *pathPtr;		/* Path of file to process.  Tilde-substitution
+				 * will be performed on this name. */
+{
+    int result, length;
+    Tcl_StatBuf statBuf;
+    Tcl_Obj *oldScriptFile;
+    Interp *iPtr;
+    char *string;
+    Tcl_Channel chan;
+    Tcl_Obj *objPtr;
+
+    if (Tcl_FSGetNormalizedPath(interp, pathPtr) == NULL) {
+	return TCL_ERROR;
+    }
+
+    result = TCL_ERROR;
+    objPtr = Tcl_NewObj();
+    Tcl_IncrRefCount(objPtr);
+
+    if (Tcl_FSStat(pathPtr, &statBuf) == -1) {
+        Tcl_SetErrno(errno);
+	Tcl_AppendResult(interp, "couldn't read file \"", 
+		Tcl_GetString(pathPtr),
+		"\": ", Tcl_PosixError(interp), (char *) NULL);
+	goto end;
+    }
+    chan = Tcl_FSOpenFileChannel(interp, pathPtr, "r", 0644);
+    if (chan == (Tcl_Channel) NULL) {
+        Tcl_ResetResult(interp);
+	Tcl_AppendResult(interp, "couldn't read file \"", 
+		Tcl_GetString(pathPtr),
+		"\": ", Tcl_PosixError(interp), (char *) NULL);
+	goto end;
+    }
+    /*
+     * The eofchar is \32 (^Z).  This is the usual on Windows, but we
+     * effect this cross-platform to allow for scripted documents.
+     * [Bug: 2040]
+     */
+    Tcl_SetChannelOption(interp, chan, "-eofchar", "\32");
+    /* Try to read first character of stream, so we can
+     * check for utf-8 BOM to be handled especially.
+     */
+    if (Tcl_ReadChars(chan, objPtr, 1, 0) < 0) {
+	Tcl_Close(interp, chan);
+	Tcl_AppendResult(interp, "couldn't read file \"", 
+		Tcl_GetString(pathPtr),	"\": ", Tcl_PosixError(interp), NULL);
+	goto end;
+    }
+    string = Tcl_GetString(objPtr);
+    /*
+     * If first character is not a BOM, append the remaining characters,
+     * otherwise replace them [Bug 3466099].
+     */
+    if (Tcl_ReadChars(chan, objPtr, -1,
+	    memcmp(string, "\xef\xbb\xbf", 3)) < 0) {
+	Tcl_Close(interp, chan);
+	Tcl_AppendResult(interp, "couldn't read file \"",
+		Tcl_GetString(pathPtr), "\": ", Tcl_PosixError(interp), NULL);
+	goto end;
+    }
+    if (Tcl_Close(interp, chan) != TCL_OK) {
+        goto end;
+    }
+
+    iPtr = (Interp *) interp;
+    oldScriptFile = iPtr->scriptFile;
+    iPtr->scriptFile = pathPtr;
+    Tcl_IncrRefCount(iPtr->scriptFile);
+    string = Tcl_GetStringFromObj(objPtr, &length);
+
+#ifdef TCL_TIP280
+    /* TIP #280 Force the evaluator to open a frame for a sourced
+     * file. */
+    iPtr->evalFlags |= TCL_EVAL_FILE;
+#endif
+    result = Tcl_EvalEx(interp, string, length, 0);
+    /* 
+     * Now we have to be careful; the script may have changed the
+     * iPtr->scriptFile value, so we must reset it without
+     * assuming it still points to 'pathPtr'.
+     */
+    if (iPtr->scriptFile != NULL) {
+	Tcl_DecrRefCount(iPtr->scriptFile);
+    }
+    iPtr->scriptFile = oldScriptFile;
+
+    if (result == TCL_RETURN) {
+	result = TclUpdateReturnInfo(iPtr);
+    } else if (result == TCL_ERROR) {
+	char msg[200 + TCL_INTEGER_SPACE];
+
+	/*
+	 * Record information telling where the error occurred.
+	 */
+
+	sprintf(msg, "\n    (file \"%.150s\" line %d)", Tcl_GetString(pathPtr),
+		interp->errorLine);
+	Tcl_AddErrorInfo(interp, msg);
+    }
+
+    end:
+    Tcl_DecrRefCount(objPtr);
+    return result;
+}
+
+```
+
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_EvalFile`, lines 12120–12168. Line unit: physical LF only. Original byte range [384075, 385640). Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `4dcbe0c82d53aff2760380ea9daed26891e9400aea9c272d8510940734f8df8b`; retained evidence `read646-source-window-11`.
+
+```text
+int Jim_EvalFile(Jim_Interp *interp, const char *filename)
+{
+    FILE *fp;
+    char *buf;
+    Jim_Obj *scriptObjPtr;
+    Jim_Obj *filenameObj, *oldFilenameObj;
+    int retcode = JIM_ERR;
+    int readlen;
+#define READ_BUF_SIZE 256
+
+   if ((fp = fopen(filename, "rt")) == NULL) {
+        Jim_SetResultFormatted(interp, "couldn't read file \"%s\": %s", filename, strerror(errno));
+        return JIM_ERR;
+    }
+    scriptObjPtr = Jim_NewStringObj(interp, NULL, 0);
+
+    buf = Jim_Alloc(READ_BUF_SIZE);
+    while ((readlen = fread(buf, 1, READ_BUF_SIZE, fp)) > 0) {
+        Jim_AppendString(interp, scriptObjPtr, buf, readlen);
+    }
+    Jim_Free(buf);
+    if (ferror(fp)) {
+        fclose(fp);
+        Jim_SetResultFormatted(interp, "failed to load file \"%s\": %s", filename, strerror(errno));
+        Jim_FreeNewObj(interp, scriptObjPtr);
+        return retcode;
+    }
+    fclose(fp);
+
+    /* Convert the stringObjType to a sourceObjType with filename and line */
+    filenameObj = Jim_NewStringObj(interp, filename, -1);
+    Jim_SetSourceInfo(interp, scriptObjPtr, filenameObj, 1);
+    oldFilenameObj = JimPushInterpObj(interp->currentFilenameObj, filenameObj);
+
+    retcode = Jim_EvalObj(interp, scriptObjPtr);
+
+    JimPopInterpObj(interp, interp->currentFilenameObj, oldFilenameObj);
+
+    /* Handle the JIM_RETURN return code */
+    if (retcode == JIM_RETURN) {
+        if (--interp->returnLevel <= 0) {
+            retcode = interp->returnCode;
+            interp->returnCode = JIM_OK;
+            interp->returnLevel = 0;
+        }
+    }
+
+    return retcode;
 }
 
 ```

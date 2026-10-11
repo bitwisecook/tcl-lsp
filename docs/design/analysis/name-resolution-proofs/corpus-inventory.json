@@ -214940,6 +214940,1447 @@
         "naming.encoding.original-byte-name-lookup-and-source-order"
       ],
       "reason": "Exact measured public-object process capture, original input/source bytes or lossless retained stream/image for this bounded native question; no software assertion, private callback chronology or BIG-IP outcome is issued."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/cli-version.stdout",
+      "sha256": "c4a268983bec029286482df6caa3aaae81571c33d467c0a13f258e335da5954f",
+      "bytes": 7,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/execute.stdout",
+      "sha256": "42191e68761b4260daab2c1ad6b387730cfaf08083e3b2c1db1f662a55098c83",
+      "bytes": 2288,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/observations.json",
+      "sha256": "4108e52a678a84cf4a27fdab14de054b6b4a4f5da7cb5dbc2443624411e09e86",
+      "bytes": 5299,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/probe.elf.gz",
+      "sha256": "e889bb76783280236fe033cbbacc60c5acda0dfdd4f4979c1cc131f805bc8cd5",
+      "bytes": 386994,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/receipt.json",
+      "sha256": "5c90919f04a1c04ec3df3565dd9252956707919772b8926e31d43495ccbed52b",
+      "bytes": 34683,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/same-library-version/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/same-library-version/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/same-library-version/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/same-library-version/execute.stdout",
+      "sha256": "ef18d09813e9c05fbd397154e6f786ea0221f2ce8981597665e917a08a5c5d7f",
+      "bytes": 50,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/same-library-version/receipt.json",
+      "sha256": "1beee117abf7c78c42695f1dc6e60763f9a9008ded534a4fcb3b86503a177991",
+      "bytes": 32843,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/same-library-version/version.elf.gz",
+      "sha256": "8a3b4c38f1918491ec0883a1d3ccde4ea44e14c74df748ae2fb61ad7784b43ed",
+      "bytes": 385780,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/cli-version.stdout",
+      "sha256": "6b58793c92a3db92926bdacbe0a52a520d417fe876aaa7cf8c29fed54a1fea71",
+      "bytes": 7,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/execute.stdout",
+      "sha256": "3b6cd7809fd1510051f72dcb9590989059d69b0cb57d86b78e7add4af3ab7cca",
+      "bytes": 3452,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/observations.json",
+      "sha256": "65b0354d9be946eaaf1905925ec9cae478ebdf334136bef3244402808fec8166",
+      "bytes": 6463,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/probe.elf.gz",
+      "sha256": "ef3689674687f193223a32edb67ae43e985ca084a956e5495c949d114ac9f076",
+      "bytes": 567305,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/receipt.json",
+      "sha256": "bbd45e752afaec3a6bb912c81f7e95a6a191199e1479b40a9dccc9a0f54d5101",
+      "bytes": 134839,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/same-library-version/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/same-library-version/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/same-library-version/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/same-library-version/execute.stdout",
+      "sha256": "1bd253489464d3ed255f286efdc8deb3768100a5b873e0a062f5026291fcf9bb",
+      "bytes": 50,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/same-library-version/receipt.json",
+      "sha256": "aa8d9d8ffa5917ef8de2e76399df1346c3a4362a353bf286bdcbaf18eefab411",
+      "bytes": 132998,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/same-library-version/version.elf.gz",
+      "sha256": "2d8775e9f83cf6aa04a1828414a4bda495cdbf17f08726d8d93f1acad82bc525",
+      "bytes": 565106,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/cli-version.stdout",
+      "sha256": "7523e113df6c321e18099a10ec22086db746e2fcc31a879e16d961e5d3878d01",
+      "bytes": 7,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/execute.stdout",
+      "sha256": "87361dcaae0e29eb6fc0d1e7f13a8df1282e35f11e958d92c0220892756f1a3f",
+      "bytes": 3452,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/observations.json",
+      "sha256": "da14e51dae25a31f9cdab21d14870c16ec5c5fd2fc36a504370cbd72c10ba2ca",
+      "bytes": 6463,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/probe.elf.gz",
+      "sha256": "42019dbc7c207c3053e3e07c0c160537d94b7afa1edfdb399cac429951fe15b8",
+      "bytes": 809075,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/receipt.json",
+      "sha256": "6d623021fcfa24314deed4a646c12206e661a6aa9b11d3f3f03862e7c6361c98",
+      "bytes": 139043,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/same-library-version/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/same-library-version/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/same-library-version/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/same-library-version/execute.stdout",
+      "sha256": "dd12d5dc76bfc80ae3033ac87b1932541f275a888adf9e03dabbcb5878b0df8c",
+      "bytes": 50,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/same-library-version/receipt.json",
+      "sha256": "45893d772e03e534477cdc4ac9b3e710df4300a5c94aa61a85b4d92a5aec244e",
+      "bytes": 137205,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/same-library-version/version.elf.gz",
+      "sha256": "6f71e6ebe17fc3e0577d6e801a4373f671f603101605c60f6c0d2ac484375ce4",
+      "bytes": 807629,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/cli-version.stdout",
+      "sha256": "b83920bac1b2d47c3840f588f95bee9dc69b85e26117f471541cdf85d7da52a2",
+      "bytes": 6,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/execute.stdout",
+      "sha256": "af4d32f67c73c1c24f8870b72b5ef67bfde4367e7b70384c7840c76886e8738f",
+      "bytes": 3162,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/observations.json",
+      "sha256": "f0e6a143878ad38fdf31f53f1e6929665305f9fbda428b95d058759b8cb70e7e",
+      "bytes": 6173,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/probe.elf.gz",
+      "sha256": "71ba42bc802b1516ef40a6ae6fe0762d395e93d34c7f48360b00119dc729e041",
+      "bytes": 959508,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/receipt.json",
+      "sha256": "e8c069727ae20eaa813064d04065657a04a9ebe0c7bb7fecf603dad17ef1b643",
+      "bytes": 140781,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/same-library-version/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/same-library-version/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/same-library-version/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/same-library-version/execute.stdout",
+      "sha256": "d016aed0da5636f83bfe6d76f7c26b06e30ce7951203b5d3543001780eb51a2c",
+      "bytes": 48,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/same-library-version/receipt.json",
+      "sha256": "0157a3e6a5264d2be6a537259af6b3049215687dcb89c1d8fc1652d0b65c1236",
+      "bytes": 138951,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/same-library-version/version.elf.gz",
+      "sha256": "8fdd7305d16a18c0a91bef13b78c64e80bf59a50dd5f7968e31ce41b7b8de5c2",
+      "bytes": 958303,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/cli-version.stdout",
+      "sha256": "077ee5b3a3a7fc2622ceff6466fea0c28f3fb08b24653dcc7f4baab29b9aef36",
+      "bytes": 6,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/execute.stdout",
+      "sha256": "5c8f998a7a14fcf6a499c65ab22880b47c985489b2996acc746f599175b50e11",
+      "bytes": 3162,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/observations.json",
+      "sha256": "ab0fd20f8590c8a2279606d37d462b6ae58be94accb9c2f8ff548a69e8d514c6",
+      "bytes": 6173,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/probe.elf.gz",
+      "sha256": "bb8fe54f127ca7241cba97ddddeef1b974b5c431c5bddfa3611bca560464f6d7",
+      "bytes": 1027776,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/receipt.json",
+      "sha256": "86001c402181f452851774f8f7dc9b8aae1e0c1f9f98284888a9318fa8d5e921",
+      "bytes": 140924,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/same-library-version/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/same-library-version/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/same-library-version/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/same-library-version/execute.stdout",
+      "sha256": "b225f15b75641002abfa4f29d4d1be66051123c85bc897b9a7234b22317ea071",
+      "bytes": 48,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/same-library-version/receipt.json",
+      "sha256": "81ec2fa4a1b287f3fd2700a8e08f6ff8b79a625c1706a97dcc4e50aea3654b94",
+      "bytes": 139100,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/same-library-version/version.elf.gz",
+      "sha256": "3c9c625700c96e4b5c0c524c855396985985846a78c574dc37ba81ce19e49717",
+      "bytes": 1025681,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/cli-version.stdout",
+      "sha256": "f9752899fa012cf994a528e0250402609067a6f67a144a1172644a9329386803",
+      "bytes": 16,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/execute.stdout",
+      "sha256": "7b6760417ee9fdb24bd0b9fede2810b32e6a86750f710c4b9b7c9d73340fc74a",
+      "bytes": 3416,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/observations.json",
+      "sha256": "b5e92a60aa0406a1b81223cc4d0000c9e9927f4f4507e66be7837b7e646193c5",
+      "bytes": 6427,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/probe.elf.gz",
+      "sha256": "82c2a2ef51655a0dddae38aebe17146b2c5d6013670cb440ce3b185b282117c9",
+      "bytes": 187589,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/provider-revision.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/provider-revision.stdout",
+      "sha256": "d6871c3697d0a50df0677833206c147f4873986bb59a4317c8509cb433365243",
+      "bytes": 41,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/receipt.json",
+      "sha256": "fdc68df11efadb1ada53b9b73a44d5738d021cb238bd8b7161e5b317f29f1500",
+      "bytes": 14228,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/same-library-version/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/same-library-version/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/same-library-version/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/same-library-version/execute.stdout",
+      "sha256": "d7ce62ac8c979a247ad4edf0a43c9133dc8b547cdfc8e5b540fccd9bbe848166",
+      "bytes": 34,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/same-library-version/receipt.json",
+      "sha256": "4d9791b4bafa859cb3a0df3ad15ff5c8294e7b7e752086144ba19e4b33bdb765",
+      "bytes": 12176,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/same-library-version/version.elf.gz",
+      "sha256": "ca6b1f5d09512a0cf8de1bf7208c6b9b3daa33c1f425921365291bfcded3896d",
+      "bytes": 102447,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/REPLAY-PATH-ADAPTATION.json",
+      "sha256": "a5b8a9dbbb52f4d0bcb6176d47916adec3b4ec13927678261c55e95dbdc38947",
+      "bytes": 1190,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/authored-narrative/EXACT-OBSERVATIONS.json",
+      "sha256": "512c94fc01344e6cbf0140976529c3473b94c799aa225882f85c7324fcc50d01",
+      "bytes": 45985,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/authored-narrative/RECEIPT-REJOIN.json",
+      "sha256": "2ef9a5c886a95ee8e0390b7c32d9b9fa9a6b8c95b094429f283b61176f3d8216",
+      "bytes": 996,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/authored-narrative/SOURCE-JOINS.json",
+      "sha256": "fd02991291c16bbe112e06eeea6bb40f5dffa1bc55bd749949a127ac0d191921",
+      "bytes": 7405,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/authored-narrative/document-addendum.md",
+      "sha256": "b57e9b19d8ab9e4b559166c523de1af0eb51b56bca6104958e261e585a226f37",
+      "bytes": 1396,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/authored-narrative/source-windows/jim-jim.c-Jim_EvalFile.txt",
+      "sha256": "4dcbe0c82d53aff2760380ea9daed26891e9400aea9c272d8510940734f8df8b",
+      "bytes": 1565,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/authored-narrative/source-windows/native-providers-jim.c-Jim_SourceCoreCommand.txt",
+      "sha256": "06f50ddd7d96c6cf52b7de221ead820052a94493441f3e1f3d016bb7708981b5",
+      "bytes": 201,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/authored-narrative/source-windows/tcl8.4.20-tclCmdMZ.c-Tcl_SourceObjCmd.txt",
+      "sha256": "80de1b70d48625832263c3f6e20b399261beb02b8599d9bcbb595bf6ae7ce8dd",
+      "bytes": 372,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/authored-narrative/source-windows/tcl8.4.20-tclIOUtil.c-Tcl_FSEvalFile.txt",
+      "sha256": "e6d2b7855932cbbb21d0e1cc821d7f0ed600f58b4b08bfd80051d71a902b90fa",
+      "bytes": 3181,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/authored-narrative/source-windows/tcl8.5.19-tclCmdMZ.c-Tcl_SourceObjCmd.txt",
+      "sha256": "9043e538bce92348d2adf6272ef579201f852415b8be5381f75edf8d0bae8c1f",
+      "bytes": 748,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/authored-narrative/source-windows/tcl8.5.19-tclIOUtil.c-Tcl_FSEvalFileEx.txt",
+      "sha256": "c72fbb10de3ee199a7d63037bc78d1f2419e0ecbdeb854503cbf70d1a8c3e738",
+      "bytes": 3685,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/authored-narrative/source-windows/tcl8.6.18-tclCmdMZ.c-TclNRSourceObjCmd.txt",
+      "sha256": "7e90d5fcad7d151b938fba44889b4e0812424f7a8dfb248bc63c2ba1a4658122",
+      "bytes": 752,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/authored-narrative/source-windows/tcl8.6.18-tclIOUtil.c-Tcl_FSEvalFileEx.txt",
+      "sha256": "99708366d088e82ca8ec9adf808d926816f676cbfc3a1944439346f19288601a",
+      "bytes": 3732,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/authored-narrative/source-windows/tcl9.0.4-tclCmdMZ.c-TclNRSourceObjCmd.txt",
+      "sha256": "0a690aa7c36dc4393d6eae55827a952cf5f4197178d5c4679a6ec0b2f4f993f2",
+      "bytes": 1530,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/authored-narrative/source-windows/tcl9.0.4-tclIOUtil.c-Tcl_FSEvalFileEx.txt",
+      "sha256": "ad8317f27808f6fc0469edab8bcbed953f0982e409c93f4b70aa9d731778e93d",
+      "bytes": 3726,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/authored-narrative/source-windows/tcl9.1.0-tclCmdMZ.c-TclNRSourceObjCmd.txt",
+      "sha256": "f17dd80b646a218b4a9e91bd3a6909741b527ebd3096290e6f1de7ba2dd5bda4",
+      "bytes": 1533,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/authored-narrative/source-windows/tcl9.1.0-tclIOUtil.c-Tcl_FSEvalFileEx.txt",
+      "sha256": "ad8317f27808f6fc0469edab8bcbed953f0982e409c93f4b70aa9d731778e93d",
+      "bytes": 3726,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/authored-narrative/supplement-fields.json",
+      "sha256": "0fd1d93a1f9ada2bdf034cfc4611d606d2ba20472f8e9e84b1ca93b87d90a942",
+      "bytes": 11941,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/collector.py",
+      "sha256": "1f371b2698cb7e9a4b658aa26874c7f75343e3dd694c6cd0d852d3906c1c6a80",
+      "bytes": 8456,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/compiler-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/compiler-version.stdout",
+      "sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+      "bytes": 252,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/compiler.json",
+      "sha256": "891ce0b5346750b1553fff9f0201595b1089c5a5a6cec4e5a88ff34242141d66",
+      "bytes": 818,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/input-manifest.json",
+      "sha256": "0c6cc5e902f02143f48f3e4d424c3dadc8dd34a345989a55cd54aa6ec7d7bc2c",
+      "bytes": 433,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/interpretation.json",
+      "sha256": "0cd8ce8b6eb7e4cbdc5efc9ec25d3afd961151829aa41451705dca100ec21b38",
+      "bytes": 54672,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/library-version-results.json",
+      "sha256": "c7dcfead8b0e283b923587a608668b5ca6beff0d7297036e67eb79d14e5f70db",
+      "bytes": 1156,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/library-version.c",
+      "sha256": "1fd6edce16eb4275c0e08e86d6a489fd966d10794d89dc7068ee1a4a733280df",
+      "bytes": 929,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/manifest.json",
+      "sha256": "0c6cc5e902f02143f48f3e4d424c3dadc8dd34a345989a55cd54aa6ec7d7bc2c",
+      "bytes": 433,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/pinned-input-bytes.tar.gz",
+      "sha256": "e76747c4633776bfe9b969f3e8f040fe54901f8dd92cbb39d0c93da2c1be5ebd",
+      "bytes": 21970129,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/pinned-input-map.json",
+      "sha256": "c21b951c2bc6cbcb1e9271c0b1a47559a0514da406ac6441fbd7abdc136b4b3e",
+      "bytes": 573720,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/probe.c",
+      "sha256": "d2ddffb4264c43266ec6d4b026245ed5c13002c2fcecbfee716eebefa9d8acdc",
+      "bytes": 5306,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/protocol/run-native-library-version646.py",
+      "sha256": "1bfa77e4f663ff14d3b6dd04d2cc59f25d3b407e074e5bf56738ed34779af094",
+      "bytes": 3232,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/request.json",
+      "sha256": "4c6723edb9979fb48653604faa97ed9b7653006259126d75afb2bc97f0876e4f",
+      "bytes": 1403,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/results.json",
+      "sha256": "b218e6915a3bc767242d3855fc35af8f2895236330be7211821023249d8347fb",
+      "bytes": 1860,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/retention.json",
+      "sha256": "9b68ccf06ab134aae473411ab0add7ec73cb54f6869185af22145af5f5ae0d18",
+      "bytes": 57093,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/run.py",
+      "sha256": "1c4054ef782c9dc5131d25c02d5143f9c8af1e3dd68f469a2bb7fd9939c301c2",
+      "bytes": 1869,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-existing.tcl",
+      "sha256": "cdaaef7587b816c22bd7b78ff9c021d288afebf82978477fc698692e20e8b4a6",
+      "bytes": 50,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/source-windows.json",
+      "sha256": "8e74d234e99156755d29cff55eb096d426be1de45790c8e330b70b9a6fd13bba",
+      "bytes": 34195,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/supplement-replay.json",
+      "sha256": "fe2733a9b84349193c766825e18f2c891a8c088d57efc023140d5f354aa06530",
+      "bytes": 483,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/version.tcl",
+      "sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+      "bytes": 23,
+      "candidate": false,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.encoding.original-byte-name-lookup-and-source-order"
+      ],
+      "reason": "Exact retained original source file configuration and read observations, provider receipts, whole input bytes and lossless executable retention; no Rust assertion or additional callback chronology is claimed."
     }
   ]
 }

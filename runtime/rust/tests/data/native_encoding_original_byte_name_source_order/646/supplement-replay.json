@@ -1,0 +1,9 @@
+{
+  "command": [
+    "python3",
+    "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/run.py",
+    "--output",
+    "<fresh-absolute-directory>"
+  ],
+  "limitations": "Verify retained provider/source/header/library/tool pins and use a fresh output directory. Redirect only original request/output constants while preserving the eight-case input and unchanged raw runner separately. A replay produces new evidence and must not overwrite these48 outcomes."
+}
