@@ -77,6 +77,8 @@ mod native_element_entry;
 pub(crate) use native_element_entry::NativeElementAliasEntry;
 #[cfg(test)]
 pub(crate) use native_element_entry::NativeElementEntryObserver;
+mod pending_scalar;
+pub use pending_scalar::PendingScalar;
 mod rmw;
 pub(crate) use rmw::VariableReceiver;
 mod native_array_target;
@@ -116,6 +118,9 @@ fn fresh_var_id() -> VarId {
 pub enum Var {
     /// A scalar — owns **+1** of the object.
     Scalar(*mut TclObj),
+    /// A selected setter has published this allocation before taking cell +1.
+    /// Checked scalar consumers refuse until its exact role ticket is settled.
+    PendingScalar(PendingScalar),
     /// An associative array: element key → value (each owns **+1**).
     Array(BTreeMap<Vec<u8>, *mut TclObj>),
     /// C aliases retain variable cells; Jim aliases own their original target name.
@@ -181,6 +186,7 @@ impl Var {
             // SAFETY: a stored cell owns a +1 on each object; releasing balances
             // the retain taken when it was stored.
             Var::Scalar(p) => unsafe { obj::decr_ref_count(p) },
+            Var::PendingScalar(pending) => drop(pending),
             Var::Array(map) => {
                 for (_, p) in map {
                     unsafe { obj::decr_ref_count(p) }
@@ -363,7 +369,7 @@ impl StaticVariables {
                     table.store_elem(name, key, *value).expect("fresh element");
                 }
             }
-            Some(Var::Link(_)) | None => return false,
+            Some(Var::PendingScalar(_) | Var::Link(_)) | None => return false,
         }
         self.insert_capture(name, table.capture_cell(name).expect("initialised cell"));
         true
@@ -415,6 +421,28 @@ impl Cell {
 }
 
 impl CellContents {
+    fn check_owned_value_role(&self) -> Result<(), tcl_syntax::value::ValueError> {
+        if matches!(self.var.as_ref(), Some(Var::PendingScalar(_))) {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "unsettled scalar native reference role",
+            ));
+        }
+        Ok(())
+    }
+    fn take_value(&mut self) -> Option<Var> {
+        let previous = self.var.take();
+        if let Some(Var::PendingScalar(pending)) = &previous {
+            pending.mark_displaced();
+        }
+        previous
+    }
+    fn replace_value(&mut self, incoming: Var) -> Option<Var> {
+        let previous = self.var.replace(incoming);
+        if let Some(Var::PendingScalar(pending)) = &previous {
+            pending.mark_displaced();
+        }
+        previous
+    }
     /// A selected undefined self-link is a physical root, not a scalar value.
     /// The original slot spelling is marker geometry, never a fresh lookup.
     fn array_materialisation_needed(&self, root: Option<&[u8]>) -> Result<bool, VarError> {
@@ -435,7 +463,7 @@ impl CellContents {
     fn publish_selected_array(&mut self, root: Option<&[u8]>) -> Result<Option<Var>, VarError> {
         let mut retired = None;
         if self.array_materialisation_needed(root)? {
-            retired = self.var.replace(Var::Array(Default::default()));
+            retired = self.replace_value(Var::Array(Default::default()));
             self.undefined_shell = false;
             self.undefined_root_home = None;
             self.rmw_shell_entry = None;
@@ -483,7 +511,7 @@ impl CellContents {
 
 impl Drop for CellContents {
     fn drop(&mut self) {
-        if let Some(var) = self.var.take() {
+        if let Some(var) = self.take_value() {
             var.release();
         }
         if let Some(value) = self.array_default.take() {
@@ -693,7 +721,7 @@ impl VarTable {
             && !cell.namespace_declared
             && (cell.operation_refs != 0 || cell.rmw_refs != 0 || cell.native_alias_refs != 0)
         {
-            if let Some(old) = cell.var.take() {
+            if let Some(old) = cell.take_value() {
                 old.release();
             }
             cell.undefined_shell = false;
@@ -717,7 +745,7 @@ impl VarTable {
             && cell.rmw_refs == 0
             && Rc::strong_count(contents) == 1
         {
-            if let Some(old) = cell.var.take() {
+            if let Some(old) = cell.take_value() {
                 old.release();
             }
             cell.binding_id = None;
@@ -729,7 +757,7 @@ impl VarTable {
     fn visible_cell(&self, slot: usize, include_links: bool) -> bool {
         let cell = self.cells[slot].contents.borrow();
         match cell.var.as_ref() {
-            Some(Var::Scalar(_) | Var::Array(_)) => true,
+            Some(Var::Scalar(_) | Var::PendingScalar(_) | Var::Array(_)) => true,
             Some(Var::Link(_)) => {
                 include_links && (!cell.undefined_shell || cell.namespace_declared)
             }
@@ -862,7 +890,7 @@ impl VarTable {
             cell.element_ids
                 .extend(elements.keys().cloned().map(|key| (key, fresh_var_id())));
         }
-        cell.var.replace(var)
+        cell.replace_value(var)
     }
 
     /// Identity of the variable currently bound at `name`.
@@ -1009,6 +1037,12 @@ impl VarTable {
                 drop(cell);
                 Ok(RetiredVariableContents::Value(Some(Var::Scalar(previous))))
             }
+            Some(Var::PendingScalar(_)) => {
+                unsafe { obj::incr_ref_count(obj) };
+                let previous = cell.replace_value(Var::Scalar(obj));
+                drop(cell);
+                Ok(RetiredVariableContents::Value(previous))
+            }
             Some(Var::Link(link)) if link.name == name && link.elem.is_none() => {
                 drop(cell);
                 unsafe { obj::incr_ref_count(obj) };
@@ -1024,6 +1058,17 @@ impl VarTable {
                     self.put(name, Var::Scalar(obj)),
                 ))
             }
+        }
+    }
+
+    /// Header-only software observation of actual published scalar storage.
+    /// This cannot issue a scalar reference or allow a checked semantic read.
+    #[cfg(test)]
+    pub(crate) fn published_scalar_header(&self, name: &[u8]) -> Option<*mut TclObj> {
+        match self.get(name).as_deref() {
+            Some(Var::Scalar(original)) => Some(*original),
+            Some(Var::PendingScalar(pending)) => Some(pending.raw_header()),
+            _ => None,
         }
     }
 
@@ -1062,7 +1107,7 @@ impl VarTable {
         if let Some(contents) = self.contents(name).cloned() {
             let mut cell = contents.borrow_mut();
             match cell.var.as_mut() {
-                Some(Var::Scalar(_)) => return Err(VarError::IsScalar),
+                Some(Var::Scalar(_) | Var::PendingScalar(_)) => return Err(VarError::IsScalar),
                 Some(Var::Array(map)) => {
                     unsafe { obj::incr_ref_count(obj) };
                     let fresh = !map.contains_key(key);
@@ -1155,7 +1200,7 @@ impl VarTable {
                     ));
                 }
             }
-            let value = contents.var.take();
+            let value = contents.take_value();
             let removed = value.is_some();
             old.elements(std::mem::take(&mut contents.native_member_keys));
             old.value(value);
@@ -1181,7 +1226,7 @@ impl VarTable {
             cell.element_ids.clear();
             old.elements(std::mem::take(&mut cell.native_member_keys));
             cell.element_operation_refs.clear();
-            let value = cell.var.take();
+            let value = cell.take_value();
             let removed = value.is_some();
             old.value(value);
             return (removed, old);
@@ -1199,7 +1244,7 @@ impl VarTable {
         old.elements(std::mem::take(&mut cell.native_member_keys));
         cell.rmw_member_shells.clear();
         cell.element_operation_refs.clear();
-        let value = cell.var.take();
+        let value = cell.take_value();
         let removed = value.is_some();
         old.value(value);
         drop(cell);
@@ -1300,7 +1345,7 @@ impl VarTable {
         old.elements(std::mem::take(&mut cell.native_member_keys));
         cell.rmw_member_shells.clear();
         cell.element_operation_refs.clear();
-        old.value(cell.var.replace(Var::Link(link)));
+        old.value(cell.replace_value(Var::Link(link)));
         drop(cell);
         old
     }
@@ -1321,7 +1366,7 @@ impl VarTable {
     pub(crate) fn is_set(&self, name: &[u8]) -> bool {
         matches!(
             self.get(name).as_deref(),
-            Some(Var::Scalar(_) | Var::Array(_))
+            Some(Var::Scalar(_) | Var::PendingScalar(_) | Var::Array(_))
         )
     }
 
@@ -1401,7 +1446,7 @@ impl Drop for VarTable {
             {
                 contents.rmw_retirement = Some(VarError::DeletedNamespace);
                 old.elements(std::mem::take(&mut contents.native_member_keys));
-                old.value(contents.var.take());
+                old.value(contents.take_value());
             }
         }
         drop(old);
@@ -2024,10 +2069,17 @@ impl FrameStack {
         &mut self,
         slot: usize,
         value: *mut TclObj,
-    ) -> Result<PreparedVariableReplacement, VarError> {
-        let (frame, cell) = self
-            .compiled_cell(slot)
-            .ok_or(VarError::NameProtocolUnavailable)?;
+    ) -> Result<PreparedVariableReplacement, tcl_syntax::value::ValueError> {
+        let (frame, cell) = self.compiled_cell(slot).ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("original formal cell"),
+        )?;
+        // A pending allocation has no cell +1 to supply ordinary formal-store
+        // authority. Refuse before acquiring the incoming stored reference or
+        // extracting any original member/search metadata.
+        self.frames[frame].table.cells[cell]
+            .contents
+            .borrow()
+            .check_owned_value_role()?;
         // The same actual incoming stored role is acquired before reached
         // metadata retirement; it is not an allocation-safety reference.
         unsafe { obj::incr_ref_count(value) };
@@ -2053,7 +2105,9 @@ impl FrameStack {
         slot: usize,
         value: *mut TclObj,
     ) -> Result<(), VarError> {
-        let prepared = self.prepare_formal_cell_store(slot, value)?;
+        let prepared = self
+            .prepare_formal_cell_store(slot, value)
+            .map_err(|_| VarError::NameProtocolUnavailable)?;
         let old = prepared
             .finish(|| Ok::<_, tcl_syntax::value::ValueError>(()))
             .map_err(|_| VarError::NameProtocolUnavailable)?;
@@ -2151,7 +2205,10 @@ impl FrameStack {
             return Err(NativeCompiledAliasError::Traced);
         }
         let mut contents = contents.borrow_mut();
-        if matches!(contents.var, Some(Var::Scalar(_) | Var::Array(_))) {
+        if matches!(
+            contents.var,
+            Some(Var::Scalar(_) | Var::PendingScalar(_) | Var::Array(_))
+        ) {
             return Err(NativeCompiledAliasError::Exists);
         }
         if matches!(&contents.var, Some(Var::Link(previous)) if previous == &link) {
@@ -2161,7 +2218,7 @@ impl FrameStack {
         contents.undefined_root_home = None;
         contents.link_origin = FrameLinkOrigin::Ordinary;
         contents.binding_id.get_or_insert_with(fresh_var_id);
-        if let Some(old) = contents.var.replace(Var::Link(link)) {
+        if let Some(old) = contents.replace_value(Var::Link(link)) {
             old.release();
         }
         Ok(())

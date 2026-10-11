@@ -74,56 +74,8 @@ impl NativeWord {
         tokens: &[Token],
         word: &WordSpan,
     ) -> Result<Self, NativeWordError> {
-        let fragments = tokens
-            .get(word.tokens.clone())
-            .filter(|tokens| !tokens.is_empty())
-            .ok_or(NativeWordError::MisalignedGroup)?;
-        let first = fragments.first().ok_or(NativeWordError::MisalignedGroup)?;
-        let last = fragments.last().ok_or(NativeWordError::MisalignedGroup)?;
-        if first.span.start() != word.span.start()
-            || last.span.end() != word.span.end()
-            || fragments.iter().any(|token| {
-                matches!(
-                    token.kind,
-                    TokenType::Sep | TokenType::Eol | TokenType::Comment | TokenType::Expand
-                )
-            })
-            || fragments
-                .windows(2)
-                .any(|pair| pair[0].span.start() > pair[1].span.start())
-        {
-            return Err(NativeWordError::MisalignedGroup);
-        }
-        let operand = complete_group_span(image.bytes(), word.span, *last, config)?;
-        let mut start = operand.start();
-        if word.expand {
-            let mut preceding = word.tokens.start;
-            while preceding > 0 {
-                let marker = tokens[preceding - 1];
-                if marker.kind != TokenType::Expand
-                    || marker.span.start().checked_add(3) != Some(start)
-                    || image
-                        .bytes()
-                        .get(marker.span.start() as usize..start as usize)
-                        != Some(b"{*}".as_slice())
-                {
-                    break;
-                }
-                start = marker.span.start();
-                preceding -= 1;
-            }
-            if start == operand.start() {
-                return Err(NativeWordError::MisalignedGroup);
-            }
-        }
-        let written = Span::new(start, operand.end());
-        if image.bytes().get(written.as_range()).is_none()
-            || fragments
-                .iter()
-                .any(|token| image.bytes().get(token.span.as_range()).is_none())
-        {
-            return Err(NativeWordError::SourceBounds);
-        }
+        let (operand, written, fragments) =
+            grouped_word_geometry(image.bytes(), config, tokens, word)?;
         let mut group = word.clone();
         group.tokens = 0..fragments.len();
         let mut captured = Self {
@@ -148,6 +100,22 @@ impl NativeWord {
         }
         captured.arena = arena;
         Ok(captured)
+    }
+
+    /// Read the whole original word extent through the same geometry owner as
+    /// `from_group`, without constructing executable component authority.
+    /// Source and tokens use local byte coordinates; reporting bases are separate.
+    ///
+    /// # Errors
+    /// Rejects mismatched fragments, expansion markers and source bounds.
+    /// This projection supplies no command, execution or object admission.
+    pub fn written_span_from_group(
+        source: &[u8],
+        config: LexerConfig,
+        tokens: &[Token],
+        word: &WordSpan,
+    ) -> Result<Span, NativeWordError> {
+        grouped_word_geometry(source, config, tokens, word).map(|(_, written, _)| written)
     }
 
     /// The exact source buffer and original input channel.
@@ -388,6 +356,63 @@ impl NativeWord {
     }
 }
 
+fn grouped_word_geometry<'a>(
+    source: &[u8],
+    config: LexerConfig,
+    tokens: &'a [Token],
+    word: &WordSpan,
+) -> Result<(Span, Span, &'a [Token]), NativeWordError> {
+    let fragments = tokens
+        .get(word.tokens.clone())
+        .filter(|tokens| !tokens.is_empty())
+        .ok_or(NativeWordError::MisalignedGroup)?;
+    let first = fragments.first().ok_or(NativeWordError::MisalignedGroup)?;
+    let last = fragments.last().ok_or(NativeWordError::MisalignedGroup)?;
+    if first.span.start() != word.span.start()
+        || last.span.end() != word.span.end()
+        || fragments.iter().any(|token| {
+            matches!(
+                token.kind,
+                TokenType::Sep | TokenType::Eol | TokenType::Comment | TokenType::Expand
+            )
+        })
+        || fragments
+            .windows(2)
+            .any(|pair| pair[0].span.start() > pair[1].span.start())
+    {
+        return Err(NativeWordError::MisalignedGroup);
+    }
+    let operand = complete_group_span(source, word.span, *last, config)?;
+    let mut start = operand.start();
+    if word.expand {
+        let mut preceding = word.tokens.start;
+        while preceding > 0 {
+            let marker = tokens[preceding - 1];
+            if marker.kind != TokenType::Expand
+                || marker.span.start().checked_add(3) != Some(start)
+                || source.get(marker.span.start() as usize..start as usize)
+                    != Some(b"{*}".as_slice())
+            {
+                break;
+            }
+            start = marker.span.start();
+            preceding -= 1;
+        }
+        if start == operand.start() {
+            return Err(NativeWordError::MisalignedGroup);
+        }
+    }
+    let written = Span::new(start, operand.end());
+    if source.get(written.as_range()).is_none()
+        || fragments
+            .iter()
+            .any(|token| source.get(token.span.as_range()).is_none())
+    {
+        return Err(NativeWordError::SourceBounds);
+    }
+    Ok((operand, written, fragments))
+}
+
 /// Complete token geometry is selected by the shared variable scanner for
 /// `${name}`, whose lexical span excludes its closing brace.
 pub(crate) fn complete_token_span(
@@ -582,5 +607,85 @@ mod tests {
             NativeWord::from_group(image, config, &tokens, &group),
             Err(NativeWordError::MisalignedGroup)
         );
+    }
+}
+
+#[cfg(test)]
+mod written_group_geometry_tests {
+    use super::*;
+    use crate::{Lexer, group_commands_bytes};
+
+    #[test]
+    fn original_written_group_geometry_keeps_every_closer_and_expansion_marker() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Lexical written geometry only; no entered source or Native recipe grant.
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let config =
+                LexerConfig::from_grammar(tcl_dialect::grammar_of_dialect_name(Some(dialect)));
+            for source in [
+                "list {}",
+                "list {é $x}",
+                "list \"[set é]$x\"",
+                "list prefix-${é}",
+                "list ${a{b}c}",
+                "list [set é]",
+                "list {*}$x",
+            ] {
+                if source == "list {*}$x" && !config.expand_syntax {
+                    continue;
+                }
+                let image = SourceImage::document(source);
+                let tokens = Lexer::with_source_image(&image, config)
+                    .tokenise_all()
+                    .unwrap();
+                let commands = group_commands_bytes(&tokens, image.bytes(), config);
+                let group = &commands[0].words[1];
+                let span =
+                    NativeWord::written_span_from_group(image.bytes(), config, &tokens, group)
+                        .unwrap();
+                let captured =
+                    NativeWord::from_group(image.clone(), config, &tokens, group).unwrap();
+                assert_eq!(span, captured.span(), "{dialect}: {source}");
+                assert_eq!(
+                    &image.bytes()[span.as_range()],
+                    &source.as_bytes()[5..],
+                    "{dialect}: {source}"
+                );
+                assert_eq!(captured.config(), config);
+                assert_eq!(captured.image(), &image);
+            }
+        }
+    }
+
+    #[test]
+    fn original_written_group_geometry_refuses_unowned_groups_and_markers() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        let source = b"list {*}${name}";
+        let config = LexerConfig::default();
+        let tokens = Lexer::with_config(std::str::from_utf8(source).unwrap(), config)
+            .tokenise_all()
+            .unwrap();
+        let commands = group_commands_bytes(&tokens, source, config);
+        let group = &commands[0].words[1];
+        assert_eq!(
+            &source[NativeWord::written_span_from_group(source, config, &tokens, group)
+                .unwrap()
+                .as_range()],
+            b"{*}${name}"
+        );
+        let mut changed = group.clone();
+        changed.span = Span::new(group.span.start() + 1, group.span.end());
+        assert!(NativeWord::written_span_from_group(source, config, &tokens, &changed).is_err());
+        changed = group.clone();
+        changed.tokens = group.tokens.start..group.tokens.start;
+        assert!(NativeWord::written_span_from_group(source, config, &tokens, &changed).is_err());
+        let mut missing_marker = tokens.clone();
+        missing_marker[group.tokens.start - 1].kind = TokenType::Sep;
+        assert!(
+            NativeWord::written_span_from_group(source, config, &missing_marker, group).is_err()
+        );
+        assert!(NativeWord::written_span_from_group(&source[..8], config, &tokens, group).is_err());
     }
 }

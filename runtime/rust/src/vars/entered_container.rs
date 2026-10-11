@@ -479,6 +479,12 @@ impl EnteredVariablePlace {
             Ok(false)
         }
     }
+    fn check_retained_value_role(&self) -> Result<(), JimLinkStoreError> {
+        if let Some(entry) = &self.place.scalar_entry {
+            entry.check_owned_value_role()?;
+        }
+        Ok(())
+    }
     pub(crate) fn read(
         &self,
         interpreter: &Interp,
@@ -486,6 +492,7 @@ impl EnteredVariablePlace {
         default: bool,
     ) -> Result<Option<*mut TclObj>, JimLinkStoreError> {
         self.check(interpreter, currency)?;
+        self.check_retained_value_role()?;
         let reached = match read_retained(&self.place) {
             Some(reached) => reached.map_err(Into::into),
             None => self
@@ -502,6 +509,7 @@ impl EnteredVariablePlace {
         currency: &NativeOperationCurrency,
     ) -> Result<bool, JimLinkStoreError> {
         self.check(interpreter, currency)?;
+        self.check_retained_value_role()?;
         let reached = match exists_retained(&self.place) {
             Some(defined) => Ok(defined),
             None => self
@@ -518,6 +526,7 @@ impl EnteredVariablePlace {
         currency: &NativeOperationCurrency,
     ) -> Result<bool, JimLinkStoreError> {
         self.check(interpreter, currency)?;
+        self.check_retained_value_role()?;
         let reached = if self.place.elem.is_some() {
             Ok(false)
         } else if let Some(array) = &self.place.array_cell {
@@ -541,6 +550,7 @@ impl EnteredVariablePlace {
         currency: &NativeOperationCurrency,
     ) -> Result<Option<Vec<Vec<u8>>>, JimLinkStoreError> {
         self.check(interpreter, currency)?;
+        self.check_retained_value_role()?;
         let reached = if self.place.elem.is_some() {
             Ok(None)
         } else if let Some(entry) = &self.place.scalar_entry {
@@ -561,6 +571,7 @@ impl EnteredVariablePlace {
         currency: &NativeOperationCurrency,
     ) -> Result<(), JimLinkStoreError> {
         self.check(interpreter, currency)?;
+        self.check_retained_value_role()?;
         if self.place.elem.is_some() {
             return Err(VarError::IsScalar.into());
         }

@@ -7242,8 +7242,14 @@ impl Interp {
         let (prepared, frame) = {
             let mut frames = self.frames.borrow_mut();
             let frame = frames.current_activation_owner();
-            (frames.prepare_formal_cell_store(slot, value)?, frame)
+            (frames.prepare_formal_cell_store(slot, value), frame)
         };
+        // Preserve the full prepared-owner refusal after ending the frame
+        // borrow; the legacy VarError port only unwinds the same first cause.
+        let prepared = prepared.map_err(|error| {
+            self.refuse_completion_value_access(error);
+            VarError::NameProtocolUnavailable
+        })?;
         let original = prepared.observation();
         let check = || {
             let reached = (|| {

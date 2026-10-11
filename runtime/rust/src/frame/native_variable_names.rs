@@ -41,7 +41,9 @@ impl VarTable {
     ) -> Result<(), super::VarError> {
         let missing = match self.cells[slot].contents.borrow().var.as_ref() {
             Some(super::Var::Array(_)) => false,
-            Some(super::Var::Scalar(_)) => return Err(super::VarError::IsScalar),
+            Some(super::Var::Scalar(_) | super::Var::PendingScalar(_)) => {
+                return Err(super::VarError::IsScalar)
+            }
             Some(super::Var::Link(_)) => return Err(super::VarError::NameProtocolUnavailable),
             None => true,
         };
@@ -248,7 +250,7 @@ impl FrameStack {
     /// Store into an installed unnamed native local without name lookup or traces.
     /// The real frame cell retains the value until replacement or frame teardown.
     #[cfg(test)]
-pub(crate) fn store_native_compiled_temporary(
+    pub(crate) fn store_native_compiled_temporary(
         &mut self,
         slot: usize,
         value: *mut crate::obj::TclObj,

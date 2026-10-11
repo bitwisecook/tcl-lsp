@@ -229,19 +229,24 @@ pub(crate) fn footprint_command_words(
     config: LexerConfig,
     command: &crate::segmenter::SegmentedCommand,
 ) -> Vec<CommandWord> {
+    let words = super::command_words(source, config, command);
+    if words.iter().any(|word| !word.source_available) {
+        return words;
+    }
     let tokens = crate::ir::CommandTokens::from_segmented(source, config, command);
     let rules = tcl_syntax::word_rules::WordValueRules::from_config(&config);
-    super::command_words(source, config, command)
+    words
         .into_iter()
         .zip(tokens.words())
         .map(|(mut word, original)| {
-            word.raw = source.text(original.source().span).to_owned();
             let value = crate::registry_invocation::effective_invocation_word(
                 original,
                 config.escapes,
                 rules,
             );
-            if let Some(value) = value.as_registry_word().literal() {
+            if word.source_available
+                && let Some(value) = value.as_registry_word().literal()
+            {
                 word.text = value.to_owned();
                 word.substituted = false;
             }
@@ -289,6 +294,10 @@ fn script_writes(
     for (partial, words) in value_commands(text, context.config) {
         out.opaque |= partial;
         for word in words.iter().filter(|word| !word.braced_literal) {
+            if !word.source_available {
+                out.opaque = true;
+                continue;
+            }
             let lexer = tcl_lexer::Lexer::with_config(
                 &word.raw,
                 tcl_lexer::SourceSegmentationPurpose::NestedScript.config(context.config),
@@ -715,5 +724,38 @@ mod original_materialized_word_purpose_tests {
         let first_close = value_commands("\u{feff}#prefix ${a{b}", config);
         assert_eq!(first_close[0].1[1].raw, "${a{b}");
         assert_eq!(config.leading_bom, tcl_lexer::LeadingBom::Skip);
+    }
+}
+
+#[cfg(test)]
+mod original_written_footprint_tests {
+    use super::*;
+
+    #[test]
+    fn original_materialized_written_words_do_not_reborrow_component_spans() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        let config = LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..LexerConfig::default()
+        };
+        let source = "list ${a{b} \"[set é]$x\" {é $x}";
+        let map = SourceMap::new(source);
+        let command =
+            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config.nested())
+                .remove(0);
+        let words = footprint_command_words(&map, config, &command);
+        assert_eq!(words[1].raw, "${a{b}");
+        assert_eq!(words[2].raw, "\"[set é]$x\"");
+        assert_eq!(words[3].raw, "{é $x}");
+        assert_eq!(words[3].literal(), Some("é $x"));
+        assert!(words[1].substituted);
+        let mut changed = command.clone();
+        changed.all_tokens.clear();
+        assert!(
+            footprint_command_words(&map, config, &changed)
+                .iter()
+                .all(|word| word.literal().is_none())
+        );
     }
 }

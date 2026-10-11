@@ -126,6 +126,18 @@ impl CapturedJimLinkRoot {
             ))
         }
     }
+    fn check_owned_value_role(
+        &self,
+        currency: &NativeOperationCurrency,
+    ) -> Result<(), JimLinkStoreError> {
+        self.check(currency)?;
+        let cell = self
+            .cell
+            .upgrade()
+            .ok_or(VarError::NameProtocolUnavailable)?;
+        cell.borrow().check_owned_value_role()?;
+        Ok(())
+    }
     fn original_scalar(
         &self,
         currency: &NativeOperationCurrency,
@@ -141,6 +153,10 @@ impl CapturedJimLinkRoot {
                 obj::check_native_liveness(*value)?;
                 Ok(Some(NativeObjectLifetime::retain(*value)))
             }
+            Some(Var::PendingScalar(_)) => Err(ValueError::CommandProtocolUnavailable(
+                "unsettled scalar native reference role",
+            )
+            .into()),
             None | Some(Var::Link(_)) => Ok(None),
             Some(Var::Array(_)) => Err(VarError::IsArray.into()),
         }
@@ -183,7 +199,7 @@ impl CapturedJimLinkRoot {
         currency: &NativeOperationCurrency,
         default: bool,
     ) -> Result<Option<*mut TclObj>, JimLinkStoreError> {
-        self.check(currency)?;
+        self.check_owned_value_role(currency)?;
         let Some(key) = self.element.as_ref() else {
             return self
                 .original_scalar(currency)
@@ -224,7 +240,7 @@ impl CapturedJimLinkRoot {
         if self.element.is_some() {
             return self.read(currency, false).map(|value| value.is_some());
         }
-        self.check(currency)?;
+        self.check_owned_value_role(currency)?;
         let cell = self
             .cell
             .upgrade()
@@ -241,7 +257,7 @@ impl CapturedJimLinkRoot {
         &self,
         currency: &NativeOperationCurrency,
     ) -> Result<bool, JimLinkStoreError> {
-        self.check(currency)?;
+        self.check_owned_value_role(currency)?;
         if self.element.is_some() {
             return Ok(false);
         }
@@ -267,7 +283,7 @@ impl CapturedJimLinkRoot {
         &self,
         currency: &NativeOperationCurrency,
     ) -> Result<Option<Vec<Vec<u8>>>, JimLinkStoreError> {
-        self.check(currency)?;
+        self.check_owned_value_role(currency)?;
         if self.element.is_some() {
             return Ok(None);
         }
@@ -307,7 +323,7 @@ impl CapturedJimLinkRoot {
         &mut self,
         currency: &NativeOperationCurrency,
     ) -> Result<(), JimLinkStoreError> {
-        self.check(currency)?;
+        self.check_owned_value_role(currency)?;
         if self.element.is_some() {
             return Err(VarError::IsScalar.into());
         }
@@ -328,7 +344,7 @@ impl CapturedJimLinkRoot {
             .ok_or(VarError::NameProtocolUnavailable)?;
         let mut contents = cell.borrow_mut();
         let retired = if contents.array_materialisation_needed(Some(&self.name))? {
-            let retired = contents.var.replace(Var::Array(Default::default()));
+            let retired = contents.replace_value(Var::Array(Default::default()));
             contents.undefined_shell = false;
             contents.undefined_root_home = None;
             contents.rmw_shell_entry = None;
@@ -498,7 +514,9 @@ impl CapturedJimLinkRoot {
             drop(retired);
         } else if let Some(key) = self.element.as_ref() {
             match contents.var.as_ref() {
-                Some(Var::Scalar(_)) => return Err(VarError::IsScalar.into()),
+                Some(Var::Scalar(_) | Var::PendingScalar(_)) => {
+                    return Err(VarError::IsScalar.into())
+                }
                 Some(Var::Link(link)) if link.name != self.name || link.elem.is_some() => {
                     return Err(VarError::NameProtocolUnavailable.into());
                 }
@@ -507,7 +525,7 @@ impl CapturedJimLinkRoot {
             let retired_root = if matches!(contents.var.as_ref(), Some(Var::Array(_))) {
                 None
             } else {
-                contents.var.replace(Var::Array(Default::default()))
+                contents.replace_value(Var::Array(Default::default()))
             };
             // SAFETY: this exact published member takes its owning reference.
             unsafe { obj::incr_ref_count(value) };
@@ -542,7 +560,7 @@ impl CapturedJimLinkRoot {
             }
             // SAFETY: install the new cell hold before retiring the old one.
             unsafe { obj::incr_ref_count(value) };
-            let retired = contents.var.replace(Var::Scalar(value));
+            let retired = contents.replace_value(Var::Scalar(value));
             contents.binding_id.get_or_insert_with(super::fresh_var_id);
             contents.undefined_shell = false;
             contents.undefined_root_home = None;

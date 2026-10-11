@@ -37,7 +37,10 @@ impl NativeArrayTargetCell {
         let cell = self.contents.borrow();
         cell.binding_id == Some(self.id)
             && cell.rmw_retirement.is_none()
-            && matches!(cell.var.as_ref(), Some(Var::Scalar(_) | Var::Array(_)))
+            && matches!(
+                cell.var.as_ref(),
+                Some(Var::Scalar(_) | Var::PendingScalar(_) | Var::Array(_))
+            )
     }
     pub(crate) fn default_state(&self) -> ArrayDefaultState<*mut TclObj> {
         let cell = self.contents.borrow();
@@ -48,7 +51,7 @@ impl NativeArrayTargetCell {
             Some(Var::Array(_)) => ArrayDefaultState::Array {
                 default: cell.array_default,
             },
-            Some(Var::Scalar(_)) => ArrayDefaultState::NonArray,
+            Some(Var::Scalar(_) | Var::PendingScalar(_)) => ArrayDefaultState::NonArray,
             _ => ArrayDefaultState::Undefined,
         }
     }

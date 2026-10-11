@@ -35,6 +35,9 @@ impl VariablePublicationObservation {
             ));
         };
         let cell = contents.borrow();
+        // Reentrant metadata retirement may publish a pending allocation in
+        // this same cell. It still cannot issue an ordinary stored-value role.
+        cell.check_owned_value_role()?;
         if cell.binding_id == Some(self.binding) && cell.rmw_retirement.is_none() {
             Ok(())
         } else {
@@ -120,7 +123,7 @@ impl PreparedVariableReplacement {
                         .map(|key| (key, super::fresh_var_id())),
                 );
             }
-            displaced.value(cell.var.replace(incoming));
+            displaced.value(cell.replace_value(incoming));
         }
         // A declined adoption still releases the genuine incoming owning role.
         // It is mandatory cleanup, never a successful publication or fresh entry.

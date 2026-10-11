@@ -1025,10 +1025,10 @@ pub(crate) struct CommandWord {
     /// consumer reads one text convention whichever side it arrives from.
     pub text: String,
     /// The word's **verbatim** source spelling, its whole written span — `$x`
-    /// stays `$x`.  A delimited word's closer is one past its span (the
-    /// inner-end convention), so a braced word reads back as `{s` — enough to
-    /// answer "does the name position substitute?", not enough to re-parse.
+    /// stays `$x`; original delimiters and expansion markers remain complete.
+    /// Missing written geometry is unavailable, never a static literal.
     pub raw: String,
+    source_available: bool,
     /// Some constituent fragment is a `$` / `[` substitution, so the word's
     /// value is not its source text.
     pub substituted: bool,
@@ -1047,7 +1047,9 @@ impl CommandWord {
     /// argv shape even when the wrapped value is otherwise literal.
     #[must_use]
     pub(crate) fn invocation_word(&self) -> InvocationWord<'_> {
-        if self.expanded {
+        if !self.source_available {
+            InvocationWord::Dynamic
+        } else if self.expanded {
             InvocationWord::Expanded
         } else if self.substituted {
             InvocationWord::Dynamic
@@ -2107,20 +2109,96 @@ pub(crate) fn condition_substituted_reads(
 }
 
 /// Map one segmented command onto its per-word [`CommandWord`] facts.
+fn command_written_spans(
+    sm: &SourceMap<'_>,
+    config: LexerConfig,
+    command: &SegmentedCommand,
+) -> Option<Vec<tcl_lexer::Span>> {
+    if !command.word_views_aligned() {
+        return None;
+    }
+    let source = std::str::from_utf8(sm.source_bytes()).ok()?;
+    for token in &command.all_tokens {
+        let raw = source.get(token.span.as_range())?;
+        raw.get(usize::from(token.content_offset)..)?;
+    }
+    let groups = tcl_lexer::group_commands_bytes(&command.all_tokens, sm.source_bytes(), config);
+    let groups = groups
+        .iter()
+        .flat_map(|command| &command.words)
+        .collect::<Vec<_>>();
+    if groups.len() != command.argv.len() {
+        return None;
+    }
+    groups
+        .iter()
+        .enumerate()
+        .map(|(index, group)| {
+            let fragments = command.word_fragments.get(index)?;
+            let first = fragments.first()?.token;
+            let expected = tcl_lexer::Token {
+                span: group.span,
+                ..first
+            };
+            let actual = command.all_tokens.get(group.tokens.clone())?;
+            if command.argv[index] != expected
+                || actual.len() != fragments.len()
+                || !actual.iter().zip(fragments).all(|(token, fragment)| {
+                    *token == fragment.token
+                        && fragment.text == crate::segmenter::word_piece(sm, *token)
+                })
+                || command.texts[index]
+                    != fragments
+                        .iter()
+                        .map(|fragment| fragment.text.as_str())
+                        .collect::<String>()
+                || command.single_token_word[index] != group.is_single_token()
+                || command
+                    .expand_word
+                    .as_ref()
+                    .is_some_and(|expand| expand[index])
+                    != group.expand
+            {
+                return None;
+            }
+            let span = tcl_lexer::NativeWord::written_span_from_group(
+                sm.source_bytes(),
+                config,
+                &command.all_tokens,
+                group,
+            )
+            .ok()?;
+            source.get(span.as_range())?;
+            Some(span)
+        })
+        .collect()
+}
+
 fn command_words(
     sm: &SourceMap<'_>,
     config: LexerConfig,
     command: &SegmentedCommand,
 ) -> Vec<CommandWord> {
-    let tokens = CommandTokens::from_segmented(sm, config, command);
+    let written = command_written_spans(sm, config, command);
+    let tokens = written
+        .as_ref()
+        .map(|_| CommandTokens::from_segmented(sm, config, command));
     command
         .argv
         .iter()
         .enumerate()
         .map(|(idx, token)| CommandWord {
             text: command.texts.get(idx).cloned().unwrap_or_default(),
-            raw: sm.text(token.span).to_owned(),
-            substituted: tokens.words().get(idx).is_some_and(word_substitutes),
+            raw: written
+                .as_ref()
+                .and_then(|spans| spans.get(idx))
+                .map_or_else(String::new, |span| sm.text(*span).to_owned()),
+            source_available: written.is_some(),
+            substituted: written.is_none()
+                || tokens
+                    .as_ref()
+                    .and_then(|tokens| tokens.words().get(idx))
+                    .is_some_and(word_substitutes),
             expanded: command
                 .expand_word
                 .as_ref()
@@ -2130,7 +2208,8 @@ fn command_words(
             // `{…}` and nothing welded to it — the same question
             // `CommandTokens::arg_is_braced_literal` answers for an IR
             // statement's arguments, asked here in whole-argv indexing.
-            braced_literal: token.kind == TokenType::Str
+            braced_literal: written.is_some()
+                && token.kind == TokenType::Str
                 && command.single_token_word.get(idx).copied().unwrap_or(false),
         })
         .collect()
@@ -2383,10 +2462,10 @@ mod tests {
         // The reconstructed text canonicalises the substitution to its braced
         // spelling (`$x` → `${x}`, the same form an IR statement's arguments
         // carry) and de-braces a braced word; raw keeps what was written. A
-        // delimited word's closer is one past its span, so the braced word's
-        // raw spelling stops at `b`.
+        // delimited word retains its complete written wrapper independently
+        // of the variable/component span convention.
         assert_eq!(texts, vec!["set", "${x}", "a $b"]);
-        assert_eq!(raws, vec!["set", "$x", "{a $b"]);
+        assert_eq!(raws, vec!["set", "$x", "{a $b}"]);
         assert_eq!(
             words.iter().map(|w| w.substituted).collect::<Vec<_>>(),
             vec![false, true, false]
@@ -3032,5 +3111,92 @@ mod original_recovered_source_purpose_tests {
         );
         assert_eq!(module.source_metadata_input.as_ref(), Some(&input));
         assert_eq!(module.lexer_config, config);
+    }
+}
+
+#[cfg(test)]
+mod original_written_source_tests {
+    use super::*;
+
+    #[test]
+    fn original_recovered_written_words_keep_full_source_and_component_extents_separate() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let config = LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..LexerConfig::default()
+        };
+        let source = "list {} {é $x} \"[set é]$x\" prefix-${é} ${a{b} {*}[set é]";
+        let words = tokenise_command_words(source, config);
+        assert_eq!(words.len(), 1);
+        assert_eq!(
+            words[0]
+                .iter()
+                .map(|word| word.raw.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "list",
+                "{}",
+                "{é $x}",
+                "\"[set é]$x\"",
+                "prefix-${é}",
+                "${a{b}",
+                "{*}[set é]"
+            ]
+        );
+        assert!(words[0].iter().all(|word| word.source_available));
+        let map = SourceMap::new(source);
+        let command =
+            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config.nested())
+                .remove(0);
+        let original = CommandTokens::from_segmented(&map, config, &command);
+        assert_eq!(map.text(original.words()[5].source().span), "${a{b");
+        assert!(words[0][5].substituted);
+        assert!(words[0][6].expanded);
+    }
+
+    #[test]
+    fn original_written_word_inventory_refuses_changed_cst_vectors_and_source_geometry() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        let config = LexerConfig::default();
+        let source = "prefix; list {é $x}";
+        let map = SourceMap::new(source);
+        let command =
+            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config.nested())
+                .remove(1);
+        assert_eq!(command_words(&map, config, &command)[1].raw, "{é $x}");
+        let mut changed = command.clone();
+        changed.word_fragments[1][0].token.span = tcl_lexer::Span::new(0, 1);
+        assert!(
+            command_words(&map, config, &changed)
+                .iter()
+                .all(|word| word.literal().is_none())
+        );
+        changed = command.clone();
+        changed.texts[1] = "FOREIGN".to_owned();
+        assert!(
+            command_words(&map, config, &changed)
+                .iter()
+                .all(|word| word.literal().is_none())
+        );
+        let missing = SourceMap::new("x");
+        assert!(command_written_spans(&missing, config, &command).is_none());
+        assert!(
+            command_words(&missing, config, &command)
+                .iter()
+                .all(|word| word.literal().is_none())
+        );
+        changed = command.clone();
+        changed.all_tokens[0].content_offset = u8::MAX;
+        assert!(
+            command_words(&map, config, &changed)
+                .iter()
+                .all(|word| word.literal().is_none())
+        );
+        assert_eq!(
+            command_words(&map, config, &command)[0].literal(),
+            Some("list")
+        );
     }
 }

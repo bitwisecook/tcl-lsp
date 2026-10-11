@@ -986,8 +986,16 @@ mod original_syntax_transport_tests {
                             &interpreter,
                         )
                         .unwrap();
+                    // Install the actual private owning role without the
+                    // public info setter's earlier String getter. This control
+                    // observes the reached duplicate callback before any getter.
                     interpreter
-                        .retain_native_error_option_checked(scope.currency(), true, value.as_ptr())
+                        .replace_native_error_object_checked(
+                            scope.currency(),
+                            tcl_registry::special_vars::NativeErrorStorageVariable::ErrorInfo,
+                            Some(Owned::retain(value.as_ptr())),
+                            None,
+                        )
                         .unwrap();
                     drop(scope);
                     let error = match interpreter.capture_original_c_syntax_options() {

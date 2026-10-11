@@ -65,6 +65,18 @@ pub(crate) struct VariableReceiver {
     retained_array: Option<super::RetainedArrayCell>,
 }
 
+/// Original pending publication identity; this holds no native cell reference.
+pub(crate) struct PendingC84Scalar {
+    role: super::pending_scalar::PendingScalarObservation,
+    binding: Option<VarId>,
+    epoch: u64,
+}
+impl PendingC84Scalar {
+    pub(crate) fn original(&self) -> *mut TclObj {
+        self.role.original()
+    }
+}
+
 impl VariableReceiver {
     pub(crate) fn binding_id(&self) -> Option<VarId> {
         self.retained_array
@@ -148,7 +160,7 @@ impl VariableReceiver {
         if !matches!(contents.var.as_ref(), Some(Var::Array(_))) {
             return (None, old);
         }
-        let Some(Var::Array(values)) = contents.var.take() else {
+        let Some(Var::Array(values)) = contents.take_value() else {
             unreachable!()
         };
         let entry_order = std::mem::take(&mut contents.member_order);
@@ -239,7 +251,7 @@ impl VariableReceiver {
                     }
                     old
                 }
-                Some(Var::Scalar(_)) => return Err(VarError::IsScalar),
+                Some(Var::Scalar(_) | Var::PendingScalar(_)) => return Err(VarError::IsScalar),
                 _ => None,
             }
         } else {
@@ -260,9 +272,12 @@ impl VariableReceiver {
             contents.member_order = Default::default();
             contents.member_order.select_recipe(recipe);
             contents.rmw_member_shells.clear();
-            contents.var.take()
+            contents.take_value()
         };
-        let removed = matches!(value.as_ref(), Some(Var::Scalar(_) | Var::Array(_)));
+        let removed = matches!(
+            value.as_ref(),
+            Some(Var::Scalar(_) | Var::PendingScalar(_) | Var::Array(_))
+        );
         old.value(value);
         drop(contents);
         Ok((removed, old))
@@ -314,6 +329,7 @@ impl VariableReceiver {
         }
         match (&self.element, contents.var.as_ref()) {
             (None, Some(Var::Scalar(value))) => Ok(Some(*value)),
+            (_, Some(Var::PendingScalar(_))) => Err(VarError::NameProtocolUnavailable),
             (None, Some(Var::Array(_))) => Err(VarError::IsArray),
             (Some(key), Some(Var::Array(values))) => Ok(values.get(key).copied()),
             (Some(_), Some(Var::Scalar(_))) => Err(VarError::IsScalar),
@@ -360,6 +376,123 @@ impl VariableReceiver {
         self.element.is_some()
     }
 
+    /// Publish the genuine rc0 C84 COW duplicate before releasing old cell +1.
+    /// The returned retirement carrier must be finished outside every borrow.
+    pub(crate) fn publish_c84_pending_scalar(
+        &self,
+        expected: *mut TclObj,
+        duplicate: *mut TclObj,
+    ) -> Result<(PendingC84Scalar, super::RetiredVariableParts), VarError> {
+        // This function consumes the fresh allocation even when publication
+        // refuses. Its pending-role cleanup never invents a native hold.
+        let pending = super::PendingScalar::new(duplicate);
+        let (prepared, displaced) = {
+            let mut contents = self.contents.borrow_mut();
+            if let Some(error) = contents.rmw_retirement {
+                return Err(error);
+            }
+            if self.element.is_some() || self.retained_array.is_some() {
+                return Err(VarError::NameProtocolUnavailable);
+            }
+            if contents.constant {
+                return Err(VarError::IsConstant);
+            }
+            if !matches!(contents.var.as_ref(), Some(Var::Scalar(value)) if *value == expected) {
+                return Err(VarError::NameProtocolUnavailable);
+            }
+            let prepared = PendingC84Scalar {
+                role: pending.observe(),
+                binding: contents.binding_id,
+                epoch: contents.rmw_array_epoch,
+            };
+            let displaced = contents.replace_value(Var::PendingScalar(pending));
+            (prepared, displaced)
+        };
+        let mut retirement = super::RetiredVariableParts::default();
+        retirement.value(displaced);
+        Ok((prepared, retirement))
+    }
+
+    pub(crate) fn check_c84_pending_scalar(
+        &self,
+        prepared: &PendingC84Scalar,
+    ) -> Result<(), VarError> {
+        let contents = self.contents.borrow();
+        if let Some(error) = contents.rmw_retirement {
+            return Err(error);
+        }
+        if self.element.is_some()
+            || contents.binding_id != prepared.binding
+            || contents.rmw_array_epoch != prepared.epoch
+            || !prepared.role.is_published()
+            || !matches!(contents.var.as_ref(), Some(Var::PendingScalar(pending))
+                if pending.same_published(&prepared.role))
+            || !obj::allocation_is_live(prepared.original())
+        {
+            return Err(VarError::NameProtocolUnavailable);
+        }
+        Ok(())
+    }
+
+    /// Mandatory refusal cleanup withdraws only the original pending ticket;
+    /// replacement cells and callback-created owning references are untouched.
+    pub(crate) fn discard_c84_pending_scalar(
+        &self,
+        prepared: &PendingC84Scalar,
+    ) -> super::RetiredVariableParts {
+        let displaced = {
+            let mut contents = self.contents.borrow_mut();
+            if matches!(contents.var.as_ref(), Some(Var::PendingScalar(pending))
+                if pending.same_published(&prepared.role))
+            {
+                contents.take_value()
+            } else {
+                None
+            }
+        };
+        let mut retired = super::RetiredVariableParts::default();
+        retired.value(displaced);
+        retired
+    }
+
+    /// Establish cell +1 only for the same live pending publication. Native
+    /// increment and role transfer are callback-free while this cell is borrowed.
+    pub(crate) fn settle_c84_pending_scalar(
+        &self,
+        prepared: &PendingC84Scalar,
+    ) -> Result<*mut TclObj, VarError> {
+        let (original, previous) = {
+            let mut contents = self.contents.borrow_mut();
+            if let Some(error) = contents.rmw_retirement {
+                return Err(error);
+            }
+            if self.element.is_some()
+                || contents.binding_id != prepared.binding
+                || contents.rmw_array_epoch != prepared.epoch
+                || !prepared.role.is_published()
+            {
+                return Err(VarError::NameProtocolUnavailable);
+            }
+            let Some(Var::PendingScalar(pending)) = contents.var.as_ref() else {
+                return Err(VarError::NameProtocolUnavailable);
+            };
+            if !pending.same_published(&prepared.role)
+                || !obj::allocation_is_live(prepared.original())
+            {
+                return Err(VarError::NameProtocolUnavailable);
+            }
+            let original = pending.settle_cell_reference();
+            contents.undefined_shell = false;
+            contents.undefined_root_home = None;
+            let previous = contents.replace_value(Var::Scalar(original));
+            (original, previous)
+        };
+        // The transferred ticket is CellOwned and therefore cannot retire the
+        // cell's genuine reference when its pure-Rust observer goes away.
+        drop(previous);
+        Ok(original)
+    }
+
     pub(crate) fn store(&self, value: *mut TclObj) -> Result<(), VarError> {
         if let Some(error) = self.contents.borrow().rmw_retirement {
             return Err(error);
@@ -387,7 +520,7 @@ impl VariableReceiver {
                     unsafe { obj::incr_ref_count(value) };
                     values.insert(key.clone(), value).map(Var::Scalar)
                 }
-                Some(Var::Scalar(_)) => return Err(VarError::IsScalar),
+                Some(Var::Scalar(_) | Var::PendingScalar(_)) => return Err(VarError::IsScalar),
                 None => return Err(VarError::DeletedArray),
                 Some(Var::Link(_)) => unreachable!("receiver was resolved before capture"),
             }
@@ -397,7 +530,7 @@ impl VariableReceiver {
             }
             // SAFETY: retain the new owning contents before retiring the old value.
             unsafe { obj::incr_ref_count(value) };
-            let retired = contents.var.replace(Var::Scalar(value));
+            let retired = contents.replace_value(Var::Scalar(value));
             contents.undefined_shell = false;
             contents.rmw_shell_entry = None;
             retired
@@ -537,12 +670,15 @@ impl VarTable {
             return Ok(None);
         };
         let cell = contents.borrow();
+        if matches!(cell.var.as_ref(), Some(Var::PendingScalar(_))) {
+            return Err(VarError::NameProtocolUnavailable);
+        }
         if cell.binding_id.is_none() {
             return Ok(None);
         }
         if element.is_some() {
             match cell.var.as_ref() {
-                Some(Var::Scalar(_)) => return Err(VarError::IsScalar),
+                Some(Var::Scalar(_) | Var::PendingScalar(_)) => return Err(VarError::IsScalar),
                 Some(Var::Array(_)) => {}
                 _ => return Ok(None),
             }
@@ -582,7 +718,7 @@ impl VarTable {
                 let contents = self.cells[slot].contents.borrow();
                 match contents.var.as_ref() {
                     Some(Var::Array(_)) => false,
-                    Some(Var::Scalar(_)) => return Err(VarError::IsScalar),
+                    Some(Var::Scalar(_) | Var::PendingScalar(_)) => return Err(VarError::IsScalar),
                     Some(Var::Link(_)) => return Err(VarError::NameProtocolUnavailable),
                     None => true,
                 }

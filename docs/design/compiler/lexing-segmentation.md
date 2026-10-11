@@ -253,3 +253,13 @@ Finite source/API controls reference [source-original-configured-script-complete
 The `dis` and `compwasm` verbs receive complete combined input documents. Their root grammar is `LexerConfig::for_file_grammar` from the actual resolved profile, so that profile's file BOM rule applies once at the document boundary. A mark after the root boundary remains source content. The disassembly adapter passes the complete actual grammar, including custom lexical axes, without selecting another grammar from the profile label.
 
 The Compiler's explicitly configured bytecode lowering APIs keep the caller's supplied policy. Callers compiling a procedure body, extracted script or synthetic Studio body must retain their appropriate body purpose. Original geometry does not supply a Native entry or prove emitted bytecode execution.
+
+
+`NativeWord::written_span_from_group` projects the same original fragment,
+expansion-marker and delimiter geometry used before `NativeWord::from_group`
+constructs its executable parts. It supplies lexical written extents only.
+Recovered and materialized command inventories join the complete CST word
+vector to those original groups before reusing written bytes. Their raw spelling
+includes every wrapper and expansion marker; component spans remain separate.
+Missing geometry stays a dynamic/opaque inventory entry and cannot become an
+empty successfully parsed word or a static Registry operand.

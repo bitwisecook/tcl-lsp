@@ -456,10 +456,12 @@ mod settlement_tests {
                     );
                     assert_eq!(
                         result,
-                        if mode == 0 {
-                            Ok(())
-                        } else {
-                            Err(VarError::TraceError)
+                        match mode {
+                            0 => Ok(()),
+                            1 => Err(VarError::TraceError),
+                            // Host/ABA is the neutral legacy unwind carrier;
+                            // assert_refusal below checks the full original cause.
+                            _ => Err(VarError::NameProtocolUnavailable),
                         }
                     );
                     // This direct storage projection starts no new name operation.
@@ -521,7 +523,7 @@ mod settlement_tests {
                     .unwrap();
             assert_eq!(
                 interp.var_set(b"x", value.as_ptr()),
-                Err(VarError::TraceError)
+                Err(VarError::NameProtocolUnavailable)
             );
             assert_eq!(CALLS.with(Cell::get), 1);
             assert_refusal(&interp, 2);
@@ -545,6 +547,7 @@ mod settlement_tests {
         calls: Rc<Cell<usize>>,
         observed: Rc<Cell<*mut obj::TclObj>>,
         mode: u8,
+        original: super::super::native_operation_currency::NativeOperationCurrency,
     }
 
     extern "C" fn retire(value: *mut obj::TclObj) {
@@ -554,7 +557,9 @@ mod settlement_tests {
         let mut interp = state.interpreter.upgrade().unwrap();
         state.observed.set(interp.result_obj());
         assert!(interp.active_var_trace_scopes.borrow().is_empty());
-        assert_eq!(interp.entered_native_operation_count(), 1);
+        // The original outer owner remains current while write/chain/saved
+        // cleanup entries are also live. Their actual count is not authority.
+        state.original.ensure_current_or_refuse().unwrap();
         if state.mode == 2 {
             interp.refuse_host_command("first original trace callback");
         } else {
@@ -574,6 +579,11 @@ mod settlement_tests {
         calls: Rc<Cell<usize>>,
         observed: Rc<Cell<*mut obj::TclObj>>,
         mode: u8,
+        original: Rc<
+            std::cell::RefCell<
+                Option<super::super::native_operation_currency::NativeOperationCurrency>,
+            >,
+        >,
     }
     impl NativeVariableObserver<Interp> for RetirementObserver {
         type Error = tcl_cmd_core::CmdError;
@@ -587,6 +597,7 @@ mod settlement_tests {
                 calls: self.calls.clone(),
                 observed: self.observed.clone(),
                 mode: self.mode,
+                original: self.original.borrow().as_ref().unwrap().clone(),
             });
             let value = obj::alloc_typed(&CALLBACK_RESULT, Box::into_raw(state) as usize as u64);
             // SAFETY: independently resident String; no getter is forced by the observer.
@@ -605,6 +616,7 @@ mod settlement_tests {
             let mut interp = original("tcl8.6");
             let calls = Rc::new(Cell::new(0));
             let observed = Rc::new(Cell::new(std::ptr::null_mut()));
+            let original = Rc::new(std::cell::RefCell::new(None));
             let name = obj::Owned::fresh(obj::new_string_bytes(b"x"));
             interp
                 .add_native_variable_observer(
@@ -614,6 +626,7 @@ mod settlement_tests {
                         calls: calls.clone(),
                         observed: observed.clone(),
                         mode,
+                        original: original.clone(),
                     }),
                 )
                 .unwrap();
@@ -623,9 +636,10 @@ mod settlement_tests {
             let scope =
                 crate::interp::native_operation_currency::NativeOperationScope::enter(&interp)
                     .unwrap();
+            *original.borrow_mut() = Some(scope.currency().clone());
             assert_eq!(
                 interp.var_set(b"x", value.as_ptr()),
-                Err(VarError::TraceError)
+                Err(VarError::NameProtocolUnavailable)
             );
             assert_eq!(calls.get(), 1);
             assert_eq!(observed.get(), prior.as_ptr());
@@ -634,6 +648,7 @@ mod settlement_tests {
             assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 2);
             assert_refusal(&interp, mode);
             assert!(interp.traces.borrow().pending_err.is_none());
+            assert_eq!(interp.entered_native_operation_count(), 1);
             drop(scope);
             assert_eq!(interp.entered_native_operation_count(), 0);
         }

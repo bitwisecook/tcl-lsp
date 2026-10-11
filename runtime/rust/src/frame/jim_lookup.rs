@@ -164,7 +164,7 @@ impl WeakJimVariableCell {
         match cell.var.as_ref()? {
             Var::Scalar(value) => Some(JimVariableRead::Scalar(*value)),
             Var::Link(link) => Some(JimVariableRead::Link(link.clone())),
-            Var::Array(_) => None,
+            Var::PendingScalar(_) | Var::Array(_) => None,
         }
     }
     pub(crate) fn store(&self, value: *mut TclObj) -> Result<Option<Link>, VarError> {
@@ -180,6 +180,7 @@ impl WeakJimVariableCell {
                 unsafe { obj::decr_ref_count(retired) };
                 Ok(None)
             }
+            Some(Var::PendingScalar(_)) => Err(VarError::NameProtocolUnavailable),
             Some(Var::Link(link)) => Ok(Some(link.clone())),
             Some(Var::Array(_)) => Err(VarError::IsArray),
             None => Err(VarError::NameProtocolUnavailable),

@@ -577,7 +577,7 @@ impl VarTable {
             let mut contents = self.cells[slot].contents.borrow_mut();
             contents.rmw_retirement = Some(VarError::DeletedNamespace);
             old.elements(std::mem::take(&mut contents.native_member_keys));
-            old.value(contents.var.take());
+            old.value(contents.take_value());
             old.array_default(
                 contents
                     .array_default
@@ -627,7 +627,7 @@ impl VarTable {
         };
         {
             let mut contents = selected.contents.borrow_mut();
-            let Some(Var::Array(members)) = contents.var.take() else {
+            let Some(Var::Array(members)) = contents.take_value() else {
                 unreachable!("selected array")
             };
             let mut entry_order = std::mem::take(&mut contents.member_order);

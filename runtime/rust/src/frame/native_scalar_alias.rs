@@ -26,6 +26,15 @@ impl PartialEq for NativeScalarAliasEntry {
 }
 impl Eq for NativeScalarAliasEntry {}
 impl NativeScalarAliasEntry {
+    pub(crate) fn check_owned_value_role(&self) -> Result<(), tcl_syntax::value::ValueError> {
+        let cell = self.contents.borrow();
+        if cell.binding_id != Some(self.binding) || cell.rmw_retirement.is_some() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "retired original scalar alias entry",
+            ));
+        }
+        cell.check_owned_value_role()
+    }
     pub(crate) fn identity(&self) -> VarId {
         self.binding
     }
@@ -162,7 +171,7 @@ impl Drop for NativeScalarAliasEntry {
             {
                 return;
             }
-            let old = cell.var.take();
+            let old = cell.take_value();
             cell.undefined_shell = false;
             let key = cell.retire_rmw_shell();
             if !cell.compiled_declaration {

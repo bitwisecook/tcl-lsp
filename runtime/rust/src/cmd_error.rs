@@ -517,16 +517,27 @@ fn error_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let msg = obj_bytes(argv[1]);
     let rc = if info.is_empty() {
         interp.set_error_state(&ecode)
-    } else if interp.publish_c84_error_command_info(&info, &ecode) {
-        Code::Error
     } else {
-        interp.raise_with_info(&msg, &info, &ecode)
+        match interp.publish_c84_error_command_info(&info, &ecode) {
+            Ok(true) => Code::Error,
+            Ok(false) => interp.raise_with_info(&msg, &info, &ecode),
+            Err(first) => return interp.refuse_native_execution(first),
+        }
     };
+    if let Err(first) = interp.check_entered_native_operation() {
+        return interp.refuse_native_execution(first);
+    }
     if explicit_code {
         interp.publish_original_c84_error_code(argv[3]);
+        if let Err(first) = interp.check_entered_native_operation() {
+            return interp.refuse_native_execution(first);
+        }
         interp.mark_error_code_explicit();
     }
     interp.set_result(argv[1]);
+    if let Err(first) = interp.check_entered_native_operation() {
+        return interp.refuse_native_execution(first);
+    }
     rc
 }
 

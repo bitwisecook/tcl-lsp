@@ -175,7 +175,7 @@ impl super::CellContents {
         // SAFETY: publication takes the actual owning cell's reference first.
         unsafe { obj::incr_ref_count(value) };
         self.binding_id.get_or_insert_with(fresh_var_id);
-        let previous = self.var.replace(Var::Scalar(value));
+        let previous = self.replace_value(Var::Scalar(value));
         self.element_ids.clear();
         self.element_operation_refs.clear();
         RetiredRootContents {
@@ -288,7 +288,9 @@ impl CapturedContainerModel {
                     .ok_or(ValueError::CommandProtocolUnavailable(
                         "captured variable container cell",
                     ))?;
-                let retired = cell.borrow_mut().var.replace(Var::Scalar(root.into_raw()));
+                let retired = cell
+                    .borrow_mut()
+                    .replace_value(Var::Scalar(root.into_raw()));
                 retired
             };
             // No cell, frame, namespace or table borrow crosses native release.

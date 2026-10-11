@@ -198,6 +198,48 @@ pub fn append_counted_bytes_checked<O: NativeAppendObjects>(
     reached
 }
 
+/// Append an already constructed counted String message onto the genuine
+/// cell-owned C receiver after its selected publication/COW stages. This
+/// borrows both originals and acquires no protective native reference.
+///
+/// # Errors
+/// Refuses a non-C recipe, a non-String append action, or a reached original
+/// getter/storage/currency failure. Publication authority remains with the caller.
+pub fn append_published_counted_source_checked<O: NativeAppendObjects>(
+    ops: &O,
+    protocol: NativeObjectAppendProtocol,
+    receiver: &O::Value,
+    source: &O::Value,
+    check: &mut impl FnMut() -> Result<(), ValueError>,
+) -> Result<(), ValueError> {
+    check()?;
+    if protocol.string_protocol().tcl_version().is_none() {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "C published counted append",
+        ));
+    }
+    let source_shape = checked_append_stage(check, || ops.snapshot(source))?;
+    let receiver_shape = checked_append_stage(check, || ops.snapshot(receiver))?;
+    let action = protocol
+        .action(Some(&receiver_shape), &source_shape)
+        .map_err(|_| ValueError::CommandProtocolUnavailable("published counted append shape"))?;
+    if action != Action::AppendString {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "published counted String append action",
+        ));
+    }
+    append_c_string(
+        ops,
+        protocol,
+        receiver,
+        source,
+        &receiver_shape,
+        &source_shape,
+        check,
+    )?;
+    check()
+}
+
 /// Append one CString operand onto the genuine refcount-zero unshared object
 /// already allocated by Jim's key constructor. This does not acquire a working
 /// native reference or repeat a copy-on-write decision. The caller retains an
