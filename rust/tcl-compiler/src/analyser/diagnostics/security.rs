@@ -79,7 +79,7 @@ impl Analyser {
         let children = crate::segmenter::segment_commands_with_offset_and_config(
             literal,
             content.start(),
-            body.config(),
+            tcl_lexer::SourceSegmentationPurpose::NestedScript.config(body.config()),
         );
         if let [child] = children.as_slice()
             && let Some(super::super::diagnostic_registry::OriginalDiagnosticSource::Registry(
@@ -1027,5 +1027,113 @@ mod original_quoting_child_purpose_tests {
         analyser.result = retained;
         analyser.source = source.replace(" VALUE", " OTHER");
         assert!(!analyser.original_regex_quoting_substitution(word));
+    }
+}
+
+#[cfg(test)]
+mod original_catch_child_purpose_tests {
+    use super::*;
+    use crate::analyser::ResolvedAnalysisInput;
+    use crate::analyser::diagnostic_registry::OriginalDiagnosticSource;
+
+    #[test]
+    fn original_catch_child_keeps_bom_teardown_alias_and_complete_parent_guards() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        // Authored teardown syntax only; no executed cleanup or successful completion is proved.
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry(),
+            config,
+        );
+        assert!(input.has_logical_source_name_context());
+        let source =
+            "\u{feff}interp alias {} \u{feff}dispose {} unset\ncatch {\u{feff}dispose gone}";
+        let mut analyser = Analyser::new().with_resolved_input(input.clone());
+        analyser.result = analyser.analyse(source, "presentation");
+        assert!(
+            !analyser
+                .result
+                .diagnostics
+                .iter()
+                .any(|row| row.code == DiagCode::W302)
+        );
+        assert_eq!(analyser.result.resolved_input.as_ref(), Some(&input));
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let Some(OriginalDiagnosticSource::Registry(original)) =
+            analyser.original_diagnostic_source_for_segment(commands.last().unwrap())
+        else {
+            panic!("genuine catch source selection")
+        };
+        assert_eq!(original.command(), "catch");
+        let body = original.word(0).unwrap();
+        assert_eq!(body.config(), config);
+        assert_eq!(body.image().bytes(), source.as_bytes());
+        let content = body.content_span().unwrap();
+        assert_eq!(source.get(content.as_range()), Some("\u{feff}dispose gone"));
+        let children = crate::segmenter::segment_commands_with_offset_and_config(
+            source.get(content.as_range()).unwrap(),
+            content.start(),
+            tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+        );
+        let [child] = children.as_slice() else {
+            panic!("one original teardown child")
+        };
+        assert_eq!(child.texts[0], "\u{feff}dispose");
+        assert_eq!(child.argv[0].span.start(), content.start());
+        let Some(OriginalDiagnosticSource::Registry(selected)) =
+            analyser.original_diagnostic_source_for_segment(child)
+        else {
+            panic!("original alias child metadata")
+        };
+        assert_eq!(selected.command(), "unset");
+        assert!(
+            selected
+                .with_schema(crate::analyser::diagnostic_registry::source_descriptors)
+                .is_some_and(|descriptor| descriptor
+                    .command
+                    .traits
+                    .contains(Traits::FIRE_AND_FORGET_TEARDOWN))
+        );
+        assert_eq!(selected.head().config(), config);
+        let retained = analyser.result.clone();
+        analyser.result.body_lexer_config = Some(config.nested());
+        assert!(
+            analyser
+                .original_diagnostic_source_for_segment(child)
+                .is_none()
+        );
+        analyser.result = retained.clone();
+        analyser.result.resolved_input = None;
+        assert!(
+            analyser
+                .original_diagnostic_source_for_segment(child)
+                .is_none()
+        );
+        analyser.result = retained;
+        analyser.source = source.replace(" gone", " other");
+        assert!(
+            analyser
+                .original_diagnostic_source_for_segment(child)
+                .is_none()
+        );
+        let constructive = source.replace("unset", "list");
+        let result = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(&constructive, "presentation");
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|row| row.code == DiagCode::W302)
+        );
     }
 }

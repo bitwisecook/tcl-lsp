@@ -3907,3 +3907,24 @@ root `naming-current-validation323`. The checkpoint number does not
 substitute a derived compile-root path. Receipt and snapshot gzip copies
 round-trip to their exact original bytes; source and provider observations
 retain their separate scopes.
+
+## Source329 consumer check outcome
+
+The original five-package `cargo check --lib --tests` request closes exit
+`101` after 112.62451350700576 seconds with uniform source `true`.
+Its [whole original check log](frozen329/integration-consumer-compile-check329/check.log)
+records one `E0063`: `ConstSubstCtx.namespace_context` is absent in
+`rust/tcl-vm/tests/dict_canonicalisation_parity.rs:138`.
+
+This check-only operation has no executable creation event, admitted test
+image, executable inventory or assertion summary. It is not an own library-test
+no-run producer. Other operations and Native observations establish no outcome
+for this check.
+
+The [exact closed receipt](frozen329/integration-consumer-compile-check329/receipt.json.gz)
+retains the actual command and complete original 37,119-leaf source inventory
+inside `/source/source`, HEAD `7e9cbd64cd428757635195538c7953fc250f01f8`, immutable archive
+`naming329` and actual compile root `naming-current-validation323`.
+Its source object equals the original immutable snapshot, and its diagnostic
+source retains the exact recorded whole-file SHA. The gzip copy round-trips to
+the complete original receipt bytes; no second source-catalogue copy is needed.

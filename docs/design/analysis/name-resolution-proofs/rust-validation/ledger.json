@@ -214440,6 +214440,59 @@
       "question_ids": [],
       "sealed_images": {},
       "limits": "The own Compiler328 library-test no-run producer closes exit101 with three VM library errors: unresolved NativeValueAccessRefusal import at interp/native_operation_currency.rs:16 and two conflicting mutable/immutable borrows at expr/native_boolean_truth.rs:158/160. No executable creation event, own Compiler image, inventory or assertion is admitted. The complete original37116-leaf immutable source/head and actual naming-current-validation323 compile root retain their exact receipt associations. This failed producer has no executable or assertion result; independent producers and external Native observations do not establish an outcome for this run."
+    },
+    {
+      "id": "rust.frozen329.integration-consumer-compile-check329",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen329/integration-consumer-compile-check329/receipt.json.gz",
+        "sha256": "29d557e68c7a6a6441abc7c93b20de28d987b647f776592c6b67035763b4047d",
+        "compression": "gzip",
+        "uncompressed_sha256": "7df040d8bee287d2bd824c77d69b249032cf15296d0fae0806fcfb4ba0b24637"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen329/integration-consumer-compile-check329/check.log",
+        "sha256": "d784ad2a0b7e53250b8d7e700560e12d3e2426b8c41bf23c38c3ef0f841ae3af"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "check",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-vm",
+        "-p",
+        "tcl-lsp-core",
+        "-p",
+        "tcl-explorer",
+        "-p",
+        "tcl-registry",
+        "--lib",
+        "--tests",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 112.62451350700576,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen329/integration-consumer-compile-check329/receipt.json.gz",
+        "sha256": "29d557e68c7a6a6441abc7c93b20de28d987b647f776592c6b67035763b4047d",
+        "compression": "gzip",
+        "uncompressed_sha256": "7df040d8bee287d2bd824c77d69b249032cf15296d0fae0806fcfb4ba0b24637",
+        "json_pointer": "/source/source",
+        "authority": "Complete original37119-leaf Source329 inventory retained exactly inside the closed check receipt; receipt source equals the immutable snapshot. Actual compile root and original diagnostic source retain their recorded identities. No executable or assertion result is inferred from this cargo check operation."
+      },
+      "tests": [],
+      "question_ids": [],
+      "sealed_images": {},
+      "limits": "This cargo check --lib --tests operation closes exit101 with one E0063 in the existing VM dict_canonicalisation_parity integration fixture at line138: ConstSubstCtx.namespace_context is absent. It is a five-package check-only request, not an own no-run test producer. There is no executable creation event, admitted test image, executable inventory or assertion summary. Complete source/head/actual compile-root identities are retained inside the original receipt. Other operations and external Native observations establish no result for this check."
     }
   ]
 }

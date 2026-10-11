@@ -9055,6 +9055,36 @@ results cannot establish private key/cell or cross-API output equivalence. The
 and [child](../analysis/name-resolution-proofs/alias-original-child-interpreter-publication.md)
 records retain exact original sources and provider rows.
 
+## Original command-key ownership
+
+Runtime selects `NativeNameProtocol::jim_command_key_construction` from the
+actual invocation context and naming purpose. `Interp::original_jim_command_key`
+uses the original object and namespace holder for procedure publication and
+rename qualification; `generated_jim_command_key` serves an actual provided-byte
+registration API. Alias capture uses the original List members without reading
+their Strings. Jim core alias registration retains a temporary original-name
+reference after publishing that name as its result. Its command-table slot takes
+an independent key reference when fresh and preserves the occupied key on
+replacement. Jim child registration constructs a fresh CString key and does not
+retain the caller's name. C alias records retain their own original registration
+name independently of these Jim key roles. The selected recipe also keeps C
+fresh query Lists separate from Jim's stored List header.
+
+Pass the prepared key owner to the original-key publication or rename entry.
+Keep qualification and registration temporaries through their actual lookup and
+publication work, then retire them before the caller's later result or Guest
+diagnostic. `NativeCommandCreation` validates the original occupied key through
+its weak owner; a deleted and recreated slot cannot borrow it. Extract retiring
+keys and values under the namespace borrow and release them outside it through
+`retire_pending_native_ensemble_roles`, which drains command slots as well as
+ensemble roles. A removed Jim slot releases its key before its value at the actual deletion,
+final local-pop or teardown boundary; an occupied replacement retires only the
+old value. Cleanup remains mandatory
+under the first Host cause. Keys and retirement tokens supply no command, frame,
+source or compiler authority. The [original key record](../analysis/name-resolution-proofs/alias-original-command-key-replacement-child-capture-and-rename.md)
+keeps measured capture, replacement, query and rename fields separate from
+software assertions and unmeasured cleanup routes.
+
 ## Original command source reporting extent
 
 `CommandSpan::source_extent` owns the original terminator-delimited physical
