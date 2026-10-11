@@ -482,3 +482,331 @@ fn original_return_error_retirement_refuses_before_prepared_result_and_options_p
         });
     }
 }
+
+#[test]
+fn original_private_error_field_retirement_keeps_the_published_operand_and_stops_its_getter() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Genuine private +1 roles and software callbacks, not Native cleanup chronology.
+    for info in [false, true] {
+        for mode in 0..3 {
+            leak_free(|interpreter| {
+                interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+                interpreter.set_c_error_code(b"STAMP BEFORE");
+                let (old, calls, observed) = original(interpreter, mode);
+                interpreter.retain_native_error_option(info, old);
+                let fresh = obj::Owned::fresh(new_string(b"FRESH"));
+                let scope =
+                    native_operation_currency::NativeOperationScope::enter(interpreter).unwrap();
+                let outcome = interpreter.retain_native_error_option_checked(
+                    scope.currency(),
+                    info,
+                    fresh.as_ptr(),
+                );
+                assert_eq!(outcome.is_ok(), mode == 0);
+                assert_eq!(calls.get(), 1);
+                assert_eq!(&*observed.borrow(), b"STAMP BEFORE");
+                let state = interpreter.exc.borrow();
+                let stored = if info {
+                    &state.native.info
+                } else {
+                    &state.native.code
+                };
+                assert_eq!(stored.as_ref().unwrap().as_ptr(), fresh.as_ptr());
+                assert_eq!(unsafe { (*fresh.as_ptr()).ref_count }, 2);
+                if info {
+                    assert_eq!(state.native.info_len, if mode == 0 { 5 } else { 3 });
+                }
+                drop(state);
+                assert_refusal(interpreter, mode);
+                drop(scope);
+            });
+        }
+    }
+}
+
+struct ErrorInfoGetter {
+    interpreter: WeakInterp,
+    updates: Rc<Cell<usize>>,
+    frees: Rc<Cell<usize>>,
+    references: Rc<Cell<obj::TclSize>>,
+    current_role: Rc<Cell<bool>>,
+    mode: u8,
+}
+
+extern "C" fn update_error_info(value: *mut TclObj) {
+    // SAFETY: the callback borrows the backing installed on this live header.
+    let state = unsafe { &*(obj::internal_rep(value) as usize as *const ErrorInfoGetter) };
+    state.updates.set(state.updates.get() + 1);
+    state.references.set(unsafe { (*value).ref_count });
+    let mut interpreter = state.interpreter.upgrade().unwrap();
+    state.current_role.set(
+        interpreter
+            .exc
+            .borrow()
+            .native
+            .info
+            .as_ref()
+            .map(obj::Owned::as_ptr)
+            == Some(value),
+    );
+    assert_eq!(interpreter.snapshot_error().code_bytes(), b"STAMP BEFORE");
+    unsafe { obj::set_string_rep(value, b"BASE") };
+    match state.mode {
+        1 => {
+            interpreter.refuse_host_command("original error retirement refusal");
+        }
+        2 => {
+            let original = interpreter.runtime_context();
+            let mut changed = original.clone();
+            changed.packages = vec![("error-retirement".into(), "1.0".into())];
+            interpreter.pin_context(&changed).unwrap();
+            interpreter.pin_context(&original).unwrap();
+        }
+        3 => interpreter.set_result_bytes(b"REACHED REPLACEMENT"),
+        _ => {}
+    }
+}
+
+extern "C" fn free_error_info(value: *mut TclObj) {
+    // SAFETY: the actual primary backing owns this single record.
+    let state = unsafe { Box::from_raw(obj::internal_rep(value) as usize as *mut ErrorInfoGetter) };
+    state.frees.set(state.frees.get() + 1);
+    let interpreter = state.interpreter.upgrade().unwrap();
+    // A conversion/free hook may reenter the genuine error-state reader.
+    drop(interpreter.snapshot_error());
+}
+
+static ERROR_INFO_GETTER: obj::TclObjType = obj::TclObjType {
+    name: c"originalErrorInfoGetter".as_ptr(),
+    free_int_rep_proc: Some(free_error_info),
+    dup_int_rep_proc: None,
+    update_string_proc: Some(update_error_info),
+    set_from_any_proc: None,
+};
+
+fn lazy_error_info(
+    interpreter: &Interp,
+    mode: u8,
+) -> (
+    *mut TclObj,
+    Rc<Cell<usize>>,
+    Rc<Cell<usize>>,
+    Rc<Cell<obj::TclSize>>,
+    Rc<Cell<bool>>,
+) {
+    let updates = Rc::new(Cell::new(0));
+    let frees = Rc::new(Cell::new(0));
+    let references = Rc::new(Cell::new(0));
+    let current_role = Rc::new(Cell::new(false));
+    let state = Box::new(ErrorInfoGetter {
+        interpreter: interpreter.downgrade(),
+        updates: updates.clone(),
+        frees: frees.clone(),
+        references: references.clone(),
+        current_role: current_role.clone(),
+        mode,
+    });
+    let value = obj::alloc_typed(&ERROR_INFO_GETTER, Box::into_raw(state) as usize as u64);
+    (value, updates, frees, references, current_role)
+}
+
+#[test]
+fn original_private_error_info_getter_keeps_its_real_role_without_an_exception_borrow() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    for mode in 0..3 {
+        leak_free(|interpreter| {
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            interpreter.set_c_error_code(b"STAMP BEFORE");
+            interpreter.exc.borrow_mut().native.info_len = 17;
+            let (value, updates, frees, references, current_role) =
+                lazy_error_info(interpreter, mode);
+            let memory = obj::NativeObjectLifetime::retain(value);
+            let scope =
+                native_operation_currency::NativeOperationScope::enter(interpreter).unwrap();
+            let outcome =
+                interpreter.retain_native_error_option_checked(scope.currency(), true, value);
+            assert_eq!(outcome.is_ok(), mode == 0);
+            assert_eq!(updates.get(), 1);
+            assert_eq!(references.get(), 1);
+            assert!(current_role.get());
+            assert_eq!(frees.get(), 0);
+            assert_eq!(
+                interpreter
+                    .exc
+                    .borrow()
+                    .native
+                    .info
+                    .as_ref()
+                    .unwrap()
+                    .as_ptr(),
+                value
+            );
+            assert_eq!(
+                interpreter.exc.borrow().native.info_len,
+                if mode == 0 { 4 } else { 17 }
+            );
+            assert_eq!(obj::bytes_of(value), b"BASE");
+            assert_refusal(interpreter, mode);
+            let retired = interpreter.exc.borrow_mut().native.info.take();
+            drop(retired);
+            assert_eq!(frees.get(), 1);
+            assert!(!obj::allocation_is_live(memory.as_ptr()));
+            drop(scope);
+        });
+    }
+}
+
+#[test]
+fn original_error_info_append_checks_the_reached_getter_before_later_cache_publication() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Actual original storage and shared physical kernel; no external opcode equivalence.
+    for mode in 0..3 {
+        leak_free(|interpreter| {
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            interpreter.set_c_error_code(b"STAMP BEFORE");
+            let (value, updates, frees, references, current_role) =
+                lazy_error_info(interpreter, mode);
+            let memory = obj::NativeObjectLifetime::retain(value);
+            {
+                let mut state = interpreter.exc.borrow_mut();
+                state.native.info = Some(obj::Owned::fresh(value));
+                state.native.info_len = 4;
+                state.info = Some(b"BASE+".to_vec());
+            }
+            assert_eq!(unsafe { (*value).ref_count }, 1);
+            let scope =
+                native_operation_currency::NativeOperationScope::enter(interpreter).unwrap();
+            let outcome = interpreter.update_native_error_info_checked(scope.currency());
+            assert_eq!(outcome.is_ok(), mode == 0);
+            assert_eq!(updates.get(), 1);
+            assert_eq!(references.get(), 2);
+            assert!(current_role.get());
+            assert_eq!(
+                interpreter
+                    .exc
+                    .borrow()
+                    .native
+                    .info
+                    .as_ref()
+                    .unwrap()
+                    .as_ptr(),
+                value
+            );
+            assert_eq!(unsafe { (*value).ref_count }, 1);
+            assert_eq!(
+                obj::bytes_of(value),
+                if mode == 0 {
+                    b"BASE+".as_slice()
+                } else {
+                    b"BASE"
+                }
+            );
+            assert_eq!(frees.get(), usize::from(mode == 0));
+            assert_eq!(
+                interpreter.exc.borrow().native.info_len,
+                if mode == 0 { 5 } else { 4 }
+            );
+            assert_eq!(interpreter.exc.borrow().native.legacy_copy, mode == 0);
+            assert_refusal(interpreter, mode);
+            let retired = interpreter.exc.borrow_mut().native.info.take();
+            drop(retired);
+            assert_eq!(frees.get(), 1);
+            assert!(!obj::allocation_is_live(memory.as_ptr()));
+            drop(scope);
+        });
+    }
+}
+
+#[test]
+fn original_portable_error_reporting_stops_after_private_info_retirement() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    for mode in 0..3 {
+        leak_free(|interpreter| {
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            interpreter.set_c_error_code(b"STAMP BEFORE");
+            interpreter.error_line.set(11);
+            let (value, calls, observed) = original(interpreter, mode);
+            interpreter.retain_native_error_option(true, value);
+            let mut details =
+                tcl_cmd_core::CmdError::new_bytes(b"FRESH RESULT".to_vec()).into_byte_details();
+            details.error_code = tcl_cmd_core::CmdErrorCodeUpdate::Set(b"FRESH CODE".to_vec());
+            details.error_info = Some(b"FRESH INFO".to_vec());
+            details.error_line = Some(23);
+            assert_eq!(
+                interpreter.report_cmd_error(tcl_cmd_core::CmdError::from_byte_details(details)),
+                Code::Error
+            );
+            assert_eq!(calls.get(), 1);
+            assert_eq!(&*observed.borrow(), b"FRESH CODE");
+            assert_eq!(obj::bytes_of(interpreter.get_obj_result()), b"FRESH RESULT");
+            assert_eq!(
+                interpreter.exc.borrow().info.as_deref(),
+                Some(b"FRESH INFO".as_slice())
+            );
+            assert_eq!(
+                obj::bytes_of(
+                    interpreter
+                        .exc
+                        .borrow()
+                        .native
+                        .info
+                        .as_ref()
+                        .unwrap()
+                        .as_ptr()
+                ),
+                b"FRESH INFO"
+            );
+            assert_eq!(
+                interpreter.error_line.get(),
+                if mode == 0 { 23 } else { 11 }
+            );
+            assert_refusal(interpreter, mode);
+        });
+    }
+}
+
+#[test]
+fn original_error_info_fallback_keeps_the_exact_result_across_its_getter() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // The actual callback changes the result without changing context or Host.
+    leak_free(|interpreter| {
+        interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+        interpreter.set_c_error_code(b"STAMP BEFORE");
+        let (pointer, updates, frees, references, current_role) = lazy_error_info(interpreter, 3);
+        let value = obj::Owned::fresh(pointer);
+        interpreter.set_result(value.as_ptr());
+        assert_eq!(unsafe { (*pointer).ref_count }, 2);
+        assert!(interpreter.exc.borrow().info.is_none());
+        assert!(interpreter.exc.borrow().native.info.is_none());
+        let scope = native_operation_currency::NativeOperationScope::enter(interpreter).unwrap();
+        let reached = interpreter.update_native_error_info_checked(scope.currency());
+        let expected = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "original error-info result replaced during getter",
+            ),
+        );
+        assert_eq!(reached, Err(expected.clone()));
+        assert_eq!(interpreter.native_execution_refusal(), Some(expected));
+        assert_eq!(updates.get(), 1);
+        assert_eq!(references.get(), 2);
+        assert!(!current_role.get());
+        assert_eq!(frees.get(), 0);
+        assert_eq!(unsafe { (*pointer).ref_count }, 1);
+        assert_eq!(obj::bytes_of(pointer), b"BASE");
+        assert_eq!(
+            obj::bytes_of(interpreter.get_obj_result()),
+            b"REACHED REPLACEMENT"
+        );
+        assert!(interpreter.exc.borrow().info.is_none());
+        assert!(interpreter.exc.borrow().native.info.is_none());
+        assert!(!interpreter.exc.borrow().native.legacy_copy);
+        drop(value);
+        assert_eq!(frees.get(), 1);
+        drop(scope);
+    });
+}

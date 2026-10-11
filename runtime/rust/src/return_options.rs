@@ -204,6 +204,11 @@ pub(crate) fn publish(
     ops: &mut NativeReturnOps,
     prepared: return_options::PreparedReturn<Owned>,
 ) -> Code {
+    let scope = match crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
+    {
+        Ok(scope) => scope,
+        Err(first) => return interp.refuse_native_execution(first),
+    };
     let code = Code::from_int(prepared.code);
     let level = match usize::try_from(prepared.level) {
         Ok(level) => level,
@@ -259,9 +264,25 @@ pub(crate) fn publish(
         for pair in &prepared.options {
             match pair.name_in(ops.protocol) {
                 b"-errorinfo" if info.as_ref().is_some_and(|bytes| !bytes.is_empty()) => {
-                    interp.retain_native_error_option(true, pair.value.as_ptr())
+                    let retained = interp.retain_native_error_option_checked(
+                        scope.currency(),
+                        true,
+                        pair.value.as_ptr(),
+                    );
+                    if let Err(first) = retained {
+                        return interp.refuse_native_execution(first);
+                    }
                 }
-                b"-errorcode" => interp.retain_native_error_option(false, pair.value.as_ptr()),
+                b"-errorcode" => {
+                    let retained = interp.retain_native_error_option_checked(
+                        scope.currency(),
+                        false,
+                        pair.value.as_ptr(),
+                    );
+                    if let Err(first) = retained {
+                        return interp.refuse_native_execution(first);
+                    }
+                }
                 b"-errorstack" if interp.runtime_version().has_error_stack() => {
                     if let Err(error) = interp.seed_original_error_stack(pair.value.as_ptr()) {
                         return interp.report_cmd_error(error.into());

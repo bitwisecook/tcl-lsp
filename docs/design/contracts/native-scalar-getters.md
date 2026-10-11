@@ -82,7 +82,7 @@ parser/cache or `TCL_WIDE_INT_IS_LONG` recipe and refuse on this layout. Double'
 actual `strtod` stage is independent. Modern C/Jim Long64 and cached Jim raw
 Boolean keep their separately measured eight-byte-long capability.
 
-`c_integer_abi`, `reset`, `unsigned_c84` and `signed_long` default to
+`c_integer_abi`, `reset`, `unsigned_c84`, `signed_long` and `unsigned_long` default to
 `NumericEnvironmentUnavailable::Target`. Required `state`, `unsigned` and
 `double` methods must also report actual availability. Missing methods do not
 mean zero errno or permission to reparse a reached cache. A target-dependent
@@ -185,6 +185,56 @@ return true for Jim cached `4294967296` even though its primitive getter returns
 zero. NaN routes also differ in success, diagnostic and String effects. Select
 the independent expression purpose and its original operand/context whenever a
 consumer asks one of those questions.
+
+## Linked precision callbacks
+
+The Runtime precision callback enters the original `NativeOperationScope` before
+reading the selected receiver or changing precision and pending guest errors.
+Its checked installer and every callback caller preserve an outer
+`NativeExecutionError` separately from `VariableTraceGuestOutcome`. A safe
+interpreter rejects a write before either String or numeric access.
+
+For C84, the original cell supplies its borrowed String reference. An
+allocation-only lease preserves memory safety without adding a native reference
+around the getter. `tcl_cmd_core::native_numeric::c84_precision_from_host` queries
+the selected eight-bit/four-byte/eight-byte recipe target and calls
+`NumericEnvironment::unsigned_long(original, 0, 10)`. This is decimal `strtoul`
+without an errno reset. The original NULL getter outcome selects an empty C
+string and still reaches that worker. The shared validator requires the full C
+string to be consumed, narrows through the existing C-int owner and accepts
+precision 1 through 17. C84 restores the previous precision on a safe or invalid
+write.
+
+C85/C86 use the error-neutral Int probe on the original object and accept 0
+through 17 through `number::double_precision_from_native_integer`. They do not
+render a primitive conversion error or obtain String merely to validate a
+cached Int or rejected Double. A cached recipe can proceed without an optional
+numeric environment only when its selected protocol requires none. These
+versions leave the written cell in place on a safe or invalid write.
+
+The Runtime checks original currency and object liveness around reached getters,
+conversion, publication and retirement. Its selected read/restore and
+registration workers ignore their genuine guest setter failures where the
+original callback does; a host refusal remains an outer error and stops later
+precision or guest-error publication. The checked constructor consumes installer
+failure, while compatibility installers retain the first typed cause.
+
+`number::parse_double_precision` remains an explicit pure text utility. It does
+not observe the original cell, libc errno, getter cache or interpreter currency.
+The VM precision consumer is a separate adapter; the Runtime contract does not
+establish that it has adopted these checked stages. Neither the decimal worker
+nor a descriptive ABI receipt supplies an original Tcl32 getter recipe.
+
+The source controls in
+[Runtime precision stage tests](../../../runtime/rust/src/interp/native_precision/original_stage_tests.rs)
+check safe-before-getter order, decimal C-int narrowing, borrowed reference role,
+NULL-getter worker selection, missing capabilities, original-cache access and
+callback/retirement refusal. Their software scope is recorded under
+[embedding host publication](../analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md).
+The independent six-provider
+[precision unset observations](../analysis/name-resolution-proofs/variable-original-precision-unset-publication.md)
+retain their public unset purpose; they do not establish precision-write getter
+or callback chronology.
 
 ## Add or migrate a consumer
 

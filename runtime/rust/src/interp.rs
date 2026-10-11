@@ -10109,6 +10109,9 @@ impl Interp {
         if let Some(error) = error.native_execution_refusal() {
             return self.refuse_native_execution(error.clone());
         }
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return Code::Error;
+        };
         let details = error.into_byte_details();
         let explicit_code_store =
             matches!(details.error_code, tcl_cmd_core::CmdErrorCodeUpdate::Set(_));
@@ -10131,6 +10134,9 @@ impl Interp {
                 Err(error) => return self.report_cmd_error(error.into()),
             };
         self.set_result_bytes(&details.message);
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return Code::Error;
+        }
         if let Some(materialization) = string_result {
             if let Err(error) =
                 obj::retain_native_string_representation(self.get_obj_result(), materialization)
@@ -10140,11 +10146,27 @@ impl Interp {
         }
         if let tcl_cmd_core::ResolvedCmdErrorCodeUpdate::Set(code) = &update {
             if !self.uses_c84_global_error_info() || explicit_code_store {
-                self.replace_native_error_code(code);
+                if self
+                    .replace_native_error_code_checked(scope.currency(), code)
+                    .is_err()
+                {
+                    return Code::Error;
+                }
             } else {
                 self.exc.borrow_mut().native.global_code_set = false;
             }
         }
+        let original_info = self
+            .native_invocation_dialect()
+            .native_error_variable_protocol()
+            .is_some()
+            .then(|| {
+                details
+                    .error_info
+                    .as_deref()
+                    .map(|bytes| obj::Owned::fresh(new_string(bytes)))
+            });
+        let info_len = details.error_info.as_ref().map_or(0, Vec::len);
         let mut exc = self.exc.borrow_mut();
         match update {
             tcl_cmd_core::ResolvedCmdErrorCodeUpdate::Set(code) => {
@@ -10153,22 +10175,27 @@ impl Interp {
             }
             tcl_cmd_core::ResolvedCmdErrorCodeUpdate::Unchanged => {}
         }
-        if self
-            .native_invocation_dialect()
-            .native_error_variable_protocol()
-            .is_some()
-        {
-            exc.native.info_len = details.error_info.as_ref().map_or(0, Vec::len);
-            exc.native.info = details
-                .error_info
-                .as_deref()
-                .map(|bytes| obj::Owned::fresh(new_string(bytes)));
-        }
         exc.info = details.error_info;
         exc.already_logged = false;
         exc.primitive_getter = details.primitive_getter;
         exc.expression_error_stage = None;
         drop(exc);
+        if let Some(original_info) = original_info {
+            if self
+                .replace_native_error_object_checked(
+                    scope.currency(),
+                    tcl_registry::special_vars::NativeErrorStorageVariable::ErrorInfo,
+                    original_info,
+                    Some(info_len),
+                )
+                .is_err()
+            {
+                return Code::Error;
+            }
+        }
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return Code::Error;
+        }
         if let Some(line) = details
             .error_line
             .and_then(|value| u32::try_from(value).ok())
@@ -10607,6 +10634,9 @@ impl Interp {
     /// rather than a second, drifting copy of them.
     pub(crate) fn log_evaluated_command_bytes(&mut self, raw_line: u32, cmd_bytes: &[u8]) {
         self.log_command_bytes(raw_line, cmd_bytes);
+        if self.check_entered_native_operation().is_err() {
+            return;
+        }
         if self
             .native_invocation_dialect()
             .native_error_log_protocol()
@@ -10619,6 +10649,9 @@ impl Interp {
     }
 
     pub(crate) fn log_command_bytes(&mut self, raw_line: u32, cmd_bytes: &[u8]) {
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
         self.propagate_error_stage();
         if self.uses_jim_error_stack() {
             self.capture_jim_error_stack();
@@ -10648,19 +10681,8 @@ impl Interp {
         });
         self.error_line.set(line);
         let started = self.exc.borrow().info.is_some();
-        if !started {
-            // First frame: errorInfo is seeded from the error message (the result).
-            let msg = self.result_bytes();
-            if self
-                .native_invocation_dialect()
-                .native_error_variable_protocol()
-                .is_some()
-            {
-                let mut exc = self.exc.borrow_mut();
-                exc.native.info = Some(obj::Owned::retain(self.result.get()));
-                exc.native.info_len = msg.len();
-            }
-            self.exc.borrow_mut().info = Some(msg);
+        if self.seed_error_info_checked(scope.currency()).is_err() {
+            return;
         }
         let verb: &[u8] = if started {
             b"invoked from within"
@@ -10685,7 +10707,12 @@ impl Interp {
         buf.push(b'"');
         exc.already_logged = true;
         drop(exc);
-        self.update_native_error_info();
+        if self
+            .update_native_error_info_checked(scope.currency())
+            .is_err()
+        {
+            return;
+        }
         // Pre-8.5 compatibility (C's `TclLogCommandInfo`, tclNamesp.c): if user
         // code traces `::errorInfo` for writes, push the value out to the variable
         // *now*, mid-unwind — firing the write trace while the failing command's
@@ -10706,6 +10733,9 @@ impl Interp {
                     drop_fresh(ei);
                 }
             }
+        }
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
         }
         if self
             .native_invocation_dialect()
@@ -10842,42 +10872,33 @@ impl Interp {
     /// This carries no line suffix and clears already_logged so the enclosing
     /// original invocation can still log its own frame.
     pub(crate) fn append_lambda_parse_frame(&mut self, frame: &[u8]) {
-        if self.exc.borrow().info.is_none() {
-            let msg = self.result_bytes();
-            if self
-                .native_invocation_dialect()
-                .native_error_variable_protocol()
-                .is_some()
-            {
-                let mut exc = self.exc.borrow_mut();
-                exc.native.info = Some(obj::Owned::retain(self.result.get()));
-                exc.native.info_len = msg.len();
-            }
-            self.exc.borrow_mut().info = Some(msg);
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
+        if self.seed_error_info_checked(scope.currency()).is_err() {
+            return;
         }
         {
             let mut exc = self.exc.borrow_mut();
             let buf = exc.info.as_mut().expect("seeded above");
             buf.extend_from_slice(frame);
         }
-        self.update_native_error_info();
+        if self
+            .update_native_error_info_checked(scope.currency())
+            .is_err()
+        {
+            return;
+        }
         self.exc.borrow_mut().already_logged = false;
     }
 
     pub(crate) fn append_frame_line(&mut self, inner: &[u8]) {
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
         let line = self.error_line.get();
-        if self.exc.borrow().info.is_none() {
-            let msg = self.result_bytes();
-            if self
-                .native_invocation_dialect()
-                .native_error_variable_protocol()
-                .is_some()
-            {
-                let mut exc = self.exc.borrow_mut();
-                exc.native.info = Some(obj::Owned::retain(self.result.get()));
-                exc.native.info_len = msg.len();
-            }
-            self.exc.borrow_mut().info = Some(msg);
+        if self.seed_error_info_checked(scope.currency()).is_err() {
+            return;
         }
         let mut exc = self.exc.borrow_mut();
         let buf = exc.info.as_mut().expect("seeded above");
@@ -10887,7 +10908,12 @@ impl Interp {
         buf.extend_from_slice(line.to_string().as_bytes());
         buf.push(b')');
         drop(exc);
-        self.update_native_error_info();
+        if self
+            .update_native_error_info_checked(scope.currency())
+            .is_err()
+        {
+            return;
+        }
     }
 
     /// Append a frame with no `line N` suffix — `"\n    (<text>)"`, e.g.
@@ -10896,18 +10922,11 @@ impl Interp {
     /// from the result if needed, then clear `already_logged` so the enclosing
     /// command logs its own `invoked from within` frame.
     pub(crate) fn append_frame_noline(&mut self, text: &[u8]) {
-        if self.exc.borrow().info.is_none() {
-            let msg = self.result_bytes();
-            if self
-                .native_invocation_dialect()
-                .native_error_variable_protocol()
-                .is_some()
-            {
-                let mut exc = self.exc.borrow_mut();
-                exc.native.info = Some(obj::Owned::retain(self.result.get()));
-                exc.native.info_len = msg.len();
-            }
-            self.exc.borrow_mut().info = Some(msg);
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
+        if self.seed_error_info_checked(scope.currency()).is_err() {
+            return;
         }
         {
             let mut exc = self.exc.borrow_mut();
@@ -10916,7 +10935,12 @@ impl Interp {
             buf.extend_from_slice(text);
             buf.push(b')');
         }
-        self.update_native_error_info();
+        if self
+            .update_native_error_info_checked(scope.currency())
+            .is_err()
+        {
+            return;
+        }
         self.exc.borrow_mut().already_logged = false;
     }
 
@@ -10925,18 +10949,11 @@ impl Interp {
     /// parentheses and no line suffix), then allow the enclosing command to log
     /// its ordinary `invoked from within` frame.
     pub(crate) fn append_error_info_context(&mut self, text: &[u8]) {
-        if self.exc.borrow().info.is_none() {
-            let msg = self.result_bytes();
-            if self
-                .native_invocation_dialect()
-                .native_error_variable_protocol()
-                .is_some()
-            {
-                let mut exc = self.exc.borrow_mut();
-                exc.native.info = Some(obj::Owned::retain(self.result.get()));
-                exc.native.info_len = msg.len();
-            }
-            self.exc.borrow_mut().info = Some(msg);
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
+        if self.seed_error_info_checked(scope.currency()).is_err() {
+            return;
         }
         {
             let mut exc = self.exc.borrow_mut();
@@ -10944,7 +10961,12 @@ impl Interp {
             buf.extend_from_slice(b"\n    ");
             buf.extend_from_slice(text);
         }
-        self.update_native_error_info();
+        if self
+            .update_native_error_info_checked(scope.currency())
+            .is_err()
+        {
+            return;
+        }
         self.exc.borrow_mut().already_logged = false;
     }
 

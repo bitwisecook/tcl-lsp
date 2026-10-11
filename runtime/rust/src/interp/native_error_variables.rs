@@ -235,21 +235,134 @@ impl Interp {
         obj::Owned::fresh(crate::list::new_list_obj_native(&pointers, protocol))
     }
 
-    pub(crate) fn retain_native_error_option(&self, info: bool, original: *mut obj::TclObj) {
+    /// Replace one genuine private owner and complete its retirement before
+    /// the next getter or field publication. This supplies no object authority.
+    pub(super) fn replace_native_error_object_checked(
+        &self,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+        variable: Variable,
+        original: Option<obj::Owned>,
+        info_len: Option<usize>,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        currency.ensure_current_or_refuse()?;
+        let published = original
+            .as_ref()
+            .map(|value| obj::NativeObjectLifetime::retain(value.as_ptr()));
+        let retired = {
+            let mut exc = self.exc.borrow_mut();
+            match variable {
+                Variable::ErrorInfo => {
+                    if let Some(length) = info_len {
+                        exc.native.info_len = length;
+                    }
+                    std::mem::replace(&mut exc.native.info, original)
+                }
+                Variable::ErrorCode => std::mem::replace(&mut exc.native.code, original),
+            }
+        };
+        drop(retired);
+        currency.ensure_current_or_refuse()?;
+        if let Some(published) = published {
+            self.check_native_error_object(currency, variable, &published)?;
+            drop(published);
+        } else {
+            let present = {
+                let exc = self.exc.borrow();
+                match variable {
+                    Variable::ErrorInfo => exc.native.info.is_some(),
+                    Variable::ErrorCode => exc.native.code.is_some(),
+                }
+            };
+            if present {
+                return Err(self.clone().refuse_completion_value_access(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "cleared native error field replaced during retirement",
+                    ),
+                ));
+            }
+        }
+        currency.ensure_current_or_refuse()
+    }
+
+    /// Check the actual private role after an original getter's callback.
+    /// Its allocation lease changes no native sharing or reference count.
+    pub(super) fn check_native_error_object(
+        &self,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+        variable: Variable,
+        original: &obj::NativeObjectLifetime,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        currency.ensure_current_or_refuse()?;
+        obj::check_native_liveness(original.as_ptr())
+            .map_err(|error| self.clone().refuse_completion_value_access(error))?;
+        let current = {
+            let exc = self.exc.borrow();
+            match variable {
+                Variable::ErrorInfo => &exc.native.info,
+                Variable::ErrorCode => &exc.native.code,
+            }
+            .as_ref()
+            .map(obj::Owned::as_ptr)
+        };
+        if current != Some(original.as_ptr()) {
+            let first =
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "native error object replaced during access",
+                );
+            self.clone().refuse_native_access(first);
+            return Err(self
+                .native_execution_refusal()
+                .expect("retained original cause"));
+        }
+        Ok(())
+    }
+
+    /// Retain the supplied operand at its real private-field stage, then reach
+    /// the original info getter after displaced-owner cleanup, without a borrow.
+    pub(crate) fn retain_native_error_option_checked(
+        &self,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+        info: bool,
+        original: *mut obj::TclObj,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        currency.ensure_current_or_refuse()?;
         if self
             .native_invocation_dialect()
             .native_error_variable_protocol()
             .is_none()
         {
-            return;
+            return Ok(());
         }
-        let mut exc = self.exc.borrow_mut();
-        if info {
-            exc.native.info = Some(obj::Owned::retain(original));
-            exc.native.info_len = obj::bytes_of(original).len();
+        obj::check_native_liveness(original)
+            .map_err(|error| self.clone().refuse_completion_value_access(error))?;
+        let lifetime = obj::NativeObjectLifetime::retain(original);
+        let variable = if info {
+            Variable::ErrorInfo
         } else {
-            exc.native.code = Some(obj::Owned::retain(original));
+            Variable::ErrorCode
+        };
+        self.replace_native_error_object_checked(
+            currency,
+            variable,
+            Some(obj::Owned::retain(original)),
+            None,
+        )?;
+        if info {
+            let bytes = self.native_object_string_bytes(lifetime.as_ptr());
+            self.check_native_error_object(currency, variable, &lifetime)?;
+            let bytes =
+                bytes.map_err(|error| self.clone().refuse_completion_value_access(error))?;
+            self.exc.borrow_mut().native.info_len = bytes.len();
         }
+        drop(lifetime);
+        currency.ensure_current_or_refuse()
+    }
+
+    pub(crate) fn retain_native_error_option(&self, info: bool, original: *mut obj::TclObj) {
+        let Ok(scope) = super::native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
+        let _ = self.retain_native_error_option_checked(scope.currency(), info, original);
     }
 
     /// C8.4's Tcl_SetObjErrorCode publishes the borrowed original globally
@@ -288,10 +401,26 @@ impl Interp {
     }
 
     pub(super) fn replace_native_error_code(&mut self, bytes: &[u8]) {
+        let Ok(scope) = super::native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
+        let _ = self.replace_native_error_code_checked(scope.currency(), bytes);
+    }
+
+    pub(super) fn replace_native_error_code_checked(
+        &mut self,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+        bytes: &[u8],
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        currency.ensure_current_or_refuse()?;
         if self.uses_c84_global_error_info() {
             let original = obj::Owned::fresh(new_string(bytes));
             self.publish_original_c84_error_code(original.as_ptr());
-            return;
+            // The selected C84 setter settles its flag even after a reached
+            // callback refusal. Classify only after that mandatory settlement
+            // and temporary retirement, retaining the original first cause.
+            drop(original);
+            return currency.ensure_current_or_refuse();
         }
         if self
             .native_invocation_dialect()
@@ -299,8 +428,14 @@ impl Interp {
             .is_some()
         {
             let original = self.native_default_error_code(bytes);
-            self.exc.borrow_mut().native.code = Some(original);
+            self.replace_native_error_object_checked(
+                currency,
+                Variable::ErrorCode,
+                Some(original),
+                None,
+            )?;
         }
+        currency.ensure_current_or_refuse()
     }
 
     /// Publish the complete new state before retiring its genuine old owners.
@@ -347,98 +482,178 @@ impl Interp {
             }
         };
         let original = self.native_default_error_code(&code);
-        let retired = self.exc.borrow_mut().native.code.replace(original);
-        drop(retired);
-        currency.ensure_current_or_refuse()?;
+        self.replace_native_error_object_checked(
+            currency,
+            Variable::ErrorCode,
+            Some(original),
+            None,
+        )?;
         let info = self.exc.borrow().info.clone();
         let original = info
             .as_deref()
             .map(|bytes| obj::Owned::fresh(new_string(bytes)));
-        let retired = {
-            let mut exc = self.exc.borrow_mut();
-            exc.native.info_len = info.as_ref().map_or(0, Vec::len);
-            std::mem::replace(&mut exc.native.info, original)
-        };
-        drop(retired);
+        self.replace_native_error_object_checked(
+            currency,
+            Variable::ErrorInfo,
+            original,
+            Some(info.as_ref().map_or(0, Vec::len)),
+        )
+    }
+
+    /// Seed the byte accumulator and its selected original result role without
+    /// borrowing exception state across the getter or displaced-owner retirement.
+    pub(super) fn seed_error_info_checked(
+        &mut self,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        currency.ensure_current_or_refuse()?;
+        if self.exc.borrow().info.is_some() {
+            return Ok(());
+        }
+        let original = obj::NativeObjectLifetime::retain(self.result.get());
+        let bytes = self.completion_result_bytes_checked()?;
+        currency.ensure_current_or_refuse()?;
+        obj::check_native_liveness(original.as_ptr())
+            .map_err(|error| self.refuse_completion_value_access(error))?;
+        if self.result.get() != original.as_ptr() {
+            return Err(self.refuse_completion_value_access(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original error-info seed result replaced during getter",
+                ),
+            ));
+        }
+        if self
+            .native_invocation_dialect()
+            .native_error_variable_protocol()
+            .is_some()
+        {
+            self.replace_native_error_object_checked(
+                currency,
+                Variable::ErrorInfo,
+                Some(obj::Owned::retain(original.as_ptr())),
+                Some(bytes.len()),
+            )?;
+        }
+        self.exc.borrow_mut().info = Some(bytes);
+        drop(original);
         currency.ensure_current_or_refuse()
     }
 
     pub(crate) fn update_native_error_info(&mut self) {
+        let Ok(scope) = super::native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
+        let _ = self.update_native_error_info_checked(scope.currency());
+    }
+
+    pub(super) fn update_native_error_info_checked(
+        &mut self,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        currency.ensure_current_or_refuse()?;
         if self.uses_c84_global_error_info() {
             self.append_c84_global_error_info();
-            return;
+            return currency.ensure_current_or_refuse();
         }
         let dialect = self.native_invocation_dialect();
         if dialect.native_error_variable_protocol().is_none() {
-            return;
+            return Ok(());
         }
-        let bytes = self
-            .exc
-            .borrow()
-            .info
-            .clone()
-            .unwrap_or_else(|| self.result_bytes());
-        if self.exc.borrow().native.info.is_none() {
-            let mut exc = self.exc.borrow_mut();
-            exc.native.info = Some(obj::Owned::retain(self.result.get()));
-            exc.native.info_len = self.result_bytes().len();
-        }
-        let outcome = {
-            let exc = self.exc.borrow();
-            let suffix = bytes.get(exc.native.info_len..).ok_or(
-                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                    "native errorInfo append extent",
-                ),
-            );
-            suffix.and_then(|suffix| {
-                if suffix.is_empty() {
-                    return Ok(None);
-                }
-                let protocol = dialect.native_object_append_protocol(None).ok_or(
+        let accumulated = self.exc.borrow().info.clone();
+        let original_result = accumulated
+            .is_none()
+            .then(|| obj::NativeObjectLifetime::retain(self.result.get()));
+        let reached = match accumulated {
+            Some(bytes) => Ok(bytes),
+            None => self.completion_result_bytes_checked(),
+        };
+        currency.ensure_current_or_refuse()?;
+        if let Some(original) = &original_result {
+            obj::check_native_liveness(original.as_ptr())
+                .map_err(|error| self.refuse_completion_value_access(error))?;
+            if self.result.get() != original.as_ptr() {
+                return Err(self.refuse_completion_value_access(
                     tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "native errorInfo append",
+                        "original error-info result replaced during getter",
                     ),
-                )?;
-                let objects = crate::value_ops::RuntimeAppendObjects {
-                    dialect,
-                    binary_recipe: dialect.byte_array_string_recipe(None),
-                };
-                let receiver = crate::value_ops::RuntimeAppendValue::borrowed(
+                ));
+            }
+        }
+        let bytes = reached?;
+        if self.exc.borrow().native.info.is_none() {
+            self.retain_native_error_option_checked(currency, true, self.result.get())?;
+        }
+        let (original, length) = {
+            let exc = self.exc.borrow();
+            (
+                obj::NativeObjectLifetime::retain(
                     exc.native
                         .info
                         .as_ref()
-                        .expect("private errorInfo owner")
+                        .expect("initialized private info")
                         .as_ptr(),
-                );
-                tcl_cmd_core::native_append::append_counted_bytes(
-                    &objects,
-                    protocol.recipe(),
-                    &receiver,
-                    suffix,
-                )
-                .map(|working| Some(obj::Owned::retain(working.as_ptr())))
-            })
+                ),
+                exc.native.info_len,
+            )
         };
-        match outcome {
-            Ok(original) => {
-                let mut exc = self.exc.borrow_mut();
-                if let Some(original) = original {
-                    exc.native.info = Some(original);
-                }
-                exc.native.info_len = bytes.len();
-                if exc.native.code.is_none() {
-                    exc.native.code = Some(self.native_default_error_code(b"NONE"));
-                }
-                exc.native.legacy_copy = true;
-            }
-            Err(error) => {
-                self.refuse_native_access(
-                    error
-                        .native_access_refusal()
-                        .expect("native append capability failure"),
-                );
-            }
+        self.check_native_error_object(currency, Variable::ErrorInfo, &original)?;
+        let suffix = bytes.get(length..).ok_or_else(|| {
+            self.refuse_completion_value_access(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "native errorInfo append extent",
+                ),
+            )
+        })?;
+        if !suffix.is_empty() {
+            let protocol = dialect.native_object_append_protocol(None).ok_or_else(|| {
+                self.refuse_completion_value_access(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "native errorInfo append",
+                    ),
+                )
+            })?;
+            let objects = crate::value_ops::RuntimeAppendObjects {
+                dialect,
+                binary_recipe: dialect.byte_array_string_recipe(None),
+            };
+            let receiver = crate::value_ops::RuntimeAppendValue::borrowed(original.as_ptr());
+            let mut check = || {
+                self.check_native_error_object(currency, Variable::ErrorInfo, &original)
+                    .map_err(|_| {
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "entered native errorInfo append",
+                        )
+                    })
+            };
+            let outcome = tcl_cmd_core::native_append::append_counted_bytes_checked(
+                &objects,
+                protocol.recipe(),
+                &receiver,
+                suffix,
+                &mut check,
+            );
+            currency.ensure_current_or_refuse()?;
+            self.check_native_error_object(currency, Variable::ErrorInfo, &original)?;
+            let working = outcome.map_err(|error| self.refuse_completion_value_access(error))?;
+            // This is the existing genuine working-to-private ownership transfer,
+            // after its COW decision; the allocation lease adds no native +1.
+            let published = obj::Owned::retain(working.as_ptr());
+            drop(working);
+            self.check_native_error_object(currency, Variable::ErrorInfo, &original)?;
+            self.replace_native_error_object_checked(
+                currency,
+                Variable::ErrorInfo,
+                Some(published),
+                None,
+            )?;
         }
+        self.exc.borrow_mut().native.info_len = bytes.len();
+        if self.exc.borrow().native.code.is_none() {
+            self.replace_native_error_code_checked(currency, b"NONE")?;
+        }
+        self.exc.borrow_mut().native.legacy_copy = true;
+        drop(original);
+        currency.ensure_current_or_refuse()
     }
 
     fn append_c84_global_error_info(&mut self) {
