@@ -14,6 +14,7 @@ enum RetiredPart {
     Elements(NativeElementEntries),
     HashKey(NativeHashKey),
     Cell(Cell),
+    Searches(tcl_core_types::NativeArraySearchChain<Owned>),
 }
 
 /// Only references already owned by the selected cell/table leave in this
@@ -48,6 +49,13 @@ impl RetiredVariableParts {
     }
     pub(super) fn cell(&mut self, old: Cell) {
         self.0.push(RetiredPart::Cell(old));
+    }
+
+    pub(super) fn searches(&mut self, old: &mut tcl_core_types::NativeArraySearchChain<Owned>) {
+        self.0.push(RetiredPart::Searches(std::mem::take(old)));
+    }
+    pub(super) fn extend(&mut self, mut old: Self) {
+        self.0.append(&mut old.0);
     }
 
     pub(crate) fn finish<E>(mut self, current: impl Fn() -> Result<(), E>) -> Result<(), E> {
@@ -92,6 +100,14 @@ impl RetiredVariableParts {
                         first.get_or_insert(error);
                     }
                 }
+                RetiredPart::Searches(mut searches) => {
+                    for handle in searches.take_handles() {
+                        drop(handle);
+                        if let Err(error) = current() {
+                            first.get_or_insert(error);
+                        }
+                    }
+                }
                 RetiredPart::Cell(cell) => {
                     drop(cell);
                     if let Err(error) = current() {
@@ -118,6 +134,7 @@ impl Drop for RetiredVariableParts {
                 RetiredPart::Elements(old) => drop(old),
                 RetiredPart::HashKey(old) => drop(old),
                 RetiredPart::Cell(old) => drop(old),
+                RetiredPart::Searches(old) => drop(old),
             }
         }
     }

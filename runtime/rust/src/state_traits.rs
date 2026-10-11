@@ -1520,14 +1520,37 @@ impl tcl_cmd_core::native_array_search::NativeArraySearchBackend for Interp {
         let (handle, bytes, cache) = operand.map_or((None, None, None), |operand| {
             (Some(operand.original), Some(operand.bytes), operand.cache)
         });
+        let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self)
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original array search operation",
+                )
+            })?;
         let record = self.array_operation_target(target).ok_or(
             tcl_syntax::value::ValueError::CommandProtocolUnavailable("original array search cell"),
         )?;
         let cell = record.original_array_cell().ok_or(
             tcl_syntax::value::ValueError::CommandProtocolUnavailable("original array search cell"),
         )?;
-        let result =
-            cell.native_array_search(sub, name, handle.copied(), bytes, cache, protocol)?;
+        let check = || {
+            scope.currency().ensure_current_or_refuse().map_err(|_| {
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original array search operation",
+                )
+            })?;
+            crate::vars::array_search_target_current(self, &record).map_err(|error| {
+                self.clone().refuse_completion_value_access(error.clone());
+                error
+            })
+        };
+        let reached =
+            cell.native_array_search(sub, name, handle.copied(), bytes, cache, protocol, &check);
+        check()?;
+        let result = reached.map_err(|error| {
+            self.clone().refuse_completion_value_access(error.clone());
+            error
+        })?;
         if sub == "startsearch" && protocol.start_handle_has_string_primary() {
             if let Ok(value) = result {
                 let materialization = self
@@ -1555,6 +1578,7 @@ impl tcl_cmd_core::native_array_search::NativeArraySearchBackend for Interp {
                 )?;
             }
         }
+        check()?;
         Ok(result)
     }
 }

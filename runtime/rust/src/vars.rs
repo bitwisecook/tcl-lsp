@@ -140,6 +140,7 @@ enum Resolved {
 /// observing the table again.
 #[derive(Clone, Debug)]
 pub(crate) struct ArrayCellTarget {
+    table: entered_container::TableObservation,
     id: VarId,
     home: VarHome,
     root: Vec<u8>,
@@ -820,6 +821,7 @@ pub(crate) fn array_target_at(
     let id = cell.identity();
     let array_cell = cell.array();
     Some(ArrayCellTarget {
+        table: entered_container::TableObservation::capture(frames, ns, place.home)?,
         id,
         home: place.home,
         root: place.name,
@@ -1049,6 +1051,33 @@ pub(crate) fn array_names_at_target(
 ) -> Option<Vec<Vec<u8>>> {
     let _ = (frames, ns);
     Some(target.cell.array()?.elements())
+}
+
+/// Check the actual original table/frame and captured array cell. This uses
+/// the receipt captured by LocateArray, never a new lookup of its spelling.
+pub(crate) fn array_search_target_current(
+    interpreter: &crate::interp::Interp,
+    target: &ArrayCellTarget,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    entered_container::same_table(interpreter, target.home, &target.table)?;
+    let same_binding = {
+        let frames = interpreter.frames.borrow();
+        let namespaces = interpreter.namespaces();
+        table(&frames, &namespaces, target.home)
+            .is_some_and(|table| table.trace_binding_identity(&target.root) == Some(target.id))
+    };
+    if same_binding
+        && target
+            .array_cell
+            .as_ref()
+            .is_some_and(|array| array.search_is_current())
+    {
+        Ok(())
+    } else {
+        Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original array search cell",
+        ))
+    }
 }
 
 /// Physical search rows belong to the captured array incarnation, not its name.
@@ -1622,9 +1651,6 @@ pub(crate) fn set_elem_at(
     table_mut(frames, ns, place.home).store_elem(&place.name, &key, obj)
 }
 
-
-
-
 /// `set name(key)` — borrowed.
 #[cfg(test)]
 pub(crate) fn get_elem(
@@ -1688,7 +1714,6 @@ pub(crate) fn replace_array_default_classified(
     table.ensure_array(&place.name)?;
     Ok(Ok(table.replace_array_default(&place.name, obj)))
 }
-
 
 /// Materialise an unset scalar cell for `trace add variable`.  This uses the
 /// same self-link storage representation as `variable`, with a distinct
@@ -1801,8 +1826,6 @@ pub(crate) fn cleanup_trace_shell(
     target.cleanup_trace_shell(&home.base, key, home.binding_id);
 }
 
-
-
 /// `unset name` — remove the variable `name` resolves to (following links).
 /// Returns whether it existed.
 #[cfg(test)]
@@ -1841,10 +1864,6 @@ pub(crate) fn unset(
     }
     existed
 }
-
-
-
-
 
 /// Flag the scalar `name` (following links to its home) `const` — the `const`
 /// command, after the value has been stored.
@@ -1932,10 +1951,6 @@ pub(crate) fn is_array(
         _ => false,
     }
 }
-
-
-
-
 
 // link installation (global / variable / upvar)
 

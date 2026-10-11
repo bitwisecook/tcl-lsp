@@ -16,6 +16,7 @@ type Call = (&'static str, Option<(NativeIntegerKind, i64)>);
 struct Formatter {
     calls: RefCell<Vec<Call>>,
     fail: Cell<bool>,
+    format_other_vm: Cell<bool>,
     original: RefCell<Option<crate::value::NativeObjectLifetimeLease>>,
     references: RefCell<Vec<usize>>,
     retire_at: Cell<Option<&'static str>>,
@@ -38,6 +39,11 @@ impl Formatter {
         if self.retire_at.get() == Some(stage) {
             let retired = self.retire_owner.borrow_mut().take();
             drop(retired);
+        }
+        if stage == "format" && self.format_other_vm.replace(false) {
+            let other =
+                crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
+            drop(other);
         }
         let shimmer = if stage == "format" {
             self.shimmer_root.borrow_mut().take()
@@ -1108,4 +1114,199 @@ fn original_integer_error_keeps_prior_typed_cause_before_misleading_guest_projec
     assert!(formatter.calls.borrow().is_empty());
     assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
     assert_eq!(vm.finish_host_execution(guest).unwrap_err(), first);
+}
+
+fn fixed_math(vm: &mut Vm, name: &str, args: &[Value]) -> tcl_runtime_api::Completion<Value> {
+    let surface =
+        tcl_registry::expr_surface::RuntimeExprSurface::for_profile(vm.native_execution_profile());
+    let tcl_registry::expr_surface::MathFunctionCallTarget::FixedBuiltin(spec) =
+        surface.math_function_call_target(name)
+    else {
+        panic!("fixed-table fixture must retain its actual selected registration");
+    };
+    vm.invoke_fixed_math_builtin(spec, args)
+}
+
+#[test]
+fn original_math_dispatch_keeps_cached_positives_and_object_preserving_integer_results() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let (mut vm, formatter, acquisitions) = provided();
+    let first = Value::int(2);
+    let second = Value::int(3);
+    let before = first.native_object_snapshot();
+    let result = fixed_math(&mut vm, "pow", &[first.clone(), second]);
+    assert_eq!(result.code, Code::Ok);
+    assert_eq!(
+        result.result.as_double().unwrap().to_bits(),
+        8.0_f64.to_bits()
+    );
+    assert_eq!(first.native_object_snapshot(), before);
+    assert_eq!(acquisitions.get(), 0);
+    assert!(formatter.calls.borrow().is_empty());
+    assert!(vm.execution_refusal.is_none());
+    let mut modern = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
+    let original = Value::new_native_string_bytes(b"0x10".as_slice());
+    let result = modern
+        .try_invoke_command("::tcl::mathfunc::entier", std::slice::from_ref(&original))
+        .unwrap();
+    assert_eq!(result.code, Code::Ok);
+    assert!(result.result.is_same_object(&original));
+    assert_eq!(
+        result.result.resident_string_bytes().unwrap().as_ref(),
+        b"0x10"
+    );
+    assert_eq!(result.result.integer_representation(), Some(16));
+}
+
+#[test]
+fn original_math_dispatch_stops_formatter_refusal_before_later_operand_and_random_seed() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // A supplied software Host formatter retires the genuine root at a reached stage.
+    for name in ["pow", "srand"] {
+        let (mut vm, formatter, _) = provided();
+        let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+        let original = Value::native_list_constructor(vec![value(&vm, i64::MIN)], protocol());
+        let held = original.native_lifetime_lease();
+        *formatter.retire_owner.borrow_mut() = Some(original);
+        formatter.retire_at.set(Some("format"));
+        let before_seed = vm.rand_seed;
+        let later = Value::new_native_string_bytes(b"2".as_slice());
+        let later_before = later.native_object_snapshot();
+        let completion = if name == "srand" {
+            fixed_math(&mut vm, name, std::slice::from_ref(held.value()))
+        } else {
+            let arguments = [
+                held.value().native_lifetime_lease().into_value(),
+                later.native_lifetime_lease().into_value(),
+            ];
+            fixed_math(&mut vm, name, &arguments)
+        };
+        let first = vm.execution_refusal.clone().unwrap();
+        assert!(matches!(
+            first,
+            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(_)
+        ));
+        assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
+        assert!(held.value().resident_string_bytes().is_none());
+        assert!(held.value().native_scalar_cache().is_none());
+        assert_eq!(later.native_object_snapshot(), later_before);
+        assert_eq!(vm.rand_seed, before_seed);
+        assert_eq!(formatter.calls.borrow().last().unwrap().0, "format");
+        assert_eq!(vm.finish_host_execution(completion).unwrap_err(), first);
+    }
+}
+
+#[test]
+fn original_math_option_and_wide_workers_distinguish_withdrawal_from_genuine_absence() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    for kind in ["int", "wide", "i128", "double", "bool", "big"] {
+        let (mut vm, formatter, _) = provided();
+        let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+        let original = Value::int(6);
+        let held = original.native_lifetime_lease();
+        drop(original);
+        let error = crate::expr::with_original_numeric_context(&mut vm, |context| match kind {
+            "int" => held.value().as_int_with_stages(Some(context)).map(|_| ()),
+            "wide" => held.value().as_wide_with_stages(Some(context)).map(|_| ()),
+            "i128" => held.value().as_i128_with_stages(Some(context)).map(|_| ()),
+            "double" => held
+                .value()
+                .as_double_with_stages(Some(context))
+                .map(|_| ()),
+            "bool" => held.value().as_bool_with_stages(Some(context)).map(|_| ()),
+            "big" => {
+                crate::expr::value_as_bigint_with_stages(held.value(), Some(context)).map(|_| ())
+            }
+            _ => unreachable!(),
+        })
+        .unwrap_err();
+        let first = vm.execution_refusal.clone().unwrap();
+        assert!(
+            matches!(error, TclError::Host(crate::error::TclHostFailure::Execution(ref actual)) if actual == &first)
+        );
+        assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
+        assert!(formatter.calls.borrow().is_empty());
+        assert!(held.value().resident_string_bytes().is_none());
+    }
+    let (mut vm, _, _) = provided();
+    let missing = Value::new_native_string_bytes(b"not_an_integer".as_slice());
+    let (small, big) = crate::expr::with_original_numeric_context(&mut vm, |context| {
+        Ok((
+            missing.as_i128_with_stages(Some(context))?,
+            crate::expr::value_as_bigint_with_stages(&missing, Some(context))?,
+        ))
+    })
+    .unwrap();
+    assert_eq!(small, None);
+    assert_eq!(big, None);
+    assert!(vm.execution_refusal.is_none());
+}
+
+#[test]
+fn original_math_grammar_remains_selected_when_formatter_constructs_another_vm() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Actual software callback constructs a second VM; it supplies no external getter chronology.
+    let (mut vm, formatter, _) = provided();
+    let selected = vm.numeric_policy_context().numbers;
+    assert_eq!(selected, tcl_dialect::NumberSyntax::Tcl84);
+    let original = Value::native_list_constructor(vec![value(&vm, i64::MIN)], protocol());
+    let later = Value::new_native_string_bytes(b"0d2".as_slice());
+    let before = later.native_object_snapshot();
+    formatter.format_other_vm.set(true);
+    let completion = fixed_math(&mut vm, "pow", &[original, later.clone()]);
+    assert_eq!(completion.code, Code::Error);
+    assert_eq!(number::runtime_syntax(), tcl_dialect::NumberSyntax::Tcl90);
+    assert_eq!(
+        completion.result.resident_string_bytes().unwrap().as_ref(),
+        b"expected floating-point number but got \"0d2\""
+    );
+    assert_eq!(later.native_object_snapshot(), before);
+    assert!(vm.execution_refusal.is_none());
+    // The independent pure adapter still observes its explicitly ambient grammar.
+    assert_eq!(later.as_int().unwrap(), 2);
+    number::set_runtime_syntax(selected);
+}
+
+#[test]
+fn original_math_classification_boolean_and_big_workers_preserve_selected_guest_purposes() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
+    let classification = vm
+        .try_invoke_command("fpclassify", &[Value::string("NaN")])
+        .unwrap();
+    assert_eq!(classification.code, Code::Ok);
+    assert_eq!(
+        classification
+            .result
+            .resident_string_bytes()
+            .unwrap()
+            .as_ref(),
+        b"nan"
+    );
+    let boolean = vm
+        .try_invoke_command("::tcl::mathfunc::bool", &[Value::string("tru")])
+        .unwrap();
+    assert_eq!(boolean.code, Code::Ok);
+    assert_eq!(boolean.result.integer_representation(), Some(1));
+    let absolute = vm
+        .try_invoke_command(
+            "::tcl::mathfunc::abs",
+            &[Value::string("-18446744073709551617")],
+        )
+        .unwrap();
+    assert_eq!(absolute.code, Code::Ok);
+    assert_eq!(
+        absolute.result.resident_string_bytes().unwrap().as_ref(),
+        b"18446744073709551617"
+    );
+    let failed = vm
+        .try_invoke_command("::tcl::mathfunc::double", &[Value::string("not_a_number")])
+        .unwrap();
+    assert_eq!(failed.code, Code::Error);
+    assert!(vm.execution_refusal.is_none());
 }

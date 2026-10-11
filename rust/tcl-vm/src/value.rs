@@ -6259,10 +6259,71 @@ impl Value {
         (RawString::from_bytes(bytes), past_cap)
     }
 
+    fn numeric_conversion_current(
+        &self,
+        original: Option<crate::expr::NumericContext<'_>>,
+    ) -> Result<(), TclError> {
+        original.map_or(Ok(()), |context| context.current_for_value(self))
+    }
+
+    pub(crate) fn numeric_conversion_parse(
+        text: &str,
+        original: Option<crate::expr::NumericContext<'_>>,
+    ) -> Option<Number> {
+        match original {
+            Some(context) => {
+                number::parse_whole_with(text, number::ParseFlags::for_syntax(context.numbers))
+            }
+            None => number::parse_whole(text),
+        }
+    }
+
+    pub(crate) fn numeric_conversion_text(
+        &self,
+        original: Option<crate::expr::NumericContext<'_>>,
+        invalid: fn(Vec<u8>) -> ValueError,
+    ) -> Result<Rc<str>, TclError> {
+        let Some(context) = original else {
+            return self
+                .try_to_str()
+                .map_err(|_| invalid(self.string_bytes().to_vec()).into());
+        };
+        context.current_for_value(self)?;
+        let reached = context.string_for_value(self);
+        context.current_for_value(self)?;
+        let bytes = reached?;
+        std::str::from_utf8(&bytes)
+            .map(Rc::from)
+            .map_err(|_| invalid(bytes.to_vec()).into())
+    }
+
+    pub(crate) fn numeric_conversion_optional_text(
+        &self,
+        original: Option<crate::expr::NumericContext<'_>>,
+    ) -> Result<Option<Rc<str>>, TclError> {
+        if original.is_none() {
+            return Ok(self.try_to_str().ok());
+        }
+        match self.numeric_conversion_text(original, ValueError::NotIntegerBytes) {
+            Ok(text) => Ok(Some(text)),
+            Err(error @ TclError::Host(_)) => Err(error),
+            Err(TclError::Guest(_)) => Ok(None),
+        }
+    }
+
     /// The value as a wide integer (`Tcl_GetWideIntFromObj`), caching the typed
     /// rep when it parses from the string side.
     pub fn as_int(&self) -> Result<i64, TclError> {
+        self.as_int_with_stages(None)
+    }
+
+    pub(crate) fn as_int_with_stages(
+        &self,
+        original: Option<crate::expr::NumericContext<'_>>,
+    ) -> Result<i64, TclError> {
+        self.numeric_conversion_current(original)?;
         if let Some(value) = self.restore_coerced_integer() {
+            self.numeric_conversion_current(original)?;
             return Ok(value);
         }
         match &*self.0.intrep.borrow() {
@@ -6305,14 +6366,15 @@ impl Value {
             | IntRep::List { .. }
             | IntRep::Dict(_) => {}
         }
-        let s = self.try_to_str().map_err(|_| {
-            TclError::from(tcl_syntax::value::ValueError::NotIntegerBytes(
-                self.string_bytes().to_vec(),
-            ))
-        })?;
-        match number::parse_whole(&s) {
+        let s = self.numeric_conversion_text(original, ValueError::NotIntegerBytes)?;
+        match Self::numeric_conversion_parse(&s, original) {
             Some(Number::Int(n)) => {
-                *self.0.intrep.borrow_mut() = IntRep::Int(n);
+                if let Some(original) = original {
+                    original.cache(self, Number::Int(n))?;
+                } else {
+                    *self.0.intrep.borrow_mut() = IntRep::Int(n);
+                }
+                self.numeric_conversion_current(original)?;
                 Ok(n)
             }
             _ => Err(TclError::new(format!(
@@ -6452,19 +6514,27 @@ impl Value {
     /// `wide(0x8000000000000000)` is `-9223372036854775808`). The VM has no
     /// arbitrary-precision rep, so this is the truncating window onto one.
     pub fn as_wide(&self) -> Result<i64, TclError> {
-        if let Ok(n) = self.as_int() {
-            return Ok(n);
+        self.as_wide_with_stages(None)
+    }
+
+    pub(crate) fn as_wide_with_stages(
+        &self,
+        original: Option<crate::expr::NumericContext<'_>>,
+    ) -> Result<i64, TclError> {
+        self.numeric_conversion_current(original)?;
+        let reached = self.as_int_with_stages(original);
+        self.numeric_conversion_current(original)?;
+        match reached {
+            Ok(n) => return Ok(n),
+            Err(error @ TclError::Host(_)) => return Err(error),
+            Err(TclError::Guest(_)) => {}
         }
-        let s = self.try_to_str().map_err(|_| {
-            TclError::from(tcl_syntax::value::ValueError::NotIntegerBytes(
-                self.string_bytes().to_vec(),
-            ))
-        })?;
+        let s = self.numeric_conversion_text(original, ValueError::NotIntegerBytes)?;
         if let Some(Number::Big {
             negative,
             radix,
             digits,
-        }) = number::parse_whole(&s)
+        }) = Self::numeric_conversion_parse(&s, original)
         {
             let base = radix as u32;
             let mut acc: u64 = 0;
@@ -6490,32 +6560,62 @@ impl Value {
     /// beyond `i128`.
     #[must_use]
     pub fn as_i128(&self) -> Option<i128> {
-        if let Ok(n) = self.as_int() {
-            return Some(i128::from(n));
+        self.as_i128_with_stages(None).ok().flatten()
+    }
+
+    pub(crate) fn as_i128_with_stages(
+        &self,
+        original: Option<crate::expr::NumericContext<'_>>,
+    ) -> Result<Option<i128>, TclError> {
+        self.numeric_conversion_current(original)?;
+        let reached = self.as_int_with_stages(original);
+        self.numeric_conversion_current(original)?;
+        match reached {
+            Ok(n) => return Ok(Some(i128::from(n))),
+            Err(error @ TclError::Host(_)) => return Err(error),
+            Err(TclError::Guest(_)) => {}
         }
-        let s = self.try_to_str().ok()?;
+        let Some(s) = self.numeric_conversion_optional_text(original)? else {
+            return Ok(None);
+        };
         if let Some(Number::Big {
             negative,
             radix,
             digits,
-        }) = number::parse_whole(&s)
+        }) = Self::numeric_conversion_parse(&s, original)
         {
             let base = radix as u32;
             let mut acc: u128 = 0;
             for ch in digits.chars() {
-                let d = ch.to_digit(base)?;
-                acc = acc
-                    .checked_mul(u128::from(base))?
-                    .checked_add(u128::from(d))?;
+                let Some(d) = ch.to_digit(base) else {
+                    return Ok(None);
+                };
+                let Some(next) = acc
+                    .checked_mul(u128::from(base))
+                    .and_then(|acc| acc.checked_add(u128::from(d)))
+                else {
+                    return Ok(None);
+                };
+                acc = next;
             }
-            let mag = i128::try_from(acc).ok()?;
-            return Some(if negative { -mag } else { mag });
+            let Ok(mag) = i128::try_from(acc) else {
+                return Ok(None);
+            };
+            return Ok(Some(if negative { -mag } else { mag }));
         }
-        None
+        Ok(None)
     }
 
     /// The value as a double (`Tcl_GetDoubleFromObj`).
     pub fn as_double(&self) -> Result<f64, TclError> {
+        self.as_double_with_stages(None)
+    }
+
+    pub(crate) fn as_double_with_stages(
+        &self,
+        original: Option<crate::expr::NumericContext<'_>>,
+    ) -> Result<f64, TclError> {
+        self.numeric_conversion_current(original)?;
         match &*self.0.intrep.borrow() {
             IntRep::Int(n) | IntRep::Tcl84Long(n) | IntRep::CoercedDouble(n) => {
                 return Ok(*n as f64);
@@ -6557,12 +6657,8 @@ impl Value {
             | IntRep::List { .. }
             | IntRep::Dict(_) => {}
         }
-        let s = self.try_to_str().map_err(|_| {
-            TclError::from(tcl_syntax::value::ValueError::NotDoubleBytes(
-                self.string_bytes().to_vec(),
-            ))
-        })?;
-        match number::parse_whole(&s) {
+        let s = self.numeric_conversion_text(original, ValueError::NotDoubleBytes)?;
+        match Self::numeric_conversion_parse(&s, original) {
             Some(Number::Int(n)) => Ok(n as f64),
             Some(Number::Double(f)) => Ok(f),
             _ => Err(TclError::new(format!(
@@ -6574,6 +6670,14 @@ impl Value {
 
     /// The value as a boolean (`Tcl_GetBooleanFromObj`).
     pub fn as_bool(&self) -> Result<bool, TclError> {
+        self.as_bool_with_stages(None)
+    }
+
+    pub(crate) fn as_bool_with_stages(
+        &self,
+        original: Option<crate::expr::NumericContext<'_>>,
+    ) -> Result<bool, TclError> {
+        self.numeric_conversion_current(original)?;
         match &*self.0.intrep.borrow() {
             IntRep::Bool(b) => return Ok(*b),
             IntRep::Int(n) | IntRep::Tcl84Long(n) | IntRep::CoercedDouble(n) => return Ok(*n != 0),
@@ -6613,12 +6717,8 @@ impl Value {
             | IntRep::List { .. }
             | IntRep::Dict(_) => {}
         }
-        let s = self.try_to_str().map_err(|_| {
-            TclError::from(tcl_syntax::value::ValueError::NotBooleanBytes(
-                self.string_bytes().to_vec(),
-            ))
-        })?;
-        if let Some(num) = number::parse_whole(&s) {
+        let s = self.numeric_conversion_text(original, ValueError::NotBooleanBytes)?;
+        if let Some(num) = Self::numeric_conversion_parse(&s, original) {
             return match num {
                 Number::Int(n) => Ok(n != 0),
                 Number::Double(f) => Ok(f != 0.0),

@@ -11,10 +11,35 @@ use std::{cell::RefCell, rc::Weak};
 use tcl_cmd_core::CmdError;
 use tcl_syntax::value::ValueError;
 
-#[derive(Clone)]
-struct TableObservation {
+#[derive(Clone, Debug)]
+pub(super) struct TableObservation {
     ledger: Weak<RefCell<tcl_core_types::NativeEntryLedger>>,
     frame: Option<Weak<()>>,
+}
+
+impl TableObservation {
+    pub(super) fn capture(
+        frames: &FrameStack,
+        namespaces: &Namespaces,
+        home: VarHome,
+    ) -> Option<Self> {
+        let (table, frame) = match home {
+            VarHome::Frame(level) => (
+                frames.original_variable_table_at(level)?,
+                Some(frames.original_activation_owner_at(level)?),
+            ),
+            VarHome::Namespace(namespace)
+                if !namespaces.namespace_variables_are_deleted(namespace) =>
+            {
+                (namespaces.original_variable_table_at(namespace)?, None)
+            }
+            _ => return None,
+        };
+        Some(Self {
+            ledger: table.original_table_ledger(),
+            frame,
+        })
+    }
 }
 
 fn current(currency: &NativeOperationCurrency) -> Result<(), JimLinkStoreError> {
@@ -22,7 +47,7 @@ fn current(currency: &NativeOperationCurrency) -> Result<(), JimLinkStoreError> 
         .ensure_current_or_refuse()
         .map_err(|first| JimLinkStoreError::Command(CmdError::from_execution_refusal(first)))
 }
-fn same_table(
+pub(super) fn same_table(
     interpreter: &Interp,
     home: VarHome,
     original: &TableObservation,

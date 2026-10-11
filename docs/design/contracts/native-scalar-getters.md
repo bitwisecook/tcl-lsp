@@ -464,3 +464,27 @@ namespace, frame and installed function-table guards remain independent. The
 explicit authored and independent `prepare_expression_value` routes pass no
 operation provider to that same kernel. An authored source or display label
 cannot provide native compiler, namespace or physical frame authority.
+
+
+Checked Value conversion siblings accept the captured `NumericContext`, rather
+than an operation checker alone. The context keeps selected `NumberSyntax`
+through String callbacks and cache publication. A callback that constructs
+another VM may change the independent ambient parser policy; it does not
+change the captured conversion grammar. The context-free APIs retain their
+ambient grammar and existing reference roles.
+
+`Value::as_int_with_stages`, `as_wide_with_stages`, `as_double_with_stages`
+and `as_bool_with_stages` share the public converter kernels. Checked i128 and
+Big converters return `Result<Option<_>, TclError>`: a genuine non-integer is
+absence, while a Host refusal remains a typed error. Optional text conversion
+preserves the pure UTF-8 failure route without another String read. Native
+math consumers retain the same original operation across all operands,
+classification, selected integer-preserving results, output formatting and
+generator mutation. Only a Guest conversion failure can try another converter;
+a Host refusal stops before fallback, later operands or random-seed changes.
+
+A consumer with an actual VM uses `with_original_numeric_context` and passes
+`Some(context)` to these siblings. It handles the typed result before any Guest
+message or default. The explicit authored route and independent public Value
+APIs pass no original provider. Neither route supplies a physical scalar-getter
+policy by selecting a generic integer, double or Boolean converter.

@@ -66,8 +66,12 @@ pub(crate) use jim_lookup::{CapturedJimDictionaryCell, JimVariableRead, WeakJimV
 mod container;
 pub(crate) use container::CapturedContainerModel;
 mod destruction;
+mod materialisation;
+#[cfg(test)]
+mod materialisation_tests;
 mod retired_variable;
 pub use destruction::{RetainedArrayCell, WeakArraySearchCell};
+pub(crate) use materialisation::PreparedVariableReplacement;
 pub(crate) use retired_variable::RetiredVariableParts;
 mod native_element_entry;
 pub(crate) use native_element_entry::NativeElementAliasEntry;
@@ -2016,20 +2020,44 @@ impl FrameStack {
         }
     }
 
+    pub(crate) fn prepare_formal_cell_store(
+        &mut self,
+        slot: usize,
+        value: *mut TclObj,
+    ) -> Result<PreparedVariableReplacement, VarError> {
+        let (frame, cell) = self
+            .compiled_cell(slot)
+            .ok_or(VarError::NameProtocolUnavailable)?;
+        // The same actual incoming stored role is acquired before reached
+        // metadata retirement; it is not an allocation-safety reference.
+        unsafe { obj::incr_ref_count(value) };
+        let table = &self.frames[frame].table;
+        Ok(PreparedVariableReplacement::capture(
+            &table.cells[cell].contents,
+            Var::Scalar(value),
+            table.hash_recipe.get(),
+        ))
+    }
+    pub(crate) fn original_formal_cell_is_current(
+        &self,
+        slot: usize,
+        original: &materialisation::VariablePublicationObservation,
+    ) -> bool {
+        self.compiled_cell(slot).is_some_and(|(frame, cell)| {
+            original.matches(&self.frames[frame].table.cells[cell].contents)
+        })
+    }
+    #[cfg(test)]
     pub(crate) fn store_formal_cell(
         &mut self,
         slot: usize,
         value: *mut TclObj,
     ) -> Result<(), VarError> {
-        let (frame, cell) = self
-            .compiled_cell(slot)
-            .ok_or(VarError::NameProtocolUnavailable)?;
-        unsafe {
-            obj::incr_ref_count(value);
-        }
-        if let Some(old) = self.frames[frame].table.put_at(cell, Var::Scalar(value)) {
-            old.release();
-        }
+        let prepared = self.prepare_formal_cell_store(slot, value)?;
+        let old = prepared
+            .finish(|| Ok::<_, tcl_syntax::value::ValueError>(()))
+            .map_err(|_| VarError::NameProtocolUnavailable)?;
+        drop(old);
         Ok(())
     }
 

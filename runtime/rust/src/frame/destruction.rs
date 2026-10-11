@@ -127,7 +127,15 @@ impl RetainedArrayCell {
         contents.native_member_keys.ensure(id, element, original);
         Ok(())
     }
-    /// The cursor chain belongs to the exact original array, without a root pin.
+    pub(crate) fn search_is_current(&self) -> bool {
+        let contents = self.contents.borrow();
+        contents.binding_id == Some(self.id)
+            && contents.rmw_array_epoch == self.epoch
+            && matches!(contents.var.as_ref(), Some(Var::Array(_)))
+    }
+    /// The cursor chain belongs to the exact original array. Snapshot only
+    /// allocation/header observations while its storage borrow is held; String
+    /// and owning-handle retirement occur after that borrow ends.
     pub(crate) fn native_array_search(
         &self,
         sub: &str,
@@ -136,83 +144,141 @@ impl RetainedArrayCell {
         bytes: Option<&[u8]>,
         cache: Option<tcl_core_types::NativeArraySearchCache>,
         protocol: tcl_syntax::native_array_search::NativeArraySearchProtocol,
+        current: &dyn Fn() -> Result<(), tcl_syntax::value::ValueError>,
     ) -> Result<
         Result<*mut TclObj, tcl_syntax::native_array_search::NativeArraySearchFailure>,
         tcl_syntax::value::ValueError,
     > {
         use tcl_syntax::value::ValueError;
-        let mut contents = self.contents.borrow_mut();
-        if contents.binding_id != Some(self.id)
-            || contents.rmw_array_epoch != self.epoch
-            || !matches!(contents.var, Some(Var::Array(_)))
-        {
-            return Err(ValueError::CommandProtocolUnavailable(
-                "original array search cell",
-            ));
-        }
-        let keys = contents
-            .member_order
-            .keys()
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "native array search table",
-            ))?
-            .into_iter()
-            .map(<[u8]>::to_vec)
-            .collect();
-        if sub == "startsearch" {
-            let next =
-                contents
-                    .array_searches
-                    .next_id()
+        let check = || {
+            current()?;
+            if self.search_is_current() {
+                Ok(())
+            } else {
+                Err(ValueError::CommandProtocolUnavailable(
+                    "original array search cell",
+                ))
+            }
+        };
+        check()?;
+        let snapshot = {
+            let mut contents = self.contents.borrow_mut();
+            if sub == "startsearch" {
+                let keys = contents
+                    .member_order
+                    .keys()
                     .ok_or(ValueError::CommandProtocolUnavailable(
-                        "native array search id overflow",
-                    ))?;
-            let value = obj::new_string_bytes(&protocol.handle(next, name));
-            contents.array_searches.insert(
-                next,
-                (!protocol.caches_handle()).then(|| obj::Owned::retain(value)),
-                keys,
-            );
-            return Ok(Ok(value));
-        }
+                        "native array search table",
+                    ))?
+                    .into_iter()
+                    .map(<[u8]>::to_vec)
+                    .collect();
+                let next = contents.array_searches.next_id().ok_or(
+                    ValueError::CommandProtocolUnavailable("native array search id overflow"),
+                )?;
+                let value = obj::new_string_bytes(&protocol.handle(next, name));
+                contents.array_searches.insert(
+                    next,
+                    (!protocol.caches_handle()).then(|| obj::Owned::retain(value)),
+                    keys,
+                );
+                return Ok(Ok(value));
+            }
+            contents.array_searches.snapshot(|held| {
+                (
+                    held.as_ptr(),
+                    obj::NativeObjectLifetime::retain(held.as_ptr()),
+                )
+            })
+        };
         let handle = handle.ok_or(ValueError::CommandProtocolUnavailable(
             "original search handle",
         ))?;
-        let found = tcl_cmd_core::native_array_search::resolve(
-            &contents.array_searches,
-            protocol,
-            name,
-            &tcl_cmd_core::native_array_search::NativeArraySearchOperand {
-                original: &handle,
-                bytes: bytes.unwrap_or_default(),
-                cache,
-            },
-            |held, original| held.as_ptr() == *original,
-            |held| {
-                crate::dict::native_object_bytes(
-                    held.as_ptr(),
-                    tcl_syntax::native_string::NativeStringProtocol::C(protocol.version()),
-                )
-            },
-        )?;
-        let search = match found {
+        let check_birth = |id, birth: &Weak<()>| {
+            check()?;
+            if self
+                .contents
+                .borrow()
+                .array_searches
+                .has_original_birth(id, birth)
+            {
+                Ok(())
+            } else {
+                Err(ValueError::CommandProtocolUnavailable(
+                    "original array search cursor",
+                ))
+            }
+        };
+        let reached =
+            tcl_cmd_core::native_array_search::resolve(
+                &snapshot,
+                protocol,
+                name,
+                &tcl_cmd_core::native_array_search::NativeArraySearchOperand {
+                    original: &handle,
+                    bytes: bytes.unwrap_or_default(),
+                    cache,
+                },
+                |held, original| held.0 == *original,
+                |held| {
+                    let id = snapshot
+                        .find_handle::<ValueError>(|candidate| Ok(std::ptr::eq(candidate, held)))?
+                        .ok_or(ValueError::CommandProtocolUnavailable(
+                            "original array search snapshot",
+                        ))?;
+                    let birth = snapshot.original_birth(id).ok_or(
+                        ValueError::CommandProtocolUnavailable("original array search snapshot"),
+                    )?;
+                    check_birth(id, &birth)?;
+                    obj::check_native_liveness(held.0)?;
+                    let reached = crate::dict::native_object_bytes(
+                        held.0,
+                        tcl_syntax::native_string::NativeStringProtocol::C(protocol.version()),
+                    );
+                    check_birth(id, &birth)?;
+                    obj::check_native_liveness(held.0)?;
+                    reached
+                },
+            );
+        check()?;
+        let search = match reached? {
             Ok(search) => search,
             Err(failure) => return Ok(Err(failure)),
         };
+        let birth =
+            snapshot
+                .original_birth(search)
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original array search cursor",
+                ))?;
+        check_birth(search, &birth)?;
         if sub == "donesearch" {
-            contents.array_searches.remove(search);
+            let retired = self
+                .contents
+                .borrow_mut()
+                .array_searches
+                .take_handle(search)
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original array search cursor",
+                ))?;
+            drop(retired);
+            check()?;
             return Ok(Ok(obj::new_string_bytes(b"")));
         }
-        let CellContents {
-            array_searches,
-            var,
-            ..
-        } = &mut *contents;
-        let next = array_searches.next_defined(
-            search,
-            sub == "nextelement",
-            |key| matches!(var.as_ref(), Some(Var::Array(map)) if map.contains_key(key)),
-        );
+        let next = {
+            let mut contents = self.contents.borrow_mut();
+            let CellContents {
+                array_searches,
+                var,
+                ..
+            } = &mut *contents;
+            array_searches.next_defined(
+                search,
+                sub == "nextelement",
+                |key| matches!(var.as_ref(), Some(Var::Array(map)) if map.contains_key(key)),
+            )
+        };
+        check_birth(search, &birth)?;
         Ok(Ok(if sub == "anymore" {
             obj::new_wide_int_obj(i64::from(next.is_some()))
         } else {

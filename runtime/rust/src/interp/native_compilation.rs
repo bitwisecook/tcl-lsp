@@ -1187,14 +1187,14 @@ impl Interp {
                     parameter,
                     argument,
                 } => (if indexed.is_some() {
-                    self.frames
-                        .borrow_mut()
-                        .store_formal_cell(parameter, call_args[argument])
+                    self.store_native_formal_cell_checked(parameter, call_args[argument])
                 } else {
                     self.var_set_named(&params[parameter].name, call_args[argument])
                 })
                 .map_err(|_| {
-                    self.set_error(b"proc parameter binding failed");
+                    if self.native_execution_refusal().is_none() {
+                        self.set_error(b"proc parameter binding failed");
+                    }
                 }),
                 Binding::Default { parameter } => {
                     let value = params[parameter].default.as_ref().unwrap().as_ptr();
@@ -1206,12 +1206,14 @@ impl Interp {
                         return Err(self.report_cmd_error(error.into()));
                     }
                     let result = if indexed.is_some() {
-                        self.frames.borrow_mut().store_formal_cell(parameter, value)
+                        self.store_native_formal_cell_checked(parameter, value)
                     } else {
                         self.var_set_named(&params[parameter].name, value)
                     };
                     result.map_err(|_| {
-                        self.set_error(b"proc parameter binding failed");
+                        if self.native_execution_refusal().is_none() {
+                            self.set_error(b"proc parameter binding failed");
+                        }
                     })
                 }
                 Binding::Rest {
@@ -1222,7 +1224,7 @@ impl Interp {
                 } => {
                     let value = self.new_list_object(&call_args[start..start + len]);
                     let result = if indexed.is_some() {
-                        self.frames.borrow_mut().store_formal_cell(parameter, value)
+                        self.store_native_formal_cell_checked(parameter, value)
                     } else {
                         self.var_set(&name, value)
                     };
@@ -1230,7 +1232,9 @@ impl Interp {
                         drop_fresh(value);
                     }
                     result.map_err(|_| {
-                        self.set_error(b"proc parameter binding failed");
+                        if self.native_execution_refusal().is_none() {
+                            self.set_error(b"proc parameter binding failed");
+                        }
                     })
                 }
                 Binding::CallerLink { name, argument, .. } => {

@@ -7223,6 +7223,71 @@ impl Interp {
         reached.map_err(|error| self.byte_store_failure(error))
     }
 
+    /// Publish the same indexed formal role outside frame/table borrows, under
+    /// its actual original activation and cell through all reached retirement.
+    pub(crate) fn store_native_formal_cell_checked(
+        &mut self,
+        slot: usize,
+        value: *mut TclObj,
+    ) -> Result<(), VarError> {
+        let scope =
+            native_operation_currency::NativeOperationScope::enter(self).map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        obj::check_native_liveness(value).map_err(|error| {
+            self.refuse_completion_value_access(error);
+            VarError::NameProtocolUnavailable
+        })?;
+        let (prepared, frame) = {
+            let mut frames = self.frames.borrow_mut();
+            let frame = frames.current_activation_owner();
+            (frames.prepare_formal_cell_store(slot, value)?, frame)
+        };
+        let original = prepared.observation();
+        let check = || {
+            let reached = (|| {
+                scope.currency().ensure_current_or_refuse().map_err(|_| {
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "entered original formal store",
+                    )
+                })?;
+                let current = self.frames.borrow().current_activation_owner();
+                if frame.strong_count() == 0 || !std::rc::Weak::ptr_eq(&frame, &current) {
+                    return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original formal frame",
+                    ));
+                }
+                if !self
+                    .frames
+                    .borrow()
+                    .original_formal_cell_is_current(slot, &original)
+                {
+                    return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original formal cell publication",
+                    ));
+                }
+                original.check_current()
+            })();
+            reached.map_err(|error| {
+                self.clone().refuse_completion_value_access(error.clone());
+                error
+            })
+        };
+        let reached = prepared.finish(&check).and_then(|old| old.finish(&check));
+        if let Err(error) = reached {
+            self.refuse_completion_value_access(error);
+            return Err(VarError::NameProtocolUnavailable);
+        }
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })
+    }
+
     /// The admitted anonymous-cell worker keeps its original frame through
     /// displaced-value retirement. A reported name supplies no indexed grant.
     pub(crate) fn store_native_compiled_temporary_checked(

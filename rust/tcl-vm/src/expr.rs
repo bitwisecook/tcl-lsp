@@ -175,22 +175,39 @@ pub(crate) fn big_value(r: &BigInt) -> Value {
 /// [`Value::as_i128`] can't, by reading the parsed `Big` literal. Shared with
 /// `value_ops::int_add` so `incr`/`dict incr` promote to bignum too.
 pub(crate) fn value_as_bigint(v: &Value) -> Option<BigInt> {
-    if let Ok(n) = v.as_int() {
-        return Some(BigInt::from(n));
+    value_as_bigint_with_stages(v, None).ok().flatten()
+}
+
+pub(crate) fn value_as_bigint_with_stages(
+    v: &Value,
+    original: Option<NumericContext<'_>>,
+) -> Result<Option<BigInt>, TclError> {
+    let reached = v.as_int_with_stages(original);
+    if let Some(original) = original {
+        original.current_for_value(v)?;
     }
-    let text = v.try_to_str().ok()?;
-    match number::parse_whole(text.trim()) {
+    match reached {
+        Ok(n) => return Ok(Some(BigInt::from(n))),
+        Err(error @ TclError::Host(_)) => return Err(error),
+        Err(TclError::Guest(_)) => {}
+    }
+    let Some(text) = v.numeric_conversion_optional_text(original)? else {
+        return Ok(None);
+    };
+    let parsed = match Value::numeric_conversion_parse(text.trim(), original) {
         Some(Number::Int(n)) => Some(BigInt::from(n)),
         Some(Number::Big {
             negative,
             radix,
             digits,
-        }) => {
-            let b = BigInt::parse_bytes(digits.as_bytes(), radix as u32)?;
-            Some(if negative { -b } else { b })
-        }
+        }) => BigInt::parse_bytes(digits.as_bytes(), radix as u32)
+            .map(|b| if negative { -b } else { b }),
         _ => None,
+    };
+    if let Some(original) = original {
+        original.current_for_value(v)?;
     }
+    Ok(parsed)
 }
 
 /// Integer arithmetic in arbitrary precision — the promotion target of the

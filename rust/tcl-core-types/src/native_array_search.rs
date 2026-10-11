@@ -1,7 +1,10 @@
 //! Original array-search cache facts and owning cursor chains.
 
 use crate::NativeHashWordWidth;
-use alloc::vec::Vec;
+use alloc::{
+    rc::{Rc, Weak},
+    vec::Vec,
+};
 
 /// Independently issued native integer ABI, not a Tcl release inference.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -22,6 +25,7 @@ pub struct NativeArraySearchCache {
 }
 
 struct Search<V> {
+    birth: Rc<()>,
     id: i32,
     handle: Option<V>,
     keys: Vec<Vec<u8>>,
@@ -53,6 +57,7 @@ impl<V> NativeArraySearchChain<V> {
         self.searches.insert(
             0,
             Search {
+                birth: Rc::new(()),
                 id,
                 handle,
                 keys,
@@ -60,17 +65,61 @@ impl<V> NativeArraySearchChain<V> {
             },
         );
     }
+    /// Snapshot the same cursor identities using only the supplied value
+    /// projection. The projection must express its own physical custody; this
+    /// adapter adds no value reference and issues no execution purpose.
+    pub fn snapshot<H>(&self, mut project: impl FnMut(&V) -> H) -> NativeArraySearchChain<H> {
+        NativeArraySearchChain {
+            searches: self
+                .searches
+                .iter()
+                .map(|search| Search {
+                    birth: Rc::clone(&search.birth),
+                    id: search.id,
+                    handle: search.handle.as_ref().map(&mut project),
+                    keys: search.keys.clone(),
+                    next: search.next,
+                })
+                .collect(),
+        }
+    }
+    /// Observe the birth of an actual current search, independently of its
+    /// decimal ID. Removing and reusing an ID cannot refresh this observation.
+    #[must_use]
+    pub fn original_birth(&self, id: i32) -> Option<Weak<()>> {
+        self.searches
+            .iter()
+            .find(|search| search.id == id)
+            .map(|search| Rc::downgrade(&search.birth))
+    }
+    /// Check that an observed cursor remains the same actual current node.
+    #[must_use]
+    pub fn has_original_birth(&self, id: i32, original: &Weak<()>) -> bool {
+        self.searches
+            .iter()
+            .any(|search| search.id == id && Weak::ptr_eq(original, &Rc::downgrade(&search.birth)))
+    }
+    /// Extract all existing owning handles in current chain order. Their
+    /// caller can retire them after releasing the enclosing storage borrow.
+    pub fn take_handles(&mut self) -> Vec<V> {
+        core::mem::take(&mut self.searches)
+            .into_iter()
+            .filter_map(|search| search.handle)
+            .collect()
+    }
+    /// Extract exactly one current owning handle. The outer option records
+    /// cursor existence; legacy cursors have no owning handle.
+    pub fn take_handle(&mut self, id: i32) -> Option<Option<V>> {
+        let index = self.searches.iter().position(|search| search.id == id)?;
+        Some(self.searches.remove(index).handle)
+    }
     /// Drop all handle holds at the actual invalidating mutation.
     pub fn clear(&mut self) {
-        self.searches.clear();
+        drop(self.take_handles());
     }
     /// Remove exactly one active cursor and its handle hold.
     pub fn remove(&mut self, id: i32) -> bool {
-        let Some(index) = self.searches.iter().position(|search| search.id == id) else {
-            return false;
-        };
-        self.searches.remove(index);
-        true
+        self.take_handle(id).is_some()
     }
     /// Legacy ID lookup owns no variable or object reference.
     #[must_use]

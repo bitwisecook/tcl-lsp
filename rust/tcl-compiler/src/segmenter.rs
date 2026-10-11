@@ -2268,7 +2268,7 @@ mod checked_script_tests {
         // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
         let config = LexerConfig::for_dialect("tcl9.1");
         for (image, base) in [
-            (SourceImage::native(b"set a \xff"), 0),
+            (SourceImage::native(b"set a \xff".as_slice()), 0),
             (SourceImage::document("set a 1"), u32::MAX),
         ] {
             assert!(matches!(
