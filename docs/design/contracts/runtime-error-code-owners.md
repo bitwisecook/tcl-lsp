@@ -33,3 +33,23 @@ and the original-object append observations by
 [naming.variable.error-info-append-original-object](../analysis/name-resolution-proofs/variable.error-info-append-original-object.md).
 Those observations cover their exact input and capture frontiers; the shared
 suffix descriptor is software accumulator geometry.
+
+## Package failure code effects
+
+`NativePackageProtocol` selects `NativePackageErrorCode` at the actual conflict,
+failure, index or version-validation purpose. `Default` means that the command
+supplies no explicit code setter. `Set` carries the exact error-code List bytes
+for the explicit setter. The visible `NONE` value cannot distinguish these
+operations and must not select them.
+
+The VM package error factory consumes the structured effect directly. Runtime
+package command and C API provision factories consume the same selector before
+publishing their error state.
+The C8.4/C8.5 conflict and legacy version-validation paths supply the default;
+C8.5's present lookup has its own explicit code. C8.6–9.1 retain their selected
+structured codes. Jim's direct package diagnostics supply the default.
+
+The [original C8.4 callback comparisons](../analysis/name-resolution-proofs/error-c84-publication-order.md)
+and [package publication evidence](../analysis/name-resolution-proofs/package-ordinary-conflict.md)
+retain the exact measured outputs. A code effect does not authorise another
+command, native header, package table, source grammar or operand getter.

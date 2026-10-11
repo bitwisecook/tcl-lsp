@@ -21,6 +21,7 @@
 
 use std::cmp::Ordering;
 use tcl_core_types::NameBytes;
+use tcl_registry::native_package::NativePackageErrorCode;
 
 use tcl_dialect::{
     PackagePrefer, compare_versions_bytes_for as cmp_version, select_package_version_bytes_for,
@@ -145,11 +146,15 @@ fn package_list(vm: &mut Vm, members: Vec<Value>) -> Completion<Value> {
     ok(Value::native_list_constructor(members, strings))
 }
 
-fn package_error(parts: &[&[u8]], code: &[u8], vm: &mut Vm) -> Completion<Value> {
-    crate::command::completion_from_cmd_error(
-        vm,
-        tcl_cmd_core::CmdError::with_error_code_bytes(parts.concat(), code),
-    )
+fn package_error(parts: &[&[u8]], code: NativePackageErrorCode, vm: &mut Vm) -> Completion<Value> {
+    let message = parts.concat();
+    let error = match code {
+        NativePackageErrorCode::Default => tcl_cmd_core::CmdError::new_bytes(message),
+        NativePackageErrorCode::Set(code) => {
+            tcl_cmd_core::CmdError::with_error_code_bytes(message, code)
+        }
+    };
+    crate::command::completion_from_cmd_error(vm, error)
 }
 
 /// Pre-provide the core's own package entries for the release this VM is
@@ -229,8 +234,8 @@ fn package_subcommand(
             let word = package_word(vm, original)?;
             Err(package_error(
                 &[message.as_slice()],
-                &protocol
-                    .index_error_code(b"option", word.as_bytes())
+                protocol
+                    .index_error_code_update(b"option", word.as_bytes())
                     .expect("C package index metadata"),
                 vm,
             ))
@@ -353,7 +358,7 @@ fn jim_package(
             return ok(Value::from_native_string_bytes(bytes));
         }
         Some(tcl_registry::native_package::PackageDispatch::Error(message)) => {
-            return package_error(&[message.as_slice()], b"NONE", vm);
+            return package_error(&[message.as_slice()], NativePackageErrorCode::Default, vm);
         }
         None => {
             return vm.refuse_host_command("Jim package member protocol is unavailable".to_owned());
@@ -371,7 +376,7 @@ fn jim_package(
             {
                 return package_error(
                     &[b"package \"", name.as_bytes(), b"\" was already provided"],
-                    b"NONE",
+                    NativePackageErrorCode::Default,
                     vm,
                 );
             }
@@ -421,7 +426,13 @@ fn jim_require(vm: &mut Vm, name: &NameBytes) -> Completion<Value> {
     }
     let paths = match vm.read_var_traced("::auto_path") {
         Ok(Some(paths)) => paths,
-        Ok(None) => return package_error(&[b"Can't load package ", name.as_bytes()], b"NONE", vm),
+        Ok(None) => {
+            return package_error(
+                &[b"Can't load package ", name.as_bytes()],
+                NativePackageErrorCode::Default,
+                vm,
+            );
+        }
         Err(completion) => return completion,
     };
     let directories = match tcl_syntax::value::ValueOps::list_elements(vm, &paths) {
@@ -499,7 +510,11 @@ fn jim_require(vm: &mut Vm, name: &NameBytes) -> Completion<Value> {
             return ok(vm.package_version_object(name));
         }
     }
-    package_error(&[b"Can't load package ", name.as_bytes()], b"NONE", vm)
+    package_error(
+        &[b"Can't load package ", name.as_bytes()],
+        NativePackageErrorCode::Default,
+        vm,
+    )
 }
 
 pub(crate) fn pkg_provide(
@@ -539,13 +554,7 @@ pub(crate) fn pkg_provide(
             ]
             .concat();
             let protocol = package_protocol(vm).expect("selected package protocol");
-            return crate::command::completion_from_cmd_error(
-                vm,
-                tcl_cmd_core::CmdError::with_error_code_bytes(
-                    message,
-                    protocol.conflict_error_code().to_vec(),
-                ),
-            );
+            return package_error(&[&message], protocol.conflict_error_code_update(), vm);
         }
         return ok(Value::empty());
     }
@@ -726,13 +735,14 @@ fn pkg_prefer(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
                         Ok(word) => word,
                         Err(completion) => return completion,
                     };
-                    let Some(code) = protocol.index_error_code(b"preference", word.as_bytes())
+                    let Some(code) =
+                        protocol.index_error_code_update(b"preference", word.as_bytes())
                     else {
                         return vm.refuse_host_command(
                             "package preference error protocol is unavailable".to_owned(),
                         );
                     };
-                    package_error(&[message.as_slice()], &code, vm)
+                    package_error(&[message.as_slice()], code, vm)
                 }
             }
         }
@@ -810,7 +820,7 @@ fn pkg_require(
         let protocol = package_protocol(vm).expect("selected package protocol");
         return package_error(
             &[b"package ", name.as_bytes(), b" is not present"],
-            &protocol.failure_error_code(
+            protocol.failure_error_code_update(
                 tcl_registry::native_package::NativePackageFailure::PresentMissing,
                 name.as_bytes(),
             ),
@@ -850,9 +860,9 @@ fn pkg_require(
 
     package_error(
         &[b"can't find package ", name.as_bytes()],
-        &package_protocol(vm)
+        package_protocol(vm)
             .expect("selected package protocol")
-            .failure_error_code(
+            .failure_error_code_update(
                 tcl_registry::native_package::NativePackageFailure::RequireMissing,
                 name.as_bytes(),
             ),
@@ -946,9 +956,9 @@ fn version_conflict(
         Err(completion) => return completion,
     };
     let code = if discover {
-        protocol.conflict_error_code().to_vec()
+        protocol.conflict_error_code_update()
     } else {
-        protocol.failure_error_code(
+        protocol.failure_error_code_update(
             tcl_registry::native_package::NativePackageFailure::PresentMissing,
             name.as_bytes(),
         )
@@ -967,7 +977,7 @@ fn version_conflict(
             b", need ",
             &need,
         ],
-        &code,
+        code,
         vm,
     )
 }
@@ -977,7 +987,7 @@ fn invalid_version(vm: &mut Vm, version: &NameBytes) -> Completion<Value> {
         Ok(protocol) => protocol,
         Err(completion) => return completion,
     };
-    let Some(code) = protocol.version_error_code(false) else {
+    let Some(code) = protocol.version_error_code_update(false) else {
         return vm.refuse_host_command("package version error protocol is unavailable".to_owned());
     };
     package_error(
@@ -1004,7 +1014,7 @@ fn invalid_requirement(
                 Ok(protocol) => protocol,
                 Err(completion) => return completion,
             };
-            let Some(code) = protocol.version_error_code(true) else {
+            let Some(code) = protocol.version_error_code_update(true) else {
                 return vm
                     .refuse_host_command("package range error protocol is unavailable".to_owned());
             };
@@ -1049,9 +1059,9 @@ fn circular_dependency(
             b" requires ",
             &required,
         ],
-        &package_protocol(vm)
+        package_protocol(vm)
             .expect("selected package protocol")
-            .failure_error_code(
+            .failure_error_code_update(
                 tcl_registry::native_package::NativePackageFailure::Circularity,
                 name.as_bytes(),
             ),
@@ -1166,11 +1176,11 @@ fn bad_return_code(
         Ok(protocol) => protocol,
         Err(refused) => return refused,
     };
-    let code = protocol.failure_error_code(
+    let code = protocol.failure_error_code_update(
         tcl_registry::native_package::NativePackageFailure::LoaderCompletion,
         loader.map_or(b"".as_slice(), |(name, _)| name.as_bytes()),
     );
-    let mut failure = package_error(&[&message], &code, vm);
+    let mut failure = package_error(&[&message], code, vm);
     append_loader_error_frame(vm, &message, loader);
     // Ancillary options retain their original member objects. The selected
     // error factory independently owns the new result and private error code.
@@ -1299,9 +1309,9 @@ fn evaluate_loader(vm: &mut Vm, name: &NameBytes, loader: &SelectedLoader) -> Co
                     provided.as_bytes(),
                     b" provided instead",
                 ],
-                &package_protocol(vm)
+                package_protocol(vm)
                     .expect("selected package protocol")
-                    .failure_error_code(
+                    .failure_error_code_update(
                         tcl_registry::native_package::NativePackageFailure::LoaderWrongVersion,
                         name.as_bytes(),
                     ),
@@ -1318,9 +1328,9 @@ fn evaluate_loader(vm: &mut Vm, name: &NameBytes, loader: &SelectedLoader) -> Co
                 name.as_bytes(),
                 b" provided",
             ],
-            &package_protocol(vm)
+            package_protocol(vm)
                 .expect("selected package protocol")
-                .failure_error_code(
+                .failure_error_code_update(
                     tcl_registry::native_package::NativePackageFailure::LoaderMissing,
                     name.as_bytes(),
                 ),

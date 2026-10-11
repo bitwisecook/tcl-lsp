@@ -114,6 +114,15 @@ pub enum NativePackageProtocol {
     Jim084,
 }
 
+/// Actual package error-code setter effect, separate from its visible bytes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NativePackageErrorCode {
+    /// The command supplies no code; error propagation supplies the default.
+    Default,
+    /// The selected command purpose explicitly installs these list bytes.
+    Set(Vec<u8>),
+}
+
 /// Explicit authored package database capability, independent of the host table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthoredPackageProvider {
@@ -313,6 +322,40 @@ impl NativePackageProtocol {
             Self::C(_) => b"TCL PACKAGE VERSIONCONFLICT",
         }
     }
+    /// A conflict in C8.4/C8.5 or Jim supplies no explicit code setter.
+    /// Its visible NONE must not be mistaken for `Tcl_SetObjErrorCode`.
+    #[must_use]
+    pub fn conflict_error_code_update(self) -> NativePackageErrorCode {
+        match self {
+            Self::C(TclVersion::V8_4 | TclVersion::V8_5) | Self::Jim084 => {
+                NativePackageErrorCode::Default
+            }
+            Self::C(_) => NativePackageErrorCode::Set(self.conflict_error_code().to_vec()),
+        }
+    }
+
+    /// Select the setter effect at the actual failure purpose, independently
+    /// of the resulting list bytes or the diagnostic wording.
+    #[must_use]
+    pub fn failure_error_code_update(
+        self,
+        purpose: NativePackageFailure,
+        name: &[u8],
+    ) -> NativePackageErrorCode {
+        match (self, purpose) {
+            (Self::C(TclVersion::V8_4) | Self::Jim084, _)
+            | (
+                Self::C(TclVersion::V8_5),
+                NativePackageFailure::RequireMissing
+                | NativePackageFailure::LoaderMissing
+                | NativePackageFailure::LoaderWrongVersion
+                | NativePackageFailure::LoaderCompletion
+                | NativePackageFailure::Circularity,
+            ) => NativePackageErrorCode::Default,
+            _ => NativePackageErrorCode::Set(self.failure_error_code(purpose, name)),
+        }
+    }
+
     /// Actual native failure metadata, including Present's separate lookup code.
     #[must_use]
     pub fn failure_error_code(self, purpose: NativePackageFailure, name: &[u8]) -> Vec<u8> {
@@ -500,6 +543,32 @@ impl NativePackageProtocol {
         code.push(b' ');
         tcl_syntax::list::append_list_element(&mut code, self.c_word(word), true);
         Some(code)
+    }
+
+    /// The selected index API owns its own error-code setter effect.
+    #[must_use]
+    pub fn index_error_code_update(
+        self,
+        what: &[u8],
+        word: &[u8],
+    ) -> Option<NativePackageErrorCode> {
+        let bytes = self.index_error_code(what, word)?;
+        Some(match self {
+            Self::C(TclVersion::V8_4) => NativePackageErrorCode::Default,
+            Self::C(_) => NativePackageErrorCode::Set(bytes),
+            Self::Jim084 => unreachable!("C-only package index API"),
+        })
+    }
+
+    /// Version validation supplies an explicit code only on C8.6 and later.
+    #[must_use]
+    pub fn version_error_code_update(self, range: bool) -> Option<NativePackageErrorCode> {
+        let bytes = self.version_error_code(range)?;
+        Some(match self {
+            Self::C(TclVersion::V8_4 | TclVersion::V8_5) => NativePackageErrorCode::Default,
+            Self::C(_) => NativePackageErrorCode::Set(bytes.to_vec()),
+            Self::Jim084 => unreachable!("C-only package version validation"),
+        })
     }
 
     /// Metadata for a version or range validation failure.

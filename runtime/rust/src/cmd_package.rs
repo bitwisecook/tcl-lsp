@@ -30,6 +30,19 @@ use tcl_dialect::{
 use tcl_registry::native_package::{NativePackageProtocol, PackageDispatch};
 use tcl_syntax::value::ValueOps;
 
+fn package_error_effect(
+    interp: &mut Interp,
+    message: &[u8],
+    effect: tcl_registry::native_package::NativePackageErrorCode,
+) -> Code {
+    match effect {
+        tcl_registry::native_package::NativePackageErrorCode::Default => interp.error(message),
+        tcl_registry::native_package::NativePackageErrorCode::Set(code) => {
+            interp.error_with_code(message, &code)
+        }
+    }
+}
+
 struct Loader {
     script: Vec<u8>,
     origin: Option<Vec<u8>>,
@@ -184,10 +197,11 @@ fn package_original(
         Ok(Ok(index)) => options[index],
         Ok(Err(message)) => {
             let word = word!(interp, protocol, argv[1]);
-            return interp.error_with_code(
+            return package_error_effect(
+                interp,
                 &message,
-                &protocol
-                    .index_error_code(b"option", &word)
+                protocol
+                    .index_error_code_update(b"option", &word)
                     .expect("C package index metadata"),
             );
         }
@@ -417,7 +431,7 @@ fn provide_package_selected(interp: &mut Interp, name: &[u8], version: &[u8]) ->
                 version,
             ]
             .concat();
-            return interp.error_with_code(&message, b"TCL PACKAGE VERSIONCONFLICT");
+            return package_error_effect(interp, &message, protocol.conflict_error_code_update());
         }
         return Code::Ok;
     }
@@ -497,7 +511,8 @@ fn provide(
     let existing = interp.packages.borrow().provided.get(&name).cloned();
     if let Some(existing) = existing {
         if compare_versions_bytes_for(&existing, &version, release) != std::cmp::Ordering::Equal {
-            return interp.error_with_code(
+            return package_error_effect(
+                interp,
                 &[
                     b"conflicting versions provided for package \"".as_slice(),
                     &name,
@@ -507,7 +522,7 @@ fn provide(
                     &version,
                 ]
                 .concat(),
-                protocol.conflict_error_code(),
+                protocol.conflict_error_code_update(),
             );
         }
     } else {
@@ -578,9 +593,10 @@ fn package_lookup(
         }
         Some(Err(code)) => return code,
         None if !load => {
-            return interp.error_with_code(
+            return package_error_effect(
+                interp,
                 &[b"package ".as_slice(), &name, b" is not present"].concat(),
-                &protocol.failure_error_code(
+                protocol.failure_error_code_update(
                     tcl_registry::native_package::NativePackageFailure::PresentMissing,
                     &name,
                 ),
@@ -610,9 +626,10 @@ fn package_lookup(
             message.push(b' ');
             message.extend_from_slice(req);
         }
-        return interp.error_with_code(
+        return package_error_effect(
+            interp,
             &message,
-            &protocol.failure_error_code(
+            protocol.failure_error_code_update(
                 tcl_registry::native_package::NativePackageFailure::Circularity,
                 &name,
             ),
@@ -663,9 +680,10 @@ fn package_lookup(
                 if let Some(message) = tcl_dialect::PackageProtocol::Tcl
                     .ifneeded_completion_error_bytes(&name, &version, code.as_int())
                 {
-                    return interp.error_with_code(
+                    return package_error_effect(
+                        interp,
                         &message,
-                        &protocol.failure_error_code(
+                        protocol.failure_error_code_update(
                             tcl_registry::native_package::NativePackageFailure::LoaderCompletion,
                             &name,
                         ),
@@ -690,7 +708,8 @@ fn package_lookup(
                         state.provided.remove(&name);
                         state.version_objects.remove(&name);
                     }
-                    return interp.error_with_code(
+                    return package_error_effect(
+                        interp,
                         &[
                             b"attempt to provide package ".as_slice(),
                             &name,
@@ -703,14 +722,15 @@ fn package_lookup(
                             b" provided instead",
                         ]
                         .concat(),
-                        &protocol.failure_error_code(
+                        protocol.failure_error_code_update(
                             tcl_registry::native_package::NativePackageFailure::LoaderWrongVersion,
                             &name,
                         ),
                     );
                 }
                 None => {
-                    return interp.error_with_code(
+                    return package_error_effect(
+                        interp,
                         &[
                             b"attempt to provide package ".as_slice(),
                             &name,
@@ -721,7 +741,7 @@ fn package_lookup(
                             b" provided",
                         ]
                         .concat(),
-                        &protocol.failure_error_code(
+                        protocol.failure_error_code_update(
                             tcl_registry::native_package::NativePackageFailure::LoaderMissing,
                             &name,
                         ),
@@ -765,9 +785,10 @@ fn package_lookup(
             }
             if code != Code::Ok {
                 if code != Code::Error {
-                    return interp.error_with_code(
+                    return package_error_effect(
+                        interp,
                         format!("bad return code: {}", code.as_int()).as_bytes(),
-                        &protocol.failure_error_code(
+                        protocol.failure_error_code_update(
                             tcl_registry::native_package::NativePackageFailure::LoaderCompletion,
                             &name,
                         ),
@@ -777,9 +798,10 @@ fn package_lookup(
             }
         }
     }
-    interp.error_with_code(
+    package_error_effect(
+        interp,
         &[b"can't find package ".as_slice(), &name].concat(),
-        &protocol.failure_error_code(
+        protocol.failure_error_code_update(
             tcl_registry::native_package::NativePackageFailure::RequireMissing,
             &name,
         ),
@@ -849,17 +871,18 @@ fn check_provided(
         }
         message.extend_from_slice(req);
     }
-    Some(Err(interp.error_with_code(
-        &message,
-        &if load {
-            protocol.conflict_error_code().to_vec()
-        } else {
-            protocol.failure_error_code(
+    Some(Err(if load {
+        package_error_effect(interp, &message, protocol.conflict_error_code_update())
+    } else {
+        package_error_effect(
+            interp,
+            &message,
+            protocol.failure_error_code_update(
                 tcl_registry::native_package::NativePackageFailure::PresentMissing,
                 name,
-            )
-        },
-    )))
+            ),
+        )
+    }))
 }
 
 fn ifneeded(
@@ -1014,10 +1037,11 @@ fn prefer(
             Ok(Ok(_)) => {}
             Ok(Err(message)) => {
                 let word = word!(interp, protocol, argv[2]);
-                return interp.error_with_code(
+                return package_error_effect(
+                    interp,
                     &message,
-                    &protocol
-                        .index_error_code(b"preference", &word)
+                    protocol
+                        .index_error_code_update(b"preference", &word)
                         .expect("C preference index"),
                 );
             }
@@ -1121,7 +1145,8 @@ fn vcompare_cmd(
 }
 
 fn invalid_version(interp: &mut Interp, protocol: NativePackageProtocol, version: &[u8]) -> Code {
-    interp.error_with_code(
+    package_error_effect(
+        interp,
         &[
             b"expected version number but got \"".as_slice(),
             version,
@@ -1129,7 +1154,7 @@ fn invalid_version(interp: &mut Interp, protocol: NativePackageProtocol, version
         ]
         .concat(),
         protocol
-            .version_error_code(false)
+            .version_error_code_update(false)
             .expect("C version metadata"),
     )
 }
@@ -1143,16 +1168,18 @@ fn invalid_requirement(
         tcl_dialect::RequirementBytesValidationError::InvalidVersion(version) => {
             invalid_version(interp, protocol, version)
         }
-        tcl_dialect::RequirementBytesValidationError::InvalidRange(range) => interp
-            .error_with_code(
-                &[
-                    b"expected versionMin-versionMax but got \"".as_slice(),
-                    range,
-                    b"\"",
-                ]
-                .concat(),
-                protocol.version_error_code(true).expect("C range metadata"),
-            ),
+        tcl_dialect::RequirementBytesValidationError::InvalidRange(range) => package_error_effect(
+            interp,
+            &[
+                b"expected versionMin-versionMax but got \"".as_slice(),
+                range,
+                b"\"",
+            ]
+            .concat(),
+            protocol
+                .version_error_code_update(true)
+                .expect("C range metadata"),
+        ),
     }
 }
 
