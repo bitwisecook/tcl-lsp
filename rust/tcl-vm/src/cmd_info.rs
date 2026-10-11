@@ -496,7 +496,7 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                         Err(error) => return error,
                     }
                 } else {
-                    vm.cur
+                    vm.cur_interp()
                 };
                 let Some(libraries) = vm.loaded_libraries_in(selected) else {
                     return vm.refuse_host_command("selected loaded-library inventory".into());
@@ -1080,7 +1080,7 @@ mod tests {
             child.note_library_loaded("CHILD539", "Child539")
         });
         assert_eq!(
-            vm.loaded_libraries_in(vm.cur).unwrap(),
+            vm.loaded_libraries_in(vm.cur_interp()).unwrap(),
             &[("ROOT539".to_owned(), "Root539".to_owned())]
         );
         assert_eq!(
@@ -1090,7 +1090,7 @@ mod tests {
         assert!(vm.delete_interp(selected));
         assert!(vm.loaded_libraries_in(selected).is_none());
         assert_eq!(
-            vm.loaded_libraries_in(vm.cur).unwrap(),
+            vm.loaded_libraries_in(vm.cur_interp()).unwrap(),
             &[("ROOT539".to_owned(), "Root539".to_owned())]
         );
         let completion = vm
