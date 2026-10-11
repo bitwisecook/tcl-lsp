@@ -2585,7 +2585,11 @@ impl Interp {
         let home = capture.home;
         if self.has_variable_traces() {
             let access = self.trace_access(root, root, element, &home, false);
-            if self.fire_var_trace_resolved(&home, &access, b"read") {
+            if self
+                .fire_var_trace_resolved(&home, &access, b"read")
+                .map_err(|first| self.refuse_native_execution(first))?
+                .is_guest_error()
+            {
                 return Err(self.body_variable_receiver_error(
                     evaluated,
                     Purpose::Read,
@@ -2657,7 +2661,11 @@ impl Interp {
         }
         if self.has_variable_traces() {
             let access = self.trace_access(root, root, element, &home, false);
-            if self.fire_var_trace_resolved(&home, &access, b"write") {
+            if self
+                .fire_var_trace_resolved(&home, &access, b"write")
+                .map_err(|first| self.refuse_native_execution(first))?
+                .is_guest_error()
+            {
                 return Err(self.body_variable_receiver_error(
                     evaluated,
                     Purpose::Write,
@@ -2729,7 +2737,10 @@ impl Interp {
         }
         drop(value);
         let access = self.trace_access(root, root, element, &capture.home, false);
-        if self.fire_var_trace_resolved(&capture.home, &access, b"write") {
+        if match self.fire_var_trace_resolved(&capture.home, &access, b"write") {
+            Ok(outcome) => outcome.is_guest_error(),
+            Err(first) => return self.refuse_native_execution(first),
+        } {
             return crate::builtins::var_error(self, root, crate::frame::VarError::TraceError);
         }
         if self.host_refusal_pending() {
@@ -2797,7 +2808,10 @@ impl Interp {
         let root = capture.root.as_slice();
         let access =
             self.trace_access(root, root, capture.element.as_deref(), &capture.home, false);
-        let read_failed = self.fire_var_trace_resolved(&capture.home, &access, b"read");
+        let read_failed = match self.fire_var_trace_resolved(&capture.home, &access, b"read") {
+            Ok(outcome) => outcome.is_guest_error(),
+            Err(first) => return self.refuse_native_execution(first),
+        };
         if self.host_refusal_pending() {
             return Code::Error;
         }

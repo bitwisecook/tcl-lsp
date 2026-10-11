@@ -987,12 +987,10 @@ impl Commands for Interp {
 /// Variable traces: fire `var`'s `op` (`read`/`write`/`unset`) traces, aborting
 /// the access if a callback errors.
 ///
-/// Delegates to [`Interp::fire_var_traces_for`], which keeps the trace internals
-/// (firing guard, result preservation, per-op `can't read/set "var"` wrapping)
-/// in `interp.rs`. Only `read`/`write` callback errors abort (matching C and the
-/// VM); `unset`/`array` errors are swallowed, so those fire as `Ok`. The error
-/// value is **freshly built** (rc-0) — the caller adopts it (store via
-/// `set_result`, or `drop_fresh`), as for [`Introspect::level_argv`].
+/// Variable traces delegate to the shared typed outcome owner. A callback's
+/// Guest failure returns a fresh rc-0 value, which the caller adopts or drops.
+/// Operational refusal preserves its full original typed cause outside that
+/// Guest value; the Unicode facade delegates to this same checked byte route.
 impl Traces for Interp {
     type Value = *mut TclObj;
 
@@ -1000,36 +998,9 @@ impl Traces for Interp {
         &mut self,
         var: &[u8],
         op: &str,
-    ) -> Result<Result<(), Self::Value>, tcl_syntax::value::ValueError> {
-        if self.host_refusal_pending() {
-            return Err(self
-                .native_access_refusal()
-                .unwrap_or(
-                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
-                        "retained native trace activation",
-                    ),
-                )
-                .into());
-        }
-        let failure = self.fire_var_traces_for(var, op.as_bytes());
-        if self.host_refusal_pending() {
-            return Err(self
-                .native_access_refusal()
-                .unwrap_or(
-                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
-                        "retained native trace activation",
-                    ),
-                )
-                .into());
-        }
+    ) -> Result<Result<(), Self::Value>, tcl_runtime_api::NativeExecutionError> {
+        let failure = self.fire_var_traces_for(var, op.as_bytes())?;
         Ok(failure.map_or(Ok(()), |message| Err(new_string(&message))))
-    }
-
-    fn fire(&mut self, var: &str, op: &str) -> Result<(), *mut TclObj> {
-        match self.fire_var_traces_for(var.as_bytes(), op.as_bytes()) {
-            Some(msg) => Err(new_string(&msg)),
-            None => Ok(()),
-        }
     }
 }
 
@@ -1815,19 +1786,25 @@ mod tests {
             // A read trace whose callback succeeds → the access proceeds (Ok).
             // (`;#` comments out the appended `name elem op` words.)
             let _ = i.eval_str(b"trace add variable x read {list ok;#}");
-            assert!(Traces::fire(i, "x", "read").is_ok());
+            assert!(Traces::fire(i, "x", "read")
+                .expect("actual Guest trace has no Host refusal")
+                .is_ok());
 
             // A read trace whose callback errors → the access aborts, with the
             // error wrapped to the user-facing `can't read "var"` form. The error
             // value is fresh (rc-0); adopt and release it.
             let _ = i.eval_str(b"trace add variable y read {error boom;#}");
-            let e = Traces::fire(i, "y", "read").unwrap_err();
+            let e = Traces::fire(i, "y", "read")
+                .expect("actual Guest trace has no Host refusal")
+                .unwrap_err();
             assert_eq!(obj_bytes(e), b"can't read \"y\": boom");
             drop_fresh(e);
 
             // An `unset` trace error does *not* abort (matches C / the VM): Ok.
             let _ = i.eval_str(b"trace add variable z unset {error nope;#}");
-            assert!(Traces::fire(i, "z", "unset").is_ok());
+            assert!(Traces::fire(i, "z", "unset")
+                .expect("actual Guest trace has no Host refusal")
+                .is_ok());
         });
     }
 

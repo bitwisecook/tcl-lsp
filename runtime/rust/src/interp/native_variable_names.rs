@@ -1799,7 +1799,11 @@ impl Interp {
                 &home,
                 false,
             );
-            if self.fire_var_trace_resolved(&home, &access, b"read") {
+            if self
+                .fire_var_trace_resolved(&home, &access, b"read")
+                .map_err(|first| self.refuse_native_execution(first))?
+                .is_guest_error()
+            {
                 return Err(self.original_c_lookup_var_error(
                     original,
                     purpose,
@@ -1921,12 +1925,15 @@ impl Interp {
                     &home,
                     false,
                 );
-                let traced = self.fire_var_trace_resolved_with_errors(
-                    &home,
-                    &access,
-                    b"write",
-                    purpose.leaves_error_message(),
-                );
+                let traced = self
+                    .fire_var_trace_resolved_with_errors(
+                        &home,
+                        &access,
+                        b"write",
+                        purpose.leaves_error_message(),
+                    )
+                    .map_err(|first| self.refuse_native_execution(first))?
+                    .is_guest_error();
                 arguments
                     .check()
                     .map_err(|error| self.report_cmd_error(error))?;

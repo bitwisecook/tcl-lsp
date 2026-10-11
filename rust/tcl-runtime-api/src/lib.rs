@@ -2082,21 +2082,26 @@ pub trait Traces {
     /// The runtime's value type.
     type Value;
 
-    /// Fire any traces registered for `var` on operation `op`
-    /// (`"read"`/`"write"`/`"unset"`); a trace error aborts the access.
-    fn fire(&mut self, var: &str, op: &str) -> Result<(), Self::Value>;
+    /// Fire traces for a Unicode name through the same checked byte owner.
+    /// The outer error retains the original Host refusal; the inner error is
+    /// the actual callback's Guest error value.
+    fn fire(
+        &mut self,
+        var: &str,
+        op: &str,
+    ) -> Result<Result<(), Self::Value>, NativeExecutionError> {
+        self.fire_bytes(var.as_bytes(), op)
+    }
 
-    /// Fire traces for an exact native name. The outer error is a host access
-    /// refusal; the inner error is the callback's guest error result. Unicode
-    /// adapters may use this checked default without replacing native bytes.
+    /// Fire traces for an exact native name. Implementations preserve the
+    /// complete typed first Host cause outside the callback's Guest result.
+    /// Callers handle the outer result before interpreting or formatting a
+    /// Guest error; no protocol label or message substitutes for that cause.
     fn fire_bytes(
         &mut self,
         var: &[u8],
         op: &str,
-    ) -> Result<Result<(), Self::Value>, tcl_syntax::value::ValueError> {
-        let name = tcl_syntax::raw_string::RawString::from_bytes(var).unicode()?;
-        Ok(self.fire(&name, op))
-    }
+    ) -> Result<Result<(), Self::Value>, NativeExecutionError>;
 }
 
 /// Runtime introspection backing the `info` family: retained proc bodies, the

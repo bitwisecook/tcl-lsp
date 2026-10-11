@@ -25102,33 +25102,33 @@ impl Commands for Vm {
     }
 }
 
-/// Variable traces: fire `var`'s `op` (`read`/`write`/`unset`) traces, aborting
-/// the access if a callback errors. The VM's [`fire_var_traces`](Vm::fire_var_traces)
-/// already produces the user-facing `can't read/set "var": <msg>` completion
-/// (and swallows `unset`/`array` errors, matching C); the trait keeps only its
-/// error result value (`options` is irrelevant to an aborted access).
+/// Variable traces keep the callback's Guest error result inside an outer
+/// original operational refusal. Both Unicode and byte names use the same
+/// checked selected-name route; the full first cause is never reconstructed
+/// from the empty completion used to unwind an activation.
 impl Traces for Vm {
     type Value = Value;
-
-    fn fire(&mut self, var: &str, op: &str) -> Result<(), Value> {
-        self.fire_var_traces(var, op).map_err(|c| c.result)
-    }
 
     fn fire_bytes(
         &mut self,
         var: &[u8],
         op: &str,
-    ) -> Result<Result<(), Value>, tcl_syntax::value::ValueError> {
+    ) -> Result<Result<(), Value>, tcl_runtime_api::NativeExecutionError> {
+        if let Some(first) = self.execution_refusal.clone() {
+            return Err(first);
+        }
         if self.name_policy_protocol().is_none() {
-            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "variable traces",
-            ));
+            let first = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "variable traces",
+                ),
+            );
+            let _ = self.refuse_tcl_host_failure(crate::error::TclHostFailure::Execution(first.clone()));
+            return Err(first);
         }
         let completion = self.fire_var_traces_from_cell_bytes(var, op, None, None, None);
-        if self.refused_completion().is_some() {
-            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "variable trace execution",
-            ));
+        if let Some(first) = self.execution_refusal.clone() {
+            return Err(first);
         }
         Ok(completion.map_err(|completion| completion.result))
     }

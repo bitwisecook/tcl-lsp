@@ -263,7 +263,9 @@ impl Interp {
         if stored.is_ok() && self.has_variable_traces() {
             let home = self.trace_identity(b"::errorCode");
             let access = self.trace_access(b"errorCode", b"errorCode", None, &home, false);
-            self.fire_var_trace_resolved(&home, &access, b"write");
+            if let Err(first) = self.fire_var_trace_resolved(&home, &access, b"write") {
+                self.refuse_native_execution(first);
+            }
         }
         // Tcl_SetObjErrorCode ignores setter failure and sets this flag after
         // the actual callback, independently of projected -errorcode bytes.

@@ -266,7 +266,10 @@ impl Interp {
         }
         if self.has_variable_traces() {
             let access = self.trace_access(name, name, None, &home, false);
-            if self.fire_var_trace_resolved(&home, &access, b"write") {
+            if match self.fire_var_trace_resolved(&home, &access, b"write") {
+                Ok(outcome) => outcome.is_guest_error(),
+                Err(first) => return self.refuse_native_execution(first),
+            } {
                 return crate::builtins::var_error(self, name, crate::frame::VarError::TraceError);
             }
         }

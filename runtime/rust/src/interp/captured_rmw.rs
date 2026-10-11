@@ -310,7 +310,10 @@ impl Interp {
         };
         let name = reported.as_deref().unwrap_or(target.name);
         let access = self.trace_access(name, base, element, &home, false);
-        let read_error = self.fire_var_trace_resolved(&home, &access, b"read");
+        let read_error = match self.fire_var_trace_resolved(&home, &access, b"read") {
+            Ok(outcome) => outcome.is_guest_error(),
+            Err(first) => return self.refuse_native_execution(first),
+        };
         if let Err(first) = currency.ensure_current_or_refuse() {
             return self.refuse_native_execution(first);
         }
@@ -389,7 +392,10 @@ impl Interp {
         if let Err(error) = stored {
             return self.increment_target_receiver_error(&target, error, policy);
         }
-        let traced = self.fire_var_trace_resolved(&home, &access, b"write");
+        let traced = match self.fire_var_trace_resolved(&home, &access, b"write") {
+            Ok(outcome) => outcome.is_guest_error(),
+            Err(first) => return self.refuse_native_execution(first),
+        };
         if let Err(first) = currency.ensure_current_or_refuse() {
             return self.refuse_native_execution(first);
         }

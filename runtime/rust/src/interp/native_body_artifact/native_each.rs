@@ -194,7 +194,11 @@ impl Interp {
             .map_err(|error| crate::builtins::var_error(self, name, error))?;
         if traced {
             let access = self.trace_access(name, name, None, &captured.home, false);
-            if self.fire_var_trace_resolved(&captured.home, &access, b"write") {
+            if self
+                .fire_var_trace_resolved(&captured.home, &access, b"write")
+                .map_err(|first| self.refuse_native_execution(first))?
+                .is_guest_error()
+            {
                 return Err(crate::builtins::var_error(
                     self,
                     name,

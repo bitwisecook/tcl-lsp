@@ -555,7 +555,10 @@ fn incr_original(interp: &mut Interp, argv: &[*mut TclObj], arguments: &Original
     // `read` and then `write`. A read trace that *errors* leaves
     // the fetch NULL, which C counts as 0 — so the error is swallowed here too,
     // exactly as `lappend` does.
-    let cur = interp.read_for_update(&base, elem.as_deref());
+    let cur = match interp.read_for_update(&base, elem.as_deref()) {
+        Ok(value) => value,
+        Err(first) => return interp.refuse_native_execution(first),
+    };
     let one = obj::new_wide_int_obj(1);
     let amount = selected_amount.unwrap_or(one);
 

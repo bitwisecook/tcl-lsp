@@ -57,7 +57,10 @@ impl Interp {
         let original = if let Some(receiver) = &selected {
             let home = self.trace_identity(&base);
             let access = self.trace_access(name, &base, element.as_deref(), &home, false);
-            let failed = self.fire_var_trace_resolved(&home, &access, b"read");
+            let failed = match self.fire_var_trace_resolved(&home, &access, b"read") {
+                Ok(outcome) => outcome.is_guest_error(),
+                Err(first) => return self.refuse_native_execution(first),
+            };
             if self.host_refusal_pending() {
                 return Code::Error;
             }
@@ -106,7 +109,10 @@ impl Interp {
             return crate::builtins::var_error(self, name, error);
         }
         drop(value);
-        if self.fire_var_trace_resolved(&home, &access, b"write") {
+        if match self.fire_var_trace_resolved(&home, &access, b"write") {
+            Ok(outcome) => outcome.is_guest_error(),
+            Err(first) => return self.refuse_native_execution(first),
+        } {
             return crate::builtins::var_error(self, name, crate::frame::VarError::TraceError);
         }
         if self.host_refusal_pending() {
@@ -180,6 +186,8 @@ impl Interp {
                 false,
             );
             self.fire_var_trace_resolved(&selected.home, &access, b"read")
+                .map_err(|first| self.refuse_native_execution(first))?
+                .is_guest_error()
         } else {
             false
         };

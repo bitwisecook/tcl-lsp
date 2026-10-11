@@ -45,6 +45,8 @@ mod anonymous_cell_cleanup_tests;
 #[cfg(test)]
 mod c_api_error_tests;
 #[cfg(test)]
+mod original_trace_outcome_tests;
+#[cfg(test)]
 mod original_error_code_setter_tests;
 mod captured_rmw;
 mod jim_local;
@@ -506,6 +508,22 @@ pub(crate) struct ExceptionState {
     primitive_getter: Option<Box<tcl_syntax::scalar_getter::NativeScalarGetterError>>,
     expression_error_stage:
         Option<Box<tcl_registry::native_expression_error::NativeExpressionErrorStage>>,
+}
+
+/// The Guest part of one actual variable trace outcome. Host refusals travel
+/// separately in the producer's outer Result and never permit Guest formatting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum VariableTraceGuestOutcome {
+    /// No callback error aborts this operation.
+    Complete,
+    /// A genuine callback error has populated the operation's pending message.
+    GuestError,
+}
+
+impl VariableTraceGuestOutcome {
+    fn is_guest_error(self) -> bool {
+        self == Self::GuestError
+    }
 }
 
 /// How one variable access presents itself to the trace machinery — see
@@ -6880,7 +6898,14 @@ impl Interp {
         self.store_captured_byte_variable(self.current_ns.get(), None, name, None, obj)?;
         if self.has_variable_traces() {
             let input = self.separate_variable_input(name, None)?;
-            if self.fire_var_trace(input.root().selected(), None, b"write") {
+            if self
+                .fire_var_trace(input.root().selected(), None, b"write")
+                .map_err(|first| {
+                    self.refuse_native_execution(first);
+                    VarError::NameProtocolUnavailable
+                })?
+                .is_guest_error()
+            {
                 // A write trace errored: the value is set, but the command
                 // fails (C's TclObjCallVarTraces). `var_error` wraps the
                 // message from `pending_err` as `can't set "name": <msg>`.
@@ -6922,11 +6947,17 @@ impl Interp {
         self.store_captured_byte_variable(self.current_ns.get(), None, name, Some(key), obj)?;
         let input = self.separate_variable_input(name, Some(key))?;
         if self.has_variable_traces()
-            && self.fire_var_trace(
-                input.root().selected(),
-                input.element().map(|element| element.selected()),
-                b"write",
-            )
+            && self
+                .fire_var_trace(
+                    input.root().selected(),
+                    input.element().map(|element| element.selected()),
+                    b"write",
+                )
+                .map_err(|first| {
+                    self.refuse_native_execution(first);
+                    VarError::NameProtocolUnavailable
+                })?
+                .is_guest_error()
         {
             scope
                 .currency()
@@ -7404,8 +7435,10 @@ impl Interp {
         }
         let base = input.root().selected().to_vec();
         let key = input.element().map(|element| element.selected());
-        if !self.fire_var_trace(&base, key, b"read") {
-            return None;
+        match self.fire_var_trace(&base, key, b"read") {
+            Ok(VariableTraceGuestOutcome::Complete) => return None,
+            Ok(VariableTraceGuestOutcome::GuestError) => {}
+            Err(first) => return Some(self.refuse_native_execution(first)),
         }
         let msg = self
             .traces
@@ -7440,20 +7473,26 @@ impl Interp {
         &mut self,
         base: &[u8],
         elem: Option<&[u8]>,
-    ) -> Option<*mut TclObj> {
-        if self.has_variable_traces() && self.fire_var_trace(base, elem, b"read") {
-            // The read trace errored: discard it and treat the value as absent.
+    ) -> Result<Option<*mut TclObj>, tcl_runtime_api::NativeExecutionError> {
+        self.check_entered_native_operation()?;
+        if self.has_variable_traces() && self.fire_var_trace(base, elem, b"read")?.is_guest_error()
+        {
             self.traces.borrow_mut().pending_err.take();
-            return None;
+            return Ok(None);
         }
-        match elem {
+        self.check_entered_native_operation()?;
+        Ok(match elem {
             Some(k) => self.var_get_elem(base, k),
             None => self.var_get(base),
-        }
+        })
     }
 
-    /// `lappend`'s name for [`read_for_update`](Self::read_for_update).
-    pub(crate) fn lappend_read(&mut self, base: &[u8], elem: Option<&[u8]>) -> Option<*mut TclObj> {
+    /// `lappend`'s name for the same checked read-update owner.
+    pub(crate) fn lappend_read(
+        &mut self,
+        base: &[u8],
+        elem: Option<&[u8]>,
+    ) -> Result<Option<*mut TclObj>, tcl_runtime_api::NativeExecutionError> {
         self.read_for_update(base, elem)
     }
 
@@ -7650,16 +7689,20 @@ impl Interp {
     /// on the same resolved variable cell, while traces on unrelated cells
     /// remain active. The interp result is preserved across the callbacks (the
     /// triggering operation owns the result). For `read`/`write` ops a callback
-    /// error is **propagated**: the message is stashed in `pending_err` and the
-    /// function returns `true` (the access then fails; C's `TclCallVarTraces`).
-    /// `unset`/`array` errors are ignored (C does too). Returns whether a
-    /// read/write callback errored.
-    fn fire_var_trace(&mut self, base: &[u8], elem: Option<&[u8]>, op: &[u8]) -> bool {
-        // Resolve the access to the same identity registration used, so a trace
-        // matches every spelling of the variable it is on (`::v` vs `v`, an
-        // `upvar` alias, and the 8.x namespace-scope fallback).
+    /// error is **propagated** as `GuestError`: the message is stashed in
+    /// `pending_err` and the access then fails. The selected coordinator keeps
+    /// its operation-specific Guest propagation rules. A Host refusal is the
+    /// outer error and never permits Guest variable-error formatting.
+    fn fire_var_trace(
+        &mut self,
+        base: &[u8],
+        elem: Option<&[u8]>,
+        op: &[u8],
+    ) -> Result<VariableTraceGuestOutcome, tcl_runtime_api::NativeExecutionError> {
+        self.check_entered_native_operation()?;
         let home = self.trace_identity(base);
         let access = self.trace_access(base, base, elem, &home, false);
+        self.check_entered_native_operation()?;
         self.fire_var_trace_resolved(&home, &access, op)
     }
 
@@ -7731,7 +7774,7 @@ impl Interp {
         home: &crate::vars::TraceHome,
         access: &TraceAccess,
         op: &[u8],
-    ) -> bool {
+    ) -> Result<VariableTraceGuestOutcome, tcl_runtime_api::NativeExecutionError> {
         self.fire_var_trace_resolved_with_errors(home, access, op, true)
     }
 
@@ -7741,10 +7784,9 @@ impl Interp {
         access: &TraceAccess,
         op: &[u8],
         leave_error_message: bool,
-    ) -> bool {
-        if self.host_refusal_pending() {
-            return false;
-        }
+    ) -> Result<VariableTraceGuestOutcome, tcl_runtime_api::NativeExecutionError> {
+        let _operation = native_operation_currency::NativeOperationScope::enter(self)?;
+        self.check_entered_native_operation()?;
         let elem = access.match_elem.as_deref();
         let reported = access.reported.as_slice();
         // The cell this access reaches, and the array cell containing it — C's
@@ -7757,7 +7799,7 @@ impl Interp {
         // callback writing a different element of the same array is a different
         // `Var` and fires.
         if self.active_var_trace_scopes.borrow().contains(&cell) {
-            return false;
+            return Ok(VariableTraceGuestOutcome::Complete);
         }
         let array_active = elem.is_some()
             && self
@@ -7771,7 +7813,14 @@ impl Interp {
         drop(traces);
         if !any {
             self.fire_native_error_variable_trace(home, access, op);
-            return self.native_precision_trace(home, access, op);
+            self.check_entered_native_operation()?;
+            let failed = self.native_precision_trace(home, access, op);
+            self.check_entered_native_operation()?;
+            return Ok(if failed {
+                VariableTraceGuestOutcome::GuestError
+            } else {
+                VariableTraceGuestOutcome::Complete
+            });
         }
         // C aborts the chain on the first callback error for every op *except*
         // unset — "ignore errors in unset traces" (tclTrace.c 9.0.4:2600). An
@@ -7887,6 +7936,13 @@ impl Interp {
                         || self.result_bytes(),
                         |failure| obj_bytes(failure.as_ptr()),
                     );
+                    // The callback's original result getter can itself reach
+                    // an extension updater. Classify that Host stage before
+                    // publishing a Guest message or trace frame.
+                    if self.check_entered_native_operation().is_err() {
+                        errored = true;
+                        break 'groups;
+                    }
                     self.traces.borrow_mut().pending_err = Some(msg);
                     if leave_error_message {
                         let mut frame = op.to_vec();
@@ -7913,10 +7969,17 @@ impl Interp {
             // last in the whole-variable group, before any element traces.
             if whole_array {
                 self.fire_native_error_variable_trace(home, access, op);
+                if self.check_entered_native_operation().is_err() {
+                    errored = true;
+                    break 'groups;
+                }
             }
-            if whole_array && self.native_precision_trace(home, access, op) {
-                errored = true;
-                break;
+            if whole_array {
+                let failed = self.native_precision_trace(home, access, op);
+                if self.check_entered_native_operation().is_err() || failed {
+                    errored = true;
+                    break;
+                }
             }
         }
         let popped = self.active_var_trace_scopes.borrow_mut().pop();
@@ -7938,8 +8001,12 @@ impl Interp {
         }
         // Saved-state restoration/retirement can itself reach an extension
         // free hook. Mandatory cleanup is complete before observing its cause.
-        let cleanup_refused = self.check_entered_native_operation().is_err();
-        errored || refused || cleanup_refused
+        self.check_entered_native_operation()?;
+        Ok(if errored {
+            VariableTraceGuestOutcome::GuestError
+        } else {
+            VariableTraceGuestOutcome::Complete
+        })
     }
 
     /// C's `TclVarErrMsg` tail after a variable trace aborted an access: the
@@ -8320,8 +8387,10 @@ impl Interp {
         if elem.is_some() || (!self.var_is_array(&base) && self.var_exists(&base)) {
             return None;
         }
-        if !self.fire_var_trace(&base, None, b"array") {
-            return None;
+        match self.fire_var_trace(&base, None, b"array") {
+            Ok(VariableTraceGuestOutcome::Complete) => return None,
+            Ok(VariableTraceGuestOutcome::GuestError) => {}
+            Err(first) => return Some(self.refuse_native_execution(first)),
         }
         let msg = self
             .traces
@@ -8336,14 +8405,24 @@ impl Interp {
     /// access-aborting message, already wrapped as `can't read/set "var": <msg>`
     /// (`TclCallVarTraces`), else `None`. The `Traces::fire` engine (`state_traits.rs`)
     /// — it keeps the trace internals (the firing guard, `pending_err`, the
-    /// per-op wrapping) here; `unset`/`array` callback errors do not abort, so
-    /// they yield `None`.
-    pub(crate) fn fire_var_traces_for(&mut self, var: &[u8], op: &[u8]) -> Option<Vec<u8>> {
+    /// per-op wrapping) here. The selected trace coordinator decides which
+    /// operations propagate Guest errors; an original Host refusal is always
+    /// the outer error and reaches no Guest message formatting.
+    pub(crate) fn fire_var_traces_for(
+        &mut self,
+        var: &[u8],
+        op: &[u8],
+    ) -> Result<Option<Vec<u8>>, tcl_runtime_api::NativeExecutionError> {
+        self.check_entered_native_operation()?;
         let Ok((base, elem)) = self.variable_name_parts(var) else {
-            return None;
+            self.check_entered_native_operation()?;
+            return Ok(None);
         };
-        if !self.fire_var_trace(&base, elem.as_deref(), op) {
-            return None;
+        if !self
+            .fire_var_trace(&base, elem.as_deref(), op)?
+            .is_guest_error()
+        {
+            return Ok(None);
         }
         let raw = self
             .traces
@@ -8359,7 +8438,7 @@ impl Interp {
         m.extend_from_slice(var);
         m.extend_from_slice(b"\": ");
         m.extend_from_slice(&raw);
-        Some(m)
+        Ok(Some(m))
     }
 
     /// Fire matching command traces (`rename`/`delete`) as `command oldName

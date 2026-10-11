@@ -174,7 +174,11 @@ impl Interp {
             &captured.home,
             false,
         );
-        if self.fire_var_trace_resolved(&captured.home, &access, b"array") {
+        if self
+            .fire_var_trace_resolved(&captured.home, &access, b"array")
+            .map_err(|first| self.refuse_native_execution(first))?
+            .is_guest_error()
+        {
             return Err(crate::builtins::var_error(
                 self,
                 &captured.root,
@@ -624,7 +628,10 @@ impl Interp {
         })?;
         if self.original_variable_trace_requires_name(&home, Some(&key), b"write") {
             let access = self.trace_access(report_root, &captured.root, Some(&key), &home, false);
-            let traced = self.fire_var_trace_resolved(&home, &access, b"write");
+            let traced = self
+                .fire_var_trace_resolved(&home, &access, b"write")
+                .map_err(|first| self.refuse_native_execution(first))?
+                .is_guest_error();
             arguments
                 .check()
                 .map_err(|error| self.report_cmd_error(error))?;

@@ -858,7 +858,10 @@ fn info_exists_original(
     }
     // Guest read-trace errors remain ignored by the existence query; an
     // original Host refusal stops the later table read and result publication.
-    let reached_trace = interp.fire_var_traces_for(&name, b"read");
+    let reached_trace = match interp.fire_var_traces_for(&name, b"read") {
+        Ok(value) => value,
+        Err(first) => return interp.refuse_native_execution(first),
+    };
     if let Err(error) = arguments.check() {
         return interp.report_cmd_error(error);
     }

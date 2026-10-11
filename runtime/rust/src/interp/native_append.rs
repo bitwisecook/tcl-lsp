@@ -56,6 +56,8 @@ impl NativeAppendVariable for AppendVariable<'_> {
         if self
             .interp
             .fire_var_trace_resolved(&self.home, &self.access, b"write")
+            .map_err(|first| self.interp.refuse_native_execution(first))?
+            .is_guest_error()
         {
             return Err(crate::builtins::var_error(
                 self.interp,
@@ -128,7 +130,11 @@ impl Interp {
             .map_err(|error| crate::builtins::var_error(self, name, error))?;
         drop(working);
         drop(original);
-        if self.fire_var_trace_resolved(&home, &access, b"write") {
+        if self
+            .fire_var_trace_resolved(&home, &access, b"write")
+            .map_err(|first| self.refuse_native_execution(first))?
+            .is_guest_error()
+        {
             return Err(crate::builtins::var_error(
                 self,
                 name,

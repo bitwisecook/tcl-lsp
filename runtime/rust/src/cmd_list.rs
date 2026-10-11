@@ -154,7 +154,10 @@ pub(crate) fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // `lappend` fires a read trace on the variable it reads (restored in Tcl
         // 8.4 after 8.0 dropped it), but swallows a trace error, unlike `append`
         // (append-7.2/7.3/7.4, bug 3057639).
-        let cur = interp.lappend_read(&base, elem.as_deref());
+        let cur = match interp.lappend_read(&base, elem.as_deref()) {
+            Ok(value) => value,
+            Err(first) => return interp.refuse_native_execution(first),
+        };
         return match cur {
             Some(o) if !validate => {
                 interp.set_result(o);
@@ -180,7 +183,10 @@ pub(crate) fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // `lappend` reads the current value (to append to it), firing the read trace
     // first — before the write, matching C's get-then-set order — and swallowing
     // a trace error (a missing element is then created; bug 3057639, append-9.0).
-    let cur = interp.lappend_read(&base, elem.as_deref());
+    let cur = match interp.lappend_read(&base, elem.as_deref()) {
+        Ok(value) => value,
+        Err(first) => return interp.refuse_native_execution(first),
+    };
 
     // A `lappend` with values writes; reject a constant before the update.
     if let Some(c) = interp.const_write_check(&name) {

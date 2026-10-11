@@ -203,6 +203,8 @@ impl Interp {
                 false,
             );
             self.fire_var_trace_resolved(&captured.home, &access, b"read")
+                .map_err(|first| self.refuse_native_execution(first))?
+                .is_guest_error()
         } else {
             false
         };
@@ -261,7 +263,11 @@ impl Interp {
                 &captured.home,
                 false,
             );
-            if self.fire_var_trace_resolved(&captured.home, &access, b"write") {
+            if self
+                .fire_var_trace_resolved(&captured.home, &access, b"write")
+                .map_err(|first| self.refuse_native_execution(first))?
+                .is_guest_error()
+            {
                 return Err(crate::builtins::var_error(
                     self,
                     &spelling,

@@ -140,7 +140,8 @@ impl Interp {
             &captured.home,
             false,
         );
-        self.fire_var_trace_resolved_with_errors(&captured.home, &access, b"read", false);
+        self.fire_var_trace_resolved_with_errors(&captured.home, &access, b"read", false)
+            .map_err(|first| self.refuse_native_execution(first))?;
         if self.host_refusal_pending() {
             return Err(Code::Error);
         }

@@ -54,6 +54,8 @@ mod original_property_retirement_tests;
 mod original_publication_tests;
 #[cfg(test)]
 mod original_record_retirement_tests;
+#[cfg(test)]
+mod original_classvariable_tests;
 
 use tcl_registry::native_tcloo_method_definition::{
     NativeTclooMethodReportProtocol, NativeTclooMethodReportRole,

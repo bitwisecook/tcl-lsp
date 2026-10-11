@@ -113,7 +113,10 @@ impl Interp {
         let capture = self.body_capture_target(&evaluated, Some(dictionary.slot), true)?;
         let root = capture.root.as_slice();
         let access = self.trace_access(root, root, None, &capture.home, false);
-        let failed = self.fire_var_trace_resolved(&capture.home, &access, b"read");
+        let failed = match self.fire_var_trace_resolved(&capture.home, &access, b"read") {
+            Ok(outcome) => outcome.is_guest_error(),
+            Err(first) => return Ok(self.refuse_native_execution(first)),
+        };
         if self.host_refusal_pending() {
             return Ok(Code::Error);
         }
@@ -138,7 +141,10 @@ impl Interp {
         if let Err(error) = capture.receiver.store(result.as_ptr()) {
             return Ok(crate::builtins::var_error(self, root, error));
         }
-        if self.fire_var_trace_resolved(&capture.home, &access, b"write") {
+        if match self.fire_var_trace_resolved(&capture.home, &access, b"write") {
+            Ok(outcome) => outcome.is_guest_error(),
+            Err(first) => return Ok(self.refuse_native_execution(first)),
+        } {
             return Ok(crate::builtins::var_error(
                 self,
                 root,

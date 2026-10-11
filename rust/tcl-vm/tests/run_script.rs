@@ -135,14 +135,25 @@ fn traces_fire_ok_error_and_unset() {
     }
 
     // Read trace, callback succeeds → the access proceeds.
-    assert!(Traces::fire(&mut vm, "x", "read").is_ok());
+    assert!(
+        Traces::fire(&mut vm, "x", "read")
+            .expect("actual Guest trace has no Host refusal")
+            .is_ok()
+    );
     // Read trace, callback errors → the access aborts with the wrapped error.
     assert_eq!(
-        &*Traces::fire(&mut vm, "y", "read").unwrap_err().to_str(),
+        &*Traces::fire(&mut vm, "y", "read")
+            .expect("actual Guest trace has no Host refusal")
+            .unwrap_err()
+            .to_str(),
         "can't read \"y\": boom",
     );
     // An `unset`-trace error does not abort the access.
-    assert!(Traces::fire(&mut vm, "z", "unset").is_ok());
+    assert!(
+        Traces::fire(&mut vm, "z", "unset")
+            .expect("actual Guest trace has no Host refusal")
+            .is_ok()
+    );
 }
 
 /// `trace add|remove|info <type>` accept an unambiguous prefix of the type
@@ -2541,4 +2552,21 @@ fn a_value_that_is_not_one_whole_command_substitution_still_concatenates() {
         run("proc p {args} { return [llength $args] }\nputs [p x y]").2,
         "2\n"
     );
+}
+
+/// The actual Host command cause remains outside both facade Guest results.
+#[test]
+fn original_trace_facades_keep_the_full_pending_host_cause() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Actual VM Host producer and transport; no native callback or parser observation.
+    let mut vm = Vm::new();
+    let _ = vm.refuse_host_command("original VM variable trace refusal".to_owned());
+    let first = Traces::fire_bytes(&mut vm, b"x", "read")
+        .expect_err("the full Host refusal is outside the Guest value");
+    let tcl_runtime_api::NativeExecutionError::HostCommandRefusal(payload) = &first else {
+        panic!("the actual Host command cause must remain complete")
+    };
+    assert_eq!(payload.reason, "original VM variable trace refusal");
+    assert_eq!(Traces::fire(&mut vm, "x", "read"), Err(first));
 }
