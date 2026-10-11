@@ -7,7 +7,7 @@ use tcl_cmd_core::CmdError;
 use tcl_runtime_api::NsId;
 
 #[derive(Clone)]
-struct OriginalOoTarget {
+pub(super) struct OriginalOoTarget {
     id: OoId,
     object: Weak<RefCell<Option<Value>>>,
     creation: u64,
@@ -32,7 +32,7 @@ impl OriginalOoTarget {
             class: facet,
         })
     }
-    fn is_current(&self, vm: &Vm) -> bool {
+    pub(super) fn is_current(&self, vm: &Vm) -> bool {
         let Some(original) = self.object.upgrade() else {
             return false;
         };
@@ -63,7 +63,7 @@ pub(super) struct OriginalOoNameScope {
     declaring: Option<OriginalOoTarget>,
 }
 impl OriginalOoNameScope {
-    fn enter(vm: &mut Vm, target: Option<(bool, OoId)>) -> Result<Self, CmdError> {
+    pub(super) fn enter(vm: &mut Vm, target: Option<(bool, OoId)>) -> Result<Self, CmdError> {
         let context = OriginalNameConsumerScope::enter(vm)?;
         let mut scope = Self {
             context,
@@ -88,6 +88,31 @@ impl OriginalOoNameScope {
         self.target = selected;
         self.check_target(vm)
     }
+    /// Check the retained operation and the independently selected OO owners.
+    pub(super) fn check(&self, vm: &mut Vm) -> Result<(), CmdError> {
+        self.context.check(vm)?;
+        self.check_target(vm)
+    }
+    /// Copy only the already selected weak target observation.
+    pub(super) fn retained_target(&self) -> Option<OriginalOoTarget> {
+        self.target.clone()
+    }
+    /// Require a pure observation without issuing another lookup purpose.
+    pub(super) fn require_current(
+        &self,
+        vm: &mut Vm,
+        current: bool,
+        purpose: &'static str,
+    ) -> Result<(), CmdError> {
+        self.check(vm)?;
+        self.context.require(vm, current, purpose)
+    }
+    pub(super) fn finish(self, vm: &mut Vm) -> Result<(), CmdError> {
+        let reached = self.check(vm);
+        self.context.finish(vm)?;
+        reached
+    }
+
     /// The existing entered chain selects its private-variable declaring owner.
     pub(super) fn select_declaring_provider(&mut self, vm: &mut Vm) -> Result<(), CmdError> {
         self.context.check(vm)?;

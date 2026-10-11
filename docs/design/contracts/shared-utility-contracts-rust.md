@@ -3471,3 +3471,27 @@ the typed creation and rename boundaries after mandatory alias retirement. The
 and [body capture contract](../analysis/name-resolution-proofs/procedure-counted-body-header-selection.md)
 state the bounded physical observations; software embedding controls remain
 separate from those provider answers.
+
+VM property report and accessor stages retain the original OO target and class
+facet, caller context, entered currency and reached header independently of
+String and List conversion. Report derivation checks its actual roster and graph
+observations until materialisation. The materialised configure reader owns its
+original List header across getters; a configure write table owns its copied
+List and frozen Strings. Ordinary getter and setter changes to the property or
+method roster remain permitted. Later write pairs use the retained table's index
+with the current report header, as required by the selected C9.1 worker.
+
+The property stages use the canonical `OriginalNumericOps` String provider and
+checked Value List, property-name and Dictionary kernels. Configure-all hashes
+and adopts each getter result before reaching the next getter. Dictionary
+construction shares its sequential key worker with the neutral API; supplied
+checks and String providers add no eager key preflight, parser or formatter.
+Cached accessor names require no property String until a reached Break or
+Continue diagnostic. The actual my, accessor and setter-value call roles retire
+before that presentation, outside Method and OO borrows. Private-variable
+comparison checks the original declaring inventory independently of method
+mutation epochs. Full typed first cause precedes later conversion, cache/result
+publication and owned cleanup. These report and accessor checks do not provide a
+property-member retirement recipe, whole-object lifecycle authority or Native
+callback chronology; the literal configure controls use the independently
+retained public property snapshot and table observations.

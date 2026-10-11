@@ -10,23 +10,64 @@ impl Value {
     pub(crate) fn native_property_name_is_cached(&self) -> bool {
         matches!(&*self.0.intrep.borrow(), IntRep::NativePropertyName(_))
     }
+    #[cfg(test)]
     pub(crate) fn native_property_accessor(
         &self,
         recipe: tcl_registry::native_property_lookup::NativePropertyLookupProtocol,
         writable: bool,
     ) -> Result<NativeObjectLifetimeLease, tcl_syntax::value::ValueError> {
+        self.native_property_accessor_using(
+            recipe,
+            writable,
+            &mut (),
+            &mut |_| {
+                self.native_string_bytes(recipe.strings())
+                    .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
+                    .map_err(Into::into)
+            },
+            &mut |_| Ok(()),
+        )
+    }
+    pub(crate) fn native_property_accessor_checked<C>(
+        &self,
+        recipe: tcl_registry::native_property_lookup::NativePropertyLookupProtocol,
+        writable: bool,
+        context: &mut C,
+        string: &mut impl FnMut(&mut C) -> Result<super::Rc<[u8]>, tcl_cmd_core::CmdError>,
+        check: &mut impl FnMut(&mut C) -> Result<(), tcl_cmd_core::CmdError>,
+    ) -> Result<NativeObjectLifetimeLease, tcl_cmd_core::CmdError> {
+        self.native_property_accessor_using(recipe, writable, context, string, check)
+    }
+    fn native_property_accessor_using<C, E: From<tcl_syntax::value::ValueError>>(
+        &self,
+        recipe: tcl_registry::native_property_lookup::NativePropertyLookupProtocol,
+        writable: bool,
+        context: &mut C,
+        string: &mut impl FnMut(&mut C) -> Result<super::Rc<[u8]>, E>,
+        check: &mut impl FnMut(&mut C) -> Result<(), E>,
+    ) -> Result<NativeObjectLifetimeLease, E> {
+        check(context)?;
         self.check_native_header()?;
-        if let IntRep::NativePropertyName(cache) = &*self.0.intrep.borrow() {
-            return Ok(if writable {
-                &cache.writer
-            } else {
-                &cache.reader
-            }
-            .native_lifetime_lease());
+        let cached = if let IntRep::NativePropertyName(cache) = &*self.0.intrep.borrow() {
+            Some(
+                if writable {
+                    &cache.writer
+                } else {
+                    &cache.reader
+                }
+                .native_lifetime_lease(),
+            )
+        } else {
+            None
+        };
+        if let Some(cached) = cached {
+            check(context)?;
+            cached.value().check_native_header()?;
+            return Ok(cached);
         }
-        let bytes = self
-            .native_string_bytes(recipe.strings())
-            .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)?;
+        let reached = string(context);
+        check(context)?;
+        let bytes = reached?;
         let (reader, writer) = recipe.member_accessor_names(&bytes);
         let reader = Value::new_native_string_bytes(reader);
         let writer = Value::new_native_string_bytes(writer);
@@ -34,10 +75,15 @@ impl Value {
         reader.retain_native_string_representation(materialization)?;
         writer.retain_native_string_representation(materialization)?;
         let lease = if writable { &writer } else { &reader }.native_lifetime_lease();
+        let retired = std::mem::replace(&mut *self.0.intrep.borrow_mut(), IntRep::Str);
+        drop(retired);
+        check(context)?;
+        self.check_native_header()?;
         *self.0.intrep.borrow_mut() =
             IntRep::NativePropertyName(NativePropertyName { reader, writer });
         Ok(lease)
     }
+
 }
 
 #[cfg(test)]

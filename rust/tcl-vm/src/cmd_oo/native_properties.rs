@@ -10,6 +10,9 @@ use tcl_registry::native_property_lookup::{
     NativePropertyGraphDependents, NativePropertyInvalidation,
 };
 use tcl_syntax::value::ValueError;
+use tcl_cmd_core::CmdError;
+mod original_stages;
+use original_stages::{OriginalPropertyOperation, PropertyDerivation};
 
 #[derive(Default)]
 pub(super) struct NativePropertyCache {
@@ -178,106 +181,99 @@ impl Vm {
         target: OoId,
         class: bool,
         writable: bool,
-    ) -> Result<crate::value::NativeObjectLifetimeLease, ValueError> {
+    ) -> Result<crate::value::NativeObjectLifetimeLease, CmdError> {
         let recipe = self
             .actual_native_invocation_dialect()
             .native_property_lookup_protocol()
             .ok_or(ValueError::CommandProtocolUnavailable(
                 "native property List issuer",
             ))?;
-        let epoch = self.oo.property_foundation_epoch;
-        if let Some(cache) = self.oo.property_caches.get(&(target, class))
-            && cache.epoch == epoch
-            && let Some(header) = if writable {
-                &cache.writable
-            } else {
-                &cache.readable
-            }
-        {
-            return Ok(header.native_lifetime_lease());
-        }
-        let members =
-            {
-                let mut members = BTreeMap::new();
-                let mut seen = BTreeSet::new();
-                if class {
-                    self.oo.collect_native_class_properties(
-                        target,
-                        writable,
-                        &mut seen,
-                        &mut members,
-                    )?;
+        let operation = OriginalPropertyOperation::enter(self, target, class, recipe.strings())?;
+        let reached = (|| {
+            let epoch = self.oo.property_foundation_epoch;
+            if let Some(cache) = self.oo.property_caches.get(&(target, class))
+                && cache.epoch == epoch
+                && let Some(header) = if writable {
+                    &cache.writable
                 } else {
-                    let object = self.oo.objects.get(&target).ok_or(
-                        ValueError::CommandProtocolUnavailable("native property object"),
-                    )?;
-                    self.oo.collect_native_declared_properties(
-                        target,
-                        false,
-                        writable,
-                        slot_ref_obj(object, writable),
-                        &mut members,
-                    )?;
-                    for mixin in &object.mixins {
-                        self.oo.collect_native_class_properties(
-                            *mixin,
-                            writable,
-                            &mut seen,
-                            &mut members,
-                        )?;
-                    }
-                    self.oo.collect_native_class_properties(
-                        object.class,
-                        writable,
-                        &mut seen,
-                        &mut members,
-                    )?;
+                    &cache.readable
                 }
-                let mut members: Vec<_> = members.into_iter().collect();
-                let mut failure = None;
-                members.sort_by(|(_, a), (_, b)| {
-                    match compare_original_members(a, b, recipe.strings()) {
-                        Ok(order) => order,
-                        Err(error) => {
-                            failure = Some(error);
-                            std::cmp::Ordering::Equal
-                        }
-                    }
-                });
-                if let Some(error) = failure {
-                    return Err(error);
-                }
-                members
+            {
+                let lease = header.native_lifetime_lease();
+                operation.check(self)?;
+                lease.value().check_native_header()?;
+                return Ok(lease);
+            }
+            let derivation = PropertyDerivation::capture(self, target, class, writable, false)?;
+            let mut members: Vec<_> =
+                original_stages::report_members(self, target, class, writable, false)?
                     .into_iter()
-                    .map(|(_, original)| original.clone())
-                    .collect()
+                    .map(|(_, original)| original.value().clone())
+                    .collect();
+            // These actual member roles become the report List's roles; leases add none.
+            let mut failure = None;
+            members.sort_by(|a, b| {
+                if failure.is_some() {
+                    return std::cmp::Ordering::Equal;
+                }
+                match original_stages::compare(self, &operation, a, b, |vm| {
+                    derivation.check(vm, &operation)
+                }) {
+                    Ok(order) => order,
+                    Err(error) => {
+                        original_stages::retain_error(self, &error);
+                        failure = Some(error);
+                        std::cmp::Ordering::Equal
+                    }
+                }
+            });
+            if let Some(error) = failure {
+                return Err(error);
+            }
+            derivation.check(self, &operation)?;
+            let header = Value::native_list_constructor(members, recipe.strings());
+            drop(operation.list_checked(self, &header, |vm| derivation.check(vm, &operation))?);
+            let lease = header.native_lifetime_lease();
+            let (old_writable, old_readable) = {
+                let cache = self.oo.property_caches.entry((target, class)).or_default();
+                if cache.epoch != epoch {
+                    (cache.writable.take(), cache.readable.take())
+                } else if writable {
+                    (cache.writable.take(), None)
+                } else {
+                    (None, cache.readable.take())
+                }
             };
-        let header = Value::native_list_constructor(members, recipe.strings());
-        // SortPropList reaches GetElements even for an empty native NULL header.
-        drop(header.native_object_list_elements(recipe.strings())?);
-        let lease = header.native_lifetime_lease();
-        let cache = self.oo.property_caches.entry((target, class)).or_default();
-        if cache.epoch != epoch {
-            cache.readable = None;
-            cache.writable = None;
+            // GetAllObjectProperties reaches writable, then readable cache retirement.
+            drop(old_writable);
+            derivation.check(self, &operation)?;
+            drop(old_readable);
+            derivation.check(self, &operation)?;
+            let cache = self.oo.property_caches.entry((target, class)).or_default();
+            let vacant = if writable {
+                cache.writable.is_none()
+            } else {
+                cache.readable.is_none()
+            };
+            operation.require(self, vacant, "original property report cache adoption")?;
+            let cache = self.oo.property_caches.entry((target, class)).or_default();
             cache.epoch = epoch;
-        }
-        if writable {
-            cache.writable = Some(header);
-        } else {
-            cache.readable = Some(header);
-        }
-        Ok(lease)
+            if writable {
+                cache.writable = Some(header);
+            } else {
+                cache.readable = Some(header);
+            }
+            Ok(lease)
+        })();
+        operation.complete(self, reached)
     }
-}
 
-impl Vm {
     pub(super) fn native_declared_property_header(
         &mut self,
         target: OoId,
         class: bool,
         writable: bool,
-    ) -> Result<Value, ValueError> {
+    ) -> Result<Value, CmdError> {
         let protocol = self
             .actual_native_invocation_dialect()
             .native_property_lookup_protocol()
@@ -285,27 +281,61 @@ impl Vm {
                 "native property metadata issuer",
             ))?
             .strings();
-        let mut members: Vec<_> = self
-            .oo
-            .property_members
-            .get(&(target, class, writable))
-            .map(|members| members.values().collect())
-            .unwrap_or_default();
-        let mut failure = None;
-        members.sort_by(|a, b| match compare_original_members(a, b, protocol) {
-            Ok(order) => order,
-            Err(error) => {
-                failure = Some(error);
-                std::cmp::Ordering::Equal
+        let operation = OriginalPropertyOperation::enter(self, target, class, protocol)?;
+        let reached = (|| {
+            let derivation = PropertyDerivation::capture(self, target, class, writable, true)?;
+            let mut members: Vec<_> =
+                original_stages::report_members(self, target, class, writable, true)?
+                    .into_iter()
+                    .map(|(_, original)| original.value().clone())
+                    .collect();
+            let mut failure = None;
+            members.sort_by(|a, b| {
+                if failure.is_some() {
+                    return std::cmp::Ordering::Equal;
+                }
+                match original_stages::compare(self, &operation, a, b, |vm| {
+                    derivation.check(vm, &operation)
+                }) {
+                    Ok(order) => order,
+                    Err(error) => {
+                        original_stages::retain_error(self, &error);
+                        failure = Some(error);
+                        std::cmp::Ordering::Equal
+                    }
+                }
+            });
+            if let Some(error) = failure {
+                return Err(error);
             }
-        });
-        if let Some(error) = failure {
-            return Err(error);
-        }
-        let header =
-            Value::native_list_constructor(members.into_iter().cloned().collect(), protocol);
-        drop(header.native_object_list_elements(protocol)?);
-        Ok(header)
+            derivation.check(self, &operation)?;
+            let header = Value::native_list_constructor(members, protocol);
+            drop(operation.list_checked(self, &header, |vm| derivation.check(vm, &operation))?);
+            Ok(header)
+        })();
+        operation.complete(self, reached)
+    }
+}
+
+
+/// Frozen temporary-table Strings retain the original copied List and target.
+/// A later pair still projects its old table index into the current report.
+pub(super) struct RetainedPropertyTable {
+    header: Value,
+    words: Vec<Rc<[u8]>>,
+    currency: crate::interp::native_operation_currency::NativeOperationScope,
+    target: super::original_name_operands::OriginalOoTarget,
+}
+impl RetainedPropertyTable {
+    fn check(&self, vm: &mut Vm, operation: &OriginalPropertyOperation) -> Result<(), CmdError> {
+        self.currency.check(vm)?;
+        operation.require(
+            vm,
+            self.target.is_current(vm),
+            "original property temporary table target",
+        )?;
+        self.header.check_native_header()?;
+        operation.check(vm)
     }
 }
 
@@ -314,67 +344,123 @@ pub(super) fn lookup_property(
     target: OoId,
     original: &Value,
     writable: bool,
-    table: &mut Option<Value>,
+    table: &mut Option<RetainedPropertyTable>,
     retain_table: bool,
 ) -> Result<crate::value::NativeObjectLifetimeLease, Completion<Value>> {
-    let operation = || ValueError::CommandProtocolUnavailable("native property lookup issuer");
     let recipe = vm
         .actual_native_invocation_dialect()
         .native_property_lookup_protocol()
-        .ok_or_else(operation)
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "native property lookup issuer",
+        ))
+        .map_err(|e| crate::command::completion_from_cmd_error(vm, e.into()))?;
+    let operation = OriginalPropertyOperation::enter(vm, target, false, recipe.strings())
+        .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?;
+    let reached = lookup_property_entered(
+        vm,
+        target,
+        original,
+        writable,
+        table,
+        retain_table,
+        &operation,
+    );
+    operation.complete_result(vm, reached)
+}
+
+fn lookup_property_entered(
+    vm: &mut Vm,
+    target: OoId,
+    original: &Value,
+    writable: bool,
+    table: &mut Option<RetainedPropertyTable>,
+    retain_table: bool,
+    operation: &OriginalPropertyOperation,
+) -> Result<crate::value::NativeObjectLifetimeLease, Completion<Value>> {
+    let recipe = vm
+        .actual_native_invocation_dialect()
+        .native_property_lookup_protocol()
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "native property lookup issuer",
+        ))
         .map_err(|e| crate::command::completion_from_cmd_error(vm, e.into()))?;
     recipe
         .validate_index_origin(original.native_index_cache().map(|(_, origin)| origin))
         .map_err(|e| crate::command::completion_from_cmd_error(vm, e.into()))?;
+    if let Some(table) = table.as_ref() {
+        table
+            .check(vm, operation)
+            .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?;
+    }
     let header = vm
         .native_all_property_header(target, false, writable)
-        .map_err(|e| crate::command::completion_from_cmd_error(vm, e.into()))?;
-    if retain_table && table.is_none() {
-        *table = Some(
-            header
-                .value()
-                .native_list_copy(recipe.strings())
-                .map_err(|e| crate::command::completion_from_cmd_error(vm, e.into()))?,
-        );
+        .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?;
+    let words = if let Some(table) = table.as_ref() {
+        table
+            .check(vm, operation)
+            .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?;
+        table.words.clone()
+    } else {
+        let names = operation
+            .list(vm, header.value())
+            .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?;
+        let mut words = Vec::with_capacity(names.len());
+        for name in names.iter() {
+            words.push(
+                operation
+                    .string(vm, name)
+                    .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?,
+            );
+        }
+        if retain_table {
+            let copied = operation
+                .copy_list(vm, header.value())
+                .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?;
+            let target = operation
+                .retained_target()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original property temporary table target",
+                ))
+                .map_err(|e| crate::command::completion_from_cmd_error(vm, e.into()))?;
+            *table = Some(RetainedPropertyTable {
+                header: copied,
+                words: words.clone(),
+                currency: operation.operation.clone(),
+                target,
+            });
+        }
+        words
+    };
+    let bytes = operation
+        .string(vm, original)
+        .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?;
+    if let Some(table) = table.as_ref() {
+        table
+            .check(vm, operation)
+            .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?;
     }
-    let names = table
-        .as_ref()
-        .unwrap_or(header.value())
-        .native_object_list_elements(recipe.strings())
-        .map_err(|e| crate::command::completion_from_cmd_error(vm, e.into()))?;
-    let bytes = original
-        .native_string_bytes(recipe.strings())
-        .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
-        .map_err(|e| crate::command::completion_from_cmd_error(vm, ValueError::from(e).into()))?;
-    let words: Vec<_> = names
-        .iter()
-        .map(|name| {
-            name.native_string_bytes(recipe.strings())
-                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
-        })
-        .collect::<Result<_, _>>()
-        .map_err(|e| crate::command::completion_from_cmd_error(vm, ValueError::from(e).into()))?;
     let borrowed: Vec<_> = words.iter().map(std::convert::AsRef::as_ref).collect();
-    match recipe.lookup(&bytes, &borrowed) {
-        Ok(index) => selected_property_member(vm, header.value(), recipe.strings(), index),
+    let verdict = recipe.lookup(&bytes, &borrowed);
+    operation
+        .check(vm)
+        .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?;
+    match verdict {
+        Ok(index) => selected_property_member(vm, header.value(), operation, index),
         Err(message) => {
             let other = vm
                 .native_all_property_header(target, false, !writable)
-                .map_err(|e| crate::command::completion_from_cmd_error(vm, e.into()))?;
-            let other = other
-                .value()
-                .native_object_list_elements(recipe.strings())
-                .map_err(|e| crate::command::completion_from_cmd_error(vm, e.into()))?;
-            let other_words: Vec<_> = other
-                .iter()
-                .map(|name| {
-                    name.native_string_bytes(recipe.strings())
-                        .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
-                })
-                .collect::<Result<_, _>>()
-                .map_err(|e| {
-                    crate::command::completion_from_cmd_error(vm, ValueError::from(e).into())
-                })?;
+                .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?;
+            let other = operation
+                .list(vm, other.value())
+                .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?;
+            let mut other_words = Vec::new();
+            for name in other.iter() {
+                other_words.push(
+                    operation
+                        .string(vm, name)
+                        .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?,
+                );
+            }
             let other_borrowed: Vec<_> = other_words
                 .iter()
                 .map(std::convert::AsRef::as_ref)
@@ -408,12 +494,12 @@ pub(super) fn lookup_property(
 fn selected_property_member(
     vm: &mut Vm,
     header: &Value,
-    strings: tcl_syntax::native_string::NativeStringProtocol,
+    operation: &OriginalPropertyOperation,
     index: usize,
 ) -> Result<crate::value::NativeObjectLifetimeLease, Completion<Value>> {
-    let current = header
-        .native_object_list_elements(strings)
-        .map_err(|e| crate::command::completion_from_cmd_error(vm, e.into()))?;
+    let current = operation
+        .list(vm, header)
+        .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?;
     let selected = current.get(index).ok_or_else(|| {
         crate::command::completion_from_cmd_error(
             vm,
@@ -421,6 +507,12 @@ fn selected_property_member(
                 .into(),
         )
     })?;
+    selected
+        .check_native_header()
+        .map_err(|e| crate::command::completion_from_cmd_error(vm, e.into()))?;
+    operation
+        .check(vm)
+        .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?;
     Ok(selected.native_lifetime_lease())
 }
 
@@ -546,83 +638,74 @@ pub(super) fn set_property_slot(
     Ok(names)
 }
 
-fn compare_original_members(
-    a: &Value,
-    b: &Value,
-    protocol: tcl_syntax::native_string::NativeStringProtocol,
-) -> Result<std::cmp::Ordering, ValueError> {
-    use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
-    if a.native_object_identity() == b.native_object_identity() {
-        return Ok(std::cmp::Ordering::Equal);
-    }
-    let sa = a.native_object_snapshot();
-    let sb = b.native_object_snapshot();
-    if matches!(sa.cache, Cache::String { .. }) && matches!(sb.cache, Cache::String { .. }) {
-        let representation=tcl_registry::native_string_length::NativeStringLengthRepresentation::PureProperByteArray;
-        let ca = a.native_character_count_with_protocol(protocol, representation)?;
-        let cb = b.native_character_count_with_protocol(protocol, representation)?;
-        if sa.resident.as_ref().is_some_and(|bytes| bytes.len() == ca)
-            && sb.resident.as_ref().is_some_and(|bytes| bytes.len() == cb)
-        {
-            return Ok(sa.resident.cmp(&sb.resident));
-        }
-        return Ok(a
-            .native_unicode_units(protocol)?
-            .cmp(&b.native_unicode_units(protocol)?));
-    }
-    if let (Cache::ByteArray { bytes: a, .. }, Cache::ByteArray { bytes: b, .. }) =
-        (&sa.cache, &sb.cache)
-        && sa.resident.is_none()
-        && sb.resident.is_none()
-    {
-        return Ok(a.cmp(b));
-    }
-    let a = a
-        .native_string_bytes(protocol)
-        .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)?;
-    let b = b
-        .native_string_bytes(protocol)
-        .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)?;
-    let version = protocol
-        .tcl_version()
-        .ok_or(ValueError::CommandProtocolUnavailable(
-            "property member string comparison",
-        ))?;
-    let utf = tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version);
-    Ok(utf.decode_units(&a).cmp(&utf.decode_units(&b)))
+pub(super) fn configure_all(vm: &mut Vm, target: OoId) -> Completion<Value> {
+    let Some(recipe) = vm
+        .actual_native_invocation_dialect()
+        .native_property_lookup_protocol()
+    else {
+        return crate::command::completion_from_cmd_error(
+            vm,
+            ValueError::CommandProtocolUnavailable("native property configure issuer").into(),
+        );
+    };
+    let operation = match OriginalPropertyOperation::enter(vm, target, false, recipe.strings()) {
+        Ok(operation) => operation,
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    };
+    let reached = configure_all_entered(vm, target, &operation);
+    operation.complete_invocation(vm, reached)
 }
 
-pub(super) fn configure_all(vm: &mut Vm, target: OoId) -> Completion<Value> {
+fn configure_all_entered(
+    vm: &mut Vm,
+    target: OoId,
+    operation: &OriginalPropertyOperation,
+) -> Completion<Value> {
     let header = match vm.native_all_property_header(target, false, false) {
         Ok(header) => header,
         Err(e) => return crate::command::completion_from_cmd_error(vm, e.into()),
     };
     // The configure reader adds one actual List-header role across callbacks.
     let header = header.value().clone();
-    let protocol = vm
-        .actual_native_invocation_dialect()
-        .native_property_lookup_protocol()
-        .expect("selected properties")
-        .strings();
-    let names = match header.native_object_list_elements(protocol) {
+    let names = match operation.list(vm, &header) {
         Ok(names) => names,
         Err(e) => return crate::command::completion_from_cmd_error(vm, e.into()),
     };
-    let mut pairs = Vec::new();
-    for original in names.iter() {
+    let empty = match operation.dictionary(vm, Vec::new()) {
+        Ok(empty) => empty,
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    };
+    let mut output = match operation.prepare_dictionary(vm, &empty) {
+        Ok(output) => output,
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    };
+    drop(empty);
+    if let Err(error) = operation.check(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    for (index, original) in names.iter().enumerate() {
         let value = match read_original_property(vm, target, original) {
             Ok(value) => value,
             Err(error) => return error,
         };
-        pairs.push((original.clone(), value));
+        if let Err(error) = operation.put_dictionary(vm, &mut output, original.clone(), value) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        if index + 1 < names.len() {
+            if let Err(error) =
+                vm.adopt_native_interp_result(Value::new_native_string_bytes(b"".as_slice()))
+            {
+                return crate::command::completion_from_cmd_error(vm, error.into());
+            }
+            if let Err(error) = operation.check(vm) {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+        }
     }
-    if pairs.is_empty() {
+    if names.is_empty() {
         return ok(Value::empty());
     }
-    match Value::native_dictionary_constructor(pairs, None, protocol) {
-        Ok(value) => ok(value),
-        Err(e) => crate::command::completion_from_cmd_error(vm, e.into()),
-    }
+    ok(output.into_value())
 }
 
 /// Actual GetterType/SetterType clientData. Native method records share this
@@ -652,65 +735,41 @@ pub(super) fn default_method(original: &Value, writable: bool) -> Method {
 }
 
 fn default_storage_name(
-    vm: &Vm,
+    vm: &mut Vm,
     target: OoId,
     original: &Value,
-    strings: tcl_syntax::native_string::NativeStringProtocol,
-) -> Result<Option<Vec<u8>>, ValueError> {
+    operation: &OriginalPropertyOperation,
+) -> Result<Option<Vec<u8>>, CmdError> {
     let Some(frame) = native_context::current_method(vm) else {
         return Ok(None);
     };
-    let Some(step) = frame.chain.get(frame.index) else {
+    let step = frame
+        .chain
+        .get(frame.index)
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "original property declaring step",
+        ))?;
+    let provider = step.provider;
+    let is_object = step.is_object;
+    if is_object && provider != target {
         return Ok(None);
-    };
-    let variables = if step.is_object {
-        if step.provider != target {
-            return Ok(None);
-        }
-        vm.oo
-            .objects
-            .get(&target)
-            .map(|object| &object.private_variables)
-    } else {
-        let reachable = vm.oo.is_a(target, step.provider)
+    }
+    if !is_object {
+        let reachable = vm.oo.is_a(target, provider)
             || vm.oo.objects.get(&target).is_some_and(|object| {
                 object.mixins.iter().any(|mixin| {
                     vm.oo
                         .class_linear_of(*mixin)
                         .iter()
-                        .any(|entry| entry.provider == step.provider)
+                        .any(|entry| entry.provider == provider)
                 })
             });
         if !reachable {
             return Ok(None);
         }
-        vm.oo
-            .classes
-            .get(&step.provider)
-            .map(|class| &class.private_variables)
-    };
-    if let Some(variables) = variables {
-        for variable in variables {
-            if compare_original_members(&variable.original, original, strings)?
-                == std::cmp::Ordering::Equal
-            {
-                let creation = vm
-                    .oo
-                    .objects
-                    .get(&step.provider)
-                    .ok_or(ValueError::CommandProtocolUnavailable(
-                        "private property variable provider",
-                    ))?
-                    .creation_id;
-                return Ok(Some(
-                    private_storage_name_bytes(creation, variable.name.as_bytes())
-                        .as_bytes()
-                        .to_vec(),
-                ));
-            }
-        }
     }
-    Ok(None)
+    let variables = original_stages::PrivateVariableRoster::capture(vm, provider, is_object)?;
+    variables.lookup(vm, operation, original)
 }
 
 pub(super) fn invoke_default(
@@ -719,6 +778,35 @@ pub(super) fn invoke_default(
     accessor: &NativePropertyAccessor,
     args: &[Value],
     original_argv: &[Value],
+) -> Completion<Value> {
+    let Some(recipe) = vm
+        .actual_native_invocation_dialect()
+        .native_property_name_protocol()
+    else {
+        return crate::command::completion_from_cmd_error(
+            vm,
+            ValueError::CommandProtocolUnavailable("native default property accessor").into(),
+        );
+    };
+    let mut operation = match OriginalPropertyOperation::enter(vm, target, false, recipe.strings())
+    {
+        Ok(operation) => operation,
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    };
+    if let Err(error) = operation.select_declaring(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    let reached = invoke_default_entered(vm, target, accessor, args, original_argv, &operation);
+    operation.complete_invocation(vm, reached)
+}
+
+fn invoke_default_entered(
+    vm: &mut Vm,
+    target: OoId,
+    accessor: &NativePropertyAccessor,
+    args: &[Value],
+    original_argv: &[Value],
+    operation: &OriginalPropertyOperation,
 ) -> Completion<Value> {
     if args.len() != usize::from(accessor.writable) {
         let mut usage = match vm
@@ -741,13 +829,10 @@ pub(super) fn invoke_default(
             ValueError::CommandProtocolUnavailable("native default property accessor").into(),
         );
     };
-    let bytes = match accessor.original.native_string_bytes(recipe.strings()) {
+    let bytes = match operation.string(vm, &accessor.original) {
         Ok(bytes) => bytes,
         Err(error) => {
-            return crate::command::completion_from_cmd_error(
-                vm,
-                tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error).into(),
-            );
+            return crate::command::completion_from_cmd_error(vm, error);
         }
     };
     let Some(object) = vm.oo.objects.get(&target) else {
@@ -757,7 +842,7 @@ pub(super) fn invoke_default(
         );
     };
     let namespace = object.ns.clone();
-    let mapped = match default_storage_name(vm, target, &accessor.original, recipe.strings()) {
+    let mapped = match default_storage_name(vm, target, &accessor.original, operation) {
         Ok(mapped) => mapped,
         Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
     };
@@ -784,6 +869,23 @@ pub(super) fn invoke_default(
 }
 
 pub(super) fn configure_native(vm: &mut Vm, target: OoId, args: &[Value]) -> Completion<Value> {
+    let Some(recipe) = vm
+        .actual_native_invocation_dialect()
+        .native_property_lookup_protocol()
+    else {
+        return crate::command::completion_from_cmd_error(
+            vm,
+            ValueError::CommandProtocolUnavailable("native property configure issuer").into(),
+        );
+    };
+    let operation = match OriginalPropertyOperation::enter(vm, target, false, recipe.strings()) {
+        Ok(operation) => operation,
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    };
+    let reached = configure_native_entered(vm, target, args);
+    operation.complete_invocation(vm, reached)
+}
+fn configure_native_entered(vm: &mut Vm, target: OoId, args: &[Value]) -> Completion<Value> {
     if args.is_empty() {
         return configure_all(vm, target);
     }
@@ -802,7 +904,8 @@ pub(super) fn configure_native(vm: &mut Vm, target: OoId, args: &[Value]) -> Com
         };
     }
     for pair in args.as_chunks::<2>().0 {
-        let property = match lookup_property(vm, target, &pair[0], true, &mut table, true) {
+        let property = match lookup_property(vm, target, &pair[0], true, &mut table, args.len() > 2)
+        {
             Ok(property) => property,
             Err(error) => return error,
         };
@@ -819,13 +922,18 @@ fn invoke_original_accessor(
     writable: bool,
     value: Option<&Value>,
 ) -> Result<Value, Completion<Value>> {
-    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(vm)
-        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
-    let reached = invoke_original_accessor_entered(vm, target, property, writable, value);
-    scope
-        .check(vm)
-        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
-    reached
+    let recipe = vm
+        .actual_native_invocation_dialect()
+        .native_property_lookup_protocol()
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "selected property accessor",
+        ))
+        .map_err(|e| crate::command::completion_from_cmd_error(vm, e.into()))?;
+    let operation = OriginalPropertyOperation::enter(vm, target, false, recipe.strings())
+        .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?;
+    let reached =
+        invoke_original_accessor_entered(vm, target, property, writable, value, &operation);
+    operation.complete_result(vm, reached)
 }
 
 fn invoke_original_accessor_entered(
@@ -834,32 +942,33 @@ fn invoke_original_accessor_entered(
     property: &Value,
     writable: bool,
     value: Option<&Value>,
+    operation: &OriginalPropertyOperation,
 ) -> Result<Value, Completion<Value>> {
     let recipe = vm
         .actual_native_invocation_dialect()
         .native_property_lookup_protocol()
         .expect("selected property accessor");
     let accessor = property
-        .native_property_accessor(recipe, writable)
-        .map_err(|e| crate::command::completion_from_cmd_error(vm, e.into()))?;
-    // TclOO property thunks own the same my and accessor objects for the call.
-    let accessor = accessor.value().clone();
-    let Some(head) = vm.oo.property_my_name.clone() else {
-        return Err(crate::command::completion_from_cmd_error(
+        .native_property_accessor_checked(
+            recipe,
+            writable,
             vm,
-            ValueError::CommandProtocolUnavailable("Foundation original my name").into(),
-        ));
-    };
-    let method = native_method_key_for_target(vm, &accessor, Some((false, target)))?;
-    let bytes = property
-        .native_string_bytes(recipe.strings())
-        .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
-        .map_err(|e| crate::command::completion_from_cmd_error(vm, ValueError::from(e).into()))?;
+            &mut |vm| operation.string(vm, property),
+            &mut |vm| operation.check(vm),
+        )
+        .map_err(|e| crate::command::completion_from_cmd_error(vm, e.into()))?;
+    // The reached call owns my, accessor and any setter value until invocation ends.
     let result = {
+        let Some(head) = vm.oo.property_my_name.clone() else {
+            return Err(crate::command::completion_from_cmd_error(
+                vm,
+                ValueError::CommandProtocolUnavailable("Foundation original my name").into(),
+            ));
+        };
+        let accessor = accessor.value().clone();
+        let args = value.map_or_else(Vec::new, |value| vec![value.clone()]);
+        let method = native_method_key_for_target(vm, &accessor, Some((false, target)))?;
         let invoked = Value::from_native_string_bytes(display_oo_bytes(vm, target));
-        let args = value.map_or_else(Vec::new, |value| {
-            vec![value.native_lifetime_lease().into_value()]
-        });
         oo_invoke_value_with_head(
             vm,
             target,
@@ -870,9 +979,15 @@ fn invoke_original_accessor_entered(
             (&invoked, Some(&head)),
         )
     };
+    operation
+        .check(vm)
+        .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?;
     match result.code {
         Code::Ok => Ok(result.result),
         Code::Break | Code::Continue => {
+            let bytes = operation
+                .string(vm, property)
+                .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?;
             let mut error = b"property ".to_vec();
             error.extend_from_slice(if writable { b"setter" } else { b"getter" });
             error.extend_from_slice(b" for ");
@@ -1244,3 +1359,6 @@ mod tests {
         assert_eq!(vm.oo.property_foundation_epoch, epoch + 1);
     }
 }
+
+#[cfg(test)]
+mod stage_tests;

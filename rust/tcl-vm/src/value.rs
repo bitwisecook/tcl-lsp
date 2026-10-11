@@ -6050,20 +6050,64 @@ impl Value {
         bucket_count: Option<usize>,
         protocol: NativeStringProtocol,
     ) -> Result<Self, tcl_syntax::value::ValueError> {
+        Self::native_dictionary_constructor_using(
+            pairs,
+            bucket_count,
+            protocol,
+            &mut (),
+            &mut |_, actual| {
+                actual.native_string_bytes(protocol).map_err(|error| {
+                    ValueError::NativeStringAccess(
+                        tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
+                    )
+                })
+            },
+            &mut |_| Ok(()),
+        )
+    }
+
+    pub(crate) fn native_dictionary_constructor_checked<C>(
+        pairs: Vec<(Value, Value)>,
+        bucket_count: Option<usize>,
+        protocol: NativeStringProtocol,
+        context: &mut C,
+        string: &mut impl FnMut(&mut C, &Value) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
+        check: &mut impl FnMut(&mut C) -> Result<(), tcl_cmd_core::CmdError>,
+    ) -> Result<Self, tcl_cmd_core::CmdError> {
+        Self::native_dictionary_constructor_using(
+            pairs,
+            bucket_count,
+            protocol,
+            context,
+            string,
+            check,
+        )
+    }
+
+    fn native_dictionary_constructor_using<C, E: From<ValueError>>(
+        pairs: Vec<(Value, Value)>,
+        bucket_count: Option<usize>,
+        protocol: NativeStringProtocol,
+        context: &mut C,
+        string: &mut impl FnMut(&mut C, &Value) -> Result<Rc<[u8]>, E>,
+        check: &mut impl FnMut(&mut C) -> Result<(), E>,
+    ) -> Result<Self, E> {
         let mut hash_order = TclStringHashOrder::default();
         if let Some(bucket_count) = bucket_count {
             hash_order.retain_bucket_count(bucket_count);
         }
         let mut keys = Vec::with_capacity(pairs.len());
         for (key, _) in &pairs {
-            let bytes = key.native_string_bytes(protocol).map_err(|error| {
-                tcl_syntax::value::ValueError::NativeStringAccess(
-                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
-                )
-            })?;
+            check(context)?;
+            key.check_native_header()?;
+            let reached = string(context, key);
+            check(context)?;
+            let bytes = reached?;
+            key.check_native_header()?;
             hash_order.insert(&bytes);
             keys.push(bytes);
         }
+        check(context)?;
         let mut original_pairs: Vec<_> = pairs.into_iter().map(Some).collect();
         let pairs = canonical_dict_slots(keys.iter().map(AsRef::as_ref))
             .into_iter()
@@ -6079,10 +6123,12 @@ impl Value {
                 }
             })
             .collect();
-        Ok(Self::from_parts(
+        let value = Self::from_parts(
             None,
             IntRep::Dict(Rc::new(DictRep::new(pairs, hash_order, Some(protocol)))),
-        ))
+        );
+        check(context)?;
+        Ok(value)
     }
 
     /// The string representation, generating and caching it from the typed rep
