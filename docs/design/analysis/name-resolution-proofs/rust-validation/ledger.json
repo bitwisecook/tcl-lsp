@@ -206922,6 +206922,156 @@
       "limits": "The independent exact Python unittest-discovery command completes17 maintained proof-boundary controls on original Source317. This is a test of the maintained checker boundary semantics only, independent of the actual Runtime compilation failure. It launches no Native provider process and admits no Runtime executable/assertion, Rust suite or complete proof-catalog acceptance.",
       "sealed_images": {},
       "framework": "python-unittest"
+    },
+    {
+      "id": "rust.frozen317.integration-core-own-test-build317",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/integration-core-own-test-build317/receipt.json.gz",
+        "sha256": "94396b198d147884d1291f38d4b857f3a7da20c74078c7b1ee8369da1aa05b24",
+        "compression": "gzip",
+        "uncompressed_sha256": "e050c09ac9cdba0ef286edb7df4e96f21838a6555bef6bfd2e8b377065332449"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/integration-core-own-test-build317/tests.log",
+        "sha256": "57a4bfbd6be0496b00d2fe99c280f5ece191497148fe088f6d4660cacb645a09"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-lsp-core",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 0,
+      "seconds": 137.74137090399745,
+      "uniform_source": true,
+      "status": "compile-passed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Complete unchanged 33626-leaf original immutable Source317 source/head/command/archive associations; every original source leaf independently byte-verified. Current source differences carry no transferred assertion or executable availability."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The independent Core own no-run command succeeds, produces its actual fresh:false Cargo test artifact and admits only the exact strictly pinned Core317 image. The complete immutable Source317 source is the exact owned producer input; later source or fixture changes have no transferred image or assertion admission. This successful producer runs no assertions and admits no separate Runtime or other workspace executable. Original Native answers, source evidence and other closed failed/successful operations remain unchanged.",
+      "sealed_images": {
+        "core": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/sealed-own-core-image/pinned-core317.elf.gz",
+          "sha256": "4260157961eb05ead6b5dcb248e888cd95a60cca5855ad91a120eb81ff7b471c",
+          "compression": "gzip",
+          "uncompressed_sha256": "5d293d2829c2f12aa957ebe5eea561a4be590214f1156a5dea6bbce789344e62",
+          "uncompressed_bytes": 173678192,
+          "compressed_bytes": 31245463,
+          "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/sealed-own-core-image/lossless-core-image-storage.json",
+          "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/sealed-own-core-image/pinned-core317.json",
+          "metadata_sha256": "74d6fb8032242593d8abed6abb250e73033fdc0d0012a95976e20bfddcdd20e9",
+          "build_receipt_id": "rust.frozen317.integration-core-own-test-build317",
+          "original_source_snapshot_sha256": "053247f11cabe62686fb906760015973ecf84fb255391e9043e431ac0d3debcb",
+          "source_snapshot": {
+            "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/sealed-own-core-image/source-snapshot.json.gz",
+            "sha256": "8f4aee63f10b3078079903b76c1605a76e13bdf329dfe326c307180d67b093b5",
+            "compression": "gzip",
+            "uncompressed_sha256": "053247f11cabe62686fb906760015973ecf84fb255391e9043e431ac0d3debcb"
+          }
+        }
+      }
+    },
+    {
+      "id": "rust.frozen317.integration-core-own-list317",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/integration-core-own-list317/receipt.json.gz",
+        "sha256": "dacdcd37a649ee8dbf151eee61f06cfbcf4f748ebe1c658784f5846832c27eff",
+        "compression": "gzip",
+        "uncompressed_sha256": "336b946f1bd11d7c72021b613a230a23beaa7261ba8747672fe71b5e868e3458"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/integration-core-own-list317/tests.log",
+        "sha256": "abfaa887eb15b3d00eaa9290affd791765bf84dc90df6f54c243dfc521c48371"
+      },
+      "command": [
+        "/tmp/naming-owned317/pinned-core317.elf",
+        "--list"
+      ],
+      "exit": 0,
+      "seconds": 0.012002245988696814,
+      "uniform_source": true,
+      "status": "listed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Complete unchanged 33626-leaf original immutable Source317 source/head/command/archive associations; every original source leaf independently byte-verified. Current source differences carry no transferred assertion or executable availability."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The exact strictly pinned Core317 image lists all2933 actual test selectors and zero benchmarks. Listing executes no assertion. Source controls, runtime features and independently selected test commands receive no donated result. Original Native answers, source evidence and other closed failed/successful operations remain unchanged.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/sealed-own-core-image/pinned-core317.elf.gz",
+        "sha256": "4260157961eb05ead6b5dcb248e888cd95a60cca5855ad91a120eb81ff7b471c",
+        "compression": "gzip",
+        "uncompressed_sha256": "5d293d2829c2f12aa957ebe5eea561a4be590214f1156a5dea6bbce789344e62",
+        "uncompressed_bytes": 173678192,
+        "compressed_bytes": 31245463,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/sealed-own-core-image/lossless-core-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/sealed-own-core-image/pinned-core317.json",
+        "metadata_sha256": "74d6fb8032242593d8abed6abb250e73033fdc0d0012a95976e20bfddcdd20e9",
+        "build_receipt_id": "rust.frozen317.integration-core-own-test-build317",
+        "original_source_snapshot_sha256": "053247f11cabe62686fb906760015973ecf84fb255391e9043e431ac0d3debcb",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/sealed-own-core-image/source-snapshot.json.gz",
+          "sha256": "8f4aee63f10b3078079903b76c1605a76e13bdf329dfe326c307180d67b093b5",
+          "compression": "gzip",
+          "uncompressed_sha256": "053247f11cabe62686fb906760015973ecf84fb255391e9043e431ac0d3debcb"
+        }
+      }
+    },
+    {
+      "id": "rust.frozen317.integration-compiler-own-test-build317",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/integration-compiler-own-test-build317/receipt.json.gz",
+        "sha256": "5a6314307a0c83979a0f0bdb6d8f2e475f186ca0f1b504fc050bafad64a0bfe7",
+        "compression": "gzip",
+        "uncompressed_sha256": "832ec87208413ae9115b184ec010ac2ad1fdef55b1804e317b92d984b99d9810"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/integration-compiler-own-test-build317/tests.log",
+        "sha256": "1cb487d8da71a6918d6ed6f5ab2c3c0287306cb0bc489c592cb30d5eb7b8df32"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 195.1055050319992,
+      "uniform_source": true,
+      "status": "compile-failed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Complete original33626-leaf immutable Source317 source/head/archive association; exact source map joins the independently authenticated successful Core317 own producer and retained complete source snapshot. No current input or failed artifact substitution."
+      },
+      "tests": [],
+      "question_ids": [],
+      "sealed_images": {},
+      "limits": "The independent Compiler library-test no-run command records three test-fixture errors: absent ContextRegistry authoring_query method1 and mismatched Token/string comparisons2. It creates no test executable and admits no Compiler own producer, strict image, inventory or assertion. The independently successful Core producer and its closed selected assertion failures retain separate scope. Current fixture repairs supply no retrospective Compiler build or assertion credit. Original Native answers and evidence are unchanged."
     }
   ]
 }

@@ -3371,3 +3371,69 @@ The [whole original receipt](frozen317/integration-proof-maintenance317/receipt.
 is lossless gzip and restores SHA-256 `f054553d195bf45114e1428d425e8d789c53b66399a99621ab175cae5e93c900`; the
 [whole original log](frozen317/integration-proof-maintenance317/tests.log) retains
 SHA-256 `1e40316a5668dc3d14ead87d86b09ca3c7724fc3e8bf943c9e2682a3c543a6fb`.
+
+## Source317 independent Core producer and inventory
+
+The independent Core own no-run command succeeds
+after 137.74137090399745 seconds with uniform source `true`. Its actual
+produced Cargo test artifact (`fresh: false`, features `[]`) admits the
+strict image SHA-256 `5d293d2829c2f12aa957ebe5eea561a4be590214f1156a5dea6bbce789344e62`.
+The separate exact executable inventory closes exit `0` after
+0.012002245988696814 seconds and lists 2,933 tests, zero benchmarks.
+The complete immutable 33,626-leaf source retains HEAD
+`ea3a644447bc79bae42600055f061b824405dd1c`. Neither command executes an
+assertion. Other closed operations retain their independent receipts; the selected
+Core assertion command and the failed Compiler317 producer are excluded.
+
+| Closed operation | Exact scope | Original receipt | Whole log |
+| --- | --- | --- | --- |
+| `integration-core-own-test-build317` | `compile-passed`, exit `0`; no assertions | [lossless original](frozen317/integration-core-own-test-build317/receipt.json.gz) | [whole log](frozen317/integration-core-own-test-build317/tests.log) |
+| `integration-core-own-list317` | `listed`, exit `0`; no assertions | [lossless original](frozen317/integration-core-own-list317/receipt.json.gz) | [whole log](frozen317/integration-core-own-list317/tests.log) |
+
+The [complete source companion](frozen317/sealed-own-core-image/source-snapshot.json.gz),
+[strict original metadata](frozen317/sealed-own-core-image/pinned-core317.json)
+and [lossless image map](frozen317/sealed-own-core-image/lossless-core-image-storage.json)
+retain original producer, whole payload, mode and source associations.
+Restore the complete measured executable only after both integrity checks:
+
+```python
+from pathlib import Path
+import gzip, hashlib, json
+base = Path("docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/sealed-own-core-image")
+record = json.loads((base / "lossless-core-image-storage.json").read_text())
+packed = (base / "pinned-core317.elf.gz").read_bytes()
+assert len(packed) == record["stored_bytes"]
+assert hashlib.sha256(packed).hexdigest() == record["stored_sha256"]
+original = gzip.decompress(packed)
+assert len(original) == record["original_bytes"]
+assert hashlib.sha256(original).hexdigest() == record["original_sha256"]
+restored = Path("/tmp/pinned-core317.elf")
+restored.write_bytes(original)
+restored.chmod(record["original_mode"])
+```
+
+Restoration does not replace or retire an active original executable and
+runs no assertion. No complete Core suite, Compiler, VM, Runtime, Native provider or
+combined gate result is inferred from this producer and inventory.
+
+## Source317 Compiler compilation failure
+
+The independent own Compiler library-test no-run command closes exit
+`101` after 195.1055050319992 seconds with uniform source `true`. The complete
+33,626-leaf source retains HEAD `ea3a644447bc79bae42600055f061b824405dd1c`.
+Its original log records three test-fixture errors: `E0599` for the absent
+`ContextRegistry.authoring_query` method at `analyser/oo.rs:4474`, and two
+`E0308` Token/string comparison errors at `analyser/state.rs:3716` and
+`analyser/state.rs:3742`. Exact compiler spans and type
+messages remain in the whole original log.
+
+No test executable creation event, successful own Compiler producer,
+strict Compiler image, executable inventory or assertion is admitted. The
+successful Core317 producer and selected Core assertion command retain
+separate scope; current fixture repairs provide no retrospective credit.
+
+The [complete original receipt](frozen317/integration-compiler-own-test-build317/receipt.json.gz)
+is lossless gzip and restores SHA-256 `832ec87208413ae9115b184ec010ac2ad1fdef55b1804e317b92d984b99d9810`.
+The [whole original log](frozen317/integration-compiler-own-test-build317/tests.log) retains
+SHA-256 `1cb487d8da71a6918d6ed6f5ab2c3c0287306cb0bc489c592cb30d5eb7b8df32`. Its complete source association is identical to
+the independently retained [Source317 source snapshot](frozen317/sealed-own-core-image/source-snapshot.json.gz).

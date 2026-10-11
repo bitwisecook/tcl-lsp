@@ -4471,7 +4471,9 @@ mod tests {
         let config = tcl_lexer::LexerConfig::for_file_grammar(
             crate::environment_ingress::resolve_environment("tcl9.1").grammar(),
         );
-        let dialect = tcl_registry::model::ingress::static_context_for("tcl9.1").authoring_query();
+        let dialect = tcl_registry::model::ingress::static_context_for("tcl9.1")
+            .context()
+            .authoring_query();
         let positive = "method $name {} {}";
         assert!(
             loop_installed_member_shape(tcloo(), positive, 7, config, Some(dialect), "name")

@@ -3783,7 +3783,7 @@ mod tests {
         )
         .pop()
         .unwrap();
-        assert_eq!(command.argv[0], "set");
+        assert_eq!(command.texts[0], "set");
 
         let environment = crate::environment_ingress::resolve_environment("tcl9.1");
         let config = tcl_lexer::LexerConfig {
@@ -3809,7 +3809,7 @@ mod tests {
         )
         .pop()
         .unwrap();
-        assert_eq!(command.argv[0], "\u{feff}set");
+        assert_eq!(command.texts[0], "\u{feff}set");
     }
 
     #[test]
