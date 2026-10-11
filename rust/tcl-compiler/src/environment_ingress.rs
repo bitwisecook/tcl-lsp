@@ -206,7 +206,9 @@ pub(crate) fn captured_native_entry_with_owner(
     )
     .expect("authentic native registration before entry capture");
     vm.set_compiler(Box::new(Capture(Rc::clone(&captured))));
-    assert!(vm.try_eval_source("set entry_probe 1").is_err());
+    // Capture the compiler's actual entry, including when the physical Jim
+    // Script evaluator has an independent direct execution route.
+    assert!(vm.try_compile_function("set entry_probe 1").is_err());
     let entry = captured
         .borrow_mut()
         .take()
@@ -457,5 +459,46 @@ mod tests {
         let second = interned_package_name("f5-irules-cmds");
         assert!(std::ptr::eq(first, second));
         assert_eq!(first, "f5-irules-cmds");
+    }
+
+    #[test]
+    fn original_compiler_entry_capture_reaches_actual_c_and_jim_compile_providers() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Genuine VM compiler-entry capture; no external native execution claim.
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let environment =
+                tcl_registry::model::ingress::resolve_known_environment(name).unwrap();
+            let (owner, entry) = captured_native_entry_with_owner(environment.unit_profile());
+            assert_eq!(entry.execution_point, environment.point(), "{name}");
+            assert_eq!(entry.profile, environment.unit_profile().cache_key(), "{name}");
+            assert!(entry.closed, "{name}");
+            assert!(!entry.commands.is_empty(), "{name}");
+            let observation = entry.empty_literal_world.as_ref().unwrap();
+            assert!(observation.is_current_for(entry.interpreter, entry.epoch), "{name}");
+            drop(owner);
+            assert!(!observation.is_current(), "{name}");
+        }
+    }
+
+    #[test]
+    fn original_compiler_entry_capture_retains_weak_owner_without_donating_foreign_identity() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Original weak registration observation, independent from command semantics.
+        for name in ["tcl8.4", "jimtcl"] {
+            let profile = tcl_registry::model::ingress::resolve_known_environment(name)
+                .unwrap().unit_profile();
+            let (owner, entry) = captured_native_entry_with_owner(profile);
+            let (other_owner, other) = captured_native_entry_with_owner(profile);
+            let observation = entry.empty_literal_world.as_ref().unwrap();
+            assert_ne!(entry.interpreter, other.interpreter, "{name}");
+            assert!(observation.is_current_for(entry.interpreter, entry.epoch), "{name}");
+            assert!(!observation.is_current_for(other.interpreter, other.epoch), "{name}");
+            drop(other_owner);
+            assert!(observation.is_current_for(entry.interpreter, entry.epoch), "{name}");
+            drop(owner);
+            assert!(!observation.is_current_for(entry.interpreter, entry.epoch), "{name}");
+        }
     }
 }
