@@ -60,7 +60,7 @@ use serde_json::{Value, json};
 use tcl_compiler::parsing::syntax::build::build_document;
 use tcl_compiler::parsing::syntax::segment::segments_from_document;
 use tcl_compiler::signature_scan::types::ParamDef;
-use tcl_lexer::{LexerConfig, SourceMap};
+use tcl_lexer::{LexerConfig, SourceMap, SourceSegmentationPurpose};
 use tcl_registry::arg_role::ArgRole;
 use tcl_registry::registry::CommandRegistry;
 
@@ -266,7 +266,10 @@ fn statements(
         return;
     }
     let source_map = SourceMap::new(source);
-    let (document, _warnings) = build_document(source, config);
+    let (document, _warnings) = build_document(
+        source,
+        SourceSegmentationPurpose::NestedScript.config(config),
+    );
     for segment in segments_from_document(document, &source_map) {
         let words = segment.texts.clone();
         let head = words.first().cloned().unwrap_or_default();
@@ -286,25 +289,25 @@ struct Arm {
     script: String,
 }
 
-/// The arms of a braced `switch` body.
-///
-/// The list is `pattern script pattern script …`, one pair per line by
-/// convention — which is exactly what the segmenter reports as a "command" of
-/// two words, so the same parse serves.
+/// Pattern/script pairs from the selected target's list-value grammar.
+/// This independent advisory scan has no original execution receipt. A table
+/// with invalid list syntax or an unmatched pattern supplies no arm evidence.
 fn arms(body: &str, config: LexerConfig) -> Vec<Arm> {
-    let source_map = SourceMap::new(body);
-    let (document, _warnings) = build_document(body, config);
-    let mut out: Vec<Arm> = Vec::new();
-    for segment in segments_from_document(document, &source_map) {
-        let mut words = segment.texts.iter();
-        while let Some(pattern) = words.next() {
-            let script = words.next().cloned().unwrap_or_default();
-            out.push(Arm {
-                pattern: pattern.clone(),
-                script,
-            });
-        }
+    let Ok(elements) =
+        tcl_syntax::word_rules::WordValueRules::from_config(&config).split_list(body)
+    else {
+        return Vec::new();
+    };
+    if elements.len() % 2 != 0 {
+        return Vec::new();
     }
+    let mut out = elements
+        .chunks_exact(2)
+        .map(|pair| Arm {
+            pattern: pair[0].to_string(),
+            script: pair[1].to_string(),
+        })
+        .collect::<Vec<_>>();
     // A `-` script is Tcl's fall-through: the arm runs the *next* arm's body.
     for i in 0..out.len() {
         if out[i].script.trim() == "-" {
@@ -821,5 +824,51 @@ mod tests {
         assert_eq!(d["command_prefixes"][0]["index"], json!(1));
         assert_eq!(d["command_prefixes"][0]["arity"]["kind"], json!("Exactly"));
         assert!(!notes.is_empty());
+    }
+
+    #[test]
+    fn original_corpus_switch_pairs_use_selected_list_values_and_nested_body_purpose() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        let profile = crate::environment::profile_for_dialect("tcl9.0");
+        let config = LexerConfig::for_file_grammar(profile.grammar);
+        let pairs = arms(
+            "a; {return ONE} #literal {return TWO} a\\ b {return THREE}",
+            config,
+        );
+        assert_eq!(
+            pairs
+                .iter()
+                .map(|arm| (arm.pattern.as_str(), arm.script.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("a;", "return ONE"),
+                ("#literal", "return TWO"),
+                ("a b", "return THREE")
+            ]
+        );
+        let fallthrough = arms("first - second {return TWO}", config);
+        assert_eq!(fallthrough[0].script, "return TWO");
+        assert!(arms("x body dangling", config).is_empty());
+        assert!(arms("x {unfinished", config).is_empty());
+        let jim = LexerConfig::for_profile(Some(
+            tcl_registry::model::ingress::resolve_known_environment("jim0.79")
+                .expect("selected Jim test environment")
+                .unit_profile(),
+        ));
+        let tolerant = arms("x {unfinished", jim);
+        assert_eq!(tolerant.len(), 1);
+        assert_eq!(tolerant[0].pattern, "x");
+        assert_eq!(tolerant[0].script, "unfinished");
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile);
+        let mut body = Vec::new();
+        statements(
+            registry.commands(),
+            config,
+            "\u{feff}return VALUE",
+            0,
+            &mut body,
+        );
+        assert_eq!(body[0].head(), "\u{feff}return");
     }
 }

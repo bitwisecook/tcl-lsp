@@ -536,6 +536,20 @@ impl FileBom {
     }
 }
 
+/// The fixed SpecTcl pack-source grammar for an explicitly selected region.
+/// Whole pack files share the loader's file-prologue treatment; extracted
+/// blocks retain a leading mark as content, including at local byte zero.
+/// This readonly parser configuration supplies no target Tcl dialect,
+/// command registration, execution entry or native capability.
+#[must_use]
+pub fn pack_source_lexer_config(purpose: tcl_lexer::SourceSegmentationPurpose) -> LexerConfig {
+    purpose.config(LexerConfig {
+        leading_bom: FileBom::Skip.leading(),
+        // dialect-drift-ok: fixed SpecTcl DSL grammar, independently of its target.
+        ..LexerConfig::default()
+    })
+}
+
 /// Segment `source` into statements, numbering lines from `base_line`.
 ///
 /// Comments, `;` separators, and line continuations are handled by the lexer,
@@ -567,12 +581,10 @@ fn segment(source: &str, base_line: u32, bom: FileBom) -> Vec<Stmt> {
     let source_map = SourceMap::new(source);
     let (document, _warnings) = build_document(
         source,
-        LexerConfig {
-            leading_bom: bom.leading(),
-            // dialect-drift-ok: `.tclspec` pack DSL source, not a document's
-            // Tcl — the pack vocabulary's own fixed grammar.
-            ..LexerConfig::default()
-        },
+        pack_source_lexer_config(match bom {
+            FileBom::Skip => tcl_lexer::SourceSegmentationPurpose::WholeInput,
+            FileBom::Content => tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        }),
     );
     let mut line_starts: Vec<usize> = vec![0];
     for (offset, byte) in source.bytes().enumerate() {
@@ -646,12 +658,7 @@ pub fn speclib_version_span(source: &str) -> Option<(std::ops::Range<usize>, Str
     let source_map = SourceMap::new(source);
     let (document, _warnings) = build_document(
         source,
-        LexerConfig {
-            leading_bom: FileBom::Skip.leading(),
-            // dialect-drift-ok: `.tclspec` pack DSL source, not a document's
-            // Tcl — the pack vocabulary's own fixed grammar.
-            ..LexerConfig::default()
-        },
+        pack_source_lexer_config(tcl_lexer::SourceSegmentationPurpose::WholeInput),
     );
     for segment in segments_from_document(document, &source_map) {
         if segment.texts.first().map(String::as_str) != Some("speclib") {
@@ -12676,5 +12683,30 @@ mod tests {
             assert!(pack.command("demo").is_none(), "{bad}");
             assert!(pack.command("neighbour").is_some());
         }
+    }
+
+    #[test]
+    fn original_pack_source_facade_separates_file_prologue_from_block_content() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        use tcl_lexer::SourceSegmentationPurpose::{NestedScript, WholeInput};
+        let source = "\u{feff}speclib probe {1.1} {\ncommand visible {arity 0}\n\u{feff}command hidden {arity 0}\n}";
+        let pack = evaluate_pack(source);
+        assert!(pack.command("visible").is_some());
+        assert!(pack.command("hidden").is_none());
+        let (version, value) = speclib_version_span(source).expect("original file version");
+        assert_eq!(&source[version], "1.1");
+        assert_eq!(value, "1.1");
+        assert_eq!(pack_statements(source)[0].words[0].text, "speclib");
+        assert_eq!(
+            statements(source, 1, FileBom::Content)[0].words[0].text,
+            "\u{feff}speclib"
+        );
+        let whole = pack_source_lexer_config(WholeInput);
+        let body = pack_source_lexer_config(NestedScript);
+        assert_eq!(whole.leading_bom, LeadingBom::Skip);
+        assert_eq!(body.leading_bom, LeadingBom::Content);
+        assert_eq!(body, NestedScript.config(whole));
+        assert_eq!(pack_source_lexer_config(WholeInput), whole);
     }
 }

@@ -56,12 +56,10 @@ use std::sync::Arc;
 use serde_json::{Value, json};
 use tcl_compiler::analyser::state::Analyser;
 use tcl_compiler::ir::CommandTokens;
-use tcl_compiler::parsing::syntax::build::build_document;
-use tcl_compiler::parsing::syntax::segment::segments_from_document;
 use tcl_compiler::registry_invocation::{
     EffectiveInvocationWord, effective_invocation_word, invocation_word_with_source,
 };
-use tcl_lexer::{LexerConfig, LineIndex, SourceMap};
+use tcl_lexer::{LexerConfig, LineIndex, SourceMap, SourceSegmentationPurpose};
 use tcl_registry::arg_role::ArgRole;
 use tcl_registry::registry::CommandRegistry;
 use tcl_registry::spec::{CommandSpec, SubCommand};
@@ -121,26 +119,45 @@ impl Word {
     }
 }
 
+/// Complete sample bytes and original configuration checked by `source_words`.
+/// This local display carrier supplies no execution entry or native header.
+#[derive(Clone, Copy)]
+struct SampleSource<'a> {
+    whole: &'a str,
+    config: LexerConfig,
+}
+
 /// Segment `source` into words, recursing into every word the registry says is
 /// a script body.
 ///
-/// `base` is `source`'s own offset inside the whole sample, so every emitted
-/// span is absolute no matter how deep the recursion went.
+/// The genuine producer selects whole input or an extracted body. Parsing
+/// uses its local purpose; original tokens and word facets retain the complete
+/// sample configuration and image. All regions address that same sample.
 fn walk(
     registry: &CommandRegistry,
-    config: LexerConfig,
-    whole: &str,
-    base: usize,
+    sample: SampleSource<'_>,
+    purpose: SourceSegmentationPurpose,
+    region: std::ops::Range<usize>,
     depth: usize,
     out: &mut Vec<Word>,
 ) {
     if depth > MAX_DEPTH {
         return;
     }
-    let source = &whole[base..];
-    let source_map = SourceMap::new(source);
-    let (document, _warnings) = build_document(source, config);
-    for segment in segments_from_document(document, &source_map) {
+    let SampleSource { whole, config } = sample;
+    let Some(source) = whole.get(region.clone()) else {
+        return;
+    };
+    let Ok(base) = u32::try_from(region.start) else {
+        return;
+    };
+    let source_map = SourceMap::new(whole);
+    let segments = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+        source,
+        base,
+        purpose.config(config),
+    );
+    for segment in segments {
         let head = segment.texts.first().cloned().unwrap_or_default();
         let args: Vec<String> = segment.texts.iter().skip(1).cloned().collect();
         let tokens = Arc::new(CommandTokens::from_segmented(&source_map, config, &segment));
@@ -166,8 +183,8 @@ fn walk(
             .collect::<Vec<_>>();
 
         for (index, token) in segment.argv.iter().enumerate() {
-            let start = base + token.span.start() as usize;
-            let end = base + token.span.end() as usize;
+            let start = token.span.start() as usize;
+            let end = token.span.end() as usize;
             if start >= end || end > whole.len() {
                 continue;
             }
@@ -205,25 +222,24 @@ fn walk(
             let Some(token) = segment.argv.get(arg_index + 1) else {
                 continue;
             };
-            let start = base + token.span.start() as usize;
+            let start = token.span.start() as usize;
             let lead = usize::from(token.content_offset);
             if lead == 0 || whole.as_bytes().get(start) != Some(&b'{') {
                 continue;
             }
-            let Some(close) = tcl_lexer::word_closer_offset_at(source.as_bytes(), token.span)
-            else {
+            let Some(close) = tcl_lexer::word_closer_offset_at(whole.as_bytes(), token.span) else {
                 continue;
             };
             let inner_start = start + lead;
-            let inner_end = base + close as usize;
+            let inner_end = close as usize;
             if inner_end <= inner_start {
                 continue;
             }
             walk(
                 registry,
-                config,
-                &whole[..inner_end],
-                inner_start,
+                sample,
+                SourceSegmentationPurpose::NestedScript,
+                inner_start..inner_end,
                 depth + 1,
                 out,
             );
@@ -529,31 +545,73 @@ impl<'a> Bench<'a> {
         &self.registry
     }
 
-    /// The grammar a sample is read under: the one belonging to the
-    /// environment this bench's built-ins were resolved for, so the sample
-    /// tokenises exactly as a document of that dialect would.
-    fn lexer_config(&self) -> LexerConfig {
-        LexerConfig::for_profile(Some(crate::environment::profile_for_dialect(
-            self.merged.builtins().dialect(),
-        )))
+    /// The actual producer runs once for lexical views and diagnostics alike.
+    fn analysis_result(&self, sample: &str) -> tcl_compiler::analyser::AnalysisResult {
+        Analyser::new()
+            .with_pack_overlay(self.overlay)
+            .analyse(sample, self.merged.builtins().dialect())
+    }
+
+    /// Checked full sample words. Catalogue role previews remain authored
+    /// questions; this source owner does not prove a reached native command.
+    fn source_words(
+        &self,
+        sample: &str,
+        analysis: &tcl_compiler::analyser::AnalysisResult,
+    ) -> Option<Vec<Word>> {
+        let input = analysis.resolved_input.as_ref()?;
+        let config = input.lexer_config();
+        if !Arc::ptr_eq(input.borrowed_context_registry().commands(), &self.registry)
+            || !analysis
+                .matches_original_source_image(&tcl_lexer::SourceImage::document(sample), config)
+        {
+            return None;
+        }
+        let mut words = Vec::new();
+        walk(
+            &self.registry,
+            SampleSource {
+                whole: sample,
+                config,
+            },
+            SourceSegmentationPurpose::WholeInput,
+            0..sample.len(),
+            0,
+            &mut words,
+        );
+        words.sort_by_key(|word| (word.start, word.end));
+        words.dedup_by_key(|word| (word.start, word.end));
+        Some(words)
     }
 
     /// Analyse `sample` and return everything the tab paints: the render
     /// chunks, one entry per word, and the analyser's diagnostics.
     #[must_use]
     pub fn analyse(&self, sample: &str) -> Value {
-        let diagnostics = self.diagnostics(sample);
-        let mut words = Vec::new();
-        walk(
-            &self.registry,
-            self.lexer_config(),
-            sample,
-            0,
-            0,
-            &mut words,
-        );
-        words.sort_by_key(|w| (w.start, w.end));
-        words.dedup_by_key(|w| (w.start, w.end));
+        let analysis = self.analysis_result(sample);
+        self.analyse_result_view(sample, &analysis)
+    }
+
+    /// Present only this exact producer's source view; unavailable evidence
+    /// preserves diagnostics and plain sample text without invented counts.
+    fn analyse_result_view(
+        &self,
+        sample: &str,
+        analysis: &tcl_compiler::analyser::AnalysisResult,
+    ) -> Value {
+        let diagnostics = Self::diagnostics(sample, analysis);
+        let Some(words) = self.source_words(sample, analysis) else {
+            return json!({
+                "dialect": self.merged.builtins().dialect(),
+                "pack": self.merged.store().name(),
+                "installed": self.overlay != 0,
+                "source_available": false,
+                "render": render_chunks(sample, &[]),
+                "tokens": null,
+                "diagnostics": diagnostics,
+                "summary": null,
+            });
+        };
 
         let lines = LineIndex::new(sample);
         let severities = severity_by_span(&diagnostics);
@@ -634,6 +692,7 @@ impl<'a> Bench<'a> {
             "dialect": self.merged.builtins().dialect(),
             "pack": self.merged.store().name(),
             "installed": self.overlay != 0,
+            "source_available": true,
             "render": render_chunks(sample, &words),
             "tokens": tokens,
             "diagnostics": diagnostics,
@@ -662,15 +721,8 @@ impl<'a> Bench<'a> {
     /// diagnostics that land on the word.
     #[must_use]
     pub fn inspect(&self, sample: &str, offset: usize) -> Option<Value> {
-        let mut words = Vec::new();
-        walk(
-            &self.registry,
-            self.lexer_config(),
-            sample,
-            0,
-            0,
-            &mut words,
-        );
+        let analysis = self.analysis_result(sample);
+        let words = self.source_words(sample, &analysis)?;
         // The innermost word wins: a body's own statements are pushed after
         // the body word that holds them, and are strictly narrower.
         let word = words
@@ -689,8 +741,7 @@ impl<'a> Bench<'a> {
             .map_or((None, None), |head| self.resolve_head(head));
         let lines = LineIndex::new(sample);
         let position = lines.position_at_utf16(clamp_u32(word.start), sample);
-        let diagnostics: Vec<Value> = self
-            .diagnostics(sample)
+        let diagnostics: Vec<Value> = Self::diagnostics(sample, &analysis)
             .into_iter()
             .filter(|d| {
                 let start = json_usize(&d["start"]);
@@ -830,10 +881,7 @@ impl<'a> Bench<'a> {
     /// The pack rides in on [`Analyser::with_pack_overlay`], which is the one
     /// and only way the server, the CLI and the MCP tools read a pack — so a
     /// diagnostic here is a diagnostic there.
-    fn diagnostics(&self, sample: &str) -> Vec<Value> {
-        let dialect = self.merged.builtins().dialect();
-        let mut analyser = Analyser::new().with_pack_overlay(self.overlay);
-        let result = analyser.analyse(sample, dialect);
+    fn diagnostics(sample: &str, result: &tcl_compiler::analyser::AnalysisResult) -> Vec<Value> {
         let lines = LineIndex::new(sample);
         let mut out: Vec<Value> = result
             .diagnostics
@@ -1389,5 +1437,125 @@ mod tests {
                 assert_ne!(view["spec"]["arity"], json!("9"));
             },
         );
+    }
+
+    #[test]
+    fn original_sample_walk_keeps_actual_input_body_purpose_and_word_geometry() {
+        // naming.studio.source-word-role-projection
+        // docs/design/analysis/name-resolution-proofs/studio-source-word-role-projection.md
+        bench_on(PACK, |bench| {
+            let sample = "\u{feff}greet root\nwithbody {\u{feff}greet ${a{b}}}\n";
+            let default = bench.analysis_result(sample);
+            let input = default
+                .resolved_input
+                .as_ref()
+                .expect("actual sample input");
+            assert_eq!(
+                input.lexer_config().leading_bom,
+                tcl_lexer::LeadingBom::Skip
+            );
+            for disposition in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+                let config = LexerConfig {
+                    leading_bom: disposition,
+                    braced_var: tcl_dialect::BracedVarStyle::FirstClose,
+                    strict_quoting: true,
+                    ..input.lexer_config()
+                };
+                let selected = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                    input.analyser_profile(),
+                    input.unit_profile(),
+                    input.context_registry(),
+                    config,
+                );
+                let result = Analyser::new()
+                    .with_resolved_input(selected.clone())
+                    .analyse(sample, bench.merged.builtins().dialect());
+                assert_eq!(result.resolved_input.as_ref(), Some(&selected));
+                let words = bench
+                    .source_words(sample, &result)
+                    .expect("same actual producer");
+                let root = words
+                    .iter()
+                    .find(|word| word.depth == 0 && word.index == 0)
+                    .unwrap();
+                assert_eq!(
+                    root.head,
+                    if disposition == tcl_lexer::LeadingBom::Skip {
+                        "greet"
+                    } else {
+                        "\u{feff}greet"
+                    }
+                );
+                let child = words
+                    .iter()
+                    .find(|word| word.depth == 1 && word.index == 0)
+                    .expect("actual authored body role");
+                assert_eq!(child.head, "\u{feff}greet");
+                assert_eq!(child.start, sample.find("\u{feff}greet ${").unwrap());
+                for word in &words {
+                    assert_eq!(word.config, config);
+                    assert_eq!(word.text, sample[word.start..word.end]);
+                    assert_eq!(
+                        word.tokens.words()[word.index].source().span.start() as usize,
+                        word.start
+                    );
+                    assert_eq!(word.tokens.argv[word.index].start() as usize, word.start);
+                    assert_eq!(word.tokens.argv[word.index].end() as usize, word.end);
+                }
+                assert!(
+                    bench.analyse_result_view(sample, &result)["source_available"]
+                        .as_bool()
+                        .unwrap()
+                );
+            }
+        });
+    }
+
+    #[test]
+    fn original_sample_view_refuses_missing_foreign_and_changed_input_without_zero_counts() {
+        // naming.studio.source-word-role-projection
+        // docs/design/analysis/name-resolution-proofs/studio-source-word-role-projection.md
+        bench_on(PACK, |bench| {
+            let sample = "greet world\n";
+            let result = bench.analysis_result(sample);
+            assert!(bench.source_words(sample, &result).is_some());
+            assert!(bench.source_words("greet foreign\n", &result).is_none());
+            let mut missing = result.clone();
+            missing.resolved_input = None;
+            let unavailable = bench.analyse_result_view(sample, &missing);
+            assert_eq!(unavailable["source_available"], json!(false));
+            assert!(unavailable["tokens"].is_null());
+            assert!(unavailable["summary"].is_null());
+            assert_eq!(
+                unavailable["diagnostics"],
+                Value::Array(Bench::diagnostics(sample, &missing))
+            );
+            let plain = unavailable["render"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|chunk| chunk["text"].as_str().unwrap())
+                .collect::<String>();
+            assert_eq!(plain, sample);
+            let input = result.resolved_input.as_ref().unwrap();
+            let mut altered = result.clone();
+            altered.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                input.context_registry(),
+                LexerConfig {
+                    strict_quoting: !input.lexer_config().strict_quoting,
+                    ..input.lexer_config()
+                },
+            ));
+            assert!(bench.source_words(sample, &altered).is_none());
+            bench_on(
+                "speclib foreign 1.0 { command outsider {arity 1} }",
+                |foreign| {
+                    let foreign_result = foreign.analysis_result(sample);
+                    assert!(bench.source_words(sample, &foreign_result).is_none());
+                },
+            );
+        });
     }
 }

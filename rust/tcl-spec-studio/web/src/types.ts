@@ -455,7 +455,9 @@ export interface TestReport {
   /** Whether the pack contributed anything to the registry that was used. */
   installed: boolean;
   render: TestChunk[];
-  tokens: TestToken[];
+  /** False only when the retained sample source/input is unavailable. */
+  source_available?: boolean;
+  tokens: TestToken[] | null;
   diagnostics: TestDiagnostic[];
   summary: {
     words: number;
@@ -465,7 +467,7 @@ export interface TestReport {
     diagnostics: number;
     errors: number;
     warnings: number;
-  };
+  } | null;
   error?: string;
 }
 
