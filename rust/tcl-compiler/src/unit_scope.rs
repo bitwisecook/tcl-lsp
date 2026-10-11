@@ -375,6 +375,38 @@ impl<'a, S> CallSiteScanCtx<'a, S> {
         Option<crate::registry_invocation::InvocationMetadataContext<'b>>,
         crate::registry_invocation::RegistryInvocationDecline,
     > {
+        self.original_metadata_for_purpose(
+            tokens,
+            owner,
+            crate::command_binding::original_name_value::OriginalWordSourcePurpose::Invocation,
+        )
+    }
+
+    fn original_argument_metadata<'b>(
+        &self,
+        tokens: &'b crate::ir::CommandTokens,
+        owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
+    ) -> Result<
+        Option<crate::registry_invocation::InvocationMetadataContext<'b>>,
+        crate::registry_invocation::RegistryInvocationDecline,
+    > {
+        self.original_metadata_for_purpose(
+            tokens,
+            owner,
+            crate::command_binding::original_name_value::OriginalWordSourcePurpose::ArgumentEvaluation,
+        )
+    }
+
+    fn original_metadata_for_purpose<'b>(
+        &self,
+        tokens: &'b crate::ir::CommandTokens,
+        owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
+        purpose: crate::command_binding::original_name_value::OriginalWordSourcePurpose,
+    ) -> Result<
+        Option<crate::registry_invocation::InvocationMetadataContext<'b>>,
+        crate::registry_invocation::RegistryInvocationDecline,
+    > {
+        use crate::command_binding::original_name_value::OriginalWordSourcePurpose;
         use crate::registry_invocation::{InvocationMetadataContext, RegistryInvocationDecline};
         let refusal = RegistryInvocationDecline::IncompleteResolution;
         let binding = tokens.source_binding.as_ref().ok_or(refusal)?;
@@ -392,6 +424,18 @@ impl<'a, S> CallSiteScanCtx<'a, S> {
             if module.source_analysis_input() != Some(input) {
                 return Err(refusal);
             }
+            if purpose == OriginalWordSourcePurpose::ArgumentEvaluation {
+                binding
+                    .original_argument_metadata_for_owner(tokens, owner, self.registry)?
+                    .ok_or(refusal)?;
+                binding
+                    .original_argument_metadata_for_input(tokens, input, self.registry)
+                    .ok_or(refusal)?;
+                return binding
+                    .original_argument_metadata_for_module(tokens, self.module, self.registry)
+                    .map(Some)
+                    .ok_or(refusal);
+            }
             binding
                 .original_invocation_metadata_for_owner(tokens, owner, self.registry)?
                 .ok_or(refusal)?;
@@ -406,7 +450,11 @@ impl<'a, S> CallSiteScanCtx<'a, S> {
         if !self.module.source_entry.metadata_context.is_standalone() || !owner.is_standalone() {
             return Err(refusal);
         }
-        binding.original_invocation_metadata_for_owner(tokens, owner, self.registry)
+        if purpose == OriginalWordSourcePurpose::ArgumentEvaluation {
+            binding.original_argument_metadata_for_owner(tokens, owner, self.registry)
+        } else {
+            binding.original_invocation_metadata_for_owner(tokens, owner, self.registry)
+        }
     }
 
     /// The catalogue extended by the document's declarations — the one door
@@ -2207,8 +2255,48 @@ fn record_original_lifted_call_sites(
 ) {
     let inventory = (|| {
         let tokens = tokens?;
-        if !tokens.evaluates_words() {
+        if !crate::place_bridge::evaluates_arguments(tokens) {
             return Some(Vec::new());
+        }
+        if tokens.synthetic == Some(crate::ir::SyntheticMarker::EvaluatedArguments) {
+            let metadata = ctx
+                .original_argument_metadata(tokens, caller.metadata_owner)
+                .ok()??;
+            let mut calls = crate::word_subst::checked_original_argument_lifted_calls(
+                tokens,
+                ctx.registry,
+                metadata,
+            )?;
+            // The enclosing argv has no expression/body-role authority. Each
+            // actual nested invocation independently retains its own selected
+            // expression roles and complete source inventory.
+            for call in calls.clone() {
+                let child = call.tokens.as_ref()?;
+                let metadata = ctx.original_metadata(child, caller.metadata_owner).ok()??;
+                let config = child
+                    .source_binding
+                    .as_ref()?
+                    .original_lexer_config_for_tokens(child)?;
+                for nested in
+                    crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+                        child,
+                        config,
+                        ctx.registry,
+                        metadata,
+                    )?
+                {
+                    if let Some(previous) =
+                        calls.iter().find(|previous| previous.span == nested.span)
+                    {
+                        if previous != &nested {
+                            return None;
+                        }
+                    } else {
+                        calls.push(nested);
+                    }
+                }
+            }
+            return Some(calls);
         }
         let metadata = ctx
             .original_metadata(tokens, caller.metadata_owner)
@@ -4977,5 +5065,245 @@ mod tests {
         );
         assert!(withdrawn.get("::helper").unwrap().opaque_caller);
         assert_eq!(uniform(&withdrawn, "::helper", 0), None);
+    }
+
+    fn native_argument_caller_unit(
+        source: &str,
+    ) -> (
+        std::sync::Arc<tcl_registry::model::ContextRegistry>,
+        crate::environment_ingress::RetainedNativeUnit,
+    ) {
+        let environment =
+            tcl_registry::model::ingress::resolve_known_environment("tcl9.0").unwrap();
+        let context = environment.default_context_registry();
+        let profile = environment.unit_profile();
+        let (owner, native) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(native)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let unit = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_profile(Some(profile)),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        );
+        (
+            context,
+            crate::environment_ingress::RetainedNativeUnit::new(unit, owner),
+        )
+    }
+
+    #[test]
+    fn original_argument_caller_phase_keeps_real_return_and_direct_argument_counts() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let (_, unit) = native_argument_caller_unit(
+            "proc add {b c} {return [expr {$b + $c}]}; add 2 4; add 3 5",
+        );
+        let function = &unit.cfg_module.procedures["::add"];
+        assert!(
+            function.blocks.iter().any(|(&block, data)| {
+                data.statements.iter().enumerate().any(|(index, _)| {
+                    function
+                        .source_tokens_at(block, index)
+                        .is_some_and(|tokens| {
+                            tokens.synthetic == Some(crate::ir::SyntheticMarker::EvaluatedArguments)
+                                && tokens
+                                    .argv_texts
+                                    .first()
+                                    .is_some_and(|head| head == "return")
+                        })
+                })
+            }),
+            "actual return producer retains its argv boundary"
+        );
+        let evidence = unit.caller_scope.call_sites.get("::add").unwrap();
+        assert!(!evidence.opaque_caller, "{evidence:?}");
+        assert_eq!(evidence.arg_counts, BTreeSet::from([2]));
+        assert_eq!(
+            evidence.slots[&0].values,
+            BTreeSet::from(["2".into(), "3".into()])
+        );
+        assert_eq!(
+            evidence.slots[&1].values,
+            BTreeSet::from(["4".into(), "5".into()])
+        );
+    }
+
+    #[test]
+    fn original_argument_caller_child_keeps_its_own_expression_roles() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let (_, unit) = native_argument_caller_unit(
+            "proc helper {x} {return $x}; proc run {} {return [expr {[helper SECOND]}]}; helper FIRST; run",
+        );
+        let evidence = unit.caller_scope.call_sites.get("::helper").unwrap();
+        assert!(!evidence.opaque_caller, "{evidence:?}");
+        assert_eq!(evidence.arg_counts, BTreeSet::from([1]));
+        assert_eq!(
+            evidence.slots[&0].values,
+            BTreeSet::from(["FIRST".into(), "SECOND".into()])
+        );
+        assert_eq!(evidence.uniform_literal_at(0), None);
+        // The enclosing braced argument never inherits the child's Expr role.
+        let (_, literal) = native_argument_caller_unit(
+            "proc helper {x} {return $x}; proc run {} {return {[helper LITERAL]}}; helper FIRST; run",
+        );
+        let evidence = literal.caller_scope.call_sites.get("::helper").unwrap();
+        assert!(!evidence.opaque_caller, "{evidence:?}");
+        assert_eq!(evidence.slots[&0].values, BTreeSet::from(["FIRST".into()]));
+    }
+
+    #[test]
+    fn original_argument_caller_owner_refusal_stays_distinct_from_effect_only_empty() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let source = "proc add {b c} {return [expr {$b + $c}]}; add 2 4; add 3 5";
+        let (context, unit) = native_argument_caller_unit(source);
+        let module = &unit.ir_module;
+        let input = module.source_metadata_input.as_ref().unwrap();
+        let function = &unit.cfg_module.procedures["::add"];
+        let phase = function
+            .blocks
+            .iter()
+            .find_map(|(&block, data)| {
+                data.statements.iter().enumerate().find_map(|(index, _)| {
+                    function.source_tokens_at(block, index).filter(|tokens| {
+                        tokens.synthetic == Some(crate::ir::SyntheticMarker::EvaluatedArguments)
+                            && tokens
+                                .argv_texts
+                                .first()
+                                .is_some_and(|head| head == "return")
+                    })
+                })
+            })
+            .expect("actual return argv boundary");
+        let binding = phase.source_binding.as_ref().unwrap();
+        assert!(
+            binding
+                .original_invocation_metadata_for_owner(
+                    phase,
+                    &function.metadata_context,
+                    context.commands()
+                )
+                .is_err()
+        );
+        assert!(
+            binding
+                .original_argument_metadata_for_owner(
+                    phase,
+                    &function.metadata_context,
+                    context.commands()
+                )
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            binding
+                .original_argument_metadata_for_module(phase, module, context.commands())
+                .is_some()
+        );
+        let identities =
+            crate::realm::document_realm_bindings_for_module(module, context.commands()).unwrap();
+        let known = HashSet::from(["::add".to_owned()]);
+        let reach = vec!["::add".to_owned()];
+        let facts = ModuleVarFacts::default();
+        let previous = CallSiteEvidence::default();
+        let ctx = CallSiteScanCtx {
+            known: &known,
+            registry: context.commands(),
+            module,
+            source_input: Some(input),
+            identities: &identities,
+            declared: None,
+            var_facts: &facts,
+            previous: &previous,
+            procedures: &module.procedures,
+            unenumerable_reach: &reach,
+            unresolved_handler: None,
+        };
+        fn caller(
+            owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
+        ) -> CallerFrame<'_> {
+            CallerFrame {
+                _resolve_as: "::add",
+                metadata_owner: owner,
+                scope: "::add",
+                params: &[],
+                callers_tracked: true,
+            }
+        }
+        let mut current = CallSiteEvidence::default();
+        record_original_lifted_call_sites(
+            &mut current,
+            &ctx,
+            &caller(&function.metadata_context),
+            Some(phase),
+        );
+        assert!(
+            current.is_empty(),
+            "the actual expr child calls no local procedure"
+        );
+        use crate::registry_invocation::OwnedInvocationMetadataContext as Owner;
+        let mut changed_config = input.lexer_config();
+        changed_config.leading_bom = tcl_lexer::LeadingBom::Skip;
+        let changed = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            changed_config,
+        );
+        let foreign = supplied_unit_input(
+            input,
+            tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
+                .unwrap()
+                .default_context_registry(),
+        );
+        for owner in [
+            Owner::Unavailable,
+            Owner::Standalone,
+            Owner::SuppliedSource(Box::new(changed)),
+            Owner::SuppliedSource(Box::new(foreign)),
+        ] {
+            let mut refused = CallSiteEvidence::default();
+            record_original_lifted_call_sites(&mut refused, &ctx, &caller(&owner), Some(phase));
+            assert!(refused.get("::add").unwrap().opaque_caller);
+            assert!(refused.get("::add").unwrap().arg_counts.contains(&0));
+        }
+        let mut missing_child = phase.clone();
+        missing_child.nested_bindings.clear();
+        let mut changed_vector = phase.clone();
+        changed_vector.argv_texts[1] = "changed".into();
+        for refused_tokens in [&missing_child, &changed_vector] {
+            let mut refused = CallSiteEvidence::default();
+            record_original_lifted_call_sites(
+                &mut refused,
+                &ctx,
+                &caller(&function.metadata_context),
+                Some(refused_tokens),
+            );
+            assert!(refused.get("::add").unwrap().opaque_caller);
+        }
+        // A typed residual producer explicitly performs no argv evaluation.
+        let residual =
+            crate::ir::CommandTokens::marker(crate::ir::SyntheticMarker::EvaluatedWrapper);
+        let mut empty = CallSiteEvidence::default();
+        record_original_lifted_call_sites(
+            &mut empty,
+            &ctx,
+            &caller(&Owner::Unavailable),
+            Some(&residual),
+        );
+        assert!(empty.is_empty());
     }
 }

@@ -101,6 +101,37 @@ impl SourceInvocationBinding {
         module: &crate::ir::Module,
         registry: &CommandRegistry,
     ) -> Option<InvocationMetadataContext<'a>> {
+        self.original_word_metadata_for_module(
+            tokens,
+            module,
+            registry,
+            OriginalWordSourcePurpose::Invocation,
+        )
+    }
+
+    /// Original argv geometry under the actual whole Module. The synthetic
+    /// argument boundary keeps its marker and grants no invocation effects.
+    pub(crate) fn original_argument_metadata_for_module<'a>(
+        &'a self,
+        tokens: &CommandTokens,
+        module: &crate::ir::Module,
+        registry: &CommandRegistry,
+    ) -> Option<InvocationMetadataContext<'a>> {
+        self.original_word_metadata_for_module(
+            tokens,
+            module,
+            registry,
+            OriginalWordSourcePurpose::ArgumentEvaluation,
+        )
+    }
+
+    fn original_word_metadata_for_module<'a>(
+        &'a self,
+        tokens: &CommandTokens,
+        module: &crate::ir::Module,
+        registry: &CommandRegistry,
+        purpose: OriginalWordSourcePurpose,
+    ) -> Option<InvocationMetadataContext<'a>> {
         // naming.diagnostic.original-materialized-write-footprint
         // docs/design/analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md
         if !module
@@ -113,7 +144,7 @@ impl SourceInvocationBinding {
         let module_metadata = InvocationMetadataContext::for_module(registry, module)?;
         let module_input = module_metadata.source_analysis_input()?;
         let metadata =
-            self.original_invocation_metadata_for_input(tokens, module_input, registry)?;
+            self.original_word_metadata_for_input(tokens, module_input, registry, purpose)?;
         if !original_module_origin(&self.invocation_site()?.source, module) {
             return None;
         }
@@ -269,17 +300,54 @@ impl SourceInvocationBinding {
         Option<InvocationMetadataContext<'a>>,
         crate::registry_invocation::RegistryInvocationDecline,
     > {
+        self.original_word_metadata_for_owner(
+            tokens,
+            owner,
+            registry,
+            OriginalWordSourcePurpose::Invocation,
+        )
+    }
+
+    /// Retained CFG metadata for original argv evaluation alone. Availability,
+    /// complete input and source geometry remain checked by the same owner.
+    pub(crate) fn original_argument_metadata_for_owner<'a>(
+        &'a self,
+        tokens: &CommandTokens,
+        owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
+        registry: &CommandRegistry,
+    ) -> Result<
+        Option<InvocationMetadataContext<'a>>,
+        crate::registry_invocation::RegistryInvocationDecline,
+    > {
+        self.original_word_metadata_for_owner(
+            tokens,
+            owner,
+            registry,
+            OriginalWordSourcePurpose::ArgumentEvaluation,
+        )
+    }
+
+    fn original_word_metadata_for_owner<'a>(
+        &'a self,
+        tokens: &CommandTokens,
+        owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
+        registry: &CommandRegistry,
+        purpose: OriginalWordSourcePurpose,
+    ) -> Result<
+        Option<InvocationMetadataContext<'a>>,
+        crate::registry_invocation::RegistryInvocationDecline,
+    > {
         use crate::registry_invocation::{
             OwnedInvocationMetadataContext, RegistryInvocationDecline,
         };
         let refusal = RegistryInvocationDecline::IncompleteResolution;
         match owner {
             OwnedInvocationMetadataContext::SuppliedSource(input) => self
-                .original_invocation_metadata_for_input(tokens, input, registry)
+                .original_word_metadata_for_input(tokens, input, registry, purpose)
                 .map(Some)
                 .ok_or(refusal),
             OwnedInvocationMetadataContext::Standalone => {
-                self.original_invocation_config(tokens, registry)
+                self.original_word_config(tokens, registry, purpose)
                     .ok_or(refusal)?;
                 let point = &self
                     .lookup_state
