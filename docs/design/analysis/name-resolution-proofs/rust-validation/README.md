@@ -3554,3 +3554,28 @@ Selected Compiler/Core assertions and the independent Runtime producer
 retain their distinct receipts and source boundaries. No complete suite,
 Native provider parity or combined gate result is inferred from these
 own producers, inventories or source-only current definitions.
+
+## Source320 Runtime engine compilation failure
+
+The independent Runtime engine library-test no-run command closes exit
+`101` after 60.22400179799297 seconds with uniform source `true`. Its complete
+35,388-leaf immutable Source320 association retains HEAD
+`e5bcb153c4fba5a1d2c4b6adb02d055d9def6fab`. The original compiler records
+two production missing `oo_original_bytes` macro errors at
+`native_context.rs:211` and `:104`, and four cfg-test `E0308` match-arm
+type errors at `native_context.rs:662`, `native_variable_names.rs:1952`
+and `native_eval_object_tests.rs:69`/`:84`.
+
+No own Runtime producer, strict image, executable inventory or assertion
+is admitted. The independent successful Compiler/Core builds and
+inventories retain their separate scopes. Current implementation and
+fixture bytes supply no credit to this closed failed command; original
+Native provider answers and evidence are unchanged.
+
+The [complete original receipt](frozen320/integration-runtime-own-test-build320/receipt.json.gz)
+is lossless gzip; decompression returns SHA-256 `8823ab38fdd88d8ebd3cb8b6e28b058e45d4fa3c858b96560168d9e1d92c6076`.
+The [whole original log](frozen320/integration-runtime-own-test-build320/tests.log) retains
+SHA-256 `ac3e47822b683e2887c82de25c62be50c9f441513d4ff7b33f29f4b293dd767e`. The complete original source association exactly
+matches the retained [Source320 source snapshot](frozen320/sealed-own-images/source-snapshot.json.gz),
+whose decompressed SHA-256 is `6c375d3f584d9bce4054f9284f4bfb85aa28a4f4c0c4686efeb4281dc3eb29e0`.
+The original error-source bodies independently match this source map.
