@@ -23,7 +23,8 @@ fn monolithic_namespace_compiler_owns_original_member_coordinates() {
     use tcl_runtime_api::{CompileService, ScriptCompileTargetBytes};
 
     let profile = tcl_dialect::DialectProfile::find("tcl8.5").unwrap();
-    let entry = crate::environment_ingress::captured_native_entry(profile);
+    let entry: crate::environment_ingress::CapturedNativeEntry =
+        crate::environment_ingress::captured_native_entry(profile);
     let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
     let service = crate::compile_service::BytecodeCompileService::for_profile(profile);
     for source in [
@@ -107,7 +108,8 @@ fn monolithic_namespace_compiler_owns_original_member_coordinates() {
 fn original_c85_namespace_upvar_preserves_ordered_preparation_and_rollback() {
     let profile = tcl_dialect::DialectProfile::find("tcl8.5").unwrap();
     let registry = CommandRegistry::build_default().project_for_profile(profile);
-    let entry = crate::environment_ingress::captured_native_entry(profile);
+    let entry: crate::environment_ingress::CapturedNativeEntry =
+        crate::environment_ingress::captured_native_entry(profile);
     let mut count = 0;
     for row in include_str!(
         "../../../tcl-registry/tests/data/native_namespace_upvar_compilation/8.5.19.tsv"
@@ -180,7 +182,8 @@ fn original_c85_namespace_upvar_preserves_ordered_preparation_and_rollback() {
 fn compile_service_preserves_original_namespace_upvar_preparation() {
     use tcl_runtime_api::{CompileService, ProcedureCompileTargetBytes, ProcedureDispatch};
     let profile = tcl_dialect::DialectProfile::find("tcl8.5").unwrap();
-    let entry = crate::environment_ingress::captured_native_entry(profile);
+    let entry: crate::environment_ingress::CapturedNativeEntry =
+        crate::environment_ingress::captured_native_entry(profile);
     let parameters = [
         tcl_runtime_api::NameBytes::from(b"pairs".as_slice()),
         tcl_runtime_api::NameBytes::from(b"local".as_slice()),

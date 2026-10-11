@@ -141,12 +141,12 @@ mod tests {
     use std::sync::Arc;
 
     struct OriginalBodyFixture {
-        _owner: tcl_vm::Vm,
         context: Arc<tcl_registry::model::ContextRegistry>,
         input: ResolvedAnalysisInput,
         entry: SourceAnalysisEntry,
         bindings: SourceCommandBindings,
         tokens: Vec<CommandTokens>,
+        _owner: tcl_vm::Vm,
     }
 
     fn original_fixture(source: &str, environment: &str) -> OriginalBodyFixture {

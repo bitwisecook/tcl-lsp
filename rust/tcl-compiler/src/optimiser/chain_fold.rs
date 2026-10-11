@@ -984,10 +984,9 @@ mod tests {
             let context = tcl_registry::model::ingress::static_context_for(dialect);
             let registry = context.commands();
             let profile = registry.profile().unwrap();
+            let capture = crate::environment_ingress::captured_native_entry(profile);
             let entry = crate::command_binding::SourceAnalysisEntry {
-                native_entry: Some(std::sync::Arc::new(
-                    crate::environment_ingress::captured_native_entry(profile),
-                )),
+                native_entry: Some(std::sync::Arc::new(capture.as_entry().clone())),
                 invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,

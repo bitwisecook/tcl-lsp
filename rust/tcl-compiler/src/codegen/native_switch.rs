@@ -186,7 +186,8 @@ mod tests {
         use tcl_runtime_api::CompileService;
         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let profile = tcl_dialect::DialectProfile::find(name).unwrap();
-            let entry = crate::environment_ingress::captured_native_entry(profile);
+            let entry: crate::environment_ingress::CapturedNativeEntry =
+                crate::environment_ingress::captured_native_entry(profile);
             let service = crate::compile_service::BytecodeCompileService::for_profile(profile);
             let source = tcl_lexer::SourceImage::native(
                 b"switch $x {A {return ONE} default {return OTHER}}".as_slice(),
@@ -237,7 +238,8 @@ mod tests {
         use tcl_runtime_api::CompileService;
         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let profile = tcl_dialect::DialectProfile::find(name).unwrap();
-            let entry = crate::environment_ingress::captured_native_entry(profile);
+            let entry: crate::environment_ingress::CapturedNativeEntry =
+                crate::environment_ingress::captured_native_entry(profile);
             let service = crate::compile_service::BytecodeCompileService::for_profile(profile);
             let source = tcl_lexer::SourceImage::native(
                 b"switch $x {A {return ONE} A {error MASKED} default {return OTHER}}".as_slice(),
@@ -302,7 +304,8 @@ mod tests {
             })
             .unwrap();
             let registry = CommandRegistry::build_default().project_for_profile(profile);
-            let entry = crate::environment_ingress::captured_native_entry(profile);
+            let entry: crate::environment_ingress::CapturedNativeEntry =
+                crate::environment_ingress::captured_native_entry(profile);
             let image = tcl_lexer::SourceImage::native(bytes(fields[2]));
             let script = tcl_lexer::native_script_words_in(
                 image.clone(),

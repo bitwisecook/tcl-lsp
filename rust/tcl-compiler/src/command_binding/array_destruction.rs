@@ -133,10 +133,16 @@ mod tests {
         );
     }
 
-    fn analyse(source: &str) -> (SourceCommandBindings, OriginalWorker) {
+    fn analyse(
+        source: &str,
+    ) -> (
+        crate::environment_ingress::RetainedNativeFixture<SourceCommandBindings>,
+        OriginalWorker,
+    ) {
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let worker = entry
             .commands
             .iter()
@@ -203,7 +209,7 @@ mod tests {
             before.variable_context.closed_array_roots.contains(&root),
             "original successful literal stores preserve the fresh array inventory"
         );
-        (bindings, original_worker)
+        (entry.retain(bindings), original_worker)
     }
 
     #[test]

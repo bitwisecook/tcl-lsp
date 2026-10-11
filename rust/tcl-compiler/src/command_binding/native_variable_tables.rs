@@ -66,9 +66,14 @@ mod tests {
     use crate::var_resolve::{ContentsPresence, ContentsWorld, VariableFrameKind};
     use tcl_runtime_api::native_compilation::NativeNamespaceVariableTable;
 
-    fn fixture() -> (NativeCompilationEntry, ResolveContext, place::Place) {
+    fn fixture() -> (
+        crate::environment_ingress::CapturedNativeEntry,
+        ResolveContext,
+        place::Place,
+    ) {
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         assert!(
             entry.namespace_variable_tables.is_some(),
             "actual table issuer"

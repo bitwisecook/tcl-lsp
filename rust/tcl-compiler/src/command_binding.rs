@@ -22638,7 +22638,8 @@ mod compiled_variable_policy_tests {
     #[test]
     fn supplied_live_entry_withdraws_missing_compiler_local_policy() {
         let profile = tcl_dialect::DialectProfile::plain_tcl();
-        let mut entry = crate::environment_ingress::captured_native_entry(profile);
+        let mut entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         assert!(entry.compiled_variable_protocol.is_some());
         entry.compiled_variable_protocol = None;
         let options = SourceAnalysisOptions {

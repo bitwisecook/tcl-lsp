@@ -1107,9 +1107,8 @@ mod tests {
         };
         let profile =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
-        let point = tcl_registry::InvocationDialect::of_profile(profile)
-            .core_point
-            .unwrap();
+        let point = tcl_registry::model::ingress::default_execution_point_for_profile(profile)
+            .expect("actual known native environment execution point");
         let mut entry = policy_entry(profile, point);
         let local = ByteNamespacePath::from_segments([b"N".as_slice()]);
         entry.closed = true;
@@ -1933,7 +1932,8 @@ mod tests {
         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let profile =
                 tcl_registry::model::ingress::resolve_environment(environment).analyser_profile();
-            let entry = crate::environment_ingress::captured_native_entry(profile);
+            let entry: crate::environment_ingress::CapturedNativeEntry =
+                crate::environment_ingress::captured_native_entry(profile);
             assert!(entry.closed, "{environment}: actual compilation entry");
             let selected = entry
                 .lookup_command_bytes(entry.current_namespace, b"if")

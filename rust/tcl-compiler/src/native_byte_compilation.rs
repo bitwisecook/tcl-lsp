@@ -655,7 +655,8 @@ mod tests {
     #[test]
     fn original_namespace_legacy_declines_non_upvar_before_emitter_admission() {
         let profile = tcl_dialect::DialectProfile::find("tcl8.5").unwrap();
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let registry = CommandRegistry::build_default().project_for_profile(profile);
         let context = NativeCompilationContext {
             mode: NativeCompilationMode::BytecodeObject,
@@ -706,7 +707,8 @@ mod tests {
     fn original_monolithic_match_retains_real_hook_and_registration_guards() {
         let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
         let registry = CommandRegistry::build_default().project_for_profile(profile);
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let source = b"string match * $subject";
         let parsed = native_script_words_in(
             SourceImage::native(source.as_slice()),
@@ -771,7 +773,8 @@ mod tests {
         ] {
             let profile =
                 tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
-            let entry = crate::environment_ingress::captured_native_entry(profile);
+            let entry: crate::environment_ingress::CapturedNativeEntry =
+                crate::environment_ingress::captured_native_entry(profile);
             let registry = CommandRegistry::build_default().project_for_profile(profile);
             for (source, frame) in [
                 (
@@ -852,7 +855,8 @@ mod tests {
         for version in tcl_dialect::TclVersion::ALL {
             let profile =
                 tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
-            let mut entry = crate::environment_ingress::captured_native_entry(profile);
+            let mut entry: crate::environment_ingress::CapturedNativeEntry =
+                crate::environment_ingress::captured_native_entry(profile);
             let registry = CommandRegistry::build_default().project_for_profile(profile);
             for source in [
                 b"concat { A } { B }".as_slice(),
@@ -924,7 +928,8 @@ mod tests {
             NativeNamespaceBindingKind, NativeNamespaceBindingOutcome,
         };
         let profile = tcl_dialect::DialectProfile::find("tcl8.5").unwrap();
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let registry = CommandRegistry::build_default().project_for_profile(profile);
         let context = NativeCompilationContext {
             mode: NativeCompilationMode::BytecodeObject,
@@ -999,7 +1004,8 @@ mod tests {
         ] {
             let profile =
                 tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
-            let entry = crate::environment_ingress::captured_native_entry(profile);
+            let entry: crate::environment_ingress::CapturedNativeEntry =
+                crate::environment_ingress::captured_native_entry(profile);
             let registry = CommandRegistry::build_default().project_for_profile(profile);
             let context = NativeCompilationContext {
                 mode: NativeCompilationMode::BytecodeObject,
@@ -1058,7 +1064,8 @@ mod tests {
     #[test]
     fn registered_recipe_without_shared_instruction_remains_unavailable() {
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let registry = CommandRegistry::build_default().project_for_profile(profile);
         let source = b"llength $items";
         let parsed = native_script_words_in(

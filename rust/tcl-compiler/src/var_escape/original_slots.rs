@@ -398,12 +398,15 @@ mod tests {
         );
     }
 
-    fn native_module(names: Vec<Option<NameBytes>>) -> Module {
+    fn native_module(
+        names: Vec<Option<NameBytes>>,
+    ) -> crate::environment_ingress::RetainedNativeFixture<Module> {
         use tcl_runtime_api::native_compilation::{
             NativeCompilationFrame, NativeCompiledLocalLayout, NativeCompiledLocalLayoutKind,
         };
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
-        let mut entry = crate::environment_ingress::captured_native_entry(profile);
+        let mut entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         entry.frame = NativeCompilationFrame::Procedure;
         entry.compiled_local_layout = Some(NativeCompiledLocalLayout {
             owner: entry.interpreter,
@@ -412,14 +415,15 @@ mod tests {
             kind: NativeCompiledLocalLayoutKind::RetainedLocalCache,
             names,
         });
-        Module {
+        let module = Module {
             source_entry: crate::command_binding::SourceAnalysisEntry {
-                native_entry: Some(std::sync::Arc::new(entry)),
+                native_entry: Some(std::sync::Arc::new(entry.clone())),
                 ..Default::default()
             },
             top_level_namespace: "::".to_owned(),
             ..Default::default()
-        }
+        };
+        entry.retain(module)
     }
 
     fn local_cell(module: &Module, name: &[u8]) -> VariableCellKey {

@@ -308,7 +308,8 @@ mod tests {
     #[test]
     fn original_operand_rejection_distinguishes_missing_defined_and_unknown_tables() {
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let prefix = "interp alias {} myset {} set; interp alias {} e {} expr; ";
         for (defined, expected) in [(false, true), (true, false)] {
             let source = format!(
@@ -336,7 +337,8 @@ mod tests {
     #[test]
     fn skipped_possible_normal_body_entry_withdraws_earlier_operand_failure() {
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let prefix = "interp alias {} myset {} set; interp alias {} e {} expr; \
             proc f {arg} {global x; myset y [e {$x+1}]}; catch {f first}; ";
         for (suffix, rejected) in [("", true), ("set x 1; f [mystery]", false)] {
@@ -365,7 +367,8 @@ mod tests {
     #[test]
     fn original_operand_failure_does_not_borrow_replaced_handler_or_read_trace_semantics() {
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         for setup in [
             "rename expr native_expr; proc expr args {return 2}; ",
             "proc fill {name index op} {set ::x 1}; trace add variable x read fill; ",

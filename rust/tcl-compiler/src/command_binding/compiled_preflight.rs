@@ -1741,10 +1741,13 @@ mod tests {
     use crate::command_binding::SourceAnalysisOptions;
     use tcl_registry::native_compilation::{NativeCompilationContext, NativeCompilationFrame};
 
-    fn analyse(source: &str) -> SourceCommandBindings {
+    fn analyse(
+        source: &str,
+    ) -> crate::environment_ingress::RetainedNativeFixture<SourceCommandBindings> {
         let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
-        let entry = crate::environment_ingress::captured_native_entry(profile);
-        SourceCommandBindings::analyse_with_options(
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
+        let bindings = SourceCommandBindings::analyse_with_options(
             source,
             tcl_lexer::LexerConfig::default(),
             &tcl_registry::CommandRegistry::build_default(),
@@ -1761,7 +1764,8 @@ mod tests {
                 },
                 ..SourceAnalysisOptions::default()
             },
-        )
+        );
+        entry.retain(bindings)
     }
 
     #[test]
@@ -1771,7 +1775,8 @@ mod tests {
                 tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
             let registry =
                 tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
-            let entry = crate::environment_ingress::captured_native_entry(profile);
+            let entry: crate::environment_ingress::CapturedNativeEntry =
+                crate::environment_ingress::captured_native_entry(profile);
             let dialect = tcl_registry::InvocationDialect::for_version(version);
             let mut sources = vec!["return [set result BODY]", "return"];
             if version >= tcl_dialect::TclVersion::V8_5 {
@@ -1929,7 +1934,8 @@ mod tests {
     #[test]
     fn unsupported_expression_compile_success_retains_an_entry_obligation() {
         let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
-        let mut entry = crate::environment_ingress::captured_native_entry(profile);
+        let mut entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         entry.math_functions.as_mut().unwrap().closed = false;
         let analysis = SourceCommandBindings::analyse_with_options(
             "set before 1; expr {future_function(1)}",
@@ -2092,7 +2098,8 @@ mod tests {
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let source = format!("if {{$flag}} {{{body}}}");
         let compilation = tcl_registry::native_compilation::NativeCompilationContext {
             mode: NativeCompilationMode::BytecodeObject,

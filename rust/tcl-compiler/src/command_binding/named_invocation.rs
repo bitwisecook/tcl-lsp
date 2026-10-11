@@ -418,7 +418,8 @@ pub(super) mod tests {
             let owner = tcl_registry::model::ingress::static_context_for(engine);
             let registry = owner.commands();
             let profile = registry.profile().unwrap();
-            let entry = crate::environment_ingress::captured_native_entry(profile);
+            let entry: crate::environment_ingress::CapturedNativeEntry =
+                crate::environment_ingress::captured_native_entry(profile);
             let analysis = SourceCommandBindings::analyse_with_options(
                 "",
                 tcl_lexer::LexerConfig::from_grammar(profile.grammar),
@@ -457,7 +458,8 @@ pub(super) mod tests {
         let owner = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let registry = owner.commands();
         let profile = registry.profile().unwrap();
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let original = entry
             .commands
             .iter()

@@ -54,7 +54,7 @@ mod tests {
     use tcl_runtime_api::CommandBindingGuard;
 
     fn module() -> (
-        crate::ir::Module,
+        crate::environment_ingress::RetainedNativeFixture<crate::ir::Module>,
         std::sync::Arc<tcl_registry::CommandRegistry>,
     ) {
         module_for("set earlier 1; set x extra bad")
@@ -63,16 +63,16 @@ mod tests {
     fn module_for(
         source: &str,
     ) -> (
-        crate::ir::Module,
+        crate::environment_ingress::RetainedNativeFixture<crate::ir::Module>,
         std::sync::Arc<tcl_registry::CommandRegistry>,
     ) {
         let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
-        module_for_entry(
+        let capture = crate::environment_ingress::captured_native_entry(profile);
+        let (module, registry) = module_for_entry(
             source,
-            Some(&std::sync::Arc::new(
-                crate::environment_ingress::captured_native_entry(profile),
-            )),
-        )
+            Some(&std::sync::Arc::new(capture.as_entry().clone())),
+        );
+        (capture.retain(module), registry)
     }
 
     fn module_for_entry(
@@ -231,7 +231,8 @@ mod tests {
         use tcl_runtime_api::native_compilation::NativeCompilerHookPresence;
 
         let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let (module, registry) =
             module_for_entry("set x extra bad", Some(&std::sync::Arc::new(entry.clone())));
         let execution =
@@ -288,7 +289,8 @@ mod tests {
         use tcl_runtime_api::native_compilation::NativeMathFunctionResolution;
 
         let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
-        let entry = std::sync::Arc::new(crate::environment_ingress::captured_native_entry(profile));
+        let capture = crate::environment_ingress::captured_native_entry(profile);
+        let entry = std::sync::Arc::new(capture.as_entry().clone());
         let table = entry.math_functions.as_ref().unwrap();
         assert!(table.closed);
         assert_eq!(
@@ -371,7 +373,8 @@ mod tests {
     #[test]
     fn entry_rejection_retains_the_original_prefix_fixed_math_table() {
         let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
-        let entry = std::sync::Arc::new(crate::environment_ingress::captured_native_entry(profile));
+        let capture = crate::environment_ingress::captured_native_entry(profile);
+        let entry = std::sync::Arc::new(capture.as_entry().clone());
         let (module, registry) = module_for_entry(
             "expr {abs(1)}; catch {error CHILD} result options",
             Some(&entry),
@@ -397,11 +400,12 @@ mod tests {
     #[test]
     fn unresolved_earlier_compiler_visit_withdraws_later_rejection_presentation() {
         let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
-        let mut entry = crate::environment_ingress::captured_native_entry(profile);
+        let mut entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         entry.math_functions.as_mut().unwrap().closed = false;
         let (module, registry) = module_for_entry(
             "expr {future_function(1)}; catch {error CHILD} result options; list ignored",
-            Some(&std::sync::Arc::new(entry)),
+            Some(&std::sync::Arc::new(entry.clone())),
         );
         let execution =
             crate::cfg_builder::build_cfg_codegen_with_registry(&module, false, &registry);

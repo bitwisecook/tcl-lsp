@@ -53,7 +53,8 @@ fn original_c91_uplevel_emits_native_frame_operation_and_defers_body_compilation
     ] {
         let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let image = tcl_lexer::SourceImage::native(source.as_bytes());
         let parsed = tcl_lexer::native_script_words_in(
             image,
@@ -100,7 +101,8 @@ fn original_variable_read_uses_selected_plan_and_withdraws_missing_compiler_rece
     for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let profile = tcl_dialect::DialectProfile::find(name).unwrap();
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let mut context = CodegenCtx::new(true, &["x", "name"], &registry);
         context.native_entry = Some(&entry);
         context.invocation_dialect = Some(tcl_registry::InvocationDialect::of_point(
@@ -180,7 +182,8 @@ fn original_dynamic_variable_target_keeps_stack_lookup_and_original_local_operan
     for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let profile = tcl_dialect::DialectProfile::find(name).unwrap();
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let mut context = CodegenCtx::new(true, &["name"], &registry);
         context.native_entry = Some(&entry);
         context.invocation_dialect = Some(tcl_registry::InvocationDialect::of_point(

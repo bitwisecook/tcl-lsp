@@ -3888,7 +3888,8 @@ mod tests {
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let profile = tcl_dialect::DialectProfile::find(name).unwrap();
             let registry = CommandRegistry::build_default().project_for_profile(profile);
-            let entry = crate::environment_ingress::captured_native_entry(profile);
+            let entry: crate::environment_ingress::CapturedNativeEntry =
+                crate::environment_ingress::captured_native_entry(profile);
             let image = tcl_lexer::SourceImage::native(&b"return {A\xff\0tail}"[..]);
             let script = tcl_lexer::native_script_words_in(
                 image.clone(),
@@ -3974,7 +3975,8 @@ mod tests {
         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let profile = tcl_dialect::DialectProfile::find(name).unwrap();
             let registry = CommandRegistry::build_default().project_for_profile(profile);
-            let entry = crate::environment_ingress::captured_native_entry(profile);
+            let entry: crate::environment_ingress::CapturedNativeEntry =
+                crate::environment_ingress::captured_native_entry(profile);
             for source in [
                 b"return -level 0 -code error -options {-custom kept -errorcode CUSTOM} BODY"
                     .as_slice(),
@@ -4108,7 +4110,8 @@ mod tests {
         ] {
             let profile = tcl_dialect::DialectProfile::find(name).unwrap();
             let registry = CommandRegistry::build_default().project_for_profile(profile);
-            let entry = crate::environment_ingress::captured_native_entry(profile);
+            let entry: crate::environment_ingress::CapturedNativeEntry =
+                crate::environment_ingress::captured_native_entry(profile);
             for (case, row) in expected.lines().skip(1).enumerate() {
                 compare_native_namespace_case(
                     name,
@@ -4256,7 +4259,8 @@ mod tests {
     fn original_byte_commands_retain_exact_boundaries_and_restore_enclosing_source() {
         let registry = CommandRegistry::build_default();
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
         let image =
             tcl_lexer::SourceImage::native(b"opaque \"first\xff\";\nother \"second\"".as_slice());
@@ -4303,7 +4307,8 @@ mod tests {
         // separately measures public C/Jim results and supplies no opcode grant.
         let registry = CommandRegistry::build_default();
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
         let image = tcl_lexer::SourceImage::native(
             b"opaque \"first\xff\"  ;\nother \"second\" \t".as_slice(),

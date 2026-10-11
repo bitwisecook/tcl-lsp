@@ -317,10 +317,13 @@ mod tests {
         CommandRegistry::build_default()
     }
 
-    fn native_return_module(source: &str) -> crate::ir::Module {
+    fn native_return_module(
+        source: &str,
+    ) -> crate::environment_ingress::RetainedNativeFixture<crate::ir::Module> {
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let mut lowerer = crate::lowering::Lowerer::new(registry).with_dialect(Some(profile));
         lowerer.set_source_analysis_options(crate::command_binding::SourceAnalysisOptions {
             native_entry: Some(&entry),
@@ -331,7 +334,8 @@ mod tests {
             },
             ..Default::default()
         });
-        crate::lowering::lower_to_ir_with(lowerer, source)
+        let module = crate::lowering::lower_to_ir_with(lowerer, source);
+        entry.retain(module)
     }
 
     // expr — end-to-end via lower_to_ir

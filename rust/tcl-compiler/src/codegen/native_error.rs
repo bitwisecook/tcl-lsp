@@ -80,7 +80,8 @@ mod tests {
             let profile = tcl_dialect::DialectProfile::find(profile).unwrap();
             let registry =
                 tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
-            let entry = crate::environment_ingress::captured_native_entry(profile);
+            let entry: crate::environment_ingress::CapturedNativeEntry =
+                crate::environment_ingress::captured_native_entry(profile);
             for (index, source) in sources.iter().enumerate() {
                 let parsed = tcl_lexer::native_script_words_in(
                     SourceImage::native(*source),
@@ -151,7 +152,8 @@ mod tests {
     fn original_error_registration_is_absent_before_c86() {
         for profile in ["tcl8.4", "tcl8.5"] {
             let profile = tcl_dialect::DialectProfile::find(profile).unwrap();
-            let entry = crate::environment_ingress::captured_native_entry(profile);
+            let entry: crate::environment_ingress::CapturedNativeEntry =
+                crate::environment_ingress::captured_native_entry(profile);
             let registry =
                 tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
             let source = b"error BODY";

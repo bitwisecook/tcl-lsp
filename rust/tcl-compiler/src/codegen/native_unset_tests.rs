@@ -31,7 +31,8 @@ fn original_unset_emits_native_receivers_and_sequential_callback_operands() {
     for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let profile = tcl_dialect::DialectProfile::find(name).unwrap();
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let modern =
             entry.execution_point.unwrap().tcl_version().unwrap() >= tcl_dialect::TclVersion::V8_6;
         for (source, opcodes) in [
@@ -89,7 +90,8 @@ fn original_unset_changed_worker_keeps_generic_and_unknown_hook_withdrawal() {
     };
     let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
     let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
-    let mut entry = crate::environment_ingress::captured_native_entry(profile);
+    let mut entry: crate::environment_ingress::CapturedNativeEntry =
+        crate::environment_ingress::captured_native_entry(profile);
     let token = entry
         .lookup_command_bytes(entry.current_namespace, b"unset")
         .unwrap()

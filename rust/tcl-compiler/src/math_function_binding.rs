@@ -708,7 +708,8 @@ mod tests {
     fn executable_math_requires_actual_closed_operand_effects() {
         for profile in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let selected_profile = tcl_dialect::DialectProfile::find(profile).unwrap();
-            let entry = crate::environment_ingress::captured_native_entry(selected_profile);
+            let entry: crate::environment_ingress::CapturedNativeEntry =
+                crate::environment_ingress::captured_native_entry(selected_profile);
             let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
             for (source, closed, hosted) in [
                 ("expr {sqrt(49)}", profile != "tcl8.4", profile == "tcl8.4"),

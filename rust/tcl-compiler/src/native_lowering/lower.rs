@@ -2454,10 +2454,11 @@ mod original_entry_storage_tests {
             super::super::elide::IncrGuard::Unguarded
         );
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
-        let mut entry = crate::environment_ingress::captured_native_entry(profile);
+        let mut entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         entry.frame = tcl_runtime_api::native_compilation::NativeCompilationFrame::Procedure;
         let mut native = authored.clone();
-        native.source_entry.native_entry = Some(std::sync::Arc::new(entry));
+        native.source_entry.native_entry = Some(std::sync::Arc::new(entry.clone()));
         let native_input = LoweringInput {
             module: &native,
             ..input

@@ -9263,7 +9263,8 @@ mod tests {
     fn aliased_set_preserves_aliased_nested_expr_read_in_call_ir_for_ssa() {
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let reg = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let lower = |source: &str| {
             let mut lowerer = crate::lowering::Lowerer::new(&reg);
             lowerer.set_source_analysis_options(crate::command_binding::SourceAnalysisOptions {

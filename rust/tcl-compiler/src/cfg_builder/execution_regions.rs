@@ -800,9 +800,13 @@ mod tests {
     use crate::ssa::build_ssa;
     use tcl_registry::CommandRegistry;
 
-    fn caller_body(source: &str, registry: &CommandRegistry) -> Script {
+    fn caller_body(
+        source: &str,
+        registry: &CommandRegistry,
+    ) -> crate::environment_ingress::RetainedNativeFixture<Script> {
         let profile = registry.profile().expect("native caller fixture profile");
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let mut lowerer = crate::lowering::Lowerer::new(registry).with_dialect(Some(profile));
         lowerer.set_source_analysis_options(crate::command_binding::SourceAnalysisOptions {
             native_entry: Some(&entry),
@@ -810,11 +814,13 @@ mod tests {
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
             ..Default::default()
         });
-        crate::lowering::lower_to_ir_with(lowerer, &format!("proc p {{}} {{{source}}}; p"))
-            .procedures
-            .remove("::p")
-            .expect("real procedure caller frame")
-            .body
+        let body =
+            crate::lowering::lower_to_ir_with(lowerer, &format!("proc p {{}} {{{source}}}; p"))
+                .procedures
+                .remove("::p")
+                .expect("real procedure caller frame")
+                .body;
+        entry.retain(body)
     }
 
     fn read_versions(ssa: &crate::ssa::SsaFunction, name: &str) -> Vec<u32> {
@@ -850,11 +856,18 @@ mod tests {
         body: &str,
         cleanup: &str,
         selection: RegionSelection,
-    ) -> (CommandRegistry, Script) {
+    ) -> (
+        CommandRegistry,
+        crate::environment_ingress::RetainedNativeFixture<Script>,
+    ) {
         fixture_with_continuation(setup, body, cleanup, selection, "")
     }
 
-    fn trusted_lifecycle_body(source: &str, registry: &CommandRegistry, trust: bool) -> Script {
+    fn trusted_lifecycle_body(
+        source: &str,
+        registry: &CommandRegistry,
+        trust: bool,
+    ) -> crate::environment_ingress::RetainedNativeFixture<Script> {
         let profile = registry
             .profile()
             .expect("selected lifecycle fixture profile");
@@ -864,16 +877,18 @@ mod tests {
         )
         .expect("audited stock provider");
         let providers = if trust { vec![provider] } else { Vec::new() };
+        let entry = crate::environment_ingress::captured_native_entry(profile);
         let mut lowerer = crate::lowering::Lowerer::new(registry).with_dialect(Some(profile));
         lowerer.set_source_analysis_options(crate::command_binding::SourceAnalysisOptions {
             trusted_package_loaders: &providers,
+            native_entry: Some(entry.as_entry()),
             invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
             ..crate::command_binding::SourceAnalysisOptions::default()
         });
         let mut module = crate::lowering::lower_to_ir_with(lowerer, source);
         if let Some(procedure) = module.procedures.remove("::p") {
-            return procedure.body;
+            return entry.retain(procedure.body);
         }
         let original = module
             .procedure_implementation_bodies
@@ -886,11 +901,12 @@ mod tests {
             .find(|(_, allocation)| *allocation == &original.allocation)
             .map(|(label, _)| label.clone())
             .expect("original declaration body unit");
-        module
+        let body = module
             .body_units
             .remove(&label)
             .expect("retained body")
-            .body
+            .body;
+        entry.retain(body)
     }
 
     fn fixture_with_continuation(
@@ -899,7 +915,10 @@ mod tests {
         cleanup: &str,
         selection: RegionSelection,
         continuation: &str,
-    ) -> (CommandRegistry, Script) {
+    ) -> (
+        CommandRegistry,
+        crate::environment_ingress::RetainedNativeFixture<Script>,
+    ) {
         let registry = CommandRegistry::build_default().project_for_profile(
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );

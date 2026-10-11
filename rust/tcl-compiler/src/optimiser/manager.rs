@@ -1412,10 +1412,9 @@ mod tests {
     fn native_existence_optimisations(source: &str) -> Vec<Optimisation> {
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let capture = crate::environment_ingress::captured_native_entry(profile);
         let entry = crate::command_binding::SourceAnalysisEntry {
-            native_entry: Some(std::sync::Arc::new(
-                crate::environment_ingress::captured_native_entry(profile),
-            )),
+            native_entry: Some(std::sync::Arc::new(capture.as_entry().clone())),
             invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                 mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,

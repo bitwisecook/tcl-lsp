@@ -684,7 +684,8 @@ mod tests {
             let profile = tcl_dialect::DialectProfile::find(name).unwrap();
             let registry =
                 tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
-            let entry = crate::environment_ingress::captured_native_entry(profile);
+            let entry: crate::environment_ingress::CapturedNativeEntry =
+                crate::environment_ingress::captured_native_entry(profile);
             let image = tcl_lexer::SourceImage::native(&b"try {return VALUE} on error {message options} {set handled $message} finally {set cleaned 1}"[..]);
             let script = tcl_lexer::native_script_words_in(
                 image.clone(),

@@ -895,7 +895,8 @@ mod tests {
         let environment = tcl_registry::model::ingress::static_context_for("jim");
         let registry = environment.commands();
         let source = "proc f {raw} {incr raw; set d [expr {sqrt($raw)}]; set integer_view $raw; set double_view $d}";
-        let entry = crate::environment_ingress::captured_native_entry(registry.profile().unwrap());
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(registry.profile().unwrap());
         let bindings = SourceCommandBindings::analyse_with_options(
             source,
             tcl_lexer::LexerConfig::for_profile(registry.profile()),
@@ -939,7 +940,7 @@ mod tests {
     fn jim_math_without_a_retained_table_cannot_publish_a_category() {
         let registry = tcl_registry::model::ingress::static_context_for("jim").commands();
         let source = "proc f {raw} {incr raw; set d [expr {sqrt($raw)}]; set view $d}";
-        let mut entry =
+        let mut entry: crate::environment_ingress::CapturedNativeEntry =
             crate::environment_ingress::captured_native_entry(registry.profile().unwrap());
         entry.math_functions = None;
         let bindings = SourceCommandBindings::analyse_with_options(

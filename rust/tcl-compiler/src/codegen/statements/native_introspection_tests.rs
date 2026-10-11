@@ -35,7 +35,8 @@ fn original_info_commands_compiler_keeps_conditional_list_geometry() {
     for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         for source in [
             b"info commands ::set".as_slice(),
             b"info commands ::missing",
@@ -80,7 +81,8 @@ fn original_info_commands_compiler_requires_literal_pattern_and_actual_worker() 
     use tcl_runtime_api::native_compilation::NativeCompilerHookPresence;
     let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
     let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
-    let mut entry = crate::environment_ingress::captured_native_entry(profile);
+    let mut entry: crate::environment_ingress::CapturedNativeEntry =
+        crate::environment_ingress::captured_native_entry(profile);
     for source in [b"info commands $pattern".as_slice(), b"info commands ::s*"] {
         let context = emit(&registry, &entry, source);
         assert!(!context.native_dependency_refusal);

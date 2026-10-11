@@ -36,7 +36,8 @@ fn original_concat_emits_shared_recipe_with_captured_compiler_guards() {
     for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let profile = tcl_dialect::DialectProfile::find(name).unwrap();
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let inline =
             entry.execution_point.unwrap().tcl_version().unwrap() >= tcl_dialect::TclVersion::V8_6;
         for (source, runtime) in [
@@ -96,7 +97,8 @@ fn original_concat_changed_worker_keeps_generic_dispatch_and_unknown_withdrawal(
     for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let profile = tcl_dialect::DialectProfile::find(name).unwrap();
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
-        let mut entry = crate::environment_ingress::captured_native_entry(profile);
+        let mut entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let token = entry
             .lookup_command_bytes(entry.current_namespace, b"concat")
             .unwrap()

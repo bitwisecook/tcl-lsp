@@ -108,8 +108,43 @@ pub(crate) fn interned_package_name(name: &str) -> &'static str {
 #[cfg(test)]
 pub(crate) fn captured_native_entry(
     profile: &'static tcl_dialect::DialectProfile,
-) -> tcl_runtime_api::NativeCompilationEntry {
-    captured_native_entry_with_owner(profile).1
+) -> CapturedNativeEntry {
+    let (owner, entry) = captured_native_entry_with_owner(profile);
+    CapturedNativeEntry { entry, owner }
+}
+
+/// The independently captured entry and its actual interpreter lifetime.
+/// Entry clones remain weak observations; this holder grants no Native purpose.
+#[cfg(test)]
+pub(crate) struct CapturedNativeEntry {
+    entry: tcl_runtime_api::NativeCompilationEntry,
+    owner: tcl_vm::Vm,
+}
+
+#[cfg(test)]
+impl CapturedNativeEntry {
+    pub(crate) fn as_entry(&self) -> &tcl_runtime_api::NativeCompilationEntry {
+        &self.entry
+    }
+
+    pub(crate) fn retain<T>(self, value: T) -> RetainedNativeFixture<T> {
+        RetainedNativeFixture::new(value, self.owner)
+    }
+}
+
+#[cfg(test)]
+impl std::ops::Deref for CapturedNativeEntry {
+    type Target = tcl_runtime_api::NativeCompilationEntry;
+    fn deref(&self) -> &Self::Target {
+        &self.entry
+    }
+}
+
+#[cfg(test)]
+impl std::ops::DerefMut for CapturedNativeEntry {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.entry
+    }
 }
 
 /// Keep the original interpreter alive when a test consumes a weak observation.
@@ -179,43 +214,96 @@ pub(crate) fn captured_native_entry_with_owner(
     (vm, entry)
 }
 
-/// Test owner keeps its actual interpreter live through subsequent fact queries.
+/// Test value retires before its actual interpreter, which stays live through
+/// every subsequent query. This does not strengthen any registration observation.
 #[cfg(test)]
-pub(crate) struct RetainedNativeUnit {
-    unit: crate::compilation_unit::CompilationUnit,
+pub(crate) struct RetainedNativeFixture<T> {
+    value: T,
     _owner: tcl_vm::Vm,
 }
 
 #[cfg(test)]
-impl RetainedNativeUnit {
-    pub(crate) fn new(unit: crate::compilation_unit::CompilationUnit, owner: tcl_vm::Vm) -> Self {
+impl<T> RetainedNativeFixture<T> {
+    pub(crate) fn new(value: T, owner: tcl_vm::Vm) -> Self {
         Self {
-            unit,
+            value,
             _owner: owner,
         }
     }
 }
 
 #[cfg(test)]
-impl std::ops::Deref for RetainedNativeUnit {
-    type Target = crate::compilation_unit::CompilationUnit;
+impl<T> std::ops::Deref for RetainedNativeFixture<T> {
+    type Target = T;
     fn deref(&self) -> &Self::Target {
-        &self.unit
+        &self.value
     }
 }
 
 #[cfg(test)]
-impl std::ops::DerefMut for RetainedNativeUnit {
+impl<T> std::ops::DerefMut for RetainedNativeFixture<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.unit
+        &mut self.value
     }
 }
+
+#[cfg(test)]
+pub(crate) type RetainedNativeUnit =
+    RetainedNativeFixture<crate::compilation_unit::CompilationUnit>;
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::Arc;
     use tcl_registry::model::KeyedVersions;
+
+    #[test]
+    fn captured_entry_keeps_its_actual_interpreter_until_capture_retirement() {
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = tcl_dialect::DialectProfile::find(name).unwrap();
+            let capture = captured_native_entry(profile);
+            let snapshot = capture.as_entry().clone();
+            let environment = snapshot.compiler_pass_environment.as_ref().unwrap();
+            assert!(environment.is_current_for(snapshot.interpreter), "{name}");
+            drop(capture);
+            assert!(!environment.is_current_for(snapshot.interpreter), "{name}");
+        }
+    }
+
+    #[test]
+    fn returned_native_fixture_retires_its_value_before_the_actual_interpreter() {
+        struct RetirementProbe {
+            environment: tcl_runtime_api::native_compiler_pass::NativeCompilerPassEnvironment,
+            interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
+            current_during_retirement: std::rc::Rc<std::cell::Cell<bool>>,
+        }
+        impl Drop for RetirementProbe {
+            fn drop(&mut self) {
+                self.current_during_retirement
+                    .set(self.environment.is_current_for(self.interpreter));
+            }
+        }
+        fn returned_fixture(
+            current: std::rc::Rc<std::cell::Cell<bool>>,
+        ) -> RetainedNativeFixture<RetirementProbe> {
+            let capture =
+                captured_native_entry(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+            let probe = RetirementProbe {
+                environment: capture.compiler_pass_environment.as_ref().unwrap().clone(),
+                interpreter: capture.interpreter,
+                current_during_retirement: current,
+            };
+            capture.retain(probe)
+        }
+        let current = std::rc::Rc::new(std::cell::Cell::new(false));
+        let fixture = returned_fixture(std::rc::Rc::clone(&current));
+        let environment = fixture.environment.clone();
+        let interpreter = fixture.interpreter;
+        assert!(environment.is_current_for(interpreter));
+        drop(fixture);
+        assert!(current.get());
+        assert!(!environment.is_current_for(interpreter));
+    }
 
     #[test]
     fn authoring_target_is_explicit_and_lexical_axes_are_independent() {

@@ -26,7 +26,13 @@ pub enum SourceRuntimeReachability {
 mod tests {
     use super::*;
 
-    fn analyse(source: &str) -> (SourceCommandBindings, tcl_lexer::LexerConfig) {
+    fn analyse(
+        source: &str,
+    ) -> (
+        SourceCommandBindings,
+        tcl_lexer::LexerConfig,
+        Option<crate::environment_ingress::CapturedNativeEntry>,
+    ) {
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
@@ -350,7 +356,11 @@ mod policy_tests {
     fn namespace_analysis(
         source: &str,
         name: &str,
-    ) -> (SourceCommandBindings, tcl_lexer::LexerConfig) {
+    ) -> (
+        SourceCommandBindings,
+        tcl_lexer::LexerConfig,
+        Option<crate::environment_ingress::CapturedNativeEntry>,
+    ) {
         let profile = tcl_registry::model::ingress::resolve_environment(name).analyser_profile();
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
@@ -367,7 +377,9 @@ mod policy_tests {
             config,
             &registry,
             super::super::SourceAnalysisOptions {
-                native_entry: entry.as_ref(),
+                native_entry: entry
+                    .as_ref()
+                    .map(crate::environment_ingress::CapturedNativeEntry::as_entry),
                 invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
@@ -377,7 +389,7 @@ mod policy_tests {
                 ..Default::default()
             },
         );
-        (inventory, config)
+        (inventory, config, entry)
     }
 
     #[test]
@@ -392,7 +404,7 @@ mod policy_tests {
         ];
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             for source in sources {
-                let (inventory, _) = namespace_analysis(source, name);
+                let (inventory, _, _owner) = namespace_analysis(source, name);
                 let site = CommandAllocationSite {
                     source: Arc::clone(inventory.source_origin().unwrap()),
                     offset: 0,
@@ -415,7 +427,7 @@ mod policy_tests {
             }
         }
         for name in ["tcl8.6", "tcl9.0", "tcl9.1"] {
-            let (inventory, _) =
+            let (inventory, _, _owner) =
                 namespace_analysis("try {set protected 1} finally {set cleanup 1}", name);
             let site = CommandAllocationSite {
                 source: Arc::clone(inventory.source_origin().unwrap()),
@@ -427,7 +439,7 @@ mod policy_tests {
             ));
         }
         let source = "if {0} {set skipped 1} else {set kept 1}";
-        let (inventory, _) = namespace_analysis(source, "tcl8.6");
+        let (inventory, _, _owner) = namespace_analysis(source, "tcl8.6");
         for (child, visited) in [("set skipped", false), ("set kept", true)] {
             let offset = u32::try_from(source.find(child).unwrap()).unwrap();
             assert_eq!(
@@ -462,7 +474,7 @@ mod policy_tests {
             .into_iter()
             .enumerate()
             {
-                let (inventory, config) = namespace_analysis(source, name);
+                let (inventory, config, _owner) = namespace_analysis(source, name);
                 let segment =
                     crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
                         .into_iter()
@@ -517,7 +529,7 @@ mod policy_tests {
         let fields: Vec<_> = row.split('\t').collect();
         let case: usize = fields[0].parse().unwrap();
         let source = SWITCH_SOURCES[case];
-        let (inventory, config) = namespace_analysis(source, name);
+        let (inventory, config, _owner) = namespace_analysis(source, name);
         let segment = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
             .into_iter()
             .next()
@@ -629,7 +641,7 @@ mod policy_tests {
             }
         }
         for name in ["tcl8.4", "jim"] {
-            let (inventory, _) = namespace_analysis(SWITCH_SOURCES[1], name);
+            let (inventory, _, _owner) = namespace_analysis(SWITCH_SOURCES[1], name);
             let site = CommandAllocationSite {
                 source: Arc::clone(inventory.source_origin().unwrap()),
                 offset: 0,
@@ -649,7 +661,7 @@ mod policy_tests {
         };
         for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let source = "variable v [set reached 1] {a)} [set later 2]";
-            let (inventory, _) = namespace_analysis(source, name);
+            let (inventory, _, _owner) = namespace_analysis(source, name);
             let site = CommandAllocationSite {
                 source: Arc::clone(inventory.source_origin().unwrap()),
                 offset: 0,
@@ -708,7 +720,7 @@ mod policy_tests {
             NativeCompilationSelection,
         };
         let source = SWITCH_SOURCES[1];
-        let (inventory, config) = namespace_analysis(source, "tcl9.1");
+        let (inventory, config, _owner) = namespace_analysis(source, "tcl9.1");
         let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
         let segment =
@@ -795,7 +807,7 @@ mod policy_tests {
     fn original_variable_join_with_unknown_withdraws_compiler_word_owner() {
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let source = "set x";
-            let (inventory, config) = namespace_analysis(source, name);
+            let (inventory, config, _owner) = namespace_analysis(source, name);
             let command =
                 crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
                     .remove(0);
@@ -835,7 +847,7 @@ mod policy_tests {
             NativeCompilationSelection,
         };
         let source = "variable v 1 w 2";
-        let (inventory, config) = namespace_analysis(source, "tcl9.1");
+        let (inventory, config, _owner) = namespace_analysis(source, "tcl9.1");
         let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
         let segment =
@@ -905,7 +917,7 @@ mod policy_tests {
                 ("variable ${ns}::v", "variable"),
                 ("global ${ns}::v", "global"),
             ] {
-                let (inventory, _) = namespace_analysis(source, name);
+                let (inventory, _, _owner) = namespace_analysis(source, name);
                 let binding = inventory.invocation_at_source(head, 0);
                 assert_eq!(
                     matches!(
@@ -917,7 +929,7 @@ mod policy_tests {
                 );
             }
             for (source, head) in [("variable ${ns}v", "variable"), ("global ${ns}v", "global")] {
-                let (without_tail, _) = namespace_analysis(source, name);
+                let (without_tail, _, _owner) = namespace_analysis(source, name);
                 assert_eq!(
                     without_tail
                         .invocation_at_source(head, 0)

@@ -47,7 +47,8 @@ fn native_control_module(
 fn original_control_compiler_enters_the_original_expression_worklist() {
     for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let profile = tcl_dialect::DialectProfile::find(name).unwrap();
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let module = native_control_module(ORIGINAL_MATHOP_TEST, profile, Some(&entry));
         let [
             Statement::Call {
@@ -124,7 +125,8 @@ fn assert_original_control_guard(
 #[test]
 fn original_control_carrier_rejects_changed_words_and_absent_compiler_entry() {
     let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
-    let entry = crate::environment_ingress::captured_native_entry(profile);
+    let entry: crate::environment_ingress::CapturedNativeEntry =
+        crate::environment_ingress::captured_native_entry(profile);
     let mut module = native_control_module(ORIGINAL_MATHOP_TEST, profile, Some(&entry));
     let [
         Statement::Call {
@@ -158,7 +160,8 @@ fn original_control_carrier_rejects_changed_words_and_absent_compiler_entry() {
 #[test]
 fn renamed_or_aliased_control_has_no_original_stock_compiler_carrier() {
     let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
-    let entry = crate::environment_ingress::captured_native_entry(profile);
+    let entry: crate::environment_ingress::CapturedNativeEntry =
+        crate::environment_ingress::captured_native_entry(profile);
     let source = "interp alias {} conditional {} if; conditional 1 {set x YES}";
     let module = native_control_module(source, profile, Some(&entry));
     let statement = module.top_level.statements.last().unwrap();
@@ -178,7 +181,8 @@ fn renamed_or_aliased_control_has_no_original_stock_compiler_carrier() {
 #[test]
 fn replaced_control_preserves_initial_compiler_selection_for_runtime_replay() {
     let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
-    let entry = crate::environment_ingress::captured_native_entry(profile);
+    let entry: crate::environment_ingress::CapturedNativeEntry =
+        crate::environment_ingress::captured_native_entry(profile);
     let source = "rename if saved; proc if {args} {return CUSTOM}; if 1 {set x YES}";
     let module = native_control_module(source, profile, Some(&entry));
     let tokens = module

@@ -213,7 +213,8 @@ mod tests {
             let profile = tcl_dialect::DialectProfile::find(name).unwrap();
             let registry =
                 tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-            let native = crate::environment_ingress::captured_native_entry(profile);
+            let native: crate::environment_ingress::CapturedNativeEntry =
+                crate::environment_ingress::captured_native_entry(profile);
             for entered in [false, true] {
                 let source = if entered {
                     "proc f {} {expr {abs(-3)}}; f"

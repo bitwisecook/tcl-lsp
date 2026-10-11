@@ -1233,7 +1233,8 @@ mod tests {
     fn original_c84_direct_source_preserves_words_without_compiler_pool_actions() {
         use tcl_runtime_api::{CompileService, ScriptCompileTargetBytes};
         let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let service = crate::compile_service::BytecodeCompileService::for_profile(profile);
         let source = tcl_runtime_api::SourceImage::native(
             b"list [info level] [info exists local]".as_slice(),
@@ -1985,7 +1986,8 @@ mod tests {
         use tcl_syntax::native_variable_words::NativeVariableWordOperand;
         let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
         let registry = CommandRegistry::build_default().project_for_profile(profile);
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         for source in [
             "lappend ::events [list $n $i $op]",
             "lappend \"arr($i)\" [list $n]",

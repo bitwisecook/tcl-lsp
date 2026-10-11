@@ -59,7 +59,8 @@ mod tests {
             let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
             let registry =
                 tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
-            let entry = crate::environment_ingress::captured_native_entry(profile);
+            let entry: crate::environment_ingress::CapturedNativeEntry =
+                crate::environment_ingress::captured_native_entry(profile);
             for (source, terminal) in [
                 (
                     b"tailcall target [set seen VALUE]".as_slice(),

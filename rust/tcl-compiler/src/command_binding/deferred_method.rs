@@ -2370,7 +2370,8 @@ mod tests {
     fn native_default_constructor_uses_captured_worker_identity_and_rejects_replacement() {
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         for (prefix, expected) in [
             ("", true),
             ("rename ::oo::object {}; proc ::oo::object args {}; ", false),

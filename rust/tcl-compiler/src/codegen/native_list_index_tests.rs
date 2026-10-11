@@ -48,7 +48,8 @@ fn original_list_index_emission_retains_native_coordinates_and_compiler_boundari
     for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         for (source, immediate) in [
             (b"lindex $x 0".as_slice(), engine != "tcl8.4"),
             (
@@ -96,7 +97,8 @@ fn original_list_index_emission_retains_native_coordinates_and_compiler_boundari
 fn original_list_index_withdraws_unknown_or_missing_entry_but_keeps_actual_decline() {
     let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
     let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
-    let entry = crate::environment_ingress::captured_native_entry(profile);
+    let entry: crate::environment_ingress::CapturedNativeEntry =
+        crate::environment_ingress::captured_native_entry(profile);
     let context = emit_original(&registry, None, profile, b"lindex $x 0");
     assert!(context.native_dependency_refusal);
     for (hook, refused) in [

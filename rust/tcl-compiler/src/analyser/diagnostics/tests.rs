@@ -7800,7 +7800,10 @@ fn i231_never_reports_a_switch_over_a_subject_a_release_may_read_as_an_option() 
 
 /// Execute the fixture's source analysis under an independently captured native entry.
 /// Declared body metadata alone cannot establish an actual existence-fold receipt.
-fn native_existence_result(src: &str, dialect: &str) -> crate::analyser::AnalysisResult {
+fn native_existence_result(
+    src: &str,
+    dialect: &str,
+) -> crate::environment_ingress::RetainedNativeFixture<crate::analyser::AnalysisResult> {
     let profile = tcl_dialect::DialectProfile::find(dialect).expect("native fixture profile");
     let (_owner, captured) = crate::environment_ingress::captured_native_entry_with_owner(profile);
     let entry = crate::command_binding::SourceAnalysisEntry {
@@ -7812,9 +7815,10 @@ fn native_existence_result(src: &str, dialect: &str) -> crate::analyser::Analysi
         },
         ..crate::command_binding::SourceAnalysisEntry::default()
     };
-    Analyser::new()
+    let analysis = Analyser::new()
         .with_source_analysis_entry(std::sync::Arc::new(entry))
-        .analyse(src, dialect)
+        .analyse(src, dialect);
+    crate::environment_ingress::RetainedNativeFixture::new(analysis, _owner)
 }
 
 fn native_existence_codes(src: &str) -> Vec<String> {

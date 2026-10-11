@@ -42,7 +42,8 @@ fn original_namespace_tail_emits_the_observed_counted_compiler_program() {
     for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let context = emit(&registry, &entry);
         assert!(!context.native_dependency_refusal, "{engine}");
         let operations: Vec<_> = context.instructions.iter().map(|item| item.op).collect();
@@ -84,7 +85,8 @@ fn original_namespace_tail_unknown_worker_withdraws_the_compiler_program() {
     use tcl_runtime_api::native_compilation::NativeCompilerHookPresence;
     let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
     let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
-    let mut entry = crate::environment_ingress::captured_native_entry(profile);
+    let mut entry: crate::environment_ingress::CapturedNativeEntry =
+        crate::environment_ingress::captured_native_entry(profile);
     let selected = entry
         .lookup_command_bytes(entry.current_namespace, b"::tcl::namespace::tail")
         .unwrap()
@@ -115,7 +117,8 @@ fn original_namespace_qualifiers_emits_the_observed_counted_compiler_loop() {
     for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         let context = emit_source(&registry, &entry, b"namespace qualifiers $value");
         assert!(!context.native_dependency_refusal, "{engine}");
         let operations: Vec<_> = context.instructions.iter().map(|item| item.op).collect();

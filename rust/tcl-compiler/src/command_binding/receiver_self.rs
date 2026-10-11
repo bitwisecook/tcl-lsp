@@ -815,7 +815,8 @@ mod tests {
     fn actual_method_entry_links_declared_instance_cells_without_shadowing_formals() {
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
         for (variables, instance_y) in [
             ("variable x y", true),
             ("variable x y; variable -clear; variable z", false),
