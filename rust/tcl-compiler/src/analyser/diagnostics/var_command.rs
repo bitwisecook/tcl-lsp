@@ -1362,10 +1362,10 @@ impl Analyser {
     ///
     /// `TclOO`'s `oo::abstract` removes `new` / `create` from the class, so
     /// `AbstractClass new` / `AbstractClass create obj` is a runtime error.
-    /// Uses the retained live class incarnation and its original factory,
-    /// including alias prefixes and nested invocations in generic calls.
-    /// Factory metadata supplies the diagnostic grammar independently of
-    /// constructor completion and native opcode eligibility.
+    /// Uses the genuine conditional source class incarnation and its original
+    /// selected factory operation, including alias prefixes and nested calls.
+    /// Constructor export, completion and Native entry remain independent;
+    /// stale source owners and uncertain mutation refuse this projection.
     pub(super) fn emit_abstract_instantiation_diagnostics(
         &mut self,
         cu: &crate::compilation_unit::CompilationUnit,
@@ -1392,32 +1392,33 @@ impl Analyser {
         }
         let diagnostic = |tokens: &crate::ir::CommandTokens, span: tcl_lexer::Span| {
             let binding = tokens.source_binding.as_ref()?;
-            let metadata =
-                binding.original_invocation_metadata_for_module(tokens, &cu.ir_module, registry)?;
-            let (factory, target) = binding.proved_class_definition_factory()?;
-            let spec = metadata.context().resolve_spec_in_realm(
-                registry,
-                factory,
-                binding.invocation_realm()?,
+            binding.original_invocation_metadata_for_module(tokens, &cu.ir_module, registry)?;
+            let image = &cu.ir_module.source;
+            let original = crate::registry_invocation::original_native_compiler_words(
+                image,
+                tokens.words(),
+                binding.invocation_site()?.offset,
+                cu.ir_module.lexer_config,
             )?;
-            if !spec
-                .traits
+            let realm = self.result.retained_command_realm()?;
+            let call = realm.original_source_constructor_call(input, &original)?;
+            let attempt = call.source_factory_attempt(&self.result)?;
+            if !attempt
+                .factory_traits()
                 .contains(tcl_registry::Traits::ABSTRACT_CLASS_FACTORY)
             {
                 return None;
             }
-            let member = if let Some(prefix) = target.prepended.first() {
-                prefix.as_registry_word().literal()?
-            } else {
-                binding.evaluated_argument_values.first()?.as_deref()?
-            };
-            spec.definition_body?.manufacturer(member)?;
+            let class_name = String::from_utf8(tcl_syntax::naming::native_command_full_name_bytes(
+                attempt.class_declaration().source_slot(),
+            ))
+            .ok()?;
             Some(crate::analyser::types::Diagnostic::new(
                 DiagCode::W250,
                 span,
                 format!(
                     "Instantiating abstract class '{}' — use a concrete subclass",
-                    target.command
+                    class_name
                 ),
                 super::types::Severity::Warning,
             ))
@@ -2909,7 +2910,7 @@ mod original_abstract_factory_context_tests {
     fn original_abstract_factory_advice_refuses_changed_availability_and_source_owners() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
-        // Metadata never replaces the independently retained live class/factory proof.
+        // Metadata never replaces the independently retained original class/factory owner.
         let source = "oo::abstract create Base {}; Base new";
         let catalogue =
             tcl_registry::model::resolve_environment("tcl9.0").default_context_registry();

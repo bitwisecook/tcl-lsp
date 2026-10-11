@@ -7333,8 +7333,11 @@ source-schema queries; collapsed CRLF-middle and UTF8-interior boundaries remain
 unmappable. `into_text` consumes presentation only and issues no original word or
 entry. Client edit coordinates and configured output terminators remain separate.
 Formatting prioritises the retained typed definition-member vocabulary over a
-global same-spelling command, while original `NativeWord` and independent formal
-and value receipts stay owned by their source. Effective roles map only to their written origins;
+global same-spelling command. `SourceDefinitionMemberBodyPresentation` follows
+the selected `MemberEffect::Callable` body slot through the shared option and
+wrapper layout. `OriginalSourceDefinitionMemberScriptBody::presentation` carries
+that source style to the formatter without borrowing runtime traits. Original
+`NativeWord` and independent formal and value receipts stay owned by their source. Effective roles map only to their written origins;
 captured prefixes acquire no document operand or edit permission. Keyword and
 literal-expression transformations retain their independent permission and
 bounded equivalence requirements. See the [Document projection](../analysis/name-resolution-proofs/source-original-document-line-ending-projection.md),
@@ -8681,6 +8684,20 @@ Family source handlers consume `OriginalClassDefinerSource` from the selected
 factory schema/effective argv and canonical original class declaration/name.
 Moved and captured prefixes retain their original producer anchors. Reporting
 class or metaclass labels cannot select family grammar.
+
+W250 consumes `OriginalSourceConstructorCall::source_factory_attempt` after the
+actual Module/point metadata and whole original argv join through
+`CommandBindingRealm::original_source_constructor_call`. The projection retains
+the canonical original class incarnation, current selected factory schema and
+manufacturer operand, including captured alias prefixes and source moves. It
+describes an attempted operation; exported constructor dispatch, completed
+construction and Native entry remain independent. Selected Logical and Native
+source naming keep their own declaration carriers. Missing or changed complete
+input, foreign source/configuration, replacement, method overrides and uncertain
+earlier mutation refuse the diagnostic. Do not use `constructor_shape` or a
+reached class lookup to infer this source purpose. The
+[original metadata contract](../analysis/name-resolution-proofs/original-analysis-metadata-context.md)
+keeps diagnostic source advice separate from execution permissions.
 
 Readonly receiver consumers use `source_class_instance_words_at` under the
 actual whole source/configuration/context. `OriginalSourceClassInstanceWords`

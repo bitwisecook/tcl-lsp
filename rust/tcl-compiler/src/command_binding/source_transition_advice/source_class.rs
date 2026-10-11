@@ -182,6 +182,33 @@ impl OriginalSourceConstructorShape {
     }
 }
 
+/// A selected original factory operation considered as a source attempt.
+/// Constructor visibility, completed invocation, allocated object and entered
+/// Native handler are independent of this diagnostic metadata projection.
+#[derive(Debug, Clone, Copy)]
+pub struct OriginalSourceClassFactoryAttempt<'a> {
+    class: &'a OriginalSourceClassDeclaration,
+    operation: &'static ManufacturerMethod,
+    factory_traits: tcl_registry::Traits,
+}
+impl OriginalSourceClassFactoryAttempt<'_> {
+    /// Canonical original definer and current conditional source incarnation.
+    #[must_use]
+    pub const fn class_declaration(&self) -> &OriginalSourceClassDeclaration {
+        self.class
+    }
+    /// Actual selected manufacturer, without successful or exported dispatch.
+    #[must_use]
+    pub const fn operation(&self) -> &'static ManufacturerMethod {
+        self.operation
+    }
+    /// Authored factory metadata, without runtime trait or handler authority.
+    #[must_use]
+    pub const fn factory_traits(&self) -> tcl_registry::Traits {
+        self.factory_traits
+    }
+}
+
 /// Whole original call joined to its exact original conditional class factory.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OriginalSourceConstructorCall {
@@ -277,6 +304,86 @@ impl OriginalSourceConstructorCall {
             && self.class.factory.matches_source(image, config)
             && self.class.factory.matches_context(context)
     }
+    /// Diagnostic source attempt under the exact retained factory and input.
+    /// The genuine source tape owns alias prefixes, moves and class incarnation;
+    /// unknown earlier effects and method/factory replacement remain terminal.
+    /// This does not require an exported or successfully entered constructor.
+    #[must_use]
+    pub fn source_factory_attempt(
+        &self,
+        analysis: &AnalysisResult,
+    ) -> Option<OriginalSourceClassFactoryAttempt<'_>> {
+        let input = analysis.resolved_input.as_ref()?;
+        let context = input.context_registry();
+        self.matches_source_context(
+            self.original.first()?.image(),
+            input.lexer_config(),
+            &context,
+        )
+        .then_some(())?;
+        analysis
+            .matches_original_source_image(self.original.first()?.image(), input.lexer_config())
+            .then_some(())?;
+        if self
+            .obligations
+            .contains(&SourceCommandTransitionObligation::UnknownEarlierMutation)
+            || !self.class.factory.uncertain_operations().is_empty()
+        {
+            return None;
+        }
+        let first = self.arguments.first()?;
+        if first.original.group().expand {
+            return None;
+        }
+        let bytes = first.value.as_deref()?;
+        let selector = std::str::from_utf8(bytes).ok()?;
+        if bytes.contains(&0) {
+            return None;
+        }
+        let factory = &self.class.factory;
+        if factory.logical_source_input().is_some() {
+            (factory.logical_source_input() == Some(input)).then_some(())?;
+            let class = self.class.logical_source_class(analysis)?;
+            if class.class_methods.contains_key(selector)
+                || class.class_methods.contains_key("unknown")
+            {
+                return None;
+            }
+        } else {
+            let class = self.class.source_class(analysis)?;
+            let members = &class.metadata().original_members;
+            let deferred = self
+                .obligations
+                .contains(&SourceCommandTransitionObligation::OriginalProcedureBodyApplicability)
+                || self
+                    .obligations
+                    .contains(&SourceCommandTransitionObligation::DeferredLogicalBodyApplicability);
+            let methods = if deferred {
+                members.methods(crate::analyser::MemberSide::ClassObject)?
+            } else {
+                members.methods_before_source_call(
+                    crate::analyser::MemberSide::ClassObject,
+                    self.site(),
+                )?
+            };
+            if methods.iter().any(|method| {
+                let name = method.original_name_input().bytes();
+                name == bytes || name == b"unknown"
+            }) {
+                return None;
+            }
+        }
+        let spec = context
+            .context()
+            .resolve_spec(context.commands(), factory.command())?;
+        let operation = spec.definition_body?.manufacturer(selector)?;
+        Some(OriginalSourceClassFactoryAttempt {
+            class: &self.class,
+            operation,
+            factory_traits: spec.traits,
+        })
+    }
+
     /// Conditional construction syntax in the positively retained Logical
     /// source model. The canonical factory and selected family own this shape;
     /// it supplies no Native name, method lookup, receiver or allocated value.
@@ -1171,5 +1278,102 @@ mod tests {
         .unwrap();
         assert_eq!(class.name_input().bytes(), "Base α".as_bytes());
         assert!(class.source_class(&analysis).is_some());
+    }
+    #[test]
+    fn original_factory_attempt_keeps_source_incarnation_without_constructor_visibility() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        for (tail, selector, name) in [
+            ("Base new", "new", b"Base".as_slice()),
+            ("Base create object", "create", b"Base".as_slice()),
+            (
+                "Base createWithNamespace object ::ns",
+                "createWithNamespace",
+                b"Base".as_slice(),
+            ),
+            ("set result [Base new]", "new", b"Base".as_slice()),
+            (
+                "interp alias {} make {} Base new; make",
+                "new",
+                b"Base".as_slice(),
+            ),
+            ("rename Base Moved; Moved new", "new", b"Moved".as_slice()),
+        ] {
+            let source = format!("oo::abstract create Base {{}}; {tail}");
+            let analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(&source, "tcl9.0");
+            let marker = if tail == "set result [Base new]" {
+                "Base new"
+            } else if tail.starts_with("interp alias") {
+                "make"
+            } else if tail.starts_with("rename") {
+                "Moved new"
+            } else {
+                tail
+            };
+            let offset = u32::try_from(source.rfind(marker).unwrap()).unwrap();
+            let call = source_constructor_call_at(&source, &analysis, offset).expect(tail);
+            let attempt = call.source_factory_attempt(&analysis).expect(tail);
+            assert_eq!(attempt.operation().keyword, selector);
+            assert_eq!(
+                attempt.class_declaration().source_slot().simple.as_bytes(),
+                name
+            );
+            assert!(
+                attempt
+                    .factory_traits()
+                    .contains(tcl_registry::Traits::ABSTRACT_CLASS_FACTORY)
+            );
+            assert!(
+                call.constructor_shape(&analysis).is_none(),
+                "source attempt grants no Native constructor"
+            );
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(call.source_factory_attempt(&missing).is_none());
+            let mut changed = analysis.clone();
+            let mut config = input.lexer_config();
+            config.strict_quoting ^= true;
+            changed.resolved_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                input.context_registry(),
+                config,
+            ));
+            assert!(call.source_factory_attempt(&changed).is_none());
+        }
+        for mutation in [
+            "proc Base args {return replacement}",
+            "oo::objdefine Base method new args {return custom}",
+            "oo::objdefine Base export new",
+            "unknownMutation",
+        ] {
+            let source = format!("oo::abstract create Base {{}}; {mutation}; Base new");
+            let analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(&source, "tcl9.0");
+            let offset = u32::try_from(source.rfind("Base new").unwrap()).unwrap();
+            let call = source_constructor_call_at(&source, &analysis, offset);
+            if mutation == "unknownMutation" {
+                assert!(
+                    call.is_some(),
+                    "the original conditional call remains retained"
+                );
+            }
+            assert!(
+                call.as_ref()
+                    .and_then(|call| call.source_factory_attempt(&analysis))
+                    .is_none(),
+                "{mutation}"
+            );
+        }
     }
 }
