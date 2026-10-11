@@ -150,17 +150,32 @@ impl Interp {
         .flatten()
     }
 
+    /// Inspect the inherited operation after a reached name-cache callback.
+    /// The callback's effects remain reached; later cell/cache work may not
+    /// acquire a fresh receipt or use a retired original header.
+    fn check_original_c_name_operation(&self, originals: &[*mut TclObj]) -> Result<(), ValueError> {
+        self.check_entered_native_operation().map_err(|_| {
+            ValueError::CommandProtocolUnavailable("entered original variable-name operation")
+        })?;
+        for &original in originals {
+            obj::check_native_liveness(original)?;
+        }
+        Ok(())
+    }
+
     fn install_original_c_name_cache(
         &self,
         original: *mut TclObj,
         index: Option<usize>,
     ) -> Result<(), ValueError> {
+        self.check_original_c_name_operation(&[original])?;
+        let _original_lifetime = obj::NativeObjectLifetime::retain(original);
         let dialect = self.native_invocation_dialect();
         let protocol = dialect
             .native_variable_name_protocol()
             .expect("C variable issuer");
         let Some(index) = index else {
-            return obj::native_variable_name::install_parsed(
+            let result = obj::native_variable_name::install_parsed(
                 original,
                 NativeParsedVariableName {
                     protocol,
@@ -168,6 +183,8 @@ impl Interp {
                 },
                 dialect,
             );
+            self.check_original_c_name_operation(&[original])?;
+            return result;
         };
         if protocol.local_cache_owns_procedure() {
             let procedure = self.frames.borrow().current_c_procedure().cloned().ok_or(
@@ -175,7 +192,7 @@ impl Interp {
             )?;
             procedure
                 .retain_native_compiled_frame_names(self.frames.borrow().native_compiled_names());
-            return obj::native_variable_name::install_local(
+            let result = obj::native_variable_name::install_local(
                 original,
                 NativeLocalVariableName {
                     protocol,
@@ -193,20 +210,27 @@ impl Interp {
                 },
                 dialect,
             );
+            self.check_original_c_name_operation(&[original])?;
+            return result;
         }
-        let frames = self.frames.borrow();
-        let canonical = frames
-            .native_local_name_table()
-            .and_then(|table| table.names.get(index))
-            .and_then(Option::as_ref)
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "actual canonical local name owner",
-            ))?;
-        let canonical = canonical.as_ptr();
+        let canonical = {
+            let frames = self.frames.borrow();
+            frames
+                .native_local_name_table()
+                .and_then(|table| table.names.get(index))
+                .and_then(Option::as_ref)
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "actual canonical local name owner",
+                ))?
+                .as_ptr()
+        };
+        // Keep only allocation safety across a reached free callback. Native
+        // sharing and the selected canonical header remain independent.
+        let _canonical_lifetime = obj::NativeObjectLifetime::retain(canonical);
         let owner = NativeLocalVariableOwner::Name(
             (canonical != original).then(|| Owned::retain(canonical)),
         );
-        obj::native_variable_name::install_local(
+        let result = obj::native_variable_name::install_local(
             original,
             NativeLocalVariableName {
                 protocol,
@@ -214,10 +238,14 @@ impl Interp {
                 owner,
             },
             dialect,
-        )?;
+        );
+        self.check_original_c_name_operation(&[original, canonical])?;
+        result?;
         if canonical != original && protocol.installs_canonical_local_self_cache() {
-            obj::discard_native_internal_representation(canonical)?;
-            obj::native_variable_name::install_local(
+            let result = obj::discard_native_internal_representation(canonical);
+            self.check_original_c_name_operation(&[original, canonical])?;
+            result?;
+            let result = obj::native_variable_name::install_local(
                 canonical,
                 NativeLocalVariableName {
                     protocol,
@@ -225,7 +253,9 @@ impl Interp {
                     owner: NativeLocalVariableOwner::Name(None),
                 },
                 dialect,
-            )?;
+            );
+            self.check_original_c_name_operation(&[original, canonical])?;
+            result?;
         } else if canonical != original
             && protocol.version() == tcl_dialect::TclVersion::V8_6
             && !obj::native_variable_name::with_local(canonical, |cache| {
@@ -233,7 +263,9 @@ impl Interp {
             })
             .unwrap_or(false)
         {
-            obj::discard_native_internal_representation(canonical)?;
+            let result = obj::discard_native_internal_representation(canonical);
+            self.check_original_c_name_operation(&[original, canonical])?;
+            result?;
         }
         Ok(())
     }
@@ -282,6 +314,9 @@ impl Interp {
         namespace: Option<crate::namespace::NsId>,
         explicit_element: Option<&[u8]>,
     ) -> Result<Option<OriginalCNameSelection>, Code> {
+        self.check_original_c_name_operation(&[original])
+            .map_err(|error| self.report_cmd_error(error.into()))?;
+        let _original_lifetime = obj::NativeObjectLifetime::retain(original);
         let create = purpose.creates_entries();
         let dialect = self.native_invocation_dialect();
         let protocol = dialect
@@ -338,15 +373,17 @@ impl Interp {
                         obj::new_string_bytes(element),
                     )),
                 };
-                obj::native_variable_name::install_parsed(
+                let result = obj::native_variable_name::install_parsed(
                     original,
                     NativeParsedVariableName {
                         protocol,
                         array: Some((root, element)),
                     },
                     dialect,
-                )
-                .map_err(|error| self.report_cmd_error(error.into()))?;
+                );
+                self.check_original_c_name_operation(&[original])
+                    .map_err(|error| self.report_cmd_error(error.into()))?;
+                result.map_err(|error| self.report_cmd_error(error.into()))?;
                 return self.prepare_original_c_name_in(original, purpose, namespace);
             }
         }
@@ -373,8 +410,11 @@ impl Interp {
             // SAFETY: a non-NULL type pointer names the live original descriptor.
             let free_hook = !kind.is_null() && unsafe { (*kind).free_int_rep_proc.is_some() };
             if protocol.retires_before_simple_lookup(free_hook) {
-                obj::discard_native_internal_representation(root)
+                let _root_lifetime = obj::NativeObjectLifetime::retain(root);
+                let result = obj::discard_native_internal_representation(root);
+                self.check_original_c_name_operation(&[original, root])
                     .map_err(|error| self.report_cmd_error(error.into()))?;
+                result.map_err(|error| self.report_cmd_error(error.into()))?;
             }
             root_bytes
         };
@@ -1137,7 +1177,7 @@ impl Interp {
             return Code::Error;
         }
         use tcl_syntax::naming::{
-            report_native_variable_diagnostic_at, NativeVariableDiagnosticOperation as Operation,
+            NativeVariableDiagnosticOperation as Operation, report_native_variable_diagnostic_at,
         };
         let operation = match purpose {
             NativeVariableNameLookupPurpose::Read
@@ -1510,7 +1550,7 @@ impl Interp {
                                 "original C confined variable report name",
                             )
                             .into(),
-                        )
+                        );
                     }
                 };
                 return if matches!(
@@ -1863,6 +1903,308 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    thread_local! {
+        static NAME_FREE_MODE: std::cell::Cell<u8> = const { std::cell::Cell::new(0) };
+        static NAME_FREE_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+        static NAME_FREE_BORROWS_RELEASED: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
+        static NAME_FREE_CONTEXT_ACCEPTED: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
+        static NAME_CALLBACK_BOUND: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+        static NAME_CALLBACK_CODE: std::cell::Cell<Code> = const { std::cell::Cell::new(Code::Other(37)) };
+    }
+
+    struct CurrentNameCallbackInterp(*mut Interp);
+    impl CurrentNameCallbackInterp {
+        fn enter(interp: &mut Interp) -> Self {
+            let previous = crate::codegen_abi::current_interp();
+            crate::codegen_abi::tcl_runtime_set_current_interp(interp);
+            Self(previous)
+        }
+    }
+    impl Drop for CurrentNameCallbackInterp {
+        fn drop(&mut self) {
+            crate::codegen_abi::tcl_runtime_set_current_interp(self.0);
+        }
+    }
+
+    extern "C" fn name_free_callback(_original: *mut TclObj) {
+        let call = NAME_FREE_CALLS.with(|calls| {
+            let call = calls.get() + 1;
+            calls.set(call);
+            call
+        });
+        let Some(mut interp) = (unsafe { crate::codegen_abi::current_interp().as_ref() }).cloned()
+        else {
+            NAME_FREE_CONTEXT_ACCEPTED.with(|accepted| accepted.set(false));
+            return;
+        };
+        let released =
+            interp.frames.try_borrow_mut().is_ok() && interp.namespaces.try_borrow_mut().is_ok();
+        NAME_FREE_BORROWS_RELEASED.with(|previous| previous.set(previous.get() && released));
+        match NAME_FREE_MODE.with(std::cell::Cell::get) {
+            1 => interp.refuse_host_command("first original variable-name free callback"),
+            2 => {
+                let original = interp.runtime_context();
+                let mut changed = original.clone();
+                changed.packages = vec![("original-name-callback".to_owned(), "1.0".to_owned())];
+                let accepted =
+                    interp.pin_context(&changed).is_ok() && interp.pin_context(&original).is_ok();
+                NAME_FREE_CONTEXT_ACCEPTED.with(|value| value.set(value.get() && accepted));
+            }
+            3 if call == 2 => {
+                interp.refuse_host_command("first canonical variable-name free callback");
+            }
+            _ => {}
+        }
+    }
+    static NAME_FREE_TYPE: obj::TclObjType = obj::TclObjType {
+        name: c"originalVariableNameFree".as_ptr(),
+        free_int_rep_proc: Some(name_free_callback),
+        dup_int_rep_proc: None,
+        update_string_proc: None,
+        set_from_any_proc: None,
+    };
+
+    fn callback_name(bytes: &[u8]) -> Owned {
+        let original = Owned::fresh(obj::alloc_typed(&NAME_FREE_TYPE, 0));
+        // SAFETY: the fresh original header owns this exact resident spelling.
+        unsafe { obj::set_native_updater_string_rep(original.as_ptr(), bytes, false) };
+        original
+    }
+
+    fn reset_name_callback(mode: u8) {
+        NAME_FREE_MODE.with(|value| value.set(mode));
+        NAME_FREE_CALLS.with(|value| value.set(0));
+        NAME_FREE_BORROWS_RELEASED.with(|value| value.set(true));
+        NAME_FREE_CONTEXT_ACCEPTED.with(|value| value.set(true));
+        NAME_CALLBACK_BOUND.with(|value| value.set(false));
+        NAME_CALLBACK_CODE.with(|value| value.set(Code::Other(37)));
+    }
+
+    fn direct_name_callback_probe(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+        let command = Owned::fresh(obj::new_string_bytes(b"upvar"));
+        let level = Owned::fresh(obj::new_string_bytes(b"#0"));
+        let local = Owned::fresh(obj::new_string_bytes(b"callback_local"));
+        let code = interp.dispatch(&[command.as_ptr(), level.as_ptr(), argv[1], local.as_ptr()]);
+        let bound = interp
+            .frames
+            .borrow()
+            .table(interp.current_level())
+            .unwrap()
+            .binding_id(b"callback_local")
+            .is_some();
+        NAME_CALLBACK_BOUND.with(|value| value.set(bound));
+        NAME_CALLBACK_CODE.with(|value| value.set(code));
+        code
+    }
+
+    fn compiled_name_callback_probe(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+        let slot = {
+            let frames = interp.frames.borrow();
+            frames
+                .native_local_name_table()
+                .expect("actual retained procedure name table")
+                .names
+                .iter()
+                .position(|name| {
+                    name.as_ref()
+                        .is_some_and(|name| obj::bytes_of(name.as_ptr()) == b"callback_local")
+                })
+                .expect("actual compiled local slot")
+        };
+        assert!(interp.frames.borrow().compiled_slot_var(slot).is_none());
+        let level = Owned::fresh(obj::new_string_bytes(b"#0"));
+        let (_, target) = match crate::cmd_eval::select_frame(
+            interp,
+            &[level.as_ptr()],
+            tcl_registry::FrameEffectSpec::UPVAR,
+        ) {
+            Ok(selected) => selected,
+            Err(code) => return code,
+        };
+        let code = interp.link_original_compiled_upvar(argv[1], target, slot);
+        let bound = interp.frames.borrow().compiled_slot_var(slot).is_some();
+        NAME_CALLBACK_BOUND.with(|value| value.set(bound));
+        NAME_CALLBACK_CODE.with(|value| value.set(code));
+        code
+    }
+
+    #[test]
+    fn original_upvar_free_callback_checks_currency_before_cells_and_aliases() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual selected C worker; software callback currency, not native equivalence.
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for mode in 0..=2 {
+                let mut interp = Interp::with_native_core(
+                    super::super::default_host(),
+                    crate::environment::profile_for_dialect(profile),
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .unwrap();
+                interp.register_builtin(b"callbackUpvar", direct_name_callback_probe);
+                assert_eq!(
+                    interp.eval_str(b"proc callback_run {other} {callbackUpvar $other}"),
+                    Code::Ok
+                );
+                let original = callback_name(b"::callback_target");
+                let command = Owned::fresh(obj::new_string_bytes(b"callback_run"));
+                reset_name_callback(mode);
+                let _installed = CurrentNameCallbackInterp::enter(&mut interp);
+                let code = interp.dispatch(&[command.as_ptr(), original.as_ptr()]);
+                assert_eq!(
+                    NAME_FREE_CALLS.with(std::cell::Cell::get),
+                    1,
+                    "{profile}/{mode}"
+                );
+                assert!(NAME_FREE_BORROWS_RELEASED.with(std::cell::Cell::get));
+                assert!(NAME_FREE_CONTEXT_ACCEPTED.with(std::cell::Cell::get));
+                assert_eq!(obj::bytes_of(original.as_ptr()), b"::callback_target");
+                assert_eq!(interp.current_level(), 0);
+                assert_eq!(interp.current_ns.get(), crate::namespace::GLOBAL);
+                assert_eq!(interp.entered_native_operation_count(), 0);
+                if mode == 0 {
+                    assert_eq!(code, Code::Ok, "{profile}");
+                    assert_eq!(NAME_CALLBACK_CODE.with(std::cell::Cell::get), Code::Ok);
+                    assert!(NAME_CALLBACK_BOUND.with(std::cell::Cell::get));
+                    assert!(!interp.host_refusal_pending());
+                } else {
+                    assert_eq!(code, Code::Error, "{profile}/{mode}");
+                    assert_eq!(NAME_CALLBACK_CODE.with(std::cell::Cell::get), Code::Error);
+                    assert!(!NAME_CALLBACK_BOUND.with(std::cell::Cell::get));
+                    assert!(interp.native_execution_refusal().is_some());
+                }
+                let target_born = interp
+                    .namespaces
+                    .borrow()
+                    .var_table(crate::namespace::GLOBAL)
+                    .binding_id(b"callback_target")
+                    .is_some();
+                assert_eq!(
+                    target_born,
+                    mode == 0 || profile.starts_with("tcl9"),
+                    "C9 cell birth precedes the reached cache callback; C8 retirement precedes lookup"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_compiled_upvar_free_callback_refuses_later_slot_binding() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Genuine procedure artifact/slot and shared compiled worker, no codegen claim.
+        for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for mode in 0..=2 {
+                let mut interp = Interp::with_native_core(
+                    super::super::default_host(),
+                    crate::environment::profile_for_dialect(profile),
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .unwrap();
+                interp.register_builtin(b"callbackCompiledUpvar", compiled_name_callback_probe);
+                assert_eq!(interp.eval_str(b"proc callback_run {other} {set callback_local {}; unset callback_local; callbackCompiledUpvar $other}"), Code::Ok);
+                let procedure = interp.proc_def(b"callback_run").unwrap();
+                let artifact = interp
+                    .prepare_original_c_body(
+                        procedure.body.as_ptr(),
+                        procedure.namespace(),
+                        Some(&procedure),
+                    )
+                    .unwrap()
+                    .expect("actual native procedure artifact");
+                assert!(
+                    artifact
+                        .compiled_local_layout()
+                        .unwrap()
+                        .names
+                        .iter()
+                        .any(|name| {
+                            name.as_ref()
+                                .is_some_and(|name| name.as_bytes() == b"callback_local")
+                        })
+                );
+                let original = callback_name(b"::callback_target");
+                let command = Owned::fresh(obj::new_string_bytes(b"callback_run"));
+                reset_name_callback(mode);
+                let _installed = CurrentNameCallbackInterp::enter(&mut interp);
+                let code = interp.dispatch(&[command.as_ptr(), original.as_ptr()]);
+                assert_eq!(
+                    NAME_FREE_CALLS.with(std::cell::Cell::get),
+                    1,
+                    "{profile}/{mode}"
+                );
+                assert!(NAME_FREE_BORROWS_RELEASED.with(std::cell::Cell::get));
+                assert!(NAME_FREE_CONTEXT_ACCEPTED.with(std::cell::Cell::get));
+                assert_eq!(interp.current_level(), 0);
+                assert_eq!(interp.current_ns.get(), crate::namespace::GLOBAL);
+                assert_eq!(interp.entered_native_operation_count(), 0);
+                if mode == 0 {
+                    assert_eq!(code, Code::Ok, "{profile}");
+                    assert_eq!(NAME_CALLBACK_CODE.with(std::cell::Cell::get), Code::Ok);
+                    assert!(NAME_CALLBACK_BOUND.with(std::cell::Cell::get));
+                } else {
+                    assert_eq!(code, Code::Error, "{profile}/{mode}");
+                    assert_eq!(NAME_CALLBACK_CODE.with(std::cell::Cell::get), Code::Error);
+                    assert!(!NAME_CALLBACK_BOUND.with(std::cell::Cell::get));
+                    assert!(interp.native_execution_refusal().is_some());
+                }
+            }
+        }
+    }
+
+    fn canonical_name_callback_probe(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
+        let (slot, canonical) = {
+            let frames = interp.frames.borrow();
+            let table = frames.native_local_name_table().unwrap();
+            let slot = table
+                .names
+                .iter()
+                .position(|name| {
+                    name.as_ref()
+                        .is_some_and(|name| obj::bytes_of(name.as_ptr()) == b"value")
+                })
+                .unwrap();
+            (slot, table.names[slot].as_ref().unwrap().as_ptr())
+        };
+        obj::change_type(canonical, &NAME_FREE_TYPE, 0);
+        let original = callback_name(b"value");
+        reset_name_callback(3);
+        let result = interp.install_original_c_name_cache(original.as_ptr(), Some(slot));
+        assert!(result.is_err());
+        assert!(obj::native_variable_name::with_local(original.as_ptr(), |_| ()).is_some());
+        assert!(obj::obj_type_ptr(canonical).is_null());
+        assert_eq!(obj::bytes_of(canonical), b"value");
+        match result {
+            Ok(()) => Code::Ok,
+            Err(error) => interp.report_cmd_error(error.into()),
+        }
+    }
+
+    #[test]
+    fn original_canonical_name_free_callback_releases_borrows_and_stops_next_cache() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Reached original cache stays installed; the later canonical cache is refused.
+        let mut interp = Interp::with_native_core(
+            super::super::default_host(),
+            crate::environment::profile_for_dialect("tcl9.1"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        interp.register_builtin(b"callbackCanonical", canonical_name_callback_probe);
+        assert_eq!(
+            interp.eval_str(b"proc callback_run {value} {callbackCanonical}"),
+            Code::Ok
+        );
+        let _installed = CurrentNameCallbackInterp::enter(&mut interp);
+        assert_eq!(interp.eval_str(b"callback_run VALUE"), Code::Error);
+        assert_eq!(NAME_FREE_CALLS.with(std::cell::Cell::get), 2);
+        assert!(NAME_FREE_BORROWS_RELEASED.with(std::cell::Cell::get));
+        assert!(interp.native_execution_refusal().is_some());
+        assert_eq!(interp.current_level(), 0);
+        assert_eq!(interp.entered_native_operation_count(), 0);
+    }
 
     fn exists_cache_purpose_probe(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
         let version = interp.native_c_variable_name_protocol().unwrap().version();
