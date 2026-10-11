@@ -395,21 +395,35 @@ impl Interp {
                     )),
                 );
             }
-            let existing = self.read_original_named_variable_for_update(original);
+            let selected = self
+                .native_invocation_dialect()
+                .native_dictionary_root_protocol(
+                    tcl_registry::native_dictionary::NativeDictionaryRootPurpose::ArraySet,
+                )
+                .ok_or_else(|| {
+                    self.report_cmd_error(
+                        ValueError::CommandProtocolUnavailable(
+                            "original Jim ArraySet root schedule",
+                        )
+                        .into(),
+                    )
+                })?;
+            let captured =
+                self.capture_original_jim_dictionary_root(original, arguments.currency());
             arguments
                 .check()
                 .map_err(|error| self.report_cmd_error(error))?;
-            let Some(existing) = existing? else {
+            let Some(captured) = captured.map_err(|error| self.report_cmd_error(error))? else {
                 return self.assign_original_named_variable(original, values);
             };
-            let retained = OriginalArguments::enter(self, &[existing])
-                .map_err(|error| self.report_cmd_error(error))?;
-            let prepared = crate::dict::EnteredNativeDictionary::after_conversion(
-                existing,
+            let prepared = crate::dict::EnteredNativeDictionary::prepare_original(
+                captured.original(),
+                selected,
                 protocol,
                 arguments.currency(),
+                captured.stage_check(),
             );
-            retained
+            captured
                 .check()
                 .map_err(|error| self.report_cmd_error(error))?;
             let mut prepared = prepared.map_err(|error| self.report_cmd_error(error.into()))?;
@@ -452,9 +466,10 @@ impl Interp {
                     .check()
                     .map_err(|error| self.report_cmd_error(error))?;
             }
-            let assigned = self.assign_original_named_variable(original, prepared.as_ptr());
+            let assigned = captured
+                .publish(prepared.as_ptr())
+                .map_err(|error| self.report_cmd_error(error));
             drop(prepared);
-            drop(retained);
             arguments
                 .check()
                 .map_err(|error| self.report_cmd_error(error))?;

@@ -42,10 +42,7 @@ use tcl_dialect::EscapeSyntax;
 
 use crate::ParseIssueKind;
 use crate::lexer::LexerConfig;
-use crate::ranges::{
-    ArrayIndexEnd, BracedVarEnd, braced_var_name_end, close_quote_offset,
-    command_substitution_end_bytes, scan_array_index,
-};
+use crate::ranges::{ArrayIndexEnd, BracedVarEnd, braced_var_name_end, scan_array_index};
 use crate::substitution::backslash_subst_bytes_in;
 
 pub use crate::executable_parts::{
@@ -610,7 +607,7 @@ fn body_of(parts: Vec<SpannedPart<'_>>) -> WordBody<'_> {
 /// [`MISSING_QUOTE`].
 ///
 /// The one place the `missing "` spelling is decided. Delegates the search to
-/// [`close_quote_offset`], which steps over `\X` pairs and complete `[…]`
+/// [`crate::close_quote_offset`], which steps over `\X` pairs and complete `[…]`
 /// substitutions so a `"` inside either does not close the word.
 pub fn quoted_word_close(
     source: impl AsRef<[u8]>,
@@ -623,7 +620,16 @@ pub(crate) fn quoted_word_close_with_issue(
     source: impl AsRef<[u8]>,
     open_quote: usize,
 ) -> Result<usize, ParseIssueKind> {
-    close_quote_offset(source, open_quote).ok_or(ParseIssueKind::MissingQuote)
+    quoted_word_close_with_issue_in(source, open_quote, LexerConfig::default())
+}
+
+pub(crate) fn quoted_word_close_with_issue_in(
+    source: impl AsRef<[u8]>,
+    open_quote: usize,
+    config: LexerConfig,
+) -> Result<usize, ParseIssueKind> {
+    crate::ranges::close_quote_offset_in(source, open_quote, config)
+        .ok_or(ParseIssueKind::MissingQuote)
 }
 
 /// Scan the `$`-reference at `src[at]`, leaving any array index as raw source.
@@ -791,7 +797,7 @@ fn command_subst_close_with_term(
     flags: SubstFlags,
     config: LexerConfig,
 ) -> Result<usize, ComponentParseError> {
-    match command_substitution_end_bytes(src, at) {
+    match crate::ranges::command_substitution_end_bytes_in(src, at, config) {
         Some(end) => Ok(end),
         None => Err(error_inside_unterminated_bracket(src, at, flags, config)),
     }
@@ -1126,7 +1132,8 @@ fn error_inside_unterminated(
             // linear walk: with no `]` left in the buffer no bracket from here
             // can close, so there is nothing to search for.
             b'[' if flags.cmds && closable => {
-                if let Some(end) = command_substitution_end_bytes(src, i) {
+                if let Some(end) = crate::ranges::command_substitution_end_bytes_in(src, i, config)
+                {
                     i = end;
                     command_position = false;
                     in_word = true;
@@ -1145,7 +1152,7 @@ fn error_inside_unterminated(
                 command_position = true;
                 in_word = false;
             }
-            b'"' if !in_word => match close_quote_offset_bytes(src, i) {
+            b'"' if !in_word => match close_quote_offset_bytes(src, i, config) {
                 Ok(end) => {
                     i = end + 1;
                     command_position = false;
@@ -1202,12 +1209,22 @@ fn starts_var_ref(src: &[u8], at: usize, flags: SubstFlags, config: LexerConfig)
 /// Steps over `\X` pairs and complete `[…]` substitutions. An **incomplete**
 /// nested substitution is the bracket's error, not the quote's: C reports
 /// `missing close-bracket` for `subst {[list "[foo}`.
-fn close_quote_offset_bytes(src: &[u8], at: usize) -> Result<usize, ComponentParseError> {
+fn close_quote_offset_bytes(
+    src: &[u8],
+    at: usize,
+    config: LexerConfig,
+) -> Result<usize, ComponentParseError> {
     let mut i = at + 1;
     while i < src.len() {
         match src[i] {
             b'\\' => i += 2,
-            b'[' => match command_substitution_end_bytes(src, i) {
+            b'$' if src.get(i + 1) == Some(&b'{') => {
+                let Some(reference) = scan_var_ref_with_term(src, i, config)? else {
+                    unreachable!("a braced variable starts at this byte");
+                };
+                i = reference.next;
+            }
+            b'[' => match crate::ranges::command_substitution_end_bytes_in(src, i, config) {
                 Some(end) => i = end,
                 None => return Err(ComponentParseError::new(ParseIssueKind::MissingBracket, i)),
             },
@@ -1455,6 +1472,58 @@ mod template_policy_tests {
 #[cfg(test)]
 mod tests {
     use crate::{INVALID_CHARACTER_IN_ARRAY_INDEX, MISSING_CLOSE_BRACE_FOR_VAR};
+
+    #[test]
+    fn original_bracket_boundaries_keep_selected_variable_name_grammar() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Original lexical geometry only; no variable read or command entry.
+        let selected = LexerConfig {
+            braced_var: BracedVarStyle::FirstClose,
+            leading_bom: crate::LeadingBom::Skip,
+            strict_quoting: true,
+            ..LexerConfig::for_dialect("tcl9.1")
+        };
+        let operand = "[\u{feff}quote ${a{b}]";
+        assert_eq!(
+            decompose(operand.as_bytes(), SubstFlags::default(), selected),
+            WordBody::Parts(vec![WordPart::Command("\u{feff}quote ${a{b}".as_bytes())])
+        );
+        for written in [operand.to_owned(), format!("\"{operand}\"")] {
+            let source = format!(
+                "\u{feff}interp alias {{}} \u{feff}quote {{}} regex::quote\nregexp {written} VALUE"
+            );
+            for image in [
+                crate::SourceImage::document(source.clone()),
+                crate::SourceImage::native(source.as_bytes()),
+            ] {
+                let plan = crate::native_script_words_in(
+                    image.clone(),
+                    crate::Span::new(0, u32::try_from(image.len()).unwrap()),
+                    selected,
+                )
+                .unwrap();
+                assert!(plan.fatal_tail.is_none());
+                assert_eq!(plan.commands.len(), 2);
+                let word = &plan.commands[1].words[1];
+                assert_eq!(word.try_text().unwrap(), operand);
+                assert_eq!(word.image(), &image);
+                assert_eq!(word.config(), selected);
+            }
+        }
+        let nesting = LexerConfig {
+            braced_var: BracedVarStyle::Tcl9Nesting,
+            ..selected
+        };
+        assert!(matches!(
+            decompose(operand.as_bytes(), SubstFlags::default(), nesting),
+            WordBody::Parts(parts) if parts.iter().any(|part| matches!(part, WordPart::ParseError(_)))
+        ));
+        assert_eq!(
+            decompose(b"[quote ${a]b}]", SubstFlags::default(), selected),
+            WordBody::Parts(vec![WordPart::Command(b"quote ${a]b}")])
+        );
+    }
 
     #[test]
     fn outer_substitution_mask_does_not_disable_array_index_commands() {

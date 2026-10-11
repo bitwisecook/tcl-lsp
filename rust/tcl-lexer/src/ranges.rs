@@ -646,6 +646,14 @@ pub fn word_end_position(sm: &SourceMap<'_>, tok: Token) -> SourcePosition {
 /// ```
 #[must_use]
 pub fn close_quote_offset(source: impl AsRef<[u8]>, open_quote: usize) -> Option<usize> {
+    close_quote_offset_in(source, open_quote, crate::LexerConfig::default())
+}
+
+pub(crate) fn close_quote_offset_in(
+    source: impl AsRef<[u8]>,
+    open_quote: usize,
+    config: crate::LexerConfig,
+) -> Option<usize> {
     let bytes = source.as_ref();
     if bytes.get(open_quote) != Some(&b'"') {
         return None;
@@ -655,13 +663,18 @@ pub fn close_quote_offset(source: impl AsRef<[u8]>, open_quote: usize) -> Option
         match bytes[pos] {
             b'"' => return Some(pos),
             b'\\' => {
-                pos = crate::substitution::backslash_escape_end_bytes_in(
-                    bytes,
-                    pos,
-                    tcl_dialect::EscapeSyntax::default(),
-                );
+                pos =
+                    crate::substitution::backslash_escape_end_bytes_in(bytes, pos, config.escapes);
             }
-            b'[' => pos = command_substitution_end_bytes(bytes, pos)?,
+            b'$' if bytes.get(pos + 1) == Some(&b'{') => {
+                let BracedVarEnd::Closed(end) =
+                    braced_var_name_end(bytes, pos + 2, config.braced_var)
+                else {
+                    return None;
+                };
+                pos = end + 1;
+            }
+            b'[' => pos = command_substitution_end_bytes_in(bytes, pos, config)?,
             _ => pos += 1,
         }
     }
@@ -703,6 +716,16 @@ pub fn command_substitution_end(source: &str, open_bracket: usize) -> Option<usi
 /// [`command_substitution_end`] over raw bytes — the form
 /// [`crate::word_parts`] scans with (a Tcl word is bytes to the runtimes).
 pub(crate) fn command_substitution_end_bytes(bytes: &[u8], open_bracket: usize) -> Option<usize> {
+    command_substitution_end_bytes_in(bytes, open_bracket, crate::LexerConfig::default())
+}
+
+/// A bracket boundary under the containing word's complete lexical grammar.
+/// Braced variable names are inert name bytes, rather than script delimiters.
+pub(crate) fn command_substitution_end_bytes_in(
+    bytes: &[u8],
+    open_bracket: usize,
+    config: crate::LexerConfig,
+) -> Option<usize> {
     if bytes.get(open_bracket) != Some(&b'[') {
         return None;
     }
@@ -739,6 +762,16 @@ pub(crate) fn command_substitution_end_bytes(bytes: &[u8], open_bracket: usize) 
         }
         match byte {
             b'#' if at_command_start => in_comment = true,
+            b'$' if braces == 0 && bytes.get(pos + 1) == Some(&b'{') => {
+                let BracedVarEnd::Closed(end) =
+                    braced_var_name_end(bytes, pos + 2, config.braced_var)
+                else {
+                    return None;
+                };
+                pos = end + 1;
+                at_command_start = false;
+                continue;
+            }
             b'"' if braces == 0 => {
                 in_quotes = !in_quotes;
                 at_command_start = false;

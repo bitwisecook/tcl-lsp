@@ -622,12 +622,32 @@ fn solve_value_facts(
         },
     );
 
-    required_math_invocations.finish(
+    // Advisory plans read this purpose's settled values and original source
+    // metadata. They never borrow execution-SCCP's option values or results.
+    let template_plans = if purpose == SolverPurpose::SemanticAnalysis {
+        let driver = crate::value_transfer::LatticeDriver::new(trace, folds, policy, &escaping)
+            .with_cfg_metadata(&cfg.metadata_context);
+        let mut plans = Vec::new();
+        for block in &order {
+            if executable_blocks.contains(block)
+                && let Some(block) = ssa.blocks.get(block)
+            {
+                plans.extend(driver.template_plans_in(ssa, block, &values));
+            }
+        }
+        plans.sort_by_key(|record| (record.span.start(), record.span.end()));
+        plans
+    } else {
+        Vec::new()
+    };
+    let mut solved = required_math_invocations.finish(
         values,
         executable_blocks,
         executable_edges,
         constant_branches,
-    )
+    );
+    solved.result.template_plans = template_plans;
+    solved
 }
 
 fn incoming_executable_predecessors(
@@ -1053,6 +1073,11 @@ fn sccp_process_statements(
                 || stmt_ssa.destruction_defs.contains(&var)
             {
                 LatticeValue::Overdefined
+            } else if math_dependencies
+                .is_some_and(|ledger| ledger.purpose == SolverPurpose::SemanticAnalysis)
+                && let Some(value) = lookup.conditional_logical_scalar_store_contents(var, registry)
+            {
+                LatticeValue::Const(parse_literal_value(&value))
             } else if stmt_ssa.may_defs.contains(&var) {
                 // A synthetic array-element may-def: the write may or may
                 // not have hit this element, so its value is the JOIN of

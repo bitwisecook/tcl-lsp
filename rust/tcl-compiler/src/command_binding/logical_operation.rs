@@ -78,6 +78,92 @@ pub(super) fn transfer(
     Some(SourceOutcomes::normal(state))
 }
 
+impl super::SourceInvocationBinding {
+    /// Quiet scalar contents in the exact authored source continuation. This
+    /// receipt does not prove a Native store, completed handler or Normal exit.
+    pub(crate) fn conditional_logical_scalar_store(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        before: &crate::var_resolve::ResolveContext,
+        metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::variable_bindings::ConditionalLogicalScalarStore> {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let input = metadata.source_analysis_input()?;
+        metadata.permits_logical_source_names().then_some(())?;
+        let metadata = self.original_invocation_metadata_for_input(tokens, input, registry)?;
+        metadata.permits_logical_source_names().then_some(())?;
+        let point_input = metadata.source_analysis_input()?;
+        let invocation = crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+            registry, metadata, tokens,
+        )?;
+        if invocation.facts.operation
+            != SemanticOperationId::StructuredLowering(LoweringHookId::Set)
+            || invocation.facts.arity_accepts_frozen_arguments() != Some(true)
+            || invocation.facts.frame_effect.is_some()
+        {
+            return None;
+        }
+        let advice = self
+            .declaration_operand_layout_advice(tokens)
+            .or_else(|| self.original_compilation_lookup_advice(tokens))?;
+        if !advice.closed_logical_source_lookup()
+            || advice.snapshot.state.logical_source_name_advice_input() != Some(point_input)
+            || advice.snapshot.state.source_variables.as_ref() != before
+        {
+            return None;
+        }
+        let [target] = advice.targets.as_slice() else {
+            return None;
+        };
+        let mut options = super::SourceAnalysisOptions::for_logical_source(point_input)?;
+        options.invocation_realm = advice.realm();
+        let frame = advice.snapshot.state.variable_frame.clone();
+        let namespace = before.namespace.clone();
+        let mut context = super::root_source_execution_context(
+            &frame,
+            &namespace,
+            &advice.namespace,
+            advice.config,
+            registry,
+            options,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        );
+        context.invocation_offset = advice.site.offset;
+        let mut state = advice.snapshot.state.clone();
+        let original = LogicalOriginalInvocation::capture(
+            &advice.words,
+            target,
+            advice.site.offset,
+            &state,
+            context,
+        )?;
+        let [name, value] = original.arguments.as_slice() else {
+            return None;
+        };
+        Arc::make_mut(&mut state.source_variables)
+            .set_contents_write_source(Some(Arc::clone(&advice.site.source)));
+        scalar_store(
+            &original,
+            &invocation.facts,
+            &mut state,
+            advice.site.offset,
+            context,
+        )?;
+        crate::variable_bindings::ConditionalLogicalScalarStore::retain(
+            before,
+            state.source_variables.as_ref(),
+            input,
+            advice.words,
+            advice.site,
+            name.clone(),
+            value.clone(),
+            registry,
+        )
+    }
+}
+
 impl LogicalOriginalInvocation {
     fn capture(
         words: &[crate::ir::WordExpr],

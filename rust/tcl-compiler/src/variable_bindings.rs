@@ -168,6 +168,117 @@ impl OriginalVariableInvocation {
     }
 }
 
+/// A quiet, positioned scalar write in a positively selected Logical model.
+/// Its contents and cell belong to source advice, independently of Native
+/// allocation, handler completion, runtime effects and executable erasure.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ConditionalLogicalScalarStore {
+    before: ResolveContext,
+    after: ResolveContext,
+    input: crate::analyser::ResolvedAnalysisInput,
+    words: std::sync::Arc<[crate::ir::WordExpr]>,
+    site: crate::command_binding::CommandAllocationSite,
+    name: String,
+    value: String,
+}
+
+impl ConditionalLogicalScalarStore {
+    pub(crate) fn retain(
+        before: &ResolveContext,
+        after: &ResolveContext,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        words: std::sync::Arc<[crate::ir::WordExpr]>,
+        site: crate::command_binding::CommandAllocationSite,
+        name: String,
+        value: String,
+        registry: &CommandRegistry,
+    ) -> Option<Self> {
+        let store = Self {
+            before: before.clone(),
+            after: after.clone(),
+            input: input.clone(),
+            words,
+            site,
+            name,
+            value,
+        };
+        store.definition_place(registry)?;
+        Some(store)
+    }
+
+    pub(crate) fn after(&self) -> &ResolveContext {
+        &self.after
+    }
+    pub(crate) fn value(&self) -> &str {
+        &self.value
+    }
+
+    pub(crate) fn definition_place(&self, registry: &CommandRegistry) -> Option<Place> {
+        let after = &self.after;
+        if self.before.namespace_identity != after.namespace_identity
+            || !matches!(
+                after.namespace_identity,
+                Some(crate::command_binding::SourceNamespaceKey::Authored(_))
+            )
+            || !self.input.has_logical_source_name_context()
+            || self.before.interpreter.is_some()
+            || self.before.execution.is_some()
+            || after.interpreter.is_some()
+            || after.execution.is_some()
+            || after.execution_name_policy.is_some()
+            || after.hosted_execution_context.is_some()
+            || self.before.dynamic_bindings
+            || self.before.dynamic_traces
+            || after.dynamic_bindings
+            || after.dynamic_traces
+        {
+            return None;
+        }
+        let place = resolve_literal_access(
+            &self.name,
+            after,
+            false,
+            registry,
+            tcl_registry::TraceOperation::Write,
+        );
+        let cell = place.cell.as_ref()?;
+        if place.dynamic
+            || place.observed
+            || place.kind != PlaceKind::Scalar
+            || place.index.is_some()
+            || cell.interpreter.is_some()
+            || cell.execution.is_some()
+            || cell.generation == CellGeneration::Unknown
+            || after
+                .generations
+                .get(&cell_key(&place))
+                .copied()
+                .unwrap_or_default()
+                != cell.generation
+            || !after.contents_have_source(&place, &self.site.source)
+            || after.contents_origin(&place)
+                != crate::var_resolve::ContentsOrigin::WrittenAt(self.site.offset)
+            || after.literal_value(&self.name, registry) != Some(self.value.as_str())
+        {
+            return None;
+        }
+        let local = match &cell.owner {
+            CellOwner::Activation(activation) => {
+                after.activation.as_ref() == Some(activation) && cell.storage_domain.is_none()
+            }
+            CellOwner::Namespace(_) | CellOwner::NamespaceIdentity(_) => {
+                after.namespace_footprint(&place) == after.namespace_identity
+                    && matches!(
+                        cell.storage_domain,
+                        None | Some(tcl_registry::f5::VariableStorageDomain::InterpreterNamespace)
+                    )
+            }
+            _ => false,
+        };
+        local.then_some(place)
+    }
+}
+
 /// Reaching binding environment before every operation and terminator.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PointResolveContexts {
@@ -179,6 +290,7 @@ pub struct PointResolveContexts {
     source_tokens: BTreeMap<(BlockId, usize), crate::ir::CommandTokens>,
     metadata_context: crate::registry_invocation::OwnedInvocationMetadataContext,
     unknown_argument_points: BTreeSet<(BlockId, usize)>,
+    logical_scalar_stores: BTreeMap<(BlockId, usize), ConditionalLogicalScalarStore>,
 }
 
 impl Function {
@@ -270,6 +382,34 @@ impl PointResolveContexts {
         &self.metadata_context
     }
 
+    /// Reborrow only an exact current source-owned conditional store. Changing
+    /// input, registry, written words or either point context withdraws it.
+    pub(crate) fn conditional_logical_scalar_store_at(
+        &self,
+        block: BlockId,
+        index: usize,
+        registry: &CommandRegistry,
+    ) -> Option<&ConditionalLogicalScalarStore> {
+        let store = self.logical_scalar_stores.get(&(block, index))?;
+        let metadata = self.metadata_context.metadata_context(registry).flatten()?;
+        if !metadata.permits_logical_source_names()
+            || metadata.source_analysis_input() != Some(&store.input)
+            || self.statements.get(&(block, index)) != Some(&store.before)
+            || self.after.get(&(block, index)) != Some(&store.after)
+        {
+            return None;
+        }
+        let tokens = self.source_tokens_at(block, index)?;
+        (tokens.words() == store.words.as_ref()).then_some(())?;
+        let metadata = tokens
+            .source_binding
+            .as_ref()?
+            .original_invocation_metadata_for_input(tokens, &store.input, registry)?;
+        metadata.permits_logical_source_names().then_some(())?;
+        store.definition_place(registry)?;
+        Some(store)
+    }
+
     pub(crate) fn has_unknown_source_arguments(&self) -> bool {
         !self.unknown_argument_points.is_empty()
     }
@@ -325,6 +465,7 @@ impl PointResolveContexts {
                 crate::place_bridge::evaluates_arguments(tokens).then_some(point)
             }));
         self.source_tokens = replacements;
+        self.logical_scalar_stores.clear();
         self.reads = self
             .source_tokens
             .iter()
@@ -439,6 +580,7 @@ pub fn build_point_resolve_contexts_with_entry(
         source_tokens: BTreeMap::new(),
         metadata_context: cfg.metadata_context.clone(),
         unknown_argument_points: BTreeSet::new(),
+        logical_scalar_stores: BTreeMap::new(),
     };
     retain_source_tokens(&mut result, cfg, registry);
     let mut incoming = HashMap::from([(cfg.entry, entry)]);
@@ -452,7 +594,23 @@ pub fn build_point_resolve_contexts_with_entry(
         for (index, statement) in block.statements.iter().enumerate() {
             refresh_source_context(&mut state, statement, cfg);
             result.statements.insert((id, index), state.clone());
-            transfer_statement(&mut state, statement, registry);
+            let logical_store = cfg
+                .source_input_tokens_at(id, index)
+                .and_then(|tokens| tokens.source_binding.as_ref().zip(Some(tokens)))
+                .and_then(|(binding, tokens)| {
+                    let metadata = result
+                        .metadata_context
+                        .metadata_context(registry)
+                        .flatten()?;
+                    binding.conditional_logical_scalar_store(tokens, &state, metadata, registry)
+                });
+            if let Some(store) = logical_store {
+                state = store.after().clone();
+                result.logical_scalar_stores.insert((id, index), store);
+            } else {
+                result.logical_scalar_stores.remove(&(id, index));
+                transfer_statement(&mut state, statement, registry);
+            }
             result.after.insert((id, index), state.clone());
             abrupt.join(&state);
         }
@@ -4168,6 +4326,89 @@ pub fn fresh_namespace_cells(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn original_logical_store_point_refuses_changed_words_context_and_input() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        use crate::analyser::ResolvedAnalysisInput;
+        use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let unit = CompilationUnit::build_with_analysis_input(
+            "interp alias {} store {} set; proc f {} {store p literal.txt; open $p}",
+            UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        let function = unit.function("::f").unwrap();
+        let original = function.ssa.point_contexts.as_ref().unwrap();
+        let (&(block, index), _) = original
+            .logical_scalar_stores
+            .iter()
+            .next()
+            .expect("the genuine source alias write owns a conditional point");
+        assert_eq!(
+            original
+                .conditional_logical_scalar_store_at(block, index, context.commands())
+                .map(ConditionalLogicalScalarStore::value),
+            Some("literal.txt")
+        );
+        for axis in 0..5 {
+            let mut changed = original.clone();
+            match axis {
+                0 => {
+                    changed
+                        .statements
+                        .get_mut(&(block, index))
+                        .unwrap()
+                        .dynamic_bindings = true
+                }
+                1 => changed
+                    .after
+                    .get_mut(&(block, index))
+                    .unwrap()
+                    .define_literal("p", "CHANGED", context.commands()),
+                2 => changed
+                    .source_tokens
+                    .get_mut(&(block, index))
+                    .unwrap()
+                    .word_exprs
+                    .swap(1, 2),
+                3 => {
+                    changed.metadata_context =
+                        crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable
+                }
+                _ => {
+                    changed
+                        .source_tokens
+                        .get_mut(&(block, index))
+                        .unwrap()
+                        .source_binding = None;
+                }
+            }
+            assert!(
+                changed
+                    .conditional_logical_scalar_store_at(block, index, context.commands())
+                    .is_none(),
+                "changed original point axis {axis}"
+            );
+        }
+    }
 
     fn original_trace_inputs(
         profile: &str,

@@ -3,7 +3,11 @@
 
 use super::{CellContents, FrameStack, Link, Var, VarError, VarHome, VarTable};
 use crate::obj::{self, TclObj};
-use std::{cell::RefCell, rc::Weak};
+use std::{
+    cell::{Cell, RefCell},
+    rc::{Rc, Weak},
+};
+use tcl_syntax::value::ValueError;
 
 /// Original VarVal identity without a cell, value, table or activation owner.
 #[derive(Clone)]
@@ -13,7 +17,147 @@ pub(crate) enum JimVariableRead {
     Scalar(*mut TclObj),
     Link(Link),
 }
+/// The original binding and scalar header; no strong cell or native hold.
+#[derive(Clone)]
+pub(crate) struct CapturedJimDictionaryCell {
+    cell: Weak<RefCell<CellContents>>,
+    binding: Option<tcl_runtime_api::VarId>,
+    epoch: u64,
+    root: Rc<Cell<*mut TclObj>>,
+}
+impl CapturedJimDictionaryCell {
+    pub(crate) fn root(&self) -> *mut TclObj {
+        self.root.get()
+    }
+    pub(crate) fn check(&self) -> Result<(), ValueError> {
+        let valid = self.cell.upgrade().is_some_and(|cell| {
+            let cell = cell.borrow();
+            cell.binding_id == self.binding && cell.rmw_array_epoch == self.epoch
+                && cell.rmw_retirement.is_none()
+                && matches!(cell.var.as_ref(), Some(Var::Scalar(value)) if *value == self.root.get())
+        });
+        if !valid {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "captured original Jim dictionary cell",
+            ));
+        }
+        obj::check_native_liveness(self.root.get())
+    }
+    pub(crate) fn publish(&self, value: *mut TclObj) -> Result<(), ValueError> {
+        self.check()?;
+        obj::check_native_liveness(value)?;
+        let cell = self
+            .cell
+            .upgrade()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "retired original Jim dictionary cell",
+            ))?;
+        let retired = {
+            let mut contents = cell.borrow_mut();
+            if contents.constant {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "constant original Jim dictionary cell",
+                ));
+            }
+            let retired = contents.publish_dictionary_root(value);
+            // The same authorised cell adopts its new owner before old release.
+            self.root.set(value);
+            retired
+        };
+        drop(cell);
+        drop(retired);
+        self.check()
+    }
+}
+
 impl WeakJimVariableCell {
+    pub(crate) fn capture_dictionary_cell(&self) -> Result<CapturedJimDictionaryCell, ValueError> {
+        let owner = self
+            .0
+            .upgrade()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "retired original Jim dictionary binding",
+            ))?;
+        let contents = owner.borrow();
+        let Some(Var::Scalar(root)) = contents.var.as_ref() else {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original Jim dictionary scalar binding",
+            ));
+        };
+        let captured = CapturedJimDictionaryCell {
+            cell: self.0.clone(),
+            binding: contents.binding_id,
+            epoch: contents.rmw_array_epoch,
+            root: Rc::new(Cell::new(*root)),
+        };
+        drop(contents);
+        captured.check()?;
+        Ok(captured)
+    }
+    /// Observe the actual cached scalar or retained link around primary release.
+    /// This never resolves a spelling or grants a dictionary worker purpose.
+    pub(crate) fn original_stage_check(
+        &self,
+    ) -> Result<crate::dict::NativeDictionaryStageCheck, ValueError> {
+        let owner = self
+            .0
+            .upgrade()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "retired original Jim variable binding",
+            ))?;
+        let contents = owner.borrow();
+        let binding = contents.binding_id;
+        let epoch = contents.rmw_array_epoch;
+        let scalar = match contents.var.as_ref() {
+            Some(Var::Scalar(value)) => Some(*value),
+            _ => None,
+        };
+        let original_link = match contents.var.as_ref() {
+            Some(Var::Link(link)) => link.original_jim_target.as_ref().map(Rc::downgrade),
+            _ => None,
+        };
+        let compatibility_link = match contents.var.as_ref() {
+            Some(Var::Link(link)) if link.original_jim_target.is_none() => Some(link.clone()),
+            _ => None,
+        };
+        if scalar.is_none() && original_link.is_none() && compatibility_link.is_none() {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original Jim retained variable target",
+            ));
+        }
+        let cell = self.0.clone();
+        drop(contents);
+        Ok(Rc::new(move || {
+            let valid = cell.upgrade().is_some_and(|cell| {
+                let contents = cell.borrow();
+                if contents.binding_id != binding
+                    || contents.rmw_array_epoch != epoch
+                    || contents.rmw_retirement.is_some()
+                {
+                    return false;
+                }
+                match contents.var.as_ref() {
+                    Some(Var::Scalar(value)) => scalar == Some(*value),
+                    Some(Var::Link(current)) => match original_link.as_ref() {
+                        Some(original) => current
+                            .original_jim_target
+                            .as_ref()
+                            .is_some_and(|target| Weak::ptr_eq(original, &Rc::downgrade(target))),
+                        None => compatibility_link.as_ref() == Some(current),
+                    },
+                    _ => false,
+                }
+            });
+            if valid {
+                Ok(())
+            } else {
+                Err(ValueError::CommandProtocolUnavailable(
+                    "captured original Jim variable target",
+                ))
+            }
+        }))
+    }
+
     pub(crate) fn read(&self) -> Option<JimVariableRead> {
         let cell = self.0.upgrade()?;
         let cell = cell.borrow();
@@ -60,6 +204,22 @@ impl VarTable {
     }
 }
 impl FrameStack {
+    pub(crate) fn original_jim_frame_incarnation(&self, global: bool) -> Weak<()> {
+        let index = if global {
+            0
+        } else {
+            self.current_frame_index()
+        };
+        Rc::downgrade(&self.frames[index].jim_link_birth)
+    }
+    pub(crate) fn owns_original_jim_frame_incarnation(&self, original: &Weak<()>) -> bool {
+        original.strong_count() != 0
+            && self
+                .frames
+                .iter()
+                .any(|frame| Weak::ptr_eq(&Rc::downgrade(&frame.jim_link_birth), original))
+    }
+
     pub(crate) fn native_jim_frame_id(&self, global: bool) -> u64 {
         let index = if global {
             0

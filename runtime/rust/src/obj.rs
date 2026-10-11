@@ -49,7 +49,7 @@ mod native_jim_lookup;
 pub(crate) use native_jim_lookup::{JimCommandCache, JimVariableCache};
 pub(crate) use native_jim_lookup::{
     install_command_cache as install_jim_command_cache,
-    install_variable_cache as install_jim_variable_cache,
+    install_variable_cache_with_stage_check as install_jim_variable_cache_with_stage_check,
     with_command_cache as with_jim_command_cache, with_variable_cache as with_jim_variable_cache,
 };
 

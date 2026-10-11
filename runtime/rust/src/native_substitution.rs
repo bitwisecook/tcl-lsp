@@ -94,6 +94,22 @@ pub(crate) fn ensure_dictionary_substitution(
     value: *mut TclObj,
     context: &Rc<NativeJimObjectContext>,
 ) -> Result<(), ValueError> {
+    ensure_dictionary_substitution_with_stage_check(value, context, None)
+}
+
+pub(crate) fn ensure_dictionary_substitution_with_stage_check(
+    value: *mut TclObj,
+    context: &Rc<NativeJimObjectContext>,
+    stage_check: Option<&dyn Fn() -> Result<(), ValueError>>,
+) -> Result<(), ValueError> {
+    let current = || {
+        obj::check_native_liveness(value)?;
+        if let Some(check) = stage_check {
+            check()?;
+        }
+        Ok(())
+    };
+    current()?;
     native_source::bind_context(value, context)?;
     if obj::obj_type_ptr(value) == &DICTIONARY_SUBSTITUTION_TYPE {
         // SAFETY: the exact descriptor owns this live boxed tuple.
@@ -118,10 +134,12 @@ pub(crate) fn ensure_dictionary_substitution(
         // optimization. The original name is borrowed until this exact point.
         (stored.name.retain_original()?, stored.index.clone())
     } else {
-        let bytes = crate::dict::native_object_bytes(
+        let reached = crate::dict::native_object_bytes(
             value,
             tcl_syntax::native_string::NativeStringProtocol::Jim084,
-        )?;
+        );
+        current()?;
+        let bytes = reached?;
         let extents = dictionary_substitution_extents(&bytes)?;
         let name = Owned::fresh(obj::new_string_bytes(&bytes[extents.name]));
         let index = Owned::fresh(obj::new_string_bytes(&bytes[extents.key]));
@@ -134,12 +152,17 @@ pub(crate) fn ensure_dictionary_substitution(
         index,
         context: Rc::downgrade(context),
     };
+    current()?;
+    if stage_check.is_some() && !obj::obj_type_ptr(value).is_null() {
+        obj::discard_native_internal_representation(value)?;
+        current()?;
+    }
     obj::change_type(
         value,
         &DICTIONARY_SUBSTITUTION_TYPE,
         Box::into_raw(Box::new(stored)) as usize as u64,
     );
-    Ok(())
+    current()
 }
 
 /// Borrow exact tuple members. The callback must not invoke guest code or

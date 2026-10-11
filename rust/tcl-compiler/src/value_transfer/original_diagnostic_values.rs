@@ -177,7 +177,14 @@ impl<'a> OriginalDiagnosticValues<'a> {
     #[must_use]
     pub fn word_contents(&self, statement: StatementId, word: usize) -> Option<String> {
         let tokens = self.point_tokens(SubstitutionHost::Statement(statement))?;
-        let calls = self.original_calls(tokens)?;
+        // The value is read while constructing the written argv. A dynamic
+        // option can leave the subsequent handler's expression roles unknown
+        // without changing this original argument's lexical substitutions.
+        let calls = crate::word_subst::checked_original_argument_lifted_calls(
+            tokens,
+            self.registry.registry(),
+            self.point_metadata(tokens)?,
+        )?;
         let (value, _) = super::proven_word_value_with_facts(
             self.function,
             statement,
@@ -318,6 +325,178 @@ mod tests {
                     })
             })
             .expect("the original variable-reading call")
+    }
+
+    #[test]
+    fn original_diagnostic_argv_contents_do_not_require_complete_handler_roles() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Written argument values remain conditional source advice; dynamic
+        // handler topology still refuses the enclosing role inventory.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let input = input(Arc::clone(&context));
+        let original = unit("proc f {} {set p {(a+)+}; regexp $p literal}", &input);
+        let function = original.function("::f").unwrap();
+        let values = OriginalDiagnosticValues::for_module_function(
+            &original.ir_module,
+            function,
+            context.commands(),
+        )
+        .unwrap();
+        let (statement, word) = function
+            .cfg
+            .blocks
+            .iter()
+            .find_map(|(&block, body)| {
+                body.statements
+                    .iter()
+                    .enumerate()
+                    .find_map(|(index, statement)| {
+                        (statement.canonical_command_or_source() == "regexp")
+                            .then_some((StatementId { block, index }, 1))
+                    })
+            })
+            .unwrap();
+        assert!(
+            values
+                .substitution_calls(SubstitutionHost::Statement(statement))
+                .is_none()
+        );
+        assert_eq!(
+            values.word_contents(statement, word).as_deref(),
+            Some("(a+)+")
+        );
+        let mut missing = original.ir_module.clone();
+        missing.source_metadata_input = None;
+        assert!(
+            OriginalDiagnosticValues::for_module_function(&missing, function, context.commands())
+                .is_none()
+        );
+        let replaced = unit(
+            "proc f {} {set p {(a+)+}; set p $unknown; regexp $p literal}",
+            &input,
+        );
+        let function = replaced.function("::f").unwrap();
+        let values = OriginalDiagnosticValues::for_module_function(
+            &replaced.ir_module,
+            function,
+            context.commands(),
+        )
+        .unwrap();
+        let (statement, word) = read(&replaced);
+        assert!(values.word_contents(statement, word).is_none());
+    }
+
+    #[test]
+    fn original_conditional_scalar_store_contents_keep_source_definition_and_native_refusal() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Quiet Logical source continuation only; no Native store or Normal completion.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let input = input(Arc::clone(&context));
+        for source in [
+            "interp alias {} store {} set; proc f {} {store p literal.txt; open $p}",
+            "interp alias {} store {} set p; proc f {} {store literal.txt; open $p}",
+        ] {
+            let original = unit(source, &input);
+            let function = original.function("::f").unwrap();
+            let (block, index, symbol) = function
+                .ssa
+                .blocks
+                .iter()
+                .find_map(|(&block, body)| {
+                    body.statements
+                        .iter()
+                        .enumerate()
+                        .find_map(|(index, statement)| {
+                            (statement.statement.synthetic_marker().is_none()
+                                && function.cfg.source_tokens_at(block, index).is_some_and(
+                                    |tokens| {
+                                        tokens
+                                            .argv_texts
+                                            .first()
+                                            .is_some_and(|head| head == "store")
+                                    },
+                                )
+                                && statement.defs.len() == 1)
+                                .then(|| {
+                                    let symbol = *statement
+                                        .defs
+                                        .keys()
+                                        .next()
+                                        .expect("actual represented source definition");
+                                    (block, index, symbol)
+                                })
+                        })
+                })
+                .expect("genuine source alias setter");
+            let source = crate::ssa::SsaSourceView::at_statement(&function.ssa, block, index);
+            assert_eq!(
+                source
+                    .conditional_logical_scalar_store_contents(symbol, context.commands())
+                    .as_deref(),
+                Some("literal.txt")
+            );
+            let values = OriginalDiagnosticValues::for_module_function(
+                &original.ir_module,
+                function,
+                context.commands(),
+            )
+            .unwrap();
+            let (statement, word) = read(&original);
+            assert_eq!(
+                values.word_contents(statement, word).as_deref(),
+                Some("literal.txt")
+            );
+            let mut missing = function.ssa.clone();
+            missing.point_contexts = None;
+            assert!(
+                crate::ssa::SsaSourceView::at_statement(&missing, block, index)
+                    .conditional_logical_scalar_store_contents(symbol, context.commands())
+                    .is_none()
+            );
+        }
+        for source in [
+            "interp alias {} store {} list; proc f {} {store p literal.txt; open $p}",
+            "interp alias {} store {} set; proc f {} {trace add variable p write observer; store p literal.txt; open $p}",
+        ] {
+            let original = unit(source, &input);
+            let function = original.function("::f").unwrap();
+            let values = OriginalDiagnosticValues::for_module_function(
+                &original.ir_module,
+                function,
+                context.commands(),
+            )
+            .unwrap();
+            let (statement, word) = read(&original);
+            assert!(values.word_contents(statement, word).is_none(), "{source}");
+        }
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let native = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            input.lexer_config(),
+        );
+        let original = unit(
+            "interp alias {} store {} set; proc f {} {store p literal.txt; open $p}",
+            &native,
+        );
+        let function = original.function("::f").unwrap();
+        for (&block, body) in &function.ssa.blocks {
+            for (index, statement) in body.statements.iter().enumerate() {
+                for &symbol in statement.defs.keys() {
+                    assert!(
+                        crate::ssa::SsaSourceView::at_statement(&function.ssa, block, index)
+                            .conditional_logical_scalar_store_contents(symbol, context.commands())
+                            .is_none()
+                    );
+                }
+            }
+        }
     }
 
     #[test]

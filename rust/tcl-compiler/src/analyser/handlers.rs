@@ -7557,6 +7557,14 @@ impl Analyser {
                 .source_binding
                 .as_ref()
                 .is_some_and(|binding| binding.logical_source_name_advice_input().is_some());
+        #[cfg(test)]
+        let trace_enabled = std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some();
+        #[cfg(test)]
+        let trace = |label: &str, passed: bool| {
+            if trace_enabled {
+                eprintln!("ORIGINAL_COMPLETION_GUARD label={label} passed={passed}");
+            }
+        };
         let metadata = retained
             .and_then(|input| {
                 crate::registry_invocation::InvocationMetadataContext::for_source_input(
@@ -7567,29 +7575,70 @@ impl Analyser {
                 )
             })
             .filter(|metadata| metadata.permits_logical_source_names());
+        #[cfg(test)]
+        if trace_enabled {
+            trace("source.logical", logical_source);
+            trace("source.retained", retained.is_some());
+            trace("metadata.request", metadata.is_some());
+            trace("tokens.binding", tokens.source_binding.is_some());
+            let binding = tokens.source_binding.as_ref();
+            trace(
+                "tokens.config",
+                binding.and_then(|binding| binding.original_lexer_config_for_tokens(&tokens))
+                    == Some(self.file_lexer_config()),
+            );
+            trace(
+                "metadata.original",
+                binding.zip(retained).is_some_and(|(binding, input)| {
+                    binding
+                        .original_invocation_metadata_for_input(&tokens, input, registry)
+                        .is_some()
+                }),
+            );
+            let advice =
+                binding.and_then(|binding| binding.declaration_operand_layout_advice(&tokens));
+            trace("declaration.layout", advice.is_some());
+            trace(
+                "declaration.closed",
+                advice.is_some_and(|advice| advice.closed_logical_source_lookup()),
+            );
+        }
         let selected = if logical_source {
             let Some(metadata) = metadata else {
                 return InvocationCompletion::Unknown;
             };
-            let Some(invocation) = crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+            let invocation = crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
                 registry, metadata, &tokens,
-            ) else {
+            );
+            #[cfg(test)]
+            trace("operation.selected", invocation.is_some());
+            let Some(invocation) = invocation else {
                 return InvocationCompletion::Unknown;
             };
-            let Some(realm) = tokens.source_binding.as_ref().and_then(|binding| {
+            let realm = tokens.source_binding.as_ref().and_then(|binding| {
                 binding.original_source_realm_for_input(
                     &tokens,
                     metadata.source_analysis_input()?,
                     registry,
                 )
-            }) else {
+            });
+            #[cfg(test)]
+            trace("realm.original", realm.is_some());
+            let Some(realm) = realm else {
                 return InvocationCompletion::Unknown;
             };
-            let Some(completion) =
+            let completion =
                 invocation.with_metadata_schema(registry, metadata, realm, |selected| {
                     Some(selected.authored_source_invocation_completion())
-                })
-            else {
+                });
+            #[cfg(test)]
+            trace("completion.schema", completion.is_some());
+            #[cfg(test)]
+            trace(
+                "completion.known",
+                completion.is_some_and(|completion| completion != InvocationCompletion::Unknown),
+            );
+            let Some(completion) = completion else {
                 return InvocationCompletion::Unknown;
             };
             (invocation, completion)

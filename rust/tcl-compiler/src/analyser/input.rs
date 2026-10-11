@@ -405,7 +405,10 @@ mod tests {
         let recipe = crate::command_binding::SourceAnalysisEntry {
             execution_name_policy: Some(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(
                 tcl_syntax::naming::NamePolicyProtocol::for_native_point(
-                    native_profile.core_point.unwrap(),
+                    tcl_registry::model::ingress::default_execution_point_for_profile(
+                        native_profile,
+                    )
+                    .expect("actual known native environment execution point"),
                 )
                 .unwrap(),
             )),

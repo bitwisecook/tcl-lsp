@@ -157,22 +157,48 @@ impl Interp {
         original: *mut TclObj,
         bytes: &[u8],
     ) -> Result<(), ValueError> {
-        let frames = self.frames.borrow();
-        let world = self.namespaces.borrow();
-        if let Some(cell) =
+        let captured = {
+            let frames = self.frames.borrow();
+            let world = self.namespaces.borrow();
             crate::vars::original_jim_variable_cell(&frames, &world, self.current_ns.get(), bytes)
-        {
-            let global = bytes.starts_with(b"::");
-            obj::install_jim_variable_cache(
+                .map(|cell| {
+                    let global = bytes.starts_with(b"::");
+                    (
+                        obj::JimVariableCache {
+                            interpreter: self.native_command_interpreter,
+                            frame: frames.native_jim_frame_id(global),
+                            global,
+                            cell,
+                        },
+                        frames.original_jim_frame_incarnation(global),
+                    )
+                })
+        };
+        if let Some((cache, frame)) = captured {
+            let cell_check = cache.cell.original_stage_check()?;
+            let check = || {
+                self.check_entered_native_operation().map_err(|_| {
+                    ValueError::CommandProtocolUnavailable("entered original Jim variable cache")
+                })?;
+                if !self
+                    .frames
+                    .borrow()
+                    .owns_original_jim_frame_incarnation(&frame)
+                {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "captured original Jim cache frame",
+                    ));
+                }
+                cell_check()
+            };
+            let reached = obj::install_jim_variable_cache_with_stage_check(
                 original,
-                obj::JimVariableCache {
-                    interpreter: self.native_command_interpreter,
-                    frame: frames.native_jim_frame_id(global),
-                    global,
-                    cell,
-                },
+                cache,
                 self.native_invocation_dialect(),
-            )?;
+                Some(&check),
+            );
+            check()?;
+            reached?;
         }
         Ok(())
     }

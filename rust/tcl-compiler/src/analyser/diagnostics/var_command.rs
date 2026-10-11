@@ -1377,12 +1377,34 @@ impl Analyser {
             return;
         };
         let registry = input.borrowed_context_registry().commands();
-        let Some(metadata) = crate::registry_invocation::InvocationMetadataContext::for_module(
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
             registry,
             &cu.ir_module,
-        ) else {
+        );
+        #[cfg(test)]
+        let trace = |stage: &str, offset: Option<u32>, passed: bool| {
+            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
+                eprintln!("ORIGINAL_FACTORY_GUARD stage={stage} offset={offset:?} passed={passed}");
+            }
+        };
+        #[cfg(test)]
+        trace("w250.module_metadata", None, metadata.is_some());
+        let Some(metadata) = metadata else {
             return;
         };
+        #[cfg(test)]
+        trace(
+            "w250.analysis_input",
+            None,
+            metadata.source_analysis_input() == Some(input),
+        );
+        #[cfg(test)]
+        trace(
+            "w250.analysis_image",
+            None,
+            self.result
+                .matches_original_source_image(&cu.ir_module.source, cu.ir_module.lexer_config),
+        );
         if metadata.source_analysis_input() != Some(input)
             || !self
                 .result
@@ -1391,18 +1413,52 @@ impl Analyser {
             return;
         }
         let diagnostic = |tokens: &crate::ir::CommandTokens, span: tcl_lexer::Span| {
+            #[cfg(test)]
+            trace(
+                "w250.source_binding",
+                Some(span.start()),
+                tokens.source_binding.is_some(),
+            );
             let binding = tokens.source_binding.as_ref()?;
-            binding.original_invocation_metadata_for_module(tokens, &cu.ir_module, registry)?;
+            let owned =
+                binding.original_invocation_metadata_for_module(tokens, &cu.ir_module, registry);
+            #[cfg(test)]
+            trace(
+                "w250.original_module_metadata",
+                Some(span.start()),
+                owned.is_some(),
+            );
+            owned?;
             let image = &cu.ir_module.source;
             let original = crate::registry_invocation::original_native_compiler_words(
                 image,
                 tokens.words(),
                 binding.invocation_site()?.offset,
                 cu.ir_module.lexer_config,
-            )?;
-            let realm = self.result.retained_command_realm()?;
-            let call = realm.original_source_constructor_call(input, &original)?;
-            let attempt = call.source_factory_attempt(&self.result)?;
+            );
+            #[cfg(test)]
+            trace(
+                "w250.original_words",
+                Some(span.start()),
+                original.is_some(),
+            );
+            let original = original?;
+            let realm = self.result.retained_command_realm();
+            #[cfg(test)]
+            trace("w250.analysis_realm", Some(span.start()), realm.is_some());
+            let realm = realm?;
+            let call = realm.original_source_constructor_call(input, &original);
+            #[cfg(test)]
+            trace(
+                "w250.source_constructor",
+                Some(span.start()),
+                call.is_some(),
+            );
+            let call = call?;
+            let attempt = call.source_factory_attempt(&self.result);
+            #[cfg(test)]
+            trace("w250.source_attempt", Some(span.start()), attempt.is_some());
+            let attempt = attempt?;
             if !attempt
                 .factory_traits()
                 .contains(tcl_registry::Traits::ABSTRACT_CLASS_FACTORY)

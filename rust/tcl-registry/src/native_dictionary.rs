@@ -76,7 +76,83 @@ pub enum NativeDictionaryPathPublication {
     JimOriginalVariable,
 }
 
+/// Actual original Jim root worker, independent of C dictionary receipts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeDictionaryRootPurpose {
+    /// Jim array set converts an existing root before testing sharing.
+    ArraySet,
+    /// Jim generic dict set and dictionary substitution assignment.
+    VariableSet,
+    /// Jim generic dict unset publishes an absent empty root first.
+    VariableUnset,
+    /// Dictionary substitution unset requires the existing variable.
+    ExistingVariableUnset,
+}
+
+/// Sharing decision at the actual original conversion boundary.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeDictionaryRootSharing {
+    /// Jim_SetDictKeysVector tests the root before SetDictFromAny.
+    BeforeConversion,
+    /// Jim array set reaches DictSize before Jim_IsShared.
+    AfterConversion,
+}
+
+/// Missing-root action selected by the original worker.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeDictionaryMissingRoot {
+    /// Array set adopts its same original input List.
+    AdoptInput,
+    /// Generic path mutation publishes an empty dictionary before path work.
+    PublishEmpty,
+    /// The MUSTEXIST unset worker refuses before creating a variable.
+    RequireExisting,
+}
+
+/// Pure original Jim scheduling. It supplies no cell, header or live context.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NativeDictionaryRootProtocol {
+    /// Actual root sharing boundary.
+    pub sharing: NativeDictionaryRootSharing,
+    /// Actual missing-root action.
+    pub missing: NativeDictionaryMissingRoot,
+    /// Existing children are copied before conversion and published immediately.
+    pub immediate_children: bool,
+}
+
 impl crate::InvocationDialect {
+    /// Select only the actual Jim worker. C and unknown invocations abstain.
+    #[must_use]
+    pub fn native_dictionary_root_protocol(
+        self,
+        purpose: NativeDictionaryRootPurpose,
+    ) -> Option<NativeDictionaryRootProtocol> {
+        (self.native_string_protocol()? == NativeStringProtocol::Jim084).then_some(())?;
+        let (sharing, missing, immediate_children) = match purpose {
+            NativeDictionaryRootPurpose::ArraySet => (
+                NativeDictionaryRootSharing::AfterConversion,
+                NativeDictionaryMissingRoot::AdoptInput,
+                false,
+            ),
+            NativeDictionaryRootPurpose::VariableSet
+            | NativeDictionaryRootPurpose::VariableUnset => (
+                NativeDictionaryRootSharing::BeforeConversion,
+                NativeDictionaryMissingRoot::PublishEmpty,
+                true,
+            ),
+            NativeDictionaryRootPurpose::ExistingVariableUnset => (
+                NativeDictionaryRootSharing::BeforeConversion,
+                NativeDictionaryMissingRoot::RequireExisting,
+                true,
+            ),
+        };
+        Some(NativeDictionaryRootProtocol {
+            sharing,
+            missing,
+            immediate_children,
+        })
+    }
+
     /// Select the actual set/unset path worker's publication order. This pure
     /// recipe supplies no cell, successful read, alias, object or loaded wrapper.
     #[must_use]
@@ -933,5 +1009,60 @@ mod path_publication_tests {
         // native worker recipe while preserving the independently chosen family.
         authored_only.core_point = None;
         assert!(authored_only.native_dictionary_path_publication().is_none());
+    }
+}
+
+#[cfg(test)]
+mod root_protocol_tests {
+    use super::*;
+    #[test]
+    fn original_jim_root_schedules_keep_path_array_and_required_unset_purposes_separate() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Pure selected source schedules do not grant an original cell/header.
+        let jim = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+            tcl_dialect::model::Release::JIM_0_84,
+        ));
+        for purpose in [
+            NativeDictionaryRootPurpose::ArraySet,
+            NativeDictionaryRootPurpose::VariableSet,
+            NativeDictionaryRootPurpose::VariableUnset,
+            NativeDictionaryRootPurpose::ExistingVariableUnset,
+        ] {
+            let selected = jim.native_dictionary_root_protocol(purpose).unwrap();
+            assert_eq!(
+                selected.sharing,
+                if purpose == NativeDictionaryRootPurpose::ArraySet {
+                    NativeDictionaryRootSharing::AfterConversion
+                } else {
+                    NativeDictionaryRootSharing::BeforeConversion
+                }
+            );
+            assert_eq!(
+                selected.immediate_children,
+                purpose != NativeDictionaryRootPurpose::ArraySet
+            );
+            assert_eq!(
+                selected.missing,
+                match purpose {
+                    NativeDictionaryRootPurpose::ArraySet =>
+                        NativeDictionaryMissingRoot::AdoptInput,
+                    NativeDictionaryRootPurpose::VariableSet
+                    | NativeDictionaryRootPurpose::VariableUnset =>
+                        NativeDictionaryMissingRoot::PublishEmpty,
+                    NativeDictionaryRootPurpose::ExistingVariableUnset =>
+                        NativeDictionaryMissingRoot::RequireExisting,
+                }
+            );
+            for version in tcl_dialect::TclVersion::ALL {
+                let c = crate::InvocationDialect::of_point(
+                    tcl_dialect::model::DialectPoint::for_tcl_version(version),
+                );
+                assert!(c.native_dictionary_root_protocol(purpose).is_none());
+            }
+            let mut unknown = jim;
+            unknown.core_point = None;
+            assert!(unknown.native_dictionary_root_protocol(purpose).is_none());
+        }
     }
 }

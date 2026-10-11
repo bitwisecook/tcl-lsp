@@ -474,6 +474,9 @@ pub fn def_places_at(
     use tcl_registry::native_compilation::VariableOperandBindingPhase;
     let before = points.before_statement(block, index);
     let after = points.after_statement(block, index);
+    if let Some(store) = points.conditional_logical_scalar_store_at(block, index, registry) {
+        return store.definition_place(registry).into_iter().collect();
+    }
     if before.execution_name_policy.is_none() {
         return def_places_with_continuation(statement, before, after, registry);
     }

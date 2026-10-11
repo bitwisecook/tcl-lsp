@@ -536,3 +536,14 @@ later old-table index selects the corresponding member of the current property
 header, as the selected C worker does. Neither role derives fresh authority for
 an old table. Both report phases transport full structured errors through every
 actual consumer and result transfer.
+
+Whole Runtime Object and Class records are extracted before their owning method,
+forward-prefix, declaration and name payloads retire outside OO borrows. The
+actual target is marked torn down before payload retirement; callbacks cannot
+adopt it as a live definition or invocation receiver. Destruction retains its
+original operation before result or callback stages. A first refusal suppresses
+optional destructor, result and rename-name publication, while original command,
+namespace and registry cleanup still completes. Reached effects remain visible.
+Active entered method records retain their independent real call-chain owners;
+idle Weak cache observations add no owning role. These software cleanup stages
+carry no aggregate Native payload or hash-iteration chronology claim.

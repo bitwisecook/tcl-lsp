@@ -164,10 +164,26 @@ fn stock_with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match crate::interp::native_arguments::OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = dict_cmd_entered(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn dict_cmd_entered(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &crate::interp::native_arguments::OriginalArguments,
+) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args_for_invocation(argv, b"subcommand ?arg ...?");
     }
-    let word = obj_bytes(argv[1]);
+    let word = match arguments.bytes(1) {
+        Ok(word) => word,
+        Err(error) => return interp.report_cmd_error(error),
+    };
     // `dict` is a `TclMakeEnsemble` command: exact match, else a unique
     // prefix, so `dict k` is `dict keys`.
     // `getdef`/`getwithdefault` are Tcl 9 (TIP 342), so the table is the
@@ -872,6 +888,19 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 5 {
         return interp.wrong_args_for_prefix(argv, 2, b"dictVarName key ?key ...? value");
     }
+    if interp
+        .native_invocation_dialect()
+        .native_dictionary_path_publication()
+        == Some(
+            tcl_registry::native_dictionary::NativeDictionaryPathPublication::JimOriginalVariable,
+        )
+    {
+        return original_jim_dictionary_path(
+            interp,
+            argv,
+            tcl_registry::native_dictionary::NativeDictionaryRootPurpose::VariableSet,
+        );
+    }
     match native_variable_objects(interp, argv[2]) {
         Ok(Some((name, objects))) => {
             let keys: Vec<_> = argv[3..argv.len() - 1]
@@ -887,68 +916,52 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(None) => {}
         Err(code) => return code,
     }
-    let name = obj_bytes(argv[2]);
-    let keys = &argv[3..argv.len() - 1];
-    let value = argv[argv.len() - 1];
-    if let Some(c) = interp.const_write_check(&name) {
-        return c;
-    }
-    let (target, is_new) = match jim_working_path_dict(interp, &name) {
-        Ok(target) => target,
-        Err(code) => return code,
-    };
-    if let Err(e) = dict_path_set(target, keys, value) {
-        if is_new {
-            drop_fresh(target);
-        }
-        return bad_dict(interp, e);
-    }
-    store_jim_path_dict(interp, &name, target, is_new)
+    interp.report_cmd_error(
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original dictionary path worker",
+        )
+        .into(),
+    )
 }
 
-/// Jim's core worker publishes a missing empty root before key-path work.
-/// Its ordinary variable owner remains independent of the C primitive frontier.
-fn jim_working_path_dict(interp: &mut Interp, name: &[u8]) -> Result<(*mut TclObj, bool), Code> {
-    if interp
-        .native_invocation_dialect()
-        .native_dictionary_path_publication()
-        != Some(
-            tcl_registry::native_dictionary::NativeDictionaryPathPublication::JimOriginalVariable,
-        )
-    {
-        return Err(interp.report_cmd_error(
+/// Reach the same selected Jim root/cell path worker with original argv.
+fn original_jim_dictionary_path(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    purpose: tcl_registry::native_dictionary::NativeDictionaryRootPurpose,
+) -> Code {
+    let arguments = match crate::interp::native_arguments::OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let (keys, value) =
+        if purpose == tcl_registry::native_dictionary::NativeDictionaryRootPurpose::VariableSet {
+            (&argv[3..argv.len() - 1], Some(argv[argv.len() - 1]))
+        } else {
+            (&argv[3..], None)
+        };
+    let reached =
+        interp.mutate_original_jim_dictionary_path(argv[2], keys, value, purpose, &arguments);
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
+    let code = match reached {
+        Ok(Some(root)) => {
+            interp.set_result(root);
+            Code::Ok
+        }
+        Ok(None) => interp.report_cmd_error(
             tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "original Jim dictionary path worker",
+                "generic Jim dictionary path publication",
             )
             .into(),
-        ));
-    }
-    match dict_var_get(interp, name) {
-        None => {
-            let target = dict::new_dict_obj(&[]);
-            if dict_var_set(interp, name, target).is_err() {
-                drop_fresh(target);
-                return Err(cant_set(interp, name));
-            }
-            Ok((target, false))
-        }
-        Some(original) if obj::is_shared(original) => Ok((obj::duplicate(original), true)),
-        Some(original) => Ok((original, false)),
-    }
+        ),
+        Err(error) => error.report(interp),
+    };
+    arguments.finish(code)
 }
 
-fn store_jim_path_dict(interp: &mut Interp, name: &[u8], target: *mut TclObj, fresh: bool) -> Code {
-    if dict_var_set(interp, name, target).is_err() {
-        if fresh {
-            drop_fresh(target);
-        }
-        return cant_set(interp, name);
-    }
-    interp.set_result(target);
-    Code::Ok
-}
-
-/// One level of a `dict_path_set`/`dict_path_unset` descent, in the order the
+/// One level of a `dict_path_set` descent, in the order the
 /// iterative rewrite (below) needs to unwind it: the parent dict, the key
 /// this level's `sub` sits under in that parent, `sub` itself, and whether
 /// `sub` was freshly duplicated/created (so an aborted path knows whether it
@@ -959,7 +972,7 @@ type DictPathLevel = (*mut TclObj, *mut TclObj, *mut TclObj, bool);
 /// Drop every freshly duplicated/created sub-dict still in `chain` that has
 /// not yet been re-bound into its parent, after a multi-segment `dict
 /// set`/`dict unset` path failed partway through. The iterative form of the
-/// original recursive `dict_path_set`/`dict_path_unset`'s per-frame
+/// original recursive `dict_path_set`'s per-frame
 /// `if sub_fresh { drop_fresh(sub) }` unwind on the way back out of a failed
 /// recursive call — same bookkeeping, expressed over an
 /// explicit stack instead of the native call stack.
@@ -1055,6 +1068,19 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
         return interp.wrong_args_for_prefix(argv, 2, b"dictVarName key ?key ...?");
     }
+    if interp
+        .native_invocation_dialect()
+        .native_dictionary_path_publication()
+        == Some(
+            tcl_registry::native_dictionary::NativeDictionaryPathPublication::JimOriginalVariable,
+        )
+    {
+        return original_jim_dictionary_path(
+            interp,
+            argv,
+            tcl_registry::native_dictionary::NativeDictionaryRootPurpose::VariableUnset,
+        );
+    }
     match native_variable_objects(interp, argv[2]) {
         Ok(Some((name, objects))) => {
             let keys: Vec<_> = argv[3..]
@@ -1069,99 +1095,12 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(None) => {}
         Err(code) => return code,
     }
-    let name = obj_bytes(argv[2]);
-    let keys = &argv[3..];
-
-    if let Some(c) = interp.const_write_check(&name) {
-        return c;
-    }
-    let (target, is_new) = match jim_working_path_dict(interp, &name) {
-        Ok(target) => target,
-        Err(code) => return code,
-    };
-    match dict_path_unset(target, keys) {
-        Ok(()) => {}
-        Err(PathErr::KeyMissing(k)) => {
-            if is_new {
-                drop_fresh(target);
-            }
-            return key_not_known(interp, &k);
-        }
-        Err(PathErr::Bad(e)) => {
-            if is_new {
-                drop_fresh(target);
-            }
-            return bad_dict(interp, e);
-        }
-    }
-    store_jim_path_dict(interp, &name, target, is_new)
-}
-
-/// A `dict_path_unset` failure: a malformed dict on the path, or a missing
-/// intermediate path segment (`key "X" not known in dictionary`).
-enum PathErr {
-    Bad(dict::DictError),
-    KeyMissing(Vec<u8>),
-}
-
-/// Remove the value at the key path `keys` (len ≥ 1) within the **unshared**
-/// dict `dict`, descending through (and re-binding) intermediate sub-dicts. A
-/// missing intermediate segment errors; a missing final key is a no-op.
-///
-/// Iterative, not recursive — see [`dict_path_set`]'s doc comment: the same
-/// `{*}`-expansion-controlled path length would make a recursive form (one
-/// Rust stack-frame group per key segment) capable of an uncatchable
-/// native-stack overflow on deep/adversarial input, and the same
-/// descend-then-rebind loop + stack removes that recursion entirely rather
-/// than bounding it.
-fn dict_path_unset(dict: *mut TclObj, keys: &[*mut TclObj]) -> Result<(), PathErr> {
-    if let [last] = keys {
-        dict::dict_unset(dict, &obj_bytes(*last)).map_err(PathErr::Bad)?;
-        return Ok(());
-    }
-    let mut chain: Vec<DictPathLevel> = Vec::with_capacity(keys.len() - 1);
-    let mut cur = dict;
-    for &head in &keys[..keys.len() - 1] {
-        let got = match dict::dict_get(cur, &obj_bytes(head)) {
-            Ok(g) => g,
-            Err(e) => {
-                unwind_fresh_chain(&chain);
-                return Err(PathErr::Bad(e));
-            }
-        };
-        let (sub, sub_fresh) = match got {
-            Some(s) if !obj::is_shared(s) => (s, false),
-            Some(s) => (obj::duplicate(s), true), // rc 0
-            None => {
-                unwind_fresh_chain(&chain);
-                return Err(PathErr::KeyMissing(obj_bytes(head)));
-            }
-        };
-        chain.push((cur, head, sub, sub_fresh));
-        cur = sub;
-    }
-    let last = *keys
-        .last()
-        .expect("keys is non-empty: the [last] case above handles len 1");
-    // Drop a freshly duplicated `sub` still in `chain` if this (or the descent
-    // above) errors before the re-bind loop below retains it.
-    if let Err(e) = dict::dict_unset(cur, &obj_bytes(last)) {
-        unwind_fresh_chain(&chain);
-        return Err(PathErr::Bad(e));
-    }
-    let mut sub_result = cur;
-    while let Some((parent, head, sub, fresh)) = chain.pop() {
-        debug_assert!(core::ptr::eq(sub, sub_result));
-        if let Err(e) = dict::dict_set(parent, head, sub_result) {
-            if fresh {
-                drop_fresh(sub_result);
-            }
-            unwind_fresh_chain(&chain);
-            return Err(PathErr::Bad(e));
-        }
-        sub_result = parent;
-    }
-    Ok(())
+    interp.report_cmd_error(
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original dictionary path worker",
+        )
+        .into(),
+    )
 }
 
 // iteration
@@ -2297,3 +2236,7 @@ include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publi
         assert_eq!(unsupported, 3);
     }
 }
+
+#[cfg(test)]
+#[path = "cmd_dict/original_path_tests.rs"]
+mod original_path_tests;

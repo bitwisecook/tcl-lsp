@@ -313,17 +313,38 @@ impl OriginalSourceConstructorCall {
         &self,
         analysis: &AnalysisResult,
     ) -> Option<OriginalSourceClassFactoryAttempt<'_>> {
+        #[cfg(test)]
+        let trace = |stage: &str, passed: bool| {
+            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
+                let offset = self.site.offset;
+                eprintln!("ORIGINAL_FACTORY_GUARD stage={stage} offset={offset} passed={passed}");
+            }
+        };
+        #[cfg(test)]
+        trace("attempt.input", analysis.resolved_input.is_some());
         let input = analysis.resolved_input.as_ref()?;
         let context = input.context_registry();
-        self.matches_source_context(
+        let current = self.matches_source_context(
             self.original.first()?.image(),
             input.lexer_config(),
             &context,
-        )
-        .then_some(())?;
-        analysis
-            .matches_original_source_image(self.original.first()?.image(), input.lexer_config())
-            .then_some(())?;
+        );
+        #[cfg(test)]
+        trace("attempt.context", current);
+        current.then_some(())?;
+        let current = analysis
+            .matches_original_source_image(self.original.first()?.image(), input.lexer_config());
+        #[cfg(test)]
+        trace("attempt.analysis_image", current);
+        current.then_some(())?;
+        #[cfg(test)]
+        trace(
+            "attempt.quiet",
+            !self
+                .obligations
+                .contains(&SourceCommandTransitionObligation::UnknownEarlierMutation)
+                && self.class.factory.uncertain_operations().is_empty(),
+        );
         if self
             .obligations
             .contains(&SourceCommandTransitionObligation::UnknownEarlierMutation)
@@ -343,14 +364,20 @@ impl OriginalSourceConstructorCall {
         let factory = &self.class.factory;
         if factory.logical_source_input().is_some() {
             (factory.logical_source_input() == Some(input)).then_some(())?;
-            let class = self.class.logical_source_class(analysis)?;
+            let class = self.class.logical_source_class(analysis);
+            #[cfg(test)]
+            trace("attempt.logical_class", class.is_some());
+            let class = class?;
             if class.class_methods.contains_key(selector)
                 || class.class_methods.contains_key("unknown")
             {
                 return None;
             }
         } else {
-            let class = self.class.source_class(analysis)?;
+            let class = self.class.source_class(analysis);
+            #[cfg(test)]
+            trace("attempt.native_source_class", class.is_some());
+            let class = class?;
             let members = &class.metadata().original_members;
             let deferred = self
                 .obligations
@@ -359,13 +386,16 @@ impl OriginalSourceConstructorCall {
                     .obligations
                     .contains(&SourceCommandTransitionObligation::DeferredLogicalBodyApplicability);
             let methods = if deferred {
-                members.methods(crate::analyser::MemberSide::ClassObject)?
+                members.methods(crate::analyser::MemberSide::ClassObject)
             } else {
                 members.methods_before_source_call(
                     crate::analyser::MemberSide::ClassObject,
                     self.site(),
-                )?
+                )
             };
+            #[cfg(test)]
+            trace("attempt.original_members", methods.is_some());
+            let methods = methods?;
             if methods.iter().any(|method| {
                 let name = method.original_name_input().bytes();
                 name == bytes || name == b"unknown"
@@ -375,8 +405,14 @@ impl OriginalSourceConstructorCall {
         }
         let spec = context
             .context()
-            .resolve_spec(context.commands(), factory.command())?;
-        let operation = spec.definition_body?.manufacturer(selector)?;
+            .resolve_spec(context.commands(), factory.command());
+        #[cfg(test)]
+        trace("attempt.selected_spec", spec.is_some());
+        let spec = spec?;
+        let operation = spec.definition_body?.manufacturer(selector);
+        #[cfg(test)]
+        trace("attempt.manufacturer", operation.is_some());
+        let operation = operation?;
         Some(OriginalSourceClassFactoryAttempt {
             class: &self.class,
             operation,

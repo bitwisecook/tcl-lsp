@@ -811,6 +811,27 @@ impl<'a> SsaSourceView<'a> {
             })
     }
 
+    /// Conditional contents of this exact represented Logical scalar setter.
+    /// The actual source continuation owns the literal, cell and write site;
+    /// this grants no Native store, completed read, Normal or erasure receipt.
+    pub(crate) fn conditional_logical_scalar_store_contents(
+        self,
+        symbol: Symbol,
+        registry: &CommandRegistry,
+    ) -> Option<String> {
+        let (block, index) = self.point?;
+        let statement = self.ssa.blocks.get(&block)?.statements.get(index)?;
+        if statement.defs.len() != 1 || !statement.defs.contains_key(&symbol) {
+            return None;
+        }
+        let points = self.ssa.point_contexts.as_ref()?;
+        let store = points.conditional_logical_scalar_store_at(block, index, registry)?;
+        let place = store.definition_place(registry)?;
+        (crate::var_resolve::canonical_binding_value_key(&place).as_ref()
+            == Some(self.ssa.cell_key(symbol)))
+        .then(|| store.value().to_owned())
+    }
+
     /// Resolve a source spelling using the selected proof context.
     #[must_use]
     pub fn symbol(self, name: &str) -> Option<Symbol> {

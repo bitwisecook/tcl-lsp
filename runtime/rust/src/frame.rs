@@ -62,7 +62,7 @@ use crate::obj::{self, TclObj};
 mod jim_lookup;
 mod jim_link_store;
 pub(crate) use jim_link_store::{CapturedJimLinkRoot, JimLinkStoreError};
-pub(crate) use jim_lookup::{JimVariableRead, WeakJimVariableCell};
+pub(crate) use jim_lookup::{CapturedJimDictionaryCell, JimVariableRead, WeakJimVariableCell};
 mod container;
 mod destruction;
 pub use destruction::{RetainedArrayCell, WeakArraySearchCell};

@@ -230,3 +230,9 @@ Statement::AssignValue { name: "y", value: "${x}", .. }
 `extract_signatures_with_config` retains the caller's complete explicit policy for a separately supplied script. `extract_signatures_with_original_bindings` retains the existing original image/configuration/inventory checks. Consumers which already own analysis input and retained source bindings pass those actual owners; they do not select a default document grammar from a report label. Signature source geometry and conditional declarations supply no procedure execution or Native implementation receipt.
 
 Finite source/API controls reference [source-original-configured-script-completeness](../analysis/name-resolution-proofs/source-original-configured-script-completeness.md). Each provider's script-loading and parser behaviour remains independently recorded by its corresponding proof.
+
+### CLI compilation input purpose
+
+The `dis` and `compwasm` verbs receive complete combined input documents. Their root grammar is `LexerConfig::for_file_grammar` from the actual resolved profile, so that profile's file BOM rule applies once at the document boundary. A mark after the root boundary remains source content. The disassembly adapter passes the complete actual grammar, including custom lexical axes, without selecting another grammar from the profile label.
+
+The Compiler's explicitly configured bytecode lowering APIs keep the caller's supplied policy. Callers compiling a procedure body, extracted script or synthetic Studio body must retain their appropriate body purpose. Original geometry does not supply a Native entry or prove emitted bytecode execution.

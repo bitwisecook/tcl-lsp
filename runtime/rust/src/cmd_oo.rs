@@ -45,13 +45,15 @@
 mod native_context;
 pub(crate) mod native_method_cache;
 mod native_object_info;
-#[cfg(test)]
-mod original_publication_tests;
-#[cfg(test)]
-mod original_property_retirement_tests;
 pub(crate) mod native_variables;
 #[cfg(test)]
 mod original_property_reporting_tests;
+#[cfg(test)]
+mod original_property_retirement_tests;
+#[cfg(test)]
+mod original_publication_tests;
+#[cfg(test)]
+mod original_record_retirement_tests;
 
 use tcl_registry::native_tcloo_method_definition::{
     NativeTclooMethodReportProtocol, NativeTclooMethodReportRole,
@@ -5019,34 +5021,63 @@ fn set_oo_list(interp: &mut Interp, ids: &[OoId]) {
 // The object-system engine.
 
 impl Interp {
+    fn retire_original_oo_object_record(&mut self, object: OoId) {
+        let retired = self.oo.borrow_mut().objects.remove(&object);
+        drop(retired);
+        let _ = self.check_entered_native_operation();
+    }
+
+    fn retire_original_oo_class_record(&mut self, object: OoId) {
+        let retired = self.oo.borrow_mut().classes.remove(&object);
+        drop(retired);
+        let _ = self.check_entered_native_operation();
+    }
+
+    fn mark_original_oo_record_torn_down(&self, object: OoId) {
+        if let Some(owner) = self.oo.borrow_mut().objects.get_mut(&object) {
+            owner.torn_down = true;
+        }
+    }
+
     /// An OO object's/class's command was renamed or deleted (e.g. `rename obj
     /// {}`): keep the OO registry in sync so the name frees up / follows the
     /// command. Tcl ties an object's lifetime to its command.
     pub(crate) fn oo_command_renamed(&mut self, object: OoId, new_fqn: Option<&[u8]>) {
+        let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self);
+        if let Err(first) = &scope {
+            self.refuse_native_execution(first.clone());
+        }
+        let owner = new_fqn
+            .and_then(|_| native_context::OriginalOoTarget::capture(self, object, false).ok());
         let retired = self
             .oo
-            .borrow_mut()
+            .borrow()
             .objects
-            .get_mut(&object)
+            .get(&object)
             .and_then(|owner| owner.cached_name.borrow_mut().take());
         drop(retired);
+        let current = self.check_entered_native_operation();
         match new_fqn {
-            // Rename: the object/class (and its `my`) follow to the new name.
-            Some(nf) => {
-                let mut oo = self.oo.borrow_mut();
-                oo.names.insert(object, nf.to_vec());
+            Some(name) => {
+                if current.is_err()
+                    || owner
+                        .as_ref()
+                        .is_none_or(|owner| owner.check(self).is_err())
+                {
+                    return;
+                }
+                self.oo.borrow_mut().names.insert(object, name.to_vec());
             }
-            // Deletion (`rename obj {}`): C ties the object's lifetime to its
-            // command, so the destructor fires before the registry entry goes.
             None => {
+                // Deletion completes original cleanup even when the name callback refused.
                 if self.oo.borrow().classes.contains_key(&object) {
                     self.oo_destroy_class(object);
                 } else if self.oo.borrow().objects.contains_key(&object) {
-                    // Implicit teardown swallows the destructor result.
                     self.oo_destroy_bg(object);
                 }
             }
         }
+        let _ = self.check_entered_native_operation();
     }
 
     /// Destroy every OO object whose instance-variable namespace is the exact
@@ -5181,12 +5212,18 @@ impl Interp {
             if code != Code::Ok {
                 // Roll back a failed definition so the name frees up (C destroys
                 // a partially-created class whose definition script errors).
-                self.oo.borrow_mut().classes.remove(&object);
+                self.mark_original_oo_record_torn_down(object);
+                self.retire_original_oo_class_record(object);
                 let _ = self.retire_native_properties(object);
-                self.oo.borrow_mut().objects.remove(&object);
+                self.retire_original_oo_object_record(object);
                 self.retire_oo_command_identity(object);
                 self.oo.borrow_mut().names.remove(&object);
-                return code;
+                self.delete_namespace_by_id(var_ns);
+                return if self.check_entered_native_operation().is_err() {
+                    Code::Error
+                } else {
+                    code
+                };
             }
         }
         self.set_result(obj::new_string_bytes(fqn));
@@ -5767,11 +5804,13 @@ impl Interp {
                 // `oo_destroy_bg` removes the object; clean up the class facet
                 // (a failed metaclass instantiation) and the command too.
                 let _ = self.retire_native_properties(object);
-                self.oo.borrow_mut().objects.remove(&object);
-                self.oo.borrow_mut().classes.remove(&object);
+                self.mark_original_oo_record_torn_down(object);
+                self.retire_original_oo_object_record(object);
+                self.retire_original_oo_class_record(object);
                 self.retire_oo_command_identity(object);
                 self.oo.borrow_mut().names.remove(&object);
                 self.error_restore(snap);
+                let _ = self.check_entered_native_operation();
                 return Code::Error;
             }
             // A constructor that destroys its own object (`[self] destroy`)
@@ -7304,23 +7343,40 @@ impl Interp {
     /// `bgerror`. Cleanup of the command/namespace happens regardless of the
     /// destructor outcome.
     fn oo_destroy(&mut self, obj: OoId) -> Code {
-        // Re-entrancy guard (C's DESTRUCTOR_CALLED): run the destructor at most
-        // once even if `destroy`/`rename {}`/`namespace delete` all reach here.
-        let state = self.oo.borrow().objects.get(&obj).map(|o| o.destroyed);
-        let mut dtor_code = Code::Ok;
-        match state {
-            None => return Code::Ok, // not an object (or already fully removed)
-            Some(false) => {
-                // The no-destructor result is empty; a destructor body replaces
-                // it and explicit `destroy` must preserve that successful value.
-                self.set_result_bytes(b"");
-                if let Some(o) = self.oo.borrow_mut().objects.get_mut(&obj) {
-                    o.destroyed = true;
-                }
-                dtor_code = self.oo_run_destructors(obj);
-            }
-            Some(true) => self.set_result_bytes(b""),
+        let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self);
+        if let Err(first) = &scope {
+            self.refuse_native_execution(first.clone());
         }
+        // Retain the actual instance namespace before any result/free callback.
+        let original = self
+            .oo
+            .borrow()
+            .objects
+            .get(&obj)
+            .map(|owner| (owner.destroyed, owner.var_ns));
+        let mut dtor_code = Code::Ok;
+        let Some((destroyed, var_ns)) = original else {
+            return if self.check_entered_native_operation().is_err() {
+                Code::Error
+            } else {
+                Code::Ok
+            };
+        };
+        if !destroyed {
+            // Set the existing reentrancy guard before a result retirement can call back.
+            if let Some(owner) = self.oo.borrow_mut().objects.get_mut(&obj) {
+                owner.destroyed = true;
+            }
+            if self.check_entered_native_operation().is_ok() {
+                self.set_result_bytes(b"");
+                if self.check_entered_native_operation().is_ok() {
+                    dtor_code = self.oo_run_destructors(obj);
+                }
+            }
+        } else if self.check_entered_native_operation().is_ok() {
+            self.set_result_bytes(b"");
+        }
+        let _ = self.check_entered_native_operation();
         // The destructor has run; the object is now being dismantled. Mark it
         // torn-down *before* the descendant cascade so a nested-owned child whose
         // destructor calls back into this object sees "impossible to invoke
@@ -7337,28 +7393,29 @@ impl Interp {
         if self.oo.borrow().classes.contains_key(&obj) {
             self.oo_destroy_class_descendants(obj);
         }
-        let var_ns = self.oo.borrow().objects.get(&obj).map(|o| o.var_ns);
         // Tcl retires all three command roles before tearing down the instance
         // namespace: public object, `myclass`, then `my`. An earlier callback
         // may relocate a later dispatcher, so the centralized role walk
         // re-resolves every token immediately before firing it.
         self.fire_oo_command_role_delete_traces(obj);
+        let _ = self.check_entered_native_operation();
         // Private dispatchers stop existing before object-variable unset
         // callbacks. The public object command deliberately remains visible
         // through that namespace phase, matching Tcl's `FreeObject` boundary.
         self.remove_prefired_oo_private_commands(obj);
+        let _ = self.check_entered_native_operation();
         // Then delete the instance namespace — this unsets its variables and
         // fires their unset traces while the object is still registered and
         // torn-down, so a trace callback sees `info object isa object` true, the
         // namespace already gone, and a method call as "impossible to invoke
         // method" (C's ObjectNamespaceDeleted order; oo-11.8).
-        if let Some(ns) = var_ns {
-            self.delete_namespace_by_id(ns);
-        }
+        self.delete_namespace_by_id(var_ns);
+        let _ = self.check_entered_native_operation();
         // Finally retire every remaining public/private command token by identity,
         // wherever rename or hide moved it, before dropping the registry
         // records those delete callbacks may inspect.
         self.retire_prefired_oo_command_identity(obj);
+        let _ = self.check_entered_native_operation();
         let retired_name = self
             .oo
             .borrow()
@@ -7366,13 +7423,18 @@ impl Interp {
             .get(&obj)
             .and_then(|owner| owner.cached_name.borrow_mut().take());
         drop(retired_name);
+        let _ = self.check_entered_native_operation();
         let class = self.oo.borrow().classes.contains_key(&obj);
         self.native_method_structure_changed(obj, class);
         let _ = self.retire_native_properties(obj);
-        self.oo.borrow_mut().objects.remove(&obj);
-        self.oo.borrow_mut().classes.remove(&obj);
+        self.retire_original_oo_object_record(obj);
+        self.retire_original_oo_class_record(obj);
         self.oo.borrow_mut().names.remove(&obj);
-        dtor_code
+        if self.check_entered_native_operation().is_err() {
+            Code::Error
+        } else {
+            dtor_code
+        }
     }
 
     /// Run the object's destructor chain (every class in the MRO that declares a
@@ -7417,6 +7479,10 @@ impl Interp {
     }
 
     fn oo_destroy_class(&mut self, class: OoId) {
+        let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self);
+        if let Err(first) = &scope {
+            self.refuse_native_execution(first.clone());
+        }
         // Already being torn down (a cycle of mixins/superclasses, or reached
         // again via an instance cascade) — nothing more to do.
         if self
@@ -7433,16 +7499,24 @@ impl Interp {
         // cascade does not re-enter it.
         if let Some(o) = self.oo.borrow_mut().objects.get_mut(&class) {
             o.destroyed = true;
+            o.torn_down = true;
         }
+        let var_ns = self
+            .oo
+            .borrow()
+            .objects
+            .get(&class)
+            .map(|owner| owner.var_ns);
         self.oo_destroy_class_descendants(class);
+        let _ = self.check_entered_native_operation();
         // Drop the registry entries, the command, the per-object `my`/`myclass`,
         // and the class's own instance namespace — a class created with an
         // explicit target namespace (`oo::copy … <ns>`) owns it, so destroying
         // the class must delete it too (oo-15.13.x), as `oo_destroy` does.
-        let var_ns = self.oo.borrow().objects.get(&class).map(|o| o.var_ns);
         self.retire_oo_command_identity(class);
+        let _ = self.check_entered_native_operation();
         self.native_method_structure_changed(class, true);
-        self.oo.borrow_mut().classes.remove(&class);
+        self.retire_original_oo_class_record(class);
         let retired_name = self
             .oo
             .borrow()
@@ -7450,12 +7524,14 @@ impl Interp {
             .get(&class)
             .and_then(|owner| owner.cached_name.borrow_mut().take());
         drop(retired_name);
+        let _ = self.check_entered_native_operation();
         let _ = self.retire_native_properties(class);
-        self.oo.borrow_mut().objects.remove(&class);
+        self.retire_original_oo_object_record(class);
         self.oo.borrow_mut().names.remove(&class);
         if let Some(ns) = var_ns {
             self.delete_namespace_by_id(ns);
         }
+        let _ = self.check_entered_native_operation();
     }
 
     /// Destroy a class's subclasses and instances (C's `TclOODeleteDescendants`),

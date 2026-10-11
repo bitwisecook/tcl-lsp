@@ -75,7 +75,7 @@ use std::rc::Rc;
 
 use crate::script::{CommandSpan, WordKind, group_commands_bytes};
 use crate::word_parts::{
-    ExecutablePart, ExecutablePartArena, PartListId, SubstFlags, quoted_word_close_with_issue,
+    ExecutablePart, ExecutablePartArena, PartListId, SubstFlags, quoted_word_close_with_issue_in,
 };
 use crate::{
     Lexer, LexerConfig, SourceChannel, SourceImage, SourceMap, Span, Token, word_closer_offset_at,
@@ -467,7 +467,7 @@ fn word_job(
                 WordJob::Literal
             }
         }
-        WordKind::Quoted => match quoted_word_close_with_issue(src, start) {
+        WordKind::Quoted => match quoted_word_close_with_issue_in(src, start, config) {
             // The quote never closed — but that is not necessarily why C
             // stopped.  `quoted_word_close` steps over complete `[…]`
             // substitutions to find the closer, so an *incomplete* one makes
@@ -659,6 +659,7 @@ fn body_frame(
     config: LexerConfig,
     channel: SourceChannel,
 ) -> Result<Frame, ParseCutUnavailable> {
+    let config = crate::SourceSegmentationPurpose::NestedScript.config(config);
     let (tokens, commands) = lex_and_group(body, config, channel)?;
     let jobs = commands
         .iter()
@@ -734,6 +735,36 @@ mod tests {
     use crate::{
         ExecutablePartArena, SourceImage, Span, SubstFlags, first_parse_cut_image_checked,
     };
+
+    #[test]
+    fn original_bracket_child_cut_keeps_bom_content_at_local_zero() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // A true bracket child keeps nested syntax even at its local byte zero.
+        let config = LexerConfig {
+            leading_bom: crate::LeadingBom::Skip,
+            ..LexerConfig::for_dialect("tcl8.6")
+        };
+        for source in ["list [\u{feff}{x}tail]", "list [\u{feff}list {x}]"] {
+            for image in [
+                SourceImage::document(source),
+                SourceImage::native(source.as_bytes()),
+            ] {
+                assert_eq!(first_parse_cut_image_checked(&image, config), Ok(None));
+            }
+        }
+        let malformed = "list [\u{feff}list {x}tail]";
+        for image in [
+            SourceImage::document(malformed),
+            SourceImage::native(malformed.as_bytes()),
+        ] {
+            let cut = first_parse_cut_image_checked(&image, config)
+                .unwrap()
+                .unwrap();
+            assert_eq!(cut.message, crate::word_parts::EXTRA_AFTER_CLOSE_BRACE);
+            assert_eq!(cut.term as usize, malformed.find("tail").unwrap());
+        }
+    }
 
     #[test]
     fn deep_index_cut_preserves_outer_anchor_and_exact_inner_term() {
