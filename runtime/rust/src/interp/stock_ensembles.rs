@@ -62,7 +62,81 @@ struct InstalledFamily {
     nested: Vec<(Vec<u8>, u64, EnsembleConfig, BuiltinFn)>,
 }
 
+/// Allocation/metadata-only current slots from actual published generations.
+/// This does not retain a callable command or any native configured object.
+struct OriginalStockSlots(Vec<(crate::namespace::NsId, Vec<u8>, u64)>);
+impl OriginalStockSlots {
+    fn capture(interpreter: &Interp, generations: impl IntoIterator<Item = u64>) -> Option<Self> {
+        let namespaces = interpreter.namespaces();
+        let mut slots = Vec::new();
+        for generation in generations {
+            let (namespace, tail) = namespaces.native_command_slot_at_node(generation)?;
+            slots.push((namespace, tail, generation));
+        }
+        Some(Self(slots))
+    }
+    fn check(&self, interpreter: &mut Interp) -> bool {
+        self.0.iter().all(|(namespace, tail, generation)| {
+            interpreter.original_command_publication_is_current(*namespace, tail, *generation)
+        })
+    }
+}
+
 impl Interp {
+    /// Adopt reached bookkeeping, retire its actual displaced configuration
+    /// owners outside the map borrow, then check the original continuation.
+    fn publish_stock_family(
+        &mut self,
+        family: EnsembleImplementationFamily,
+        installed: InstalledFamily,
+        scope: &NativeOperationScope,
+        publication: Option<&OriginalStockSlots>,
+    ) -> bool {
+        // Bookkeeping settlement is mandatory, even if the original entry
+        // already refuses. It does not authorize another installer.
+        let admitted = match scope.currency().ensure_current_or_refuse() {
+            Ok(()) => publication.is_none_or(|publication| publication.check(self)),
+            Err(first) => {
+                self.refuse_native_execution(first);
+                false
+            }
+        };
+        let retired = self
+            .stock_ensembles
+            .borrow_mut()
+            .families
+            .insert(family, installed);
+        drop(retired);
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            self.refuse_native_execution(first);
+            return false;
+        }
+        admitted && publication.is_none_or(|publication| publication.check(self))
+    }
+
+    fn require_stock_publication(&mut self, publication: Option<&OriginalStockSlots>) -> bool {
+        if let Some(publication) = publication {
+            return publication.check(self);
+        }
+        self.refuse_native_access(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "original stock family publication unavailable",
+            ),
+        );
+        false
+    }
+
+    /// Failed refreshes preserve reached records, but cannot resume installation.
+    fn restore_stock_families(
+        &mut self,
+        families: impl IntoIterator<Item = (EnsembleImplementationFamily, InstalledFamily)>,
+        scope: &NativeOperationScope,
+    ) {
+        for (family, installed) in families {
+            self.publish_stock_family(family, installed, scope, None);
+        }
+    }
+
     pub(crate) fn native_ensemble_profile_name(&self) -> &'static str {
         if self.dialect_profile().is_fallback() {
             self.runtime_version().dialect_profile_name()
@@ -157,10 +231,12 @@ impl Interp {
             .borrow_mut()
             .stock
             .insert(installed.generation, public.to_vec());
-        self.stock_ensembles
-            .borrow_mut()
-            .families
-            .insert(family, installed);
+        let publication = OriginalStockSlots::capture(self, [generation]);
+        if !self.publish_stock_family(family, installed, &scope, publication.as_ref())
+            || !self.require_stock_publication(publication.as_ref())
+        {
+            return;
+        }
         if family == EnsembleImplementationFamily::String {
             self.attest_stock_string_implementation();
         }
@@ -184,7 +260,7 @@ impl Interp {
         let Some(mut installed) = self.stock_ensembles.borrow_mut().families.remove(&family) else {
             return;
         };
-        let _ = (|| {
+        let reached = (|| {
             if self.resolve_cmd_token(installed.public) != Some(installed.generation)
                 || !self.stock_ensemble_config_matches(&installed)
                 || ingress.members.len() != callbacks.len()
@@ -234,13 +310,20 @@ impl Interp {
             .ok()?;
             installed.generation = publication.generation;
             installed.scripted = true;
-            Some(())
+            Some(publication)
         })();
         // Reached installer bookkeeping is mandatory even on refusal.
-        self.stock_ensembles
-            .borrow_mut()
-            .families
-            .insert(family, installed);
+        if !self.publish_stock_family(family, installed, &scope, None) {
+            return;
+        }
+        if let Some(publication) = reached {
+            let _ = self.check_original_procedure_publication(
+                publication.namespace,
+                &publication.tail,
+                publication.generation,
+                &publication.binding,
+            );
+        }
     }
 
     fn ensure_stock_namespace(
@@ -330,6 +413,7 @@ impl Interp {
         let owned = installed.members.iter().position(|(slot, generation)| {
             slot == name && self.resolve_cmd_token(slot) == Some(*generation)
         });
+        let mut publication = None;
         if let Some(index) = owned {
             let ns = self.ensure_stock_namespace(name, &mut installed);
             let mut map = Vec::new();
@@ -340,10 +424,7 @@ impl Interp {
                 let _ = self.register_stock_worker(&target, worker, &mut installed);
                 if let Err(first) = scope.currency().ensure_current_or_refuse() {
                     self.refuse_native_execution(first);
-                    self.stock_ensembles
-                        .borrow_mut()
-                        .families
-                        .insert(family, installed);
+                    self.publish_stock_family(family, installed, &scope, None);
                     return;
                 }
                 map.push((member.to_vec(), vec![target]));
@@ -360,10 +441,7 @@ impl Interp {
             let Some(generation) = self.create_ensemble(name, config.clone()) else {
                 // Keep reached installer records, including the old exact worker
                 // observation. Refusal cannot label a callback-created slot.
-                self.stock_ensembles
-                    .borrow_mut()
-                    .families
-                    .insert(family, installed);
+                self.publish_stock_family(family, installed, &scope, None);
                 return;
             };
             installed.members.remove(index);
@@ -375,16 +453,26 @@ impl Interp {
             installed
                 .nested
                 .push((name.to_vec(), generation, config, callback));
+            publication = OriginalStockSlots::capture(self, [installed.generation, generation]);
         }
-        self.stock_ensembles
-            .borrow_mut()
-            .families
-            .insert(family, installed);
+        if self.publish_stock_family(family, installed, &scope, publication.as_ref())
+            && owned.is_some()
+        {
+            self.require_stock_publication(publication.as_ref());
+        }
     }
 
     pub(super) fn refresh_stock_ensembles(&mut self) {
+        let scope = match NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return;
+            }
+        };
         let families = std::mem::take(&mut self.stock_ensembles.borrow_mut().families);
-        for (family, installed) in families {
+        let mut remaining = families.into_iter();
+        while let Some((family, installed)) = remaining.next() {
             if self.resolve_cmd_token(installed.public) != Some(installed.generation)
                 || !self.stock_ensemble_config_matches(&installed)
                 || installed.nested.iter().any(|(_, token, config, _)| {
@@ -393,28 +481,48 @@ impl Interp {
                             if ensemble.config() == *config)
                 })
             {
-                self.stock_ensembles
-                    .borrow_mut()
-                    .families
-                    .insert(family, installed);
+                if !self.publish_stock_family(family, installed, &scope, None) {
+                    self.restore_stock_families(remaining, &scope);
+                    return;
+                }
                 continue;
             }
+            let mut refused = false;
             for (name, generation) in &installed.members {
                 if self.resolve_cmd_token(name) == Some(*generation) {
                     self.delete_command(name);
+                    if let Err(first) = scope.currency().ensure_current_or_refuse() {
+                        self.refuse_native_execution(first);
+                        refused = true;
+                        break;
+                    }
                 }
             }
-            for (name, ns) in installed.namespaces.iter().rev() {
-                let empty = {
-                    let namespaces = self.namespaces.borrow();
-                    namespaces.find_namespace(GLOBAL, name) == Some(*ns)
-                        && namespaces.command_names(*ns).is_empty()
-                        && namespaces.var_names(*ns).is_empty()
-                        && namespaces.children(*ns).is_empty()
-                };
-                if empty {
-                    self.delete_namespace_by_id(*ns);
+            if !refused {
+                for (name, ns) in installed.namespaces.iter().rev() {
+                    let empty = {
+                        let namespaces = self.namespaces.borrow();
+                        namespaces.find_namespace(GLOBAL, name) == Some(*ns)
+                            && namespaces.command_names(*ns).is_empty()
+                            && namespaces.var_names(*ns).is_empty()
+                            && namespaces.children(*ns).is_empty()
+                    };
+                    if empty {
+                        self.delete_namespace_by_id(*ns);
+                        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+                            self.refuse_native_execution(first);
+                            refused = true;
+                            break;
+                        }
+                    }
                 }
+            }
+            if refused {
+                self.restore_stock_families(
+                    std::iter::once((family, installed)).chain(remaining),
+                    &scope,
+                );
+                return;
             }
             match family {
                 EnsembleImplementationFamily::Info => crate::cmd_info::install(self),
@@ -424,6 +532,34 @@ impl Interp {
                 EnsembleImplementationFamily::Binary => crate::cmd_binary::install(self),
                 EnsembleImplementationFamily::String => crate::cmd_string::install_ensemble(self),
                 EnsembleImplementationFamily::Dict => crate::cmd_dict::install(self),
+            }
+            // This is the old extracted record's genuine final configuration
+            // role, outside every stock/namespace/frame borrow. Capture the new
+            // actual publication before it retires; no post-callback lookup.
+            let publication = {
+                let registrations = self.stock_ensembles.borrow();
+                registrations.families.get(&family).and_then(|current| {
+                    OriginalStockSlots::capture(
+                        self,
+                        std::iter::once(current.generation).chain(
+                            current
+                                .nested
+                                .iter()
+                                .map(|(_, generation, _, _)| *generation),
+                        ),
+                    )
+                })
+            };
+            let admitted = self.require_stock_publication(publication.as_ref());
+            drop(installed);
+            if let Err(first) = scope.currency().ensure_current_or_refuse() {
+                self.refuse_native_execution(first);
+                self.restore_stock_families(remaining, &scope);
+                return;
+            }
+            if !admitted || !self.require_stock_publication(publication.as_ref()) {
+                self.restore_stock_families(remaining, &scope);
+                return;
             }
         }
         self.attest_stock_string_implementation();
@@ -1165,3 +1301,6 @@ mod tests {
 
 #[cfg(test)]
 mod publication_tests;
+
+#[cfg(test)]
+mod retirement_tests;

@@ -3344,7 +3344,12 @@ on refusal. Scripted distribution roots retain the procedure publisher's weak
 original Proc/declaration, namespace slot and generation through caller body
 cleanup. Stock metadata consumes that same receipt; a later spelling lookup
 cannot adopt a callback-created procedure. Existing generation and void
-registration facades delegate to the same publication worker.
+registration facades delegate to the same publication worker. Stock-family
+replacement extracts the displaced record and releases its actual configured
+object roles outside the stock map borrow. The original scope and pre-retirement
+publication receipt are checked before later installers or attestation. Refresh
+restores reached bookkeeping on refusal and completes its mandatory outside-borrow
+retirement without granting a new semantic continuation.
 
 Command visibility reads stock identity by generation, including renamed
 primitive and ensemble tokens. Host handlers use their actual binding without a
