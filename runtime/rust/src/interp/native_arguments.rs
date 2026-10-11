@@ -7,8 +7,8 @@
 //! stage and keeps this context alive through subsequent effects and cleanup.
 
 use super::{
-    native_operation_currency::{NativeOperationCurrency, NativeOperationScope},
     Code, Interp,
+    native_operation_currency::{NativeOperationCurrency, NativeOperationScope},
 };
 use crate::obj::{self, NativeObjectLifetime, TclObj};
 use std::rc::Rc;
@@ -51,6 +51,47 @@ impl OriginalArguments {
         self.currency()
             .ensure_current_or_refuse()
             .map_err(CmdError::from_execution_refusal)
+    }
+
+    /// Check the captured operation against its actual physical receiver.
+    /// This comparison grants no getter authority and cannot transfer an
+    /// original receipt to another interpreter with equal context values.
+    pub(crate) fn check_for(&self, actual: &Interp) -> Result<(), CmdError> {
+        if !Rc::ptr_eq(&self.interpreter.0, &actual.0) {
+            let refusal = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original arguments belong to another interpreter",
+                ),
+            );
+            actual.clone().refuse_native_execution(refusal.clone());
+            return Err(CmdError::from_execution_refusal(
+                actual.native_execution_refusal().unwrap_or(refusal),
+            ));
+        }
+        self.check()
+    }
+
+    /// Validate the exact original header at a selected physical worker stage.
+    /// Allocation retention and equal spelling cannot substitute another argv.
+    pub(crate) fn check_original_for(
+        &self,
+        actual: &Interp,
+        index: usize,
+        original: *mut TclObj,
+    ) -> Result<(), CmdError> {
+        self.check_for(actual)?;
+        if self.original(index)? != original {
+            let refusal = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original argument header does not match captured argv",
+                ),
+            );
+            actual.clone().refuse_native_execution(refusal.clone());
+            return Err(CmdError::from_execution_refusal(
+                actual.native_execution_refusal().unwrap_or(refusal),
+            ));
+        }
+        Ok(())
     }
 
     /// Borrow a captured live original without acquiring a native reference.
@@ -252,5 +293,76 @@ mod tests {
             ))
         );
         assert_eq!(interpreter.entered_native_operation_count(), 0);
+    }
+}
+
+#[cfg(test)]
+mod original_receiver_tests {
+    use super::*;
+    use tcl_runtime_api::NativeExecutionError;
+    use tcl_syntax::raw_string::NativeValueAccessRefusal;
+
+    fn actual() -> Interp {
+        Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("tcl8.6"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn captured_arguments_accept_only_the_same_physical_receiver_and_original_header() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual software ownership controls; equal native context is no issuer.
+        let interpreter = actual();
+        let clone = interpreter.clone();
+        let mut other = actual();
+        assert_eq!(interpreter.runtime_context(), other.runtime_context());
+        let original = obj::Owned::fresh(obj::new_string_bytes(b"end"));
+        let alternate = obj::Owned::fresh(obj::new_string_bytes(b"end"));
+        let captured = OriginalArguments::enter(&interpreter, &[original.as_ptr()]).unwrap();
+        captured.check_for(&clone).unwrap();
+        captured
+            .check_original_for(&clone, 0, original.as_ptr())
+            .unwrap();
+        assert_eq!(unsafe { (*original.as_ptr()).ref_count }, 1);
+        other.set_result_bytes(b"PRIOR");
+        let prior = other.get_obj_result();
+        let refused = captured.check_for(&other).unwrap_err();
+        assert_eq!(
+            refused.native_execution_refusal(),
+            other.native_execution_refusal().as_ref()
+        );
+        assert_eq!(other.get_obj_result(), prior);
+        captured.check_for(&interpreter).unwrap();
+        let wrong = captured
+            .check_original_for(&interpreter, 0, alternate.as_ptr())
+            .unwrap_err();
+        assert_eq!(
+            wrong.native_execution_refusal(),
+            Some(&NativeExecutionError::ValueAccessRefusal(
+                NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original argument header does not match captured argv",
+                ),
+            ))
+        );
+        assert_eq!(obj::bytes_of(original.as_ptr()), b"end");
+        assert_eq!(obj::bytes_of(alternate.as_ptr()), b"end");
+    }
+
+    #[test]
+    fn foreign_receiver_mismatch_keeps_its_existing_complete_first_cause() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let interpreter = actual();
+        let mut receiver = actual();
+        let captured = OriginalArguments::enter(&interpreter, &[]).unwrap();
+        receiver.refuse_host_command("original receiver complete first cause");
+        let first = receiver.native_execution_refusal().unwrap();
+        let refused = captured.check_for(&receiver).unwrap_err();
+        assert_eq!(refused.native_execution_refusal(), Some(&first));
+        captured.check_for(&interpreter).unwrap();
     }
 }
