@@ -66,6 +66,24 @@ fn original_boolean_unit(
     std::sync::Arc<tcl_registry::model::ContextRegistry>,
     CompilationUnit,
 ) {
+    original_boolean_unit_with_compilation(
+        source,
+        environment,
+        crate::environment_ingress::authoring_native_compilation(),
+    )
+}
+
+/// Caller-selected original compilation purpose, retaining the same actual
+/// interpreter entry and independently supplied source metadata.
+fn original_boolean_unit_with_compilation(
+    source: &str,
+    environment: &str,
+    compilation: tcl_registry::native_compilation::NativeCompilationContext,
+) -> (
+    tcl_vm::Vm,
+    std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    CompilationUnit,
+) {
     let environment = tcl_registry::model::ingress::resolve_known_environment(environment)
         .expect("original Boolean control requires a known native environment");
     let context = environment.default_context_registry();
@@ -87,7 +105,7 @@ fn original_boolean_unit(
                 &input,
             )),
         invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
-        native_compilation: crate::environment_ingress::authoring_native_compilation(),
+        native_compilation: compilation,
         native_entry: Some(std::sync::Arc::new(native)),
         ..crate::command_binding::SourceAnalysisEntry::default()
     };
@@ -909,7 +927,17 @@ fn original_boolean_lowering_keeps_reached_operand_purposes_and_c84_left_identit
     use tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose as Purpose;
     let source = "if {!$lhs} {set result A}; if {$lhs ? $rhs : $other} {set result B}; if {$lhs && $rhs} {set result C}; if {$lhs || $rhs} {set result D}";
     for environment in ["tcl8.4", "tcl9.1"] {
-        let (_owner, context, unit) = original_boolean_unit(source, environment);
+        // The selected original script-object compiler visits all four
+        // expressions before their possible runtime condition outcomes.
+        let (_owner, context, unit) = original_boolean_unit_with_compilation(
+            source,
+            environment,
+            tcl_registry::native_compilation::NativeCompilationContext {
+                mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
+                frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
+                ..crate::environment_ingress::authoring_native_compilation()
+            },
+        );
         let (function, _) = lower_original_boolean_unit(&unit, context.commands(), &unit.ir_module)
             .expect("genuine original condition source lowers");
         let purposes: Vec<_> = all_ops(&function)
