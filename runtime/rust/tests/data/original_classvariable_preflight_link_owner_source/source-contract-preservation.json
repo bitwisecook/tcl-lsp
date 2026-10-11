@@ -1,0 +1,22 @@
+[
+  {
+    "path": "runtime/rust/src/cmd_oo/native_context.rs",
+    "old_test_suffix_sha256": "a2d082c6ca8c6d03d76b9c0198d8082a716ce927e9f4af38a7f52c82214c6a5f",
+    "byte_exact": true
+  },
+  {
+    "path": "runtime/rust/src/cmd_oo.rs",
+    "old_test_suffix_sha256": "19f165383b4f1f11bf86e0e6179501e696e16572ee3dc7b94d6b90ef5793aa9b",
+    "byte_exact": true
+  },
+  {
+    "path": "runtime/rust/src/interp/native_variable_names.rs",
+    "old_test_suffix_sha256": "1461a16c6cb6c4982df580f533a5eeaac104ab9e795351094cdf3b3f121b563e",
+    "byte_exact": true
+  },
+  {
+    "path": "rust/tcl-registry/src/native_tcloo_method_definition.rs",
+    "old_test_suffix_sha256": "d2bb209fc1095ba0e175f65e1ddd1e903526db95b6f802c40103c994fd56605b",
+    "byte_exact": true
+  }
+]

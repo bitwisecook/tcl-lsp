@@ -1,0 +1,35 @@
+{
+  "joins": [
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOBasic.c",
+      "whole_sha256": "5782e57ef2753b052d904088cf26f43ceb96ab27afb7dbe99438e24a69e68e68",
+      "first_physical_lf_line": 1846,
+      "last_physical_lf_line": 1937,
+      "excerpt_path": "/tmp/receiver-oo-classvariable548/sources/tclOOBasic_c-1846-1937.txt",
+      "excerpt_sha256": "ab5f6b5a9bdf2086ec772844db4f19a1da21c12cd5fe3b42508222278aef9d5b",
+      "purpose": "C90 argc/context before all name validation, then namespace-only original lookup and original local link",
+      "execution": "NT"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOBasic.c",
+      "whole_sha256": "d8b40b5adf0e96bbcac34fa6a7035dbc4ac431218c28924766c4c13532aff158",
+      "first_physical_lf_line": 1863,
+      "last_physical_lf_line": 1936,
+      "excerpt_path": "/tmp/receiver-oo-classvariable548/sources/tclOOBasic_c-1863-1936.txt",
+      "excerpt_sha256": "4b0284cf3fafa99dd6958098d07fc57c8330bc763b25e23aa35a03e16f933ac9",
+      "purpose": "C91 head getter before current-frame selection, all names before all original links",
+      "execution": "NT"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInt.h",
+      "whole_sha256": "d05b67a6bf4832f3b94013caab7c6b7d6939982f077e53ff98b7c40c51ac40e7",
+      "first_physical_lf_line": 673,
+      "last_physical_lf_line": 708,
+      "excerpt_path": "/tmp/receiver-oo-classvariable548/sources/tclOOInt_h-673-708.txt",
+      "excerpt_sha256": "54ea2a95114ee0154721c25d8a0a9212d19c5af46655cf1782da43807964af7d",
+      "purpose": "Actual current FRAME_IS_METHOD context gate and typed context-required diagnostic",
+      "execution": "NT"
+    }
+  ],
+  "scope": "Static original C90/C91 source/API inspection only; no native process, callback chronology, class pointer lifetime or runtime assertion outcome."
+}

@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/workspace/.proofs/native-explicit-error-code-header-setter614/launch.py", line 104, in <module>
+    assert str(path) in request['required_sha256'], 'unpinned original header/source input: ' + str(path)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unpinned original header/source input: /workspace/tcl-lsp/tmp/tcl8.4.20/compat/stdlib.h

@@ -7138,6 +7138,3538 @@
       "candidate": false
     },
     {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614/compiler-version.receipt.json",
+      "sha256": "bfc2e969d727c1e261602b1111a8615c96f3196bfc8bcd14390c79ede6261f4a",
+      "bytes": 952,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614/compiler-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614/compiler-version.stdout",
+      "sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+      "bytes": 252,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614/launch.py",
+      "sha256": "93fbf6ea2e50030a0d2b6111717190e4b66519149ba2762f0fb0ffbb75719833",
+      "bytes": 9172,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614/manifest.json",
+      "sha256": "96a1721d1a61431d6ce7aa423e55a24cdd951300831e055de00c074232973321",
+      "bytes": 626,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614/outer-launch.log",
+      "sha256": "93dbcf86c8bddfa10b4afbee72bf396fc88af265af92130a3de8ca5f34c2a6f6",
+      "bytes": 401,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614/prepare-request.py",
+      "sha256": "be07c49e45feeb8fc749c481a9b2fd879372f08c46930de17d73c07272801f79",
+      "bytes": 10060,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614/probe.c",
+      "sha256": "d85ae996cf65de3bf3dc7beeb522e588af03178c93e336ddfa9b6d0dcfa4c614",
+      "bytes": 9620,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614/providers/8.4.20/compile.d",
+      "sha256": "830c0ca4008b99be2db812f8dcc86529c9bcab7c5f5b60944675dbe57b6d148f",
+      "bytes": 3593,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614/providers/8.4.20/compile.stderr",
+      "sha256": "bcc03f5474b0044a39ab2f803d15d566a51dd183641ed47960d91ee14ad7284f",
+      "bytes": 1801,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614/providers/8.4.20/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614/providers/8.4.20/link.map",
+      "sha256": "171e5fce56ffea874d02fc26660d695a715dd6fe29b9b6f5f6824a215d557f71",
+      "bytes": 195688,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614/providers/8.4.20/probe.elf.gz",
+      "sha256": "8737136eb198fded3b99005eb22f9507ce72554568d28d5c086e4a7b236a0a9f",
+      "bytes": 388244,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614/request.json",
+      "sha256": "7b392fce380053bbfd8f8fb772227534cac117fb3bad45cda145fa600e15d607",
+      "bytes": 632026,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614/source-windows.json",
+      "sha256": "e6a5539a87367dc7800480482a710daa19dc07f7271f8a9c8da9ad0fa76422e9",
+      "bytes": 7281,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614/source-windows/8.4.20-Tcl_SetObjErrorCode.c",
+      "sha256": "02f7c918b42f0bf851f67a69e4b27ae09f70de0a51d4cd1937b1c44f2394b451",
+      "bytes": 259,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614/source-windows/8.5.19-Tcl_SetObjErrorCode.c",
+      "sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0",
+      "bytes": 257,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614/source-windows/8.6.18-Tcl_SetObjErrorCode.c",
+      "sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0",
+      "bytes": 257,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614/source-windows/9.0.4-Tcl_SetObjErrorCode.c",
+      "sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0",
+      "bytes": 257,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614/source-windows/9.1.0-Tcl_SetObjErrorCode.c",
+      "sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0",
+      "bytes": 257,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/closure.json",
+      "sha256": "95fb794d063d11e77f7128c5571dbda8cb4d432f003ee6b7ca93892d078136b2",
+      "bytes": 2949,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/compiler-version.receipt.json",
+      "sha256": "1a6cb4a34e1f6bda9671ef87b4dc0e853f4ec5f9294233d5c34462833c8ff4c7",
+      "bytes": 1097,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/compiler-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/compiler-version.stdout",
+      "sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+      "bytes": 252,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/harness-refusal.json",
+      "sha256": "6b4d3645538e48091b7b5efa2d6b323de2639942b752c98244faa699f1342944",
+      "bytes": 2584,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/launch.py",
+      "sha256": "68bf157a7761d6e96cea97ac6c2e2eb9dac9ce8a0e16e6f224ff9154c36506ca",
+      "bytes": 12466,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/manifest.json",
+      "sha256": "afc23de9bfae87a97f1d104957cdeb1b408e7ff24e0086009cc4aff4555c169c",
+      "bytes": 704,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/outer-launch.log",
+      "sha256": "b3d4bf05e61f5925cb186cea7dff21f2e8d71390307723569b8298180490d006",
+      "bytes": 611,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/prepare-request.py",
+      "sha256": "40e87995810e415fc47e341c17bb2ce59f62fdd4edd27286137b811374f4ee66",
+      "bytes": 7326,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/probe.c",
+      "sha256": "d85ae996cf65de3bf3dc7beeb522e588af03178c93e336ddfa9b6d0dcfa4c614",
+      "bytes": 9620,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.4.20/compile.d",
+      "sha256": "53a7532a84deb092295f3a3bbe8ac7d72bb74bfcf4c11b4c88e001b60755a72d",
+      "bytes": 3595,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.4.20/compile.receipt.json",
+      "sha256": "6587d6e1522cc3a98d9a4eaa333f7817acd3152c83d5058d7f57b1797cd6ca06",
+      "bytes": 3188,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.4.20/compile.stderr",
+      "sha256": "560c4ad28336a1434ace2c8fc54a482f8c63b89128d34b0f8d95d4b4cbef5aca",
+      "bytes": 1802,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.4.20/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.4.20/compile.verification.json",
+      "sha256": "75582925c9e2ab7b2a549f588c549c831de6aab8a374d9a15079ffa67212d2c7",
+      "bytes": 39950,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.4.20/dependencies.receipt.json",
+      "sha256": "a920c34560e128d43c3677a659cdc7ddfe0fa29fca13be150f85ce28061dabde",
+      "bytes": 1152,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.4.20/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.4.20/dependencies.stdout",
+      "sha256": "2803391bf7a7e7f819125f573cbc1fce69656aea34823267b4022b6d0203c8c1",
+      "bytes": 222,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.4.20/dependencies.verification.json",
+      "sha256": "80c95ee503b54d87b0204fc503d1f0cdad4a7dfde9b21ccd61b5105848d1b841",
+      "bytes": 2409,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.4.20/execute.receipt.json",
+      "sha256": "777a750d71499eb0224154989d5f5873574a99751a94ca5a6327f6755892859d",
+      "bytes": 1190,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.4.20/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.4.20/execute.stdout",
+      "sha256": "d191a8f04d4250d07d0bae412bee28386d7f8ef2969bda0ad3dc34319417c904",
+      "bytes": 6782,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.4.20/execute.verification.json",
+      "sha256": "75192daf6750499b807b1a88f0e9448b9a88fade11bde6e12dd7b5692e20aae8",
+      "bytes": 5641,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.4.20/link.map",
+      "sha256": "7f05d5aa6304b29ecdecd93c8666197ae7341b0eaae4ddf00ffc8e03750d1fd0",
+      "bytes": 195689,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.4.20/probe.elf.gz",
+      "sha256": "8737136eb198fded3b99005eb22f9507ce72554568d28d5c086e4a7b236a0a9f",
+      "bytes": 388244,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.5.19/compile.d",
+      "sha256": "d1d406d108e670e730dd0d494d3a777c366aff9f3ee3142fc90afce6e865200f",
+      "bytes": 6422,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.5.19/compile.receipt.json",
+      "sha256": "7f8938324c9e7cfc63bfd536e8d9dd69dd9ae46b199574c2ac809717c2b4411e",
+      "bytes": 3938,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.5.19/compile.stderr",
+      "sha256": "3605c848279615e744b768337cd1b5bf99b05f6156810fa43d07c11a56e2a3df",
+      "bytes": 2327,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.5.19/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.5.19/compile.verification.json",
+      "sha256": "6a7ee1ac8836fb68a23cca7fca384982db5bc840711f6befada793c4a072fa19",
+      "bytes": 413,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.6.18/compile.d",
+      "sha256": "75769a2c19ecf5851f734213c32b234329b2abcf8299d9f2426d5af6ee33456a",
+      "bytes": 6834,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.6.18/compile.receipt.json",
+      "sha256": "dbd182f5823f95bea2e5e6e6a25a650b6d8b93820e8c1c982a059a0cbf316fe3",
+      "bytes": 4357,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.6.18/compile.stderr",
+      "sha256": "8083744e41dc228eed247de70fe4c6e9ab9947856e5a11f19f6b4068eafc7199",
+      "bytes": 407,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.6.18/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.6.18/compile.verification.json",
+      "sha256": "919eba05cf3d17b286ac40625ce940562a4cf35b4fe18847ef62f698bc10b8f2",
+      "bytes": 413,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/9.0.4/compile.d",
+      "sha256": "a701ab7ff694b295d1b99a2b92b1c66047cc74468e0773e846baf1193e4f6535",
+      "bytes": 7095,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/9.0.4/compile.receipt.json",
+      "sha256": "7bff9acde66ae68c97837094dfdbdf19fc540febf9204988b1eff32a7879f373",
+      "bytes": 4439,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/9.0.4/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/9.0.4/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/9.0.4/link.map",
+      "sha256": "790a1510d1a39a9756f608ffad0be679b1250bba5a0a10882a8682d300b30c00",
+      "bytes": 369509,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/9.0.4/probe.elf.gz",
+      "sha256": "473145c90f1ebef2f5e94afc03e691ccdac30b8f2dfe503b381cffc39be38101",
+      "bytes": 960121,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/request.json",
+      "sha256": "1ed74f5b7e426b927439da9bcfb36618a32e72f8e7aca7ce13e3279baa48b821",
+      "bytes": 1566552,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/source-windows.json",
+      "sha256": "2f71d4f3956c17fd094cd12ae802dc2323a4abf458bd6136d7d65f880a8c306c",
+      "bytes": 7286,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/source-windows/8.4.20-Tcl_SetObjErrorCode.c",
+      "sha256": "02f7c918b42f0bf851f67a69e4b27ae09f70de0a51d4cd1937b1c44f2394b451",
+      "bytes": 259,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/source-windows/8.5.19-Tcl_SetObjErrorCode.c",
+      "sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0",
+      "bytes": 257,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/source-windows/8.6.18-Tcl_SetObjErrorCode.c",
+      "sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0",
+      "bytes": 257,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/source-windows/9.0.4-Tcl_SetObjErrorCode.c",
+      "sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0",
+      "bytes": 257,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/source-windows/9.1.0-Tcl_SetObjErrorCode.c",
+      "sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0",
+      "bytes": 257,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/closure.json",
+      "sha256": "013adbdb4648f75408761e26fd231575293122d66c2b14fa1e3929fe99e7249c",
+      "bytes": 5424,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/compiler-version.receipt.json",
+      "sha256": "020e0a200bffd3c8f7e0ab3fab7a0db38e7ae15d9f9e5298eb53d9fac8e92eb5",
+      "bytes": 1192,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/compiler-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/compiler-version.stdout",
+      "sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+      "bytes": 252,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/independent-interpretation/interpretation.json",
+      "sha256": "9dad92ca07eec6a5b5b155f0193cb57a9bbc392216bb45eb8591fe297218e34b",
+      "bytes": 121717,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/independent-interpretation/manifest.json",
+      "sha256": "c090572331077009e8ba3e10c30537b02d80d7a3942d56f15abfb0f2289cab18",
+      "bytes": 450,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/launch.py",
+      "sha256": "909f7c9f6c9c877f6f8c22d7ba691688fab5ae06c4de6e073b2990797673e136",
+      "bytes": 12941,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/manifest.json",
+      "sha256": "eac4c5c62fb01b8565aebab485824a6f36df20e8a48fde0f63438adef5a027a8",
+      "bytes": 781,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/outer-launch.log",
+      "sha256": "6efdaf7bd2af887048f341fa3e15a4d16c192171072276b64a1cad9d80e852e0",
+      "bytes": 89,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/pre-review-link-pin-candidate/manifest.json",
+      "sha256": "2e6bc0f7b86dbdeba99085a82d456ef78fa881f7874b0e094cf2c912fa8a3c38",
+      "bytes": 781,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/pre-review-link-pin-candidate/prepare-request.py",
+      "sha256": "4e6a0cd0712ebd42834e1524596631f3fbc9892b961e140dc3038ed1849c04eb",
+      "bytes": 11383,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/pre-review-link-pin-candidate/request.json",
+      "sha256": "d7f2f9927065a97e754c408e2e35b155c20850130451839bc4d9611e188e3b8d",
+      "bytes": 2431484,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/pre-review-link-pin-candidate/selected-makefile-builds.json",
+      "sha256": "383384caf469fb6f7bc8566fe66ad3331fb9feada85d8a5ec1f3c05302d31295",
+      "bytes": 44246,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/prepare-request.py",
+      "sha256": "712fd262490db0be42dde87f7bf9436d29f065008f72c65c908142adf9e5dfe1",
+      "bytes": 12176,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/probe.c",
+      "sha256": "a23e636ebc18fc05ba7f7bb94e05d0856a453b4b278128bf8ce2cc09fff893b3",
+      "bytes": 9620,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.4.20/compile.d",
+      "sha256": "72e48d4f7413a2bc10771568db7ff224690fa88d6263ecb2d2cdd50e44c4bfed",
+      "bytes": 5142,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.4.20/compile.receipt.json",
+      "sha256": "a1f7fb20ff588b67ea5d09fb472e6e99c42c38d0af1c7985dda2df58d39d8fe1",
+      "bytes": 3449,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.4.20/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.4.20/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.4.20/compile.verification.json",
+      "sha256": "cc7f94b5272718aaef4e857847a3332ee70ce0b2a08ffbbc859a51fd6a23111b",
+      "bytes": 51464,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.4.20/dependencies.receipt.json",
+      "sha256": "d778fa0995995c24537973656364c63352db4f7ee4f77d91092be16f497c516f",
+      "bytes": 1245,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.4.20/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.4.20/dependencies.stdout",
+      "sha256": "efdea52f31a5cb356805e7c5e5ac696bbc6776b077ee1451c768f7e93ff1ec97",
+      "bytes": 222,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.4.20/dependencies.verification.json",
+      "sha256": "fc584387e0088027286845889f530f4cef0bde4b1c06c5aa41935f9bd52f57c8",
+      "bytes": 2409,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.4.20/execute.receipt.json",
+      "sha256": "21064e5115256f69644bc261f68f3cce948bf516d50d2ef93876e3dae4fe387c",
+      "bytes": 1285,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.4.20/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.4.20/execute.stdout",
+      "sha256": "66077a10e52572371c83dde5d52310c5e0c46369eb3fb36d3c11f33f8781b950",
+      "bytes": 6782,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.4.20/execute.verification.json",
+      "sha256": "22fe4eb7f6f33dc264d6d15b577725fb824711c3074b43753d78ec3440d8c06c",
+      "bytes": 5736,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.4.20/link.map",
+      "sha256": "cda09d28adfe2a3dbd5f4dd7a03ea070b14eea20382119cb6fda53d15ce0acf1",
+      "bytes": 195766,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.4.20/probe.elf.gz",
+      "sha256": "3ff1861071567a7e2ca570f1fcb963080d75159099abd4a69a3489325c25dc1b",
+      "bytes": 388108,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.5.19/compile.d",
+      "sha256": "35cc95de754e7954acca748f2f974136c16d5da721988d14ddc15507338f6a8e",
+      "bytes": 8374,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.5.19/compile.receipt.json",
+      "sha256": "c7621cfed3060c334f70b315a6c710cfc2538d228fcf5a3d2e409fb465dc9e72",
+      "bytes": 4192,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.5.19/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.5.19/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.5.19/compile.verification.json",
+      "sha256": "375fbe911e6e3fbaa084f84af31cb0de48dec2330ba087585471d687e5462969",
+      "bytes": 79819,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.5.19/dependencies.receipt.json",
+      "sha256": "107340652b745aebdb483c20d1b45de8efae3b0edfbdc6c0b5d0ccd510015adf",
+      "bytes": 1246,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.5.19/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.5.19/dependencies.stdout",
+      "sha256": "952903aed5580e6277f2dc07e10ecffc48f863a859486a03a91cb7dfb35df61e",
+      "bytes": 222,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.5.19/dependencies.verification.json",
+      "sha256": "a7c16cdb1bc64dec57c260b3a893cf8f61ec954cb915787fc188caae0f507008",
+      "bytes": 2411,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.5.19/execute.receipt.json",
+      "sha256": "c7df7bcf833187d4e90ad3a19aec7ec66354f6febb67c5bf5f96959f3963427a",
+      "bytes": 1283,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.5.19/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.5.19/execute.stdout",
+      "sha256": "b36604420d4dc4e3dcffa11328c6ffa1c6eb886fba3b94099ee489cd2b5fa1a1",
+      "bytes": 6669,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.5.19/execute.verification.json",
+      "sha256": "f71ce01df3bedb39795fa0c797183f4830bf015801ec9a8d1ce1ae470ed78c51",
+      "bytes": 5737,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.5.19/link.map",
+      "sha256": "22d6f323b6886a188aa58bc21948188c89f0ed2b7e77ae6d5f351fbe705fd6e8",
+      "bytes": 297138,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.5.19/probe.elf.gz",
+      "sha256": "7bc85868ea0d5144a2439cc5319533b8578f78ceb8a3cc5afd83bf1d6c682234",
+      "bytes": 568027,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.6.18/compile.d",
+      "sha256": "a7821e6d7b93bb242ac9a1f1d845fd7f6e133a2180551dc0c639aa19ae02aa3f",
+      "bytes": 8364,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.6.18/compile.receipt.json",
+      "sha256": "019e12b544d17592cc5a679df619e27d770bb3de09d9582b7a271eb4989b61fe",
+      "bytes": 4551,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.6.18/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.6.18/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.6.18/compile.verification.json",
+      "sha256": "4bab6423afced643426ca5c4b11db2e4c5a145bb4adf75ada12a51f87dcf54f9",
+      "bytes": 80665,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.6.18/dependencies.receipt.json",
+      "sha256": "c71ae6d24d9f455f748cafc26e4af70072d311f7be2f061809ef060975bed3bc",
+      "bytes": 1246,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.6.18/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.6.18/dependencies.stdout",
+      "sha256": "3faf04ec0cb3d1e73c3fd2dd754a80a2d190464ec9ff8ee1bf9eda5b6c39792f",
+      "bytes": 289,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.6.18/dependencies.verification.json",
+      "sha256": "0aa5c14e901ba4fdcbd5eb33a5d4ed8507aa2f9db17c6696700dea6f196806e8",
+      "bytes": 2778,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.6.18/execute.receipt.json",
+      "sha256": "5f8b538dd92ea5837a5da8c904336f86f1bcb943ac433c37ac48feaf1e7ba1e4",
+      "bytes": 1284,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.6.18/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.6.18/execute.stdout",
+      "sha256": "897114bac92a6b7b30fc4a58e143101b03ed4899df66847e52deb8e229146124",
+      "bytes": 6669,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.6.18/execute.verification.json",
+      "sha256": "c2ee6eb7cceafee827c59d51cf83beb22856fac1a1474d3a0315924595d9864e",
+      "bytes": 6472,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.6.18/link.map",
+      "sha256": "ab5d096eb1e3a945381fd686a39f88d55a5d432328998b06571aef5fcff4902f",
+      "bytes": 343608,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.6.18/probe.elf.gz",
+      "sha256": "d31a8c5951df366d417f2445b9d20d446fe96548fbb4cb49558c354155c54728",
+      "bytes": 809771,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.0.4/compile.d",
+      "sha256": "2151f4f0eff900b071d8fa430818784cfc9ebbb31ebe1b063e28d3e6700ab1b8",
+      "bytes": 8385,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.0.4/compile.receipt.json",
+      "sha256": "98307ee2880ed7b841708d1c9c20ae3713fa4e6f80e0bf66b0e93885dcb6aaa9",
+      "bytes": 4798,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.0.4/compile.stderr",
+      "sha256": "0521a4580d31e1f424f7d267741dcb07e88ad7cbd9706eb1d06598f1be806360",
+      "bytes": 1572,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.0.4/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.0.4/compile.verification.json",
+      "sha256": "ae864d61f9a79cca024976be21771a3ca961abec5e956bd12a85a20e1aa87396",
+      "bytes": 81301,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.0.4/dependencies.receipt.json",
+      "sha256": "58e501f8b6d8460c379f4f4cfd994f10e63fdadbbae032796e0098b69764e33f",
+      "bytes": 1242,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.0.4/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.0.4/dependencies.stdout",
+      "sha256": "fefe474893e164ff747d91d656e6aa399feed803e3d209cf68ec22bbad9ecdc9",
+      "bytes": 289,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.0.4/dependencies.verification.json",
+      "sha256": "ebbd60b45a4ed24ccd3da26dc3d6b399e62a04f0548f13ead079bca49e076903",
+      "bytes": 2773,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.0.4/execute.receipt.json",
+      "sha256": "3ae4e0f24ce806d62e874431e913b65cec26ba862f97524d70d6340b3c8c7777",
+      "bytes": 1281,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.0.4/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.0.4/execute.stdout",
+      "sha256": "b943735978c207eb754ccf73288e176dbc8f1d4f07ef9f16aeb9cae65f398ef9",
+      "bytes": 6668,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.0.4/execute.verification.json",
+      "sha256": "82b2e16065cad48e28f021f5762ee1c06d15856b67c8ece3233501f6f22db0ec",
+      "bytes": 6461,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.0.4/link.map",
+      "sha256": "f184cf5794c0eedd96434deab9e516e00cd1b0508139f6266c3c56a89d162df4",
+      "bytes": 369658,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.0.4/probe.elf.gz",
+      "sha256": "abed326635495b674ec3e4d9c685ac8c45ed0663ba77171c1f11ab19804b668c",
+      "bytes": 959961,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.1.0/compile.d",
+      "sha256": "d53715459f238d3fcd441964a85dc2ce39717daf7ecfadd0e3e58b6274c72a7e",
+      "bytes": 8385,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.1.0/compile.receipt.json",
+      "sha256": "882a39a5384e4080ee9d2313459df41dbaacf08eb2edbae6cd9e77eb5c3e85b8",
+      "bytes": 4862,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.1.0/compile.stderr",
+      "sha256": "26b57559f6c4db7a65f59b04313f0fe85d8020b3290ed8bce2f6f49efad44a65",
+      "bytes": 1572,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.1.0/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.1.0/compile.verification.json",
+      "sha256": "e5cf4ab75f4111c84667abd50977a01e6b2754b56c4f7828e7872a7193b66330",
+      "bytes": 81746,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.1.0/dependencies.receipt.json",
+      "sha256": "653d7e43c5e1bdcea6a58fea0bbd6336aca40bb996a9a782a42091c9324f30bc",
+      "bytes": 1244,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.1.0/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.1.0/dependencies.stdout",
+      "sha256": "e066dac676492069fe680d40d967789865035fe7922a408fe8971ceaff395afa",
+      "bytes": 289,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.1.0/dependencies.verification.json",
+      "sha256": "dcd2713db2d651a644f470ddc97b711fa84e7b76f0d0f9315acd8c308e37efb3",
+      "bytes": 2773,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.1.0/execute.receipt.json",
+      "sha256": "cc367c3d7df2761a70a43acc7f72cb5863a5b98a7f3a47d9fadc7124f2c1bbd0",
+      "bytes": 1281,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.1.0/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.1.0/execute.stdout",
+      "sha256": "83c56543c27bb85651273a3b4464baa6eeb83640bbb4bdd1ec7feb80d2b388f3",
+      "bytes": 6668,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.1.0/execute.verification.json",
+      "sha256": "27234f899cd94d56e7a0e09266f9eadd2711c8301da6bf7cc707d35ad503c409",
+      "bytes": 6461,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.1.0/link.map",
+      "sha256": "801cc8f5305f7b734efe0e96772181508abefd39e78903f9a8c726824d97a4e5",
+      "bytes": 380884,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.1.0/probe.elf.gz",
+      "sha256": "e92d1802cf708f7df8a28de9ed54b8acc33d1ea3d1274c24afae58e57b146571",
+      "bytes": 1028510,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/request.json",
+      "sha256": "f12d6c65ddf19995cba44ef55dd6f0768a935a95fe773879e1faecbe5db3fcd3",
+      "bytes": 2431921,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/selected-makefile-builds.json",
+      "sha256": "383384caf469fb6f7bc8566fe66ad3331fb9feada85d8a5ec1f3c05302d31295",
+      "bytes": 44246,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/source-windows.json",
+      "sha256": "7478691adcbd8d5b896c2337a7f167e45b0c3b5436cd2011389e122b203442bf",
+      "bytes": 7286,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/source-windows/8.4.20-Tcl_SetObjErrorCode.c",
+      "sha256": "02f7c918b42f0bf851f67a69e4b27ae09f70de0a51d4cd1937b1c44f2394b451",
+      "bytes": 259,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/source-windows/8.5.19-Tcl_SetObjErrorCode.c",
+      "sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0",
+      "bytes": 257,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/source-windows/8.6.18-Tcl_SetObjErrorCode.c",
+      "sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0",
+      "bytes": 257,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/source-windows/9.0.4-Tcl_SetObjErrorCode.c",
+      "sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0",
+      "bytes": 257,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/source-windows/9.1.0-Tcl_SetObjErrorCode.c",
+      "sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0",
+      "bytes": 257,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/independent-review/interpretation.json",
+      "sha256": "7c713cf0caf551c01796cdaa58f72cceddc3f474400e3c25e53bfc3222f807b2",
+      "bytes": 20301,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/independent-review/manifest.json",
+      "sha256": "067902de9d5fe30a5785243895e85d95b5f167d2472267291bbe778a0c87714c",
+      "bytes": 579,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/independent-review/receiver-peer-native-error-code614.json",
+      "sha256": "47420235d33270cf6ad681158d9917539bd05e1465b47613b7e03ca5e2c86e22",
+      "bytes": 2443,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/independent-review/receiver-peer-native-error-code614b.json",
+      "sha256": "05faec4b97f325e8179424ecfb8582e7cbf1b703df0216cbdede3bb2a032db79",
+      "bytes": 3235,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/independent-review/receiver-peer-native-error-code614c.json",
+      "sha256": "3335efcd5b10d7e2bd77a5fc6f7c34de9dac6ce8173d7ee8cd71ff003e892b45",
+      "bytes": 3687,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4415-tclResult.c.gz",
+      "sha256": "3afbfb3aa961d72bfdc4a5acc0b0023841c87d102ac06001d3411ab54e0de494",
+      "bytes": 6240,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4416-tclResult.c.gz",
+      "sha256": "6f0ff5ffc5396df15fabc395ec4bf1d0ed5642bc1837c2e54a88a631ebe2b253",
+      "bytes": 9341,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4417-tclResult.c.gz",
+      "sha256": "138c65b1f18d3451c13bcb5189e4718081cf913620889a86756ff869304760ae",
+      "bytes": 10181,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4418-tclResult.c.gz",
+      "sha256": "7a46a883eb840f74548a4feab9806c9d51a8761b440cc9aea84cce60dada098a",
+      "bytes": 7351,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4419-tclResult.c.gz",
+      "sha256": "dd93897b14cbf4a64999de0ba29db43c41aaebadd22ed125324574274ddc7d84",
+      "bytes": 7758,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4468-README.gz",
+      "sha256": "23670da00bd4d760befdee2917be39de2ddc2e77963c5eb941cad86a2f79dca1",
+      "bytes": 245,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4469-dirent.h.gz",
+      "sha256": "b9faa2bd874a5dfed64ae727178b3d5cdd270a3d33524b6968257fc1637c82a2",
+      "bytes": 332,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4470-dirent2.h.gz",
+      "sha256": "427b571c9edaf61c671ed12b08f63533bed437794879c69a6a019ba612102d4b",
+      "bytes": 723,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4471-dlfcn.h.gz",
+      "sha256": "44bcb583d679f24e3c752614c7e2ea749aa4eed3253fcf3359225af3fdee5090",
+      "bytes": 898,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4472-fixstrtod.c.gz",
+      "sha256": "71b838c5a7b60b2d87c3f4170d3f7c91c9082a9e92f77715f9f89397ef1e11be",
+      "bytes": 501,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4473-float.h.gz",
+      "sha256": "9072730776cd63235b5e306a752b23258df31b9f51fef84e3d14e4a77945904a",
+      "bytes": 342,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4474-gettod.c.gz",
+      "sha256": "c617a82286f2b5791576f6001b620e2584449de899fa3c465d8e4b2db5f2106f",
+      "bytes": 366,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4475-limits.h.gz",
+      "sha256": "070e74c33201391d903cf2d8668d4b1847c18810f0d9833dedf71722ca06a8db",
+      "bytes": 401,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4476-memcmp.c.gz",
+      "sha256": "76dab57efb34474888017b892fbb7c9793dc5796878d5e194d094fa5cfc138f0",
+      "bytes": 690,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4477-opendir.c.gz",
+      "sha256": "62fa9f6f0a1a08620d56c10452acb8dc91a2d4e1835d5cf9e0ab7c8157c2bc3c",
+      "bytes": 897,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4478-stdlib.h.gz",
+      "sha256": "4cd478bb23f72ed99a29c4703fd6e97219edd7a53d32c2b7fed9001bb7c1edde",
+      "bytes": 710,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4479-strftime.c.gz",
+      "sha256": "0e762485b235dea3491d78b57bd8d2a2c294293f9f7cd615e1df7c201251f559",
+      "bytes": 3999,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4480-string.h.gz",
+      "sha256": "0eadea32abc342732d7a44f6969f44a1d186f997adec89ab7552757268b65d7f",
+      "bytes": 782,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4481-strncasecmp.c.gz",
+      "sha256": "c72bfa2e03000b2ab9c63ddf90dda2660ae016dcebd5d97fdb997ce48c50682f",
+      "bytes": 1408,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4482-strstr.c.gz",
+      "sha256": "ecc43460f9137888b762aa955e7a038c22b1fc56dac47dc3478fc727139779b0",
+      "bytes": 744,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4483-strtod.c.gz",
+      "sha256": "e0ac2a052809b8037d63d145f125fc6ba3580a63b768d0e52870ce25f73bfddd",
+      "bytes": 2276,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4484-strtol.c.gz",
+      "sha256": "217518dd56c4289e8de7aacc2eb3fb0f5883259b4ed324461ab97aa9969df425",
+      "bytes": 946,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4485-strtoll.c.gz",
+      "sha256": "b985e534c46ea2003f55c8f1725044a1de0f84d707e5b27b35d68312ba0ce0cf",
+      "bytes": 1130,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4486-strtoul.c.gz",
+      "sha256": "ff58dc950f37f03285c4f8b7e6d1adf3ad94e1e93ab68a61296af88e0bc54648",
+      "bytes": 1752,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4487-strtoull.c.gz",
+      "sha256": "f956e9135c86cf1f593a84bbad492346fdcf12001e161a665acbfc8251e0149f",
+      "bytes": 1856,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4488-tclErrno.h.gz",
+      "sha256": "a85db504d8c6be07b5156355700c3a0e79a406adb9d6217cac17c5613d2dccba",
+      "bytes": 1851,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4489-tmpnam.c.gz",
+      "sha256": "45b722ae31b8a36eec4b498b9255ff4b59362a2b3be4a5f86e24915026271fea",
+      "bytes": 557,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4490-unistd.h.gz",
+      "sha256": "3c1ac026b1c1491d241f738a68a5653a083fe19c83c0b79aa9b396ed698b2b7f",
+      "bytes": 970,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4491-waitpid.c.gz",
+      "sha256": "8f5ff7012e54588a05cd4b2fbc8270fb83b896dd1b3add1d751e4b964004fffa",
+      "bytes": 1871,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4494-dirent2.h.gz",
+      "sha256": "6c6a5b13574990178f737d7d7dcf309526a0e12ecdc031d5027eb883e9a53ec1",
+      "bytes": 686,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4495-dlfcn.h.gz",
+      "sha256": "f4e3d0ba1712297234d3eedd9925d4e60a159ed8ed6c4c2b2cc660227b43021a",
+      "bytes": 818,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4496-fixstrtod.c.gz",
+      "sha256": "46f90091c947a78d24a13a5a71ae0b5ac2b3628d31aa089049ee7c8163c7a8b6",
+      "bytes": 503,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4498-gettod.c.gz",
+      "sha256": "02bf306b662bd24aa256e48afb0df44f7d820b2b8dc89142742e61824408545c",
+      "bytes": 359,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4500-memcmp.c.gz",
+      "sha256": "04fcdef67c21d28d65007d1a792cc60f1599261f1d3a5b7eafe66569427f58ca",
+      "bytes": 696,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4501-opendir.c.gz",
+      "sha256": "44076fff735de3c193c973083cd7c3431233d5544a36129dbe860c2a55ead46b",
+      "bytes": 908,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4502-stdlib.h.gz",
+      "sha256": "4c12f4a617e329f4beeff18648bfeed0185fbca4c299de888d5d2f805ac3ec44",
+      "bytes": 653,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4503-string.h.gz",
+      "sha256": "d3c245e7633634c74416afa3d72715c19a4b230a5467ae24b68dad545c664daa",
+      "bytes": 731,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4504-strncasecmp.c.gz",
+      "sha256": "1d9a206b35f211a0c2b917da02d799c8a44406043f2432905455a0ae119d61ee",
+      "bytes": 1377,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4505-strstr.c.gz",
+      "sha256": "34e4032faefe77fb06acba2e3f1f866051f21320f3a9470e6e2295b55f71b9d3",
+      "bytes": 736,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4506-strtod.c.gz",
+      "sha256": "da530dee393bbe40a768eb3d5af4325ef212b7a89a06a5f1a623c783d61096c5",
+      "bytes": 2261,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4507-strtol.c.gz",
+      "sha256": "106d261bb22c36f8e9eacec8d04fc97b0d0978bcb0a540c1e548960bb3ebe81a",
+      "bytes": 929,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4508-strtoul.c.gz",
+      "sha256": "8f7e96e17cc7da909d4a4b084c066693d9cb343463aa056054ea6ad991029d09",
+      "bytes": 1730,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4509-unistd.h.gz",
+      "sha256": "3bbec45c5d14b04154d6e8028f109bb5d1d98e4656fcf5387af52b99a00a3287",
+      "bytes": 930,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4510-waitpid.c.gz",
+      "sha256": "fa8aeb464c967e1a47659000e65849244c89d6847dc76416483bfb7630567876",
+      "bytes": 1853,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4515-fake-rfc2553.c.gz",
+      "sha256": "f0bc96fff92430d9e4c4616fae69ff082e26253ab7c515e33a6c79db8c03f2ae",
+      "bytes": 2819,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4516-fake-rfc2553.h.gz",
+      "sha256": "71a12403b9fae24fd0991ffac83fd8217adaabdef969878664b98f06f0f855aa",
+      "bytes": 2088,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4518-gettod.c.gz",
+      "sha256": "7c6c364ac895ee3ac806c8167b0f31f5c589d37f78009c26530610c4016f3e0b",
+      "bytes": 366,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4519-memcmp.c.gz",
+      "sha256": "6b06aa8a30b09d4e91a26ba2d027be7aa582f1a164a9cfbf19b7dca0ec1c2680",
+      "bytes": 692,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4520-mkstemp.c.gz",
+      "sha256": "70bd921ca44d7b9337fabdd119ae1a4fd58ebe9e76792a0932f009508d0abd49",
+      "bytes": 911,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4521-opendir.c.gz",
+      "sha256": "2b6b15e88cda358a8364566bac37517ccc8774c8d408cae4617e52d44acf5bb3",
+      "bytes": 902,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4522-stdlib.h.gz",
+      "sha256": "bd7415279b52ef0db200ed71ca5e1ceeea21ff2446010d72a1364d732afb9796",
+      "bytes": 708,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4524-strncasecmp.c.gz",
+      "sha256": "d2d7bfc2a6e3f592ddf03e593359bcb86edbe5da4237ef26f567ec492f44a041",
+      "bytes": 1375,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4525-strstr.c.gz",
+      "sha256": "2702b8f1d39b0e8b815b559353463c27ae28809cd0449e9bc8fe73880b908fe1",
+      "bytes": 733,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4526-strtol.c.gz",
+      "sha256": "1611f4b590d9bf0649a59e423350777777290c4f42cbac3fcff2e813bdd33aba",
+      "bytes": 909,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4527-strtoul.c.gz",
+      "sha256": "e44b97466049e81825327bfa252c1218ffad91822d57c97a4ebb53e5957afa74",
+      "bytes": 1712,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4528-unistd.h.gz",
+      "sha256": "9a1b75b725323b7555ec3819a4fb952e1c0696ba08b843c679ff8c818ef06dc0",
+      "bytes": 934,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4529-waitpid.c.gz",
+      "sha256": "96fd18496f307845f6a8c517a5ffaf9f3c89588f0a00fdbd986706e0609e134d",
+      "bytes": 1865,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4530-BUILD.bazel.gz",
+      "sha256": "bfed2fc3cfb476cb0eb7f07fa11cd21ff9cfb364fd2af15f0f4bbc3416a0095d",
+      "bytes": 1982,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4531-CMakeLists.txt.gz",
+      "sha256": "979e508a0ae0aa266de43037c92fe9ad7b8f978567d695cba64b9e02e1d422ad",
+      "bytes": 2650,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4532-ChangeLog.gz",
+      "sha256": "86e691aa7cd8e2140eb62a38a97c70bc978e104ba32e71ea0ac77530ee1affef",
+      "bytes": 30503,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4533-FAQ.gz",
+      "sha256": "9d860c12b1765928fd061da9e7f001f9dc1bf72b12b220c91bf5997af624c6e2",
+      "bytes": 6717,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4534-INDEX.gz",
+      "sha256": "5f08021d342aade90d71232b076c480aee8e1016ef2cb16a069c1361d834b2e8",
+      "bytes": 849,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4535-LICENSE.gz",
+      "sha256": "8d8100628e21579321fad4d7d22402fd2043624b7f96a54c8a78823741ed5db1",
+      "bytes": 546,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4536-MODULE.bazel.gz",
+      "sha256": "8e83f990261b36b5433209cf781d1dad3d4c51aba8d826b65950c0e1910d28ae",
+      "bytes": 143,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4537-Makefile.gz",
+      "sha256": "d32602c319d39f135630427537a17ab5b52c1a66eff29733ba7fbed4c10a29f2",
+      "bytes": 107,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4538-Makefile.in.gz",
+      "sha256": "bcaaae91894694fe515e2da4d2d754be3ab045138b9121d056bab3f9b23584a4",
+      "bytes": 3343,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4539-README.gz",
+      "sha256": "da71581c77dff7ac9e18158a66bc79bf31def3bd4454669aec51d3317ec4eddf",
+      "bytes": 2502,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4540-README-cmake.md.gz",
+      "sha256": "42d1ab471b56a3365243d942de0f062897583625f6da6a46b34d732451a57474",
+      "bytes": 1185,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4541-adler32.c.gz",
+      "sha256": "498f7778dc35b6cd669f878ac98f646595cea1976f5e91c07ad9a6d61846e8d5",
+      "bytes": 1577,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4542-Makefile.pup.gz",
+      "sha256": "1afac56251de0f854f655d54172e8034d191bb26bac1287f6fdccf8d3bf3cc6a",
+      "bytes": 813,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4543-Makefile.sas.gz",
+      "sha256": "4ee24ab1cd3d0f90534bcd6edfa0f98d1aad31c765ca9d547118dbb10d14dbfe",
+      "bytes": 780,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4544-compress.c.gz",
+      "sha256": "2dcb6833b34ff8ea892c4dc89c8c7f96e726750f5372fc5c7024b19de123ffa8",
+      "bytes": 1220,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4545-configure.gz",
+      "sha256": "f96c291c824ba01847d5b410f2fb3ac36123b6346226c6ecb847563ea86be540",
+      "bytes": 7724,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4546-CMakeLists.txt.gz",
+      "sha256": "c23d0826276bfd7ffcfcf1ddcc4d26a6d99a1171aa013afb98458b668ec3e9cc",
+      "bytes": 710,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4547-README.contrib.gz",
+      "sha256": "a0b5cecc50bfc6cac6451e768033b1146eb5dcb31a5508ffeab7a9fbbc38d44c",
+      "bytes": 1069,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4548-CMakeLists.txt.gz",
+      "sha256": "2c1035e8d689e00fde742acf9c455bc8723abd57b91b3f7b86efd8c351ec6e6b",
+      "bytes": 1306,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4549-buffer_demo.adb.gz",
+      "sha256": "1923e064953bef0955a800563b3bb546e98cc101a929fea644b43d3a894441b0",
+      "bytes": 1341,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4550-CMakeADACompiler.cmake.in.gz",
+      "sha256": "3721e2fc4f7d4c4cff175c308fe457f4f30b9611968c0539d50759986e38b565",
+      "bytes": 280,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4551-CMakeADAInformation.cmake.gz",
+      "sha256": "6650789c55184b5ff13e2786f64971054961b4d3752c49a167d88a2cfcda1e2f",
+      "bytes": 1251,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4552-CMakeDetermineADACompiler.cmake.gz",
+      "sha256": "8ba859d1f349c2bda8f3576663a423d32d30ba05645a9b25c8b68be2e5b03493",
+      "bytes": 494,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4553-CMakeTestADACompiler.cmake.gz",
+      "sha256": "3a3863bfdde7494d7563fedb342df89a6358c702e4fe3a480169774d7edb6311",
+      "bytes": 602,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4554-binder_helper.cmake.gz",
+      "sha256": "faa26dd12145a256bbecd72912c07d1afb82c2e951b60cb5e5865856675e2bf0",
+      "bytes": 530,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4555-compile_helper.cmake.gz",
+      "sha256": "341970b4d101cc2b2e1991d23afc3d8dd5b132a9a63619febd8aea443175bee7",
+      "bytes": 360,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4556-exe_link_helper.cmake.gz",
+      "sha256": "2170273fb0e10c07c5d8734bd83069f8f9385cd02f213cb19374b521178d9fbc",
+      "bytes": 549,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4557-shared_link_helper.cmake.gz",
+      "sha256": "201bd5d81888fd686954cea759d3189b91a1956b96dfa1efb44c8d07aea08740",
+      "bytes": 539,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4558-static_link_helper.cmake.gz",
+      "sha256": "2d1830ccad47569b78522e29de9ddfbdd6e607bbc8e95343296104062832c942",
+      "bytes": 345,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4559-mtest.adb.gz",
+      "sha256": "ff6c131384aab10515f06f0f538ae3591af6611e7cddb38c099d13104d327ca5",
+      "bytes": 1317,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4560-read.adb.gz",
+      "sha256": "69d91e2c22a43e6f0c8646fa301cdab50d8331d997d41400700c54374dce98ad",
+      "bytes": 1382,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4561-readme.txt.gz",
+      "sha256": "2351604e7a93172f46440e9b54b2d6b72a37c01ca95e92a546da1aaf500f9831",
+      "bytes": 1057,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4562-test.adb.gz",
+      "sha256": "558e5112743bf5c5327fa20cb2a34eef6cacf09ed09650824110aaaa50c3acdb",
+      "bytes": 3002,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4563-zlib-streams.adb.gz",
+      "sha256": "b80aad92a45b1e00846bf46aab31f8ab6bb0f974dc567b9ad6a2360ca13809e2",
+      "bytes": 1369,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4564-zlib-streams.ads.gz",
+      "sha256": "efdb971870252d4bd4219642ce7bdbd3b4ab12cc7fade8355b1d79ff65ce56ce",
+      "bytes": 1192,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4565-zlib-thin.adb.gz",
+      "sha256": "4e96060f4af78a4e37b623e61be1054000287fd9c16ee9ab62e20d74f20cd598",
+      "bytes": 899,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4566-zlib-thin.ads.gz",
+      "sha256": "52e3ae6b09f5acc8dccd73f4f339499a261f8defbe7180cfbc9ac592a471c790",
+      "bytes": 3409,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4567-zlib.adb.gz",
+      "sha256": "818d1457235f077d1be1d02c921c620cec42f8e2c91014cedc1af24bf58607de",
+      "bytes": 4152,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4568-zlib.ads.gz",
+      "sha256": "369a5f19e9b160a8b9aa4816fbbd7eaf61a285f24097dc3f1e7bac267b3369de",
+      "bytes": 3664,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4569-zlib.gpr.gz",
+      "sha256": "db1cb96e22697047f845f1f98b470a6afc90c706b17fc7a2534c8b44790720f6",
+      "bytes": 251,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4570-match.S.gz",
+      "sha256": "dda679c1c63e7034ddddf88f82c07ff9bfbe30d75bf065894cdfc75442bad6d1",
+      "bytes": 3744,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4571-CMakeLists.txt.gz",
+      "sha256": "7320db851bae85482602d91729585d71cb4270d7a9596600e39d2b30952dc2c7",
+      "bytes": 1369,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4572-Makefile.gz",
+      "sha256": "74dcaa80bd7f50e5331b110e0cbf0a98bb73dde6a33a7428b58ce9d498ed0b37",
+      "bytes": 166,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4573-README.gz",
+      "sha256": "bdff2bb22919e2834a59460116dfdedfc2b8d4d57583c1db3e7f29c33b7eaeb0",
+      "bytes": 89,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4574-blast-test.c.gz",
+      "sha256": "523cc952a8d8bf12a33223d0ede3a198d4b9c0434bab26fa2963c163d5984e18",
+      "bytes": 495,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4575-blast.c.gz",
+      "sha256": "c69e2b91f2cb411c39e273e1dd12e9f6547ff3315556eb634ead24a65415e97d",
+      "bytes": 5521,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4576-blast.h.gz",
+      "sha256": "5a6a721f0ce8bae44c72b3509a82124f2db3d056625a84f67411ca70de3af8af",
+      "bytes": 1728,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4577-blastConfig.cmake.in.gz",
+      "sha256": "d563fcc3318244fa891a2f9fa291fd184305c678610b4a09ee7770feccdcb0e8",
+      "bytes": 279,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4578-CMakeLists.txt.gz",
+      "sha256": "04d8191eb91ee3c86dd3060fe7ae23baab660f2448d1421400405a7c9a6f861d",
+      "bytes": 967,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4579-add_subdirectory_exclude_test.cmake.in.gz",
+      "sha256": "05e9621560b7b29b30668fd74b14a5d6cbe9a5328dd939f4934e3a816fb01437",
+      "bytes": 357,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4580-add_subdirectory_test.cmake.in.gz",
+      "sha256": "ffcff5e7b88bccea2df929b844a3827049fa7d2903db9be716c1f8d8dc1bebd2",
+      "bytes": 342,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4581-find_package_no_components_test.cmake.in.gz",
+      "sha256": "19b4c2801b29a107857747b10a328e1d5fe9175d6f4a4eef1542e1551dbe8c8e",
+      "bytes": 311,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4582-find_package_test.cmake.in.gz",
+      "sha256": "db89415f3db29db147a535e8e5c4507314d9ecc3ad8aefbea64087527d69a67b",
+      "bytes": 328,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4583-find_package_wrong_components_test.cmake.in.gz",
+      "sha256": "2da69b85d06696b1bb6bbbd4863b683dfc09686a5fb463853a758434debcf7f2",
+      "bytes": 324,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4584-test.pk.gz",
+      "sha256": "215a2e2a44b235d2db74b48f4540e279e1fba2c1ec230ff60917b121cacf23eb",
+      "bytes": 28,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4585-test.txt.gz",
+      "sha256": "74f1e7950cc2072028baa5c865939d1b368cbb75f7c0bde63d8c742ee24adc29",
+      "bytes": 24,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4586-tester.cmake.gz",
+      "sha256": "99398efdb2c662e978b9586041fc5a5c6fe1cd77866dac83397e92d511e822b5",
+      "bytes": 363,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4587-CMakeLists.txt.gz",
+      "sha256": "ef04c8b4160e90c9ceaa2892762b53a4583a2c129495bde385d4d689a551918b",
+      "bytes": 784,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4588-README.gz",
+      "sha256": "f04523824fa5d780ad2895c9059ed27c6d10c88b4e8cc82ae7973ac3dd3a3f7b",
+      "bytes": 242,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4589-crc32_vx.c.gz",
+      "sha256": "c0ff21bda724e4ed8add1dc85140a006fb98dd70f22c00fb5df81c82debe1b90",
+      "bytes": 3201,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4590-crc32_vx_hooks.h.gz",
+      "sha256": "95bc28197761e736e4226e07fe59fa677000aa600da5528b888fea357d8913a9",
+      "bytes": 171,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4591-ZLib.pas.gz",
+      "sha256": "97ba36b1d942246fdc6823fa132fa590104f2fb01ab2c662ec4aa1ba1a924d53",
+      "bytes": 4012,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4592-ZLibConst.pas.gz",
+      "sha256": "b0304f6e2870530cf4395fe7f0406f0306ea5d2d0dfff0edce98158f9e344a66",
+      "bytes": 155,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4593-readme.txt.gz",
+      "sha256": "d28b5fa02ff807f8838e8a5a1747acf4fd467955166be3e939afe10c6e269884",
+      "bytes": 1226,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4594-zlibd32.mak.gz",
+      "sha256": "a7f61e6d7a207cd6e6aa62fd1cdf59dc7d13170fabcffaccf63e67f08d288041",
+      "bytes": 859,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4595-AssemblyInfo.cs.gz",
+      "sha256": "90ebd288ae6acb2c864ce42a530de52696fe479ca18d439458a6d1d68d974fe7",
+      "bytes": 1022,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4596-ChecksumImpl.cs.gz",
+      "sha256": "fe985ef7f68aad4a80b4c70bea85b4f841033a9a440d275e5dc0771e8edee36a",
+      "bytes": 1523,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4597-CircularBuffer.cs.gz",
+      "sha256": "dbd994d9972512d7d4b1f6efa42eae232a0b34f86e5625a9d88087db85da5c8d",
+      "bytes": 736,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4598-CodecBase.cs.gz",
+      "sha256": "e4db604abccdd376b373b69f8d5c34d3212fa200eeefd4f57d7d6a251d819874",
+      "bytes": 1739,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4599-Deflater.cs.gz",
+      "sha256": "8cdf07d0c642057f2d997d7886d2533c6e0fc97c026bd9d43adbcf9723fa4dfb",
+      "bytes": 1337,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4600-DotZLib.cs.gz",
+      "sha256": "ef3008d08f85cab33cc095890cd7df8792622a4b2ec39060650cbdf07c5fd929",
+      "bytes": 2553,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4601-DotZLib.csproj.gz",
+      "sha256": "098f7f2a5792674e3fc961a60d5913f81fc38959af731208037257885179b87d",
+      "bytes": 1007,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4602-GZipStream.cs.gz",
+      "sha256": "4a6e0f31c29f65b4f4dba05527054bdf1b4d04e2f150329382c5c1c7b67bd1af",
+      "bytes": 2174,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4603-Inflater.cs.gz",
+      "sha256": "633650d1ded32bec32b182bc2ed92e72cb3cdb4291ffd18f4b77a2ad86ee52e8",
+      "bytes": 1268,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4604-UnitTests.cs.gz",
+      "sha256": "588bd3a2aad44733840580bd8a4885b258d15760b1aac5573e71a75332068bfc",
+      "bytes": 1714,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4605-DotZLib.build.gz",
+      "sha256": "e5ecba266a610643ba024109c2726d571743718428a97f249b002b9086c06f7c",
+      "bytes": 518,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4606-DotZLib.chm.gz",
+      "sha256": "03ae625f4f7f20bf5fddd22eeb97231ec23420256a58185c178744cea8cdfa8b",
+      "bytes": 58676,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4607-DotZLib.sln.gz",
+      "sha256": "75fc80aa30aa81045ed9ec350fff9f867a622d42f6256c3b3df682b789f3f0a4",
+      "bytes": 361,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4608-LICENSE_1_0.txt.gz",
+      "sha256": "d4570efdca22f33bfb5768d3d9bd9c2441a6f0af46cac745904760fccc8c75d1",
+      "bytes": 784,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4609-readme.txt.gz",
+      "sha256": "adb9d63050cf6e85180c7e66ea8034104bffb209aab308d0777130607765b0ee",
+      "bytes": 985,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4610-CMakeLists.txt.gz",
+      "sha256": "2443533915e768a44595fb044922d237ba1103840365403fb0df162c1524db4d",
+      "bytes": 306,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4611-gvmat64.S.gz",
+      "sha256": "1400f031a81ebc9616452b754431cf61fb2fcf3f862d17d429b7b20146ba635c",
+      "bytes": 5133,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4612-CMakeLists.txt.gz",
+      "sha256": "ab44e3eebf3a651721b1ac2888f56cd8f4d49aa9e9f8fe848d5a3da8b27fde7e",
+      "bytes": 138,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4613-README.gz",
+      "sha256": "9fc00dddfecd219561c1710a4688fb3798eaa7e0d015374bb3a686a66279ec6d",
+      "bytes": 68,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4614-infback9.c.gz",
+      "sha256": "5b43a129f3fd4541eb2bcd57d12a1c8dfb38d54c1bcc26c6e181bcdf3327f2ee",
+      "bytes": 5175,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4615-infback9.h.gz",
+      "sha256": "a620bc7c47b856cca68aebaf42ee50be4e7a616698fbaef69bc2fad10b5500fa",
+      "bytes": 728,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4616-inffix9.h.gz",
+      "sha256": "a5203458a6ab2744b5862695b8bb4f3abbed3fe83774bdaca171dc18b3936c21",
+      "bytes": 1543,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4617-inflate9.h.gz",
+      "sha256": "c321ce4de8ac491696057b915bf2d5b03bc8fe6bfa9c6fcd2f37c77aaf9490f0",
+      "bytes": 867,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4618-inftree9.c.gz",
+      "sha256": "69989018d58cc200e84180fedf87137ac8e76395405a0e1ed630f7d3d722bec5",
+      "bytes": 4288,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4619-inftree9.h.gz",
+      "sha256": "c1d63c32d08422a695b431f49358ebb3d6d2014f43d5fa566f4306b26be1c699",
+      "bytes": 1234,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4620-inffas86.c.gz",
+      "sha256": "49313990ab35f3ab55fd98010ea50ecec3afafd8a3cd72f814c0451d1217ce0d",
+      "bytes": 7022,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4621-test.cpp.gz",
+      "sha256": "1918d6ba0b787fa4e75b907be83fef3cc452822866b60612c413ae040030e06d",
+      "bytes": 328,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4622-zfstream.cpp.gz",
+      "sha256": "3207a59e77cddc7107cf8a9328fea8ba3bb7c3d7b21ed7236dbdb7498c482983",
+      "bytes": 1218,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4623-zfstream.h.gz",
+      "sha256": "c69151fc521b8620144a136ec0e71d29138a0080c9265bab4d3b5dfb146c1167",
+      "bytes": 720,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4624-zstream.h.gz",
+      "sha256": "76207618fa7f82375d0cfdcbb3920a1645c6d963e2b3ff696cc499d13e5d007c",
+      "bytes": 2533,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4625-zstream_test.cpp.gz",
+      "sha256": "96576f7d54438129e2702482f4e42ecad56c3cd77143d06c1e9b17a1ba02bc65",
+      "bytes": 360,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4626-CMakeLists.txt.gz",
+      "sha256": "c5c293136c9dc6538450fe8cf405d5ab51ea71c15af67d58e910c366ea99cca5",
+      "bytes": 1558,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4627-README.gz",
+      "sha256": "d1bb02ed7830239786edad0211177d78f47dbb98d9199553558e2be792b0d450",
+      "bytes": 823,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4628-TODO.gz",
+      "sha256": "03067f36011fc5d3fd9ff36b480b676423566d55873ba8a7d69df3869c75f12f",
+      "bytes": 322,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4629-iostream3Config.cmake.in.gz",
+      "sha256": "85e98048a181135b2f6fa588f987a07ed2f715921a83db1c83149e87239c82a0",
+      "bytes": 335,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4630-CMakeLists.txt.gz",
+      "sha256": "f77969eee51f5599b06ec23f282ab26b88e1b5174794b9648dd35c56ae5980b0",
+      "bytes": 979,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4631-add_subdirectory_exclude_test.cmake.in.gz",
+      "sha256": "77130c8ad21d7360246a0e780eeb87539b0198578ef5177216f045e20ed30beb",
+      "bytes": 368,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4632-add_subdirectory_test.cmake.in.gz",
+      "sha256": "5c2568a5c92cbbee10875523cd505d3accebcb4002729178e64ec1f8058f2bf8",
+      "bytes": 348,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4633-find_package_no_components_test.cmake.in.gz",
+      "sha256": "47116b09e67ea28d5473b295dc9a645485378833619c7697c15cde6d4e4b1167",
+      "bytes": 335,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4634-find_package_test.cmake.in.gz",
+      "sha256": "d2344cff3cbfa3f7ff5fd5534e5ca730b8a1dd3f01e01c377115c564b75f57a2",
+      "bytes": 342,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4635-find_package_wrong_components_test.cmake.in.gz",
+      "sha256": "83df354584d7beaa825bdeec011ecbcb8d403dc35b9e5c20f87aac17933907c7",
+      "bytes": 340,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4636-test.cc.gz",
+      "sha256": "62efe74d7171dc24a4399d912b15a67bfd568b12abb9b1b0628b56dbdee20343",
+      "bytes": 583,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4637-zfstream.cc.gz",
+      "sha256": "c439668bc4b3da51a5f7834c394bd952b3b406494fffd4eec11ad1251b7abfac",
+      "bytes": 3511,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4638-zfstream.h.gz",
+      "sha256": "8e95ea81d09ef80902a869153ac7971d3dc493649e8a9357555c75fcbab5eb68",
+      "bytes": 2998,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4639-CMakeLists.txt.gz",
+      "sha256": "95c2646ff49c5a15d3d64732492994968f00b44b8d36261697aa3ec5336d4d0b",
+      "bytes": 2894,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4640-LICENSE.Info-Zip.gz",
+      "sha256": "97f2c35eebd205f005945b78dc2e7dc04e94ddc03e617aa43ac34feb8633820f",
+      "bytes": 1659,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4641-Makefile.gz",
+      "sha256": "1cb6fecf72b8308b62532a893ad262d75da39406f122e12730f8d741ca77761d",
+      "bytes": 332,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4642-Makefile.am.gz",
+      "sha256": "ac03370331d6dcb7277c7b1233d794d2cab2a024f408eb56c83dfef253362bd9",
+      "bytes": 377,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4643-MiniZip64_Changes.txt.gz",
+      "sha256": "5fb093ef3d4aded2401db3f65ca843fbad98f1b2a6db0fde8d97f3d29f2d22ff",
+      "bytes": 116,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4644-MiniZip64_info.txt.gz",
+      "sha256": "18d0e5b3a2b1e8ca3a62024adbcf462adf1abf767b7330fd4a320ca207613866",
+      "bytes": 1212,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4645-configure.ac.gz",
+      "sha256": "ed4715d3fb9ed57bac56170d91d6012c3cec41f667d1d1a0907fbcee216a4553",
+      "bytes": 468,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4646-crypt.h.gz",
+      "sha256": "768f55c96ce3c05c40329d84b28a06ccce3dcafa68c7ac52b39c3dfd529903ac",
+      "bytes": 1851,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4647-ints.h.gz",
+      "sha256": "5eacb9f2d19bc304d855ae4b2dfcaab7c268d2686c9d0fcdb0fd0253c2686bf2",
+      "bytes": 487,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4648-ioapi.c.gz",
+      "sha256": "81d2ce0181c05d6076353a98d95fab0b2215254c39a8b326e8ace65874b6eeae",
+      "bytes": 1628,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4649-ioapi.h.gz",
+      "sha256": "58f4d3531588821714462c4e3a6c7b78cdf66ae18088a90f8f1a2d57430d046c",
+      "bytes": 1914,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4650-iowin32.c.gz",
+      "sha256": "30551e8c92ee464d076be4810caad0edd3cb874b3057a284608103b21dbc55c6",
+      "bytes": 2237,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4651-iowin32.h.gz",
+      "sha256": "fafd75016b4eddda965d71bbf6971913cf462a3998518de43e3fbe8e53571522",
+      "bytes": 372,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4652-make_vms.com.gz",
+      "sha256": "03241f0a1f70a3163388187a6a18bc9cc9dec2b48e98c7bac13c3925d87e0231",
+      "bytes": 374,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4653-miniunz.c.gz",
+      "sha256": "94785e9bbde770d599cb5e4f07ac1ff59f8c6d6286198aaf4f1227ddfa599fef",
+      "bytes": 4885,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4654-miniunzip.1.gz",
+      "sha256": "4dc161d6c28d2eec546b52b2b5b3187e4140e9c7541dd9f6dd34a1f3efba5e9b",
+      "bytes": 962,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4655-minizip.1.gz",
+      "sha256": "81f479df134976ca616193704eb5659d025086a0992fbaa1b6d30796669541c5",
+      "bytes": 769,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4656-minizip.c.gz",
+      "sha256": "fbd4b2fb225f26a897e3cb8f7ddf80b6905296726f6a0212399d8fe475ebc0f6",
+      "bytes": 4358,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4657-minizip.pc.in.gz",
+      "sha256": "6f51e00e5894538e9c8751957018e0924005f3e40fea26207bd452cd7cb961a3",
+      "bytes": 203,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4658-minizip.pc.txt.gz",
+      "sha256": "153d1d9826cd063fc268358dc7fcab4bdf10ffc6c29f24c502bb5417a6b49d4f",
+      "bytes": 213,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4659-minizipConfig.cmake.in.gz",
+      "sha256": "7735acb9792536b6dde575184872a613ea0216f669b9e1fdbb6800a5b76b8ca0",
+      "bytes": 362,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4660-mztools.c.gz",
+      "sha256": "b5c41ac84e1a27c39556f4a845638ea57f8fd726b8d3e9d97c351c0a062abc63",
+      "bytes": 1960,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4661-mztools.h.gz",
+      "sha256": "04dcdc7752fbd52f28a97223a3bab6775bbb1c7a3fa98e9bfa24eb592c2a759f",
+      "bytes": 360,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4662-skipset.h.gz",
+      "sha256": "f7b0cca0b955b570c8ea79a90ba6edf20f2dee37544e21101e03e22d1fd96013",
+      "bytes": 4759,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4663-CMakeLists.txt.gz",
+      "sha256": "474e65534c96a41905e5a75f7a6d2e8f88ad652949781cb72fa890852befb48c",
+      "bytes": 978,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4664-add_subdirectory_exclude_test.cmake.in.gz",
+      "sha256": "5b8e63c59f6dbebc76ecb1631818b04ab9f64468a60331a4bc5092f6d378d472",
+      "bytes": 419,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4665-add_subdirectory_test.cmake.in.gz",
+      "sha256": "204172e39c7d3d187ee9730145405cc43920a0076ab172d1d04d336c2f66de9b",
+      "bytes": 399,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4666-find_package_no_components_test.cmake.in.gz",
+      "sha256": "3dfc546c82a02cbb337265b8757792f2870c8fdf4fdafbac6da9d60f0940e121",
+      "bytes": 351,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4667-find_package_test.cmake.in.gz",
+      "sha256": "bb5d1b7399cfccab65346c7596a4a5792b26c364c0c3115532c2dad0a66e993b",
+      "bytes": 368,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4668-find_package_wrong_components_test.cmake.in.gz",
+      "sha256": "4490000c931977d0ea726398b773f66a32bad8ce0c46f15b441de5ac82ed00ef",
+      "bytes": 363,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4669-test_helper.cm.gz",
+      "sha256": "9836f72c55771451e7b2a8f958457b22ca079562ae4878de8ec990e3882c1de4",
+      "bytes": 222,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4670-tinydir.h.gz",
+      "sha256": "dfa84ce36321fbf68cda117ab3afed22cb3a18d091cdcf822386750315c9d334",
+      "bytes": 5302,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4671-unzip.c.gz",
+      "sha256": "50f69091e122100f6e935a976e7b79aaf90544d951b83b0fdd7c90fb55883304",
+      "bytes": 12337,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4672-unzip.h.gz",
+      "sha256": "3f53a8c0748d1591bfc7988fb8d15b9736f47b089dc606d47969bd918c12801a",
+      "bytes": 4196,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4673-zip.c.gz",
+      "sha256": "230e22120edadb2e5db0d64b82185b79a6f4688275d1b715a152daec95949cb1",
+      "bytes": 15092,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4674-zip.h.gz",
+      "sha256": "027ae5e00d6a1bd9efc79edd7e898916a1be8ed5b3ab56974a99d70d6568a956",
+      "bytes": 3303,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4675-nuget.csproj.gz",
+      "sha256": "bb4461e375f92b2f8bc0dc07debcf102e022f3eb4e85f4451de5f88540291cac",
+      "bytes": 887,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4676-nuget.sln.gz",
+      "sha256": "d1d29f99dae38d4fe169d13bb942d06556bbdd3cc6206b9dd5354fdd639ebf4f",
+      "bytes": 391,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4677-example.pas.gz",
+      "sha256": "81097f2adf3996feb90ba0423a769108c7d2716cac12ae4beb5fdf084c41a450",
+      "bytes": 3065,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4678-readme.txt.gz",
+      "sha256": "adfe9fba3dc550bc7b06c67929a3e4de6bec6990d710f484ccbcfceba8b4247f",
+      "bytes": 1450,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4680-zlibpas.pas.gz",
+      "sha256": "728d1240fbd302b6051f602e81d3c16c7060443c3c78da403eb68034a903d26e",
+      "bytes": 2430,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4681-CMakeLists.txt.gz",
+      "sha256": "9d19ca348d81ed9f514d6261b7336c79916f4ee613b2ec3518bd0daf7b71c094",
+      "bytes": 1347,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4682-Makefile.gz",
+      "sha256": "615b81f6052472e9f0f3edc01528ade74922b848b2f388277477b15a11e2e2d4",
+      "bytes": 456,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4683-README.gz",
+      "sha256": "7c56ce7f3a588726843363cf97c3b150c26d49edfa69ee759e855a74430548d0",
+      "bytes": 1357,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4684-bin-writer.c.gz",
+      "sha256": "f577dd56b3209308574a85f1724bab6971bc00a210fdbe8d8808c7e2748c9059",
+      "bytes": 418,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4685-puff.c.gz",
+      "sha256": "8d09c6f2ade0b0cd1224048348a2be02141da1479cb052dc6f0de720acf44e19",
+      "bytes": 11163,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4686-puff.h.gz",
+      "sha256": "d0e43975a0a6a1027080abc15f4882896686e18217374429d7418dfa58410511",
+      "bytes": 715,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4687-puffConfig.cmake.in.gz",
+      "sha256": "5233f8edcdaad25878e267515ab67aedd1477ad280d886cd9678e90ae99898d8",
+      "bytes": 277,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4688-pufftest.c.gz",
+      "sha256": "f0e3e0d58293a4e9d0b5f7d64aa63661da45381765b10a4e9800d7593028b3fa",
+      "bytes": 1907,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4689-CMakeLists.txt.gz",
+      "sha256": "37c2ff2ae67ca2484a4dee8acdcfed949381847b6c06d46ba77875ce8fe919f9",
+      "bytes": 1296,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4690-add_subdirectory_exclude_test.cmake.in.gz",
+      "sha256": "9e708cf80c226c33693f15315bf02511efdf74302e5821bbe5904aa1636de6e9",
+      "bytes": 364,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4691-add_subdirectory_test.cmake.in.gz",
+      "sha256": "d9f8c280addb08f167749e2f6dfc012cb78ceef94b628d342e5cc954cfbe83d1",
+      "bytes": 337,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4692-find_package_no_components_test.cmake.in.gz",
+      "sha256": "13cef568e89707f13ed1a4037e3b080f51dd983f112869b47fa94cf2bb23a813",
+      "bytes": 308,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4693-find_package_test.cmake.in.gz",
+      "sha256": "edc5441a354ddabf818ca64c8e56ff1e170041dac320143a910919ab5d1f802f",
+      "bytes": 327,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4694-find_package_wrong_components_test.cmake.in.gz",
+      "sha256": "061088f67fdd6fba03ea37126b04b24e129b7e1f193729f75d554348f33ac677",
+      "bytes": 323,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4695-tester-cov.cmake.gz",
+      "sha256": "a3f2c017414ae88739281b6e422c3f8ea4f453f108000e6c87cbf4613a0dead4",
+      "bytes": 649,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4696-tester.cmake.gz",
+      "sha256": "191563d54bd805b524b3a7e44b4307d4d283474df1d9589a04d73c32ce40bb95",
+      "bytes": 300,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4697-zeros.raw.gz",
+      "sha256": "bd08ec893156f03cfdf0878d749497d3baecdd752f392ea5a6aa266df70cc486",
+      "bytes": 110,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4698-CMakeLists.txt.gz",
+      "sha256": "3b39faf5327c22f445c03b7c516db37d99c2cf532753931740851e6416400ff6",
+      "bytes": 476,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4699-testzlib.c.gz",
+      "sha256": "b9339983fcfeb9ba72d14a2408a58a571a12851454b92cd7f5012000bb7f6592",
+      "bytes": 1970,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4700-testzlib.txt.gz",
+      "sha256": "e6a4c53bd7f0a09092d61d71d56a48341a6453f2545ba55ab71b014bf15f4f42",
+      "bytes": 153,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4701-readme.txt.gz",
+      "sha256": "2eac37bc0b3c0e19968979459a0c60adc953c04ba45cf7232902b0ddf5e02793",
+      "bytes": 465,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4702-CMakeLists.txt.gz",
+      "sha256": "afc0e0225029fc9ee9653a5b07bf45fcb001dd4c019402caac5432bd5395d249",
+      "bytes": 1788,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4703-readme.txt.gz",
+      "sha256": "9e71255dc518ffa477898531f7a5662c0e53809e4b38a5020c765d11a71879bb",
+      "bytes": 461,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4704-crc32.c.gz",
+      "sha256": "d78a5bfee85719d8bc7eb660500da918ee70ba52ce11193c41019f06f83ab8b1",
+      "bytes": 7305,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4705-crc32.h.gz",
+      "sha256": "c7f9704cb6f1f97625671900935df593fbbb9d4ddbe465483bf5ff3be3f77ef9",
+      "bytes": 224613,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4706-deflate.c.gz",
+      "sha256": "524cb21ebe9024cd157cb58360ddaca78bd5dcf407c1fbaf9a3cf9a44b9f2657",
+      "bytes": 19884,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4707-deflate.h.gz",
+      "sha256": "5e5ef7dbf8893ff6f72018a1dc8b40201e08625d852bb327ac92afdf78ca2e75",
+      "bytes": 4913,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4708-algorithm.txt.gz",
+      "sha256": "c6f4150be9b12b2510362584f68c723e53e8e5177d07746ca791bb2b1c65a303",
+      "bytes": 3886,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4709-crc-doc.1.0.pdf.gz",
+      "sha256": "7821fc72055caebd89b482d724937d44bc1a33b216f2bb87ae04d9027b8ca11a",
+      "bytes": 722049,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4710-rfc1950.txt.gz",
+      "sha256": "f77f0f31cfcdf853b37847238d24060c4b30802417ec499a146069e8cd9de2c9",
+      "bytes": 6490,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4711-rfc1951.txt.gz",
+      "sha256": "0e7b7f231cc70cdb40c0f496da34ff9c31fe6b47252cba7f892a2c7d870a9ce3",
+      "bytes": 11123,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4712-rfc1952.txt.gz",
+      "sha256": "318ade713b250f6d8f320a5edbffde9a9491bf186db3cfacfd81ecbfa0a39c4f",
+      "bytes": 8042,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4713-txtvsbin.txt.gz",
+      "sha256": "05850c2041bc7a386ee04947070c47659cb3d11f342595815f79ef46fe95fef1",
+      "bytes": 2375,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4714-README.examples.gz",
+      "sha256": "a32edd6928fee1d03d8504227a1970f4172092bad58bc2438cc166f9c841c007",
+      "bytes": 880,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4715-enough.c.gz",
+      "sha256": "f41fef4157e492a1d0c77f7980b23140b9976c50f156a668e982a3dae64c6336",
+      "bytes": 7881,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4716-fitblk.c.gz",
+      "sha256": "46c78b566437c6fc14818224836b6c401e5d2d9017c5915f4ccf57f5aa79be5f",
+      "bytes": 2827,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4717-gun.c.gz",
+      "sha256": "e66739e5fbf324a5b3d21f2ccf1e5c75949079da56b1abe56ab94da72e8b92fb",
+      "bytes": 7617,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4718-gzappend.c.gz",
+      "sha256": "a67ada59284d30f9a8fe0512a6bc80da85124628be60e9987e9b7826019d4cd5",
+      "bytes": 5567,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4719-gzjoin.c.gz",
+      "sha256": "eb6a35f7ce33fc9eff9f6096e158bdd69515b39d2552a3f9cb2733af174d3108",
+      "bytes": 4653,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4720-gzlog.c.gz",
+      "sha256": "9da79759b3f4cc840d98235ccde59f68844c06c57f4b87ae26d044dfff4815be",
+      "bytes": 11828,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4721-gzlog.h.gz",
+      "sha256": "57d9457f12c71aec156a306b986e43bdb1059a604314aa71fd1517a4600bcf0d",
+      "bytes": 1989,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4722-gznorm.c.gz",
+      "sha256": "58ba5a59a8412a484f21bc0e08dbf3a23636f8643d82762d8061f13bf0a5efff",
+      "bytes": 6070,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4723-zlib_how.html.gz",
+      "sha256": "7bbcfc7023bcb04764ba5bef05b0f88ea07b0d3be01dda1c2283a17fef12e9a9",
+      "bytes": 9401,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4724-zpipe.c.gz",
+      "sha256": "5583b48bab672f0f5a593e4160e8a2ae2e7af5ae77cbf5f31e11a1ef578fba55",
+      "bytes": 1948,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4725-zran.c.gz",
+      "sha256": "95a4838b9858848788fc1bf648e733a13fec27e6b8d0b338613aa21ba5a2b0b1",
+      "bytes": 7021,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4726-zran.h.gz",
+      "sha256": "35192b9a766c7d6086267ba592ceee0723b42386a8d67028ea1a076cdc49ebfc",
+      "bytes": 1262,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4727-gzclose.c.gz",
+      "sha256": "0370856b658fe52adafe0449298be4e3682c6ab02d45ab871e81736cc04bfd24",
+      "bytes": 420,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4728-gzguts.h.gz",
+      "sha256": "baacf940fc5aafbd87b9dc9b9a9b759ebd6db1ec290aad2096349c8e221abcc3",
+      "bytes": 2704,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4729-gzlib.c.gz",
+      "sha256": "1fad9843c0b6dce97c5ac387d2610034979937e0eb0347d779fa332d6398880f",
+      "bytes": 4760,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4730-gzread.c.gz",
+      "sha256": "d955671cf1f49a43ccee211c887966a8bad78196336f4eda8f3ebe709c888b7d",
+      "bytes": 5986,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4731-gzwrite.c.gz",
+      "sha256": "e48c50b9cf2400cdd67bec0c58eba7e360d53d927f7665d6742213bcb8465ce3",
+      "bytes": 4929,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4732-infback.c.gz",
+      "sha256": "1d63587732a0e29e8ba4c4ab9b008200e7bea3bb3c5c9e37a6108db168eea50e",
+      "bytes": 4880,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4733-inffast.c.gz",
+      "sha256": "3ca796d254357e61af4571f5112b401af04faee3b445b5e0e59311f7c42880db",
+      "bytes": 3201,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4734-inffast.h.gz",
+      "sha256": "a2bd3a14f3eb825d02386d0d55c661425e22e83c24d51ddf39ee2f2bd65489aa",
+      "bytes": 304,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4735-inffixed.h.gz",
+      "sha256": "8633ceb77e8d2053f9a235e8fabd4904fb080e8d667f64e1ba425b1bff145939",
+      "bytes": 1508,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4736-inflate.c.gz",
+      "sha256": "a280751d8d48741124042e58ab1baddddfae6c9249f95629a124f04464a7a617",
+      "bytes": 11408,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4737-inflate.h.gz",
+      "sha256": "3c0de234c3e51908f7b97e5ca91bc7952b227698dbdc14048bf411a0f93bf3e3",
+      "bytes": 2233,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4738-inftrees.c.gz",
+      "sha256": "76aaf4e9b8626512e5761770cc36494b7708ba160ae7fa2d201e1a8ed210ef7a",
+      "bytes": 5478,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4739-inftrees.h.gz",
+      "sha256": "00602792d1d003133decab4dfa74712a1fdcb9bd295a16e294b4cc64e6af05a0",
+      "bytes": 1271,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4740-make_vms.com.gz",
+      "sha256": "8109b8ca5af358fe97210860bcc3d798f4a9839c094524ce7ec02d4c307b0b28",
+      "bytes": 7412,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4741-Makefile.bor.gz",
+      "sha256": "f8e195bfc2bc31384787381336a1edea259012fb16cc6781eed8a0d815859f2e",
+      "bytes": 1242,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4742-Makefile.dj2.gz",
+      "sha256": "98d019e371799cdd7485b5c38dff36d444b09d0611904630eac023120e1a1ae4",
+      "bytes": 1291,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4743-Makefile.emx.gz",
+      "sha256": "35eec4cc81bd1e6c252741759f51e45ffe672c76fa2952b1a2e32018a3086661",
+      "bytes": 847,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4744-Makefile.msc.gz",
+      "sha256": "0903707f94b2af304400b29b541b42f1ea0099dd1042bdbbdff57132d6c298aa",
+      "bytes": 1207,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4745-Makefile.tc.gz",
+      "sha256": "234c0c11a834b1da2c37544ff5dc1a6ef92548015f395aefeb3370bdc6cc70a5",
+      "bytes": 978,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4746-README400.gz",
+      "sha256": "5dfc7c72e0ea371ef666be766ed2ca0e3cc3c34650ff21c5990f19cc1ae7a151",
+      "bytes": 924,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4747-bndsrc.gz",
+      "sha256": "11154c0609011f52ec67cdf93d236de6358fa1e51c31bae2dcc103f3fd093124",
+      "bytes": 695,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4748-make.sh.gz",
+      "sha256": "4da7dd5d1cd4bcba5fc0cab1274c8daeaca8cdd2e2828fb7e8c0c7037f1514f5",
+      "bytes": 3114,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4749-zlibfixed.rpgle.gz",
+      "sha256": "6d0c85061221238601264349acffb8bd99ebdae83258cbf9549e3b19936f4462",
+      "bytes": 3544,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4750-zlibfree.rpgle.gz",
+      "sha256": "3e11b2bac71a2d4f418d80f99561cd090f763caefe091f062d35a838a1de95c5",
+      "bytes": 3183,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4751-package.qpg.gz",
+      "sha256": "a87a482c467873cfceb90890c364803bd79f162ac213d5b3d3182354bbd308ba",
+      "bytes": 1511,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4752-CMakeLists.txt.gz",
+      "sha256": "4a8861a6ade739a386fb79e3edaed9dbaf19c0b0d3b71ca8770d0d0137510369",
+      "bytes": 1837,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4753-add_subdirectory_exclude_test.cmake.in.gz",
+      "sha256": "009c9fff2df7a2aa44110da5a0489f5c9c2522f460d6d1f2a5b9325becf732f8",
+      "bytes": 429,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4754-add_subdirectory_test.cmake.in.gz",
+      "sha256": "a3f5ba5fa12b926424d02b77932421542085527051d91e5461984b8a393b4cd9",
+      "bytes": 413,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4755-example.c.gz",
+      "sha256": "2d187f16d61ffc47fc0b30ca86a5f9ef06ba5c35ef94f3d26316ec06263f5fee",
+      "bytes": 3119,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4756-find_package_no_components_test.cmake.in.gz",
+      "sha256": "dce84e7cf164cb52849e43fded5b3feecfd2a24453756ce76e6bbe51832a32d4",
+      "bytes": 383,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4757-find_package_test.cmake.in.gz",
+      "sha256": "782821c092cf2720d366db8d73be19c244d4908153968ca6e9af327c67f3323d",
+      "bytes": 397,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4758-find_package_wrong_components_test.cmake.in.gz",
+      "sha256": "31a38383d22cb776d15581fd2812e2d9879860b3c00407377c115c99f0be5634",
+      "bytes": 394,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4759-infcover.c.gz",
+      "sha256": "fc6909e92e370249fc6a13443d363eef8f4bb586cf74935910c0400b5656e4b5",
+      "bytes": 6729,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4760-minigzip.c.gz",
+      "sha256": "5ef3c99e78e87200a71a45f4655ffc3537ee3e45a25a96297b69e2e4f3ce3682",
+      "bytes": 4667,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4761-treebuild.xml.gz",
+      "sha256": "4646bcf1310b7fdffc2678b26d8750f1c09cb926732836f0eafc9713616d9fab",
+      "bytes": 651,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4762-trees.c.gz",
+      "sha256": "096d0c4ccfb9677ad967f7e66c117345a9863b0e10eeeef9816506a02beac99e",
+      "bytes": 11185,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4763-trees.h.gz",
+      "sha256": "9e596f0ac24d791fce976d8cf336d7fc695f1061e4a509f964ecd336a68a1412",
+      "bytes": 1444,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4764-uncompr.c.gz",
+      "sha256": "a2801fe712afe7155fa17e07ea14587f19850adbdb9115c88e25d5ee7f3a1fb7",
+      "bytes": 1314,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4765-watcom_f.mak.gz",
+      "sha256": "5729d6d23fd35043a964d2f3db76107201b634c290ce219590d03b7175f14d7d",
+      "bytes": 582,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4766-watcom_l.mak.gz",
+      "sha256": "21408a718cf785b5ba39825d108c5dbad112e21044d68ed9247dd4c5d4871d62",
+      "bytes": 565,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4767-DLL_FAQ.txt.gz",
+      "sha256": "d104510cc1f1317a3de4d48ac8888ce701902f1b676ead105c3a5585ee85fd0d",
+      "bytes": 6497,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4768-Makefile.bor.gz",
+      "sha256": "9224f2b5ee34a3165692ced6dbb30e98f6cdfe10da4201527a54d3598291e161",
+      "bytes": 910,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4769-Makefile.gcc.gz",
+      "sha256": "03391aa094277a4ef26caa989f4a0f467fe18e56fcbdded8d00561213d0cb812",
+      "bytes": 1700,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4770-Makefile.msc.gz",
+      "sha256": "eb51406e6492bf3b554749e5cbeff5cca2f184658e4558ceef02f4556018ebbc",
+      "bytes": 1281,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4771-README-WIN32.txt.gz",
+      "sha256": "6f6efc7b6552f96e74f6e30a31f688d4bef723949ca338b621b601c49d6b5a14",
+      "bytes": 2087,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4772-README.txt.gz",
+      "sha256": "31c8c9ccff93a321a32e3673bf0cff5640bf99b6376065d8f2a7280021f220af",
+      "bytes": 989,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4773-USAGE.txt.gz",
+      "sha256": "7f1a6f59348a87a50e2b2b0b04c43446f4a5a28f902b761d38195ebe09e1952a",
+      "bytes": 1153,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4774-VisualC.txt.gz",
+      "sha256": "fed1ddf8c44b9cbf4007a622b41564c34ec69b058bef4ae7644ef6462d76f842",
+      "bytes": 123,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4775-zdll.lib.gz",
+      "sha256": "f1b631bef7d47fa1d2c4aa51fb8b31821c615afb46c86539d64a2652095c5f24",
+      "bytes": 3092,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4776-zlib.def.gz",
+      "sha256": "cb8e08334bdfd3ef8a94e97efc39151e09311ce1cb4f70ac5d924741c12c291a",
+      "bytes": 564,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4777-zlib1.dll.gz",
+      "sha256": "1f41cc88d67d99aa6c5a5ffabd7f77110b6615ddc2100e7237da5d4d438bcafa",
+      "bytes": 66220,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4778-zlib1.rc.gz",
+      "sha256": "c1248845965061d8fc2e7ba0f3a4e83bbb6a41633847a3c52b2c6bc1720e8d4b",
+      "bytes": 545,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4779-libz.dll.a.gz",
+      "sha256": "fcb4299db905b0a42315c1bc7db52eb3e138daad97c8d5ff0db662001cea806d",
+      "bytes": 3574,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4780-zdll.lib.gz",
+      "sha256": "f154535a1dba21576403b75bb21bc54b4bdd006a6a60ce4ab6bda6f3afe88046",
+      "bytes": 3093,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4781-zlib1.dll.gz",
+      "sha256": "4eabe2dea9c85371919f36f1f6d24678ce54eae1c7abe994bcd97893ea83fd7a",
+      "bytes": 74601,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4782-libz.dll.a.gz",
+      "sha256": "76b1ada79af1977f4a7a0728aa0c0b743755e25085cb5e710abdfe114a05748e",
+      "bytes": 1838,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4783-zdll.lib.gz",
+      "sha256": "865d262fc82457e394a9b50fd97520146b356a5ddf87d85c1ede6998bda5e57a",
+      "bytes": 3096,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4784-zlib1.dll.gz",
+      "sha256": "4f93d62a21fcc8a13dda638989375fe6d7fb5b043a344696a387cfccb26c46e0",
+      "bytes": 53516,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4785-zconf.h.gz",
+      "sha256": "a21b6be2433c1f212552e08ae20d9ede42f20ea1ed57434a58db40d1b81e1b40",
+      "bytes": 4502,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4786-zconf.h.in.gz",
+      "sha256": "e8aa3a756b44700c7932f9f24b926dbcfc52663b7b321c18cab6348bc57a615c",
+      "bytes": 4551,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4787-zlib.3.gz",
+      "sha256": "babd82a67b5d173f207592953aa8d4c191b37e8c67117de1d7386bd108de2eb5",
+      "bytes": 2079,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4788-zlib.3.pdf.gz",
+      "sha256": "dd106510eef9446a0d67c131c6be88cb8b7d1ac2b6b5f2132ab3b4602050471b",
+      "bytes": 23527,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4789-zlib.h.gz",
+      "sha256": "d379292762f862bc001d579b84cf791d073935db2c5cd82d9c68b66947be507a",
+      "bytes": 27922,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4790-zlib.map.gz",
+      "sha256": "1327d15bebafacd2f13ce10d0864077282436abebea8db7d5cd6c1f2aa05ee12",
+      "bytes": 548,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4791-zlib.pc.cmakein.gz",
+      "sha256": "ba7cdfdc2f7fe90ee88d67fa25f3c69c895d0dd4ca00a026ad6bce8f6159baa7",
+      "bytes": 216,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4792-zlib.pc.in.gz",
+      "sha256": "f65d27e61b70f4c23b6127cf64830d85ffc915e61940bd3f227a308dccdcc0d3",
+      "bytes": 186,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4793-zlibConfig.cmake.in.gz",
+      "sha256": "50cd65d4c39b014df7e7cf08196ab8a28c285a3411c48ddbfaafb1bb99381576",
+      "bytes": 279,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4794-zutil.c.gz",
+      "sha256": "19153482bc35d47c1c2a1a066e4d6d6d7f37865585177281f15b2782e0e3c6a0",
+      "bytes": 2559,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4795-zutil.h.gz",
+      "sha256": "d39f87c8932cb242c58e307f84633440a15f92063601bfee16e2b3cb93e2c6a9",
+      "bytes": 3094,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4798-fake-rfc2553.c.gz",
+      "sha256": "f63988f9b2db225aa843daa03418b5bd047587458da6f59ad057d9cd567b2af5",
+      "bytes": 2800,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4801-mkstemp.c.gz",
+      "sha256": "b051158ee1e07a0b77a07779b017b9cddda02ed38351fbe18b49120bdcf95ad5",
+      "bytes": 914,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4803-waitpid.c.gz",
+      "sha256": "621094927dec70220d93c299a03b37644b62562ac0a2ac7cf0db3aa6cf16c0e8",
+      "bytes": 1862,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/4930-minizip.c.gz",
+      "sha256": "43bb94ce709fc905d1dcb889c3fe1e2721f59fce5313aa978ce03a57f2ab0c1e",
+      "bytes": 4377,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/5052-libz.dll.a.gz",
+      "sha256": "394901e2c6a62e1270a4c553e68dfb9918d4f08eeaf45d4481f296af5a21360a",
+      "bytes": 1836,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/5054-zlib1.dll.gz",
+      "sha256": "fd627b3bfad2590cc01ceee316a0304051a80b0c32dbcd67de0d2f0fd70af2b4",
+      "bytes": 55899,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/5073-gettod.c.gz",
+      "sha256": "bd7dba15f4fb4e07dda1da40e0c57f767fc3576fa56d029048c08c50e428907f",
+      "bytes": 370,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/5074-mkstemp.c.gz",
+      "sha256": "ada81e894d79755925633a0639c48a6f9caf35253c464dadd69f578f2fd27f7d",
+      "bytes": 919,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/5075-strncasecmp.c.gz",
+      "sha256": "d448e526f329e22c66b14a7d06ba93f9160fde1a408755c2d2da02861a754445",
+      "bytes": 1379,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/5076-waitpid.c.gz",
+      "sha256": "ccace57ffea7deac06305f134ebbd5f1463ec8ba93f122b523fbdd88537c094e",
+      "bytes": 1867,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6263-tclUnixPort.h.gz",
+      "sha256": "057dfad3ee1de68f9c7cbf05c41adc6e1dde8830bb0231f87a52a8050a9caba4",
+      "bytes": 6343,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6264-tclUnixThrd.h.gz",
+      "sha256": "9d19e1cceb5d79bccd4f5d866178eb408f04710b16de7bb2525f1ee92dcb7814",
+      "bytes": 273,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6265-tclConfig.h.in.gz",
+      "sha256": "214c209a8457c1d15a86f0e903efaa6757767765a5e84a17674a6a9078b93981",
+      "bytes": 3437,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6266-tclUnixPort.h.gz",
+      "sha256": "26f2ba1d7c14ec3047c3916e6023389d615abac8dd2d8b47485ba75142061994",
+      "bytes": 5561,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6268-logtab.h.gz",
+      "sha256": "6982c384b0eaaff83107e5872499f33b1f350362e946afee40ec3f76ab1ef7b9",
+      "bytes": 540,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6269-mpi-config.h.gz",
+      "sha256": "040dc6812c3f77dae09bda1e8e29afa426b9098950202f3a0f7b126c7dbf144b",
+      "bytes": 869,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6270-mpi-types.h.gz",
+      "sha256": "51071a5d3a30945ad74d05588b72d0d69924894013f4761702d956d21dea8a23",
+      "bytes": 264,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6271-mpi.h.gz",
+      "sha256": "0873b115c801d22751d4cc8d63479d9b6e16453102c0da0abc975fb2ff8ae9c7",
+      "bytes": 1839,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6272-tommath.h.gz",
+      "sha256": "525084f6cdb8fe0e8f3c3236b9bf7bc617879439440d79a7946d179ce682b320",
+      "bytes": 5032,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6273-tommath_class.h.gz",
+      "sha256": "c8b9370044fb5d9f8bc84ea6c2d767ba4ca9a59a35dd9af4fa31193d24cde4a0",
+      "bytes": 2255,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6274-tommath_superclass.h.gz",
+      "sha256": "3c736b98db4bca91fcc3fbb0dbec2f7d5bd4f652b08f967cea1766cb41c8d935",
+      "bytes": 894,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6276-tclConfig.h.in.gz",
+      "sha256": "12ab1c53a0bc547c6bb45be6525e1e3474fd0eebcf42b7bc7bae98bf9b12999b",
+      "bytes": 3762,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6277-tclUnixPort.h.gz",
+      "sha256": "717884aec0a12f0ed71c472187215fc2b131db6f447d0528f2ea23e8cd4a85fb",
+      "bytes": 5414,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6278-tclUnixThrd.h.gz",
+      "sha256": "3a3490f2e395aa0587a211d5b58d1c5c8395196f604acaded9da757a346ff311",
+      "bytes": 273,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6279-tclUuid.h.gz",
+      "sha256": "07c7ff3da2e62fe1f3c0aa836327d2b24b84c805e5215802f0f7516bbd84e0f6",
+      "bytes": 93,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6280-tommath.def.gz",
+      "sha256": "47d66074dfe420aaffc4e2ccf9f1a935b40c4d31cee97e45352eb8f371e2482c",
+      "bytes": 813,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6281-tommath.h.gz",
+      "sha256": "2aa21c23937b559b9e699b1459c225f438353226f8435679d889ba4f7424c9a7",
+      "bytes": 7782,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6282-tommath_class.h.gz",
+      "sha256": "48eea72fca9de2c2b093a1a774d98ada8cb8dcdf1b758a9da1688ba878f95400",
+      "bytes": 2941,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6283-tommath_cutoffs.h.gz",
+      "sha256": "7050a10bafffc30f37ed2acbadbbb9915723dd1ed7c84fb2ced8f56957c9bb84",
+      "bytes": 335,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6284-tommath_private.h.gz",
+      "sha256": "1197ce73932cfb774da05035eb426f3936e8f5d034aa5c0691c6e2bed2550df4",
+      "bytes": 3578,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6285-tommath_superclass.h.gz",
+      "sha256": "62fe05a1e3986a4ef8d5351fa9bb28b7a85c461ed594fbcb1a78289cd1eb8045",
+      "bytes": 1183,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6286-tclConfig.h.in.gz",
+      "sha256": "a7d58b8a7a1456d604423572f330cc3fa2f71669be61aca00282c79ed1a79cdd",
+      "bytes": 3652,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6287-tclUnixPort.h.gz",
+      "sha256": "87412134aae2898295d720d3f3531f0211360b97acf5877ce48549b474d68771",
+      "bytes": 4931,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6289-tommath.def.gz",
+      "sha256": "4d92931bed1e064b317a4d0e19fa2d6479c2c762641ffd08f9cae097e33ab3f1",
+      "bytes": 809,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6290-tommath.h.gz",
+      "sha256": "206190bccdf2b4dd499c7af80656b0da739214d08629da5e18b8ac398b7e7b87",
+      "bytes": 7786,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6293-tommath_private.h.gz",
+      "sha256": "66c1905ef792f99a779fe34176f746ff9eb364a5f20f4b2039c45f525494a79a",
+      "bytes": 3594,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6297-tclConfig.h.in.gz",
+      "sha256": "e1325d57a8aa0265be70a455f0eb3c409fa5f4184223bf1009f0182bf794a7ea",
+      "bytes": 3668,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/original-inputs/6298-tclUnixPort.h.gz",
+      "sha256": "1e620feda402f220e5450e82b0b115a2a8ec24a53122a3cf8d0320ff3b59391b",
+      "bytes": 5068,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/recorded-path-map.json",
+      "sha256": "97b17a210b253e90c159defae1127fab76de26b4a996b92347f513a86ac7ed14",
+      "bytes": 16341591,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original request/preparation/partial-refusal/process/source/retention evidence for the bounded setter question. Actual saved process and reached stage statuses remain independent; prepared source labels or compiler byte existence grant no execution, callback parity or Rust result."
+    },
+    {
       "path": "runtime/rust/tests/data/native_global_cache_token/8.4.20.txt",
       "sha256": "58ceb067a7340cd4e20f8f354e80181227d63207bdb21edf8b4b7c52d689d4f2",
       "bytes": 125,

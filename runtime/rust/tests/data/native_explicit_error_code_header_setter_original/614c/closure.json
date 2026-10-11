@@ -1,0 +1,124 @@
+{
+  "request_sha256": "f12d6c65ddf19995cba44ef55dd6f0768a935a95fe773879e1faecbe5db3fcd3",
+  "records": [
+    {
+      "provider": "compiler",
+      "channel": "compiler-version",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-explicit-error-code-header-setter614c/compiler-version.receipt.json",
+      "sha256": "020e0a200bffd3c8f7e0ab3fab7a0db38e7ae15d9f9e5298eb53d9fac8e92eb5"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "compile",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-explicit-error-code-header-setter614c/providers/8.4.20/compile.receipt.json",
+      "sha256": "a1f7fb20ff588b67ea5d09fb472e6e99c42c38d0af1c7985dda2df58d39d8fe1"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "dependencies",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-explicit-error-code-header-setter614c/providers/8.4.20/dependencies.receipt.json",
+      "sha256": "d778fa0995995c24537973656364c63352db4f7ee4f77d91092be16f497c516f"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "execute",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-explicit-error-code-header-setter614c/providers/8.4.20/execute.receipt.json",
+      "sha256": "21064e5115256f69644bc261f68f3cce948bf516d50d2ef93876e3dae4fe387c"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "compile",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-explicit-error-code-header-setter614c/providers/8.5.19/compile.receipt.json",
+      "sha256": "c7621cfed3060c334f70b315a6c710cfc2538d228fcf5a3d2e409fb465dc9e72"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "dependencies",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-explicit-error-code-header-setter614c/providers/8.5.19/dependencies.receipt.json",
+      "sha256": "107340652b745aebdb483c20d1b45de8efae3b0edfbdc6c0b5d0ccd510015adf"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "execute",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-explicit-error-code-header-setter614c/providers/8.5.19/execute.receipt.json",
+      "sha256": "c7df7bcf833187d4e90ad3a19aec7ec66354f6febb67c5bf5f96959f3963427a"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "compile",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-explicit-error-code-header-setter614c/providers/8.6.18/compile.receipt.json",
+      "sha256": "019e12b544d17592cc5a679df619e27d770bb3de09d9582b7a271eb4989b61fe"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "dependencies",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-explicit-error-code-header-setter614c/providers/8.6.18/dependencies.receipt.json",
+      "sha256": "c71ae6d24d9f455f748cafc26e4af70072d311f7be2f061809ef060975bed3bc"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "execute",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-explicit-error-code-header-setter614c/providers/8.6.18/execute.receipt.json",
+      "sha256": "5f8b538dd92ea5837a5da8c904336f86f1bcb943ac433c37ac48feaf1e7ba1e4"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "compile",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-explicit-error-code-header-setter614c/providers/9.0.4/compile.receipt.json",
+      "sha256": "98307ee2880ed7b841708d1c9c20ae3713fa4e6f80e0bf66b0e93885dcb6aaa9"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "dependencies",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-explicit-error-code-header-setter614c/providers/9.0.4/dependencies.receipt.json",
+      "sha256": "58e501f8b6d8460c379f4f4cfd994f10e63fdadbbae032796e0098b69764e33f"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "execute",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-explicit-error-code-header-setter614c/providers/9.0.4/execute.receipt.json",
+      "sha256": "3ae4e0f24ce806d62e874431e913b65cec26ba862f97524d70d6340b3c8c7777"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "compile",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-explicit-error-code-header-setter614c/providers/9.1.0/compile.receipt.json",
+      "sha256": "882a39a5384e4080ee9d2313459df41dbaacf08eb2edbae6cd9e77eb5c3e85b8"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "dependencies",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-explicit-error-code-header-setter614c/providers/9.1.0/dependencies.receipt.json",
+      "sha256": "653d7e43c5e1bdcea6a58fea0bbd6336aca40bb996a9a782a42091c9324f30bc"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "execute",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-explicit-error-code-header-setter614c/providers/9.1.0/execute.receipt.json",
+      "sha256": "cc367c3d7df2761a70a43acc7f72cb5863a5b98a7f3a47d9fadc7124f2c1bbd0"
+    }
+  ],
+  "verification_status": "verified",
+  "harness_refusal": null,
+  "required_inputs_unchanged": true,
+  "fresh_output_root": "/workspace/.proofs/native-explicit-error-code-header-setter614c/providers",
+  "all_capture_processes_closed": true,
+  "completed_verified_provider_executions": 5,
+  "scope": "Actual source/producer/dependency/process closure only. Original selected setter/free/getter/public error phases remain bounded by their exact rows. Jim Tcl API execution and all Rust assertion outcomes are unmeasured."
+}

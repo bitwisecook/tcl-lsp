@@ -1,0 +1,62 @@
+[
+  {
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOBasic.c",
+    "original_sha256": "5782e57ef2753b052d904088cf26f43ceb96ab27afb7dbe99438e24a69e68e68",
+    "original_bytes": 61261,
+    "lines": [
+      1846,
+      1937
+    ],
+    "snippet_sha256": "ab5f6b5a9bdf2086ec772844db4f19a1da21c12cd5fe3b42508222278aef9d5b",
+    "physical_LF_byte_join": true,
+    "complete_source_storage": {
+      "canonical_path": "runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/9.0.4/tclOOBasic.c.gz",
+      "compressed_sha256": "7dca5081d9143e69bc83d02706f16cc06c0fa68eb586aa922abaf6a79c21c1be",
+      "original_sha256": "5782e57ef2753b052d904088cf26f43ceb96ab27afb7dbe99438e24a69e68e68",
+      "original_bytes": 61261,
+      "compression": "gzip",
+      "restore": "Decompress the retained gzip to recover the complete exact original source bytes before source inspection replay."
+    },
+    "external_execution": "not-tested"
+  },
+  {
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOBasic.c",
+    "original_sha256": "d8b40b5adf0e96bbcac34fa6a7035dbc4ac431218c28924766c4c13532aff158",
+    "original_bytes": 60877,
+    "lines": [
+      1863,
+      1936
+    ],
+    "snippet_sha256": "4b0284cf3fafa99dd6958098d07fc57c8330bc763b25e23aa35a03e16f933ac9",
+    "physical_LF_byte_join": true,
+    "complete_source_storage": {
+      "canonical_path": "runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/9.1.0/tclOOBasic.c.gz",
+      "compressed_sha256": "bada9409e8a13fffbdc7affe1ffaf7b035ecbf1922b09dc9a9882d01c6e16b7f",
+      "original_sha256": "d8b40b5adf0e96bbcac34fa6a7035dbc4ac431218c28924766c4c13532aff158",
+      "original_bytes": 60877,
+      "compression": "gzip",
+      "restore": "Decompress the retained gzip to recover the complete exact original source bytes before source inspection replay."
+    },
+    "external_execution": "not-tested"
+  },
+  {
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInt.h",
+    "original_sha256": "d05b67a6bf4832f3b94013caab7c6b7d6939982f077e53ff98b7c40c51ac40e7",
+    "original_bytes": 32133,
+    "lines": [
+      673,
+      708
+    ],
+    "snippet_sha256": "54ea2a95114ee0154721c25d8a0a9212d19c5af46655cf1782da43807964af7d",
+    "physical_LF_byte_join": true,
+    "complete_source_storage": {
+      "canonical_path": "runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/9.1.0/tclOOInt.h.gz",
+      "compressed_sha256": "3bf1370dd3cdf11b991f04bffbe54356eebad66436fc23b39870845b6629b7a8",
+      "original_sha256": "d05b67a6bf4832f3b94013caab7c6b7d6939982f077e53ff98b7c40c51ac40e7",
+      "original_bytes": 32133,
+      "compression": "gzip",
+      "restore": "Decompress the retained gzip to recover the complete exact original source bytes before source inspection replay."
+    },
+    "external_execution": "not-tested"
+  }
+]

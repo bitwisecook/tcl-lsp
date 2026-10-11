@@ -1,0 +1,28 @@
+{
+  "packet": "ReceiverClassVariable548b",
+  "status": "READY source-only; exact cfg(test) registration only",
+  "files": [
+    {
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "base_sha256": "b4bcccfcd3484d0c7c4a90bfdb842e1584ef68bf59862c77bc4c55ebe135dd56",
+      "candidate_sha256": "d2b1119f599b84125fdba2113014e4aac5aa2c67e139c174e8b2052e4627388b",
+      "new_file": false
+    }
+  ],
+  "patch_sha256": "22fa7762048aa84badb2f2c81fe773a240558e4a70c3574e18f612889a395ec1",
+  "scope": "Registers existing unchanged original_classvariable_tests child; no test body, assertion, production or Native evidence change",
+  "selectors": {
+    "runtime_lib": [
+      "cmd_oo::original_classvariable_tests::selected_classvariable_validates_all_names_before_any_lookup_or_link",
+      "cmd_oo::original_classvariable_tests::selected_classvariable_name_callbacks_keep_original_frame_facet_and_first_cause",
+      "cmd_oo::original_classvariable_tests::selected_classvariable_links_original_names_after_legal_method_metadata_changes",
+      "cmd_oo::original_classvariable_tests::selected_classvariable_missing_context_reads_only_its_original_head",
+      "cmd_oo::tests::classvariable_shares_state_per_declaring_class",
+      "cmd_oo::tests::classvariable_context_and_name_errors",
+      "cmd_namespace::tests::namespace_upvar_links_local_to_ns_var"
+    ],
+    "registry_lib": [
+      "native_tcloo_method_definition::classvariable_tests::selected_classvariable_schedule_keeps_availability_and_cstring_shapes_distinct"
+    ]
+  }
+}

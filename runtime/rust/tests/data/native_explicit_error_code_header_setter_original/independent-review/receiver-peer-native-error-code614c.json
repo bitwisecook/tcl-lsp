@@ -1,0 +1,89 @@
+{
+  "status": "bounded static source/request acceptance; no producer launched by reviewer",
+  "manifest_path": "/workspace/.proofs/native-explicit-error-code-header-setter614c/manifest.json",
+  "manifest_sha256": "eac4c5c62fb01b8565aebab485824a6f36df20e8a48fde0f63438adef5a027a8",
+  "request_sha256": "f12d6c65ddf19995cba44ef55dd6f0768a935a95fe773879e1faecbe5db3fcd3",
+  "probe_sha256": "a23e636ebc18fc05ba7f7bb94e05d0856a453b4b278128bf8ce2cc09fff893b3",
+  "launcher_sha256": "909f7c9f6c9c877f6f8c22d7ba691688fab5ae06c4de6e073b2990797673e136",
+  "verified_declared_pin_count": 7981,
+  "selected_producer_configuration": [
+    {
+      "provider": "8.4.20",
+      "argv_rejoins_selected_makefile": true,
+      "relative_I_dot_uses_actual_unix_cwd": true,
+      "language_flag": [],
+      "selected_link_flags": [
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ]
+    },
+    {
+      "provider": "8.5.19",
+      "argv_rejoins_selected_makefile": true,
+      "relative_I_dot_uses_actual_unix_cwd": true,
+      "language_flag": [],
+      "selected_link_flags": [
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "argv_rejoins_selected_makefile": true,
+      "relative_I_dot_uses_actual_unix_cwd": true,
+      "language_flag": [],
+      "selected_link_flags": [
+        "-ldl",
+        "-lz",
+        "-lpthread",
+        "-lm"
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "argv_rejoins_selected_makefile": true,
+      "relative_I_dot_uses_actual_unix_cwd": true,
+      "language_flag": [
+        "-std=gnu23"
+      ],
+      "selected_link_flags": [
+        "-ldl",
+        "-lz",
+        "-lpthread",
+        "-lm"
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "argv_rejoins_selected_makefile": true,
+      "relative_I_dot_uses_actual_unix_cwd": true,
+      "language_flag": [
+        "-std=gnu23"
+      ],
+      "selected_link_flags": [
+        "-ldl",
+        "-lz",
+        "-lrt",
+        "-lpthread",
+        "-lm"
+      ]
+    }
+  ],
+  "reviewed_protocol": [
+    "All 7981 declared inputs independently streaming-hashed; five physical LF original setter windows and exact request/launcher/configuration hashes rejoin.",
+    "Only tclInt.h include order changes from 614b; the four case bodies, observers, lifetime roles and teardown remain exact.",
+    "Each compile argv independently rejoins the selected Makefile simple expansion and shlex words. Compilation runs in that exact SDK unix directory; relative header and LOAD inputs resolve against that recorded cwd. C9 uses selected gnu23; no invented compat include search path.",
+    "Actual process streams and receipts are fsynced before after-process input/dependency verification; verification/refusal records remain separate and later processes stop on refusal.",
+    "Fresh own compiler ELF, actual compiler.d source/header inputs, LOAD linker inputs and ldd dependencies must be admitted before execution, with strict executable and dependency identity checks after execution.",
+    "Compiler-produced ephemeral object paths are explicitly unretained and receive no invented digest.",
+    "Five complete own executions and four case/final markers are required for full capture closure; an outer exit status alone is insufficient."
+  ],
+  "limits": [
+    "Prior 614 and 614b partial/refused captures remain separate; this static declared-pin review establishes no actual reached header admission or execution result.",
+    "Actual compile may identify another missing original input and must refuse it before execution.",
+    "No Jim Tcl API, Rust assertion, callback parity or safe reentrant lifetime credit."
+  ],
+  "remaining_blockers": []
+}

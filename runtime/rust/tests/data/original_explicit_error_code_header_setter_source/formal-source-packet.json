@@ -1,0 +1,87 @@
+{
+  "purpose": "Actual original explicit C error-code setter, selected C8.4 global and C8.5-C9.1 private header ownership, no String getter/reconstruction in public C API. Separate fresh-byte authoring delegates physical publication while preserving its existing semantic exception/retirement controls.",
+  "files": [
+    {
+      "path": "docs/design/README.md",
+      "base_sha256": "415f4f65c0fc72ba7340d7c091e0eabf8cb484917fa61a06a672db55b4e0f34a",
+      "candidate_sha256": "3cabe859462ef39853c04e926d876b95652d45bad28e1d56457041e1c4eaf190",
+      "live_matches_base": true
+    },
+    {
+      "path": "docs/design/contracts/runtime-error-code-owners.md",
+      "base_sha256": null,
+      "candidate_sha256": "21d2a0c6c702b03356d37695e46fa0613265848b4ea84b068e283cafb940c474",
+      "live_matches_base": true
+    },
+    {
+      "path": "runtime/rust/src/capi/collections.rs",
+      "base_sha256": "c32d2b367d3682fdd952e64bc8a2adb1865ad31af1acdd19bfbddca1a6d0b116",
+      "candidate_sha256": "c22b0bb4a312f3e954e23f3fb8ee4f492af8eab104c115e7360d4e7392b06cce",
+      "live_matches_base": true
+    },
+    {
+      "path": "runtime/rust/src/interp.rs",
+      "base_sha256": "9a27288b55dcac95cd3c3e1a5879477a0fc05d82ff675213340b86be0ff8c6e9",
+      "candidate_sha256": "b1680b4b9b79c90470cd809bc73555423bf7308c434e91bc7c3b5e26bb8768ff",
+      "live_matches_base": true
+    },
+    {
+      "path": "runtime/rust/src/interp/original_error_code_setter_tests.rs",
+      "base_sha256": null,
+      "candidate_sha256": "06e96fe97670db64d409f5dd945fff4fd01b1078c7a776f1a5050a06af25e229",
+      "live_matches_base": true
+    }
+  ],
+  "patch_sha256": "a71ff0a0aadff6aa9520e8fa55d90c2f53900213afd93e315591aa472e7dbb1a",
+  "base_rebased_on": "Formal Runtime539 exact live storage/retirement owner after551; whole parent unchanged outside original setter/getter/test-module and C API reserved regions. C84 selected global publisher store\u2192callback\u2192flag remains current genuine Runtime539 owner, and typed trace outcome successor remains separate.",
+  "producer_census": [
+    "Public capi::Tcl_SetObjErrorCode -> capi::collections::set_error_code authentic incoming header -> shared Interp::set_original_c_error_code.",
+    "Private byte-authoring set_c_error_code callers: codegen_native actual expression Guest callback, engine scalar importer fixture and c_api_error_tests setup. Existing byte-authored test assertions remain.",
+    "C8.4 error_code_bytes_checked reads actual selected global header; modern path retains actual private header. This software completion projection does not grant Tcl_GetReturnOptions to C8.4."
+  ],
+  "source_implementation_context": "/tmp/naming-explicit-error-code-owner-design/CENSUS.json; retained actual five C setter source bodies/full hashes, not new Native process observations.",
+  "new_controls": [
+    {
+      "selector": "interp::original_error_code_setter_tests::original_capi_error_code_setter_retains_lazy_header_without_a_string_getter",
+      "question_id": "naming.error.c84-publication-order"
+    },
+    {
+      "selector": "interp::original_error_code_setter_tests::original_capi_error_code_setter_retirement_keeps_first_cause_and_reached_storage",
+      "question_id": "naming.embedding.original-host-publication-and-fact-transport"
+    },
+    {
+      "selector": "interp::original_error_code_setter_tests::original_capi_error_code_setter_pending_host_keeps_all_later_stages_unreached",
+      "question_id": "naming.embedding.original-host-publication-and-fact-transport"
+    },
+    {
+      "selector": "interp::original_error_code_setter_tests::original_c84_explicit_callback_code_survives_actual_command_logging",
+      "question_id": "naming.error.c84-publication-order"
+    }
+  ],
+  "test_requests": [
+    {
+      "package": "tcl-runtime",
+      "target": {
+        "kind": "lib",
+        "manifest_path": "runtime/rust/Cargo.toml",
+        "excluded_from_root_workspace": true
+      },
+      "selectors": [
+        "interp::original_error_code_setter_tests::",
+        "interp::c_api_error_tests::",
+        "interp::native_error_variables::tests::",
+        "capi::collections::tests::",
+        "codegen_native::original_expression_completion_tests::",
+        "codegen_abi::original_receiver_tests::",
+        "engine::tests::scalar_importer_preserves_first_host_cause_and_guest_state"
+      ]
+    }
+  ],
+  "preservation": "Existing test-bearing regions/children and all assertions are untouched. New private child contains four finite actual source/API controls.551 snapshot/ErrorSnapshot changes are retained.",
+  "validation": {
+    "private_scoped_rustfmt_edition2021": "exit0; unrelated parent formatting preserved",
+    "executions": "none",
+    "claim": "Bounded private source packet only; own image/list/admission/assertions required. No Native getter/publication chronology or provider outcome from software definitions."
+  },
+  "remaining_independent_scope": "Typed trace outcome migration consumes same actual C84 publication callback outcome; no bool-to-Guest fallback in current public CAPI setter correction."
+}

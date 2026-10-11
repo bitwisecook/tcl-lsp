@@ -1,0 +1,85 @@
+{
+  "packet": "ReceiverClassVariable548",
+  "status": "READY source-only; bounded peer review pending",
+  "files": [
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "base_sha256": "08bad3da8d0208fe6584d39ca41628cab97da1dabb3d505f792c0e0ce5f4411e",
+      "candidate_sha256": "4bd50a0ab2416ac7f2bd74e69890ba2c9ff71a337cac50ae2bc08a6d67318247",
+      "new_file": false,
+      "rustfmt_parse": null
+    },
+    {
+      "path": "runtime/rust/src/cmd_oo/native_context.rs",
+      "base_sha256": "b42a96874415df5da27056b5ae25225fd13b4904e70de52e022f0b0f6f1c8e43",
+      "candidate_sha256": "7b04a4c8b80586f6403be2f14d171df5615d9d466683caf170f715e2538cc75b",
+      "new_file": false,
+      "rustfmt_parse": 0
+    },
+    {
+      "path": "runtime/rust/src/cmd_oo/original_classvariable_tests.rs",
+      "base_sha256": null,
+      "candidate_sha256": "1f2e24c0e2565ed8ddfb4296747b452848f54a67e2bbf38d0b1e11f8f0cf6afd",
+      "new_file": true,
+      "rustfmt_parse": 0
+    },
+    {
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "base_sha256": "4f627e245e6e1fbc747ca7dd9a98cae08a4ad056675016bbad31d326e7915b9b",
+      "candidate_sha256": "b4bcccfcd3484d0c7c4a90bfdb842e1584ef68bf59862c77bc4c55ebe135dd56",
+      "new_file": false,
+      "rustfmt_parse": 0
+    },
+    {
+      "path": "runtime/rust/src/interp/native_variable_names.rs",
+      "base_sha256": "7890983ea758c960516bf6ffbd5aae77ae3cc4831fb990b0250e2e37f08321c6",
+      "candidate_sha256": "48ac14616d1d9c1c8269217c864650bdb300b2ceb65664da836da27325a28b0a",
+      "new_file": false,
+      "rustfmt_parse": 0
+    },
+    {
+      "path": "rust/tcl-registry/src/native_tcloo_method_definition.rs",
+      "base_sha256": "90f6be393d15f5c3b0a49e4eac59d980e9425d8aa724fd65fe32c036c5f14796",
+      "candidate_sha256": "44fa64f10de9dabcb46727fd92699cd5dc331bf82ed66bd5b6d5d4bc519311ec",
+      "new_file": false,
+      "rustfmt_parse": 0
+    }
+  ],
+  "patch_sha256": "30ab8c5b48b82c0d4a7678b7e69b72da6f04e1c801e96c79775162bdd921a20c",
+  "selectors": {
+    "runtime_lib": [
+      "cmd_oo::original_classvariable_tests::selected_classvariable_validates_all_names_before_any_lookup_or_link",
+      "cmd_oo::original_classvariable_tests::selected_classvariable_name_callbacks_keep_original_frame_facet_and_first_cause",
+      "cmd_oo::original_classvariable_tests::selected_classvariable_links_original_names_after_legal_method_metadata_changes",
+      "cmd_oo::original_classvariable_tests::selected_classvariable_missing_context_reads_only_its_original_head",
+      "cmd_oo::tests::classvariable_shares_state_per_declaring_class",
+      "cmd_oo::tests::classvariable_context_and_name_errors",
+      "cmd_namespace::tests::namespace_upvar_links_local_to_ns_var"
+    ],
+    "registry_lib": [
+      "native_tcloo_method_definition::classvariable_tests::selected_classvariable_schedule_keeps_availability_and_cstring_shapes_distinct"
+    ]
+  },
+  "new_runtime_controls": 4,
+  "new_registry_controls": 1,
+  "source_windows_sha256": "d9b472e1be3a2e7ec3e21609c0fa3b66aff3337de918fb67e405e4c382fdfd77",
+  "census_sha256": "10680ab60cae7fa18420e7ed43c1d7cd448793be36e725ba0aa08de1f7997d97",
+  "preservation_sha256": "27d0d2e1e74ffd7b100541e88eb670f43a642aa79508fa198ce3b5ef03bed020",
+  "scope": "Selected original C90/C91 class-variable worker uses real current method activation/Weak frame, original declaring class facet and namespace token; selected lazy head/name stages precede the shared namespace-only target preparation and actual original local binding. C86 compatibility and namespace-upvar existing kernel retained.",
+  "canonical_question": "naming.tcloo.original-classvariable-preflight-and-link-owner",
+  "canonical_doc": "docs/design/analysis/name-resolution-proofs/tcloo-original-classvariable-preflight-and-link-owner.md",
+  "validation": {
+    "rustfmt_parse_only": true,
+    "old_test_tails_byte_exact": true,
+    "cargo_native_tests_assertions": false
+  },
+  "external_execution_statuses": {
+    "C84": "NT",
+    "C85": "NT",
+    "C86": "NT",
+    "C90": "NT",
+    "C91": "NT",
+    "Jim": "NT",
+    "F5": "NT"
+  }
+}

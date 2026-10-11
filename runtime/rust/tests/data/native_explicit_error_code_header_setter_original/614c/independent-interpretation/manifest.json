@@ -1,0 +1,8 @@
+{
+  "question_id": "naming.error.original-explicit-error-code-header-setter",
+  "original_request_sha256": "f12d6c65ddf19995cba44ef55dd6f0768a935a95fe773879e1faecbe5db3fcd3",
+  "original_closure_sha256": "013adbdb4648f75408761e26fd231575293122d66c2b14fa1e3929fe99e7249c",
+  "interpretation_sha256": "9dad92ca07eec6a5b5b155f0193cb57a9bbc392216bb45eb8591fe297218e34b",
+  "read_only_interpretation": true,
+  "compiler_native_or_assertion_launches": 0
+}

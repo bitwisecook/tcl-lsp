@@ -1,0 +1,27 @@
+     */
+
+    if (count == callPtr->numChain) {
+	/*
+	 * Method does not actually exist. If we're dealing with constructors
+	 * or destructors, this isn't a problem.
+	 */
+
+	if (flags & SPECIAL) {
+	    TclOODeleteChain(callPtr);
+	    return NULL;
+	}
+	AddSimpleChainToCallContext(oPtr, NULL,
+		oPtr->fPtr->unknownMethodNameObj, &cb, NULL, BUILDING_MIXINS,
+		NULL);
+	AddSimpleChainToCallContext(oPtr, NULL,
+		oPtr->fPtr->unknownMethodNameObj, &cb, NULL, 0, NULL);
+	callPtr->flags |= OO_UNKNOWN_METHOD;
+	callPtr->epoch = 0;
+	if (count == callPtr->numChain) {
+	    TclOODeleteChain(callPtr);
+	    return NULL;
+	}
+    } else if (doFilters && !donePrivate) {
+	if (hPtr == NULL) {
+	    int isNew;
+	    if (oPtr->flags & USE_CLASS_CACHE) {

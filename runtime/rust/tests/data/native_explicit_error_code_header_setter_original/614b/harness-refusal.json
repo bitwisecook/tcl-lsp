@@ -1,0 +1,61 @@
+{
+  "status": "harness-verification-refused",
+  "provider": "9.0.4",
+  "channel": "compile-header-link-verification",
+  "exception_type": "AssertionError",
+  "reason": "unpinned original header/source input: /workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclUnixPort.h",
+  "request_sha256": "1ed74f5b7e426b927439da9bcfb36618a32e72f8e7aca7ce13e3279baa48b821",
+  "actual_process_receipts": [
+    {
+      "provider": "compiler",
+      "channel": "compiler-version",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-explicit-error-code-header-setter614b/compiler-version.receipt.json",
+      "sha256": "1a6cb4a34e1f6bda9671ef87b4dc0e853f4ec5f9294233d5c34462833c8ff4c7"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "compile",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-explicit-error-code-header-setter614b/providers/8.4.20/compile.receipt.json",
+      "sha256": "6587d6e1522cc3a98d9a4eaa333f7817acd3152c83d5058d7f57b1797cd6ca06"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "dependencies",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-explicit-error-code-header-setter614b/providers/8.4.20/dependencies.receipt.json",
+      "sha256": "a920c34560e128d43c3677a659cdc7ddfe0fa29fca13be150f85ce28061dabde"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "execute",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-explicit-error-code-header-setter614b/providers/8.4.20/execute.receipt.json",
+      "sha256": "777a750d71499eb0224154989d5f5873574a99751a94ca5a6327f6755892859d"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "compile",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-explicit-error-code-header-setter614b/providers/8.5.19/compile.receipt.json",
+      "sha256": "7f8938324c9e7cfc63bfd536e8d9dd69dd9ae46b199574c2ac809717c2b4411e"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "compile",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-explicit-error-code-header-setter614b/providers/8.6.18/compile.receipt.json",
+      "sha256": "dbd182f5823f95bea2e5e6e6a25a650b6d8b93820e8c1c982a059a0cbf316fe3"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "compile",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-explicit-error-code-header-setter614b/providers/9.0.4/compile.receipt.json",
+      "sha256": "7bff9acde66ae68c97837094dfdbdf19fc540febf9204988b1eff32a7879f373"
+    }
+  ],
+  "later_processes": "not entered after this refusal",
+  "native_or_rust_assertion_outcome": "not inferred"
+}

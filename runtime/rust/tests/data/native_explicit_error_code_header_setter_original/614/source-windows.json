@@ -1,0 +1,122 @@
+[
+  {
+    "provider": "tcl8.4",
+    "version": "8.4.20",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclResult.c",
+    "original_sha256": "710dcd51ab81bafaee88e9390d261858745f637f7bfd2d1d7ceedc502604dddf",
+    "original_bytes": 28380,
+    "first_physical_lf_line": 952,
+    "last_physical_lf_line": 961,
+    "excerpt_path": "runtime/rust/tests/data/original_explicit_error_code_header_setter_source/8.4.20/Tcl_SetObjErrorCode-952-961.c",
+    "excerpt_sha256": "02f7c918b42f0bf851f67a69e4b27ae09f70de0a51d4cd1937b1c44f2394b451",
+    "source_census_body_byte_join": true,
+    "full_source_storage": {
+      "canonical_path": "runtime/rust/tests/data/original_explicit_error_code_header_setter_source/8.4.20/tclResult.c.gz",
+      "compressed_sha256": "3afbfb3aa961d72bfdc4a5acc0b0023841c87d102ac06001d3411ab54e0de494",
+      "original_sha256": "710dcd51ab81bafaee88e9390d261858745f637f7bfd2d1d7ceedc502604dddf",
+      "original_bytes": 28380,
+      "compression": "gzip",
+      "restore": "Decompress the retained gzip to recover the complete exact original source bytes before source inspection replay."
+    },
+    "no_String_getter_in_explicit_setter_body": true,
+    "external_execution": "not-tested",
+    "request_excerpt": "/workspace/.proofs/native-explicit-error-code-header-setter614/source-windows/8.4.20-Tcl_SetObjErrorCode.c",
+    "request_excerpt_sha256": "02f7c918b42f0bf851f67a69e4b27ae09f70de0a51d4cd1937b1c44f2394b451"
+  },
+  {
+    "provider": "tcl8.5",
+    "version": "8.5.19",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclResult.c",
+    "original_sha256": "dda0e0604a19da0b8998432c3dd831a705de70f96de28abfc6a4f47c6ecc7a37",
+    "original_bytes": 42400,
+    "first_physical_lf_line": 1070,
+    "last_physical_lf_line": 1081,
+    "excerpt_path": "runtime/rust/tests/data/original_explicit_error_code_header_setter_source/8.5.19/Tcl_SetObjErrorCode-1070-1081.c",
+    "excerpt_sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0",
+    "source_census_body_byte_join": true,
+    "full_source_storage": {
+      "canonical_path": "runtime/rust/tests/data/original_explicit_error_code_header_setter_source/8.5.19/tclResult.c.gz",
+      "compressed_sha256": "6f0ff5ffc5396df15fabc395ec4bf1d0ed5642bc1837c2e54a88a631ebe2b253",
+      "original_sha256": "dda0e0604a19da0b8998432c3dd831a705de70f96de28abfc6a4f47c6ecc7a37",
+      "original_bytes": 42400,
+      "compression": "gzip",
+      "restore": "Decompress the retained gzip to recover the complete exact original source bytes before source inspection replay."
+    },
+    "no_String_getter_in_explicit_setter_body": true,
+    "external_execution": "not-tested",
+    "request_excerpt": "/workspace/.proofs/native-explicit-error-code-header-setter614/source-windows/8.5.19-Tcl_SetObjErrorCode.c",
+    "request_excerpt_sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0"
+  },
+  {
+    "provider": "tcl8.6",
+    "version": "8.6.18",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclResult.c",
+    "original_sha256": "f48609a974267129f32aee9924208175be75e1cb288c2f1b9fc9dad232f4b93b",
+    "original_bytes": 46950,
+    "first_physical_lf_line": 1103,
+    "last_physical_lf_line": 1114,
+    "excerpt_path": "runtime/rust/tests/data/original_explicit_error_code_header_setter_source/8.6.18/Tcl_SetObjErrorCode-1103-1114.c",
+    "excerpt_sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0",
+    "source_census_body_byte_join": true,
+    "full_source_storage": {
+      "canonical_path": "runtime/rust/tests/data/original_explicit_error_code_header_setter_source/8.6.18/tclResult.c.gz",
+      "compressed_sha256": "138c65b1f18d3451c13bcb5189e4718081cf913620889a86756ff869304760ae",
+      "original_sha256": "f48609a974267129f32aee9924208175be75e1cb288c2f1b9fc9dad232f4b93b",
+      "original_bytes": 46950,
+      "compression": "gzip",
+      "restore": "Decompress the retained gzip to recover the complete exact original source bytes before source inspection replay."
+    },
+    "no_String_getter_in_explicit_setter_body": true,
+    "external_execution": "not-tested",
+    "request_excerpt": "/workspace/.proofs/native-explicit-error-code-header-setter614/source-windows/8.6.18-Tcl_SetObjErrorCode.c",
+    "request_excerpt_sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0"
+  },
+  {
+    "provider": "tcl9.0",
+    "version": "9.0.4",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclResult.c",
+    "original_sha256": "29f06b862e3448ecf827971f5cf1519c2cb6b8159ff99713fc0527b3308233a1",
+    "original_bytes": 32108,
+    "first_physical_lf_line": 535,
+    "last_physical_lf_line": 546,
+    "excerpt_path": "runtime/rust/tests/data/original_explicit_error_code_header_setter_source/9.0.4/Tcl_SetObjErrorCode-535-546.c",
+    "excerpt_sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0",
+    "source_census_body_byte_join": true,
+    "full_source_storage": {
+      "canonical_path": "runtime/rust/tests/data/original_explicit_error_code_header_setter_source/9.0.4/tclResult.c.gz",
+      "compressed_sha256": "7a46a883eb840f74548a4feab9806c9d51a8761b440cc9aea84cce60dada098a",
+      "original_sha256": "29f06b862e3448ecf827971f5cf1519c2cb6b8159ff99713fc0527b3308233a1",
+      "original_bytes": 32108,
+      "compression": "gzip",
+      "restore": "Decompress the retained gzip to recover the complete exact original source bytes before source inspection replay."
+    },
+    "no_String_getter_in_explicit_setter_body": true,
+    "external_execution": "not-tested",
+    "request_excerpt": "/workspace/.proofs/native-explicit-error-code-header-setter614/source-windows/9.0.4-Tcl_SetObjErrorCode.c",
+    "request_excerpt_sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0"
+  },
+  {
+    "provider": "tcl9.1",
+    "version": "9.1.0",
+    "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclResult.c",
+    "original_sha256": "0dc7c5d3c2bd48c90723507d3d1001f7b8aab1abcebbfaf5c1084adf16f84c3b",
+    "original_bytes": 33780,
+    "first_physical_lf_line": 536,
+    "last_physical_lf_line": 547,
+    "excerpt_path": "runtime/rust/tests/data/original_explicit_error_code_header_setter_source/9.1.0/Tcl_SetObjErrorCode-536-547.c",
+    "excerpt_sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0",
+    "source_census_body_byte_join": true,
+    "full_source_storage": {
+      "canonical_path": "runtime/rust/tests/data/original_explicit_error_code_header_setter_source/9.1.0/tclResult.c.gz",
+      "compressed_sha256": "dd93897b14cbf4a64999de0ba29db43c41aaebadd22ed125324574274ddc7d84",
+      "original_sha256": "0dc7c5d3c2bd48c90723507d3d1001f7b8aab1abcebbfaf5c1084adf16f84c3b",
+      "original_bytes": 33780,
+      "compression": "gzip",
+      "restore": "Decompress the retained gzip to recover the complete exact original source bytes before source inspection replay."
+    },
+    "no_String_getter_in_explicit_setter_body": true,
+    "external_execution": "not-tested",
+    "request_excerpt": "/workspace/.proofs/native-explicit-error-code-header-setter614/source-windows/9.1.0-Tcl_SetObjErrorCode.c",
+    "request_excerpt_sha256": "9638130e87eac6707f4db07927cd44ce51d5d3219242d8f281347f4f4df347b0"
+  }
+]

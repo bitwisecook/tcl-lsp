@@ -1,0 +1,20 @@
+ */
+
+static const Tcl_MethodType GetterType = {
+    TCL_OO_METHOD_VERSION_1,
+    "PropertyGetter",
+    Configurable_Getter,
+    DetailsDeleter,
+    DetailsCloner
+};
+
+static const Tcl_MethodType SetterType = {
+    TCL_OO_METHOD_VERSION_1,
+    "PropertySetter",
+    Configurable_Setter,
+    DetailsDeleter,
+    DetailsCloner
+};
+
+/*
+ * ----------------------------------------------------------------------

@@ -1,0 +1,20 @@
+In file included from /workspace/.proofs/native-explicit-error-code-header-setter614/probe.c:3:
+/workspace/tcl-lsp/tmp/tcl8.4.20/compat/stdlib.h:27:25: warning: conflicting types for built-in function 'calloc'; expected 'void *(long unsigned int,  long unsigned int)' [-Wbuiltin-declaration-mismatch]
+   27 | extern char *           calloc _ANSI_ARGS_((unsigned int numElements,
+      |                         ^~~~~~
+/workspace/tcl-lsp/tmp/tcl8.4.20/compat/stdlib.h:22:1: note: 'calloc' is declared in header '<stdlib.h>'
+   21 | #include <tcl.h>
+  +++ |+#include <stdlib.h>
+   22 | 
+/workspace/tcl-lsp/tmp/tcl8.4.20/compat/stdlib.h:30:25: warning: conflicting types for built-in function 'free'; expected 'void(void *)' [-Wbuiltin-declaration-mismatch]
+   30 | extern int              free _ANSI_ARGS_((char *blockPtr));
+      |                         ^~~~
+/workspace/tcl-lsp/tmp/tcl8.4.20/compat/stdlib.h:30:25: note: 'free' is declared in header '<stdlib.h>'
+/workspace/tcl-lsp/tmp/tcl8.4.20/compat/stdlib.h:32:25: warning: conflicting types for built-in function 'malloc'; expected 'void *(long unsigned int)' [-Wbuiltin-declaration-mismatch]
+   32 | extern char *           malloc _ANSI_ARGS_((unsigned int numBytes));
+      |                         ^~~~~~
+/workspace/tcl-lsp/tmp/tcl8.4.20/compat/stdlib.h:32:25: note: 'malloc' is declared in header '<stdlib.h>'
+/workspace/tcl-lsp/tmp/tcl8.4.20/compat/stdlib.h:36:25: warning: conflicting types for built-in function 'realloc'; expected 'void *(void *, long unsigned int)' [-Wbuiltin-declaration-mismatch]
+   36 | extern char *           realloc _ANSI_ARGS_((char *ptr, unsigned int numBytes));
+      |                         ^~~~~~~
+/workspace/tcl-lsp/tmp/tcl8.4.20/compat/stdlib.h:36:25: note: 'realloc' is declared in header '<stdlib.h>'

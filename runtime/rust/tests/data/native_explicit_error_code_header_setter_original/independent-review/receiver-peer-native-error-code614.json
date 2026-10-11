@@ -1,0 +1,23 @@
+{
+  "packet": "NativeExplicitErrorCodeHeaderSetter614 bounded independent static review",
+  "request_sha256": "7b392fce380053bbfd8f8fb772227534cac117fb3bad45cda145fa600e15d607",
+  "manifest_sha256": "96a1721d1a61431d6ce7aa423e55a24cdd951300831e055de00c074232973321",
+  "probe_sha256": "d85ae996cf65de3bf3dc7beeb522e588af03178c93e336ddfa9b6d0dcfa4c614",
+  "launcher_sha256": "93fbf6ea2e50030a0d2b6111717190e4b66519149ba2762f0fb0ffbb75719833",
+  "required_pins_verified": 4409,
+  "physical_lf_source_joins_verified": 5,
+  "selected_TCL_DEFS_verified_providers": 5,
+  "findings": [
+    "C84 selected_header observes only an existing global hash entry and scalar/undefined metadata; it invokes no variable worker and creates no missing shell.",
+    "Modern observers read the actual selected private Interp.errorCode field; original configuration definitions and headers remain independently pinned.",
+    "HeaderRecord lives for the complete interpreter/caller cleanup. Incoming header has its actual caller +1, old caller hold is deliberately released before observed replacement, and prior result has a distinct actual caller hold.",
+    "Pure updater/free/dup/write-trace hooks issue no interpreter worker or storage mutation. Final teardown disables observers before any owner destruction; retired original headers are never dereferenced by later ROWs.",
+    "Legacy Tcl_CreateObjCommand uses its real int-count callback on every selected SDK; explicit Tcl_GetStringFromObj uses selected int/Tcl_Size Count. Extended Tcl9 ObjType trailing fields are zero-initialized.",
+    "Public setter, callback-internal setter, public Eval error return and separately requested header String getter are distinct phase channels; possible Eval error-context effects must not be attributed to setter body.",
+    "Launcher rejects existing output, verifies original input pins before/after every process, records fresh own compile producer, actual header/link inputs and dynamic dependency associations plus executable identity before/after execution.",
+    "Four original cases across five C releases only. Jim corresponding Tcl API purpose is unexecuted/unavailable, not simulated. Closure markers cannot substitute for actual per-process status or row semantics."
+  ],
+  "status": "No concrete blocker found in reviewed static lifetime/header/API/phase/launcher seams",
+  "compiler_native_or_assertion_launches": 0,
+  "external_execution_credit": false
+}

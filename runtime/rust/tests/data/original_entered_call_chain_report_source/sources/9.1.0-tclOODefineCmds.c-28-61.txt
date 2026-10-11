@@ -1,0 +1,34 @@
+ */
+
+#define OBJNAME_LENGTH_IN_ERRORINFO_LIMIT 30
+
+/*
+ * Some things that make it easier to declare a slot.
+ */
+typedef struct DeclaredSlot {
+    const char *name;
+    const Tcl_MethodType2 getterType;
+    const Tcl_MethodType2 setterType;
+    const Tcl_MethodType2 resolverType;
+    const char *defaultOp;	// The default op, if not set by the class
+} DeclaredSlot;
+
+#define SLOT(name,getter,setter,resolver,defOp) \
+    {"::oo::" name,							\
+	    {TCL_OO_METHOD_VERSION_2, "core method: " name " Getter",	\
+		    getter, NULL, NULL},				\
+	    {TCL_OO_METHOD_VERSION_2, "core method: " name " Setter",	\
+		    setter, NULL, NULL},				\
+	    {TCL_OO_METHOD_VERSION_2, "core method: " name " Resolver",	\
+		    resolver, NULL, NULL}, (defOp)}
+
+typedef struct DeclaredSlotMethod {
+    const char *name;
+    int flags;
+    const Tcl_MethodType2 implType;
+} DeclaredSlotMethod;
+
+#define SLOT_METHOD(name,impl,flags) \
+    {name, flags, {TCL_OO_METHOD_VERSION_2,				\
+	    "core method: " name " slot", impl, NULL, NULL}}
+

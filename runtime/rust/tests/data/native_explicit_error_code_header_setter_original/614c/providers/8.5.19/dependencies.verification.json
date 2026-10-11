@@ -1,0 +1,58 @@
+{
+  "status": "verified",
+  "actual_dynamic_dependencies": [
+    {
+      "path": "/lib/x86_64-linux-gnu/libm.so.6",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+      "sha256": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+      "size": 977112,
+      "device": 27,
+      "inode": 9223372036855342425,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "size": 1995216,
+      "device": 27,
+      "inode": 9223372036855341329,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672,
+      "device": 27,
+      "inode": 9223372036855339413,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    }
+  ],
+  "executable_before": {
+    "path": "/workspace/.proofs/native-explicit-error-code-header-setter614c/providers/8.5.19/probe.elf",
+    "resolved_path": "/workspace/.proofs/native-explicit-error-code-header-setter614c/providers/8.5.19/probe.elf",
+    "sha256": "e99cb6605b68d99b5a7528b917c3bad9406276c8a94991248cbfa3aa7fc34be0",
+    "size": 1254216,
+    "device": 27,
+    "inode": 1278135,
+    "mtime_ns": 1791712508735960075,
+    "ctime_ns": 1791712508735978147
+  },
+  "executable_after": {
+    "path": "/workspace/.proofs/native-explicit-error-code-header-setter614c/providers/8.5.19/probe.elf",
+    "resolved_path": "/workspace/.proofs/native-explicit-error-code-header-setter614c/providers/8.5.19/probe.elf",
+    "sha256": "e99cb6605b68d99b5a7528b917c3bad9406276c8a94991248cbfa3aa7fc34be0",
+    "size": 1254216,
+    "device": 27,
+    "inode": 1278135,
+    "mtime_ns": 1791712508735960075,
+    "ctime_ns": 1791712508735978147
+  },
+  "process_receipt": "/workspace/.proofs/native-explicit-error-code-header-setter614c/providers/8.5.19/dependencies.receipt.json",
+  "process_receipt_sha256": "107340652b745aebdb483c20d1b45de8efae3b0edfbdc6c0b5d0ccd510015adf",
+  "request_sha256": "f12d6c65ddf19995cba44ef55dd6f0768a935a95fe773879e1faecbe5db3fcd3"
+}

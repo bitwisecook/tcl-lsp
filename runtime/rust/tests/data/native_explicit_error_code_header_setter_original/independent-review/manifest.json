@@ -1,0 +1,10 @@
+{
+  "question_id": "naming.error.original-explicit-error-code-header-setter",
+  "source_capture": "/workspace/.proofs/native-explicit-error-code-header-setter614b",
+  "original_request_sha256": "1ed74f5b7e426b927439da9bcfb36618a32e72f8e7aca7ce13e3279baa48b821",
+  "original_closure_sha256": "95fb794d063d11e77f7128c5571dbda8cb4d432f003ee6b7ca93892d078136b2",
+  "interpretation_sha256": "7c713cf0caf551c01796cdaa58f72cceddc3f474400e3c25e53bfc3222f807b2",
+  "read_only_interpretation": true,
+  "compiler_native_or_assertion_launches": 0,
+  "source_capture_bytes_unchanged": true
+}
