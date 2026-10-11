@@ -3265,7 +3265,7 @@ pub fn regsub_start<O: NativeIndexOps>(
                 resolve_start_checked(ops, spec, characters.len())
             })
         },
-        |_, metadata| drop(metadata),
+        |_, _| {},
         RegexError::from,
     )
 }

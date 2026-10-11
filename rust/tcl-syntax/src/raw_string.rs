@@ -152,6 +152,15 @@ impl std::fmt::Display for UnicodeAccessError {
 
 impl std::error::Error for UnicodeAccessError {}
 
+impl From<std::str::Utf8Error> for UnicodeAccessError {
+    fn from(error: std::str::Utf8Error) -> Self {
+        Self {
+            valid_up_to: error.valid_up_to(),
+            error_len: error.error_len(),
+        }
+    }
+}
+
 /// An eager host backend cannot retain the requested native value size.
 /// This capacity limit is independent of the guest interpreter's lazy values.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -869,10 +878,7 @@ impl RawString {
             .get_or_init(|| {
                 std::str::from_utf8(&self.0.bytes)
                     .map(Rc::from)
-                    .map_err(|error| UnicodeAccessError {
-                        valid_up_to: error.valid_up_to(),
-                        error_len: error.error_len(),
-                    })
+                    .map_err(UnicodeAccessError::from)
             })
             .clone()
     }

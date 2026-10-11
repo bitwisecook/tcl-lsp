@@ -302,8 +302,9 @@ impl CmdError {
         if let Some(error) = &self.metadata.native_execution_refusal {
             return Err(error.clone());
         }
-        std::str::from_utf8(&self.message)
-            .map_err(|error| NativeExecutionError::ValueAccessRefusal(unicode_error(error).into()))
+        std::str::from_utf8(&self.message).map_err(|error| {
+            NativeExecutionError::ValueAccessRefusal(UnicodeAccessError::from(error).into())
+        })
     }
 
     /// Tcl's structured `-errorcode` list, when the command supplied one.
@@ -314,7 +315,9 @@ impl CmdError {
         self.error_code_bytes()
             .map(std::str::from_utf8)
             .transpose()
-            .map_err(|error| NativeExecutionError::ValueAccessRefusal(unicode_error(error).into()))
+            .map_err(|error| {
+                NativeExecutionError::ValueAccessRefusal(UnicodeAccessError::from(error).into())
+            })
     }
 
     /// Positive explicit error-code bytes. Absence does not distinguish Default
@@ -342,7 +345,9 @@ impl CmdError {
             return Err(error.clone());
         }
         String::from_utf8(self.message).map_err(|error| {
-            NativeExecutionError::ValueAccessRefusal(unicode_error(error.utf8_error()).into())
+            NativeExecutionError::ValueAccessRefusal(
+                UnicodeAccessError::from(error.utf8_error()).into(),
+            )
         })
     }
 
@@ -369,7 +374,9 @@ impl CmdError {
         }
         Ok((
             String::from_utf8(self.message).map_err(|error| {
-                NativeExecutionError::ValueAccessRefusal(unicode_error(error.utf8_error()).into())
+                NativeExecutionError::ValueAccessRefusal(
+                    UnicodeAccessError::from(error.utf8_error()).into(),
+                )
             })?,
             self.metadata.error_code,
             self.metadata.error_info,
@@ -529,13 +536,6 @@ impl From<ValueError> for CmdError {
             });
             result
         }
-    }
-}
-
-fn unicode_error(error: std::str::Utf8Error) -> UnicodeAccessError {
-    UnicodeAccessError {
-        valid_up_to: error.valid_up_to(),
-        error_len: error.error_len(),
     }
 }
 

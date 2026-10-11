@@ -822,10 +822,7 @@ pub trait ValueOps {
         let bytes = self.as_bytes(v);
         std::str::from_utf8(&bytes)
             .map(Rc::from)
-            .map_err(|error| UnicodeAccessError {
-                valid_up_to: error.valid_up_to(),
-                error_len: error.error_len(),
-            })
+            .map_err(UnicodeAccessError::from)
     }
 
     /// Checked character count for adapters that require Unicode. Native byte

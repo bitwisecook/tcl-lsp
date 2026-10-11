@@ -9851,7 +9851,7 @@ impl Vm {
                 Err(completion) => self.deliver_tailcall_completion(acts, completion),
             }
         })();
-        if let Some(first) = self.original_scope_refusal(&original_scope) {
+        if let Some(_first) = self.original_scope_refusal(&original_scope) {
             drop(reached);
             let completion = self.abort_refused_activations(acts);
             let _ = original_scope.check(self);

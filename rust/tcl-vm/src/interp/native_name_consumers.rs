@@ -194,10 +194,6 @@ impl OriginalNameConsumerScope {
         self.operation.currency()
     }
 
-    pub(crate) fn operation_scope(&self) -> &NativeOperationScope {
-        &self.operation
-    }
-
     pub(crate) fn park(self) -> ParkedOriginalNameConsumerScope {
         let Self { state, operation } = self;
         let currency = operation.currency().clone();

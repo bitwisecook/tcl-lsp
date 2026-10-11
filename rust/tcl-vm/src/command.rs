@@ -503,7 +503,12 @@ fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             };
             let name = match std::str::from_utf8(tcl_core_types::c_string_extent(&name)) {
                 Ok(name) => name,
-                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                Err(error) => {
+                    return completion_from_cmd_error(
+                        vm,
+                        tcl_syntax::raw_string::UnicodeAccessError::from(error).into(),
+                    );
+                }
             };
             match tcl_cmd_core::channel::resolve_system_encoding(name) {
                 Ok(encoding) => encoding,
