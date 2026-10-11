@@ -2989,7 +2989,7 @@ mod original_recovered_source_purpose_tests {
         let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
             .with_resolved_analysis_input(input.clone());
         lowerer.lower(source);
-        let module = lowerer.finish_module();
+        let module = lowerer.finish_module(source);
         let statement = &module.top_level.statements[0];
         let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
             registry, &input,

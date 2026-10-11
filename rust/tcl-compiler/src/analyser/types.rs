@@ -5372,8 +5372,6 @@ mod original_source_context_tests;
 
 #[cfg(test)]
 mod original_definition_suffix_purpose_tests {
-    use super::*;
-
     #[test]
     fn original_definition_suffix_keeps_bom_definer_and_authored_allocation() {
         // naming.source.original-configured-script-completeness
