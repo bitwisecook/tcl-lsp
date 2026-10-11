@@ -140,18 +140,27 @@ pub(crate) fn install_variable_cache_with_stage_check(
         check()?;
     }
     require_original(value, dialect)?;
-    if stage_check.is_some() && !obj_type_ptr(value).is_null() {
-        super::discard_native_internal_representation(value)?;
-        super::check_native_liveness(value)?;
-        if let Some(check) = stage_check {
+    let raw = Box::into_raw(Box::new(cache));
+    if let Some(check) = stage_check {
+        let mut current = || {
             check()?;
+            super::check_native_liveness(value)
+        };
+        let reached = super::change_type_with_stage_check(
+            value,
+            &JIM_VARIABLE_TYPE,
+            raw as usize as u64,
+            &mut current,
+        );
+        if let Err(first) = reached {
+            // The shared worker did not adopt this weak-only cache payload.
+            // Its release adds no native reference or callback-bearing owner.
+            unsafe { drop(Box::from_raw(raw)) };
+            return Err(first);
         }
+    } else {
+        change_type(value, &JIM_VARIABLE_TYPE, raw as usize as u64);
     }
-    change_type(
-        value,
-        &JIM_VARIABLE_TYPE,
-        Box::into_raw(Box::new(cache)) as usize as u64,
-    );
     if let Some(check) = stage_check {
         check()?;
     }

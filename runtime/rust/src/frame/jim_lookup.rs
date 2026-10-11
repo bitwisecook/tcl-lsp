@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Non-owning Jim variable-cell receipts and actual frame incarnations.
 
-use super::{CellContents, FrameStack, Link, Var, VarError, VarHome, VarTable};
+use super::{CellContents, FrameStack, Link, Var, VarHome, VarTable};
 use crate::obj::{self, TclObj};
 use std::{
     cell::{Cell, RefCell},
@@ -107,6 +107,18 @@ impl WeakJimVariableCell {
                 "original Jim alias local cell",
             ))?;
         super::PreparedJimAliasCell::capture(&cell, self.ledger.clone(), self.name.clone())
+    }
+
+    pub(crate) fn prepare_scalar_store(
+        &self,
+    ) -> Result<Option<super::PreparedJimAliasCell>, ValueError> {
+        let cell = self
+            .contents
+            .upgrade()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original Jim scalar store cell",
+            ))?;
+        super::PreparedJimAliasCell::capture_scalar(&cell, self.ledger.clone(), self.name.clone())
     }
 
     pub(crate) fn capture_dictionary_cell(&self) -> Result<CapturedJimDictionaryCell, ValueError> {
@@ -222,30 +234,6 @@ impl WeakJimVariableCell {
             Var::Scalar(value) => Some(JimVariableRead::Scalar(*value)),
             Var::Link(link) => Some(JimVariableRead::Link(link.clone())),
             Var::PendingScalar(_) | Var::Array(_) => None,
-        }
-    }
-    pub(crate) fn store(&self, value: *mut TclObj) -> Result<Option<Link>, VarError> {
-        let cell = self
-            .contents
-            .upgrade()
-            .ok_or(VarError::NameProtocolUnavailable)?;
-        let mut cell = cell.borrow_mut();
-        match cell.var.as_mut() {
-            Some(Var::Scalar(_)) => {
-                // SAFETY: the actual VarVal takes its new owning reference first.
-                unsafe { obj::incr_ref_count(value) };
-                let retired = cell.replace_value(Var::Scalar(value));
-                drop(cell);
-                // SAFETY: the replaced hold retires outside the selected cell borrow.
-                if let Some(retired) = retired {
-                    retired.release();
-                }
-                Ok(None)
-            }
-            Some(Var::PendingScalar(_)) => Err(VarError::NameProtocolUnavailable),
-            Some(Var::Link(link)) => Ok(Some(link.clone())),
-            Some(Var::Array(_)) => Err(VarError::IsArray),
-            None => Err(VarError::NameProtocolUnavailable),
         }
     }
 }

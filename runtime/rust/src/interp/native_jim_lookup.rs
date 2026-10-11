@@ -9,6 +9,12 @@ use crate::{
 };
 use tcl_syntax::value::{ValueError, ValueOps};
 
+enum OriginalJimCachedStore {
+    Stored,
+    Link(crate::frame::Link),
+    Unavailable,
+}
+
 pub(super) struct JimActiveCommandScope {
     interp: Interp,
     token: u64,
@@ -288,8 +294,66 @@ impl Interp {
             self.native_invocation_dialect(),
             Some(&check),
         );
+        let reached = reached.map_err(|error| {
+            self.clone().refuse_completion_value_access(error.clone());
+            error
+        });
         check()?;
         reached
+    }
+
+    fn store_original_jim_cached_scalar(
+        &self,
+        cache: &obj::JimVariableCache,
+        value: *mut TclObj,
+        arguments: &OriginalArguments,
+    ) -> Result<OriginalJimCachedStore, tcl_cmd_core::CmdError> {
+        arguments.check_for(self)?;
+        arguments.original(1)?;
+        let local = crate::vars::PreparedJimAliasLocal::from_scalar_cache(
+            self,
+            &cache.cell,
+            cache.global,
+            arguments.currency(),
+        )?;
+        if let Some(local) = local {
+            // This is the source's one genuine incoming cell reference. No
+            // target-name temporary or protective native hold is acquired.
+            let mut incoming = Some(Owned::retain(value));
+            let reached = (|| {
+                let retired = local.begin_assignment(self, arguments.currency())?;
+                retired.finish(|| {
+                    arguments.original(1)?;
+                    local.check(self, arguments.currency())
+                })?;
+                local.assign(
+                    self,
+                    incoming
+                        .take()
+                        .expect("genuine incoming Jim cell reference"),
+                    arguments.currency(),
+                )
+            })();
+            let reached = reached.map_err(|error| arguments.retain_refusal(error));
+            local.clear_retiring();
+            drop(incoming);
+            let after_cleanup = arguments
+                .original(1)
+                .and_then(|_| arguments.check_for(self));
+            reached?;
+            after_cleanup?;
+            return Ok(OriginalJimCachedStore::Stored);
+        }
+        let reached = cache
+            .cell
+            .read_checked()
+            .map_err(|error| arguments.retain_refusal(error.into()));
+        arguments.original(1)?;
+        arguments.check_for(self)?;
+        Ok(match reached? {
+            Some(JimVariableRead::Link(link)) => OriginalJimCachedStore::Link(link),
+            _ => OriginalJimCachedStore::Unavailable,
+        })
     }
     /// Native original-name read; successful conversion updates this same object.
     /// The returned value remains borrowed from its actual VarVal.
@@ -441,15 +505,17 @@ impl Interp {
             .current_jim_variable_cache(original)
             .map_err(|error| self.report_cmd_error(error.into()))?;
         if let Some(cache) = cache {
-            let stored = cache.cell.store(value);
+            let stored = self
+                .store_original_jim_cached_scalar(&cache, value, arguments)
+                .map_err(|error| self.report_cmd_error(error))?;
             arguments
                 .original(1)
                 .map_err(|error| self.report_cmd_error(error))?;
             match stored {
-                Ok(None) => {
+                OriginalJimCachedStore::Stored => {
                     return Ok(());
                 }
-                Ok(Some(link)) => {
+                OriginalJimCachedStore::Link(link) => {
                     let linked = self.store_original_jim_link(&link, value);
                     arguments
                         .original(1)
@@ -459,7 +525,7 @@ impl Interp {
                     }
                     return self.store_captured_compatibility_jim_link(&link, value, arguments);
                 }
-                Err(_) => {}
+                OriginalJimCachedStore::Unavailable => {}
             }
         }
         let bytes = arguments
@@ -480,13 +546,15 @@ impl Interp {
             .current_jim_variable_cache(original)
             .map_err(|error| self.report_cmd_error(error.into()))?
         {
-            let stored = cache.cell.store(value);
+            let stored = self
+                .store_original_jim_cached_scalar(&cache, value, arguments)
+                .map_err(|error| self.report_cmd_error(error))?;
             arguments
                 .original(1)
                 .map_err(|error| self.report_cmd_error(error))?;
             match stored {
-                Ok(None) => return Ok(()),
-                Ok(Some(link)) => {
+                OriginalJimCachedStore::Stored => return Ok(()),
+                OriginalJimCachedStore::Link(link) => {
                     let linked = self.store_original_jim_link(&link, value);
                     arguments
                         .original(1)
@@ -496,7 +564,7 @@ impl Interp {
                     }
                     return self.store_captured_compatibility_jim_link(&link, value, arguments);
                 }
-                Err(_) => {}
+                OriginalJimCachedStore::Unavailable => {}
             }
         }
         let existed = crate::vars::original_jim_variable_cell(

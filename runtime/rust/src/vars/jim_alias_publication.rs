@@ -25,6 +25,35 @@ impl PreparedJimAliasLocal {
         global: bool,
         currency: &NativeOperationCurrency,
     ) -> Result<Option<Self>, CmdError> {
+        Self::from_cache_using(
+            interpreter,
+            original,
+            global,
+            currency,
+            WeakJimVariableCell::prepare_alias_local,
+        )
+    }
+    pub(crate) fn from_scalar_cache(
+        interpreter: &Interp,
+        original: &WeakJimVariableCell,
+        global: bool,
+        currency: &NativeOperationCurrency,
+    ) -> Result<Option<Self>, CmdError> {
+        Self::from_cache_using(
+            interpreter,
+            original,
+            global,
+            currency,
+            WeakJimVariableCell::prepare_scalar_store,
+        )
+    }
+    fn from_cache_using(
+        interpreter: &Interp,
+        original: &WeakJimVariableCell,
+        global: bool,
+        currency: &NativeOperationCurrency,
+        prepare: fn(&WeakJimVariableCell) -> Result<Option<PreparedJimAliasCell>, ValueError>,
+    ) -> Result<Option<Self>, CmdError> {
         currency.ensure_current_or_refuse()?;
         let reached = (|| {
             let frames = interpreter.frames.borrow();
@@ -38,7 +67,7 @@ impl PreparedJimAliasLocal {
                 entered_container::TableObservation::capture(&frames, &namespaces, home).ok_or(
                     ValueError::CommandProtocolUnavailable("original Jim local table"),
                 )?;
-            let Some(cell) = original.prepare_alias_local()? else {
+            let Some(cell) = prepare(original)? else {
                 return Ok(None);
             };
             let result = Self {

@@ -49,10 +49,26 @@ impl PreparedJimAliasCell {
         ledger: Weak<RefCell<tcl_core_types::NativeEntryLedger>>,
         name: Vec<u8>,
     ) -> Result<Option<Self>, ValueError> {
+        Self::capture_using(contents, ledger, name, false)
+    }
+    pub(super) fn capture_scalar(
+        contents: &Rc<RefCell<CellContents>>,
+        ledger: Weak<RefCell<tcl_core_types::NativeEntryLedger>>,
+        name: Vec<u8>,
+    ) -> Result<Option<Self>, ValueError> {
+        Self::capture_using(contents, ledger, name, true)
+    }
+    fn capture_using(
+        contents: &Rc<RefCell<CellContents>>,
+        ledger: Weak<RefCell<tcl_core_types::NativeEntryLedger>>,
+        name: Vec<u8>,
+        scalar: bool,
+    ) -> Result<Option<Self>, ValueError> {
         let cell = contents.borrow();
         cell.check_owned_value_role()?;
         let shape = match cell.var.as_ref() {
-            Some(Var::Link(link)) => {
+            Some(Var::Scalar(original)) if scalar => OriginalShape::Scalar(*original),
+            Some(Var::Link(link)) if !scalar => {
                 let original = link.original_jim_target.as_ref().ok_or(
                     ValueError::CommandProtocolUnavailable("Jim local link original stored role"),
                 )?;
@@ -60,7 +76,8 @@ impl PreparedJimAliasCell {
                 OriginalShape::Link(Rc::downgrade(original))
             }
             Some(_) => return Ok(None),
-            None => OriginalShape::Missing,
+            None if !scalar => OriginalShape::Missing,
+            None => return Ok(None),
         };
         Ok(Some(Self {
             contents: Rc::downgrade(contents),
@@ -288,3 +305,6 @@ impl VarTable {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod scalar_store_tests;
