@@ -568,6 +568,12 @@ impl From<NativeStringAccessError> for CmdError {
     }
 }
 
+impl From<tcl_syntax::native_string::NativeStringUnavailable> for CmdError {
+    fn from(error: tcl_syntax::native_string::NativeStringUnavailable) -> Self {
+        Self::from(NativeStringAccessError::Unavailable(error))
+    }
+}
+
 impl From<HostError> for CmdError {
     fn from(e: HostError) -> Self {
         // The bare reason; contextual helpers (e.g. `open`) build the richer
