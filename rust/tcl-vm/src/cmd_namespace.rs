@@ -75,7 +75,7 @@ fn eval_in_ns(
                     );
                 }
             }
-            Err(error) => return vm.refuse_host_command(error.to_string()),
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
         let selected_current = vm.native_namespace_token_has_owner(token);
         if let Err(error) = original_names.require(
@@ -403,7 +403,7 @@ fn cmd_namespace_in(
                     // The native object getter itself owns lifetime validity:
                     // C8.4 accepts an original cache for an activated dying token.
                     Ok(namespace) => ok(Value::bool(namespace.is_some())),
-                    Err(error) => vm.refuse_host_command(error.to_string()),
+                    Err(error) => crate::command::completion_from_cmd_error(vm, error),
                 }
             }
             "parent" | "children" => {
@@ -443,7 +443,7 @@ fn cmd_namespace_in(
                                 },
                             );
                         }
-                        Err(error) => return vm.refuse_host_command(error.to_string()),
+                        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
                     },
                     None => vm.current_ns_id(),
                 };
@@ -517,7 +517,7 @@ fn cmd_namespace_in(
                         tcl_cmd_core::namespace::which_variable_bytes_checked(
                             vm,
                             &words[name_index],
-                        )
+                        ).map_err(tcl_cmd_core::CmdError::from)
                     }
                     tcl_cmd_core::namespace::WhichKind::Command => {
                         vm.native_namespace_command_name(&rest[name_index], false)
@@ -527,7 +527,7 @@ fn cmd_namespace_in(
                     Ok(bytes) => {
                         ok(bytes.map_or_else(Value::empty, Value::from_native_string_bytes))
                     }
-                    Err(error) => vm.refuse_host_command(error.to_string()),
+                    Err(error) => crate::command::completion_from_cmd_error(vm, error),
                 }
             }
             "origin" => {
@@ -573,7 +573,7 @@ fn cmd_namespace_in(
                             b"COMMAND",
                         )
                     }
-                    Err(error) => vm.refuse_host_command(error.to_string()),
+                    Err(error) => crate::command::completion_from_cmd_error(vm, error),
                 }
             }
 
@@ -665,7 +665,7 @@ fn cmd_namespace_in(
                                 };
                                 return vm.namespace_lookup_error_bytes(&written);
                             }
-                            Err(error) => return vm.refuse_host_command(error.to_string()),
+                            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
                         }
                     }
                     vm.ns_path_set(path);
@@ -773,7 +773,7 @@ fn ns_upvar(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         let namespace = match vm.namespace_object_lookup(&rest[0]) {
             Ok(Some(namespace)) => namespace,
             Ok(None) => return vm.namespace_lookup_error_bytes(&namespace_bytes),
-            Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
         for (target_word, local_word) in arguments.pairs() {
             let local_word = local_word.expect("selected C grammar has complete pairs");

@@ -1764,6 +1764,8 @@ pub enum AliasPrefixLookup<V> {
 
 /// Object introspection over actual retained alias bindings.
 pub trait Aliases: tcl_syntax::value::ValueOps {
+    /// Full failure of the retained original alias lookup and prefix owner.
+    type OriginalAliasError: From<tcl_syntax::value::ValueError> + From<NativeExecutionError>;
     /// Resolve the original name object and retain its actual prefix header.
     /// A byte-only prefix or reporting name cannot supply this object.
     ///
@@ -1772,12 +1774,12 @@ pub trait Aliases: tcl_syntax::value::ValueOps {
     fn alias_prefix_original_value(
         &mut self,
         original_name: &Self::Value,
-    ) -> Result<AliasPrefixLookup<Self::Value>, tcl_syntax::value::ValueError>;
+    ) -> Result<AliasPrefixLookup<Self::Value>, Self::OriginalAliasError>;
 
     /// Resolve the original alias name in a separately retained lookup namespace.
     /// This does not change the caller's frame or destination namespace. The
-    /// Runtime Interp implements this query; the VM's current-context query
-    /// remains separate, and its explicit-context query is unavailable.
+    /// Runtime and VM adapters validate their actual original context holders;
+    /// an implementation without that owner keeps the default refusal.
     ///
     /// # Errors
     /// Missing implementation/context or retired original storage refuses;
@@ -1786,10 +1788,11 @@ pub trait Aliases: tcl_syntax::value::ValueOps {
         &mut self,
         _context: NsId,
         _original_name: &Self::Value,
-    ) -> Result<AliasPrefixLookup<Self::Value>, tcl_syntax::value::ValueError> {
+    ) -> Result<AliasPrefixLookup<Self::Value>, Self::OriginalAliasError> {
         Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
             "original alias lookup context",
-        ))
+        )
+        .into())
     }
 }
 

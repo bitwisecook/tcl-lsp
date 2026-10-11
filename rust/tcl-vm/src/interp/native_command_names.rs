@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Original-object command lookup and retained compiler literal actions.
 
+use super::native_original_lookup::OriginalLookup;
 use super::{
     Command, CommandId, CommandSidecarKey, CommandSlot, FunctionAsm, NamespacePath, Namespaces,
     NsId, ROOT_NS, Rc, Value, Vm,
 };
+use tcl_cmd_core::CmdError;
 use tcl_runtime_api::native_command_name::{
     NativeCommandNameCache, NativeCommandNameLookupState, NativeCommandNamePriming,
     NativeCommandNameReference, NativeCommandNameTarget, NativeLiteralContext,
@@ -59,20 +61,22 @@ impl Vm {
     /// Cache misses perform native byte lookup and reached cache conversion; no
     /// reporting spelling or private storage key becomes a command-name operand.
     pub(crate) fn native_command_from_original(
-        &self,
+        &mut self,
         original: &Value,
-    ) -> Result<Option<CommandId>, ValueError> {
+    ) -> Result<Option<CommandId>, CmdError> {
         self.native_command_from_original_at(self.current_ns_id(), original)
     }
 
     fn install_selected_original_command_name(
-        &self,
+        &mut self,
         original: &Value,
         key: &str,
         reference: Option<NativeCommandNameReference>,
         protocol: tcl_registry::native_command_literal::NativeCommandNameProtocol,
         dialect: tcl_registry::InvocationDialect,
-    ) -> Result<Option<CommandId>, ValueError> {
+        entered: &OriginalLookup,
+    ) -> Result<Option<CommandId>, CmdError> {
+        let selected = entered.command(self, key)?;
         let slot = self
             .command_slot(key)
             .ok_or(ValueError::CommandProtocolUnavailable(
@@ -102,119 +106,142 @@ impl Vm {
                 .unwrap_or(0),
             reference,
         };
-        original.install_native_command_name_cache(cache, dialect)?;
+        let reached =
+            original.install_native_command_name_cache_checked(cache, dialect, &mut || {
+                selected.check(self, entered)
+            });
+        selected.check(self, entered)?;
+        reached?;
         Ok(Some(CommandId(self.intern_cmd(token))))
     }
 
     fn native_command_from_original_at(
-        &self,
+        &mut self,
         current: NsId,
         original: &Value,
-    ) -> Result<Option<CommandId>, ValueError> {
-        let dialect = self.native_scalar_carrier_dialect();
-        let policy = self
-            .name_policy_protocol()
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "original command-name naming policy",
-            ))?;
-        if policy.authority() == tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation {
-            let bytes = self.native_name_operand_bytes(original).map_err(|_| {
-                ValueError::CommandProtocolUnavailable("original command-name string")
-            })?;
-            return self.find_command_bytes_checked(current, &bytes);
-        }
-        if dialect.native_jim_lookup_protocol().is_some() {
-            let selected = self.native_jim_command_from_original_at(current, original)?;
-            return Ok(selected.and_then(|_| {
-                original.with_jim_command_cache(|cache| CommandId(self.intern_cmd(cache.token)))
-            }));
-        }
-        let protocol = dialect.native_command_name_protocol().ok_or(
-            ValueError::CommandProtocolUnavailable("original command-name getter"),
-        )?;
-        if original
-            .native_command_name_cache_origin()
-            .is_some_and(|origin| !protocol.accepts_cache_origin(origin))
-        {
-            return Err(ValueError::CommandProtocolUnavailable(
-                "original command-name cache origin",
-            ));
-        }
-        // C85+ Tcl_GetCommandFromObj validates the original cached node before
-        // GetString. C84 instead derives its referencing context from the
-        // original spelling, including the absolute-name global reference.
-        if protocol.version() >= tcl_dialect::TclVersion::V8_5
-            && let Some(cache) = original.native_command_name_cache()
-        {
-            let state = self.native_command_name_lookup_state(&cache, current);
-            if protocol.cache_is_current(&cache, &state) {
-                return Ok(Some(CommandId(self.intern_cmd(cache.token))));
+    ) -> Result<Option<CommandId>, CmdError> {
+        let entered = OriginalLookup::enter(self, current, original)?;
+        let reached: Result<Option<CommandId>, CmdError> = (|| {
+            let dialect = self.native_scalar_carrier_dialect();
+            let policy =
+                self.name_policy_protocol()
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "original command-name naming policy",
+                    ))?;
+            if policy.authority() == tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation {
+                let bytes = entered.read(self)?;
+                return self
+                    .find_command_bytes_checked(current, &bytes)
+                    .map_err(Into::into);
             }
-        }
-        let bytes = self
-            .native_name_operand_bytes(original)
-            .map_err(|_| ValueError::CommandProtocolUnavailable("original command-name string"))?;
-        let path = self.ns_path(current);
-        let names = self
-            .name_policy_protocol()
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "original command-name naming policy",
-            ))?
-            .recipe();
-        let projection = names
-            .command_lookup_input(tcl_syntax::naming::NativeNameContext::new(&path), &bytes)
-            .map_err(|_| {
-                ValueError::CommandProtocolUnavailable("original command-name projection")
-            })?;
-        let absolute =
-            projection.qualification() == tcl_syntax::naming::NativeNameQualification::Absolute;
-        let reference = protocol.lookup_reference(
-            absolute,
-            self.native_command_name_reference(current),
-            self.native_command_name_reference(ROOT_NS),
-        );
-        let lookup_context = if absolute && protocol.version() == tcl_dialect::TclVersion::V8_4 {
-            ROOT_NS
-        } else {
-            current
-        };
-        if let Some(cache) = original.native_command_name_cache() {
-            if !protocol.accepts_cache_origin(cache.version) {
+            if dialect.native_jim_lookup_protocol().is_some() {
+                let selected = self.native_jim_command_from_original_at(current, original)?;
+                return Ok(selected.and_then(|_| {
+                    original.with_jim_command_cache(|cache| CommandId(self.intern_cmd(cache.token)))
+                }));
+            }
+            let protocol = dialect.native_command_name_protocol().ok_or(
+                ValueError::CommandProtocolUnavailable("original command-name getter"),
+            )?;
+            if original
+                .native_command_name_cache_origin()
+                .is_some_and(|origin| !protocol.accepts_cache_origin(origin))
+            {
                 return Err(ValueError::CommandProtocolUnavailable(
                     "original command-name cache origin",
-                ));
+                )
+                .into());
             }
-            let state = self.native_command_name_lookup_state(&cache, lookup_context);
-            if protocol.cache_is_current(&cache, &state) {
-                return Ok(Some(CommandId(self.intern_cmd(cache.token))));
+            // C85+ Tcl_GetCommandFromObj validates the original cached node before
+            // GetString. C84 instead derives its referencing context from the
+            // original spelling, including the absolute-name global reference.
+            if protocol.version() >= tcl_dialect::TclVersion::V8_5
+                && let Some(cache) = original.native_command_name_cache()
+            {
+                let state = self.native_command_name_lookup_state(&cache, current);
+                if protocol.cache_is_current(&cache, &state) {
+                    return Ok(Some(CommandId(self.intern_cmd(cache.token))));
+                }
             }
-        }
-        let selected = self
-            .resolve_command_bytes_checked(lookup_context, &bytes, true)
-            .map_err(|_| ValueError::CommandProtocolUnavailable("original command-name lookup"))?;
-        let Some(key) = selected else {
-            if protocol.installs_unresolved_on_miss() {
-                original.install_unresolved_native_command_name_cache(dialect)?;
+            let bytes = entered.read(self)?;
+            let path = self.ns_path(current);
+            let names = self
+                .name_policy_protocol()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original command-name naming policy",
+                ))?
+                .recipe();
+            let projection = names
+                .command_lookup_input(tcl_syntax::naming::NativeNameContext::new(&path), &bytes)
+                .map_err(|_| {
+                    ValueError::CommandProtocolUnavailable("original command-name projection")
+                })?;
+            let absolute =
+                projection.qualification() == tcl_syntax::naming::NativeNameQualification::Absolute;
+            let reference = protocol.lookup_reference(
+                absolute,
+                self.native_command_name_reference(current),
+                self.native_command_name_reference(ROOT_NS),
+            );
+            let lookup_context = if absolute && protocol.version() == tcl_dialect::TclVersion::V8_4
+            {
+                ROOT_NS
+            } else {
+                current
+            };
+            if let Some(cache) = original.native_command_name_cache() {
+                if !protocol.accepts_cache_origin(cache.version) {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "original command-name cache origin",
+                    )
+                    .into());
+                }
+                let state = self.native_command_name_lookup_state(&cache, lookup_context);
+                if protocol.cache_is_current(&cache, &state) {
+                    return Ok(Some(CommandId(self.intern_cmd(cache.token))));
+                }
             }
-            return Ok(None);
-        };
-        self.install_selected_original_command_name(original, &key, reference, protocol, dialect)
+            let selected = self
+                .resolve_command_bytes_checked(lookup_context, &bytes, true)
+                .map_err(|_| {
+                    ValueError::CommandProtocolUnavailable("original command-name lookup")
+                })?;
+            let Some(key) = selected else {
+                if protocol.installs_unresolved_on_miss() {
+                    let reached = original
+                        .install_unresolved_native_command_name_cache_checked(dialect, &mut || {
+                            entered.check(self)
+                        });
+                    entered.check(self)?;
+                    reached?;
+                }
+                return Ok(None);
+            };
+            self.install_selected_original_command_name(
+                original, &key, reference, protocol, dialect, &entered,
+            )
+        })();
+        entered.finish(self, reached)
     }
 
     /// Resolve the original operand and produce the selected native full name.
     /// Imported origins use the actual retained command token, not its spelling.
     pub(crate) fn native_namespace_command_name(
-        &self,
+        &mut self,
         original: &Value,
         follow_imports: bool,
-    ) -> Result<Option<Vec<u8>>, ValueError> {
+    ) -> Result<Option<Vec<u8>>, CmdError> {
         let Some(command) = self.native_command_from_original(original)? else {
             return Ok(None);
         };
         if follow_imports {
-            return tcl_cmd_core::namespace::origin_from_command_checked(self, command).map(Some);
+            return tcl_cmd_core::namespace::origin_from_command_checked(self, command)
+                .map(Some)
+                .map_err(Into::into);
         }
-        tcl_cmd_core::namespace::command_name_from_command_checked(self, command).map(Some)
+        tcl_cmd_core::namespace::command_name_from_command_checked(self, command)
+            .map(Some)
+            .map_err(Into::into)
     }
 
     /// Allocate the selected C full-command-name String result independently
@@ -237,41 +264,51 @@ impl Vm {
         &mut self,
         original: &Value,
     ) -> super::Completion<Value> {
-        let dialect = self.actual_native_invocation_dialect();
-        let Some(strings) = dialect
-            .native_command_name_protocol()
-            .and_then(|_| dialect.native_string_materialization(None))
-        else {
-            return self.refuse_host_command("native origin diagnostic String issuer".into());
+        let operation = match super::native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(operation) => operation,
+            Err(error) => return crate::command::completion_from_cmd_error(self, error),
         };
-        let name = match self.native_name_operand_bytes(original) {
-            Ok(name) => name,
-            Err(error) => return self.refuse_host_command(error.to_string()),
-        };
-        let name = tcl_core_types::c_string_extent(&name);
-        let mut message = b"invalid command name \"".to_vec();
-        message.extend_from_slice(name);
-        message.push(b'"');
-        let mut code = b"TCL LOOKUP COMMAND ".to_vec();
-        tcl_syntax::list::append_list_element(&mut code, name, false);
-        let error = if dialect.tcl_version == Some(tcl_dialect::TclVersion::V8_4) {
-            tcl_cmd_core::CmdError::new_bytes(message)
-        } else {
-            tcl_cmd_core::CmdError::with_error_code_bytes(message, code)
-        };
-        crate::command::completion_from_cmd_error(
-            self,
-            error.with_native_string_result(strings.protocol()),
-        )
+        let result = (|| {
+            let dialect = self.actual_native_invocation_dialect();
+            let Some(strings) = dialect
+                .native_command_name_protocol()
+                .and_then(|_| dialect.native_string_materialization(None))
+            else {
+                return self.refuse_host_command("native origin diagnostic String issuer".into());
+            };
+            let name = match self.native_name_operand_bytes_checked(original) {
+                Ok(name) => name,
+                Err(error) => return crate::command::completion_from_cmd_error(self, error),
+            };
+            let name = tcl_core_types::c_string_extent(&name);
+            let mut message = b"invalid command name \"".to_vec();
+            message.extend_from_slice(name);
+            message.push(b'"');
+            let mut code = b"TCL LOOKUP COMMAND ".to_vec();
+            tcl_syntax::list::append_list_element(&mut code, name, false);
+            let error = if dialect.tcl_version == Some(tcl_dialect::TclVersion::V8_4) {
+                tcl_cmd_core::CmdError::new_bytes(message)
+            } else {
+                tcl_cmd_core::CmdError::with_error_code_bytes(message, code)
+            };
+            crate::command::completion_from_cmd_error(
+                self,
+                error.with_native_string_result(strings.protocol()),
+            )
+        })();
+        match operation.check(self) {
+            Ok(()) => result,
+            Err(error) => crate::command::completion_from_cmd_error(self, error),
+        }
     }
 
     /// Original command getter at a retained dispatch namespace. A valid cache
     /// supplies its live token; callers never look up the reporting bytes again.
     pub(crate) fn resolve_original_command_key_at(
-        &self,
+        &mut self,
         context: NsId,
         original: &Value,
-    ) -> Result<Option<String>, ValueError> {
+    ) -> Result<Option<String>, CmdError> {
         if self.uses_native_jim_lookup() {
             return self
                 .native_jim_command_from_original_at(context, original)
@@ -282,17 +319,17 @@ impl Vm {
         };
         match self.command_sidecar_key(command.0) {
             Some(CommandSidecarKey::Visible(key)) => Ok(Some(key)),
-            _ => Err(ValueError::CommandProtocolUnavailable(
-                "resolved visible command token",
-            )),
+            _ => {
+                Err(ValueError::CommandProtocolUnavailable("resolved visible command token").into())
+            }
         }
     }
 
     pub(crate) fn lookup_original_command_at(
-        &self,
+        &mut self,
         context: NsId,
         original: &Value,
-    ) -> Result<Option<(String, Command)>, ValueError> {
+    ) -> Result<Option<(String, Command)>, CmdError> {
         if self
             .actual_native_invocation_dialect()
             .native_jim_lookup_protocol()
@@ -308,9 +345,7 @@ impl Vm {
         };
         self.visible_command_at_key(&key)
             .map(|command| Some((key, command)))
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "resolved command implementation",
-            ))
+            .ok_or(ValueError::CommandProtocolUnavailable("resolved command implementation").into())
     }
 
     fn prime_native_command_literal(
@@ -612,21 +647,29 @@ mod tests {
     fn current_original_command_cache_precedes_string_getter_after_c84() {
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let profile = tcl_dialect::DialectProfile::find(name).unwrap();
-            let mut vm = crate::native_fixture::core(profile);
-            command(&mut vm, b"head");
             for spelling in [b"head".as_slice(), b"::head"] {
+                let mut vm = crate::native_fixture::core(profile);
+                command(&mut vm, b"head");
                 let original = Value::new_native_string_bytes(spelling);
                 let selected = vm.native_command_from_original(&original).unwrap().unwrap();
                 let cache = original.native_command_name_cache().unwrap();
                 original.invalidate_native_string_for_test();
                 let lookup = vm.native_command_from_original(&original);
                 if name == "tcl8.4" {
-                    assert!(matches!(
-                        lookup,
-                        Err(ValueError::CommandProtocolUnavailable(
-                            "original command-name string"
-                        ))
+                    let error = lookup.unwrap_err();
+                    let expected = CmdError::from(ValueError::NativeStringAccess(
+                        tcl_syntax::raw_string::NativeStringAccessError::Unavailable(
+                            tcl_syntax::native_string::NativeStringUnavailable::StringUpdater,
+                        ),
                     ));
+                    assert_eq!(
+                        error.native_execution_refusal(),
+                        expected.native_execution_refusal()
+                    );
+                    assert_eq!(
+                        vm.execution_refusal.as_ref(),
+                        expected.native_execution_refusal()
+                    );
                 } else {
                     assert_eq!(lookup.unwrap(), Some(selected), "{name} {spelling:?}");
                 }
@@ -819,12 +862,18 @@ mod tests {
             )
             .unwrap();
         let resident = original.resident_string_bytes().unwrap();
-        assert!(matches!(
-            vm.native_command_from_original(&original),
-            Err(ValueError::CommandProtocolUnavailable(
-                "original command-name cache origin"
-            ))
+        let error = vm.native_command_from_original(&original).unwrap_err();
+        let expected = CmdError::from(ValueError::CommandProtocolUnavailable(
+            "original command-name cache origin",
         ));
+        assert_eq!(
+            error.native_execution_refusal(),
+            expected.native_execution_refusal()
+        );
+        assert_eq!(
+            vm.execution_refusal.as_ref(),
+            expected.native_execution_refusal()
+        );
         assert!(Rc::ptr_eq(
             &resident,
             &original.resident_string_bytes().unwrap()

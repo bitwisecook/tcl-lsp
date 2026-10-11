@@ -547,7 +547,7 @@ fn report_bg_error(vm: &mut Vm, message: Value, options: Value, p: NativeEventPr
                 return;
             }
             Err(e) => {
-                let _ = failure(vm, e);
+                let _ = crate::command::completion_from_cmd_error(vm, e);
                 return;
             }
             Ok(None) => {}
@@ -571,7 +571,7 @@ fn report_bg_error(vm: &mut Vm, message: Value, options: Value, p: NativeEventPr
             return;
         }
         Err(error) => {
-            let _ = failure(vm, error);
+            let _ = crate::command::completion_from_cmd_error(vm, error);
             return;
         }
         Ok(None) => {}

@@ -331,6 +331,7 @@ where
 pub fn jim_original_alias<O, V>(ops: &mut O, original_name: &V) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V> + tcl_runtime_api::Aliases,
+    O::OriginalAliasError: Into<CmdError>,
 {
     let policy = ops.name_policy_protocol().ok_or(
         tcl_syntax::value::ValueError::CommandProtocolUnavailable("Jim alias introspection issuer"),
@@ -341,7 +342,10 @@ where
         )
         .into());
     }
-    let failure = match ops.alias_prefix_original_value(original_name)? {
+    let failure = match ops
+        .alias_prefix_original_value(original_name)
+        .map_err(Into::into)?
+    {
         tcl_runtime_api::AliasPrefixLookup::Prefix(original) => return Ok(original),
         tcl_runtime_api::AliasPrefixLookup::MissingCommand => {
             tcl_runtime_api::NativeJimAliasLookupFailure::MissingCommand

@@ -523,7 +523,7 @@ fn local(vm: &mut Vm, arguments: &[Value]) -> Completion<Value> {
                 ),
                 Err(error) => crate::command::completion_from_cmd_error(vm, error),
             },
-            Err(error) => vm.refuse_host_command(error.to_string()),
+            Err(error) => crate::command::completion_from_cmd_error(vm, error),
         }
     })();
     if let Err(error) = original_names.finish(vm) {
@@ -550,7 +550,7 @@ fn upcall(vm: &mut Vm, arguments: &[Value]) -> Completion<Value> {
             return vm.refuse_host_command("Jim upcall command issuer is unavailable".into());
         };
         if let Err(error) = vm.native_jim_command_from_original_at(vm.current_ns_id(), head) {
-            return vm.refuse_host_command(error.to_string());
+            return crate::command::completion_from_cmd_error(vm, error);
         }
         if let Err(error) = original_names.check(vm) {
             return crate::command::completion_from_cmd_error(vm, error);

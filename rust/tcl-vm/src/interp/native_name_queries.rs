@@ -8,13 +8,13 @@ use tcl_cmd_core::CmdError;
 use tcl_runtime_api::{ProcInfo, ProcParam};
 use tcl_syntax::value::ValueError;
 
-struct QueryNamespace {
+pub(super) struct QueryNamespace {
     id: NsId,
     dying: bool,
     dead: bool,
 }
 impl QueryNamespace {
-    fn capture(vm: &Vm, id: NsId) -> Result<Self, CmdError> {
+    pub(super) fn capture(vm: &Vm, id: NsId) -> Result<Self, CmdError> {
         if !vm.native_namespace_token_has_owner(id) {
             return Err(
                 ValueError::CommandProtocolUnavailable("original query namespace owner").into(),
@@ -27,7 +27,7 @@ impl QueryNamespace {
             dead: world.dead_namespaces.contains(&id),
         })
     }
-    fn current(&self, vm: &Vm) -> bool {
+    pub(super) fn current(&self, vm: &Vm) -> bool {
         if !vm.native_namespace_token_has_owner(self.id) {
             return false;
         }
@@ -91,7 +91,7 @@ impl ProcedureQuery {
 }
 
 impl Vm {
-    fn retain_name_query_refusal(&mut self, reason: &'static str) -> CmdError {
+    pub(super) fn retain_name_query_refusal(&mut self, reason: &'static str) -> CmdError {
         let error = CmdError::from(ValueError::CommandProtocolUnavailable(reason));
         if let Some(cause) = error.native_execution_refusal() {
             self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(cause.clone()));

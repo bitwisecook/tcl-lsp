@@ -650,7 +650,7 @@ fn invoke_original_relay(vm: &mut Vm, original: &Value) -> Completion<Value> {
                     Err(error) => crate::command::completion_from_cmd_error(vm, error),
                 };
             }
-            Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
         vm.invoke_command_value_at(
             namespace,
@@ -714,7 +714,7 @@ fn cmd_coroprobe(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let fqn = match vm.resolve_original_command_key_at(vm.current_ns_id(), name) {
         Ok(Some(key)) => key,
         Ok(None) => return err("can only inject a probe command into a coroutine"),
-        Err(error) => return vm.refuse_host_command(error.to_string()),
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
     // Take the coroutine's parked flow out; it must be suspended.
     let mut parked = {
@@ -763,7 +763,7 @@ fn cmd_coroinject(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let fqn = match vm.resolve_original_command_key_at(vm.current_ns_id(), name) {
         Ok(Some(key)) => key,
         Ok(None) => return err("can only inject a command into a coroutine"),
-        Err(error) => return vm.refuse_host_command(error.to_string()),
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
     match vm.coro.live.get_mut(&CommandSidecarKey::visible(&fqn)) {
         Some(state) if state.status == CoroStatus::Suspended => {
@@ -787,7 +787,7 @@ fn cmd_corotype(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let fqn = match vm.resolve_original_command_key_at(vm.current_ns_id(), name) {
         Ok(Some(key)) => key,
         Ok(None) => return err("can only get coroutine type of a coroutine"),
-        Err(error) => return vm.refuse_host_command(error.to_string()),
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
     match vm.coro.live.get(&CommandSidecarKey::visible(&fqn)) {
         None => err("can only get coroutine type of a coroutine"),

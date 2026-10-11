@@ -7280,7 +7280,7 @@ impl Vm {
             || match words.first() {
                 Some(head) => self
                     .resolve_original_command_key_at(context, head)
-                    .map_err(|error| self.refuse_host_command(error.to_string()))?
+                    .map_err(|error| crate::command::completion_from_cmd_error(self, error))?
                     .is_some(),
                 None => false,
             };
@@ -7310,7 +7310,7 @@ impl Vm {
         } else {
             let key = self
                 .resolve_original_command_key_at(context, original)
-                .map_err(|error| self.refuse_host_command(error.to_string()))?
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?
                 .unwrap_or_default();
             let key = self.renamed_command_key(CommandSidecarKey::visible(key));
             self.active_sidecar(key)
@@ -7562,7 +7562,7 @@ impl Vm {
         } else {
             let selected = self
                 .resolve_original_command_key_at(context, original)
-                .map_err(|error| self.refuse_host_command(error.to_string()))?
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?
                 .map(CommandSidecarKey::visible)
                 .map(|key| self.renamed_command_key(key));
             let attached = sidecar.key();
@@ -7892,7 +7892,7 @@ impl Vm {
         } else {
             match self
                 .lookup_original_command_at(context, original)
-                .map_err(|error| self.refuse_host_command(error.to_string()))?
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?
             {
                 Some((key, command)) => (Some(key), Some(command)),
                 None => (None, None),
@@ -8088,7 +8088,7 @@ impl Vm {
     ) -> Result<Option<Tick>, Completion<Value>> {
         let key = self
             .resolve_original_command_key_at(context, &words[0])
-            .map_err(|error| self.refuse_host_command(error.to_string()))?;
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
         self.set_invoked_name_value(&words[0], key.as_deref().unwrap_or(""));
         let identity = match entered {
             Some(entered) => entered.builtin_identity.clone(),
@@ -8126,7 +8126,7 @@ impl Vm {
         };
         if self
             .resolve_original_command_key_at(context, head)
-            .map_err(|error| self.refuse_host_command(error.to_string()))?
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?
             .is_some()
         {
             return self.dispatch_words_entry_at(frame, words, None, context, usage, false);
@@ -8236,7 +8236,7 @@ impl Vm {
         let selected = match self.lookup_original_command_at(context, &head) {
             Ok(Some(selected)) => selected,
             Ok(None) => return self.command_lookup_error_value(original),
-            Err(error) => return self.refuse_host_command(error.to_string()),
+            Err(error) => return crate::command::completion_from_cmd_error(self, error),
         };
         if let Err(refusal) = self.reset_native_ensemble_rewrite(
             tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::AfterSuccessfulOrdinaryLookup,
@@ -8297,7 +8297,7 @@ impl Vm {
         }
         let key = match self.resolve_original_command_key_at(context, original) {
             Ok(key) => key,
-            Err(error) => return Err(self.refuse_host_command(error.to_string())),
+            Err(error) => return Err(crate::command::completion_from_cmd_error(self, error)),
         };
         if ordinary
             && key.is_some()
@@ -8377,7 +8377,7 @@ impl Vm {
             Ok(key) => key
                 .map(CommandSidecarKey::visible)
                 .map(|key| self.renamed_command_key(key)),
-            Err(error) => return self.refuse_host_command(error.to_string()),
+            Err(error) => return crate::command::completion_from_cmd_error(self, error),
         };
         let post = if resolved.as_ref() == sidecar.key().as_ref() {
             sidecar
@@ -8861,7 +8861,7 @@ impl Vm {
                 self.invoke_resolved_command_inner(original, command, argv, sidecar, handle, usage)
             }
             Ok(None) => self.invoke_missing_command_value(context, original, argv, origin),
-            Err(error) => self.refuse_host_command(error.to_string()),
+            Err(error) => crate::command::completion_from_cmd_error(self, error),
         }
     }
 

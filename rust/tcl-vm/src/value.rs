@@ -1725,17 +1725,26 @@ impl Value {
         replacement: IntRep,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
     ) -> Result<(), E> {
+        self.replace_primary_using_with(|| Ok(replacement), check)
+    }
+
+    fn replace_primary_using_with<E: From<ValueError>>(
+        &self,
+        replacement: impl FnOnce() -> Result<IntRep, E>,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+    ) -> Result<(), E> {
         Self::native_stage_check(check)?;
         self.check_native_header()?;
-        if check.is_none() {
-            self.replace_primary(replacement);
-        } else {
+        if check.is_some() {
             let retired = self.0.intrep.replace(IntRep::Str);
             drop(retired);
             Self::native_stage_check(check)?;
             self.check_native_header()?;
-            self.replace_primary(replacement);
         }
+        let reached = replacement();
+        Self::native_stage_check(check)?;
+        self.check_native_header()?;
+        self.replace_primary(reached?);
         Self::native_stage_check(check)
     }
 
@@ -2868,6 +2877,24 @@ impl Value {
         cache: tcl_runtime_api::native_command_name::NativeCommandNameCache,
         dialect: tcl_registry::InvocationDialect,
     ) -> Result<(), tcl_syntax::value::ValueError> {
+        self.install_native_command_name_cache_using(cache, dialect, &mut None)
+    }
+
+    pub(crate) fn install_native_command_name_cache_checked<E: From<ValueError>>(
+        &self,
+        cache: tcl_runtime_api::native_command_name::NativeCommandNameCache,
+        dialect: tcl_registry::InvocationDialect,
+        check: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.install_native_command_name_cache_using(cache, dialect, &mut Some(check))
+    }
+
+    fn install_native_command_name_cache_using<E: From<ValueError>>(
+        &self,
+        cache: tcl_runtime_api::native_command_name::NativeCommandNameCache,
+        dialect: tcl_registry::InvocationDialect,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+    ) -> Result<(), E> {
         if !dialect
             .native_command_name_protocol()
             .is_some_and(|protocol| protocol.accepts_cache_origin(cache.version))
@@ -2875,10 +2902,10 @@ impl Value {
         {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "native command-name cache origin or resident string",
-            ));
+            )
+            .into());
         }
-        *self.0.intrep.borrow_mut() = IntRep::NativeCommandName(cache);
-        Ok(())
+        self.replace_primary_using(IntRep::NativeCommandName(cache), check)
     }
 
     /// Execute compile-time `SetCmdName`'s independently selected early-return rule.
@@ -2916,6 +2943,22 @@ impl Value {
         &self,
         dialect: tcl_registry::InvocationDialect,
     ) -> Result<(), tcl_syntax::value::ValueError> {
+        self.install_unresolved_native_command_name_cache_using(dialect, &mut None)
+    }
+
+    pub(crate) fn install_unresolved_native_command_name_cache_checked<E: From<ValueError>>(
+        &self,
+        dialect: tcl_registry::InvocationDialect,
+        check: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.install_unresolved_native_command_name_cache_using(dialect, &mut Some(check))
+    }
+
+    fn install_unresolved_native_command_name_cache_using<E: From<ValueError>>(
+        &self,
+        dialect: tcl_registry::InvocationDialect,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+    ) -> Result<(), E> {
         let protocol = dialect.native_command_name_protocol().ok_or(
             tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "native unresolved command-name cache",
@@ -2924,10 +2967,13 @@ impl Value {
         if !protocol.installs_unresolved_on_miss() || self.resident_string_bytes().is_none() {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "native unresolved command-name cache origin",
-            ));
+            )
+            .into());
         }
-        *self.0.intrep.borrow_mut() = IntRep::NativeCommandNameUnresolved(protocol.version());
-        Ok(())
+        self.replace_primary_using(
+            IntRep::NativeCommandNameUnresolved(protocol.version()),
+            check,
+        )
     }
 
     /// Withdraw only cmdName, preserving the original resident allocation.

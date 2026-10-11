@@ -377,7 +377,7 @@ fn display(canonical: &str) -> String {
 fn resolve_object_value(vm: &mut Vm, name: &Value) -> Result<Option<OoId>, Completion<Value>> {
     let selected = vm
         .lookup_original_command_at(native_context::outer_namespace(vm), name)
-        .map_err(|error| vm.refuse_host_command(error.to_string()))?;
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
     Ok(match selected {
         Some((_, Command::Object(id))) if vm.oo.objects.contains_key(&id) => Some(id),
         _ => None,

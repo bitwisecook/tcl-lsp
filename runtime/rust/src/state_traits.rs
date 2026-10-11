@@ -1086,21 +1086,28 @@ impl Frames for Interp {
 /// from `cxt` to an exact `(FQN, generation)` token and interns that as a stable
 /// `CommandId`.
 impl tcl_runtime_api::Aliases for Interp {
+    type OriginalAliasError = tcl_cmd_core::CmdError;
     fn alias_prefix_original_value(
         &mut self,
         original_name: &Self::Value,
-    ) -> Result<tcl_runtime_api::AliasPrefixLookup<Self::Value>, tcl_syntax::value::ValueError>
-    {
-        self.original_alias_prefix_value(*original_name)
+    ) -> Result<tcl_runtime_api::AliasPrefixLookup<Self::Value>, Self::OriginalAliasError> {
+        let operation =
+            crate::interp::native_operation_currency::NativeOperationScope::enter(self)?;
+        let reached = self.original_alias_prefix_value(*original_name);
+        operation.currency().ensure_current_or_refuse()?;
+        reached.map_err(Into::into)
     }
 
     fn alias_prefix_original_value_at(
         &mut self,
         context: tcl_runtime_api::NsId,
         original_name: &Self::Value,
-    ) -> Result<tcl_runtime_api::AliasPrefixLookup<Self::Value>, tcl_syntax::value::ValueError>
-    {
-        self.original_alias_prefix_value_at(context.0 as usize, *original_name)
+    ) -> Result<tcl_runtime_api::AliasPrefixLookup<Self::Value>, Self::OriginalAliasError> {
+        let operation =
+            crate::interp::native_operation_currency::NativeOperationScope::enter(self)?;
+        let reached = self.original_alias_prefix_value_at(context.0 as usize, *original_name);
+        operation.currency().ensure_current_or_refuse()?;
+        reached.map_err(Into::into)
     }
 }
 

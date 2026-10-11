@@ -110,6 +110,7 @@ mod native_namespace_names;
 mod native_namespace_root_tests;
 pub(crate) mod native_numeric_ops;
 pub(crate) mod native_operation_currency;
+mod native_original_lookup;
 mod native_package_files;
 #[cfg(test)]
 mod native_precision_tests;
@@ -9594,9 +9595,9 @@ impl Vm {
     }
 
     pub(crate) fn namespace_object_lookup(
-        &self,
+        &mut self,
         original: &Value,
-    ) -> Result<Option<NsId>, tcl_syntax::value::ValueError> {
+    ) -> Result<Option<NsId>, tcl_cmd_core::CmdError> {
         self.native_namespace_object_lookup(original)
     }
 
@@ -25642,11 +25643,11 @@ impl Frames for Vm {
 /// nothing dispatches by it yet (the `Commands` trait dispatches by name), the
 /// open `find_command`/`CommandId` consumer question.
 impl tcl_runtime_api::Aliases for Vm {
+    type OriginalAliasError = tcl_cmd_core::CmdError;
     fn alias_prefix_original_value(
         &mut self,
         original_name: &Self::Value,
-    ) -> Result<tcl_runtime_api::AliasPrefixLookup<Self::Value>, tcl_syntax::value::ValueError>
-    {
+    ) -> Result<tcl_runtime_api::AliasPrefixLookup<Self::Value>, Self::OriginalAliasError> {
         self.alias_prefix_original_value_at(self.current_ns_id(), original_name)
     }
 
@@ -25654,45 +25655,40 @@ impl tcl_runtime_api::Aliases for Vm {
         &mut self,
         context: NsId,
         original_name: &Self::Value,
-    ) -> Result<tcl_runtime_api::AliasPrefixLookup<Self::Value>, tcl_syntax::value::ValueError>
-    {
-        if !self.uses_native_jim_lookup() {
-            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "original Jim alias prefix issuer",
-            ));
-        }
-        let operation =
-            native_operation_currency::NativeOperationScope::enter(self).map_err(|_| {
-                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                    "original Jim alias entered context",
+    ) -> Result<tcl_runtime_api::AliasPrefixLookup<Self::Value>, Self::OriginalAliasError> {
+        let operation = native_operation_currency::NativeOperationScope::enter(self)?;
+        let result: Result<_, tcl_cmd_core::CmdError> = (|| {
+            if !self.uses_native_jim_lookup() {
+                return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original Jim alias prefix issuer",
                 )
-            })?;
-        let selected = self.lookup_original_command_at(context, original_name);
-        operation.check(self).map_err(|_| {
-            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "original Jim alias lookup currency",
-            )
-        })?;
-        let Some((_, command)) = selected? else {
-            return Ok(tcl_runtime_api::AliasPrefixLookup::MissingCommand);
-        };
-        let result = match command {
-            Command::CallerAlias(original) => {
-                original.check_native_header()?;
-                Ok(tcl_runtime_api::AliasPrefixLookup::Prefix(original))
+                .into());
             }
-            Command::Alias { .. } => {
-                Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                    "original Jim alias prefix object",
-                ))
+            let selected = self.lookup_original_command_at(context, original_name);
+            operation.check(self)?;
+            let Some((_, command)) = selected? else {
+                return Ok(tcl_runtime_api::AliasPrefixLookup::MissingCommand);
+            };
+            match command {
+                Command::CallerAlias(original) => {
+                    original.check_native_header()?;
+                    Ok(tcl_runtime_api::AliasPrefixLookup::Prefix(original))
+                }
+                Command::Alias { .. } => {
+                    Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original Jim alias prefix object",
+                    )
+                    .into())
+                }
+                _ => Ok(tcl_runtime_api::AliasPrefixLookup::NotAlias),
             }
-            _ => Ok(tcl_runtime_api::AliasPrefixLookup::NotAlias),
-        };
-        operation.check(self).map_err(|_| {
-            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "original Jim alias prefix currency",
-            )
-        })?;
+        })();
+        if let Err(error) = &result
+            && let Some(cause) = error.native_execution_refusal()
+        {
+            self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(cause.clone()));
+        }
+        operation.check(self)?;
         result
     }
 }

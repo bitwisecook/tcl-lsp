@@ -25,6 +25,24 @@ impl Value {
         cache: NativeNamespaceNameCache,
         dialect: tcl_registry::InvocationDialect,
     ) -> Result<(), ValueError> {
+        self.install_native_namespace_name_cache_using(cache, dialect, &mut None)
+    }
+
+    pub(crate) fn install_native_namespace_name_cache_checked<E: From<ValueError>>(
+        &self,
+        cache: NativeNamespaceNameCache,
+        dialect: tcl_registry::InvocationDialect,
+        check: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.install_native_namespace_name_cache_using(cache, dialect, &mut Some(check))
+    }
+
+    fn install_native_namespace_name_cache_using<E: From<ValueError>>(
+        &self,
+        cache: NativeNamespaceNameCache,
+        dialect: tcl_registry::InvocationDialect,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+    ) -> Result<(), E> {
         let protocol = dialect.native_namespace_name_protocol().ok_or(
             ValueError::CommandProtocolUnavailable("native namespace-name object issuer"),
         )?;
@@ -33,10 +51,10 @@ impl Value {
         {
             return Err(ValueError::CommandProtocolUnavailable(
                 "native namespace-name cache origin or storage",
-            ));
+            )
+            .into());
         }
-        *self.0.intrep.borrow_mut() = IntRep::NativeNamespaceName(cache);
-        Ok(())
+        self.replace_primary_using(IntRep::NativeNamespaceName(cache), check)
     }
 
     /// Recover a genuine retained descriptor under its independently selected issuer.

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Original namespace-name conversion through actual retained namespace tokens.
 
-use super::Vm;
+use super::{Vm, native_name_queries::QueryNamespace, native_original_lookup::OriginalLookup};
 use crate::Value;
+use tcl_cmd_core::CmdError;
 use tcl_core_types::{NsId, ROOT_NS};
 use tcl_runtime_api::native_namespace_name::{
     NativeNamespaceNameCache as Cache, NativeNamespaceNameToken as Token,
@@ -192,105 +193,114 @@ impl Vm {
     }
 
     pub(crate) fn native_namespace_object_lookup(
-        &self,
+        &mut self,
         original: &Value,
-    ) -> Result<Option<NsId>, ValueError> {
+    ) -> Result<Option<NsId>, CmdError> {
         let current = self.current_ns_id();
-        let dialect = self.native_invocation_dialect();
-        let Some(protocol) = dialect.native_namespace_name_protocol() else {
-            if original.native_namespace_name_cache().is_some() {
-                return Err(ValueError::CommandProtocolUnavailable(
-                    "native namespace-name object issuer",
-                ));
-            }
-            let bytes = self
-                .native_name_operand_bytes(original)
-                .map_err(|_| ValueError::CommandProtocolUnavailable("namespace object lookup"))?;
-            return Namespaces::find_namespace_bytes_checked(self, current, &bytes);
-        };
-        let recipe = protocol.recipe();
-        let mut bytes = if recipe.absolute_references_global() {
-            Some(
-                original
-                    .native_string_bytes(tcl_syntax::native_string::NativeStringProtocol::C(
-                        recipe.version(),
-                    ))
-                    .map_err(|error| {
-                        ValueError::NativeStringAccess(
-                            tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
-                        )
-                    })?,
-            )
-        } else {
-            None
-        };
-        let reference_ns = if bytes.as_ref().is_some_and(|bytes| bytes.starts_with(b"::")) {
-            ROOT_NS
-        } else {
-            current
-        };
-        let reference = self.native_namespace_name_token(reference_ns)?;
-        let interpreter = reference.interpreter();
-        if let Some(cache) = original.native_namespace_name_cache() {
-            if cache.version() != recipe.version() {
-                return Err(ValueError::CommandProtocolUnavailable(
-                    "native namespace-name descriptor origin",
-                ));
-            }
-            if cache.is_current(recipe, interpreter, &reference)
-                && let Some(target) = cache.namespace()
-            {
-                let namespace = NsId(u32::try_from(target.token()).map_err(|_| {
-                    ValueError::CommandProtocolUnavailable("native namespace token width")
-                })?);
-                if self
-                    .name_world
-                    .borrow()
-                    .namespace_name_tokens
-                    .get(&namespace)
-                    .is_some_and(|actual| actual.same_token(target))
-                {
-                    return Ok(Some(namespace));
-                }
-            }
-            if !recipe.missing_installs_unresolved() {
-                let resident = original.resident_string_bytes();
-                original.retire_native_namespace_name_cache();
-                if resident.is_none() {
+        let entered = OriginalLookup::enter(self, current, original)?;
+        let reached: Result<Option<NsId>, CmdError> = (|| {
+            let dialect = self.native_invocation_dialect();
+            let Some(protocol) = dialect.native_namespace_name_protocol() else {
+                if original.native_namespace_name_cache().is_some() {
                     return Err(ValueError::CommandProtocolUnavailable(
-                        "retired namespace-name resident storage",
-                    ));
+                        "native namespace-name object issuer",
+                    )
+                    .into());
+                }
+                let bytes = entered.read(self)?;
+                return Namespaces::find_namespace_bytes_checked(self, current, &bytes)
+                    .map_err(Into::into);
+            };
+            let recipe = protocol.recipe();
+            let mut bytes = if recipe.absolute_references_global() {
+                Some(entered.read(self)?)
+            } else {
+                None
+            };
+            let reference_ns = if bytes.as_ref().is_some_and(|bytes| bytes.starts_with(b"::")) {
+                ROOT_NS
+            } else {
+                current
+            };
+            let reference = self.native_namespace_name_token(reference_ns)?;
+            let interpreter = reference.interpreter();
+            if let Some(cache) = original.native_namespace_name_cache() {
+                if cache.version() != recipe.version() {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "native namespace-name descriptor origin",
+                    )
+                    .into());
+                }
+                if cache.is_current(recipe, interpreter, &reference)
+                    && let Some(target) = cache.namespace()
+                {
+                    let namespace = NsId(u32::try_from(target.token()).map_err(|_| {
+                        ValueError::CommandProtocolUnavailable("native namespace token width")
+                    })?);
+                    if self
+                        .name_world
+                        .borrow()
+                        .namespace_name_tokens
+                        .get(&namespace)
+                        .is_some_and(|actual| actual.same_token(target))
+                    {
+                        return Ok(Some(namespace));
+                    }
+                }
+                if !recipe.missing_installs_unresolved() {
+                    let resident = original.resident_string_bytes();
+                    original.retire_native_namespace_name_cache();
+                    entered.check(self)?;
+                    if resident.is_none() {
+                        return Err(ValueError::CommandProtocolUnavailable(
+                            "retired namespace-name resident storage",
+                        )
+                        .into());
+                    }
                 }
             }
-        }
-        if bytes.is_none() {
-            bytes = Some(
-                original
-                    .native_string_bytes(tcl_syntax::native_string::NativeStringProtocol::C(
-                        recipe.version(),
-                    ))
-                    .map_err(|error| {
-                        ValueError::NativeStringAccess(
-                            tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
-                        )
-                    })?,
-            );
-        }
-        let bytes = bytes.expect("original namespace string was materialised");
-        let selected = Namespaces::find_namespace_bytes_checked(self, reference_ns, &bytes)?;
-        if let Some(namespace) = selected {
-            let target = self.native_namespace_name_token(namespace)?;
-            let reference = (!bytes.starts_with(b"::") || recipe.absolute_references_global())
-                .then_some(reference);
-            original.install_native_namespace_name_cache(
-                Cache::resolved(recipe.version(), target, reference),
-                dialect,
-            )?;
-        } else if recipe.missing_installs_unresolved() {
-            original
-                .install_native_namespace_name_cache(Cache::unresolved(interpreter), dialect)?;
-        }
-        Ok(selected)
+            if bytes.is_none() {
+                bytes = Some(entered.read(self)?);
+            }
+            let bytes = bytes.expect("original namespace string was materialised");
+            let selected = Namespaces::find_namespace_bytes_checked(self, reference_ns, &bytes)?;
+            if let Some(namespace) = selected {
+                let target = self.native_namespace_name_token(namespace)?;
+                let reference = (!bytes.starts_with(b"::") || recipe.absolute_references_global())
+                    .then_some(reference);
+                let selected_target = QueryNamespace::capture(self, namespace)?;
+                let target_lifecycle = target.lifecycle();
+                let target_observation = target.clone();
+                let reached = original.install_native_namespace_name_cache_checked(
+                    Cache::resolved(recipe.version(), target, reference),
+                    dialect,
+                    &mut || {
+                        entered.check(self)?;
+                        let current = selected_target.current(self)
+                            && target_observation.lifecycle() == target_lifecycle
+                            && self
+                                .name_world
+                                .borrow()
+                                .namespace_name_tokens
+                                .get(&namespace)
+                                .is_some_and(|actual| actual.same_token(&target_observation));
+                        entered.require(self, current, "original namespace lookup target")
+                    },
+                );
+                entered.check(self)?;
+                reached?;
+            } else if recipe.missing_installs_unresolved() {
+                let reached = original.install_native_namespace_name_cache_checked(
+                    Cache::unresolved(interpreter),
+                    dialect,
+                    &mut || entered.check(self),
+                );
+                entered.check(self)?;
+                reached?;
+            }
+            Ok(selected)
+        })();
+        entered.finish(self, reached)
     }
 }
 
