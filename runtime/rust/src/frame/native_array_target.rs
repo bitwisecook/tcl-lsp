@@ -86,10 +86,12 @@ impl NativeArrayTargetCell {
             && cell.native_alias_refs == 0
             && cell.var.is_none()
         {
-            cell.retire_rmw_shell();
+            let old = cell.retire_rmw_shell();
             if !cell.compiled_declaration {
                 cell.binding_id = None;
             }
+            drop(cell);
+            drop(old);
         }
     }
     pub(crate) fn element_id(&self, key: &[u8]) -> Option<VarId> {
@@ -123,7 +125,9 @@ impl NativeArrayTargetCell {
             if !defined && !cell.native_member_keys.has_aliases(key) {
                 cell.element_ids.remove(key);
                 cell.member_order.remove(key);
-                cell.native_member_keys.remove(key);
+                let old = cell.native_member_keys.take_key(key);
+                drop(cell);
+                drop(old);
             }
         }
     }

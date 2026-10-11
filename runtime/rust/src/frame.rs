@@ -65,6 +65,8 @@ pub(crate) use jim_link_store::{CapturedJimLinkRoot, JimLinkStoreError};
 pub(crate) use jim_lookup::{CapturedJimDictionaryCell, JimVariableRead, WeakJimVariableCell};
 mod container;
 mod destruction;
+mod retired_variable;
+pub(crate) use retired_variable::RetiredVariableParts;
 pub use destruction::{RetainedArrayCell, WeakArraySearchCell};
 mod native_element_entry;
 pub(crate) use native_element_entry::NativeElementAliasEntry;
@@ -456,7 +458,7 @@ impl CellContents {
         self.native_member_keys.ensure(id, key, None);
     }
 
-    fn retire_rmw_shell(&mut self) {
+    fn retire_rmw_shell(&mut self) -> Option<native_variable_names::NativeHashKey> {
         if self.var.is_some()
             || self.operation_refs != 0
             || self.rmw_refs != 0
@@ -465,11 +467,12 @@ impl CellContents {
             || self.undefined_shell
             || self.rmw_retirement.is_some()
         {
-            return;
+            return None;
         }
         if let Some(entry) = self.rmw_shell_entry.take() {
-            entry.retire(self.binding_id);
+            return entry.retire(self.binding_id);
         }
+        None
     }
 }
 
@@ -956,7 +959,7 @@ impl VarTable {
         drop(retired);
     }
 
-    fn take_array_default(&mut self, name: &[u8]) -> Option<RetiredArrayDefault> {
+    pub(crate) fn take_array_default(&mut self, name: &[u8]) -> Option<RetiredArrayDefault> {
         let contents = self.contents(name)?;
         let old = contents.borrow_mut().array_default.take();
         old.map(RetiredArrayDefault::capture)
@@ -1096,32 +1099,44 @@ impl VarTable {
     /// Remove the whole variable `name` (scalar or array); returns whether it
     /// existed. Releases every object it owned.
     pub(crate) fn remove(&mut self, name: &[u8]) -> bool {
+        drop(self.take_array_default(name));
+        let (removed, old) = self.publish_remove_after_default(name);
+        drop(old);
+        removed
+    }
+    /// The default is a separate earlier retirement stage. The entered caller
+    /// releases it and checks the original receiver before reaching this stage.
+    pub(crate) fn publish_remove_after_default(
+        &mut self,
+        name: &[u8],
+    ) -> (bool, RetiredVariableParts) {
+        let mut old = RetiredVariableParts::default();
         let Some(slot) = self.lookup_slot(name) else {
-            return false;
+            return (false, old);
         };
-        self.unset_array_default(name);
         {
             let mut cell = self.cells[slot].contents.borrow_mut();
             cell.array_search_epoch = cell.array_search_epoch.wrapping_add(1);
             cell.array_searches.clear();
         }
-        self.retire_jim_key(name);
-        self.cells[slot].contents.borrow_mut().namespace_declared = false;
-        self.cells[slot].contents.borrow_mut().undefined_shell = false;
+        old.hash_key(self.take_jim_key(name));
         {
+            let mut cell = self.cells[slot].contents.borrow_mut();
+            cell.namespace_declared = false;
+            cell.undefined_shell = false;
+        }
+        let retire_entry = {
             let cell = self.cells[slot].contents.borrow();
-            if cell.operation_refs == 0 && cell.rmw_root_refs == 0 && cell.native_alias_refs == 0 {
-                self.retire_native_entry(name);
-            }
+            cell.operation_refs == 0 && cell.rmw_root_refs == 0 && cell.native_alias_refs == 0
+        };
+        if retire_entry {
+            old.hash_key(self.take_native_entry(name));
         }
         if self.cells[slot].contents.borrow().rmw_refs != 0
             || self.cells[slot].contents.borrow().native_alias_refs != 0
         {
-            let is_array = matches!(
-                self.cells[slot].contents.borrow().var.as_ref(),
-                Some(Var::Array(_))
-            );
             let mut contents = self.cells[slot].contents.borrow_mut();
+            let is_array = matches!(contents.var.as_ref(), Some(Var::Array(_)));
             if (contents.rmw_root_refs != 0 || contents.native_alias_refs != 0)
                 && contents.rmw_shell_entry.is_none()
                 && !self.declared_slots.contains(&slot)
@@ -1135,55 +1150,55 @@ impl VarTable {
                     ));
                 }
             }
-            let old = contents.var.take();
-            contents.native_member_keys.clear();
-            let existed = old.is_some();
-            if let Some(old) = old {
-                old.release();
-            }
-            if is_array {
+            let value = contents.var.take();
+            let removed = value.is_some();
+            old.elements(std::mem::take(&mut contents.native_member_keys));
+            old.value(value);
+            let replace = if is_array {
                 contents.rmw_array_epoch = contents.rmw_array_epoch.wrapping_add(1);
                 if contents.rmw_root_refs == 0 && contents.native_alias_refs == 0 {
                     contents.rmw_retirement = Some(VarError::DeletedArray);
-                    drop(contents);
-                    self.cells[slot] = Cell::empty(name);
+                    true
+                } else {
+                    false
                 }
+            } else {
+                false
+            };
+            drop(contents);
+            if replace {
+                old.cell(std::mem::replace(&mut self.cells[slot], Cell::empty(name)));
             }
-            return existed;
+            return (removed, old);
         }
         if self.cells[slot].contents.borrow().operation_refs != 0 {
             let mut cell = self.cells[slot].contents.borrow_mut();
             cell.element_ids.clear();
-            cell.native_member_keys.clear();
+            old.elements(std::mem::take(&mut cell.native_member_keys));
             cell.element_operation_refs.clear();
-            return cell
-                .var
-                .take()
-                .map(|var| {
-                    var.release();
-                    true
-                })
-                .unwrap_or(false);
+            let value = cell.var.take();
+            let removed = value.is_some();
+            old.value(value);
+            return (removed, old);
         }
         if Rc::strong_count(&self.cells[slot].contents) > 1 {
-            let existed = self.cells[slot].contents.borrow().var.is_some();
-            self.cells[slot] = Cell::empty(name);
-            return existed;
+            let removed = self.cells[slot].contents.borrow().var.is_some();
+            // Captured static/cell owners keep their existing value role. Moving
+            // the actual table Rc does not manufacture another native reference.
+            old.cell(std::mem::replace(&mut self.cells[slot], Cell::empty(name)));
+            return (removed, old);
         }
         let mut cell = self.cells[slot].contents.borrow_mut();
-        if cell.operation_refs == 0 {
-            cell.binding_id = None;
-        }
+        cell.binding_id = None;
         cell.element_ids.clear();
-        cell.native_member_keys.clear();
+        old.elements(std::mem::take(&mut cell.native_member_keys));
         cell.rmw_member_shells.clear();
         cell.element_operation_refs.clear();
-        if let Some(var) = cell.var.take() {
-            var.release();
-            true
-        } else {
-            false
-        }
+        let value = cell.var.take();
+        let removed = value.is_some();
+        old.value(value);
+        drop(cell);
+        (removed, old)
     }
 
     /// Ensure `name` is an (at least empty) array — `array default set` creates
@@ -1210,30 +1225,40 @@ impl VarTable {
         if self.dictionary_variables() {
             return self.remove_dictionary_element(name, key);
         }
+        let (removed, old) = self.publish_remove_elem(name, key);
+        drop(old);
+        removed
+    }
+    pub(crate) fn publish_remove_elem(
+        &mut self,
+        name: &[u8],
+        key: &[u8],
+    ) -> (bool, RetiredVariableParts) {
+        let mut old = RetiredVariableParts::default();
         let Some(contents) = self.contents(name) else {
-            return false;
+            return (false, old);
         };
-        let mut borrowed = contents.borrow_mut();
-        let cell = &mut *borrowed;
+        let mut cell = contents.borrow_mut();
         if cell.member_order.contains_key(key) {
             cell.array_search_epoch = cell.array_search_epoch.wrapping_add(1);
             cell.array_searches.clear();
         }
-        if let Some(Var::Array(map)) = cell.var.as_mut() {
-            if let Some(old) = map.remove(key) {
-                if !cell.element_operation_refs.contains_key(key)
-                    && !cell.native_member_keys.has_aliases(key)
-                {
-                    cell.element_ids.remove(key);
-                    cell.member_order.remove(key);
-                    cell.native_member_keys.remove(key);
-                }
-                // SAFETY: the array element owned a +1; releasing balances it.
-                unsafe { obj::decr_ref_count(old) };
-                return true;
-            }
+        let value = match cell.var.as_mut() {
+            Some(Var::Array(map)) => map.remove(key),
+            _ => None,
+        };
+        if value.is_some()
+            && !cell.element_operation_refs.contains_key(key)
+            && !cell.native_member_keys.has_aliases(key)
+        {
+            cell.element_ids.remove(key);
+            cell.member_order.remove(key);
+            old.key(cell.native_member_keys.take_key(key));
         }
-        false
+        let removed = value.is_some();
+        old.value(value.map(Var::Scalar));
+        drop(cell);
+        (removed, old)
     }
 
     /// Install `link` under `name`, releasing any cell it replaces.
@@ -1248,6 +1273,14 @@ impl VarTable {
         link: Link,
         origin: FrameLinkOrigin,
     ) {
+        drop(self.publish_link_with_origin(name, link, origin));
+    }
+    pub(crate) fn publish_link_with_origin(
+        &mut self,
+        name: &[u8],
+        link: Link,
+        origin: FrameLinkOrigin,
+    ) -> RetiredVariableParts {
         let slot = self.local_slot_for(name);
         if !self.declared_slots.contains(&slot) {
             self.entry_order.borrow_mut().insert(name);
@@ -1256,16 +1289,15 @@ impl VarTable {
         cell.undefined_shell = false;
         cell.undefined_root_home = None;
         cell.link_origin = origin;
-        if cell.binding_id.is_none() {
-            cell.binding_id = Some(fresh_var_id());
-        }
+        cell.binding_id.get_or_insert_with(fresh_var_id);
         cell.element_ids.clear();
-        cell.native_member_keys.clear();
+        let mut old = RetiredVariableParts::default();
+        old.elements(std::mem::take(&mut cell.native_member_keys));
         cell.rmw_member_shells.clear();
         cell.element_operation_refs.clear();
-        if let Some(old) = cell.var.replace(Var::Link(link)) {
-            old.release();
-        }
+        old.value(cell.var.replace(Var::Link(link)));
+        drop(cell);
+        old
     }
 
     /// Whether `name` is an array variable here (the `set a` array-vs-scalar
@@ -1355,6 +1387,7 @@ impl Drop for VarTable {
     /// Release every object every cell owns, so a dropped frame/namespace never
     /// leaks.
     fn drop(&mut self) {
+        let mut old = RetiredVariableParts::default();
         for cell in &self.cells {
             let mut contents = cell.contents.borrow_mut();
             if contents.rmw_refs != 0
@@ -1362,12 +1395,11 @@ impl Drop for VarTable {
                 || contents.native_member_keys.any_aliases()
             {
                 contents.rmw_retirement = Some(VarError::DeletedNamespace);
-                contents.native_member_keys.clear();
-                if let Some(old) = contents.var.take() {
-                    old.release();
-                }
+                old.elements(std::mem::take(&mut contents.native_member_keys));
+                old.value(contents.var.take());
             }
         }
+        drop(old);
     }
 }
 

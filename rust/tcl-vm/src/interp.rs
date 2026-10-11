@@ -13603,11 +13603,10 @@ impl Vm {
             ) {
                 return Ok(Ok(()));
             }
-            let retired = self.var_arena.replace_state(
+            self.var_arena.replace_state(
                 id,
                 Local::Scalar(Value::int(i64::from(context.precision()))),
             );
-            drop(retired);
             scope.check_native(self)?;
             return Ok(Ok(()));
         }
@@ -13695,11 +13694,10 @@ impl Vm {
         };
         if let Some(error) = error {
             if policy == tcl_dialect::DoubleStringPolicy::Tcl84Precision {
-                let retired = self.var_arena.replace_state(
+                self.var_arena.replace_state(
                     id,
                     Local::Scalar(Value::int(i64::from(context.precision()))),
                 );
-                drop(retired);
                 scope.check_native(self)?;
             }
             scope.check_native(self)?;
@@ -14516,14 +14514,6 @@ impl Vm {
             })
     }
 
-    /// Fire the variable traces for `name` on operation `op`, running each
-    /// callback as `command name1 name2 op`. A read/write/array callback error
-    /// aborts the access; unset errors are ignored. Re-entrant firing of the
-    /// same resolved variable cell is suppressed.
-    pub(crate) fn fire_var_traces(&mut self, name: &str, op: &str) -> VariableTraceOutcome {
-        self.fire_var_traces_reporting(name, op, None)
-    }
-
     /// Read through one stable variable identity across a callback. If no cell
     /// existed before the read trace, the callback may create it and the name
     /// is resolved once afterwards; otherwise deletion/recreation of the same
@@ -15115,60 +15105,6 @@ impl Vm {
         }
     }
 
-    /// [`fire_var_traces`](Self::fire_var_traces) with an explicit `name1` for
-    /// the callbacks. Only the dispatched `unset a(k)` supplies one.
-    fn fire_var_traces_reporting(
-        &mut self,
-        name: &str,
-        op: &str,
-        reported_name1: Option<&str>,
-    ) -> VariableTraceOutcome {
-        self.fire_var_traces_taken(name, op, reported_name1, None)
-    }
-
-    /// [`fire_var_traces`](Self::fire_var_traces) walking a trace list that has
-    /// already been taken out of the table for the variable's own group — the
-    /// unset path, where C moves the list to a dummy `Var` before the callbacks
-    /// run (`UnsetVarStruct`, `tclVar.c` 9.0.4:2617-2648). The containing
-    /// array's group, which C leaves on the array's own `Var`, is still walked
-    /// live.
-    fn fire_var_traces_taken(
-        &mut self,
-        name: &str,
-        op: &str,
-        reported_name1: Option<&str>,
-        taken: Option<TakenVarTraces>,
-    ) -> VariableTraceOutcome {
-        self.fire_var_traces_from_cell(name, op, reported_name1, taken, None)
-    }
-
-    fn fire_var_traces_from_cell(
-        &mut self,
-        name: &str,
-        op: &str,
-        reported_name1: Option<&str>,
-        taken: Option<TakenVarTraces>,
-        located: Option<VarTraceCell>,
-    ) -> VariableTraceOutcome {
-        if let Some(first) = self.execution_refusal.clone() {
-            return Err(first);
-        }
-        if self.variable_observers.script_traces.is_empty()
-            && taken.is_none()
-            && self.variable_observers.precision_cell.is_none()
-            && self.variable_observers.native_error_cells.is_empty()
-        {
-            return Ok(Ok(()));
-        }
-        self.fire_var_traces_from_cell_bytes(
-            name.as_bytes(),
-            op,
-            reported_name1.map(str::as_bytes),
-            taken,
-            located,
-        )
-    }
-
     fn fire_var_traces_from_cell_bytes(
         &mut self,
         name: &[u8],
@@ -15335,7 +15271,7 @@ impl Vm {
         groups
     }
 
-    /// Inner firing loop for [`Self::fire_var_traces`]: run the whole-array
+    /// Inner firing loop for [`Self::fire_var_traces_from_parts`]: run the whole-array
     /// traces, then the element-specific ones, with the variable already
     /// marked active by the caller.
     fn invoke_variable_trace_callback(

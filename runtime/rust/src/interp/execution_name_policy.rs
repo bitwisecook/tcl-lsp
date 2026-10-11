@@ -335,8 +335,26 @@ impl Interp {
         name: &[u8],
         level: usize,
     ) -> Result<bool, VarError> {
-        self.observed_receiver(name, level, false)?
-            .map_or(Ok(false), |receiver| receiver.unset())
+        let scope = super::native_operation_currency::NativeOperationScope::enter(self).map_err(
+            |first| {
+                self.clone().refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            },
+        )?;
+        let receiver = self.observed_receiver(name, level, false)?;
+        let reached = receiver.as_ref().map_or(Ok(false), |receiver| {
+            receiver.unset_checked(scope.currency())
+        });
+        drop(receiver);
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.clone().refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        reached
+            .map_err(|error| self.clone().byte_store_failure(error))
             .or_else(|_| self.observed_refusal())
     }
 

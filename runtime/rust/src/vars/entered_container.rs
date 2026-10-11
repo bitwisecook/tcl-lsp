@@ -264,6 +264,196 @@ impl EnteredVariablePlace {
         }
         Ok(())
     }
+    pub(crate) fn check_owner(
+        &self,
+        interpreter: &Interp,
+        currency: &NativeOperationCurrency,
+    ) -> Result<(), JimLinkStoreError> {
+        current(currency)?;
+        same_table(interpreter, self.place.home, &self.table)?;
+        for link in &self.links {
+            link.check(interpreter, currency)?;
+        }
+        Ok(())
+    }
+    pub(crate) fn check_removal_current(
+        &self,
+        interpreter: &Interp,
+        currency: &NativeOperationCurrency,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        self.check_owner(interpreter, currency).map_err(|error| {
+            if let JimLinkStoreError::Command(error) = &error {
+                if let Some(first) = error.native_execution_refusal() {
+                    return first.clone();
+                }
+            }
+            interpreter.clone().refuse_completion_value_access(
+                ValueError::CommandProtocolUnavailable("original variable removal owner"),
+            )
+        })
+    }
+    pub(crate) fn trace_home(&self, interpreter: &Interp) -> TraceHome {
+        let frames = interpreter.frames.borrow();
+        let ns = interpreter.namespaces();
+        let table = selected_table(&frames, &ns, self.place.home, true);
+        let (namespace, level) = match self.place.home {
+            VarHome::Namespace(namespace) => (Some(namespace), None),
+            VarHome::Frame(level) => (None, Some(level)),
+        };
+        let binding = self
+            .place
+            .array_cell
+            .as_ref()
+            .map(crate::frame::RetainedArrayCell::identity)
+            .or_else(|| {
+                self.place
+                    .scalar_entry
+                    .as_ref()
+                    .map(|entry| entry.identity())
+            })
+            .or_else(|| table.and_then(|table| table.trace_binding_identity(&self.place.name)));
+        let selected_member = self.place.elem.as_ref().and_then(|element| {
+            let identity = if let Some(array) = &self.place.array_cell {
+                array.trace_member_identity(element)
+            } else if let Some(entry) = &self.place.scalar_entry {
+                entry.trace_member_identity(element)
+            } else {
+                table.and_then(|table| table.native_trace_element_identity(binding?, element))
+            }?;
+            Some((element.clone(), identity))
+        });
+        TraceHome {
+            binding_id: binding,
+            selected_member,
+            ns: namespace,
+            level,
+            base: self.place.name.clone(),
+            link_elem: self.place.elem.clone(),
+        }
+    }
+    pub(crate) fn begin_array_destruction(
+        &mut self,
+        interpreter: &Interp,
+        currency: &NativeOperationCurrency,
+    ) -> Result<Option<crate::frame::RetainedArrayCell>, JimLinkStoreError> {
+        self.check(interpreter, currency)?;
+        if self.place.elem.is_some() {
+            return Ok(None);
+        }
+        let (array, old) = if let Some(entry) = &self.place.scalar_entry {
+            let receiver = entry.capture_receiver(None, false)?;
+            let result = receiver.as_ref().map_or_else(
+                || (None, crate::frame::RetiredVariableParts::default()),
+                |receiver| receiver.publish_array_destruction(),
+            );
+            drop(receiver);
+            result
+        } else {
+            let mut frames = interpreter.frames.borrow_mut();
+            let mut ns = interpreter.namespaces_mut();
+            table_mut(&mut frames, &mut ns, self.place.home)
+                .publish_array_destruction(&self.place.name)
+        };
+        let reached = old.finish(|| self.check_owner(interpreter, currency));
+        if let Err(first) = reached {
+            // This already selected detached generation must be retired on
+            // refusal. It cannot be abandoned while optional traces stop.
+            if let Some(array) = array {
+                array.finish_destruction();
+            }
+            self.check_owner(interpreter, currency)?;
+            return Err(first);
+        }
+        Ok(array)
+    }
+    pub(crate) fn remove(
+        &mut self,
+        interpreter: &Interp,
+        currency: &NativeOperationCurrency,
+        require_defined_root: bool,
+    ) -> Result<bool, JimLinkStoreError> {
+        self.check(interpreter, currency)?;
+        let defined = !require_defined_root
+            || self.place.elem.is_some()
+            || self.exists(interpreter, currency)?;
+        let removed = if let Some(entry) = &self.place.scalar_entry {
+            let receiver = entry.capture_receiver(self.place.elem.clone(), false)?;
+            let reached = receiver
+                .as_ref()
+                .map_or(Ok(false), |receiver| receiver.unset_checked(currency));
+            drop(receiver);
+            self.check_owner(interpreter, currency)?;
+            reached?
+        } else if let (Some(array), Some(element)) = (&self.place.array_cell, &self.place.elem) {
+            let (removed, old) = array.publish_remove(element);
+            old.finish(|| self.check_owner(interpreter, currency))?;
+            removed
+        } else if let Some(root) = self
+            .root
+            .as_mut()
+            .filter(|root| root.is_dictionary_element())
+        {
+            let reached = root.remove_dictionary_element(currency);
+            self.check_owner(interpreter, currency)?;
+            reached?
+        } else if self.root.is_none() {
+            false
+        } else {
+            if self.place.elem.is_none() {
+                let old = {
+                    let mut frames = interpreter.frames.borrow_mut();
+                    let mut ns = interpreter.namespaces_mut();
+                    table_mut(&mut frames, &mut ns, self.place.home)
+                        .take_array_default(&self.place.name)
+                };
+                drop(old);
+                // Default retirement is an earlier actual stage; a callback may
+                // withdraw the original receiver before the removal is reached.
+                self.check(interpreter, currency)?;
+            }
+            let (removed, old) = {
+                let mut frames = interpreter.frames.borrow_mut();
+                let mut ns = interpreter.namespaces_mut();
+                let table = table_mut(&mut frames, &mut ns, self.place.home);
+                match self.place.elem.as_deref() {
+                    Some(element) => table.publish_remove_elem(&self.place.name, element),
+                    None => table.publish_remove_after_default(&self.place.name),
+                }
+            };
+            old.finish(|| self.check_owner(interpreter, currency))?;
+            removed
+        };
+        let removed = removed && defined;
+        if removed && self.place.elem.is_none() {
+            interpreter
+                .frames
+                .borrow_mut()
+                .invalidate_jim_variable_frame(self.place.home);
+        }
+        self.check_owner(interpreter, currency)?;
+        Ok(removed)
+    }
+    pub(crate) fn remove_jim_primary(
+        &mut self,
+        interpreter: &Interp,
+        currency: &NativeOperationCurrency,
+    ) -> Result<bool, JimLinkStoreError> {
+        self.check(interpreter, currency)?;
+        if self.place.elem.is_some() {
+            return Ok(false);
+        }
+        let primary = {
+            let frames = interpreter.frames.borrow();
+            let ns = interpreter.namespaces();
+            selected_table(&frames, &ns, self.place.home, true)
+                .is_some_and(|table| table.has_jim_primary(&self.place.name))
+        };
+        if primary {
+            self.remove(interpreter, currency, false)
+        } else {
+            Ok(false)
+        }
+    }
     pub(crate) fn read(
         &self,
         interpreter: &Interp,

@@ -374,17 +374,23 @@ impl RetainedArrayCell {
     }
 
     pub(crate) fn remove(&self, element: &[u8]) -> bool {
+        let (removed, old) = self.publish_remove(element);
+        drop(old);
+        removed
+    }
+    pub(crate) fn publish_remove(&self, element: &[u8]) -> (bool, super::RetiredVariableParts) {
+        let mut old = super::RetiredVariableParts::default();
         let mut contents = self.contents.borrow_mut();
         if contents.rmw_array_epoch != self.epoch
             && !contents.detached_arrays.contains_key(&self.id)
         {
-            return false;
+            return (false, old);
         }
         if contents.binding_id == Some(self.id) && contents.member_order.contains_key(element) {
             contents.array_search_epoch = contents.array_search_epoch.wrapping_add(1);
             contents.array_searches.clear();
         }
-        let old = if let Some(members) = contents.detached_arrays.get_mut(&self.id) {
+        let value = if let Some(members) = contents.detached_arrays.get_mut(&self.id) {
             members.entry_order.remove(element);
             members.values.remove(element)
         } else if contents.binding_id == Some(self.id) && contents.rmw_array_epoch == self.epoch {
@@ -401,15 +407,12 @@ impl RetainedArrayCell {
         {
             contents.element_ids.remove(element);
             contents.member_order.remove(element);
-            contents.native_member_keys.remove(element);
+            old.key(contents.native_member_keys.take_key(element));
         }
-        if let Some(old) = old {
-            // SAFETY: releasing this element balances its stored reference.
-            unsafe { obj::decr_ref_count(old) };
-            true
-        } else {
-            false
-        }
+        let removed = value.is_some();
+        old.value(value.map(Var::Scalar));
+        drop(contents);
+        (removed, old)
     }
 
     pub(crate) fn begin_member_retirement(
@@ -464,10 +467,19 @@ impl RetainedArrayCell {
     }
 
     pub(crate) fn finish_destruction(&self) {
-        let members = self.contents.borrow_mut().detached_arrays.remove(&self.id);
-        if let Some(members) = members {
-            Var::Array(members.values).release();
+        let _ = self.finish_destruction_with_check(|| Ok::<(), ()>(()));
+    }
+    pub(crate) fn finish_destruction_with_check<E>(
+        &self,
+        current: impl Fn() -> Result<(), E>,
+    ) -> Result<(), E> {
+        let selected = self.contents.borrow_mut().detached_arrays.remove(&self.id);
+        let mut old = super::RetiredVariableParts::default();
+        if let Some(selected) = selected {
+            old.value(Some(Var::Array(selected.values)));
+            old.elements(selected.native_keys);
         }
+        old.finish(current)
     }
 }
 
@@ -475,34 +487,40 @@ impl VarTable {
     /// Retire only the selected namespace binding after its unset callbacks.
     /// A refill of that physical cell is discarded without another trace walk;
     /// a different same-spelled binding cannot be retired by this receipt.
+    #[cfg(test)]
     pub(crate) fn retire_namespace_binding(&mut self, name: &[u8], identity: VarId) -> bool {
+        let (retired, old) = self.publish_namespace_binding_retirement(name, identity);
+        drop(old);
+        retired
+    }
+    pub(crate) fn publish_namespace_binding_retirement(
+        &mut self,
+        name: &[u8],
+        identity: VarId,
+    ) -> (bool, super::RetiredVariableParts) {
+        let mut old = super::RetiredVariableParts::default();
         let Some(slot) = self.lookup_slot(name) else {
-            return false;
+            return (false, old);
         };
-        let contents = Rc::clone(&self.cells[slot].contents);
-        if contents.borrow().binding_id != Some(identity) {
-            return false;
+        if self.cells[slot].contents.borrow().binding_id != Some(identity) {
+            return (false, old);
         }
-        self.retire_native_entry(name);
-        self.retire_jim_key(name);
-        let (value, default) = {
-            let mut contents = contents.borrow_mut();
+        old.hash_key(self.take_native_entry(name));
+        old.hash_key(self.take_jim_key(name));
+        {
+            let mut contents = self.cells[slot].contents.borrow_mut();
             contents.rmw_retirement = Some(VarError::DeletedNamespace);
-            contents.native_member_keys.clear();
-            (contents.var.take(), contents.array_default.take())
-        };
-        if let Some(value) = value {
-            value.release();
+            old.elements(std::mem::take(&mut contents.native_member_keys));
+            old.value(contents.var.take());
+            old.default(
+                contents
+                    .array_default
+                    .take()
+                    .map(super::RetiredArrayDefault::capture),
+            );
         }
-        if let Some(default) = default {
-            // SAFETY: the original array default owns these two references.
-            unsafe {
-                obj::decr_ref_count(default);
-                obj::decr_ref_count(default);
-            }
-        }
-        self.cells[slot] = Cell::empty(name);
-        true
+        old.cell(std::mem::replace(&mut self.cells[slot], Cell::empty(name)));
+        (true, old)
     }
 
     pub(crate) fn capture_array_cell(&self, name: &[u8]) -> Option<RetainedArrayCell> {
@@ -524,9 +542,23 @@ impl VarTable {
     /// Detach the root name while preserving the selected old member table.
     /// A protected root RMW shell remains refillable; its old elements use the
     /// separate retained generation until their individual retirement.
+    #[cfg(test)]
     pub(crate) fn begin_array_destruction(&mut self, name: &[u8]) -> Option<RetainedArrayCell> {
-        let slot = self.lookup_slot(name)?;
-        let selected = self.capture_array_cell(name)?;
+        let (array, old) = self.publish_array_destruction(name);
+        drop(old);
+        array
+    }
+    pub(crate) fn publish_array_destruction(
+        &mut self,
+        name: &[u8],
+    ) -> (Option<RetainedArrayCell>, super::RetiredVariableParts) {
+        let mut old = super::RetiredVariableParts::default();
+        let Some(slot) = self.lookup_slot(name) else {
+            return (None, old);
+        };
+        let Some(selected) = self.capture_array_cell(name) else {
+            return (None, old);
+        };
         {
             let mut contents = selected.contents.borrow_mut();
             let Some(Var::Array(members)) = contents.var.take() else {
@@ -534,7 +566,6 @@ impl VarTable {
             };
             let mut entry_order = std::mem::take(&mut contents.member_order);
             entry_order.select_recipe(self.hash_recipe.get());
-            // Undefined physical shells were recorded when originally allocated.
             let native_keys = std::mem::take(&mut contents.native_member_keys);
             let element_ids = std::mem::take(&mut contents.element_ids);
             contents.detached_arrays.insert(
@@ -552,7 +583,7 @@ impl VarTable {
             contents.array_searches.clear();
             contents.element_ids.clear();
         }
-        self.unset_array_default(name);
+        old.default(self.take_array_default(name));
         let preserve_root = {
             let contents = selected.contents.borrow();
             contents.rmw_root_refs != 0
@@ -560,10 +591,10 @@ impl VarTable {
                 || contents.native_alias_refs != 0
         };
         if !preserve_root {
-            self.retire_native_entry(name);
-            self.cells[slot] = Cell::empty(name);
+            old.hash_key(self.take_native_entry(name));
+            old.cell(std::mem::replace(&mut self.cells[slot], Cell::empty(name)));
         }
-        Some(selected)
+        (Some(selected), old)
     }
 }
 

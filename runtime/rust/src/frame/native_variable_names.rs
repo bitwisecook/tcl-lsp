@@ -78,20 +78,27 @@ impl VarTable {
         }
     }
     pub(super) fn retire_native_entry(&self, name: &[u8]) {
-        self.entry_order.borrow_mut().remove(name);
-        let retired = self.native_keys.borrow_mut().remove(name);
+        let retired = self.take_native_entry(name);
         drop(retired);
     }
-    pub(super) fn retire_jim_key(&self, name: &[u8]) {
+    pub(super) fn take_native_entry(&self, name: &[u8]) -> Option<NativeHashKey> {
+        self.entry_order.borrow_mut().remove(name);
+        self.native_keys.borrow_mut().remove(name)
+    }
+    pub(super) fn take_jim_key(&self, name: &[u8]) -> Option<NativeHashKey> {
         let jim = self
             .native_keys
             .borrow()
             .get(name)
             .is_some_and(|key| key.jim);
         if jim {
-            let retired = self.native_keys.borrow_mut().remove(name);
-            drop(retired);
+            self.native_keys.borrow_mut().remove(name)
+        } else {
+            None
         }
+    }
+    pub(super) fn retire_jim_key(&self, name: &[u8]) {
+        drop(self.take_jim_key(name));
     }
     /// Native lookup succeeds on an undefined compiled Var as well as a hash
     /// shell. Creation precedes observers and gives the key its real owner.

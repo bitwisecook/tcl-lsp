@@ -77,6 +77,12 @@ impl NativeScalarAliasEntry {
             _ => None,
         })
     }
+    pub(crate) fn trace_member_identity(&self, key: &[u8]) -> Option<tcl_runtime_api::VarId> {
+        let cell = self.contents.borrow();
+        (cell.binding_id == Some(self.binding) && cell.rmw_retirement.is_none())
+            .then(|| cell.element_ids.get(key).copied())
+            .flatten()
+    }
     pub(crate) fn prepare_original_element(
         &self,
         key: &[u8],
@@ -89,7 +95,15 @@ impl NativeScalarAliasEntry {
         if let Some(error) = cell.rmw_retirement {
             return Err(error);
         }
-        cell.materialise_selected_array(Some(&self.name))?;
+        let old = cell.publish_selected_array(Some(&self.name))?;
+        drop(cell);
+        if let Some(old) = old {
+            old.release();
+        }
+        let mut cell = self.contents.borrow_mut();
+        if cell.binding_id != Some(self.binding) || cell.rmw_retirement.is_some() {
+            return Err(super::VarError::DeletedNamespace);
+        }
         cell.insert_member_entry(key);
         let id = cell.element_ids[key];
         cell.native_member_keys.ensure(id, key, original);
@@ -101,6 +115,7 @@ impl NativeScalarAliasEntry {
         create: bool,
     ) -> Result<Option<super::VariableReceiver>, super::VarError> {
         let mut cell = self.contents.borrow_mut();
+        let mut old = None;
         if cell.binding_id != Some(self.binding) {
             return Err(super::VarError::DeletedNamespace);
         }
@@ -111,9 +126,18 @@ impl NativeScalarAliasEntry {
             if !create {
                 return Ok(None);
             }
-            cell.materialise_selected_array(Some(&self.name))?;
+            old = cell.publish_selected_array(Some(&self.name))?;
         }
         drop(cell);
+        if let Some(old) = old {
+            old.release();
+        }
+        {
+            let cell = self.contents.borrow();
+            if cell.binding_id != Some(self.binding) || cell.rmw_retirement.is_some() {
+                return Err(super::VarError::DeletedNamespace);
+            }
+        }
         Ok(Some(super::VariableReceiver::capture_contents(
             Rc::clone(&self.contents),
             element,
@@ -123,7 +147,7 @@ impl NativeScalarAliasEntry {
 }
 impl Drop for NativeScalarAliasEntry {
     fn drop(&mut self) {
-        let old = {
+        let (old, key) = {
             let mut cell = self.contents.borrow_mut();
             cell.native_alias_refs = cell
                 .native_alias_refs
@@ -140,12 +164,13 @@ impl Drop for NativeScalarAliasEntry {
             }
             let old = cell.var.take();
             cell.undefined_shell = false;
-            cell.retire_rmw_shell();
+            let key = cell.retire_rmw_shell();
             if !cell.compiled_declaration {
                 cell.binding_id = None;
             }
-            old
+            (old, key)
         };
+        drop(key);
         if let Some(old) = old {
             old.release();
         }

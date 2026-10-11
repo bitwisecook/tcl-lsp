@@ -146,6 +146,17 @@ impl Interp {
         &mut self,
         original: *mut TclObj,
     ) -> Result<bool, Code> {
+        let arguments =
+            crate::interp::native_arguments::OriginalArguments::enter(self, &[original])
+                .map_err(|error| self.report_cmd_error(error))?;
+        let reached = self.unset_original_jim_variable_entered(original);
+        arguments
+            .check()
+            .map_err(|error| self.report_cmd_error(error))?;
+        reached
+    }
+
+    fn unset_original_jim_variable_entered(&mut self, original: *mut TclObj) -> Result<bool, Code> {
         let bytes = self
             .native_string_bytes(&original)
             .map_err(|error| self.report_cmd_error(error.into()))?;
@@ -193,12 +204,40 @@ impl Interp {
             None => {
                 // naming.procedure-static.jim-primary-table-unset
                 // docs/design/analysis/name-resolution-proofs/procedure-static-jim-primary-table-unset.md
-                crate::vars::unset_jim_primary_variable(
-                    &mut self.frames.borrow_mut(),
-                    &mut self.namespaces.borrow_mut(),
+                let scope = super::native_operation_currency::NativeOperationScope::enter(self)
+                    .map_err(|first| self.refuse_native_execution(first))?;
+                let captured = crate::vars::EnteredVariablePlace::capture(
+                    self,
                     self.current_ns.get(),
+                    None,
                     &root,
-                )
+                    None,
+                    false,
+                    scope.currency(),
+                );
+                scope
+                    .currency()
+                    .ensure_current_or_refuse()
+                    .map_err(|first| self.refuse_native_execution(first))?;
+                let mut captured = captured.map_err(|error| {
+                    let error = self.byte_store_failure(error);
+                    crate::builtins::var_error(self, &bytes, error)
+                })?;
+                let reached = captured.remove_jim_primary(self, scope.currency());
+                if let Err(crate::frame::JimLinkStoreError::Command(error)) = &reached {
+                    if let Some(first) = error.native_execution_refusal() {
+                        self.refuse_native_execution(first.clone());
+                    }
+                }
+                drop(captured);
+                scope
+                    .currency()
+                    .ensure_current_or_refuse()
+                    .map_err(|first| self.refuse_native_execution(first))?;
+                reached.map_err(|error| {
+                    let error = self.byte_store_failure(error);
+                    crate::builtins::var_error(self, &bytes, error)
+                })?
             }
         })
     }

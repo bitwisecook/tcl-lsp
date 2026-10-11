@@ -7,6 +7,36 @@ use tcl_syntax::naming::{
     NativeVariableInputForm as Input,
 };
 
+struct UnsetFrame {
+    level: usize,
+    original: std::rc::Weak<()>,
+}
+
+impl UnsetFrame {
+    fn capture(interpreter: &Interp) -> Self {
+        let frames = interpreter.frames.borrow();
+        Self {
+            level: frames.current_level(),
+            original: frames.current_activation_owner(),
+        }
+    }
+
+    fn check(&self, interpreter: &Interp) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let frames = interpreter.frames.borrow();
+        let current = frames.current_level() == self.level
+            && self.original.strong_count() != 0
+            && self.original.ptr_eq(&frames.current_activation_owner());
+        drop(frames);
+        if current {
+            Ok(())
+        } else {
+            Err(interpreter.clone().refuse_completion_value_access(
+                ValueError::CommandProtocolUnavailable("original unset frame"),
+            ))
+        }
+    }
+}
+
 struct UnsetReport {
     original: Option<*mut TclObj>,
     root: Vec<u8>,
@@ -31,6 +61,28 @@ impl Interp {
         element: Option<*mut TclObj>,
         complain: bool,
     ) -> Result<(), Code> {
+        let mut pointers = vec![original];
+        pointers.extend(element);
+        let arguments = crate::interp::native_arguments::OriginalArguments::enter(self, &pointers)
+            .map_err(|error| self.report_cmd_error(error))?;
+        let frame = UnsetFrame::capture(self);
+        let reached = self.unset_original_c_parts_entered(original, element, complain, &frame);
+        arguments
+            .check()
+            .map_err(|error| self.report_cmd_error(error))?;
+        frame
+            .check(self)
+            .map_err(|first| self.refuse_native_execution(first))?;
+        reached
+    }
+
+    fn unset_original_c_parts_entered(
+        &mut self,
+        original: *mut TclObj,
+        element: Option<*mut TclObj>,
+        complain: bool,
+        frame: &UnsetFrame,
+    ) -> Result<(), Code> {
         let purpose = unset_purpose(complain);
         let element_bytes = element
             .map(|element| {
@@ -39,6 +91,9 @@ impl Interp {
             })
             .transpose()
             .map_err(|error| self.report_cmd_error(error.into()))?;
+        frame
+            .check(self)
+            .map_err(|first| self.refuse_native_execution(first))?;
         let lookup = (|| {
             let selected = self.prepare_original_c_name_parts(
                 original,
@@ -46,6 +101,9 @@ impl Interp {
                 None,
                 element_bytes.as_deref(),
             )?;
+            frame
+                .check(self)
+                .map_err(|first| self.refuse_native_execution(first))?;
             let Some(selected) = selected else {
                 return Ok(None);
             };
@@ -58,6 +116,11 @@ impl Interp {
                     element: selected.element,
                 }))
         })();
+        self.check_entered_native_operation()
+            .map_err(|first| self.refuse_native_execution(first))?;
+        frame
+            .check(self)
+            .map_err(|first| self.refuse_native_execution(first))?;
         let capture = match lookup {
             Ok(capture) => capture,
             Err(code) if complain || self.host_refusal_pending() => return Err(code),
@@ -71,7 +134,7 @@ impl Interp {
             element: element_bytes,
             combined: element.is_none(),
         };
-        self.unset_original_c_capture(capture, report, complain)
+        self.unset_original_c_capture(capture, report, complain, frame)
     }
 
     /// An indexed opcode selects its actual slot, including duplicate formal
@@ -83,6 +146,28 @@ impl Interp {
         element: Option<*mut TclObj>,
         complain: bool,
     ) -> Result<(), Code> {
+        let pointers: Vec<_> = element.into_iter().collect();
+        let arguments = crate::interp::native_arguments::OriginalArguments::enter(self, &pointers)
+            .map_err(|error| self.report_cmd_error(error))?;
+        let frame = UnsetFrame::capture(self);
+        let reached = self.unset_original_c_indexed_entered(slot, root, element, complain, &frame);
+        arguments
+            .check()
+            .map_err(|error| self.report_cmd_error(error))?;
+        frame
+            .check(self)
+            .map_err(|first| self.refuse_native_execution(first))?;
+        reached
+    }
+
+    fn unset_original_c_indexed_entered(
+        &mut self,
+        slot: usize,
+        root: &[u8],
+        element: Option<*mut TclObj>,
+        complain: bool,
+        frame: &UnsetFrame,
+    ) -> Result<(), Code> {
         let element = element
             .map(|element| {
                 self.native_string_bytes(&element)
@@ -90,6 +175,9 @@ impl Interp {
             })
             .transpose()
             .map_err(|error| self.report_cmd_error(error.into()))?;
+        frame
+            .check(self)
+            .map_err(|first| self.refuse_native_execution(first))?;
         let report = UnsetReport {
             original: None,
             root: root.to_vec(),
@@ -103,6 +191,11 @@ impl Interp {
             element.clone(),
             false,
         );
+        self.check_entered_native_operation()
+            .map_err(|first| self.refuse_native_execution(first))?;
+        frame
+            .check(self)
+            .map_err(|first| self.refuse_native_execution(first))?;
         let capture = match capture {
             Ok(capture) => capture.map(|(receiver, home)| OriginalCVariableCapture {
                 receiver,
@@ -119,7 +212,7 @@ impl Interp {
                 return self.finish_original_unset_receiver_failure(&report, complain, error);
             }
         };
-        self.unset_original_c_capture(capture, report, complain)
+        self.unset_original_c_capture(capture, report, complain, frame)
     }
 
     fn unset_original_c_capture(
@@ -127,7 +220,13 @@ impl Interp {
         capture: Option<OriginalCVariableCapture>,
         report: UnsetReport,
         complain: bool,
+        frame: &UnsetFrame,
     ) -> Result<(), Code> {
+        let scope = super::super::native_operation_currency::NativeOperationScope::enter(self)
+            .map_err(|first| self.refuse_native_execution(first))?;
+        frame
+            .check(self)
+            .map_err(|first| self.refuse_native_execution(first))?;
         let Some(capture) = capture else {
             return self.finish_original_unset_failure(
                 &report,
@@ -137,68 +236,108 @@ impl Interp {
             );
         };
         let receiver = capture.receiver;
-        if receiver.is_constant() {
-            return self.finish_original_unset_failure(
-                &report,
-                complain,
-                Reason::Constant,
-                Site::ValueUnset,
-            );
-        }
-        let observes = self.original_variable_trace_requires_name(
-            &capture.home,
-            capture.element.as_deref(),
-            b"unset",
-        );
-        let spelling = if observes {
-            self.original_unset_spelling(&report)?
-        } else {
-            capture.root.clone()
-        };
-        if let Some(array) = receiver.begin_array_destruction() {
-            self.finish_array_unset(&spelling, &capture.root, Some(capture.home), array);
-            return if self.host_refusal_pending() {
-                Err(Code::Error)
-            } else {
-                Ok(())
-            };
-        }
-        let reason = if capture.element.is_some() && receiver.is_array() {
-            Reason::NoSuchElement
-        } else {
-            Reason::NoSuchVariable
-        };
-        let existed = match receiver.unset() {
-            Ok(existed) => existed,
-            Err(crate::frame::VarError::NameProtocolUnavailable) => {
-                return Err(self.report_cmd_error(
-                    ValueError::CommandProtocolUnavailable("selected unset receiver").into(),
+        let current = |interpreter: &Interp| {
+            scope.currency().ensure_current_or_refuse()?;
+            frame.check(interpreter)?;
+            if receiver.check_current().is_err() {
+                return Err(interpreter.clone().refuse_completion_value_access(
+                    ValueError::CommandProtocolUnavailable("original unset receiver"),
                 ));
             }
-            Err(error) => {
-                return self.finish_original_unset_receiver_failure(&report, complain, error);
-            }
-        };
-        if observes {
-            self.fire_selected_unset_callbacks(
-                &capture.home,
-                &capture.root,
-                capture.element.as_deref(),
-                &spelling,
-                !report.combined,
-            );
-        } else {
-            // Destruction retires read/write registrations even when no unset
-            // callback needs the original name, including an active read trace.
-            self.detach_destroyed_trace_group(&capture.home, capture.element.as_deref());
-        }
-        if self.host_refusal_pending() {
-            return Err(Code::Error);
-        }
-        if existed {
             Ok(())
-        } else {
-            self.finish_original_unset_failure(&report, complain, reason, Site::NameLookup)
+        };
+        enum Verdict {
+            Complete,
+            Failure(Reason, Site),
+            Receiver(crate::frame::VarError),
+        }
+        let reached = (|| -> Result<Verdict, Code> {
+            current(self).map_err(|first| self.refuse_native_execution(first))?;
+            if receiver.is_constant() {
+                return Ok(Verdict::Failure(Reason::Constant, Site::ValueUnset));
+            }
+            let observes = self.original_variable_trace_requires_name(
+                &capture.home,
+                capture.element.as_deref(),
+                b"unset",
+            );
+            let spelling = if observes {
+                self.original_unset_spelling(&report)?
+            } else {
+                capture.root.clone()
+            };
+            current(self).map_err(|first| self.refuse_native_execution(first))?;
+            let (array, old) = receiver.publish_array_destruction();
+            let retired = old.finish(|| current(self));
+            if let Err(first) = retired {
+                if let Some(array) = array {
+                    let _ = array.finish_destruction_with_check(|| {
+                        scope.currency().ensure_current_or_refuse()
+                    });
+                }
+                return Err(self.refuse_native_execution(first));
+            }
+            if let Some(array) = array {
+                self.finish_array_unset(
+                    &spelling,
+                    &capture.root,
+                    Some(capture.home.clone()),
+                    array,
+                    &current,
+                )
+                .map_err(|first| self.refuse_native_execution(first))?;
+                return Ok(Verdict::Complete);
+            }
+            let reason = if capture.element.is_some() && receiver.is_array() {
+                Reason::NoSuchElement
+            } else {
+                Reason::NoSuchVariable
+            };
+            let (existed, old) = match receiver.publish_unset() {
+                Ok(selected) => selected,
+                Err(error) => return Ok(Verdict::Receiver(error)),
+            };
+            // Tcl's dummy Var keeps the actual transferred old owner through
+            // its unset callbacks. This carrier adds no native reference.
+            let traced = (|| -> Result<(), Code> {
+                current(self).map_err(|first| self.refuse_native_execution(first))?;
+                if observes {
+                    self.fire_selected_unset_callbacks(
+                        &capture.home,
+                        &capture.root,
+                        capture.element.as_deref(),
+                        &spelling,
+                        !report.combined,
+                    );
+                } else {
+                    self.detach_destroyed_trace_group(&capture.home, capture.element.as_deref());
+                }
+                current(self).map_err(|first| self.refuse_native_execution(first))
+            })();
+            // Even a callback refusal must release this original dummy owner
+            // before settling the same first cause or formatting a Guest error.
+            old.finish(|| current(self))
+                .map_err(|first| self.refuse_native_execution(first))?;
+            traced?;
+            Ok(if existed {
+                Verdict::Complete
+            } else {
+                Verdict::Failure(reason, Site::NameLookup)
+            })
+        })();
+        drop(receiver);
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| self.refuse_native_execution(first))?;
+        match reached? {
+            Verdict::Complete => Ok(()),
+            Verdict::Failure(reason, site) => {
+                self.finish_original_unset_failure(&report, complain, reason, site)
+            }
+            Verdict::Receiver(error) => {
+                self.finish_original_unset_receiver_failure(&report, complain, error)
+            }
         }
     }
 

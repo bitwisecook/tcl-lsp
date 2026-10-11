@@ -46,6 +46,7 @@ impl<'a> OriginalNumericOps<'a> {
         self.dialect
     }
 
+    #[cfg(test)]
     pub(crate) fn with_vm<T>(
         &self,
         operation: impl FnOnce(&mut Vm) -> Result<T, CmdError>,

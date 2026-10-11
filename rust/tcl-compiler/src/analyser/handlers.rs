@@ -7942,9 +7942,10 @@ impl Analyser {
         if depth >= MAX_UNKNOWN_BODY_DEPTH {
             return;
         }
-        let Some(registry) = self.registry.as_ref() else {
+        let Some(context) = self.retained_static_source_context() else {
             return;
         };
+        let registry = context.commands().as_ref();
         let block = crate::segmenter::segment_commands_with_offset_and_config(
             text,
             base,
@@ -8273,7 +8274,7 @@ impl Analyser {
     /// anything it cannot read. Entry points that are not themselves inside a
     /// body pass `0`.
     fn static_prefix_falls_through(&mut self, body_span: Span, stop_off: u32, depth: u32) -> bool {
-        if self.registry.is_none() {
+        if self.retained_static_source_context().is_none() {
             return false;
         }
         let Some(statements) = self.direct_statements_in_span(body_span) else {
@@ -8334,7 +8335,8 @@ impl Analyser {
         depth: u32,
         stack: &mut Vec<String>,
     ) -> Option<bool> {
-        let registry = self.registry.clone()?;
+        let context = self.retained_static_source_context()?;
+        let registry = context.commands();
         for seg in self.direct_statements_in_span(body_span)? {
             match self.segment_invocation_completion(&seg) {
                 tcl_registry::registry::InvocationCompletion::ReturnsResult(_) => {
@@ -8394,9 +8396,10 @@ impl Analyser {
         if depth >= MAX_UNKNOWN_BODY_DEPTH {
             return false;
         }
-        let Some(registry) = self.registry.as_deref() else {
+        let Some(context) = self.retained_static_source_context() else {
             return false;
         };
+        let registry = context.commands().as_ref();
         let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
         match self.segment_invocation_completion(seg) {
             tcl_registry::registry::InvocationCompletion::FallsThrough => {}
@@ -8413,17 +8416,13 @@ impl Analyser {
             _ => return false,
         }
         let is_control = registry
-            .invocation_traits(
-                seg.name(),
-                &args,
-                Some(self.analysis_context().context().authoring_query()),
-            )
+            .invocation_traits(seg.name(), &args, Some(context.context().authoring_query()))
             .contains(tcl_registry::Traits::CONTROL_FLOW);
         if is_control
             && registry.control_invocation_valid(
                 seg.name(),
                 &args,
-                Some(self.analysis_context().context().authoring_query()),
+                Some(context.context().authoring_query()),
             ) != Some(true)
         {
             return false;
@@ -8681,7 +8680,8 @@ impl Analyser {
         env: &std::collections::HashMap<String, String>,
         depth: u32,
     ) -> Option<bool> {
-        let registry = self.registry.as_deref()?;
+        let context = self.retained_static_source_context()?;
+        let registry = context.commands().as_ref();
         let spec = registry.get(arm.controller.name())?;
         match self.control_arm_semantics_for(arm)? {
             tcl_registry::registry::ControlArmSemantics::Always => return Some(true),
@@ -8715,7 +8715,8 @@ impl Analyser {
         &self,
         arm: &ControlArm,
     ) -> Option<tcl_registry::registry::ControlArmSemantics> {
-        let registry = self.registry.as_deref()?;
+        let context = self.retained_static_source_context()?;
+        let registry = context.commands().as_ref();
         let args: Vec<&str> = arm.controller.args().iter().map(String::as_str).collect();
         let body_index = self.control_arm_body_index(arm)?;
         registry.control_arm_semantics(arm.controller.name(), &args, body_index)
@@ -8728,7 +8729,8 @@ impl Analyser {
     /// must share this mapping rather than falling back to an invocation-wide
     /// trait when a command mixes immediate and deferred scripts.
     fn control_arm_body_index(&self, arm: &ControlArm) -> Option<usize> {
-        let registry = self.registry.as_deref()?;
+        let context = self.retained_static_source_context()?;
+        let registry = context.commands().as_ref();
         let args: Vec<&str> = arm.controller.args().iter().map(String::as_str).collect();
         let direct = arm
             .controller
@@ -8740,7 +8742,7 @@ impl Analyser {
                 let (_, invocation) = registry.case_invocation(
                     arm.controller.name(),
                     &args,
-                    Some(self.analysis_context().context().authoring_query()),
+                    Some(context.context().authoring_query()),
                 )?;
                 let index = invocation.clause_list_index?;
                 let container = arm.controller.arg_tokens().get(index)?.span;
@@ -8816,9 +8818,10 @@ impl Analyser {
     /// [`ScriptTiming`]: tcl_registry::ScriptTiming
     /// [`Traits::DEFERS_BODY`]: tcl_registry::Traits::DEFERS_BODY
     fn unreadable_body_is_material(&self, seg: &SegmentedCommand, body_index: usize) -> bool {
-        let Some(registry) = self.registry.as_deref() else {
+        let Some(context) = self.retained_static_source_context() else {
             return true;
         };
+        let registry = context.commands().as_ref();
         let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
         if registry
             .control_arm_semantics(seg.name(), &args, body_index)
@@ -8848,16 +8851,17 @@ impl Analyser {
     /// [`Traits::DEFERS_BODY`]: tcl_registry::Traits::DEFERS_BODY
     /// [`ScriptTiming`]: tcl_registry::ScriptTiming
     fn body_runs_now(&self, seg: &SegmentedCommand, body_index: usize) -> bool {
-        let Some(registry) = self.registry.as_deref() else {
+        let Some(context) = self.retained_static_source_context() else {
             return true;
         };
+        let registry = context.commands().as_ref();
         let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
         registry
             .script_timing(
                 seg.name(),
                 &args,
                 body_index,
-                Some(self.analysis_context().context().authoring_query()),
+                Some(context.context().authoring_query()),
             )
             .is_none_or(|timing| timing == tcl_registry::ScriptTiming::SameInvocation)
     }
@@ -8899,7 +8903,7 @@ impl Analyser {
     /// [`InvocationCompletion::ReturnsResult`]: tcl_registry::registry::InvocationCompletion::ReturnsResult
     /// [`InvocationCompletion::Unknown`]: tcl_registry::registry::InvocationCompletion::Unknown
     fn untyped_body_provably_blocks(&mut self, body_span: Span, depth: u32) -> bool {
-        if depth >= MAX_UNKNOWN_BODY_DEPTH || self.registry.is_none() {
+        if depth >= MAX_UNKNOWN_BODY_DEPTH || self.retained_static_source_context().is_none() {
             return false;
         }
         let Some(statements) = self.direct_statements_in_span(body_span) else {
@@ -8919,20 +8923,17 @@ impl Analyser {
     }
 
     fn control_arms_for_segment(&self, seg: &SegmentedCommand) -> ControlArms {
-        let Some(registry) = self.registry.as_deref() else {
+        let Some(context) = self.retained_static_source_context() else {
             return ControlArms::default();
         };
+        let registry = context.commands().as_ref();
         let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
         let mut indices =
             registry.arg_indices_for_role(seg.name(), &args, tcl_registry::ArgRole::Body);
         indices.sort_unstable();
         indices.dedup();
         let case_call = registry
-            .case_invocation(
-                seg.name(),
-                &args,
-                Some(self.analysis_context().context().authoring_query()),
-            )
+            .case_invocation(seg.name(), &args, Some(context.context().authoring_query()))
             .and_then(|(_, invocation)| invocation.clause_list_index);
         let mut arms = Vec::new();
         let mut complete = true;
@@ -8947,7 +8948,7 @@ impl Analyser {
                 let Some((case, _)) = registry.case_invocation(
                     seg.name(),
                     &args,
-                    Some(self.analysis_context().context().authoring_query()),
+                    Some(context.context().authoring_query()),
                 ) else {
                     complete = false;
                     continue;
@@ -9016,9 +9017,10 @@ impl Analyser {
         arms: &mut Vec<ControlArm>,
         complete: &mut bool,
     ) {
-        let Some(registry) = self.registry.as_deref() else {
+        let Some(context) = self.retained_static_source_context() else {
             return;
         };
+        let registry = context.commands().as_ref();
         let mut indices =
             registry.arg_indices_for_role(seg.name(), args, tcl_registry::ArgRole::LambdaLiteral);
         indices.sort_unstable();
@@ -9052,7 +9054,8 @@ impl Analyser {
         env: &std::collections::HashMap<String, String>,
         depth: u32,
     ) -> Option<bool> {
-        let registry = self.registry.as_deref()?;
+        let context = self.retained_static_source_context()?;
+        let registry = context.commands().as_ref();
         let args: Vec<&str> = arm.controller.args().iter().map(String::as_str).collect();
         let exprs = registry.arg_indices_for_role(
             arm.controller.name(),
@@ -9097,12 +9100,13 @@ impl Analyser {
         env: &std::collections::HashMap<String, String>,
         depth: u32,
     ) -> Option<bool> {
-        let registry = self.registry.clone()?;
+        let context = self.retained_static_source_context()?;
+        let registry = context.commands();
         let args: Vec<&str> = arm.controller.args().iter().map(String::as_str).collect();
         let (case, invocation) = registry.case_invocation(
             arm.controller.name(),
             &args,
-            Some(self.analysis_context().context().authoring_query()),
+            Some(context.context().authoring_query()),
         )?;
         if usize::from(case.subject_args) != 1 {
             return None;
@@ -9231,7 +9235,8 @@ impl Analyser {
         if depth > MAX_UNKNOWN_BODY_DEPTH {
             return None;
         }
-        let registry = self.registry.as_deref()?;
+        let context = self.retained_static_source_context()?;
+        let registry = context.commands().as_ref();
         let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
         let spec = registry.get(seg.name())?;
 
@@ -9337,7 +9342,8 @@ impl Analyser {
         env: &mut std::collections::HashMap<String, String>,
         depth: u32,
     ) -> Option<()> {
-        let registry = self.registry.as_deref()?;
+        let context = self.retained_static_source_context()?;
+        let registry = context.commands().as_ref();
         let Some(spec) = registry.get(seg.name()) else {
             env.clear();
             return Some(());
@@ -9466,6 +9472,41 @@ impl Analyser {
         substitute_bound_words(unquoted, &names, &values, self.braced_var())
     }
 
+    /// The actual source input held by this walk, including availability.
+    /// Transient walk caches and reconstructed environment labels cannot
+    /// replace its original source, full configuration or realm.
+    fn retained_static_source_context(
+        &self,
+    ) -> Option<std::sync::Arc<tcl_registry::model::ContextRegistry>> {
+        let input = self.result.resolved_input.as_ref()?;
+        let config = self.file_lexer_config();
+        if self
+            .resolved_input
+            .as_ref()
+            .is_some_and(|current| current != input)
+            || self.profile.cache_key() != input.analyser_profile().cache_key()
+            || self.unit_profile.unwrap_or(self.profile).cache_key()
+                != input.unit_profile().cache_key()
+            || input.lexer_config() != config
+            || !self.result.matches_original_source_image(
+                &tcl_lexer::SourceImage::document(&self.source),
+                config,
+            )
+            || !self.head_identities.matches_resolved_analysis_input(input)
+            || (input.has_logical_source_name_context()
+                && self.source_analysis_entry.as_ref().is_some_and(|entry| {
+                    entry.native_entry.is_some()
+                        || matches!(
+                            entry.execution_name_policy,
+                            Some(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(_))
+                        )
+                }))
+        {
+            return None;
+        }
+        Some(input.context_registry())
+    }
+
     /// Evaluate a registry-foldable command or a statically-resolved user
     /// procedure. Unknown arguments are allowed into a user procedure because
     /// a selected path may not read them; registry folds require every input.
@@ -9484,8 +9525,10 @@ impl Analyser {
         if !self.result.allows_lexical_declaration_advice() || depth > MAX_UNKNOWN_BODY_DEPTH {
             return None;
         }
-        let registry = self.registry.as_deref()?;
-        if let Some(spec) = registry.get(head) {
+        let context = self.retained_static_source_context()?;
+        let registry = context.commands().as_ref();
+        if registry.get(head).is_some() {
+            let spec = context.context().resolve_spec(registry, head)?;
             if !self.static_provenance_command_is_trusted(&crate::naming::qualify("::", head)) {
                 return None;
             }
@@ -9539,9 +9582,10 @@ impl Analyser {
     /// flow-insensitive, so a compatible mutation before or after the proof
     /// site blocks it equally.
     fn static_provenance_command_is_trusted(&self, query: &str) -> bool {
-        let Some(registry) = self.registry.as_deref() else {
+        let Some(context) = self.retained_static_source_context() else {
             return false;
         };
+        let registry = context.commands().as_ref();
         let Some(statements) = self.statements_in_span(Span::new(
             0,
             u32::try_from(self.source.len()).unwrap_or(u32::MAX),
@@ -9688,6 +9732,7 @@ impl Analyser {
         if !self.result.allows_lexical_declaration_advice() {
             return None;
         }
+        self.retained_static_source_context()?;
         let proc_def = self.result.all_procs.get(qname)?.clone();
         if proc_def.params_computed {
             return None;
@@ -9716,10 +9761,11 @@ impl Analyser {
         if depth > MAX_UNKNOWN_BODY_DEPTH {
             return None;
         }
+        let context = self.retained_static_source_context()?;
+        let registry = context.commands().as_ref();
         let statements = self.direct_statements_in_span(body_span)?;
         let mut result = String::new();
         for seg in statements {
-            let registry = self.registry.as_deref()?;
             let raw_args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
             match self.segment_invocation_completion(&seg) {
                 tcl_registry::registry::InvocationCompletion::ReturnsResult(Some(idx)) => {
@@ -9742,7 +9788,7 @@ impl Analyser {
                 if registry.control_invocation_valid(
                     seg.name(),
                     &raw_args,
-                    Some(self.analysis_context().context().authoring_query()),
+                    Some(context.context().authoring_query()),
                 ) != Some(true)
                 {
                     return None;
@@ -9809,6 +9855,7 @@ impl Analyser {
         stack: &mut Vec<String>,
         depth: u32,
     ) -> Option<bool> {
+        let context = self.retained_static_source_context()?;
         let mut expr = word
             .trim()
             .strip_prefix('{')
@@ -9850,7 +9897,7 @@ impl Analyser {
         crate::tcl_expr_eval::evaluate_expr_with_constants(
             &crate::parse_expr_for_profile(&expr, Some(self.profile)),
             &constants,
-            crate::tcl_expr_eval::FoldPolicy::from_registry(&self.profile_registry()),
+            crate::tcl_expr_eval::FoldPolicy::from_registry(context.commands()),
         )
         .map(|value| value != 0)
     }
@@ -10076,9 +10123,10 @@ impl Analyser {
         if depth >= MAX_UNKNOWN_BODY_DEPTH {
             return;
         }
-        let Some(registry) = self.registry.as_deref() else {
+        let Some(context) = self.retained_static_source_context() else {
             return;
         };
+        let registry = context.commands().as_ref();
         let Some(statements) = self.direct_statements_in_span(body_span) else {
             return;
         };
@@ -10102,11 +10150,7 @@ impl Analyser {
             body_indices.sort_unstable();
             body_indices.dedup();
             let case_call = registry
-                .case_invocation(
-                    seg.name(),
-                    &args,
-                    Some(self.analysis_context().context().authoring_query()),
-                )
+                .case_invocation(seg.name(), &args, Some(context.context().authoring_query()))
                 .and_then(|(_, invocation)| invocation.clause_list_index);
             for body_idx in body_indices {
                 let (Some(word), Some(token)) = (
@@ -10119,7 +10163,7 @@ impl Analyser {
                     let Some((case, _)) = registry.case_invocation(
                         seg.name(),
                         &args,
-                        Some(self.analysis_context().context().authoring_query()),
+                        Some(context.context().authoring_query()),
                     ) else {
                         continue;
                     };
@@ -19399,3 +19443,6 @@ mod original_parent_purpose_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod retained_static_context_tests;

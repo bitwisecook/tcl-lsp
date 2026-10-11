@@ -106,6 +106,7 @@ fn store_retained(place: &Place, value: *mut TclObj) -> Option<Result<(), VarErr
         .as_ref()
         .map(|array| array.store(place.elem.as_ref().ok_or(VarError::IsScalar)?, value))
 }
+#[cfg(test)]
 fn unset_retained(place: &Place) -> Option<Result<bool, VarError>> {
     if let Some(entry) = &place.scalar_entry {
         return Some(
@@ -1067,12 +1068,29 @@ pub(crate) fn array_search_element_exists_at_target(target: &ArrayCellTarget, ke
 pub(crate) fn unset_element_at_target(
     target: &ArrayCellTarget,
     key: &[u8],
-) -> Option<(bool, TraceHome)> {
-    let array = target.cell.array()?;
-    let member = array.trace_member_identity(key)?;
+    currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
+) -> Result<Option<(bool, TraceHome)>, crate::frame::JimLinkStoreError> {
+    currency.ensure_current_or_refuse().map_err(|first| {
+        crate::frame::JimLinkStoreError::Command(tcl_cmd_core::CmdError::from_execution_refusal(
+            first,
+        ))
+    })?;
+    let Some(array) = target.cell.array() else {
+        return Ok(None);
+    };
+    let Some(member) = array.trace_member_identity(key) else {
+        return Ok(None);
+    };
     let receiver = array.capture_receiver(key.to_vec());
     let home = target.selected_trace_home(Some((key.to_vec(), member)));
-    receiver.unset().ok().map(|removed| (removed, home))
+    let reached = receiver.unset_checked(currency);
+    drop(receiver);
+    currency.ensure_current_or_refuse().map_err(|first| {
+        crate::frame::JimLinkStoreError::Command(tcl_cmd_core::CmdError::from_execution_refusal(
+            first,
+        ))
+    })?;
+    reached.map(|removed| Some((removed, home)))
 }
 
 pub(crate) fn array_default_state_at_target(
@@ -1108,12 +1126,7 @@ pub(crate) fn retain_array_target(
     target.cell.retain_operation()
 }
 
-pub(crate) fn release_array_target(
-    frames: &mut FrameStack,
-    ns: &mut Namespaces,
-    target: &ArrayCellTarget,
-) {
-    let _ = (frames, ns);
+pub(crate) fn release_array_target(target: &ArrayCellTarget) {
     target.cell.release_operation();
 }
 
@@ -1142,14 +1155,7 @@ pub(crate) fn retain_array_element_target(
     target.cell.retain_element(key, element)
 }
 
-pub(crate) fn release_array_element_target(
-    frames: &mut FrameStack,
-    ns: &mut Namespaces,
-    target: &ArrayCellTarget,
-    key: &[u8],
-    element: VarId,
-) {
-    let _ = (frames, ns);
+pub(crate) fn release_array_element_target(target: &ArrayCellTarget, key: &[u8], element: VarId) {
     target.cell.release_element(key, element);
 }
 
@@ -1615,38 +1621,7 @@ pub(crate) fn set_elem_at(
     table_mut(frames, ns, place.home).store_elem(&place.name, &key, obj)
 }
 
-/// Frame-addressed [`unset`] — returns whether the variable existed.
-pub(crate) fn unset_at(
-    frames: &mut FrameStack,
-    ns: &mut Namespaces,
-    name: &[u8],
-    level: usize,
-) -> bool {
-    let place = match resolve_at(frames, ns, name, level) {
-        Resolved::Place(p) => p,
-        Resolved::Error(_) => return false,
-    };
-    let root = place.elem.is_none();
-    if let Some(result) = unset_retained(&place) {
-        let existed = result.unwrap_or(false);
-        if root && existed {
-            frames.invalidate_jim_variable_frame(place.home);
-        }
-        return existed;
-    }
-    let t = table_mut(frames, ns, place.home);
-    let existed = match place.elem {
-        Some(elem) => place.array_cell.as_ref().map_or_else(
-            || t.remove_elem(&place.name, &elem),
-            |cell| cell.remove(&elem),
-        ),
-        None => t.remove(&place.name),
-    };
-    if root && existed {
-        frames.invalidate_jim_variable_frame(place.home);
-    }
-    existed
-}
+
 
 
 /// `set name(key)` — borrowed.
@@ -1825,30 +1800,11 @@ pub(crate) fn cleanup_trace_shell(
     target.cleanup_trace_shell(&home.base, key, home.binding_id);
 }
 
-pub(crate) fn begin_array_destruction(
-    frames: &mut FrameStack,
-    ns: &mut Namespaces,
-    current_ns: NsId,
-    name: &[u8],
-) -> Option<crate::frame::RetainedArrayCell> {
-    let Resolved::Place(place) = resolve(frames, ns, current_ns, name) else {
-        return None;
-    };
-    if place.elem.is_some() {
-        return None;
-    }
-    if let Some(entry) = &place.scalar_entry {
-        return entry
-            .capture_receiver(None, false)
-            .ok()
-            .flatten()?
-            .begin_array_destruction();
-    }
-    table_mut(frames, ns, place.home).begin_array_destruction(&place.name)
-}
+
 
 /// `unset name` — remove the variable `name` resolves to (following links).
 /// Returns whether it existed.
+#[cfg(test)]
 pub(crate) fn unset(
     frames: &mut FrameStack,
     ns: &mut Namespaces,
@@ -1885,57 +1841,9 @@ pub(crate) fn unset(
     existed
 }
 
-/// Remove the actual Jim primary-table entry after original alias recursion.
-/// Static fallback cells remain available for reads, writes and member removal.
-pub(crate) fn unset_jim_primary_variable(
-    frames: &mut FrameStack,
-    ns: &mut Namespaces,
-    current_ns: NsId,
-    name: &[u8],
-) -> bool {
-    // naming.procedure-static.jim-primary-table-unset
-    // docs/design/analysis/name-resolution-proofs/procedure-static-jim-primary-table-unset.md
-    if !ns
-        .variable_name_protocol
-        .is_some_and(NativeNameProtocol::is_jim084)
-    {
-        return false;
-    }
-    let place = match resolve(frames, ns, current_ns, name) {
-        Resolved::Place(place) if place.elem.is_none() => place,
-        Resolved::Place(_) | Resolved::Error(_) => return false,
-    };
-    let existed = table_mut(frames, ns, place.home).remove_jim_primary(&place.name);
-    if existed {
-        frames.invalidate_jim_variable_frame(place.home);
-    }
-    existed
-}
 
-/// `unset name(key)` — remove one array element. Returns whether it existed.
-pub(crate) fn unset_elem(
-    frames: &mut FrameStack,
-    ns: &mut Namespaces,
-    current_ns: NsId,
-    name: &[u8],
-    key: &[u8],
-) -> bool {
-    let Ok(key) = separate_element(ns, name, key) else {
-        return false;
-    };
-    let place = match resolve(frames, ns, current_ns, name) {
-        Resolved::Place(p) if p.elem.is_none() => p,
-        _ => return false,
-    };
-    let place = Place {
-        elem: Some(key.clone()),
-        ..place
-    };
-    if let Some(result) = unset_retained(&place) {
-        return result.unwrap_or(false);
-    }
-    table_mut(frames, ns, place.home).remove_elem(&place.name, &key)
-}
+
+
 
 /// Flag the scalar `name` (following links to its home) `const` — the `const`
 /// command, after the value has been stored.

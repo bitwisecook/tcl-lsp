@@ -26,7 +26,7 @@
 //! ignored). A write callback's error fails the *command* but never un-stores
 //! the value — C swaps the value in before calling the traces and its error
 //! path never puts the old one back (`TclPtrSetVarIdx`, `tclVar.c`).
-//! See `interp.rs::fire_var_traces`.
+//! See `interp.rs::fire_var_traces_from_parts`.
 //!
 //! Command traces (`rename`/`delete`) and execution traces (`enter`/`leave`/
 //! `enterstep`/`leavestep`) fire too, all tclsh-pinned in

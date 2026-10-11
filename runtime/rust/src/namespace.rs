@@ -2638,6 +2638,15 @@ impl Namespaces {
         Some(&self.arena.get(ns)?.vars)
     }
 
+    /// Mutable access to the already selected physical table. The caller owns
+    /// conversion/currentness and cannot acquire it by a new name lookup.
+    pub(crate) fn original_variable_table_at_mut(&mut self, ns: NsId) -> Option<&mut VarTable> {
+        if self.namespace_variables_are_deleted(ns) {
+            return None;
+        }
+        self.arena.get_mut(ns).map(|namespace| &mut namespace.vars)
+    }
+
     pub(crate) fn capture_container_model_at(
         &self,
         ns: NsId,
@@ -3261,8 +3270,12 @@ impl Namespaces {
 
     /// Clear callback-created state from explicit dying arena nodes. The
     /// caller has already fired command traces and removed dependent imports.
-    pub(crate) fn clear_namespace_ids(&mut self, ids: &[NsId]) -> Vec<crate::obj::Owned> {
+    pub(crate) fn clear_namespace_ids(
+        &mut self,
+        ids: &[NsId],
+    ) -> (Vec<VarTable>, Vec<crate::obj::Owned>) {
         let mut retired = Vec::new();
+        let mut tables = Vec::new();
         for &id in ids.iter().rev() {
             if id != GLOBAL {
                 self.retired_variable_namespaces.insert(id);
@@ -3282,10 +3295,10 @@ impl Namespaces {
             n.commands.clear();
             n.path.clear();
             n.exports.clear();
-            n.vars = VarTable::default();
+            tables.push(std::mem::take(&mut n.vars));
             retired.extend(n.unknown.take());
         }
-        retired
+        (tables, retired)
     }
 
     /// Clear one dying namespace's own variable table, retaining paths and
@@ -3293,11 +3306,11 @@ impl Namespaces {
     /// recursive delete callbacks still to run. The command table is emptied
     /// one token at a time afterwards, in hash order; the final fixed-point
     /// sweep clears the retained metadata and links.
-    pub(crate) fn clear_namespace_token(&mut self, ns: NsId) {
+    pub(crate) fn clear_namespace_token(&mut self, ns: NsId) -> VarTable {
         if ns != GLOBAL {
             self.retired_variable_namespaces.insert(ns);
         }
-        self.arena[ns].vars = VarTable::default();
+        std::mem::take(&mut self.arena[ns].vars)
     }
 
     /// Unlink native paths after this token's ordinary commands are deleted.

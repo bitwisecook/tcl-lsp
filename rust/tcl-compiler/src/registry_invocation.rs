@@ -332,6 +332,17 @@ pub(crate) fn logical_structured_invocation(
     logical_structured_invocation_with_metadata_context(registry, context.into(), tokens, bindings)
 }
 
+#[cfg(test)]
+fn trace_original_structure(stage: &str, tokens: &CommandTokens, passed: bool) {
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        let offset = tokens
+            .words()
+            .first()
+            .map(|word| word.source().span.start());
+        eprintln!("ORIGINAL_SOURCE_JOIN stage=structure.{stage} offset={offset:?} passed={passed}");
+    }
+}
+
 /// Select source structure using the caller's complete immutable context.
 /// Missing or foreign context refuses; this supplies no executed body/frame.
 pub(crate) fn logical_structured_invocation_with_metadata_context(
@@ -341,6 +352,8 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
     bindings: Option<&crate::command_binding::SourceCommandBindings>,
 ) -> Option<LogicalStructuredInvocation> {
     if !context.matches_registry(registry) {
+        #[cfg(test)]
+        trace_original_structure("registry", tokens, false);
         return None;
     }
     let context = if context.permits_logical_source_names() {
@@ -357,15 +370,29 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
     };
     if bindings.is_some_and(|bindings| bindings.original_arguments_rejected_before_handler(tokens))
     {
+        #[cfg(test)]
+        trace_original_structure("argument_entry", tokens, false);
         return None;
     }
     let selected =
-        resolved_handler_invocation_with_metadata_context(registry, Some(context), tokens)
-            .or_else(|| {
-                owned_body_layout_invocation(registry, context, tokens, bindings?)
-                    .map(|owned| owned.invocation)
-            })
-            .or_else(|| original_declared_structured_invocation(registry, context, tokens))?;
+        resolved_handler_invocation_with_metadata_context(registry, Some(context), tokens);
+    #[cfg(test)]
+    trace_original_structure("resolved_handler", tokens, selected.is_some());
+    let selected = selected.or_else(|| {
+        let selected = bindings.and_then(|bindings| {
+            owned_body_layout_invocation(registry, context, tokens, bindings)
+                .map(|owned| owned.invocation)
+        });
+        #[cfg(test)]
+        trace_original_structure("owned_body_layout", tokens, selected.is_some());
+        selected
+    });
+    let selected = selected.or_else(|| {
+        let selected = original_declared_structured_invocation(registry, context, tokens);
+        #[cfg(test)]
+        trace_original_structure("original_declaration", tokens, selected.is_some());
+        selected
+    })?;
     let source_roles = if context.permits_logical_source_names() {
         let binding = tokens.source_binding.as_ref()?;
         let realm = binding.original_source_realm_for_input(
@@ -385,6 +412,8 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
         .as_ref()
         .is_some_and(|roles| roles.selection_unknown())
     {
+        #[cfg(test)]
+        trace_original_structure("source_roles", tokens, false);
         return None;
     }
     // Source-shape lowering requires each operand to retain its original slot.
@@ -401,6 +430,35 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
             .skip(1)
             .all(|(index, origin)| *origin == InvocationWordOrigin::Written(index))
     {
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+            trace_original_structure(
+                "roles_complete",
+                tokens,
+                selected.facts.arg_roles_complete || source_roles.is_some(),
+            );
+            trace_original_structure(
+                "arity",
+                tokens,
+                selected.facts.arity_accepts_frozen_arguments() == Some(true),
+            );
+            trace_original_structure(
+                "word_count",
+                tokens,
+                selected.effective.words.len() == tokens.words().len(),
+            );
+            trace_original_structure(
+                "written_origins",
+                tokens,
+                selected
+                    .effective
+                    .origins
+                    .iter()
+                    .enumerate()
+                    .skip(1)
+                    .all(|(index, origin)| *origin == InvocationWordOrigin::Written(index)),
+            );
+        }
         return None;
     }
     if selected.facts.successful_handler
@@ -411,8 +469,12 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
             .conditional_expression_evaluation(registry, tokens)
             .is_none_or(|expression| !expression.semantic_lookup_closed())
     {
+        #[cfg(test)]
+        trace_original_structure("expression_lookup", tokens, false);
         return None;
     }
+    #[cfg(test)]
+    trace_original_structure("complete", tokens, true);
     Some(LogicalStructuredInvocation {
         invocation: selected,
         source_roles,
@@ -454,9 +516,18 @@ fn original_declared_structured_invocation<'a>(
 ) -> Option<ResolvedStatementInvocation> {
     let context = context.into();
     if !context.matches_registry(registry) {
+        #[cfg(test)]
+        trace_original_structure("declaration_registry", tokens, false);
         return None;
     }
-    let binding = tokens.source_binding.as_ref()?;
+    let binding = match tokens.source_binding.as_ref() {
+        Some(binding) => binding,
+        None => {
+            #[cfg(test)]
+            trace_original_structure("declaration_binding", tokens, false);
+            return None;
+        }
+    };
     let context = if context.permits_logical_source_names() {
         binding.original_invocation_metadata_for_input(
             tokens,
@@ -472,6 +543,8 @@ fn original_declared_structured_invocation<'a>(
             .normalized()
             != input.lexer_config().normalized()
     {
+        #[cfg(test)]
+        trace_original_structure("declaration_config", tokens, false);
         return None;
     }
     let logical_source = context.permits_logical_source_names();
@@ -481,7 +554,10 @@ fn original_declared_structured_invocation<'a>(
             logical_source
                 .then(|| binding.original_compilation_lookup_advice(tokens))
                 .flatten()
-        })?;
+        });
+    #[cfg(test)]
+    trace_original_structure("declaration_advice", tokens, advice.is_some());
+    let advice = advice?;
     // This is conditional source structure. A positively retained Logical
     // command world needs no physical variable frame; Native lookup keeps its
     // independent frame gate and cannot borrow that source-only closure.
@@ -490,10 +566,15 @@ fn original_declared_structured_invocation<'a>(
     } else {
         advice.closed_lookup()
     };
+    #[cfg(test)]
+    trace_original_structure("declaration_closed", tokens, closed);
     if !closed {
         return None;
     }
-    resolve_original_declared_layout(registry, context, tokens, &advice)
+    let selected = resolve_original_declared_layout(registry, context, tokens, &advice);
+    #[cfg(test)]
+    trace_original_structure("declaration_facts", tokens, selected.is_some());
+    selected
 }
 
 /// Conditional option topology of the retained original invocation. Captured

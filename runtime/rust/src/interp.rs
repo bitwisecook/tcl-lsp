@@ -41,6 +41,8 @@ mod bootstrap_context_tests;
 #[cfg(test)]
 mod container_access_tests;
 #[cfg(test)]
+mod container_removal_tests;
+#[cfg(test)]
 mod byte_store_retirement_tests;
 #[cfg(test)]
 mod anonymous_cell_cleanup_tests;
@@ -6883,11 +6885,11 @@ impl Interp {
             )
         };
         let reached = receiver.as_ref().map_or(Ok(()), |receiver| {
-            receiver.unset().map(|_| ())
+            receiver.unset_checked(scope.currency()).map(|_| ())
         });
-        let receiver_current = receiver.as_ref().map_or(Ok(()), |receiver| {
-            receiver.check_current()
-        });
+        let receiver_current = receiver
+            .as_ref()
+            .map_or(Ok(()), |receiver| receiver.check_current());
         drop(receiver);
         scope
             .currency()
@@ -6910,7 +6912,7 @@ impl Interp {
             ));
         }
         receiver_current?;
-        reached
+        reached.map_err(|error| self.byte_store_failure(error))
     }
 
     /// Frame-addressed [`var_set`](Self::var_set) — the cell takes a **+1**.
@@ -6964,15 +6966,16 @@ impl Interp {
         if self.observed_names.borrow().is_some() {
             return self.observed_variable_unset(name, level).unwrap_or(false);
         }
-        if self.require_variable_name_protocol().is_err() {
-            return false;
-        };
-        crate::vars::unset_at(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
+        self.remove_captured_byte_variable(
+            self.current_ns.get(),
+            Some(level),
             name,
-            level,
+            None,
+            name,
+            false,
+            false,
         )
+        .unwrap_or(false)
     }
 
     /// Frame-addressed `unset name(key)`.
@@ -7648,49 +7651,21 @@ impl Interp {
                 .observed_variable_unset(name, self.frames.borrow().current_level())
                 .unwrap_or(false);
         }
-        // Resolve the trace key BEFORE removing the variable. Resolution can
-        // depend on the cell still existing — the 8.x namespace-scope fallback
-        // only reaches the global when the global cell is present — so
-        // re-resolving after the removal would silently pick a different
-        // variable and the unset trace would never fire. C resolves the
-        // `Var`, fires its traces, and only then frees it.
         let Ok(input) = self.combined_variable_input(name) else {
             return false;
         };
-        let base = input.root().selected().to_vec();
-        if let Some(element) = input.element() {
-            return self.var_unset_elem(&base, element.selected());
-        }
-        let traced = self.has_variable_traces();
-        let key = traced.then(|| self.trace_identity(&base));
-        if self.native_invocation_dialect().variable_destruction_protocol(true)
-                == Some(tcl_runtime_api::variable_destruction::VariableDestructionProtocol::ArrayLookupThenRootCallbacksThenMembers)
-        {
-            let selected = crate::vars::begin_array_destruction(
-                &mut self.frames.borrow_mut(), &mut self.namespaces.borrow_mut(),
-                self.current_ns.get(), &base,
-            );
-            if let Some(selected) = selected {
-                return self.finish_array_unset(name, &base, key, selected);
-            }
-        }
-        let existed = crate::vars::unset(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
+        let root = input.root().selected().to_vec();
+        let element = input.element().map(|element| element.selected().to_vec());
+        self.remove_captured_byte_variable(
             self.current_ns.get(),
-            &base,
-        );
-        if let Some(home) = key
-            .as_ref()
-            .filter(|home| !existed && self.native_error_variable_at(home).is_some())
-        {
-            let access = self.trace_access(name, &base, None, home, true);
-            self.fire_native_error_variable_trace(home, &access, b"unset");
-        }
-        if let (true, Some(home)) = (existed, key) {
-            self.fire_selected_unset_callbacks(&home, &base, None, name, false);
-        }
-        existed
+            None,
+            &root,
+            element.as_deref(),
+            name,
+            true,
+            false,
+        )
+        .unwrap_or(false)
     }
 
     fn finish_array_unset(
@@ -7699,7 +7674,9 @@ impl Interp {
         base: &[u8],
         home: Option<crate::vars::TraceHome>,
         selected: crate::frame::RetainedArrayCell,
-    ) -> bool {
+        current: impl Fn(&Interp) -> Result<(), tcl_runtime_api::NativeExecutionError>,
+    ) -> Result<bool, tcl_runtime_api::NativeExecutionError> {
+        let mut first = current(self).err();
         let native_error = home
             .as_ref()
             .and_then(|home| self.native_error_variable_at(home));
@@ -7708,17 +7685,20 @@ impl Interp {
             .is_some_and(|home| self.native_precision_trace_at(home));
         // naming.variable.original-undefined-array-member-retirement
         // docs/design/analysis/name-resolution-proofs/variable-original-undefined-array-member-retirement.md
-        // DeleteArray visits original physical entries, including traced
-        // undefined members. Defined-value enumeration has a separate purpose.
+        // The selected generation keeps original physical entries. Software
+        // refusals stop later callbacks while its mandatory owners still retire.
         let elements = selected.search_keys().unwrap_or_default();
         if let Some(home) = home.as_ref() {
             let access = self.trace_access(name, base, None, home, true);
             let root = self.cell_unset_traces(home, None, &access.reported, b"");
             self.detach_destroyed_trace_group(home, None);
-            self.fire_unset_callbacks(root);
+            if first.is_none() {
+                self.fire_unset_callbacks(root);
+                if let Err(error) = current(self) {
+                    first.get_or_insert(error);
+                }
+            }
             for element in &elements {
-                // Preceding callbacks may change this original member's list.
-                // Its retained allocation excludes a replacement generation.
                 let Some(member_home) = home.for_selected_array_member(&selected, element) else {
                     continue;
                 };
@@ -7734,29 +7714,58 @@ impl Interp {
                 let trace = selected.begin_member_retirement(
                     element,
                     preserve_definition,
-                    !callbacks.is_empty(),
+                    first.is_none() && !callbacks.is_empty(),
                 );
                 selected.retire_member(element);
-                self.fire_unset_callbacks(callbacks);
+                if let Err(error) = current(self) {
+                    first.get_or_insert(error);
+                }
+                if first.is_none() {
+                    self.fire_unset_callbacks(callbacks);
+                    if let Err(error) = current(self) {
+                        first.get_or_insert(error);
+                    }
+                }
                 drop(trace);
+                if let Err(error) = current(self) {
+                    first.get_or_insert(error);
+                }
                 let object_table = self
                     .native_c_variable_name_protocol()
                     .is_some_and(|protocol| protocol.element_table_retains_original());
                 selected.finish_member_retirement(element, object_table);
+                if let Err(error) = current(self) {
+                    first.get_or_insert(error);
+                }
             }
         }
-        selected.finish_destruction();
-        if native_precision
+        if let Err(error) = selected.finish_destruction_with_check(|| current(self)) {
+            first.get_or_insert(error);
+        }
+        if first.is_none()
+            && native_precision
             && home
                 .as_ref()
                 .is_some_and(|home| self.native_precision_trace_at(home))
         {
             self.install_native_precision_trace_at(name);
+            if let Err(error) = current(self) {
+                first.get_or_insert(error);
+            }
         }
-        if let Some(variable) = native_error {
-            self.install_native_error_variable_trace(variable);
+        if first.is_none() {
+            if let Some(variable) = native_error {
+                self.install_native_error_variable_trace(variable);
+                if let Err(error) = current(self) {
+                    first.get_or_insert(error);
+                }
+            }
         }
-        true
+        drop(selected);
+        if let Err(error) = current(self) {
+            first.get_or_insert(error);
+        }
+        first.map_or(Ok(true), Err)
     }
 
     fn destroyed_trace_group_ids(
@@ -7799,34 +7808,21 @@ impl Interp {
     pub(crate) fn var_unset_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
         if self.require_variable_name_protocol().is_err() {
             return false;
-        };
-        // Resolved before the removal — see [`Self::var_unset`].
-        let trace_key = (self.has_variable_traces()).then(|| {
-            let mut home = self.trace_identity(name);
-            home.selected_member = crate::vars::trace_element_identity(
-                &self.frames.borrow(),
-                &self.namespaces.borrow(),
-                &home,
-                key,
-            )
-            .map(|identity| (key.to_vec(), identity));
-            home
-        });
-        let existed = crate::vars::unset_elem(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
-            self.current_ns.get(),
-            name,
-            key,
-        );
-        if let (true, Some(home)) = (existed, trace_key) {
-            let mut spelling = name.to_vec();
-            spelling.push(b'(');
-            spelling.extend_from_slice(key);
-            spelling.push(b')');
-            self.fire_selected_unset_callbacks(&home, name, Some(key), &spelling, false);
         }
-        existed
+        let mut spelling = name.to_vec();
+        spelling.push(b'(');
+        spelling.extend_from_slice(key);
+        spelling.push(b')');
+        self.remove_captured_byte_variable(
+            self.current_ns.get(),
+            None,
+            name,
+            Some(key),
+            &spelling,
+            true,
+            false,
+        )
+        .unwrap_or(false)
     }
 
     /// Invoke every variable trace matching `(base, elem, op)`, as
@@ -8214,6 +8210,22 @@ impl Interp {
         name: &[u8],
         operation: impl FnOnce(&mut Self, &tcl_runtime_api::ArrayTarget) -> Code,
     ) -> Code {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => return self.refuse_native_execution(first),
+        };
+        let reached = self.with_array_trace_target_entered(name, operation);
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            return self.refuse_native_execution(first);
+        }
+        reached
+    }
+
+    fn with_array_trace_target_entered(
+        &mut self,
+        name: &[u8],
+        operation: impl FnOnce(&mut Self, &tcl_runtime_api::ArrayTarget) -> Code,
+    ) -> Code {
         if self.observed_name_policy_selected() {
             let level = self.frames.borrow().current_level();
             return match self.observed_array_target(name, level) {
@@ -8255,11 +8267,8 @@ impl Interp {
             let popped = self.array_operation_targets.borrow_mut().pop();
             debug_assert_eq!(popped.as_ref().map(|record| record.target.id()), Some(id));
             if let Some(record) = popped {
-                crate::vars::release_array_target(
-                    &mut self.frames.borrow_mut(),
-                    &mut self.namespaces.borrow_mut(),
-                    &record.target,
-                );
+                crate::vars::release_array_target(&record.target);
+                drop(record);
             }
         }
         result
@@ -8334,10 +8343,28 @@ impl Interp {
         target: &tcl_runtime_api::ArrayTarget,
         key: &[u8],
     ) -> bool {
-        if let Some(record) = self.array_operation_target(target) {
-            let Some((removed, home)) = crate::vars::unset_element_at_target(&record, key) else {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
                 return false;
-            };
+            }
+        };
+        let Some(record) = self.array_operation_target(target) else {
+            return false;
+        };
+        let reached = crate::vars::unset_element_at_target(&record, key, scope.currency());
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return false;
+        }
+        let selected = match reached {
+            Ok(selected) => selected,
+            Err(error) => {
+                self.byte_store_failure(error);
+                return false;
+            }
+        };
+        let removed = if let Some((removed, home)) = selected {
             if removed && self.has_variable_traces() {
                 self.fire_selected_unset_callbacks(
                     &home,
@@ -8350,7 +8377,9 @@ impl Interp {
             removed
         } else {
             false
-        }
+        };
+        drop(record);
+        scope.currency().ensure_current_or_refuse().is_ok() && removed
     }
 
     /// Tcl's `TclPtrGetVarIdx` read used by `array get`: select the live
@@ -8359,6 +8388,22 @@ impl Interp {
     /// published to `errorInfo`/`errorCode`; destruction of the array selected
     /// for the enclosing operation remains a hard read error.
     pub(crate) fn array_read_elem_at_target(
+        &mut self,
+        target: &tcl_runtime_api::ArrayTarget,
+        key: &[u8],
+    ) -> tcl_runtime_api::ArrayElementRead<*mut TclObj> {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => return tcl_runtime_api::ArrayElementRead::HostRefusal(first),
+        };
+        let reached = self.array_read_elem_at_target_entered(target, key);
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            return tcl_runtime_api::ArrayElementRead::HostRefusal(first);
+        }
+        reached
+    }
+
+    fn array_read_elem_at_target_entered(
         &mut self,
         target: &tcl_runtime_api::ArrayTarget,
         key: &[u8],
@@ -8512,13 +8557,7 @@ impl Interp {
         }
         if selected_retained {
             if let Some((array, element)) = selected {
-                crate::vars::release_array_element_target(
-                    &mut self.frames.borrow_mut(),
-                    &mut self.namespaces.borrow_mut(),
-                    &array,
-                    key,
-                    element,
-                );
+                crate::vars::release_array_element_target(&array, key, element);
             }
         }
         outcome
@@ -9098,8 +9137,21 @@ impl Interp {
     /// Delete the namespace `ns` (by id), e.g. an OO object's instance namespace
     /// when the object is destroyed.
     pub(crate) fn delete_namespace_by_id(&mut self, ns: NsId) {
+        // The reached namespace cleanup keeps its original receipt through
+        // every extracted table/key release, including a refused entry.
+        let saved = native_operation_currency::SavedNativeOperationCurrency::capture(self);
+        let cleanup = match native_operation_currency::NativeOperationScope::enter_saved_cleanup(
+            &saved, self,
+        ) {
+            Ok(cleanup) => cleanup,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return;
+            }
+        };
         self.invalidate_command_environment();
         if self.defer_namespace_teardown(ns) {
+            let _ = cleanup.check();
             return;
         }
         let teardown_ids = self.namespaces.borrow().descendant_ids(ns);
@@ -9117,9 +9169,10 @@ impl Interp {
         self.namespaces
             .borrow_mut()
             .finish_namespace_teardown(&teardown_ids);
-        if native_error_reset {
+        if cleanup.check().is_ok() && native_error_reset {
             self.install_native_error_variable_traces();
         }
+        let _ = cleanup.check();
     }
 
     /// C's `activationCount > (nsPtr == globalNsPtr)` branch of
@@ -9219,7 +9272,9 @@ impl Interp {
             .begin_namespace_variable_teardown(ns);
         self.retire_namespace_variables(ns);
         self.namespaces.borrow_mut().begin_namespace_teardown(ns);
-        self.namespaces.borrow_mut().clear_namespace_token(ns);
+        let retired = self.namespaces.borrow_mut().clear_namespace_token(ns);
+        drop(retired);
+        let _ = self.check_entered_native_operation();
         self.tear_down_command_table(ns);
         self.namespaces
             .borrow_mut()

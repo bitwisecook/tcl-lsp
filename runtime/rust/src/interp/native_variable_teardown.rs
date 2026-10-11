@@ -44,7 +44,13 @@ impl Interp {
         // A retained alias can keep its allocation while new registrations arise.
         self.detach_destroyed_trace_group(home, access.match_elem.as_deref());
         self.fire_unset_callbacks(callbacks);
+        if self.check_entered_native_operation().is_err() {
+            return;
+        }
         self.fire_native_error_variable_trace(home, &access, b"unset");
+        if self.check_entered_native_operation().is_err() {
+            return;
+        }
         if let Err(first) = self.native_precision_trace(home, &access, b"unset") {
             self.refuse_native_execution(first);
         }
@@ -58,53 +64,154 @@ impl Interp {
         level: usize,
         separate: bool,
     ) -> bool {
-        let capture = crate::vars::capture_variable_receiver_at(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
+        self.remove_captured_byte_variable(
+            self.current_ns.get(),
+            Some(level),
             root,
-            element.map(<[u8]>::to_vec),
+            element,
+            spelling,
+            true,
+            separate,
+        )
+        .unwrap_or(false)
+    }
+
+    pub(super) fn remove_captured_byte_variable(
+        &mut self,
+        namespace: NsId,
+        level: Option<usize>,
+        root: &[u8],
+        element: Option<&[u8]>,
+        spelling: &[u8],
+        callbacks: bool,
+        separate: bool,
+    ) -> Result<bool, crate::frame::VarError> {
+        let scope = super::native_operation_currency::NativeOperationScope::enter(self).map_err(
+            |first| {
+                self.refuse_native_execution(first);
+                crate::frame::VarError::NameProtocolUnavailable
+            },
+        )?;
+        self.require_variable_name_protocol()?;
+        let reached = crate::vars::EnteredVariablePlace::capture(
+            self,
+            namespace,
             level,
+            root,
+            element,
+            false,
+            scope.currency(),
         );
-        let (receiver, home) = match capture {
-            Ok(Some(capture)) => capture,
-            Ok(None) => return false,
-            Err(crate::frame::VarError::NameProtocolUnavailable) => {
-                self.report_cmd_error(
-                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "variable removal frame",
-                    )
-                    .into(),
-                );
-                return false;
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                crate::frame::VarError::NameProtocolUnavailable
+            })?;
+        let mut selected = reached.map_err(|error| self.byte_store_failure(error))?;
+        let home = callbacks.then(|| selected.trace_home(self));
+        let reached = (|| {
+            if callbacks && element.is_none()
+                && self.native_invocation_dialect().variable_destruction_protocol(true)
+                    == Some(tcl_runtime_api::variable_destruction::VariableDestructionProtocol::ArrayLookupThenRootCallbacksThenMembers) {
+                let array = selected.begin_array_destruction(self, scope.currency())?;
+                if let Some(array) = array {
+                    let reached = self.finish_array_unset(spelling, root, home.clone(), array,
+                        |interpreter| selected.check_removal_current(interpreter, scope.currency()));
+                    return reached.map_err(|first| crate::frame::JimLinkStoreError::Command(
+                        tcl_cmd_core::CmdError::from_execution_refusal(first)));
+                }
             }
-            Err(_) => return false,
-        };
-        if element.is_none()
-            && self.native_invocation_dialect().variable_destruction_protocol(true)
-                == Some(tcl_runtime_api::variable_destruction::VariableDestructionProtocol::ArrayLookupThenRootCallbacksThenMembers)
-        {
-            if let Some(array) = receiver.begin_array_destruction() {
-                return self.finish_array_unset(spelling, root, Some(home), array);
+            let removed = selected.remove(self, scope.currency(), callbacks && level.is_none())?;
+            if let Some(home) = home.as_ref() {
+                if !removed && self.native_error_variable_at(home).is_some() {
+                    let access = self.trace_access(spelling, root, element, home, true);
+                    self.fire_native_error_variable_trace(home, &access, b"unset");
+                }
+                if removed {
+                    self.fire_selected_unset_callbacks(home, root, element, spelling, separate);
+                }
+            }
+            selected.check_owner(self, scope.currency())?;
+            Ok(removed)
+        })();
+        if let Err(error) = &reached {
+            if let crate::frame::JimLinkStoreError::Command(error) = error {
+                if let Some(first) = error.native_execution_refusal() {
+                    self.refuse_native_execution(first.clone());
+                }
             }
         }
-        let Ok(removed) = receiver.unset() else {
-            return false;
-        };
-        if self.has_variable_traces() {
-            self.fire_selected_unset_callbacks(&home, root, element, spelling, separate);
-        }
-        removed
+        drop(selected);
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                crate::frame::VarError::NameProtocolUnavailable
+            })?;
+        reached.map_err(|error| self.byte_store_failure(error))
     }
 
     pub(super) fn retire_namespace_variables(&mut self, namespace: NsId) {
         // naming.variable.original-owner-array-trace-retirement-horizon
         // docs/design/analysis/name-resolution-proofs/variable-original-owner-array-trace-retirement-horizon.md
-        // Public namespace callbacks and pinned TclDeleteNamespaceVars support
-        // this horizon; they do not observe private cell or table identity.
+        // The original table and cell retirement are software receipts; public
+        // namespace observations do not expose those physical identities.
+        let saved = super::native_operation_currency::SavedNativeOperationCurrency::capture(self);
+        let cleanup =
+            match super::native_operation_currency::NativeOperationScope::enter_saved_cleanup(
+                &saved, self,
+            ) {
+                Ok(cleanup) => cleanup,
+                Err(first) => {
+                    self.refuse_native_execution(first);
+                    return;
+                }
+            };
+        let original = self
+            .namespaces()
+            .original_variable_table_at(namespace)
+            .map(crate::frame::VarTable::original_table_ledger);
+        let Some(original) = original else {
+            return;
+        };
+        // The selected C namespace worker uses UnsetVarStruct's real dummy
+        // contents through the trace. Generic byte and Jim cleanup keep their
+        // separate retirement order.
+        let trace_before_contents = self.native_c_variable_name_protocol().is_some();
+        let current = |interpreter: &Interp| {
+            cleanup.check()?;
+            let same = interpreter
+                .namespaces()
+                .original_variable_table_at(namespace)
+                .is_some_and(|table| {
+                    original.strong_count() != 0 && original.ptr_eq(&table.original_table_ledger())
+                });
+            if same {
+                Ok(())
+            } else {
+                Err(interpreter.clone().refuse_completion_value_access(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original namespace variable table",
+                    ),
+                ))
+            }
+        };
+        let mut refused = current(self).is_err();
         loop {
+            // Mandatory cleanup can retire the already selected table after
+            // refusal. It never adopts a replacement table after a callback.
             let selected = {
-                let mut namespaces = self.namespaces.borrow_mut();
-                let table = namespaces.var_table_mut(namespace);
+                let mut namespaces = self.namespaces_mut();
+                let Some(table) = namespaces.original_variable_table_at_mut(namespace) else {
+                    break;
+                };
+                if original.strong_count() == 0 || !original.ptr_eq(&table.original_table_ledger())
+                {
+                    break;
+                }
                 let Some(name) = table.teardown_names().first().map(|name| name.to_vec()) else {
                     break;
                 };
@@ -123,36 +230,71 @@ impl Interp {
             };
             let (receiver, home) = selected;
             let base = home.base.clone();
-            let binding = home.binding_id;
-            let owner = (home.ns, home.level);
-            let mut reported = self.namespaces.borrow().qualified_name(namespace);
+            let binding = home.binding_id.expect("selected namespace binding");
+            let mut reported = self.namespaces().qualified_name(namespace);
             if reported != b"::" {
                 reported.extend_from_slice(b"::");
             }
-            reported.extend_from_slice(&home.base);
-            if let Some(array) = receiver.begin_array_destruction() {
-                self.finish_array_unset(&reported, &base, Some(home), array);
+            reported.extend_from_slice(&base);
+            let (array, old) = receiver.publish_array_destruction();
+            if old.finish(|| current(self)).is_err() {
+                refused = true;
+            }
+            if let Some(array) = array {
+                if self
+                    .finish_array_unset(&reported, &base, Some(home.clone()), array, &current)
+                    .is_err()
+                {
+                    refused = true;
+                }
             } else {
                 let callbacks = self.cell_unset_traces(&home, None, &reported, b"");
-                self.namespaces
-                    .borrow_mut()
-                    .var_table_mut(namespace)
-                    .remove(&home.base);
+                let mut old = self
+                    .namespaces_mut()
+                    .original_variable_table_at_mut(namespace)
+                    .filter(|table| original.ptr_eq(&table.original_table_ledger()))
+                    .map(|table| table.publish_remove_after_default(&base).1);
+                if !trace_before_contents {
+                    if let Some(old) = old.take() {
+                        if old.finish(|| current(self)).is_err() {
+                            refused = true;
+                        }
+                    }
+                }
                 self.detach_destroyed_trace_group(&home, None);
-                self.fire_unset_callbacks(callbacks);
+                if !refused {
+                    self.fire_unset_callbacks(callbacks);
+                    if current(self).is_err() {
+                        refused = true;
+                    }
+                }
+                if let Some(old) = old {
+                    if old.finish(|| current(self)).is_err() {
+                        refused = true;
+                    }
+                }
             }
-            // Namespace teardown discards callback refills and new registrations
-            // on this same physical root. Other namespace tokens stay separate.
             self.traces.borrow_mut().traces.retain(|trace| {
-                trace.binding_id != binding
-                    || !crate::cmd_trace::same_variable(trace, &base, owner.0, owner.1)
+                trace.binding_id != Some(binding)
+                    || !crate::cmd_trace::same_variable(trace, &base, Some(namespace), None)
             });
             self.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::VariableTrace);
-            self.namespaces
-                .borrow_mut()
-                .var_table_mut(namespace)
-                .retire_namespace_binding(&base, binding.expect("selected namespace binding"));
+            let old = self
+                .namespaces_mut()
+                .original_variable_table_at_mut(namespace)
+                .filter(|table| original.ptr_eq(&table.original_table_ledger()))
+                .map(|table| table.publish_namespace_binding_retirement(&base, binding).1);
+            if let Some(old) = old {
+                if old.finish(|| current(self)).is_err() {
+                    refused = true;
+                }
+            }
+            drop(receiver);
+            if current(self).is_err() {
+                refused = true;
+            }
         }
+        let _ = cleanup.check();
     }
 }
 

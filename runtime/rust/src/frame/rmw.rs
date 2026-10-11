@@ -38,16 +38,20 @@ impl RootShellEntry {
         }
     }
 
-    pub(super) fn retire(self, binding: Option<VarId>) {
+    pub(super) fn retire(
+        self,
+        binding: Option<VarId>,
+    ) -> Option<super::native_variable_names::NativeHashKey> {
         if binding == Some(self.binding) {
             if let Some(ledger) = self.ledger.upgrade() {
                 ledger.borrow_mut().remove(&self.name);
             }
             if let Some(keys) = self.keys.upgrade() {
                 let retired = keys.borrow_mut().remove(&self.name);
-                drop(retired);
+                return retired;
             }
         }
+        None
     }
 }
 
@@ -90,11 +94,17 @@ impl VariableReceiver {
         if self.element.is_some() {
             return Err(VarError::IsScalar);
         }
-        let mut cell = self.contents.borrow_mut();
-        if let Some(error) = cell.rmw_retirement {
-            return Err(error);
+        let old = {
+            let mut cell = self.contents.borrow_mut();
+            if let Some(error) = cell.rmw_retirement {
+                return Err(error);
+            }
+            cell.publish_selected_array(self.root_name.as_deref())?
+        };
+        if let Some(old) = old {
+            old.release();
         }
-        cell.materialise_selected_array(self.root_name.as_deref())
+        Ok(())
     }
 
     pub(crate) fn is_array(&self) -> bool {
@@ -114,15 +124,29 @@ impl VariableReceiver {
             epoch: cell.rmw_array_epoch,
         })
     }
+    #[cfg(test)]
     pub(crate) fn begin_array_destruction(&self) -> Option<super::RetainedArrayCell> {
+        let (array, old) = self.publish_array_destruction();
+        drop(old);
+        array
+    }
+    pub(crate) fn publish_array_destruction(
+        &self,
+    ) -> (
+        Option<super::RetainedArrayCell>,
+        super::RetiredVariableParts,
+    ) {
+        let mut old = super::RetiredVariableParts::default();
         if self.element.is_some() {
-            return None;
+            return (None, old);
         }
         let mut contents = self.contents.borrow_mut();
-        let id = contents.binding_id?;
+        let Some(id) = contents.binding_id else {
+            return (None, old);
+        };
         let epoch = contents.rmw_array_epoch;
         if !matches!(contents.var.as_ref(), Some(Var::Array(_))) {
-            return None;
+            return (None, old);
         }
         let Some(Var::Array(values)) = contents.var.take() else {
             unreachable!()
@@ -145,20 +169,21 @@ impl VariableReceiver {
         contents.array_search_epoch = contents.array_search_epoch.wrapping_add(1);
         contents.array_searches.clear();
         contents.element_ids.clear();
-        let default = contents.array_default.take();
+        old.default(
+            contents
+                .array_default
+                .take()
+                .map(super::RetiredArrayDefault::capture),
+        );
         drop(contents);
-        if let Some(default) = default {
-            // SAFETY: the selected array owns the native default's two holds.
-            unsafe {
-                obj::decr_ref_count(default);
-                obj::decr_ref_count(default);
-            }
-        }
-        Some(super::RetainedArrayCell {
-            contents: Rc::clone(&self.contents),
-            id,
-            epoch,
-        })
+        (
+            Some(super::RetainedArrayCell {
+                contents: Rc::clone(&self.contents),
+                id,
+                epoch,
+            }),
+            old,
+        )
     }
     pub(crate) fn retain_original_element_key(&self, original: Option<*mut TclObj>) {
         if let Some(key) = &self.element {
@@ -169,59 +194,78 @@ impl VariableReceiver {
         }
     }
     /// Remove only this selected cell/member; callbacks belong to the caller.
+    #[cfg(test)]
     pub(crate) fn unset(&self) -> Result<bool, VarError> {
+        let (removed, old) = self.publish_unset()?;
+        drop(old);
+        Ok(removed)
+    }
+    pub(crate) fn unset_checked(
+        &self,
+        currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
+    ) -> Result<bool, super::JimLinkStoreError> {
+        currency.ensure_current_or_refuse().map_err(|first| {
+            super::JimLinkStoreError::Command(tcl_cmd_core::CmdError::from_execution_refusal(first))
+        })?;
+        let (removed, old) = self.publish_unset()?;
+        old.finish(|| currency.ensure_current_or_refuse())
+            .map_err(|first| {
+                super::JimLinkStoreError::Command(tcl_cmd_core::CmdError::from_execution_refusal(
+                    first,
+                ))
+            })?;
+        Ok(removed)
+    }
+    pub(crate) fn publish_unset(&self) -> Result<(bool, super::RetiredVariableParts), VarError> {
         if let Some(error) = self.contents.borrow().rmw_retirement {
             return Err(error);
         }
         if let (Some(array), Some(key)) = (&self.retained_array, &self.element) {
-            return Ok(array.remove(key));
+            return Ok(array.publish_remove(key));
         }
-        let mut default = None;
-        let old = {
-            let mut contents = self.contents.borrow_mut();
-            if contents.constant {
-                return Err(VarError::IsConstant);
-            }
-            contents.array_search_epoch = contents.array_search_epoch.wrapping_add(1);
-            contents.array_searches.clear();
-            if let Some(key) = &self.element {
-                match contents.var.as_mut() {
-                    Some(Var::Array(values)) => {
-                        let old = values.remove(key).map(Var::Scalar);
-                        if old.is_some() {
-                            contents.rmw_member_shells.insert(key.clone());
-                        }
-                        old
+        let mut old = super::RetiredVariableParts::default();
+        let mut contents = self.contents.borrow_mut();
+        if contents.constant {
+            return Err(VarError::IsConstant);
+        }
+        contents.array_search_epoch = contents.array_search_epoch.wrapping_add(1);
+        contents.array_searches.clear();
+        let value = if let Some(key) = &self.element {
+            match contents.var.as_mut() {
+                Some(Var::Array(values)) => {
+                    let old = values.remove(key).map(Var::Scalar);
+                    if old.is_some() {
+                        contents.rmw_member_shells.insert(key.clone());
                     }
-                    Some(Var::Scalar(_)) => return Err(VarError::IsScalar),
-                    _ => None,
+                    old
                 }
-            } else {
-                contents.namespace_declared = false;
-                contents.undefined_shell = false;
-                contents.rmw_array_epoch = contents.rmw_array_epoch.wrapping_add(1);
-                default = contents.array_default.take();
-                contents.native_member_keys.clear();
-                contents.element_ids.clear();
-                let recipe = contents.member_order.recipe();
-                contents.member_order = Default::default();
-                contents.member_order.select_recipe(recipe);
-                contents.rmw_member_shells.clear();
-                contents.var.take()
+                Some(Var::Scalar(_)) => return Err(VarError::IsScalar),
+                _ => None,
             }
+        } else {
+            contents.namespace_declared = false;
+            contents.undefined_shell = false;
+            contents.rmw_array_epoch = contents.rmw_array_epoch.wrapping_add(1);
+            // Root unset already selects these actual owners. Publication and
+            // bookkeeping finish before their release, with no additional +1.
+            old.elements(std::mem::take(&mut contents.native_member_keys));
+            old.default(
+                contents
+                    .array_default
+                    .take()
+                    .map(super::RetiredArrayDefault::capture),
+            );
+            contents.element_ids.clear();
+            let recipe = contents.member_order.recipe();
+            contents.member_order = Default::default();
+            contents.member_order.select_recipe(recipe);
+            contents.rmw_member_shells.clear();
+            contents.var.take()
         };
-        if let Some(default) = default {
-            // SAFETY: root destruction releases the array's two real default holds.
-            unsafe {
-                obj::decr_ref_count(default);
-                obj::decr_ref_count(default);
-            }
-        }
-        let existed = matches!(old.as_ref(), Some(Var::Scalar(_) | Var::Array(_)));
-        if let Some(old) = old {
-            old.release();
-        }
-        Ok(existed)
+        let removed = matches!(value.as_ref(), Some(Var::Scalar(_) | Var::Array(_)));
+        old.value(value);
+        drop(contents);
+        Ok((removed, old))
     }
     pub(super) fn capture_contents(
         contents: Rc<RefCell<CellContents>>,
@@ -373,6 +417,7 @@ impl VariableReceiver {
 
 impl Drop for VariableReceiver {
     fn drop(&mut self) {
+        let mut old = super::RetiredVariableParts::default();
         let mut contents = self.contents.borrow_mut();
         contents.rmw_refs -= 1;
         if self.element.is_none() {
@@ -394,7 +439,7 @@ impl Drop for VariableReceiver {
                 && matches!(contents.var.as_ref(), Some(Var::Array(map)) if !map.contains_key(key))
             {
                 contents.member_order.remove(key);
-                contents.native_member_keys.remove(key);
+                old.key(contents.native_member_keys.take_key(key));
                 contents.element_ids.remove(key);
             }
         }
@@ -404,11 +449,13 @@ impl Drop for VariableReceiver {
             && !contents.namespace_declared
             && contents.var.is_none()
         {
-            contents.retire_rmw_shell();
+            old.hash_key(contents.retire_rmw_shell());
             if !contents.compiled_declaration {
                 contents.binding_id = None;
             }
         }
+        drop(contents);
+        drop(old);
     }
 }
 

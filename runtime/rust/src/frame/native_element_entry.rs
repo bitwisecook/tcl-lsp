@@ -66,18 +66,17 @@ impl NativeElementEntries {
             .any(|entry| entry.key == key && entry.aliases.get() != 0)
     }
     pub(super) fn remove(&mut self, key: &[u8]) {
-        let id = self
-            .0
-            .iter()
-            .find_map(|(id, entry)| (entry.key == key && entry.aliases.get() == 0).then_some(*id));
-        if let Some(id) = id {
-            if let Some(entry) = self.0.remove(&id) {
-                entry.retired.set(true);
-                entry.table_owned.set(false);
-                let key = entry.original.borrow_mut().take();
-                drop(key);
-            }
-        }
+        drop(self.take_key(key));
+    }
+    pub(super) fn take_key(&mut self, key: &[u8]) -> Option<Owned> {
+        let id = self.0.iter().find_map(|(id, entry)| {
+            (entry.key == key && entry.aliases.get() == 0).then_some(*id)
+        })?;
+        let entry = self.0.remove(&id)?;
+        entry.retired.set(true);
+        entry.table_owned.set(false);
+        let original = entry.original.borrow_mut().take();
+        original
     }
     pub(super) fn retire(&mut self, key: &[u8]) {
         if let Some(entry) = self.0.values().find(|entry| entry.key == key) {
@@ -287,7 +286,9 @@ impl Drop for NativeElementAliasEntry {
             contents.member_order.remove(key);
             contents.element_ids.remove(key.as_slice());
             contents.rmw_member_shells.remove(key.as_slice());
-            contents.native_member_keys.remove(key);
+            let old = contents.native_member_keys.take_key(key);
+            drop(contents);
+            drop(old);
         }
     }
 }

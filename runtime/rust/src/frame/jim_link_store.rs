@@ -352,6 +352,50 @@ impl CapturedJimLinkRoot {
         self.check(currency)
     }
 
+    pub(crate) fn remove_dictionary_element(
+        &mut self,
+        currency: &NativeOperationCurrency,
+    ) -> Result<bool, JimLinkStoreError> {
+        self.check(currency)?;
+        let cell = self
+            .cell
+            .upgrade()
+            .ok_or(VarError::NameProtocolUnavailable)?;
+        let constant = cell.borrow().constant;
+        drop(cell);
+        if constant {
+            return Err(VarError::IsConstant.into());
+        }
+        let Some(original) = self.original_scalar(currency)? else {
+            return Ok(false);
+        };
+        let protocol = self.protocol.ok_or(VarError::NameProtocolUnavailable)?;
+        let reached = EnteredNativeDictionary::compatibility_copy_after_conversion(
+            original.as_ptr(),
+            protocol,
+            currency,
+            self.scalar_stage_check(original.as_ptr()),
+        );
+        self.check(currency)?;
+        let mut working = reached?;
+        let reached =
+            working.remove_member_bytes(self.element.as_deref().ok_or(VarError::IsScalar)?);
+        self.check(currency)?;
+        let removed = reached?;
+        let reached = if removed {
+            self.publish(working.as_ptr(), currency, true)
+        } else {
+            Ok(())
+        };
+        drop(working);
+        drop(original);
+        self.check(currency)?;
+        reached?;
+        Ok(removed)
+    }
+    pub(crate) fn is_dictionary_element(&self) -> bool {
+        self.dictionary && self.element.is_some()
+    }
     pub(crate) fn store(
         &mut self,
         value: *mut TclObj,
