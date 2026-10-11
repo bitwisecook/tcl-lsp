@@ -570656,6 +570656,513 @@
         "command": [],
         "limitations": "Retain the unchanged probe and all21 inputs. Original compile/launch vectors and exact environments are in each provider receipt; each case uses a new process. Recreate libraries from their separately supported build configuration and verify the selected headers/static-library bytes, or treat rebuilt bytes as a new experiment. The pinned input tar preserves every measured whole input, while omitted system linker/toolchain dependencies remain outside its closure. Same-library version diagnostics are separate processes, not rows inserted into the original cases."
       }
+    },
+    {
+      "id": "naming.string.original-binary-replacement-sharing-and-result-roles",
+      "kind": "native-observation",
+      "document": "docs/design/analysis/name-resolution-proofs/string-original-binary-replacement-sharing-and-result-roles.md",
+      "problem_statement": "String replacement consumers must preserve the physical ByteArray producer, original argument/result roles and actual sharing schedule. Treating binary inputs as fresh Unicode Strings loses native result identity; treating allocator bytes as deterministic data overclaims the native contract.",
+      "question": "For 11 native ByteArray replacement inputs on C Tcl 8.4–9.1, what public original/result primaries, resident-byte fields, alias identities, completions and result String bytes are measured under actual indexed EvalObjv caller references?",
+      "conclusion": "C8 converts these original ByteArrays through its Unicode path. C9 preserves ByteArray primaries on binary branches and returns the original replacement for whole replacement. Both equal-splice caller-reference cases return fresh objects in indexed EvalObjv; this does not prove the separate direct helper cannot splice an unshared subject in place. C9 partial deletion appends to an uninitialised nonzero-length constructor; its recorded leading zeros are not a deterministic result-byte contract.",
+      "scope": "55 fresh case processes and five independent same-static-library version diagnostics, with complete original streams/receipts and whole selected input bytes. Before-command, reached-before-result-getter and materialised snapshots remain distinct. Public object headers do not expose private ByteArray internals or entered EvalObjv temporary references. Direct parsed-index helper behavior, arbitrary build/allocator configurations, adverse callback chronology, Rust assertions, Jim binary equivalence and BIG-IP are not established.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "8.4.20",
+          "build": "Exact compiler invocation/output, selected actual static library/source/header/configuration/CLI bytes, and independent same-library version process. Complete system toolchain/load closure is not recorded.",
+          "input_channel": "Fresh Tcl_EvalObjv with native ByteArray inputs. Unique argv objects have one caller reference; case4 adds one genuine subject reference. Tcl_CreateInterp is used without Tcl_Init.",
+          "dialect": "tcl8.4",
+          "status": "observed",
+          "answer": "The subject reaches String primary through Unicode conversion. Partial deletion produces 415a; replacement bytes fe become c3be and NUL becomes c080. Whole replacement is a fresh String result, including cases with an actual extra subject reference. Inverted and empty cases return the original subject. Exact public header fields are case-specific.",
+          "evidence": [
+            "original-counted-probe",
+            "original-request",
+            "actual-case-projection",
+            "exact-input-map",
+            "exact-input-bytes",
+            "exact-source-windows",
+            "all-original-retention",
+            "tcl8.4-receipt-json",
+            "tcl8.4-same-library-version-receipt-json",
+            "tcl8.4-same-library-version-execute-stdout"
+          ]
+        },
+        {
+          "id": "tcl8.5",
+          "version": "8.5.19",
+          "build": "Exact compiler invocation/output, selected actual static library/source/header/configuration/CLI bytes, and independent same-library version process. Complete system toolchain/load closure is not recorded.",
+          "input_channel": "Fresh Tcl_EvalObjv with native ByteArray inputs. Unique argv objects have one caller reference; case4 adds one genuine subject reference. Tcl_CreateInterp is used without Tcl_Init.",
+          "dialect": "tcl8.5",
+          "status": "observed",
+          "answer": "The subject reaches String primary through Unicode conversion. Partial deletion produces 415a; replacement bytes fe become c3be and NUL becomes c080. Whole replacement is a fresh String result, including cases with an actual extra subject reference. Inverted and empty cases return the original subject. Exact public header fields are case-specific.",
+          "evidence": [
+            "original-counted-probe",
+            "original-request",
+            "actual-case-projection",
+            "exact-input-map",
+            "exact-input-bytes",
+            "exact-source-windows",
+            "all-original-retention",
+            "tcl8.5-receipt-json",
+            "tcl8.5-same-library-version-receipt-json",
+            "tcl8.5-same-library-version-execute-stdout"
+          ]
+        },
+        {
+          "id": "tcl8.6",
+          "version": "8.6.18",
+          "build": "Exact compiler invocation/output, selected actual static library/source/header/configuration/CLI bytes, and independent same-library version process. Complete system toolchain/load closure is not recorded.",
+          "input_channel": "Fresh Tcl_EvalObjv with native ByteArray inputs. Unique argv objects have one caller reference; case4 adds one genuine subject reference. Tcl_CreateInterp is used without Tcl_Init.",
+          "dialect": "tcl8.6",
+          "status": "observed",
+          "answer": "The subject reaches String primary through Unicode conversion. Partial deletion produces 415a; replacement bytes fe become c3be and NUL becomes c080. Whole replacement is a fresh String result, including cases with an actual extra subject reference. Inverted and empty cases return the original subject. Exact public header fields are case-specific.",
+          "evidence": [
+            "original-counted-probe",
+            "original-request",
+            "actual-case-projection",
+            "exact-input-map",
+            "exact-input-bytes",
+            "exact-source-windows",
+            "all-original-retention",
+            "tcl8.6-receipt-json",
+            "tcl8.6-same-library-version-receipt-json",
+            "tcl8.6-same-library-version-execute-stdout"
+          ]
+        },
+        {
+          "id": "tcl9.0",
+          "version": "9.0.4",
+          "build": "Exact compiler invocation/output, selected actual static library/source/header/configuration/CLI bytes, and independent same-library version process. Complete system toolchain/load closure is not recorded.",
+          "input_channel": "Fresh Tcl_EvalObjv with native ByteArray inputs. Unique argv objects have one caller reference; case4 adds one genuine subject reference. Tcl_CreateInterp is used without Tcl_Init.",
+          "dialect": "tcl9.0",
+          "status": "observed",
+          "answer": "The subject remains ByteArray primary. Whole replacement returns the exact original replacement; inverted and empty cases return the original subject. Equal splices return fresh ByteArray results under this actual EvalObjv caller schedule, both with one and with two caller references. Resident original Strings do not turn these observed splices into a Unicode path. Ordinary String replacement does reach Unicode. Partial deletion records c080c080415a, but the leading native storage is not initialised by its source producer, so these zeros are not a reusable expected-value guarantee.",
+          "evidence": [
+            "original-counted-probe",
+            "original-request",
+            "actual-case-projection",
+            "exact-input-map",
+            "exact-input-bytes",
+            "exact-source-windows",
+            "all-original-retention",
+            "tcl9.0-receipt-json",
+            "tcl9.0-same-library-version-receipt-json",
+            "tcl9.0-same-library-version-execute-stdout"
+          ]
+        },
+        {
+          "id": "tcl9.1",
+          "version": "9.1.0",
+          "build": "Exact compiler invocation/output, selected actual static library/source/header/configuration/CLI bytes, and independent same-library version process. Complete system toolchain/load closure is not recorded.",
+          "input_channel": "Fresh Tcl_EvalObjv with native ByteArray inputs. Unique argv objects have one caller reference; case4 adds one genuine subject reference. Tcl_CreateInterp is used without Tcl_Init.",
+          "dialect": "tcl9.1",
+          "status": "observed",
+          "answer": "The subject remains ByteArray primary. Whole replacement returns the exact original replacement; inverted and empty cases return the original subject. Equal splices return fresh ByteArray results under this actual EvalObjv caller schedule, both with one and with two caller references. Resident original Strings do not turn these observed splices into a Unicode path. Ordinary String replacement does reach Unicode. Partial deletion records c080c080415a, but the leading native storage is not initialised by its source producer, so these zeros are not a reusable expected-value guarantee.",
+          "evidence": [
+            "original-counted-probe",
+            "original-request",
+            "actual-case-projection",
+            "exact-input-map",
+            "exact-input-bytes",
+            "exact-source-windows",
+            "all-original-retention",
+            "tcl9.1-receipt-json",
+            "tcl9.1-same-library-version-receipt-json",
+            "tcl9.1-same-library-version-execute-stdout"
+          ]
+        },
+        {
+          "id": "jim",
+          "version": "not tested",
+          "build": "No genuine native ByteArray producer is available in the selected Jim object model.",
+          "input_channel": "No substitution of an ordinary Jim String for a C ByteArray input.",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "The C ByteArray question does not establish a Jim binary-object protocol. Independent ordinary String replacement evidence has its own record.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "not tested",
+          "build": "No appliance original-header driver capture.",
+          "input_channel": "No BIG-IP ByteArray input process.",
+          "dialect": "F5 iRules",
+          "status": "not-tested",
+          "answer": "Measured C object results do not establish an appliance/TMM protocol.",
+          "evidence": []
+        }
+      ],
+      "evidence": [
+        {
+          "id": "original-counted-probe",
+          "role": "input",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/probe.c",
+          "sha256": "27e1cca41100e9e7e074c5ef579dde973ecd943d611a3ad454317ef4e9beff2e",
+          "description": "Actual ByteArray constructors, seven owner entries for six unique objects plus one explicit subject reference, and original public snapshots before the result getter."
+        },
+        {
+          "id": "original-request",
+          "role": "input",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/request.json",
+          "sha256": "de080f86e6626ade524cd69c57f216a3b35f7ffef046468b60ca84e9551ce26d",
+          "description": "Question and input requirements; no expected output is supplied."
+        },
+        {
+          "id": "actual-case-projection",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/interpretation.json",
+          "sha256": "a4cbec20e4b0f7e5dadc9cd66a0f630d787add63da6b0d8d51f7642fd13916e3",
+          "description": "All55 raw stream projections; process completion and command completion remain separate."
+        },
+        {
+          "id": "exact-input-map",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/pinned-input-map.json",
+          "sha256": "786e0911ab11840f7963969a2a95ece23499bda348cee1b3c8dabea450fa8d67",
+          "description": "All original selected compiler/library/source/header/CLI/input pins and content-addressed archive join."
+        },
+        {
+          "id": "exact-input-bytes",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/pinned-input-bytes.tar.gz",
+          "sha256": "db7adab418ea82b0b088e77014a6c08635e288fbbe34e643c6c646c6d7b2a987",
+          "description": "Whole retained original inputs, independently hash-verified after decompression; system toolchain/load closure remains outside the recorded scope."
+        },
+        {
+          "id": "exact-source-windows",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json",
+          "sha256": "27fa0042cee275af78ca3bbe6fd60178848df9e7f47b7a6ad3fb06116997c171",
+          "description": "Actual selected command/helper/setter source explains C8 Unicode conversion, C9 result identity and unspecified partial-deletion prefix."
+        },
+        {
+          "id": "all-original-retention",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/retention.json",
+          "sha256": "70340122eec938cd76e9bc8399e105257dd179eede98c068e8b81f4e3ad2ede8",
+          "description": "Original receipts, raw streams and executable images retained without truncation."
+        },
+        {
+          "id": "tcl8.4-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/receipt.json",
+          "sha256": "b84f5a85d525e2b718ee541f0368e221ae1395a375375cffb6b7249941ed957a",
+          "description": "Actual original selected compile/link recipe, CLI version, input pins and fresh case processes."
+        },
+        {
+          "id": "tcl8.4-same-library-version-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/same-library-version/receipt.json",
+          "sha256": "7dba01d55a657b807c07a51e4fd9e220110554af8917d768869b44c6c2a5ea70",
+          "description": "Independent later diagnostic using the identical actual static library and headers; original case streams are unchanged."
+        },
+        {
+          "id": "tcl8.4-same-library-version-execute-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/same-library-version/execute.stdout",
+          "sha256": "ef18d09813e9c05fbd397154e6f786ea0221f2ce8981597665e917a08a5c5d7f",
+          "description": "Direct selected-library version query and patchlevel output."
+        },
+        {
+          "id": "tcl8.5-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/receipt.json",
+          "sha256": "b0f8c0ecf368248601f3d325d8aefe6a675ae07dde97718b4160bdfc9daa0405",
+          "description": "Actual original selected compile/link recipe, CLI version, input pins and fresh case processes."
+        },
+        {
+          "id": "tcl8.5-same-library-version-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/same-library-version/receipt.json",
+          "sha256": "53d91a5ae0c26885b732ce3886fbf69185df28fae9c79f00bfb58b3bfbc2c00d",
+          "description": "Independent later diagnostic using the identical actual static library and headers; original case streams are unchanged."
+        },
+        {
+          "id": "tcl8.5-same-library-version-execute-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/same-library-version/execute.stdout",
+          "sha256": "1bd253489464d3ed255f286efdc8deb3768100a5b873e0a062f5026291fcf9bb",
+          "description": "Direct selected-library version query and patchlevel output."
+        },
+        {
+          "id": "tcl8.6-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/receipt.json",
+          "sha256": "f2668326c95384e6dead2308af3caacebbc8568fb29213c55e69c78aa113306a",
+          "description": "Actual original selected compile/link recipe, CLI version, input pins and fresh case processes."
+        },
+        {
+          "id": "tcl8.6-same-library-version-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/same-library-version/receipt.json",
+          "sha256": "55d73feb60fb5c0f9b0e6810b76912aaaeec253853c8901e1ff99a2e6828de2a",
+          "description": "Independent later diagnostic using the identical actual static library and headers; original case streams are unchanged."
+        },
+        {
+          "id": "tcl8.6-same-library-version-execute-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/same-library-version/execute.stdout",
+          "sha256": "dd12d5dc76bfc80ae3033ac87b1932541f275a888adf9e03dabbcb5878b0df8c",
+          "description": "Direct selected-library version query and patchlevel output."
+        },
+        {
+          "id": "tcl9.0-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/receipt.json",
+          "sha256": "671b6579e6e57cc92026636e3ee15912a503dc1e7d3607f40e2fc620e35843b1",
+          "description": "Actual original selected compile/link recipe, CLI version, input pins and fresh case processes."
+        },
+        {
+          "id": "tcl9.0-same-library-version-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/same-library-version/receipt.json",
+          "sha256": "366b3da86fb981d3d464e03d105fd39ebb2af46b79052a364efc62f08881f3a8",
+          "description": "Independent later diagnostic using the identical actual static library and headers; original case streams are unchanged."
+        },
+        {
+          "id": "tcl9.0-same-library-version-execute-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/same-library-version/execute.stdout",
+          "sha256": "d016aed0da5636f83bfe6d76f7c26b06e30ce7951203b5d3543001780eb51a2c",
+          "description": "Direct selected-library version query and patchlevel output."
+        },
+        {
+          "id": "tcl9.1-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/receipt.json",
+          "sha256": "0a89aabed282018fdc6f2a8f2ca4a819782d1cd7c04b94a387c3a2fa43ee8806",
+          "description": "Actual original selected compile/link recipe, CLI version, input pins and fresh case processes."
+        },
+        {
+          "id": "tcl9.1-same-library-version-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/same-library-version/receipt.json",
+          "sha256": "82ca20463dc7905ecfe4b9118132afda6369dd033632b0273cd576270e957641",
+          "description": "Independent later diagnostic using the identical actual static library and headers; original case streams are unchanged."
+        },
+        {
+          "id": "tcl9.1-same-library-version-execute-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/same-library-version/execute.stdout",
+          "sha256": "b225f15b75641002abfa4f29d4d1be66051123c85bc897b9a7234b22317ea071",
+          "description": "Direct selected-library version query and patchlevel output."
+        },
+        {
+          "id": "exact-source-snippet-0",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json",
+          "sha256": "27fa0042cee275af78ca3bbe6fd60178848df9e7f47b7a6ad3fb06116997c171",
+          "json_pointer": "/anchors/0/snippet",
+          "description": "Original physical-LF snippet selected as decoded JSON text and joined to the retained whole source hash."
+        },
+        {
+          "id": "exact-source-snippet-1",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json",
+          "sha256": "27fa0042cee275af78ca3bbe6fd60178848df9e7f47b7a6ad3fb06116997c171",
+          "json_pointer": "/anchors/1/snippet",
+          "description": "Original physical-LF snippet selected as decoded JSON text and joined to the retained whole source hash."
+        },
+        {
+          "id": "exact-source-snippet-2",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json",
+          "sha256": "27fa0042cee275af78ca3bbe6fd60178848df9e7f47b7a6ad3fb06116997c171",
+          "json_pointer": "/anchors/2/snippet",
+          "description": "Original physical-LF snippet selected as decoded JSON text and joined to the retained whole source hash."
+        },
+        {
+          "id": "exact-source-snippet-3",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json",
+          "sha256": "27fa0042cee275af78ca3bbe6fd60178848df9e7f47b7a6ad3fb06116997c171",
+          "json_pointer": "/anchors/3/snippet",
+          "description": "Original physical-LF snippet selected as decoded JSON text and joined to the retained whole source hash."
+        },
+        {
+          "id": "exact-source-snippet-4",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json",
+          "sha256": "27fa0042cee275af78ca3bbe6fd60178848df9e7f47b7a6ad3fb06116997c171",
+          "json_pointer": "/anchors/4/snippet",
+          "description": "Original physical-LF snippet selected as decoded JSON text and joined to the retained whole source hash."
+        },
+        {
+          "id": "exact-source-snippet-5",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json",
+          "sha256": "27fa0042cee275af78ca3bbe6fd60178848df9e7f47b7a6ad3fb06116997c171",
+          "json_pointer": "/anchors/5/snippet",
+          "description": "Original physical-LF snippet selected as decoded JSON text and joined to the retained whole source hash."
+        },
+        {
+          "id": "exact-source-snippet-6",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json",
+          "sha256": "27fa0042cee275af78ca3bbe6fd60178848df9e7f47b7a6ad3fb06116997c171",
+          "json_pointer": "/anchors/6/snippet",
+          "description": "Original physical-LF snippet selected as decoded JSON text and joined to the retained whole source hash."
+        },
+        {
+          "id": "exact-source-snippet-7",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json",
+          "sha256": "27fa0042cee275af78ca3bbe6fd60178848df9e7f47b7a6ad3fb06116997c171",
+          "json_pointer": "/anchors/7/snippet",
+          "description": "Original physical-LF snippet selected as decoded JSON text and joined to the retained whole source hash."
+        },
+        {
+          "id": "exact-source-snippet-8",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json",
+          "sha256": "27fa0042cee275af78ca3bbe6fd60178848df9e7f47b7a6ad3fb06116997c171",
+          "json_pointer": "/anchors/8/snippet",
+          "description": "Original physical-LF snippet selected as decoded JSON text and joined to the retained whole source hash."
+        }
+      ],
+      "source_anchors": [
+        {
+          "provider": "tcl8.4",
+          "version": "8.4.20",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdMZ.c",
+          "function": "Tcl_StringObjCmd STR_REPLACE case",
+          "lines": [
+            2189,
+            2225
+          ],
+          "source_sha256": "b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc",
+          "snippet": "\tcase STR_REPLACE: {\n\t    Tcl_UniChar *ustring1;\n\t    int first, last;\n\n\t    if (objc < 5 || objc > 6) {\n\t        Tcl_WrongNumArgs(interp, 2, objv,\n\t\t\t\t \"string first last ?string?\");\n\t\treturn TCL_ERROR;\n\t    }\n\n\t    ustring1 = Tcl_GetUnicodeFromObj(objv[2], &length1);\n\t    length1--;\n\n\t    if ((TclGetIntForIndex(interp, objv[3], length1, &first) != TCL_OK)\n\t\t    || (TclGetIntForIndex(interp, objv[4], length1,\n\t\t\t    &last) != TCL_OK)) {\n\t\treturn TCL_ERROR;\n\t    }\n\n\t    if ((last < first) || (last < 0) || (first > length1)) {\n\t\tTcl_SetObjResult(interp, objv[2]);\n\t    } else {\n\t\tif (first < 0) {\n\t\t    first = 0;\n\t\t}\n\n\t\tTcl_SetUnicodeObj(resultPtr, ustring1, first);\n\t\tif (objc == 6) {\n\t\t    Tcl_AppendObjToObj(resultPtr, objv[5]);\n\t\t}\n\t\tif (last < length1) {\n\t\t    Tcl_AppendUnicodeToObj(resultPtr, ustring1 + last + 1,\n\t\t\t    length1 - last);\n\t\t}\n\t    }\n\t    break;\n\t}\n",
+          "snippet_sha256": "280cc8dfad4c37b40301812db3277fe1202ad56e9a08b28095ffd1663a92636a",
+          "evidence": "exact-source-snippet-0"
+        },
+        {
+          "provider": "tcl8.5",
+          "version": "8.5.19",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdMZ.c",
+          "function": "StringRplcCmd",
+          "lines": [
+            2258,
+            2303
+          ],
+          "source_sha256": "fe2c67a2097ece2e07d9345a5edf416b5fbc891276349e360f9c25da1cc8f348",
+          "snippet": "StringRplcCmd(\n    ClientData dummy,\t\t/* Not used. */\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *const objv[])\t/* Argument objects. */\n{\n    Tcl_UniChar *ustring;\n    int first, last, length;\n\n    if (objc < 4 || objc > 5) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"string first last ?string?\");\n\treturn TCL_ERROR;\n    }\n\n    ustring = Tcl_GetUnicodeFromObj(objv[1], &length);\n    length--;\n\n    if (TclGetIntForIndexM(interp, objv[2], length, &first) != TCL_OK ||\n\t    TclGetIntForIndexM(interp, objv[3], length, &last) != TCL_OK){\n\treturn TCL_ERROR;\n    }\n\n    if ((last < first) || (last < 0) || (first > length)) {\n\tTcl_SetObjResult(interp, objv[1]);\n    } else {\n\tTcl_Obj *resultPtr;\n\n\tustring = Tcl_GetUnicodeFromObj(objv[1], &length);\n\tlength--;\n\n\tif (first < 0) {\n\t    first = 0;\n\t}\n\n\tresultPtr = Tcl_NewUnicodeObj(ustring, first);\n\tif (objc == 5) {\n\t    Tcl_AppendObjToObj(resultPtr, objv[4]);\n\t}\n\tif (last < length) {\n\t    Tcl_AppendUnicodeToObj(resultPtr, ustring + last + 1,\n\t\t    length - last);\n\t}\n\tTcl_SetObjResult(interp, resultPtr);\n    }\n    return TCL_OK;\n}\n",
+          "snippet_sha256": "12fc6487147f00d261fa80876bcbe6e2dd3e7dec79b835fd54d88c81818061f2",
+          "evidence": "exact-source-snippet-1"
+        },
+        {
+          "provider": "tcl8.6",
+          "version": "8.6.18",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdMZ.c",
+          "function": "StringRplcCmd",
+          "lines": [
+            2329,
+            2392
+          ],
+          "source_sha256": "c2fe2deb95449c94c2719dca830d4e57ec4a436741199da39122d772888e849e",
+          "snippet": "StringRplcCmd(\n    ClientData dummy,\t\t/* Not used. */\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *const objv[])\t/* Argument objects. */\n{\n    Tcl_UniChar *ustring;\n    int first, last, length, end;\n\n    if (objc < 4 || objc > 5) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"string first last ?string?\");\n\treturn TCL_ERROR;\n    }\n\n    ustring = Tcl_GetUnicodeFromObj(objv[1], &length);\n    end = length - 1;\n\n    if (TclGetIntForIndexM(interp, objv[2], end, &first) != TCL_OK ||\n\t    TclGetIntForIndexM(interp, objv[3], end, &last) != TCL_OK){\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * The following test screens out most empty substrings as\n     * candidates for replacement. When they are detected, no\n     * replacement is done, and the result is the original string,\n     */\n    if ((last < 0) ||\t\t/* Range ends before start of string */\n\t    (first > end) ||\t/* Range begins after end of string */\n\t    (last < first)) {\t/* Range begins after it starts */\n\n\t/*\n\t * BUT!!! when (end < 0) -- an empty original string -- we can\n\t * have (first <= end < 0 <= last) and an empty string is permitted\n\t * to be replaced.\n\t */\n\tTcl_SetObjResult(interp, objv[1]);\n    } else {\n\tTcl_Obj *resultPtr;\n\n\t/*\n\t * We are re-fetching in case the string argument is same value as\n\t * an index argument, and shimmering cost us our ustring.\n\t */\n\n\tustring = Tcl_GetUnicodeFromObj(objv[1], &length);\n\tend = length-1;\n\n\tif (first < 0) {\n\t    first = 0;\n\t}\n\n\tresultPtr = Tcl_NewUnicodeObj(ustring, first);\n\tif (objc == 5) {\n\t    Tcl_AppendObjToObj(resultPtr, objv[4]);\n\t}\n\tif (last < end) {\n\t    Tcl_AppendUnicodeToObj(resultPtr, ustring + last + 1,\n\t\t    end - last);\n\t}\n\tTcl_SetObjResult(interp, resultPtr);\n    }\n    return TCL_OK;\n}\n",
+          "snippet_sha256": "68c46d9d79f432a239f39f7ebe513bd54bcf881e58ba3cb4b430e701a1f5a7a6",
+          "evidence": "exact-source-snippet-2"
+        },
+        {
+          "provider": "tcl9.0",
+          "version": "9.0.4",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdMZ.c",
+          "function": "StringRplcCmd",
+          "lines": [
+            2392,
+            2448
+          ],
+          "source_sha256": "080e201d1a09760aad4fedd9835e2091fd663d405d32d034f32dd0918d9006cc",
+          "snippet": "StringRplcCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    int objc,\t\t\t/* Number of arguments. */\n    Tcl_Obj *const objv[])\t/* Argument objects. */\n{\n    Tcl_Size first, last, end;\n\n    if (objc < 4 || objc > 5) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"string first last ?string?\");\n\treturn TCL_ERROR;\n    }\n\n    end = Tcl_GetCharLength(objv[1]) - 1;\n\n    if (TclGetIntForIndexM(interp, objv[2], end, &first) != TCL_OK ||\n\t    TclGetIntForIndexM(interp, objv[3], end, &last) != TCL_OK) {\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * The following test screens out most empty substrings as candidates for\n     * replacement. When they are detected, no replacement is done, and the\n     * result is the original string.\n     */\n\n    if ((last < 0) ||\t/* Range ends before start of string */\n\t    (first > end) ||\t/* Range begins after end of string */\n\t    (last < first)) {\t/* Range begins after it starts */\n\t/*\n\t * BUT!!! when (end < 0) -- an empty original string -- we can\n\t * have (first <= end < 0 <= last) and an empty string is permitted\n\t * to be replaced.\n\t */\n\n\tTcl_SetObjResult(interp, objv[1]);\n    } else {\n\tTcl_Obj *resultPtr;\n\n\tif (first < 0) {\n\t    first = TCL_INDEX_START;\n\t}\n\tif (last > end) {\n\t    last = end;\n\t}\n\n\tresultPtr = TclStringReplace(interp, objv[1], first,\n\t\tlast + 1 - first, (objc == 5) ? objv[4] : NULL,\n\t\tTCL_STRING_IN_PLACE);\n\n\tif (resultPtr == NULL) {\n\t    return TCL_ERROR;\n\t}\n\tTcl_SetObjResult(interp, resultPtr);\n    }\n    return TCL_OK;\n}\n",
+          "snippet_sha256": "457c02a56bd84e0abbd36450af56eca3afc7d09443901f2945d0f384bc0812e5",
+          "evidence": "exact-source-snippet-3"
+        },
+        {
+          "provider": "tcl9.0",
+          "version": "9.0.4",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclStringObj.c",
+          "function": "TclStringReplace",
+          "lines": [
+            4189,
+            4304
+          ],
+          "source_sha256": "d44c80d7de637da41ac841c6c55c25c4ee302efc774c2c4cfe5d8ff73193b7b4",
+          "snippet": "TclStringReplace(\n    Tcl_Interp *interp,\t\t/* For error reporting, may be NULL */\n    Tcl_Obj *objPtr,\t\t/* String to act upon */\n    Tcl_Size first,\t\t/* First index to replace */\n    Tcl_Size count,\t\t/* How many chars to replace */\n    Tcl_Obj *insertPtr,\t\t/* Replacement string, may be NULL */\n    int flags)\t\t\t/* TCL_STRING_IN_PLACE => attempt in-place */\n{\n    int inPlace = flags & TCL_STRING_IN_PLACE;\n    Tcl_Obj *result;\n\n    /* Replace nothing with nothing */\n    if ((insertPtr == NULL) && (count <= 0)) {\n\tif (inPlace) {\n\t    return objPtr;\n\t} else {\n\t    return Tcl_DuplicateObj(objPtr);\n\t}\n    }\n    if (first < 0) {\n\tfirst = 0;\n    }\n\n    /*\n     * The caller very likely had to call Tcl_GetCharLength() or similar\n     * to be able to process index values.  This means it is likely that\n     * objPtr is either a proper \"byte-array\" or a \"string\" or else it has\n     * a known and short string rep.\n     */\n\n    if (TclIsPureByteArray(objPtr)) {\n\tTcl_Size numBytes = 0;\n\tunsigned char *bytes = Tcl_GetBytesFromObj(NULL, objPtr, &numBytes);\n\n\tif (insertPtr == NULL) {\n\t    /* Replace something with nothing. */\n\n\t    assert ( first <= numBytes ) ;\n\t    assert ( count <= numBytes ) ;\n\t    assert ( first + count <= numBytes ) ;\n\n\t    result = Tcl_NewByteArrayObj(NULL, numBytes - count);/* PANIC? */\n\t    TclAppendBytesToByteArray(result, bytes, first);\n\t    TclAppendBytesToByteArray(result, bytes + first + count,\n\t\t    numBytes - count - first);\n\t    return result;\n\t}\n\n\t/* Replace everything */\n\tif ((first == 0) && (count == numBytes)) {\n\t    return insertPtr;\n\t}\n\n\tif (TclIsPureByteArray(insertPtr)) {\n\t    Tcl_Size newBytes = 0;\n\t    unsigned char *iBytes\n\t\t    = Tcl_GetBytesFromObj(NULL, insertPtr, &newBytes);\n\n\t    if (count == newBytes && inPlace && !Tcl_IsShared(objPtr)) {\n\t\t/*\n\t\t * Removal count and replacement count are equal.\n\t\t * Other conditions permit. Do in-place splice.\n\t\t */\n\n\t\tmemcpy(bytes + first, iBytes, count);\n\t\tTcl_InvalidateStringRep(objPtr);\n\t\treturn objPtr;\n\t    }\n\n\t    if (newBytes > (TCL_SIZE_MAX - (numBytes - count))) {\n\t\tif (interp) {\n\t\t    Tcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\t    \"max size for a Tcl value (%\" TCL_SIZE_MODIFIER \"d bytes) exceeded\",\n\t\t\t    TCL_SIZE_MAX));\n\t\t    Tcl_SetErrorCode(interp, \"TCL\", \"MEMORY\", (char *)NULL);\n\t\t}\n\t\treturn NULL;\n\t    }\n\t    result = Tcl_NewByteArrayObj(NULL, numBytes - count + newBytes);\n\t\t\t\t\t\t\t\t/* PANIC? */\n\t    Tcl_SetByteArrayLength(result, 0);\n\t    TclAppendBytesToByteArray(result, bytes, first);\n\t    TclAppendBytesToByteArray(result, iBytes, newBytes);\n\t    TclAppendBytesToByteArray(result, bytes + first + count,\n\t\t    numBytes - count - first);\n\t    return result;\n\t}\n\n\t/* Flow through to try other approaches below */\n    }\n\n    /*\n     * TODO: Figure out how not to generate a Tcl_UniChar array rep\n     * when it can be determined objPtr->bytes points to a string of\n     * all single-byte characters so we can index it directly.\n     */\n\n    /* The traditional implementation... */\n    {\n\tTcl_Size numChars;\n\tTcl_UniChar *ustring = Tcl_GetUnicodeFromObj(objPtr, &numChars);\n\n\t/* TODO: Is there an in-place option worth pursuing here? */\n\n\tresult = Tcl_NewUnicodeObj(ustring, first);\n\tif (insertPtr) {\n\t    Tcl_AppendObjToObj(result, insertPtr);\n\t}\n\tif ((first + count) < numChars) {\n\t    Tcl_AppendUnicodeToObj(result, ustring + first + count,\n\t\t    numChars - first - count);\n\t}\n\n\treturn result;\n    }\n}\n",
+          "snippet_sha256": "042f4ccded53127fb70a28760d34fba835483c1d57d52f78c17fcf718bce92ea",
+          "evidence": "exact-source-snippet-4"
+        },
+        {
+          "provider": "tcl9.0",
+          "version": "9.0.4",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclBinary.c",
+          "function": "Tcl_SetByteArrayObj",
+          "lines": [
+            315,
+            341
+          ],
+          "source_sha256": "5660d9f82d02f1ca213a0e9e0b96ff959a81d6f6a474229fb7eada8edfde40bf",
+          "snippet": "Tcl_SetByteArrayObj(\n    Tcl_Obj *objPtr,\t\t/* Object to initialize as a ByteArray. */\n    const unsigned char *bytes,\t/* The array of bytes to use as the new value.\n\t\t\t\t * May be NULL even if numBytes > 0. */\n    Tcl_Size numBytes)\t\t/* Number of bytes in the array,\n\t\t\t\t * must be >= 0 */\n{\n    ByteArray *byteArrayPtr;\n    Tcl_ObjInternalRep ir;\n\n    if (Tcl_IsShared(objPtr)) {\n\tTcl_Panic(\"%s called with shared object\", \"Tcl_SetByteArrayObj\");\n    }\n    TclInvalidateStringRep(objPtr);\n\n    assert(numBytes >= 0);\n    byteArrayPtr = (ByteArray *)Tcl_Alloc(BYTEARRAY_SIZE(numBytes));\n    byteArrayPtr->used = numBytes;\n    byteArrayPtr->allocated = numBytes;\n\n    if ((bytes != NULL) && (numBytes > 0)) {\n\tmemcpy(byteArrayPtr->bytes, bytes, numBytes);\n    }\n    SET_BYTEARRAY(&ir, byteArrayPtr);\n\n    Tcl_StoreInternalRep(objPtr, &properByteArrayType, &ir);\n}\n",
+          "snippet_sha256": "27908deda03f1103aa76bf019a780f614b3c6b03b2cc654846a68346702a8991",
+          "evidence": "exact-source-snippet-5"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdMZ.c",
+          "function": "StringRplcCmd",
+          "lines": [
+            2457,
+            2513
+          ],
+          "source_sha256": "62be408d1faa29a35d3e30eacc4986fd9f1a973f7efcd474b3a2a9082ded512f",
+          "snippet": "StringRplcCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\t\t/* Current interpreter. */\n    Tcl_Size objc,\t\t/* Number of arguments. */\n    Tcl_Obj *const *objv)\t/* Argument objects. */\n{\n    Tcl_Size first, last, end;\n\n    if (objc < 4 || objc > 5) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"string first last ?string?\");\n\treturn TCL_ERROR;\n    }\n\n    end = Tcl_GetCharLength(objv[1]) - 1;\n\n    if (TclGetIntForIndexM(interp, objv[2], end, &first) != TCL_OK ||\n\t    TclGetIntForIndexM(interp, objv[3], end, &last) != TCL_OK) {\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * The following test screens out most empty substrings as candidates for\n     * replacement. When they are detected, no replacement is done, and the\n     * result is the original string.\n     */\n\n    if ((last < 0) ||\t\t/* Range ends before start of string */\n\t    (first > end) ||\t/* Range begins after end of string */\n\t    (last < first)) {\t/* Range begins after it starts */\n\t/*\n\t * BUT!!! when (end < 0) -- an empty original string -- we can\n\t * have (first <= end < 0 <= last) and an empty string is permitted\n\t * to be replaced.\n\t */\n\n\tTcl_SetObjResult(interp, objv[1]);\n    } else {\n\tTcl_Obj *resultPtr;\n\n\tif (first < 0) {\n\t    first = TCL_INDEX_START;\n\t}\n\tif (last > end) {\n\t    last = end;\n\t}\n\n\tresultPtr = TclStringReplace(interp, objv[1], first,\n\t\tlast + 1 - first, (objc == 5) ? objv[4] : NULL,\n\t\tTCL_STRING_IN_PLACE);\n\n\tif (resultPtr == NULL) {\n\t    return TCL_ERROR;\n\t}\n\tTcl_SetObjResult(interp, resultPtr);\n    }\n    return TCL_OK;\n}\n",
+          "snippet_sha256": "d04d12c1fa0a543dc0ef66c7cbc4362119af47e18cd60e8ec72e44bdf13910cb",
+          "evidence": "exact-source-snippet-6"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclStringObj.c",
+          "function": "TclStringReplace",
+          "lines": [
+            4197,
+            4312
+          ],
+          "source_sha256": "d1ecd65e375cee3b1ab86111cf5b90fb6bf4d7b5e71448cd361e4026d32a4bf8",
+          "snippet": "TclStringReplace(\n    Tcl_Interp *interp,\t\t/* For error reporting, may be NULL */\n    Tcl_Obj *objPtr,\t\t/* String to act upon */\n    Tcl_Size first,\t\t/* First index to replace */\n    Tcl_Size count,\t\t/* How many chars to replace */\n    Tcl_Obj *insertPtr,\t\t/* Replacement string, may be NULL */\n    int flags)\t\t\t/* TCL_STRING_IN_PLACE => attempt in-place */\n{\n    int inPlace = flags & TCL_STRING_IN_PLACE;\n    Tcl_Obj *result;\n\n    /* Replace nothing with nothing */\n    if ((insertPtr == NULL) && (count <= 0)) {\n\tif (inPlace) {\n\t    return objPtr;\n\t} else {\n\t    return Tcl_DuplicateObj(objPtr);\n\t}\n    }\n    if (first < 0) {\n\tfirst = 0;\n    }\n\n    /*\n     * The caller very likely had to call Tcl_GetCharLength() or similar\n     * to be able to process index values.  This means it is likely that\n     * objPtr is either a proper \"byte-array\" or a \"string\" or else it has\n     * a known and short string rep.\n     */\n\n    if (TclIsPureByteArray(objPtr)) {\n\tTcl_Size numBytes = 0;\n\tunsigned char *bytes = Tcl_GetBytesFromObj(NULL, objPtr, &numBytes);\n\n\tif (insertPtr == NULL) {\n\t    /* Replace something with nothing. */\n\n\t    assert ( first <= numBytes ) ;\n\t    assert ( count <= numBytes ) ;\n\t    assert ( first + count <= numBytes ) ;\n\n\t    result = Tcl_NewByteArrayObj(NULL, numBytes - count);/* PANIC? */\n\t    TclAppendBytesToByteArray(result, bytes, first);\n\t    TclAppendBytesToByteArray(result, bytes + first + count,\n\t\t    numBytes - count - first);\n\t    return result;\n\t}\n\n\t/* Replace everything */\n\tif ((first == 0) && (count == numBytes)) {\n\t    return insertPtr;\n\t}\n\n\tif (TclIsPureByteArray(insertPtr)) {\n\t    Tcl_Size newBytes = 0;\n\t    unsigned char *iBytes\n\t\t    = Tcl_GetBytesFromObj(NULL, insertPtr, &newBytes);\n\n\t    if (count == newBytes && inPlace && !Tcl_IsShared(objPtr)) {\n\t\t/*\n\t\t * Removal count and replacement count are equal.\n\t\t * Other conditions permit. Do in-place splice.\n\t\t */\n\n\t\tmemcpy(bytes + first, iBytes, count);\n\t\tTcl_InvalidateStringRep(objPtr);\n\t\treturn objPtr;\n\t    }\n\n\t    if (newBytes > (TCL_SIZE_MAX - (numBytes - count))) {\n\t\tif (interp) {\n\t\t    Tcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\t    \"max size for a Tcl value (%\" TCL_SIZE_MODIFIER \"d bytes) exceeded\",\n\t\t\t    TCL_SIZE_MAX));\n\t\t    Tcl_SetErrorCode(interp, \"TCL\", \"MEMORY\", (char *)NULL);\n\t\t}\n\t\treturn NULL;\n\t    }\n\t    result = Tcl_NewByteArrayObj(NULL, numBytes - count + newBytes);\n\t\t\t\t\t\t\t\t/* PANIC? */\n\t    Tcl_SetByteArrayLength(result, 0);\n\t    TclAppendBytesToByteArray(result, bytes, first);\n\t    TclAppendBytesToByteArray(result, iBytes, newBytes);\n\t    TclAppendBytesToByteArray(result, bytes + first + count,\n\t\t    numBytes - count - first);\n\t    return result;\n\t}\n\n\t/* Flow through to try other approaches below */\n    }\n\n    /*\n     * TODO: Figure out how not to generate a Tcl_UniChar array rep\n     * when it can be determined objPtr->bytes points to a string of\n     * all single-byte characters so we can index it directly.\n     */\n\n    /* The traditional implementation... */\n    {\n\tTcl_Size numChars;\n\tTcl_UniChar *ustring = Tcl_GetUnicodeFromObj(objPtr, &numChars);\n\n\t/* TODO: Is there an in-place option worth pursuing here? */\n\n\tresult = Tcl_NewUnicodeObj(ustring, first);\n\tif (insertPtr) {\n\t    Tcl_AppendObjToObj(result, insertPtr);\n\t}\n\tif ((first + count) < numChars) {\n\t    Tcl_AppendUnicodeToObj(result, ustring + first + count,\n\t\t    numChars - first - count);\n\t}\n\n\treturn result;\n    }\n}\n",
+          "snippet_sha256": "042f4ccded53127fb70a28760d34fba835483c1d57d52f78c17fcf718bce92ea",
+          "evidence": "exact-source-snippet-7"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "retained released source bytes",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclBinary.c",
+          "function": "Tcl_SetByteArrayObj",
+          "lines": [
+            317,
+            343
+          ],
+          "source_sha256": "2c4d8facc256ec7e135164f92119d4dcf5f98fc3369c0b35a1e89ba950d61b7a",
+          "snippet": "Tcl_SetByteArrayObj(\n    Tcl_Obj *objPtr,\t\t/* Object to initialize as a ByteArray. */\n    const unsigned char *bytes,\t/* The array of bytes to use as the new value.\n\t\t\t\t * May be NULL even if numBytes > 0. */\n    Tcl_Size numBytes)\t\t/* Number of bytes in the array,\n\t\t\t\t * must be >= 0 */\n{\n    ByteArray *byteArrayPtr;\n    Tcl_ObjInternalRep ir;\n\n    if (Tcl_IsShared(objPtr)) {\n\tTcl_Panic(\"%s called with shared object\", \"Tcl_SetByteArrayObj\");\n    }\n    TclInvalidateStringRep(objPtr);\n\n    assert(numBytes >= 0);\n    byteArrayPtr = (ByteArray *)Tcl_Alloc(BYTEARRAY_SIZE(numBytes));\n    byteArrayPtr->used = numBytes;\n    byteArrayPtr->allocated = numBytes;\n\n    if ((bytes != NULL) && (numBytes > 0)) {\n\tmemcpy(byteArrayPtr->bytes, bytes, numBytes);\n    }\n    SET_BYTEARRAY(&ir, byteArrayPtr);\n\n    Tcl_StoreInternalRep(objPtr, &properByteArrayType, &ir);\n}\n",
+          "snippet_sha256": "27908deda03f1103aa76bf019a780f614b3c6b03b2cc654846a68346702a8991",
+          "evidence": "exact-source-snippet-8"
+        }
+      ],
+      "tests": [],
+      "owners": [],
+      "replay": {
+        "command": [],
+        "limitations": "Use the unchanged counted-object probe and all11 inputs. Each provider receipt records its exact compile/link/launch vector and environment; each input runs in a fresh process. Verify the original selected library/header bytes or treat rebuilt bytes as an independent experiment. Do not copy the partial-deletion leading byte observation into a deterministic software expectation. Direct helper sharing is a distinct execution purpose."
+      }
     }
   ]
 }

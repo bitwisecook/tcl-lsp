@@ -1,0 +1,6181 @@
+{
+  "proof_id": "naming.string.original-binary-replacement-sharing-and-result-roles",
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "cases": [
+        {
+          "index": 0,
+          "case_id": "binary-partial-deletion",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-00/execute.stdout",
+          "original_stream_sha256": "65efe7abaf67001e6c7bbcbcdfaf8c75264141dbde3898e72656446a2a72c0dc",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              ""
+            ],
+            "input-roles": [
+              "omit=1",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=0",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "none",
+              "1",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "none",
+              "1",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "415a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "2"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 1,
+          "case_id": "binary-whole-deletion",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-01/execute.stdout",
+          "original_stream_sha256": "3ec238bc2d986db4d84b9985284661daafd1b70dd25d4f16c340391305d4a3aa",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "30"
+            ],
+            "input-last": [
+              "656e64"
+            ],
+            "input-replacement": [
+              ""
+            ],
+            "input-roles": [
+              "omit=1",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=0",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "3"
+            ],
+            "before-arg5": [
+              "none",
+              "1",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "end-offset",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-arg5": [
+              "none",
+              "1",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              ""
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "0"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 2,
+          "case_id": "binary-whole-original-replacement",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-02/execute.stdout",
+          "original_stream_sha256": "a145397c1b77a6159a7fee2736df7611fe81f9e38fda95a6c32e2604b7354031",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "30"
+            ],
+            "input-last": [
+              "656e64"
+            ],
+            "input-replacement": [
+              "5100fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "3"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "end-offset",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "5"
+            ],
+            "reached-result": [
+              "string",
+              "1",
+              "1",
+              "5"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "51c080c3be"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 3,
+          "case_id": "binary-equal-unshared-splice",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-03/execute.stdout",
+          "original_stream_sha256": "2ad3f076e763f6e9a6ec887a222cfcfb8045a4c5de445365bdd463737c5279ea",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "51fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c3be5a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 4,
+          "case_id": "binary-equal-shared-splice",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-04/execute.stdout",
+          "original_stream_sha256": "356450791b7297490e9df237ac6fff4a6993ad11d92cfbce08e4aa75370fc274",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "51fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=1",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "2",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "2",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c3be5a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 5,
+          "case_id": "binary-unequal-splice",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-05/execute.stdout",
+          "original_stream_sha256": "4d69ff8f97e92f06b4f7dca13bf586bb8d11c65518059ae7d91f126b5b34b807",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "5100fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "5"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c080c3be5a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "7"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 6,
+          "case_id": "binary-ordinary-string-replacement",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-06/execute.stdout",
+          "original_stream_sha256": "ada08adf9be21e81085f0da6c550b6b72cb6c97d480f0868e369c512b8612554",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "cea9"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=0",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "none",
+              "1",
+              "1",
+              "2"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "none",
+              "1",
+              "1",
+              "2"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "41cea95a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "4"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 7,
+          "case_id": "binary-subject-with-resident-string",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-07/execute.stdout",
+          "original_stream_sha256": "d2591c2b8261fa2d7abae254f7c7c4524fce97a38b62a056bdf0f29a8dc5775c",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "51fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=1",
+              "resident-replacement=0"
+            ],
+            "setup-subject-string": [
+              "41c080c3bf5a"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "1",
+              "1",
+              "6"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c3be5a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 8,
+          "case_id": "binary-replacement-with-resident-string",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-08/execute.stdout",
+          "original_stream_sha256": "701968365f8d26ba11ae7af453d4d25fa3350afabf9b2263294d22e5c9c8fe12",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "51fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=1"
+            ],
+            "setup-replacement-string": [
+              "51c3be"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "3"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c3be5a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 9,
+          "case_id": "binary-inverted-replacement-unreached",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-09/execute.stdout",
+          "original_stream_sha256": "e9e1888d15930e41f8c1670e8985f93fe8c9e2933f70f2c37ca947080f99bb06",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "32"
+            ],
+            "input-last": [
+              "31"
+            ],
+            "input-replacement": [
+              "5100fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "2",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "string",
+              "1",
+              "2",
+              "6"
+            ],
+            "result-alias": [
+              "subject=1",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "41c080c3bf5a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "2",
+              "6"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 10,
+          "case_id": "binary-empty-original",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-10/execute.stdout",
+          "original_stream_sha256": "dec08c858a6a1209e91d37d8c3717b089db83cd2f72aefddc49ac7d437af1d02",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              ""
+            ],
+            "input-first": [
+              "30"
+            ],
+            "input-last": [
+              "656e64"
+            ],
+            "input-replacement": [
+              "5100fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "3"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "2",
+              "0"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "end-offset",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "string",
+              "1",
+              "2",
+              "0"
+            ],
+            "result-alias": [
+              "subject=1",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              ""
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "2",
+              "0"
+            ],
+            "subject-bytes": [
+              ""
+            ]
+          }
+        }
+      ],
+      "version_cli": "8.4.20",
+      "version_same_library": "library-version\t8\t4\t20\t2\ncode\t0\npatchlevel\t8.4.20",
+      "limits": "Read-only exact row projection. Each row preserves its physical snapshot timing. C public headers expose no Unicode cache internals. Guest command completion code is distinct from the probe process exit."
+    },
+    {
+      "provider": "8.5.19",
+      "cases": [
+        {
+          "index": 0,
+          "case_id": "binary-partial-deletion",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-00/execute.stdout",
+          "original_stream_sha256": "65efe7abaf67001e6c7bbcbcdfaf8c75264141dbde3898e72656446a2a72c0dc",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              ""
+            ],
+            "input-roles": [
+              "omit=1",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=0",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "none",
+              "1",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "none",
+              "1",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "415a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "2"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 1,
+          "case_id": "binary-whole-deletion",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-01/execute.stdout",
+          "original_stream_sha256": "3ec238bc2d986db4d84b9985284661daafd1b70dd25d4f16c340391305d4a3aa",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "30"
+            ],
+            "input-last": [
+              "656e64"
+            ],
+            "input-replacement": [
+              ""
+            ],
+            "input-roles": [
+              "omit=1",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=0",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "3"
+            ],
+            "before-arg5": [
+              "none",
+              "1",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "end-offset",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-arg5": [
+              "none",
+              "1",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              ""
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "0"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 2,
+          "case_id": "binary-whole-original-replacement",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-02/execute.stdout",
+          "original_stream_sha256": "a145397c1b77a6159a7fee2736df7611fe81f9e38fda95a6c32e2604b7354031",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "30"
+            ],
+            "input-last": [
+              "656e64"
+            ],
+            "input-replacement": [
+              "5100fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "3"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "end-offset",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "5"
+            ],
+            "reached-result": [
+              "string",
+              "1",
+              "1",
+              "5"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "51c080c3be"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 3,
+          "case_id": "binary-equal-unshared-splice",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-03/execute.stdout",
+          "original_stream_sha256": "2ad3f076e763f6e9a6ec887a222cfcfb8045a4c5de445365bdd463737c5279ea",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "51fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c3be5a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 4,
+          "case_id": "binary-equal-shared-splice",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-04/execute.stdout",
+          "original_stream_sha256": "356450791b7297490e9df237ac6fff4a6993ad11d92cfbce08e4aa75370fc274",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "51fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=1",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "2",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "2",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c3be5a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 5,
+          "case_id": "binary-unequal-splice",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-05/execute.stdout",
+          "original_stream_sha256": "4d69ff8f97e92f06b4f7dca13bf586bb8d11c65518059ae7d91f126b5b34b807",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "5100fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "5"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c080c3be5a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "7"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 6,
+          "case_id": "binary-ordinary-string-replacement",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-06/execute.stdout",
+          "original_stream_sha256": "ada08adf9be21e81085f0da6c550b6b72cb6c97d480f0868e369c512b8612554",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "cea9"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=0",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "none",
+              "1",
+              "1",
+              "2"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "none",
+              "1",
+              "1",
+              "2"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "41cea95a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "4"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 7,
+          "case_id": "binary-subject-with-resident-string",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-07/execute.stdout",
+          "original_stream_sha256": "d2591c2b8261fa2d7abae254f7c7c4524fce97a38b62a056bdf0f29a8dc5775c",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "51fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=1",
+              "resident-replacement=0"
+            ],
+            "setup-subject-string": [
+              "41c080c3bf5a"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "1",
+              "1",
+              "6"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c3be5a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 8,
+          "case_id": "binary-replacement-with-resident-string",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-08/execute.stdout",
+          "original_stream_sha256": "701968365f8d26ba11ae7af453d4d25fa3350afabf9b2263294d22e5c9c8fe12",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "51fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=1"
+            ],
+            "setup-replacement-string": [
+              "51c3be"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "3"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c3be5a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 9,
+          "case_id": "binary-inverted-replacement-unreached",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-09/execute.stdout",
+          "original_stream_sha256": "e9e1888d15930e41f8c1670e8985f93fe8c9e2933f70f2c37ca947080f99bb06",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "32"
+            ],
+            "input-last": [
+              "31"
+            ],
+            "input-replacement": [
+              "5100fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "2",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "string",
+              "1",
+              "2",
+              "6"
+            ],
+            "result-alias": [
+              "subject=1",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "41c080c3bf5a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "2",
+              "6"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 10,
+          "case_id": "binary-empty-original",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-10/execute.stdout",
+          "original_stream_sha256": "dec08c858a6a1209e91d37d8c3717b089db83cd2f72aefddc49ac7d437af1d02",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              ""
+            ],
+            "input-first": [
+              "30"
+            ],
+            "input-last": [
+              "656e64"
+            ],
+            "input-replacement": [
+              "5100fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "3"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "2",
+              "0"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "end-offset",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "string",
+              "1",
+              "2",
+              "0"
+            ],
+            "result-alias": [
+              "subject=1",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              ""
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "2",
+              "0"
+            ],
+            "subject-bytes": [
+              ""
+            ]
+          }
+        }
+      ],
+      "version_cli": "8.5.19",
+      "version_same_library": "library-version\t8\t5\t19\t2\ncode\t0\npatchlevel\t8.5.19",
+      "limits": "Read-only exact row projection. Each row preserves its physical snapshot timing. C public headers expose no Unicode cache internals. Guest command completion code is distinct from the probe process exit."
+    },
+    {
+      "provider": "8.6.18",
+      "cases": [
+        {
+          "index": 0,
+          "case_id": "binary-partial-deletion",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-00/execute.stdout",
+          "original_stream_sha256": "65efe7abaf67001e6c7bbcbcdfaf8c75264141dbde3898e72656446a2a72c0dc",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              ""
+            ],
+            "input-roles": [
+              "omit=1",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=0",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "none",
+              "1",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "none",
+              "1",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "415a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "2"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 1,
+          "case_id": "binary-whole-deletion",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-01/execute.stdout",
+          "original_stream_sha256": "3ec238bc2d986db4d84b9985284661daafd1b70dd25d4f16c340391305d4a3aa",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "30"
+            ],
+            "input-last": [
+              "656e64"
+            ],
+            "input-replacement": [
+              ""
+            ],
+            "input-roles": [
+              "omit=1",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=0",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "3"
+            ],
+            "before-arg5": [
+              "none",
+              "1",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "end-offset",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-arg5": [
+              "none",
+              "1",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              ""
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "0"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 2,
+          "case_id": "binary-whole-original-replacement",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-02/execute.stdout",
+          "original_stream_sha256": "0df5eaa3fbb98f0aa1abf6de538ede81f825b6cce532ba1b06fdf7de2d4793c8",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "30"
+            ],
+            "input-last": [
+              "656e64"
+            ],
+            "input-replacement": [
+              "5100fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "3"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "end-offset",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "5"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "51c080c3be"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 3,
+          "case_id": "binary-equal-unshared-splice",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-03/execute.stdout",
+          "original_stream_sha256": "2ad3f076e763f6e9a6ec887a222cfcfb8045a4c5de445365bdd463737c5279ea",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "51fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c3be5a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 4,
+          "case_id": "binary-equal-shared-splice",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-04/execute.stdout",
+          "original_stream_sha256": "356450791b7297490e9df237ac6fff4a6993ad11d92cfbce08e4aa75370fc274",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "51fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=1",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "2",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "2",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c3be5a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 5,
+          "case_id": "binary-unequal-splice",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-05/execute.stdout",
+          "original_stream_sha256": "4d69ff8f97e92f06b4f7dca13bf586bb8d11c65518059ae7d91f126b5b34b807",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "5100fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "5"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c080c3be5a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "7"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 6,
+          "case_id": "binary-ordinary-string-replacement",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-06/execute.stdout",
+          "original_stream_sha256": "ada08adf9be21e81085f0da6c550b6b72cb6c97d480f0868e369c512b8612554",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "cea9"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=0",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "none",
+              "1",
+              "1",
+              "2"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "none",
+              "1",
+              "1",
+              "2"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "41cea95a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "4"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 7,
+          "case_id": "binary-subject-with-resident-string",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-07/execute.stdout",
+          "original_stream_sha256": "d2591c2b8261fa2d7abae254f7c7c4524fce97a38b62a056bdf0f29a8dc5775c",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "51fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=1",
+              "resident-replacement=0"
+            ],
+            "setup-subject-string": [
+              "41c080c3bf5a"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "1",
+              "1",
+              "6"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c3be5a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 8,
+          "case_id": "binary-replacement-with-resident-string",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-08/execute.stdout",
+          "original_stream_sha256": "701968365f8d26ba11ae7af453d4d25fa3350afabf9b2263294d22e5c9c8fe12",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "51fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=1"
+            ],
+            "setup-replacement-string": [
+              "51c3be"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "3"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c3be5a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 9,
+          "case_id": "binary-inverted-replacement-unreached",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-09/execute.stdout",
+          "original_stream_sha256": "e9e1888d15930e41f8c1670e8985f93fe8c9e2933f70f2c37ca947080f99bb06",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "32"
+            ],
+            "input-last": [
+              "31"
+            ],
+            "input-replacement": [
+              "5100fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "2",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "string",
+              "1",
+              "2",
+              "6"
+            ],
+            "result-alias": [
+              "subject=1",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "41c080c3bf5a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "2",
+              "6"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 10,
+          "case_id": "binary-empty-original",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-10/execute.stdout",
+          "original_stream_sha256": "dec08c858a6a1209e91d37d8c3717b089db83cd2f72aefddc49ac7d437af1d02",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              ""
+            ],
+            "input-first": [
+              "30"
+            ],
+            "input-last": [
+              "656e64"
+            ],
+            "input-replacement": [
+              "5100fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "3"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "2",
+              "0"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "end-offset",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "string",
+              "1",
+              "2",
+              "0"
+            ],
+            "result-alias": [
+              "subject=1",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              ""
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "2",
+              "0"
+            ],
+            "subject-bytes": [
+              ""
+            ]
+          }
+        }
+      ],
+      "version_cli": "8.6.18",
+      "version_same_library": "library-version\t8\t6\t18\t2\ncode\t0\npatchlevel\t8.6.18",
+      "limits": "Read-only exact row projection. Each row preserves its physical snapshot timing. C public headers expose no Unicode cache internals. Guest command completion code is distinct from the probe process exit."
+    },
+    {
+      "provider": "9.0.4",
+      "cases": [
+        {
+          "index": 0,
+          "case_id": "binary-partial-deletion",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-00/execute.stdout",
+          "original_stream_sha256": "fd8d70fead59e218c6594cee6812bdc9520f5d2ca605eac8413c28fb5605cbc3",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              ""
+            ],
+            "input-roles": [
+              "omit=1",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=0",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "none",
+              "1",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "none",
+              "1",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "c080c080415a"
+            ],
+            "materialised-result": [
+              "bytearray",
+              "1",
+              "1",
+              "6"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 1,
+          "case_id": "binary-whole-deletion",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-01/execute.stdout",
+          "original_stream_sha256": "95b58e930da95d246520351a31b9e9130667de9f6cdb9f379fc453ef9b85cefb",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "30"
+            ],
+            "input-last": [
+              "656e64"
+            ],
+            "input-replacement": [
+              ""
+            ],
+            "input-roles": [
+              "omit=1",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=0",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "3"
+            ],
+            "before-arg5": [
+              "none",
+              "1",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "end-offset",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-arg5": [
+              "none",
+              "1",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              ""
+            ],
+            "materialised-result": [
+              "bytearray",
+              "1",
+              "1",
+              "0"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 2,
+          "case_id": "binary-whole-original-replacement",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-02/execute.stdout",
+          "original_stream_sha256": "fdcae92bac26f7f825da4a9b3bb8b1d035da009dd9e514fa1d9e4c1274c8a2bf",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "30"
+            ],
+            "input-last": [
+              "656e64"
+            ],
+            "input-replacement": [
+              "5100fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "3"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "end-offset",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "0",
+              "2",
+              "0"
+            ],
+            "reached-result": [
+              "bytearray",
+              "0",
+              "2",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=1"
+            ],
+            "result-bytes": [
+              "51c080c3be"
+            ],
+            "materialised-result": [
+              "bytearray",
+              "1",
+              "2",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 3,
+          "case_id": "binary-equal-unshared-splice",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-03/execute.stdout",
+          "original_stream_sha256": "25c0e91e8b544f60905d2ea50e2e50b6b3c95793e04fd8a269f8c3781ec41b83",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "51fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c3be5a"
+            ],
+            "materialised-result": [
+              "bytearray",
+              "1",
+              "1",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 4,
+          "case_id": "binary-equal-shared-splice",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-04/execute.stdout",
+          "original_stream_sha256": "2c0ff5f089c3bab6317b2fafe482882242484dc625c5be79ebac77eb53348e00",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "51fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=1",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "2",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "bytearray",
+              "0",
+              "2",
+              "0"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c3be5a"
+            ],
+            "materialised-result": [
+              "bytearray",
+              "1",
+              "1",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 5,
+          "case_id": "binary-unequal-splice",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-05/execute.stdout",
+          "original_stream_sha256": "d4c3fe9af93020a68683ca3dedb66e80d67b9b53d44b155da0267deaa44ec91f",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "5100fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c080c3be5a"
+            ],
+            "materialised-result": [
+              "bytearray",
+              "1",
+              "1",
+              "7"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 6,
+          "case_id": "binary-ordinary-string-replacement",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-06/execute.stdout",
+          "original_stream_sha256": "ada08adf9be21e81085f0da6c550b6b72cb6c97d480f0868e369c512b8612554",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "cea9"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=0",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "none",
+              "1",
+              "1",
+              "2"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "none",
+              "1",
+              "1",
+              "2"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "41cea95a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "4"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 7,
+          "case_id": "binary-subject-with-resident-string",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-07/execute.stdout",
+          "original_stream_sha256": "14079b8d0bc09eb31ca1c5aeced4681ffca2662badad99f41049898b53f4d6e3",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "51fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=1",
+              "resident-replacement=0"
+            ],
+            "setup-subject-string": [
+              "41c080c3bf5a"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "1",
+              "1",
+              "6"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "bytearray",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c3be5a"
+            ],
+            "materialised-result": [
+              "bytearray",
+              "1",
+              "1",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 8,
+          "case_id": "binary-replacement-with-resident-string",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-08/execute.stdout",
+          "original_stream_sha256": "5f02f188478f3b893fd13ee6a2f2542aeeb136b055fbb1c954ebd3113f11fb79",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "51fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=1"
+            ],
+            "setup-replacement-string": [
+              "51c3be"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "3"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-result": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c3be5a"
+            ],
+            "materialised-result": [
+              "bytearray",
+              "1",
+              "1",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 9,
+          "case_id": "binary-inverted-replacement-unreached",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-09/execute.stdout",
+          "original_stream_sha256": "15e3d559d2adb0fac90a92771477f224d6b65780c4f557c5d27fdf0d92bb7061",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "32"
+            ],
+            "input-last": [
+              "31"
+            ],
+            "input-replacement": [
+              "5100fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "bytearray",
+              "0",
+              "2",
+              "0"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "bytearray",
+              "0",
+              "2",
+              "0"
+            ],
+            "result-alias": [
+              "subject=1",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "41c080c3bf5a"
+            ],
+            "materialised-result": [
+              "bytearray",
+              "1",
+              "2",
+              "6"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 10,
+          "case_id": "binary-empty-original",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-10/execute.stdout",
+          "original_stream_sha256": "fa405d698f3279883def2f5c50d41570ec65c0b8f57ca25865264f9e0d20ed31",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              ""
+            ],
+            "input-first": [
+              "30"
+            ],
+            "input-last": [
+              "656e64"
+            ],
+            "input-replacement": [
+              "5100fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "3"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "bytearray",
+              "0",
+              "2",
+              "0"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "end-offset",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "bytearray",
+              "0",
+              "2",
+              "0"
+            ],
+            "result-alias": [
+              "subject=1",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              ""
+            ],
+            "materialised-result": [
+              "bytearray",
+              "1",
+              "2",
+              "0"
+            ],
+            "subject-bytes": [
+              ""
+            ]
+          }
+        }
+      ],
+      "version_cli": "9.0.4",
+      "version_same_library": "library-version\t9\t0\t4\t2\ncode\t0\npatchlevel\t9.0.4",
+      "limits": "Read-only exact row projection. Each row preserves its physical snapshot timing. C public headers expose no Unicode cache internals. Guest command completion code is distinct from the probe process exit."
+    },
+    {
+      "provider": "9.1.0",
+      "cases": [
+        {
+          "index": 0,
+          "case_id": "binary-partial-deletion",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-00/execute.stdout",
+          "original_stream_sha256": "fd8d70fead59e218c6594cee6812bdc9520f5d2ca605eac8413c28fb5605cbc3",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              ""
+            ],
+            "input-roles": [
+              "omit=1",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=0",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "none",
+              "1",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "none",
+              "1",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "c080c080415a"
+            ],
+            "materialised-result": [
+              "bytearray",
+              "1",
+              "1",
+              "6"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 1,
+          "case_id": "binary-whole-deletion",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-01/execute.stdout",
+          "original_stream_sha256": "95b58e930da95d246520351a31b9e9130667de9f6cdb9f379fc453ef9b85cefb",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "30"
+            ],
+            "input-last": [
+              "656e64"
+            ],
+            "input-replacement": [
+              ""
+            ],
+            "input-roles": [
+              "omit=1",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=0",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "3"
+            ],
+            "before-arg5": [
+              "none",
+              "1",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "end-offset",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-arg5": [
+              "none",
+              "1",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              ""
+            ],
+            "materialised-result": [
+              "bytearray",
+              "1",
+              "1",
+              "0"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 2,
+          "case_id": "binary-whole-original-replacement",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-02/execute.stdout",
+          "original_stream_sha256": "fdcae92bac26f7f825da4a9b3bb8b1d035da009dd9e514fa1d9e4c1274c8a2bf",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "30"
+            ],
+            "input-last": [
+              "656e64"
+            ],
+            "input-replacement": [
+              "5100fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "3"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "end-offset",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "0",
+              "2",
+              "0"
+            ],
+            "reached-result": [
+              "bytearray",
+              "0",
+              "2",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=1"
+            ],
+            "result-bytes": [
+              "51c080c3be"
+            ],
+            "materialised-result": [
+              "bytearray",
+              "1",
+              "2",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 3,
+          "case_id": "binary-equal-unshared-splice",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-03/execute.stdout",
+          "original_stream_sha256": "25c0e91e8b544f60905d2ea50e2e50b6b3c95793e04fd8a269f8c3781ec41b83",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "51fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c3be5a"
+            ],
+            "materialised-result": [
+              "bytearray",
+              "1",
+              "1",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 4,
+          "case_id": "binary-equal-shared-splice",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-04/execute.stdout",
+          "original_stream_sha256": "2c0ff5f089c3bab6317b2fafe482882242484dc625c5be79ebac77eb53348e00",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "51fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=1",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "2",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "bytearray",
+              "0",
+              "2",
+              "0"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c3be5a"
+            ],
+            "materialised-result": [
+              "bytearray",
+              "1",
+              "1",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 5,
+          "case_id": "binary-unequal-splice",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-05/execute.stdout",
+          "original_stream_sha256": "d4c3fe9af93020a68683ca3dedb66e80d67b9b53d44b155da0267deaa44ec91f",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "5100fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c080c3be5a"
+            ],
+            "materialised-result": [
+              "bytearray",
+              "1",
+              "1",
+              "7"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 6,
+          "case_id": "binary-ordinary-string-replacement",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-06/execute.stdout",
+          "original_stream_sha256": "ada08adf9be21e81085f0da6c550b6b72cb6c97d480f0868e369c512b8612554",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "cea9"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=0",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "none",
+              "1",
+              "1",
+              "2"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "string",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "none",
+              "1",
+              "1",
+              "2"
+            ],
+            "reached-result": [
+              "string",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "41cea95a"
+            ],
+            "materialised-result": [
+              "string",
+              "1",
+              "1",
+              "4"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 7,
+          "case_id": "binary-subject-with-resident-string",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-07/execute.stdout",
+          "original_stream_sha256": "14079b8d0bc09eb31ca1c5aeced4681ffca2662badad99f41049898b53f4d6e3",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "51fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=1",
+              "resident-replacement=0"
+            ],
+            "setup-subject-string": [
+              "41c080c3bf5a"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "1",
+              "1",
+              "6"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "bytearray",
+              "1",
+              "1",
+              "6"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c3be5a"
+            ],
+            "materialised-result": [
+              "bytearray",
+              "1",
+              "1",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 8,
+          "case_id": "binary-replacement-with-resident-string",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-08/execute.stdout",
+          "original_stream_sha256": "5f02f188478f3b893fd13ee6a2f2542aeeb136b055fbb1c954ebd3113f11fb79",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "31"
+            ],
+            "input-last": [
+              "32"
+            ],
+            "input-replacement": [
+              "51fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=1"
+            ],
+            "setup-replacement-string": [
+              "51c3be"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "3"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-result": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "result-alias": [
+              "subject=0",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "4151c3be5a"
+            ],
+            "materialised-result": [
+              "bytearray",
+              "1",
+              "1",
+              "5"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 9,
+          "case_id": "binary-inverted-replacement-unreached",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-09/execute.stdout",
+          "original_stream_sha256": "15e3d559d2adb0fac90a92771477f224d6b65780c4f557c5d27fdf0d92bb7061",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              "4100ff5a"
+            ],
+            "input-first": [
+              "32"
+            ],
+            "input-last": [
+              "31"
+            ],
+            "input-replacement": [
+              "5100fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "bytearray",
+              "0",
+              "2",
+              "0"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "bytearray",
+              "0",
+              "2",
+              "0"
+            ],
+            "result-alias": [
+              "subject=1",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              "41c080c3bf5a"
+            ],
+            "materialised-result": [
+              "bytearray",
+              "1",
+              "2",
+              "6"
+            ],
+            "subject-bytes": [
+              "41c080c3bf5a"
+            ]
+          }
+        },
+        {
+          "index": 10,
+          "case_id": "binary-empty-original",
+          "original_stream": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-10/execute.stdout",
+          "original_stream_sha256": "fa405d698f3279883def2f5c50d41570ec65c0b8f57ca25865264f9e0d20ed31",
+          "observations": {
+            "provider": [
+              "C-Tcl"
+            ],
+            "input-subject": [
+              ""
+            ],
+            "input-first": [
+              "30"
+            ],
+            "input-last": [
+              "656e64"
+            ],
+            "input-replacement": [
+              "5100fe"
+            ],
+            "input-roles": [
+              "omit=0",
+              "first=subject:0",
+              "last=first:0",
+              "replacement=subject:0"
+            ],
+            "binary-roles": [
+              "subject=1",
+              "replacement=1",
+              "extra-subject-reference=0",
+              "resident-subject=0",
+              "resident-replacement=0"
+            ],
+            "before-arg2": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "before-arg3": [
+              "none",
+              "1",
+              "1",
+              "1"
+            ],
+            "before-arg4": [
+              "none",
+              "1",
+              "1",
+              "3"
+            ],
+            "before-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "code": [
+              "0"
+            ],
+            "reached-arg2": [
+              "bytearray",
+              "0",
+              "2",
+              "0"
+            ],
+            "reached-arg3": [
+              "int",
+              "1",
+              "1",
+              "1"
+            ],
+            "reached-arg4": [
+              "end-offset",
+              "1",
+              "1",
+              "3"
+            ],
+            "reached-arg5": [
+              "bytearray",
+              "0",
+              "1",
+              "0"
+            ],
+            "reached-result": [
+              "bytearray",
+              "0",
+              "2",
+              "0"
+            ],
+            "result-alias": [
+              "subject=1",
+              "first=0",
+              "last=0",
+              "replacement=0"
+            ],
+            "result-bytes": [
+              ""
+            ],
+            "materialised-result": [
+              "bytearray",
+              "1",
+              "2",
+              "0"
+            ],
+            "subject-bytes": [
+              ""
+            ]
+          }
+        }
+      ],
+      "version_cli": "9.1.0",
+      "version_same_library": "library-version\t9\t1\t0\t2\ncode\t0\npatchlevel\t9.1.0",
+      "limits": "Read-only exact row projection. Each row preserves its physical snapshot timing. C public headers expose no Unicode cache internals. Guest command completion code is distinct from the probe process exit."
+    }
+  ],
+  "scope": "Read-only projection of all 55 actual original case streams. No guessed missing row, source text decoding, Rust assertion, callback chronology or unexposed C cache field is inserted."
+}

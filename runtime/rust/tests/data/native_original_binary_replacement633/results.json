@@ -1,0 +1,114 @@
+{
+  "proof_id": "naming.string.original-binary-replacement-sharing-and-result-roles",
+  "problem": "Does genuine C StringReplace select binary backing only when the subject/replacement are pure original ByteArray objects, and which original/fresh header is returned for whole/equal/unequal/deletion branches under actual sharing?",
+  "request_sha256": "de080f86e6626ade524cd69c57f216a3b35f7ffef046468b60ca84e9551ce26d",
+  "source_sha256": "27e1cca41100e9e7e074c5ef579dde973ecd943d611a3ad454317ef4e9beff2e",
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "compile_exit": 0,
+      "cli_version_exit": 0,
+      "executions": 11,
+      "process_exits": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "all_after_pins_match": true,
+      "receipt_sha256": "b84f5a85d525e2b718ee541f0368e221ae1395a375375cffb6b7249941ed957a"
+    },
+    {
+      "provider": "8.5.19",
+      "compile_exit": 0,
+      "cli_version_exit": 0,
+      "executions": 11,
+      "process_exits": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "all_after_pins_match": true,
+      "receipt_sha256": "b0f8c0ecf368248601f3d325d8aefe6a675ae07dde97718b4160bdfc9daa0405"
+    },
+    {
+      "provider": "8.6.18",
+      "compile_exit": 0,
+      "cli_version_exit": 0,
+      "executions": 11,
+      "process_exits": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "all_after_pins_match": true,
+      "receipt_sha256": "f2668326c95384e6dead2308af3caacebbc8568fb29213c55e69c78aa113306a"
+    },
+    {
+      "provider": "9.0.4",
+      "compile_exit": 0,
+      "cli_version_exit": 0,
+      "executions": 11,
+      "process_exits": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "all_after_pins_match": true,
+      "receipt_sha256": "671b6579e6e57cc92026636e3ee15912a503dc1e7d3607f40e2fc620e35843b1"
+    },
+    {
+      "provider": "9.1.0",
+      "compile_exit": 0,
+      "cli_version_exit": 0,
+      "executions": 11,
+      "process_exits": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "all_after_pins_match": true,
+      "receipt_sha256": "0a89aabed282018fdc6f2a8f2ca4a819782d1cd7c04b94a387c3a2fa43ee8806"
+    }
+  ],
+  "scope": "All five pinned C Tcl8.4.20,8.5.19,8.6.18,9.0.4,9.1.0 providers. Each case is a fresh process with actual Tcl_EvalObjv and original ByteArray constructors, no substitution from ordinary source spelling. Jim has no native proper ByteArray producer, so no Jim binary equivalence is requested."
+}

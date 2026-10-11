@@ -1,0 +1,9 @@
+{
+  "question_id": "naming.string.original-binary-replacement-sharing-and-result-roles",
+  "problem": "Does genuine C StringReplace select binary backing only when the subject/replacement are pure original ByteArray objects, and which original/fresh header is returned for whole/equal/unequal/deletion branches under actual sharing?",
+  "scope": "All five pinned C Tcl8.4.20,8.5.19,8.6.18,9.0.4,9.1.0 providers. Each case is a fresh process with actual Tcl_EvalObjv and original ByteArray constructors, no substitution from ordinary source spelling. Jim has no native proper ByteArray producer, so no Jim binary equivalence is requested.",
+  "source_sha256": "27e1cca41100e9e7e074c5ef579dde973ecd943d611a3ad454317ef4e9beff2e",
+  "case_count": 11,
+  "instructions": "Reuse actual selected static C driver compile/link recipe from629; run cases0 through10 each fresh, retain rawstdout/stderr/fullrecipes/providerpins/before-after input hashes. Same-version versiondiagnostic is independent; no Rust build claim. Before/reached/result beforegetter and aftergetter remain distinct. Case4 explicitly adds one genuine native subject reference; cases7/8 explicitly materialise selected original String before the command. None are callback chronology or private cache proofs.",
+  "probe_capacity": "Six unique argv objects plus one explicit native subject reference fit seven owner entries.632 output is retained separately, but its overflow case4 is not admitted as behaviour."
+}

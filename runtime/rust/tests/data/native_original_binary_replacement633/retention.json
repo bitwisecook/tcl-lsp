@@ -1,0 +1,2367 @@
+{
+  "proof_id": "naming.string.original-binary-replacement-sharing-and-result-roles",
+  "retained": [
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-00/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-00/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-00/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-00/execute.stdout",
+      "original_sha256": "65efe7abaf67001e6c7bbcbcdfaf8c75264141dbde3898e72656446a2a72c0dc",
+      "original_bytes": 650,
+      "stored_sha256": "65efe7abaf67001e6c7bbcbcdfaf8c75264141dbde3898e72656446a2a72c0dc",
+      "stored_bytes": 650,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-00/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-00/receipt.json",
+      "original_sha256": "519f11aa826c17b2f1fc73af25db497a320e10243115eff6717254424695544b",
+      "original_bytes": 1010,
+      "stored_sha256": "519f11aa826c17b2f1fc73af25db497a320e10243115eff6717254424695544b",
+      "stored_bytes": 1010,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-01/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-01/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-01/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-01/execute.stdout",
+      "original_sha256": "3ec238bc2d986db4d84b9985284661daafd1b70dd25d4f16c340391305d4a3aa",
+      "original_bytes": 655,
+      "stored_sha256": "3ec238bc2d986db4d84b9985284661daafd1b70dd25d4f16c340391305d4a3aa",
+      "stored_bytes": 655,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-01/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-01/receipt.json",
+      "original_sha256": "193d60bbf2515c29d464d1349df8c504101ccd9f85246ff499e3ccbf3601aa85",
+      "original_bytes": 1010,
+      "stored_sha256": "193d60bbf2515c29d464d1349df8c504101ccd9f85246ff499e3ccbf3601aa85",
+      "stored_bytes": 1010,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-02/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-02/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-02/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-02/execute.stdout",
+      "original_sha256": "a145397c1b77a6159a7fee2736df7611fe81f9e38fda95a6c32e2604b7354031",
+      "original_bytes": 693,
+      "stored_sha256": "a145397c1b77a6159a7fee2736df7611fe81f9e38fda95a6c32e2604b7354031",
+      "stored_bytes": 693,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-02/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-02/receipt.json",
+      "original_sha256": "e19475495386e3303cefcfaaf3a7cf5e85377d5a3c68b9ff95623b829352d6f2",
+      "original_bytes": 1008,
+      "stored_sha256": "e19475495386e3303cefcfaaf3a7cf5e85377d5a3c68b9ff95623b829352d6f2",
+      "stored_bytes": 1008,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-03/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-03/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-03/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-03/execute.stdout",
+      "original_sha256": "2ad3f076e763f6e9a6ec887a222cfcfb8045a4c5de445365bdd463737c5279ea",
+      "original_bytes": 675,
+      "stored_sha256": "2ad3f076e763f6e9a6ec887a222cfcfb8045a4c5de445365bdd463737c5279ea",
+      "stored_bytes": 675,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-03/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-03/receipt.json",
+      "original_sha256": "e949e86288c91f56cf73811435b2efcec46823a616bd9f5ee7a9b36b252cba8a",
+      "original_bytes": 1010,
+      "stored_sha256": "e949e86288c91f56cf73811435b2efcec46823a616bd9f5ee7a9b36b252cba8a",
+      "stored_bytes": 1010,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-04/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-04/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-04/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-04/execute.stdout",
+      "original_sha256": "356450791b7297490e9df237ac6fff4a6993ad11d92cfbce08e4aa75370fc274",
+      "original_bytes": 673,
+      "stored_sha256": "356450791b7297490e9df237ac6fff4a6993ad11d92cfbce08e4aa75370fc274",
+      "stored_bytes": 673,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-04/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-04/receipt.json",
+      "original_sha256": "c691e31dba3177218285718da7cf83a94d5c71d592a1b5d1636b9943814aa65b",
+      "original_bytes": 1009,
+      "stored_sha256": "c691e31dba3177218285718da7cf83a94d5c71d592a1b5d1636b9943814aa65b",
+      "stored_bytes": 1009,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-05/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-05/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-05/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-05/execute.stdout",
+      "original_sha256": "4d69ff8f97e92f06b4f7dca13bf586bb8d11c65518059ae7d91f126b5b34b807",
+      "original_bytes": 674,
+      "stored_sha256": "4d69ff8f97e92f06b4f7dca13bf586bb8d11c65518059ae7d91f126b5b34b807",
+      "stored_bytes": 674,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-05/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-05/receipt.json",
+      "original_sha256": "78c4332c9c7e4a7d332f990b1dbe70310d7361575fe54685dff8ca0801bc658c",
+      "original_bytes": 1008,
+      "stored_sha256": "78c4332c9c7e4a7d332f990b1dbe70310d7361575fe54685dff8ca0801bc658c",
+      "stored_bytes": 1008,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-06/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-06/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-06/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-06/execute.stdout",
+      "original_sha256": "ada08adf9be21e81085f0da6c550b6b72cb6c97d480f0868e369c512b8612554",
+      "original_bytes": 669,
+      "stored_sha256": "ada08adf9be21e81085f0da6c550b6b72cb6c97d480f0868e369c512b8612554",
+      "stored_bytes": 669,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-06/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-06/receipt.json",
+      "original_sha256": "3bd8fbaa499e0d62c31e8d62d4759a3ba6260ec75e2c011dad05bf906e9ad020",
+      "original_bytes": 1009,
+      "stored_sha256": "3bd8fbaa499e0d62c31e8d62d4759a3ba6260ec75e2c011dad05bf906e9ad020",
+      "stored_bytes": 1009,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-07/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-07/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-07/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-07/execute.stdout",
+      "original_sha256": "d2591c2b8261fa2d7abae254f7c7c4524fce97a38b62a056bdf0f29a8dc5775c",
+      "original_bytes": 716,
+      "stored_sha256": "d2591c2b8261fa2d7abae254f7c7c4524fce97a38b62a056bdf0f29a8dc5775c",
+      "stored_bytes": 716,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-07/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-07/receipt.json",
+      "original_sha256": "bf6812004e435ea77f0d0ecdc36456fa1fe3ced45b6d88549b1e4bfaab80080a",
+      "original_bytes": 1009,
+      "stored_sha256": "bf6812004e435ea77f0d0ecdc36456fa1fe3ced45b6d88549b1e4bfaab80080a",
+      "stored_bytes": 1009,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-08/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-08/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-08/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-08/execute.stdout",
+      "original_sha256": "701968365f8d26ba11ae7af453d4d25fa3350afabf9b2263294d22e5c9c8fe12",
+      "original_bytes": 718,
+      "stored_sha256": "701968365f8d26ba11ae7af453d4d25fa3350afabf9b2263294d22e5c9c8fe12",
+      "stored_bytes": 718,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-08/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-08/receipt.json",
+      "original_sha256": "2493751a72eb484ba0ff1232a4a3d899a628f433bd0ea5e926b577278fff4704",
+      "original_bytes": 1010,
+      "stored_sha256": "2493751a72eb484ba0ff1232a4a3d899a628f433bd0ea5e926b577278fff4704",
+      "stored_bytes": 1010,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-09/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-09/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-09/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-09/execute.stdout",
+      "original_sha256": "e9e1888d15930e41f8c1670e8985f93fe8c9e2933f70f2c37ca947080f99bb06",
+      "original_bytes": 688,
+      "stored_sha256": "e9e1888d15930e41f8c1670e8985f93fe8c9e2933f70f2c37ca947080f99bb06",
+      "stored_bytes": 688,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-09/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-09/receipt.json",
+      "original_sha256": "980d68b549b5d6a98c36541ee2894618ebc2450c53a3a45e2dfd58203cd72cf4",
+      "original_bytes": 1010,
+      "stored_sha256": "980d68b549b5d6a98c36541ee2894618ebc2450c53a3a45e2dfd58203cd72cf4",
+      "stored_bytes": 1010,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-10/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-10/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-10/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-10/execute.stdout",
+      "original_sha256": "dec08c858a6a1209e91d37d8c3717b089db83cd2f72aefddc49ac7d437af1d02",
+      "original_bytes": 652,
+      "stored_sha256": "dec08c858a6a1209e91d37d8c3717b089db83cd2f72aefddc49ac7d437af1d02",
+      "stored_bytes": 652,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/case-10/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/case-10/receipt.json",
+      "original_sha256": "3229dda9bf38b2c64559edb3452733b8f6f286cd81b66ba4e8b7e3c33d07c539",
+      "original_bytes": 1011,
+      "stored_sha256": "3229dda9bf38b2c64559edb3452733b8f6f286cd81b66ba4e8b7e3c33d07c539",
+      "stored_bytes": 1011,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/cli-version.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/cli-version.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/cli-version.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/cli-version.stdout",
+      "original_sha256": "c4a268983bec029286482df6caa3aaae81571c33d467c0a13f258e335da5954f",
+      "original_bytes": 7,
+      "stored_sha256": "c4a268983bec029286482df6caa3aaae81571c33d467c0a13f258e335da5954f",
+      "stored_bytes": 7,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/compile.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/compile.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/compile.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/compile.stdout",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/probe.elf",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/probe.elf.gz",
+      "original_sha256": "8b17246eca7b885231f92e9d541ee8396fdf8e198c87ed377bd06285039c7275",
+      "original_bytes": 860064,
+      "stored_sha256": "14ac3725784096009229e5f26f67939cad4a803c3cbe4e3f9d814e26ed16b9f2",
+      "stored_bytes": 387159,
+      "compression": "gzip",
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/receipt.json",
+      "original_sha256": "b84f5a85d525e2b718ee541f0368e221ae1395a375375cffb6b7249941ed957a",
+      "original_bytes": 45102,
+      "stored_sha256": "b84f5a85d525e2b718ee541f0368e221ae1395a375375cffb6b7249941ed957a",
+      "stored_bytes": 45102,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/same-library-version/compile.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/same-library-version/compile.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/same-library-version/compile.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/same-library-version/compile.stdout",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/same-library-version/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/same-library-version/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/same-library-version/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/same-library-version/execute.stdout",
+      "original_sha256": "ef18d09813e9c05fbd397154e6f786ea0221f2ce8981597665e917a08a5c5d7f",
+      "original_bytes": 50,
+      "stored_sha256": "ef18d09813e9c05fbd397154e6f786ea0221f2ce8981597665e917a08a5c5d7f",
+      "stored_bytes": 50,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/same-library-version/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/same-library-version/receipt.json",
+      "original_sha256": "7dba01d55a657b807c07a51e4fd9e220110554af8917d768869b44c6c2a5ea70",
+      "original_bytes": 32414,
+      "stored_sha256": "7dba01d55a657b807c07a51e4fd9e220110554af8917d768869b44c6c2a5ea70",
+      "stored_bytes": 32414,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.4.20/same-library-version/version.elf",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/same-library-version/version.elf.gz",
+      "original_sha256": "b9fec7f5d852e71c0d6bba2afd34b596ca373993d56882ca44ec2900bafb59f3",
+      "original_bytes": 858456,
+      "stored_sha256": "8a3b4c38f1918491ec0883a1d3ccde4ea44e14c74df748ae2fb61ad7784b43ed",
+      "stored_bytes": 385780,
+      "compression": "gzip",
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-00/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-00/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-00/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-00/execute.stdout",
+      "original_sha256": "65efe7abaf67001e6c7bbcbcdfaf8c75264141dbde3898e72656446a2a72c0dc",
+      "original_bytes": 650,
+      "stored_sha256": "65efe7abaf67001e6c7bbcbcdfaf8c75264141dbde3898e72656446a2a72c0dc",
+      "stored_bytes": 650,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-00/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-00/receipt.json",
+      "original_sha256": "50aa72b18772e41ae8f44ceef8144ba793d4079ecbc7efc50d867e8034d40b24",
+      "original_bytes": 1009,
+      "stored_sha256": "50aa72b18772e41ae8f44ceef8144ba793d4079ecbc7efc50d867e8034d40b24",
+      "stored_bytes": 1009,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-01/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-01/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-01/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-01/execute.stdout",
+      "original_sha256": "3ec238bc2d986db4d84b9985284661daafd1b70dd25d4f16c340391305d4a3aa",
+      "original_bytes": 655,
+      "stored_sha256": "3ec238bc2d986db4d84b9985284661daafd1b70dd25d4f16c340391305d4a3aa",
+      "stored_bytes": 655,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-01/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-01/receipt.json",
+      "original_sha256": "21b726f0e20c38e01a6a208b5d08e1e4b9c744dee48be7625767fbd34ac4a873",
+      "original_bytes": 1010,
+      "stored_sha256": "21b726f0e20c38e01a6a208b5d08e1e4b9c744dee48be7625767fbd34ac4a873",
+      "stored_bytes": 1010,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-02/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-02/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-02/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-02/execute.stdout",
+      "original_sha256": "a145397c1b77a6159a7fee2736df7611fe81f9e38fda95a6c32e2604b7354031",
+      "original_bytes": 693,
+      "stored_sha256": "a145397c1b77a6159a7fee2736df7611fe81f9e38fda95a6c32e2604b7354031",
+      "stored_bytes": 693,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-02/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-02/receipt.json",
+      "original_sha256": "711ab9bc1c30d9aa7bbb8b60b5824f3f6f655dca1c94c149036b8b296a5ca015",
+      "original_bytes": 1009,
+      "stored_sha256": "711ab9bc1c30d9aa7bbb8b60b5824f3f6f655dca1c94c149036b8b296a5ca015",
+      "stored_bytes": 1009,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-03/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-03/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-03/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-03/execute.stdout",
+      "original_sha256": "2ad3f076e763f6e9a6ec887a222cfcfb8045a4c5de445365bdd463737c5279ea",
+      "original_bytes": 675,
+      "stored_sha256": "2ad3f076e763f6e9a6ec887a222cfcfb8045a4c5de445365bdd463737c5279ea",
+      "stored_bytes": 675,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-03/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-03/receipt.json",
+      "original_sha256": "9340729c4db8dce98c7271498b45af95bef69efdccf36efc4a3fd94510b87f3e",
+      "original_bytes": 1009,
+      "stored_sha256": "9340729c4db8dce98c7271498b45af95bef69efdccf36efc4a3fd94510b87f3e",
+      "stored_bytes": 1009,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-04/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-04/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-04/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-04/execute.stdout",
+      "original_sha256": "356450791b7297490e9df237ac6fff4a6993ad11d92cfbce08e4aa75370fc274",
+      "original_bytes": 673,
+      "stored_sha256": "356450791b7297490e9df237ac6fff4a6993ad11d92cfbce08e4aa75370fc274",
+      "stored_bytes": 673,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-04/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-04/receipt.json",
+      "original_sha256": "0acba5fdd302b91696a43ac5e66e84908aabe473503d41033a649eb56b37b306",
+      "original_bytes": 1010,
+      "stored_sha256": "0acba5fdd302b91696a43ac5e66e84908aabe473503d41033a649eb56b37b306",
+      "stored_bytes": 1010,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-05/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-05/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-05/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-05/execute.stdout",
+      "original_sha256": "4d69ff8f97e92f06b4f7dca13bf586bb8d11c65518059ae7d91f126b5b34b807",
+      "original_bytes": 674,
+      "stored_sha256": "4d69ff8f97e92f06b4f7dca13bf586bb8d11c65518059ae7d91f126b5b34b807",
+      "stored_bytes": 674,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-05/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-05/receipt.json",
+      "original_sha256": "201226d096a80b034cd8c670192372459874506403142bb46cb0ec44c91f0d6e",
+      "original_bytes": 1009,
+      "stored_sha256": "201226d096a80b034cd8c670192372459874506403142bb46cb0ec44c91f0d6e",
+      "stored_bytes": 1009,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-06/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-06/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-06/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-06/execute.stdout",
+      "original_sha256": "ada08adf9be21e81085f0da6c550b6b72cb6c97d480f0868e369c512b8612554",
+      "original_bytes": 669,
+      "stored_sha256": "ada08adf9be21e81085f0da6c550b6b72cb6c97d480f0868e369c512b8612554",
+      "stored_bytes": 669,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-06/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-06/receipt.json",
+      "original_sha256": "f95edc7a85beec9c69691f5dfad365badf6a75d289f828f7481f38c2069cc7cf",
+      "original_bytes": 1010,
+      "stored_sha256": "f95edc7a85beec9c69691f5dfad365badf6a75d289f828f7481f38c2069cc7cf",
+      "stored_bytes": 1010,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-07/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-07/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-07/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-07/execute.stdout",
+      "original_sha256": "d2591c2b8261fa2d7abae254f7c7c4524fce97a38b62a056bdf0f29a8dc5775c",
+      "original_bytes": 716,
+      "stored_sha256": "d2591c2b8261fa2d7abae254f7c7c4524fce97a38b62a056bdf0f29a8dc5775c",
+      "stored_bytes": 716,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-07/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-07/receipt.json",
+      "original_sha256": "0ed25a37e226fe9c9a12bc1ea9a6a5fb64c95e06b4f3f54e6b7b7ad90f628d7b",
+      "original_bytes": 1010,
+      "stored_sha256": "0ed25a37e226fe9c9a12bc1ea9a6a5fb64c95e06b4f3f54e6b7b7ad90f628d7b",
+      "stored_bytes": 1010,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-08/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-08/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-08/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-08/execute.stdout",
+      "original_sha256": "701968365f8d26ba11ae7af453d4d25fa3350afabf9b2263294d22e5c9c8fe12",
+      "original_bytes": 718,
+      "stored_sha256": "701968365f8d26ba11ae7af453d4d25fa3350afabf9b2263294d22e5c9c8fe12",
+      "stored_bytes": 718,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-08/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-08/receipt.json",
+      "original_sha256": "36883bf924fef5875d7a0a0e3ba22df85320ffe31d3613aeb90bc4074f284a13",
+      "original_bytes": 1010,
+      "stored_sha256": "36883bf924fef5875d7a0a0e3ba22df85320ffe31d3613aeb90bc4074f284a13",
+      "stored_bytes": 1010,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-09/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-09/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-09/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-09/execute.stdout",
+      "original_sha256": "e9e1888d15930e41f8c1670e8985f93fe8c9e2933f70f2c37ca947080f99bb06",
+      "original_bytes": 688,
+      "stored_sha256": "e9e1888d15930e41f8c1670e8985f93fe8c9e2933f70f2c37ca947080f99bb06",
+      "stored_bytes": 688,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-09/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-09/receipt.json",
+      "original_sha256": "79ef2c0eac7111b7a510a4bb229c5fc588156c69280f5c35dc9bca777789fc8f",
+      "original_bytes": 1009,
+      "stored_sha256": "79ef2c0eac7111b7a510a4bb229c5fc588156c69280f5c35dc9bca777789fc8f",
+      "stored_bytes": 1009,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-10/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-10/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-10/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-10/execute.stdout",
+      "original_sha256": "dec08c858a6a1209e91d37d8c3717b089db83cd2f72aefddc49ac7d437af1d02",
+      "original_bytes": 652,
+      "stored_sha256": "dec08c858a6a1209e91d37d8c3717b089db83cd2f72aefddc49ac7d437af1d02",
+      "stored_bytes": 652,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/case-10/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/case-10/receipt.json",
+      "original_sha256": "c851c87000eaf2d0c083e4098aa13204000330caa45faf7620079a26f8bc6fa2",
+      "original_bytes": 1011,
+      "stored_sha256": "c851c87000eaf2d0c083e4098aa13204000330caa45faf7620079a26f8bc6fa2",
+      "stored_bytes": 1011,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/cli-version.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/cli-version.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/cli-version.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/cli-version.stdout",
+      "original_sha256": "6b58793c92a3db92926bdacbe0a52a520d417fe876aaa7cf8c29fed54a1fea71",
+      "original_bytes": 7,
+      "stored_sha256": "6b58793c92a3db92926bdacbe0a52a520d417fe876aaa7cf8c29fed54a1fea71",
+      "stored_bytes": 7,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/compile.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/compile.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/compile.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/compile.stdout",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/probe.elf",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/probe.elf.gz",
+      "original_sha256": "4ffaaffcd43fca05125bbdf1e1d33c752b37756c30600e6ce9f0875d9c793c60",
+      "original_bytes": 1255112,
+      "stored_sha256": "4f8b3bec305281cf862c73c06e1ae23c261e2d65629147a413742a9f808c9f93",
+      "stored_bytes": 567425,
+      "compression": "gzip",
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/receipt.json",
+      "original_sha256": "b0f8c0ecf368248601f3d325d8aefe6a675ae07dde97718b4160bdfc9daa0405",
+      "original_bytes": 145261,
+      "stored_sha256": "b0f8c0ecf368248601f3d325d8aefe6a675ae07dde97718b4160bdfc9daa0405",
+      "stored_bytes": 145261,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/same-library-version/compile.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/same-library-version/compile.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/same-library-version/compile.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/same-library-version/compile.stdout",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/same-library-version/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/same-library-version/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/same-library-version/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/same-library-version/execute.stdout",
+      "original_sha256": "1bd253489464d3ed255f286efdc8deb3768100a5b873e0a062f5026291fcf9bb",
+      "original_bytes": 50,
+      "stored_sha256": "1bd253489464d3ed255f286efdc8deb3768100a5b873e0a062f5026291fcf9bb",
+      "stored_bytes": 50,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/same-library-version/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/same-library-version/receipt.json",
+      "original_sha256": "53d91a5ae0c26885b732ce3886fbf69185df28fae9c79f00bfb58b3bfbc2c00d",
+      "original_bytes": 132570,
+      "stored_sha256": "53d91a5ae0c26885b732ce3886fbf69185df28fae9c79f00bfb58b3bfbc2c00d",
+      "stored_bytes": 132570,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.5.19/same-library-version/version.elf",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/same-library-version/version.elf.gz",
+      "original_sha256": "01f86378de5f3335ca15861789aeda728d935bfb025cbcb27e77afdb8623d659",
+      "original_bytes": 1253512,
+      "stored_sha256": "2d8775e9f83cf6aa04a1828414a4bda495cdbf17f08726d8d93f1acad82bc525",
+      "stored_bytes": 565106,
+      "compression": "gzip",
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-00/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-00/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-00/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-00/execute.stdout",
+      "original_sha256": "65efe7abaf67001e6c7bbcbcdfaf8c75264141dbde3898e72656446a2a72c0dc",
+      "original_bytes": 650,
+      "stored_sha256": "65efe7abaf67001e6c7bbcbcdfaf8c75264141dbde3898e72656446a2a72c0dc",
+      "stored_bytes": 650,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-00/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-00/receipt.json",
+      "original_sha256": "721f2bcc9fed4986f363fd077d3206895b0e7b4f94f931a5346ab88cb6aa3bec",
+      "original_bytes": 1009,
+      "stored_sha256": "721f2bcc9fed4986f363fd077d3206895b0e7b4f94f931a5346ab88cb6aa3bec",
+      "stored_bytes": 1009,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-01/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-01/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-01/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-01/execute.stdout",
+      "original_sha256": "3ec238bc2d986db4d84b9985284661daafd1b70dd25d4f16c340391305d4a3aa",
+      "original_bytes": 655,
+      "stored_sha256": "3ec238bc2d986db4d84b9985284661daafd1b70dd25d4f16c340391305d4a3aa",
+      "stored_bytes": 655,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-01/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-01/receipt.json",
+      "original_sha256": "a9820f981b3ffe53182929aee4e5a2d077e49d14e9f87abcf330e5978de26772",
+      "original_bytes": 1010,
+      "stored_sha256": "a9820f981b3ffe53182929aee4e5a2d077e49d14e9f87abcf330e5978de26772",
+      "stored_bytes": 1010,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-02/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-02/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-02/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-02/execute.stdout",
+      "original_sha256": "0df5eaa3fbb98f0aa1abf6de538ede81f825b6cce532ba1b06fdf7de2d4793c8",
+      "original_bytes": 693,
+      "stored_sha256": "0df5eaa3fbb98f0aa1abf6de538ede81f825b6cce532ba1b06fdf7de2d4793c8",
+      "stored_bytes": 693,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-02/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-02/receipt.json",
+      "original_sha256": "f494e669cad20a420f59ffc45a2f21dd3725b36c9ff8b908eddbfd0265f19c7b",
+      "original_bytes": 1010,
+      "stored_sha256": "f494e669cad20a420f59ffc45a2f21dd3725b36c9ff8b908eddbfd0265f19c7b",
+      "stored_bytes": 1010,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-03/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-03/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-03/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-03/execute.stdout",
+      "original_sha256": "2ad3f076e763f6e9a6ec887a222cfcfb8045a4c5de445365bdd463737c5279ea",
+      "original_bytes": 675,
+      "stored_sha256": "2ad3f076e763f6e9a6ec887a222cfcfb8045a4c5de445365bdd463737c5279ea",
+      "stored_bytes": 675,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-03/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-03/receipt.json",
+      "original_sha256": "726a4d1b91e7ada7a3f3441fc64dea808888b1ff550c6d64f8b3f130e1d5a55d",
+      "original_bytes": 1010,
+      "stored_sha256": "726a4d1b91e7ada7a3f3441fc64dea808888b1ff550c6d64f8b3f130e1d5a55d",
+      "stored_bytes": 1010,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-04/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-04/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-04/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-04/execute.stdout",
+      "original_sha256": "356450791b7297490e9df237ac6fff4a6993ad11d92cfbce08e4aa75370fc274",
+      "original_bytes": 673,
+      "stored_sha256": "356450791b7297490e9df237ac6fff4a6993ad11d92cfbce08e4aa75370fc274",
+      "stored_bytes": 673,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-04/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-04/receipt.json",
+      "original_sha256": "e0f866006ef5a0721c82e0db5568df42c9a4a52a933c587515a66ad52e5d0008",
+      "original_bytes": 1009,
+      "stored_sha256": "e0f866006ef5a0721c82e0db5568df42c9a4a52a933c587515a66ad52e5d0008",
+      "stored_bytes": 1009,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-05/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-05/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-05/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-05/execute.stdout",
+      "original_sha256": "4d69ff8f97e92f06b4f7dca13bf586bb8d11c65518059ae7d91f126b5b34b807",
+      "original_bytes": 674,
+      "stored_sha256": "4d69ff8f97e92f06b4f7dca13bf586bb8d11c65518059ae7d91f126b5b34b807",
+      "stored_bytes": 674,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-05/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-05/receipt.json",
+      "original_sha256": "714ec89e21d97f8eae4ff0d149651b5a20ea950fd8503094fdae594ece676f2d",
+      "original_bytes": 1010,
+      "stored_sha256": "714ec89e21d97f8eae4ff0d149651b5a20ea950fd8503094fdae594ece676f2d",
+      "stored_bytes": 1010,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-06/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-06/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-06/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-06/execute.stdout",
+      "original_sha256": "ada08adf9be21e81085f0da6c550b6b72cb6c97d480f0868e369c512b8612554",
+      "original_bytes": 669,
+      "stored_sha256": "ada08adf9be21e81085f0da6c550b6b72cb6c97d480f0868e369c512b8612554",
+      "stored_bytes": 669,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-06/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-06/receipt.json",
+      "original_sha256": "ac5c8960d163e12b14799b89f53fd477a17052722b62eaaea4885721a0c57a48",
+      "original_bytes": 1010,
+      "stored_sha256": "ac5c8960d163e12b14799b89f53fd477a17052722b62eaaea4885721a0c57a48",
+      "stored_bytes": 1010,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-07/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-07/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-07/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-07/execute.stdout",
+      "original_sha256": "d2591c2b8261fa2d7abae254f7c7c4524fce97a38b62a056bdf0f29a8dc5775c",
+      "original_bytes": 716,
+      "stored_sha256": "d2591c2b8261fa2d7abae254f7c7c4524fce97a38b62a056bdf0f29a8dc5775c",
+      "stored_bytes": 716,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-07/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-07/receipt.json",
+      "original_sha256": "d5075618b4832f5e714fcb2fcd93d2b732ae574368695b922d2e9e2710e1f709",
+      "original_bytes": 1009,
+      "stored_sha256": "d5075618b4832f5e714fcb2fcd93d2b732ae574368695b922d2e9e2710e1f709",
+      "stored_bytes": 1009,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-08/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-08/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-08/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-08/execute.stdout",
+      "original_sha256": "701968365f8d26ba11ae7af453d4d25fa3350afabf9b2263294d22e5c9c8fe12",
+      "original_bytes": 718,
+      "stored_sha256": "701968365f8d26ba11ae7af453d4d25fa3350afabf9b2263294d22e5c9c8fe12",
+      "stored_bytes": 718,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-08/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-08/receipt.json",
+      "original_sha256": "497f976eb4bb4bd0a94e8de73eac0bac894d2adc5bfc5c45d1e5833bf83d6fd0",
+      "original_bytes": 1010,
+      "stored_sha256": "497f976eb4bb4bd0a94e8de73eac0bac894d2adc5bfc5c45d1e5833bf83d6fd0",
+      "stored_bytes": 1010,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-09/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-09/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-09/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-09/execute.stdout",
+      "original_sha256": "e9e1888d15930e41f8c1670e8985f93fe8c9e2933f70f2c37ca947080f99bb06",
+      "original_bytes": 688,
+      "stored_sha256": "e9e1888d15930e41f8c1670e8985f93fe8c9e2933f70f2c37ca947080f99bb06",
+      "stored_bytes": 688,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-09/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-09/receipt.json",
+      "original_sha256": "1577c8e3378c81105a3cbf65203ed074845cd2e8f31e318ca68f52426d918e65",
+      "original_bytes": 1009,
+      "stored_sha256": "1577c8e3378c81105a3cbf65203ed074845cd2e8f31e318ca68f52426d918e65",
+      "stored_bytes": 1009,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-10/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-10/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-10/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-10/execute.stdout",
+      "original_sha256": "dec08c858a6a1209e91d37d8c3717b089db83cd2f72aefddc49ac7d437af1d02",
+      "original_bytes": 652,
+      "stored_sha256": "dec08c858a6a1209e91d37d8c3717b089db83cd2f72aefddc49ac7d437af1d02",
+      "stored_bytes": 652,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/case-10/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/case-10/receipt.json",
+      "original_sha256": "a4751913db25bd4f4dd03b8c3e4ac5d2eb332ef1165773d1c3c0a747c0022904",
+      "original_bytes": 1012,
+      "stored_sha256": "a4751913db25bd4f4dd03b8c3e4ac5d2eb332ef1165773d1c3c0a747c0022904",
+      "stored_bytes": 1012,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/cli-version.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/cli-version.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/cli-version.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/cli-version.stdout",
+      "original_sha256": "7523e113df6c321e18099a10ec22086db746e2fcc31a879e16d961e5d3878d01",
+      "original_bytes": 7,
+      "stored_sha256": "7523e113df6c321e18099a10ec22086db746e2fcc31a879e16d961e5d3878d01",
+      "stored_bytes": 7,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/compile.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/compile.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/compile.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/compile.stdout",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/probe.elf",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/probe.elf.gz",
+      "original_sha256": "443550b8d7ca3cb35901596e0d8efd3a1315a74e2c29dc15e6357aa5c4332377",
+      "original_bytes": 1876064,
+      "stored_sha256": "f381d5417ca9003f22f847950a343962d8ae7e7e46366a28d2c7ae67e7965668",
+      "stored_bytes": 809306,
+      "compression": "gzip",
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/receipt.json",
+      "original_sha256": "f2668326c95384e6dead2308af3caacebbc8568fb29213c55e69c78aa113306a",
+      "original_bytes": 149468,
+      "stored_sha256": "f2668326c95384e6dead2308af3caacebbc8568fb29213c55e69c78aa113306a",
+      "stored_bytes": 149468,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/same-library-version/compile.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/same-library-version/compile.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/same-library-version/compile.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/same-library-version/compile.stdout",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/same-library-version/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/same-library-version/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/same-library-version/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/same-library-version/execute.stdout",
+      "original_sha256": "dd12d5dc76bfc80ae3033ac87b1932541f275a888adf9e03dabbcb5878b0df8c",
+      "original_bytes": 50,
+      "stored_sha256": "dd12d5dc76bfc80ae3033ac87b1932541f275a888adf9e03dabbcb5878b0df8c",
+      "stored_bytes": 50,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/same-library-version/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/same-library-version/receipt.json",
+      "original_sha256": "55d73feb60fb5c0f9b0e6810b76912aaaeec253853c8901e1ff99a2e6828de2a",
+      "original_bytes": 136778,
+      "stored_sha256": "55d73feb60fb5c0f9b0e6810b76912aaaeec253853c8901e1ff99a2e6828de2a",
+      "stored_bytes": 136778,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/8.6.18/same-library-version/version.elf",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/same-library-version/version.elf.gz",
+      "original_sha256": "ff2348b9f4c62f6e020be0a862d6fb27c5b6cc51607af95de4baf6c8804165b7",
+      "original_bytes": 1866224,
+      "stored_sha256": "6f71e6ebe17fc3e0577d6e801a4373f671f603101605c60f6c0d2ac484375ce4",
+      "stored_bytes": 807629,
+      "compression": "gzip",
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-00/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-00/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-00/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-00/execute.stdout",
+      "original_sha256": "fd8d70fead59e218c6594cee6812bdc9520f5d2ca605eac8413c28fb5605cbc3",
+      "original_bytes": 667,
+      "stored_sha256": "fd8d70fead59e218c6594cee6812bdc9520f5d2ca605eac8413c28fb5605cbc3",
+      "stored_bytes": 667,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-00/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-00/receipt.json",
+      "original_sha256": "9933474932c2bf28d977f161fb9f85da86617b0f451a60f69aa3714b1217a77f",
+      "original_bytes": 1004,
+      "stored_sha256": "9933474932c2bf28d977f161fb9f85da86617b0f451a60f69aa3714b1217a77f",
+      "stored_bytes": 1004,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-01/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-01/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-01/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-01/execute.stdout",
+      "original_sha256": "95b58e930da95d246520351a31b9e9130667de9f6cdb9f379fc453ef9b85cefb",
+      "original_bytes": 664,
+      "stored_sha256": "95b58e930da95d246520351a31b9e9130667de9f6cdb9f379fc453ef9b85cefb",
+      "stored_bytes": 664,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-01/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-01/receipt.json",
+      "original_sha256": "c2dcca8076b3d642fffaf9bf36688403b76c639873745375b515a99e6814bce6",
+      "original_bytes": 1004,
+      "stored_sha256": "c2dcca8076b3d642fffaf9bf36688403b76c639873745375b515a99e6814bce6",
+      "stored_bytes": 1004,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-02/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-02/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-02/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-02/execute.stdout",
+      "original_sha256": "fdcae92bac26f7f825da4a9b3bb8b1d035da009dd9e514fa1d9e4c1274c8a2bf",
+      "original_bytes": 702,
+      "stored_sha256": "fdcae92bac26f7f825da4a9b3bb8b1d035da009dd9e514fa1d9e4c1274c8a2bf",
+      "stored_bytes": 702,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-02/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-02/receipt.json",
+      "original_sha256": "c30547d1042d702bd484a0e92b43cfef0edd53952a3a81977185c2d5cf4dd1a0",
+      "original_bytes": 1005,
+      "stored_sha256": "c30547d1042d702bd484a0e92b43cfef0edd53952a3a81977185c2d5cf4dd1a0",
+      "stored_bytes": 1005,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-03/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-03/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-03/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-03/execute.stdout",
+      "original_sha256": "25c0e91e8b544f60905d2ea50e2e50b6b3c95793e04fd8a269f8c3781ec41b83",
+      "original_bytes": 684,
+      "stored_sha256": "25c0e91e8b544f60905d2ea50e2e50b6b3c95793e04fd8a269f8c3781ec41b83",
+      "stored_bytes": 684,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-03/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-03/receipt.json",
+      "original_sha256": "a5f6c5b52c41a292e5d1029d6838c3c7203d39602be21367c98ab5431e4a7b8e",
+      "original_bytes": 1005,
+      "stored_sha256": "a5f6c5b52c41a292e5d1029d6838c3c7203d39602be21367c98ab5431e4a7b8e",
+      "stored_bytes": 1005,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-04/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-04/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-04/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-04/execute.stdout",
+      "original_sha256": "2c0ff5f089c3bab6317b2fafe482882242484dc625c5be79ebac77eb53348e00",
+      "original_bytes": 682,
+      "stored_sha256": "2c0ff5f089c3bab6317b2fafe482882242484dc625c5be79ebac77eb53348e00",
+      "stored_bytes": 682,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-04/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-04/receipt.json",
+      "original_sha256": "557ef9ffe1007814001bbe5284172983a30c31ddd8847ec22072695c5ecb3d86",
+      "original_bytes": 1004,
+      "stored_sha256": "557ef9ffe1007814001bbe5284172983a30c31ddd8847ec22072695c5ecb3d86",
+      "stored_bytes": 1004,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-05/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-05/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-05/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-05/execute.stdout",
+      "original_sha256": "d4c3fe9af93020a68683ca3dedb66e80d67b9b53d44b155da0267deaa44ec91f",
+      "original_bytes": 683,
+      "stored_sha256": "d4c3fe9af93020a68683ca3dedb66e80d67b9b53d44b155da0267deaa44ec91f",
+      "stored_bytes": 683,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-05/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-05/receipt.json",
+      "original_sha256": "cc0667d31ca7b4791a14ddaceeea46943ebc04a9ed858aafc8fc1d9cc868193b",
+      "original_bytes": 1005,
+      "stored_sha256": "cc0667d31ca7b4791a14ddaceeea46943ebc04a9ed858aafc8fc1d9cc868193b",
+      "stored_bytes": 1005,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-06/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-06/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-06/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-06/execute.stdout",
+      "original_sha256": "ada08adf9be21e81085f0da6c550b6b72cb6c97d480f0868e369c512b8612554",
+      "original_bytes": 669,
+      "stored_sha256": "ada08adf9be21e81085f0da6c550b6b72cb6c97d480f0868e369c512b8612554",
+      "stored_bytes": 669,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-06/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-06/receipt.json",
+      "original_sha256": "1c3882454e996c15f7e4f31c3705978a9b02d31c6ece74a8db1c2c185bdcf663",
+      "original_bytes": 1004,
+      "stored_sha256": "1c3882454e996c15f7e4f31c3705978a9b02d31c6ece74a8db1c2c185bdcf663",
+      "stored_bytes": 1004,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-07/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-07/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-07/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-07/execute.stdout",
+      "original_sha256": "14079b8d0bc09eb31ca1c5aeced4681ffca2662badad99f41049898b53f4d6e3",
+      "original_bytes": 725,
+      "stored_sha256": "14079b8d0bc09eb31ca1c5aeced4681ffca2662badad99f41049898b53f4d6e3",
+      "stored_bytes": 725,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-07/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-07/receipt.json",
+      "original_sha256": "660ed5dc0333742d39f1319011b697de9ad9c7dd29ebe4e9b430fb8a7da791b5",
+      "original_bytes": 1005,
+      "stored_sha256": "660ed5dc0333742d39f1319011b697de9ad9c7dd29ebe4e9b430fb8a7da791b5",
+      "stored_bytes": 1005,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-08/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-08/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-08/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-08/execute.stdout",
+      "original_sha256": "5f02f188478f3b893fd13ee6a2f2542aeeb136b055fbb1c954ebd3113f11fb79",
+      "original_bytes": 727,
+      "stored_sha256": "5f02f188478f3b893fd13ee6a2f2542aeeb136b055fbb1c954ebd3113f11fb79",
+      "stored_bytes": 727,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-08/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-08/receipt.json",
+      "original_sha256": "9d232e05447763b8079bb95a0f2f5b05c85a9ae13be1e6fc518bd4370348f5cb",
+      "original_bytes": 1004,
+      "stored_sha256": "9d232e05447763b8079bb95a0f2f5b05c85a9ae13be1e6fc518bd4370348f5cb",
+      "stored_bytes": 1004,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-09/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-09/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-09/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-09/execute.stdout",
+      "original_sha256": "15e3d559d2adb0fac90a92771477f224d6b65780c4f557c5d27fdf0d92bb7061",
+      "original_bytes": 697,
+      "stored_sha256": "15e3d559d2adb0fac90a92771477f224d6b65780c4f557c5d27fdf0d92bb7061",
+      "stored_bytes": 697,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-09/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-09/receipt.json",
+      "original_sha256": "412933b8a31d72a0a2d0f48a8000af1f1e401bd13771c07af9842abc3b0a4ed8",
+      "original_bytes": 1005,
+      "stored_sha256": "412933b8a31d72a0a2d0f48a8000af1f1e401bd13771c07af9842abc3b0a4ed8",
+      "stored_bytes": 1005,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-10/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-10/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-10/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-10/execute.stdout",
+      "original_sha256": "fa405d698f3279883def2f5c50d41570ec65c0b8f57ca25865264f9e0d20ed31",
+      "original_bytes": 661,
+      "stored_sha256": "fa405d698f3279883def2f5c50d41570ec65c0b8f57ca25865264f9e0d20ed31",
+      "stored_bytes": 661,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/case-10/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/case-10/receipt.json",
+      "original_sha256": "4c6d239b8ce4ad4fb01aab51ef2069e2af2ca0091af99840b4515c37cde24d3f",
+      "original_bytes": 1006,
+      "stored_sha256": "4c6d239b8ce4ad4fb01aab51ef2069e2af2ca0091af99840b4515c37cde24d3f",
+      "stored_bytes": 1006,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/cli-version.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/cli-version.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/cli-version.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/cli-version.stdout",
+      "original_sha256": "b83920bac1b2d47c3840f588f95bee9dc69b85e26117f471541cdf85d7da52a2",
+      "original_bytes": 6,
+      "stored_sha256": "b83920bac1b2d47c3840f588f95bee9dc69b85e26117f471541cdf85d7da52a2",
+      "stored_bytes": 6,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/compile.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/compile.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/compile.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/compile.stdout",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/probe.elf",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/probe.elf.gz",
+      "original_sha256": "2b6c56ef1ec96491ca8ad24fab0733e533c5d89b5c3a85a1ab8b76da99fb7998",
+      "original_bytes": 2271328,
+      "stored_sha256": "7428611011f2d06c525c36b08e161bbf3f13c9abee8c0c46b0d2da1cd73b98b3",
+      "stored_bytes": 959575,
+      "compression": "gzip",
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/receipt.json",
+      "original_sha256": "671b6579e6e57cc92026636e3ee15912a503dc1e7d3607f40e2fc620e35843b1",
+      "original_bytes": 151153,
+      "stored_sha256": "671b6579e6e57cc92026636e3ee15912a503dc1e7d3607f40e2fc620e35843b1",
+      "stored_bytes": 151153,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/same-library-version/compile.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/same-library-version/compile.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/same-library-version/compile.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/same-library-version/compile.stdout",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/same-library-version/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/same-library-version/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/same-library-version/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/same-library-version/execute.stdout",
+      "original_sha256": "d016aed0da5636f83bfe6d76f7c26b06e30ce7951203b5d3543001780eb51a2c",
+      "original_bytes": 48,
+      "stored_sha256": "d016aed0da5636f83bfe6d76f7c26b06e30ce7951203b5d3543001780eb51a2c",
+      "stored_bytes": 48,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/same-library-version/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/same-library-version/receipt.json",
+      "original_sha256": "366b3da86fb981d3d464e03d105fd39ebb2af46b79052a364efc62f08881f3a8",
+      "original_bytes": 138526,
+      "stored_sha256": "366b3da86fb981d3d464e03d105fd39ebb2af46b79052a364efc62f08881f3a8",
+      "stored_bytes": 138526,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.0.4/same-library-version/version.elf",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/same-library-version/version.elf.gz",
+      "original_sha256": "1b704db631e65308389303fc9a9b31749b4fccf9c5fe96d7c8df134d743e5b25",
+      "original_bytes": 2269720,
+      "stored_sha256": "8fdd7305d16a18c0a91bef13b78c64e80bf59a50dd5f7968e31ce41b7b8de5c2",
+      "stored_bytes": 958303,
+      "compression": "gzip",
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-00/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-00/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-00/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-00/execute.stdout",
+      "original_sha256": "fd8d70fead59e218c6594cee6812bdc9520f5d2ca605eac8413c28fb5605cbc3",
+      "original_bytes": 667,
+      "stored_sha256": "fd8d70fead59e218c6594cee6812bdc9520f5d2ca605eac8413c28fb5605cbc3",
+      "stored_bytes": 667,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-00/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-00/receipt.json",
+      "original_sha256": "abd5e7c1d149f28c2356852603a4137b5d43390e14a5c4af5376d9b16bbb0f98",
+      "original_bytes": 1004,
+      "stored_sha256": "abd5e7c1d149f28c2356852603a4137b5d43390e14a5c4af5376d9b16bbb0f98",
+      "stored_bytes": 1004,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-01/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-01/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-01/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-01/execute.stdout",
+      "original_sha256": "95b58e930da95d246520351a31b9e9130667de9f6cdb9f379fc453ef9b85cefb",
+      "original_bytes": 664,
+      "stored_sha256": "95b58e930da95d246520351a31b9e9130667de9f6cdb9f379fc453ef9b85cefb",
+      "stored_bytes": 664,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-01/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-01/receipt.json",
+      "original_sha256": "83168edb3c3d23bf015870f812d87e5710c43222a7bb1675a1f7cd964100dd15",
+      "original_bytes": 1004,
+      "stored_sha256": "83168edb3c3d23bf015870f812d87e5710c43222a7bb1675a1f7cd964100dd15",
+      "stored_bytes": 1004,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-02/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-02/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-02/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-02/execute.stdout",
+      "original_sha256": "fdcae92bac26f7f825da4a9b3bb8b1d035da009dd9e514fa1d9e4c1274c8a2bf",
+      "original_bytes": 702,
+      "stored_sha256": "fdcae92bac26f7f825da4a9b3bb8b1d035da009dd9e514fa1d9e4c1274c8a2bf",
+      "stored_bytes": 702,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-02/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-02/receipt.json",
+      "original_sha256": "3f39054b4ee68533af8a06af70bae81336e40b80e5c08b54824615fd615d2a6f",
+      "original_bytes": 1005,
+      "stored_sha256": "3f39054b4ee68533af8a06af70bae81336e40b80e5c08b54824615fd615d2a6f",
+      "stored_bytes": 1005,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-03/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-03/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-03/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-03/execute.stdout",
+      "original_sha256": "25c0e91e8b544f60905d2ea50e2e50b6b3c95793e04fd8a269f8c3781ec41b83",
+      "original_bytes": 684,
+      "stored_sha256": "25c0e91e8b544f60905d2ea50e2e50b6b3c95793e04fd8a269f8c3781ec41b83",
+      "stored_bytes": 684,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-03/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-03/receipt.json",
+      "original_sha256": "a443c89315ec71b7f5073584bcbae90591ca7171776dc9058082c7560f1282b8",
+      "original_bytes": 1005,
+      "stored_sha256": "a443c89315ec71b7f5073584bcbae90591ca7171776dc9058082c7560f1282b8",
+      "stored_bytes": 1005,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-04/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-04/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-04/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-04/execute.stdout",
+      "original_sha256": "2c0ff5f089c3bab6317b2fafe482882242484dc625c5be79ebac77eb53348e00",
+      "original_bytes": 682,
+      "stored_sha256": "2c0ff5f089c3bab6317b2fafe482882242484dc625c5be79ebac77eb53348e00",
+      "stored_bytes": 682,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-04/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-04/receipt.json",
+      "original_sha256": "fdf40a2eda4efabcc9bdf4693b3911438ac374eaaf9153103eacc480ea9831f5",
+      "original_bytes": 1005,
+      "stored_sha256": "fdf40a2eda4efabcc9bdf4693b3911438ac374eaaf9153103eacc480ea9831f5",
+      "stored_bytes": 1005,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-05/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-05/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-05/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-05/execute.stdout",
+      "original_sha256": "d4c3fe9af93020a68683ca3dedb66e80d67b9b53d44b155da0267deaa44ec91f",
+      "original_bytes": 683,
+      "stored_sha256": "d4c3fe9af93020a68683ca3dedb66e80d67b9b53d44b155da0267deaa44ec91f",
+      "stored_bytes": 683,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-05/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-05/receipt.json",
+      "original_sha256": "832137a1ce661b3a903e18a74937eb00638dc16a4321f1cfe97664a238c1626b",
+      "original_bytes": 1005,
+      "stored_sha256": "832137a1ce661b3a903e18a74937eb00638dc16a4321f1cfe97664a238c1626b",
+      "stored_bytes": 1005,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-06/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-06/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-06/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-06/execute.stdout",
+      "original_sha256": "ada08adf9be21e81085f0da6c550b6b72cb6c97d480f0868e369c512b8612554",
+      "original_bytes": 669,
+      "stored_sha256": "ada08adf9be21e81085f0da6c550b6b72cb6c97d480f0868e369c512b8612554",
+      "stored_bytes": 669,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-06/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-06/receipt.json",
+      "original_sha256": "413b99d23b8bcd1d797a39cfa621c32d813a2cca9f5aefebe324c90d01d17136",
+      "original_bytes": 1004,
+      "stored_sha256": "413b99d23b8bcd1d797a39cfa621c32d813a2cca9f5aefebe324c90d01d17136",
+      "stored_bytes": 1004,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-07/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-07/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-07/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-07/execute.stdout",
+      "original_sha256": "14079b8d0bc09eb31ca1c5aeced4681ffca2662badad99f41049898b53f4d6e3",
+      "original_bytes": 725,
+      "stored_sha256": "14079b8d0bc09eb31ca1c5aeced4681ffca2662badad99f41049898b53f4d6e3",
+      "stored_bytes": 725,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-07/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-07/receipt.json",
+      "original_sha256": "0c0f74897ba2930d185760608f9a7f8fa1c9d9597df9639f3003a83c30bbc9b6",
+      "original_bytes": 1004,
+      "stored_sha256": "0c0f74897ba2930d185760608f9a7f8fa1c9d9597df9639f3003a83c30bbc9b6",
+      "stored_bytes": 1004,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-08/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-08/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-08/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-08/execute.stdout",
+      "original_sha256": "5f02f188478f3b893fd13ee6a2f2542aeeb136b055fbb1c954ebd3113f11fb79",
+      "original_bytes": 727,
+      "stored_sha256": "5f02f188478f3b893fd13ee6a2f2542aeeb136b055fbb1c954ebd3113f11fb79",
+      "stored_bytes": 727,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-08/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-08/receipt.json",
+      "original_sha256": "e0e6d53d8420e1e9569f94272cd357e47b8f5044a3d6ddd0207638fbf7b389fd",
+      "original_bytes": 1005,
+      "stored_sha256": "e0e6d53d8420e1e9569f94272cd357e47b8f5044a3d6ddd0207638fbf7b389fd",
+      "stored_bytes": 1005,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-09/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-09/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-09/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-09/execute.stdout",
+      "original_sha256": "15e3d559d2adb0fac90a92771477f224d6b65780c4f557c5d27fdf0d92bb7061",
+      "original_bytes": 697,
+      "stored_sha256": "15e3d559d2adb0fac90a92771477f224d6b65780c4f557c5d27fdf0d92bb7061",
+      "stored_bytes": 697,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-09/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-09/receipt.json",
+      "original_sha256": "1f4117a050bca649812a87cb7eeff403fe95a407cfb10a25285c4461f2fc72a7",
+      "original_bytes": 1004,
+      "stored_sha256": "1f4117a050bca649812a87cb7eeff403fe95a407cfb10a25285c4461f2fc72a7",
+      "stored_bytes": 1004,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-10/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-10/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-10/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-10/execute.stdout",
+      "original_sha256": "fa405d698f3279883def2f5c50d41570ec65c0b8f57ca25865264f9e0d20ed31",
+      "original_bytes": 661,
+      "stored_sha256": "fa405d698f3279883def2f5c50d41570ec65c0b8f57ca25865264f9e0d20ed31",
+      "stored_bytes": 661,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/case-10/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/case-10/receipt.json",
+      "original_sha256": "2abe9ceb754d4e564007a9a85bfefb184ca16ce617bee73307b333c176393679",
+      "original_bytes": 1006,
+      "stored_sha256": "2abe9ceb754d4e564007a9a85bfefb184ca16ce617bee73307b333c176393679",
+      "stored_bytes": 1006,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/cli-version.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/cli-version.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/cli-version.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/cli-version.stdout",
+      "original_sha256": "077ee5b3a3a7fc2622ceff6466fea0c28f3fb08b24653dcc7f4baab29b9aef36",
+      "original_bytes": 6,
+      "stored_sha256": "077ee5b3a3a7fc2622ceff6466fea0c28f3fb08b24653dcc7f4baab29b9aef36",
+      "stored_bytes": 6,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/compile.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/compile.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/compile.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/compile.stdout",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/probe.elf",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/probe.elf.gz",
+      "original_sha256": "f4edb83955c48f285aec230f96234fbf609fdb34a04e33fa34b102c665ac0469",
+      "original_bytes": 2512904,
+      "stored_sha256": "c0475bdb625afe05553234a5a74d260c53d839a18e0164760f6a7f707f3e4c24",
+      "stored_bytes": 1028026,
+      "compression": "gzip",
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/receipt.json",
+      "original_sha256": "0a89aabed282018fdc6f2a8f2ca4a819782d1cd7c04b94a387c3a2fa43ee8806",
+      "original_bytes": 151298,
+      "stored_sha256": "0a89aabed282018fdc6f2a8f2ca4a819782d1cd7c04b94a387c3a2fa43ee8806",
+      "stored_bytes": 151298,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/same-library-version/compile.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/same-library-version/compile.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/same-library-version/compile.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/same-library-version/compile.stdout",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/same-library-version/execute.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/same-library-version/execute.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/same-library-version/execute.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/same-library-version/execute.stdout",
+      "original_sha256": "b225f15b75641002abfa4f29d4d1be66051123c85bc897b9a7234b22317ea071",
+      "original_bytes": 48,
+      "stored_sha256": "b225f15b75641002abfa4f29d4d1be66051123c85bc897b9a7234b22317ea071",
+      "stored_bytes": 48,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/same-library-version/receipt.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/same-library-version/receipt.json",
+      "original_sha256": "82ca20463dc7905ecfe4b9118132afda6369dd033632b0273cd576270e957641",
+      "original_bytes": 138672,
+      "stored_sha256": "82ca20463dc7905ecfe4b9118132afda6369dd033632b0273cd576270e957641",
+      "stored_bytes": 138672,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/9.1.0/same-library-version/version.elf",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/same-library-version/version.elf.gz",
+      "original_sha256": "ac5bb7ddcc9f10000642c05653e14c4a162532a22f124326ceac5c0627e178cf",
+      "original_bytes": 2507200,
+      "stored_sha256": "3c9c625700c96e4b5c0c524c855396985985846a78c574dc37ba81ce19e49717",
+      "stored_bytes": 1025681,
+      "compression": "gzip",
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/compiler-version.stderr",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/compiler-version.stderr",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/compiler-version.stdout",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/compiler-version.stdout",
+      "original_sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+      "original_bytes": 252,
+      "stored_sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+      "stored_bytes": 252,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/compiler.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/compiler.json",
+      "original_sha256": "9df393ebd11cbe12466194efbe228f53f83cfb192354515d74e517ffe4b4e380",
+      "original_bytes": 822,
+      "stored_sha256": "9df393ebd11cbe12466194efbe228f53f83cfb192354515d74e517ffe4b4e380",
+      "stored_bytes": 822,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/library-version-results.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/library-version-results.json",
+      "original_sha256": "960efc9295da8cdd1e62c80e25e996a1335343d386a9d5dcd40efb5fc53457d0",
+      "original_bytes": 980,
+      "stored_sha256": "960efc9295da8cdd1e62c80e25e996a1335343d386a9d5dcd40efb5fc53457d0",
+      "stored_bytes": 980,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/library-version.c",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/library-version.c",
+      "original_sha256": "1fd6edce16eb4275c0e08e86d6a489fd966d10794d89dc7068ee1a4a733280df",
+      "original_bytes": 929,
+      "stored_sha256": "1fd6edce16eb4275c0e08e86d6a489fd966d10794d89dc7068ee1a4a733280df",
+      "stored_bytes": 929,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/probe.c",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/probe.c",
+      "original_sha256": "27e1cca41100e9e7e074c5ef579dde973ecd943d611a3ad454317ef4e9beff2e",
+      "original_bytes": 7292,
+      "stored_sha256": "27e1cca41100e9e7e074c5ef579dde973ecd943d611a3ad454317ef4e9beff2e",
+      "stored_bytes": 7292,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/request.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/request.json",
+      "original_sha256": "de080f86e6626ade524cd69c57f216a3b35f7ffef046468b60ca84e9551ce26d",
+      "original_bytes": 1474,
+      "stored_sha256": "de080f86e6626ade524cd69c57f216a3b35f7ffef046468b60ca84e9551ce26d",
+      "stored_bytes": 1474,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/results.json",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/results.json",
+      "original_sha256": "e70c70d69ef6d302f3345dfba1b56ebba039f34601005b8c1d93f0df961075a2",
+      "original_bytes": 2832,
+      "stored_sha256": "e70c70d69ef6d302f3345dfba1b56ebba039f34601005b8c1d93f0df961075a2",
+      "stored_bytes": 2832,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/root-native-binary-replacement633/version.tcl",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/version.tcl",
+      "original_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+      "original_bytes": 23,
+      "stored_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+      "stored_bytes": 23,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/run-native-binary-replacement633.py",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/protocol/run-native-binary-replacement633.py",
+      "original_sha256": "79af6be1c15f49cd00fd7f6466a59484ac36fc61340c75b94158b8b55b3c4008",
+      "original_bytes": 7167,
+      "stored_sha256": "79af6be1c15f49cd00fd7f6466a59484ac36fc61340c75b94158b8b55b3c4008",
+      "stored_bytes": 7167,
+      "compression": null,
+      "roundtrip_verified": true
+    },
+    {
+      "original": "/workspace/.proofs/run-binary-replacement-library-version633.py",
+      "canonical": "runtime/rust/tests/data/native_original_binary_replacement633/protocol/run-binary-replacement-library-version633.py",
+      "original_sha256": "f2d7205a359aec02db2d9bffd2dc63bf51689de40931cfec5e0ffc55f3536728",
+      "original_bytes": 3114,
+      "stored_sha256": "f2d7205a359aec02db2d9bffd2dc63bf51689de40931cfec5e0ffc55f3536728",
+      "stored_bytes": 3114,
+      "compression": null,
+      "roundtrip_verified": true
+    }
+  ],
+  "pinned_input_archive": "runtime/rust/tests/data/native_original_binary_replacement633/pinned-input-bytes.tar.gz",
+  "pinned_input_archive_sha256": "db7adab418ea82b0b088e77014a6c08635e288fbbe34e643c6c646c6d7b2a987"
+}
