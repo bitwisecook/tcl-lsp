@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Original C substitution templates retain their own program and cache.
 
+use super::native_list_conversion::BodyObjectOperation;
 use super::*;
 use tcl_runtime_api::native_substitution::NativeSubstitutionFlags;
 
@@ -205,104 +206,170 @@ impl Interp {
         original: *mut TclObj,
         flags: NativeSubstitutionFlags,
     ) -> Code {
-        let artifact = match self.prepare_original_c_substitution(original, flags) {
+        let entered = match BodyObjectOperation::capture(self) {
+            Ok(entered) => entered,
+            Err(error) => return self.report_cmd_error(error),
+        };
+        let prepared = self.prepare_original_c_substitution(original, flags);
+        let current = entered.check(self);
+        if let Err(error) = current {
+            drop(prepared);
+            let _ = entered.check(self);
+            return self.report_cmd_error(error);
+        }
+        let artifact = match prepared {
             Ok(artifact) => artifact,
             Err(code) => return code,
         };
         if !self.codegen_activation_enter() {
-            return Code::Error;
+            drop(artifact);
+            return entered
+                .check(self)
+                .err()
+                .map_or(Code::Error, |error| self.report_cmd_error(error));
         }
-        if let Err(code) = self.reset_native_ensemble_rewrite(
+        let reached = match self.reset_native_ensemble_rewrite(
             tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::BytecodeEntry,
         ) {
-            self.codegen_activation_leave(code);
-            return code;
-        }
-        let result = self.execute_original_c_substitution(&artifact);
-        let code = match result {
+            Ok(()) => self.execute_original_c_substitution(&artifact, &entered),
+            Err(code) => Err(code),
+        };
+        let code = match reached {
             Ok(value) => {
                 self.set_result(value.as_ptr());
-                Code::Ok
+                let current = entered.check(self);
+                drop(value);
+                current
+                    .err()
+                    .map_or(Code::Ok, |error| self.report_cmd_error(error))
             }
             Err(code) => code,
         };
+        // Reached activation teardown is mandatory, even after refusal.
         self.codegen_activation_leave(code);
-        code
+        drop(artifact);
+        entered
+            .check(self)
+            .err()
+            .map_or(code, |error| self.report_cmd_error(error))
     }
     fn execute_original_c_substitution(
         &mut self,
         artifact: &NativeSubstitutionArtifact,
+        original: &Rc<BodyObjectOperation>,
     ) -> Result<obj::Owned, Code> {
         let arena = &artifact.arena;
         let mut values = Vec::new();
-        if let Some(empty) = artifact.empty {
-            values.push(obj::Owned::retain(
-                artifact
-                    .program
-                    .literals
-                    .original(empty)
-                    .expect("original empty substitution literal"),
-            ));
-        }
-        for (position, component) in arena
-            .original
-            .list(arena.original.root())
-            .iter()
-            .enumerate()
-        {
-            let exceptional = match &component.part {
-                ExecutablePart::Command { .. } => true,
-                ExecutablePart::Variable {
-                    index: Some(index), ..
-                } => arena
-                    .original
-                    .list(*index)
-                    .iter()
-                    .any(|part| matches!(part.part, ExecutablePart::Command { .. })),
-                _ => false,
-            };
-            if exceptional {
-                self.flush_substitution_values(&mut values)?;
+        let reached = (|| {
+            original
+                .check(self)
+                .map_err(|error| self.report_cmd_error(error))?;
+            if let Some(empty) = artifact.empty {
+                values.push(obj::Owned::retain(
+                    artifact
+                        .program
+                        .literals
+                        .original(empty)
+                        .expect("original empty substitution literal"),
+                ));
             }
-            let mut execution = BodyExecution::default();
-            let value = self.body_arena_range(
-                &artifact.program,
-                arena,
-                &mut execution,
-                position..position + 1,
-            );
-            let value = match value {
-                Ok(value) => value,
-                Err(code) if exceptional && !self.host_refusal_pending() => match code {
-                    Code::Error => return Err(code),
-                    Code::Break => break,
-                    Code::Continue => continue,
-                    _ => obj::Owned::retain(self.result_obj()),
-                },
-                Err(code) => return Err(code),
-            };
-            values.push(value);
-            if exceptional {
-                self.flush_substitution_values(&mut values)?;
+            for (position, component) in arena
+                .original
+                .list(arena.original.root())
+                .iter()
+                .enumerate()
+            {
+                original
+                    .check(self)
+                    .map_err(|error| self.report_cmd_error(error))?;
+                let exceptional = match &component.part {
+                    ExecutablePart::Command { .. } => true,
+                    ExecutablePart::Variable {
+                        index: Some(index), ..
+                    } => arena
+                        .original
+                        .list(*index)
+                        .iter()
+                        .any(|part| matches!(part.part, ExecutablePart::Command { .. })),
+                    _ => false,
+                };
+                if exceptional {
+                    self.flush_substitution_values(&mut values, original)?;
+                }
+                let mut execution = BodyExecution::default();
+                let value = self.body_arena_range(
+                    &artifact.program,
+                    arena,
+                    &mut execution,
+                    position..position + 1,
+                );
+                let current = original.check(self);
+                if let Err(error) = current {
+                    drop(value);
+                    return Err(self.report_cmd_error(error));
+                }
+                let value = match value {
+                    Ok(value) => value,
+                    Err(code) if exceptional && !self.host_refusal_pending() => match code {
+                        Code::Error => return Err(code),
+                        Code::Break => break,
+                        Code::Continue => continue,
+                        _ => obj::Owned::retain(self.result_obj()),
+                    },
+                    Err(code) => return Err(code),
+                };
+                values.push(value);
+                if exceptional {
+                    self.flush_substitution_values(&mut values, original)?;
+                }
             }
-        }
-        self.flush_substitution_values(&mut values)?;
-        values.pop().ok_or_else(|| {
-            self.report_cmd_error(unavailable("native substitution result stack").into())
-        })
+            self.flush_substitution_values(&mut values, original)?;
+            values.pop().ok_or_else(|| {
+                self.report_cmd_error(unavailable("native substitution result stack").into())
+            })
+        })();
+        drop(values);
+        original
+            .check(self)
+            .map_err(|error| self.report_cmd_error(error))?;
+        reached
     }
-    fn flush_substitution_values(&mut self, values: &mut Vec<obj::Owned>) -> Result<(), Code> {
+    fn flush_substitution_values(
+        &mut self,
+        values: &mut Vec<obj::Owned>,
+        original: &Rc<BodyObjectOperation>,
+    ) -> Result<(), Code> {
+        original
+            .check(self)
+            .map_err(|error| self.report_cmd_error(error))?;
         while values.len() > 255 {
-            let rest = values.split_off(255);
-            let value = self.concatenate_body_values(std::mem::take(values))?;
-            values.push(value);
-            values.extend(rest);
+            let mut rest = values.split_off(255);
+            let reached = self
+                .concatenate_body_values_using(std::mem::take(values), Some(original))
+                .map_err(|error| self.report_cmd_error(error));
+            match reached {
+                Ok(value) => {
+                    values.push(value);
+                    values.append(&mut rest);
+                }
+                Err(code) => {
+                    drop(rest);
+                    original
+                        .check(self)
+                        .map_err(|error| self.report_cmd_error(error))?;
+                    return Err(code);
+                }
+            }
         }
         if values.len() > 1 {
-            let value = self.concatenate_body_values(std::mem::take(values))?;
+            let value = self
+                .concatenate_body_values_using(std::mem::take(values), Some(original))
+                .map_err(|error| self.report_cmd_error(error))?;
             values.push(value);
         }
-        Ok(())
+        original
+            .check(self)
+            .map_err(|error| self.report_cmd_error(error))
     }
 }
 
@@ -460,3 +527,6 @@ mod compiler_currency_tests {
         assert!(interp.native_compiler_cache_epochs(GLOBAL).is_none());
     }
 }
+
+#[cfg(test)]
+mod original_cat_boundary_tests;

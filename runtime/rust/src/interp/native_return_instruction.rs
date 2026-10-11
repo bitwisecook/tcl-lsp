@@ -159,19 +159,19 @@ impl Interp {
                 )?;
                 if crate::obj::is_shared(original) {
                     let actual = self.clone();
-                    let copied = crate::obj::duplicate_with_stage_check::<
-                        tcl_runtime_api::NativeExecutionError,
-                    >(
+                    let copied = crate::obj::duplicate_with_stage_check::<tcl_cmd_core::CmdError>(
                         original,
                         &mut || {
-                            actual.check_native_error_object(
-                                scope.currency(),
-                                Variable::ErrorInfo,
-                                &original_lifetime,
-                            )
+                            actual
+                                .check_native_error_object(
+                                    scope.currency(),
+                                    Variable::ErrorInfo,
+                                    &original_lifetime,
+                                )
+                                .map_err(tcl_cmd_core::CmdError::from)
                         },
                         &mut |first| {
-                            actual.clone().refuse_native_execution(first.clone());
+                            actual.clone().report_cmd_error(first.clone());
                         },
                     )?;
                     let copied = crate::obj::Owned::fresh(copied);

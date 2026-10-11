@@ -1073,41 +1073,65 @@ impl Interp {
         expression: &ExpressionOperation,
         execution: &mut BodyExecution,
     ) -> Result<Code, Code> {
-        if let Some(prepared) = &expression.static_program {
-            let value = self.execute_body_expression(artifact, prepared, execution)?;
-            self.set_result(value.as_ptr());
-            return Ok(Code::Ok);
-        }
+        let original =
+            BodyObjectOperation::capture(self).map_err(|error| self.report_cmd_error(error))?;
         let mut parts = Vec::new();
-        for (index, operand) in expression.recipe.operands.iter().enumerate() {
-            parts.push(self.body_control_operand(
-                artifact,
-                command,
-                &expression.prepared,
-                operand,
-                execution,
-            )?);
-            if index + 1 < expression.recipe.operands.len() {
-                parts.push(obj::Owned::retain(
-                    artifact
-                        .literals
-                        .original(expression.separator.expect("emitted expression separator"))
-                        .expect("original expression separator"),
-                ));
+        let reached = (|| {
+            if let Some(prepared) = &expression.static_program {
+                let value = self.execute_body_expression(artifact, prepared, execution)?;
+                original
+                    .check(self)
+                    .map_err(|error| self.report_cmd_error(error))?;
+                self.set_result(value.as_ptr());
+                let current = original.check(self);
+                drop(value);
+                current.map_err(|error| self.report_cmd_error(error))?;
+                return Ok(Code::Ok);
             }
-        }
-        let source = self.concatenate_body_values(parts)?;
-        #[cfg(have_tommath)]
-        {
-            Ok(crate::builtins::eval_expr_original(self, source.as_ptr()))
-        }
-        #[cfg(not(have_tommath))]
-        {
-            let first = self.refuse_missing_compiled_expression_backend();
+            for (index, operand) in expression.recipe.operands.iter().enumerate() {
+                original
+                    .check(self)
+                    .map_err(|error| self.report_cmd_error(error))?;
+                let value = self.body_control_operand(
+                    artifact,
+                    command,
+                    &expression.prepared,
+                    operand,
+                    execution,
+                )?;
+                let current = original.check(self);
+                parts.push(value);
+                current.map_err(|error| self.report_cmd_error(error))?;
+                if index + 1 < expression.recipe.operands.len() {
+                    parts.push(obj::Owned::retain(
+                        artifact
+                            .literals
+                            .original(expression.separator.expect("emitted expression separator"))
+                            .expect("original expression separator"),
+                    ));
+                }
+            }
+            let source = self
+                .concatenate_body_values_using(std::mem::take(&mut parts), Some(&original))
+                .map_err(|error| self.report_cmd_error(error))?;
+            #[cfg(have_tommath)]
+            let code = Ok(crate::builtins::eval_expr_original(self, source.as_ptr()));
+            #[cfg(not(have_tommath))]
+            let code = Err(self.refuse_missing_compiled_expression_backend());
+            let current = original.check(self);
             drop(source);
-            Err(first)
-        }
+            current.map_err(|error| self.report_cmd_error(error))?;
+            code
+        })();
+        // Every partially reached operand retires under the original entry,
+        // including the backend-unavailable and Guest error paths.
+        drop(parts);
+        original
+            .check(self)
+            .map_err(|error| self.report_cmd_error(error))?;
+        reached
     }
+
     fn control_boolean(
         &mut self,
         artifact: &NativeBodyArtifact,
@@ -1510,3 +1534,6 @@ mod constant_owner_tests {
 
 #[cfg(all(test, not(have_tommath)))]
 mod no_tower_owner_tests;
+
+#[cfg(test)]
+mod original_cat_boundary_tests;
