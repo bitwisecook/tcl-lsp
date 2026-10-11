@@ -499,6 +499,40 @@ impl VarArena {
         }
     }
 
+    /// Borrow the exact original key still owned by this array member's table.
+    /// An allocation lease neither creates a key nor adds a native reference.
+    pub(crate) fn original_array_key(
+        &self,
+        array: VarId,
+        key: &NameBytes,
+    ) -> Result<crate::value::NativeObjectLifetimeLease, tcl_syntax::value::ValueError> {
+        let unavailable = || {
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "actual original array member key",
+            )
+        };
+        let cell = self.cells.get(&array).ok_or_else(unavailable)?;
+        let VarState::Array(elements) = &cell.state else {
+            return Err(unavailable());
+        };
+        let member = self
+            .cells
+            .get(elements.get(key).ok_or_else(unavailable)?)
+            .ok_or_else(unavailable)?;
+        let owner = elements.native_keys.get(key).ok_or_else(unavailable)?;
+        if !member
+            .native_element_key
+            .as_ref()
+            .is_some_and(|member| Rc::ptr_eq(member, owner))
+        {
+            return Err(unavailable());
+        }
+        let original = owner.original.borrow();
+        let original = original.as_ref().ok_or_else(unavailable)?;
+        original.check_native_header()?;
+        Ok(original.native_lifetime_lease())
+    }
+
     /// Hash entry destruction releases its key even if aliases retain the Var.
     pub(crate) fn retire_array_element_key(&mut self, id: VarId) {
         if let Some(cell) = self.cells.get_mut(&id)

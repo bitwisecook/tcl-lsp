@@ -608,23 +608,6 @@ fn text_operand_substitutes(expr: &ExprNode, depth: u32) -> bool {
     }
 }
 
-/// Whether `text` substitutes a command and holds a braced `$name`, other than as
-/// the one `expr` command it is: `[expr {$x}]` evaluates its braces and
-/// `[string length {$x}]` does not, and the rename must not tell them apart.
-#[cfg(test)]
-fn braced_reference_in_substitution(text: &str) -> bool {
-    if !text.contains('$') || !text.contains('{') || !super::arg_has_command_subst(text) {
-        return false;
-    }
-    let text = text.trim();
-    let one_expr = text
-        .strip_prefix("[expr")
-        .is_some_and(|rest| rest.starts_with([' ', '\t', '{']))
-        && text.ends_with(']')
-        && text.matches('[').count() == 1;
-    !one_expr
-}
-
 /// Whether `text` — a word, or the text of an expression — substitutes a command
 /// that does more than compute from the values it is handed: one that takes a
 /// variable's name, evaluates a script, or is not a command the registry knows,

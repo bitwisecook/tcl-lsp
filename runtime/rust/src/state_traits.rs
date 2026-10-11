@@ -1172,6 +1172,15 @@ impl tcl_runtime_api::Aliases for Interp {
     {
         self.original_alias_prefix_value(*original_name)
     }
+
+    fn alias_prefix_original_value_at(
+        &mut self,
+        context: tcl_runtime_api::NsId,
+        original_name: &Self::Value,
+    ) -> Result<tcl_runtime_api::AliasPrefixLookup<Self::Value>, tcl_syntax::value::ValueError>
+    {
+        self.original_alias_prefix_value_at(context.0 as usize, *original_name)
+    }
 }
 
 impl Namespaces for Interp {

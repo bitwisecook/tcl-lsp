@@ -119,7 +119,7 @@ impl NativeListItems {
         }
     }
 
-    fn check_generation(&self) -> Result<(), ValueError> {
+    pub(crate) fn check_generation(&self) -> Result<(), ValueError> {
         if self.generation != self.storage.generation.get() {
             return Err(ValueError::CommandProtocolUnavailable(
                 "changed native List member vector",

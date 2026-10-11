@@ -419,31 +419,6 @@ pub fn classify_proc(
 
 // splice-eligibility
 
-/// True iff `arg` contains a `[cmd …]` command substitution at brace
-/// depth zero (brace-aware, backslash-aware). False positives just
-/// decline a hoist, never inline an unsafe one.
-#[cfg(test)]
-fn arg_has_command_subst(arg: &str) -> bool {
-    let mut depth = 0i32;
-    let mut chars = arg.chars().peekable();
-    while let Some(c) = chars.next() {
-        match c {
-            '\\' => {
-                chars.next();
-            }
-            '{' => depth += 1,
-            '}' => {
-                if depth > 0 {
-                    depth -= 1;
-                }
-            }
-            '[' if depth == 0 => return true,
-            _ => {}
-        }
-    }
-    false
-}
-
 /// True when `command` resolves the same way from any caller's namespace
 /// as it does from the callee's: it is fully qualified, or it is
 /// unqualified and doesn't resolve to any known proc (so it's a global

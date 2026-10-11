@@ -214637,6 +214637,220 @@
       "question_ids": [],
       "sealed_images": {},
       "limits": "The original Runtime engine cargo check --lib --tests request closes exit101. Its exact log retains twelve error diagnostic events across library/test compilation, including the repeated production bool-versus-Option branch E0308, fixture getter/type/borrow mismatches and assertion macro comparisons. Repeated diagnostic events are not twelve independently failing tests. It has no executable creation events, admitted Runtime image, executable inventory or assertion summaries. Its engine/check-only command and complete37793-leaf source identities are retained exactly. Absolute compiler-sysroot primary macro spans remain reported diagnostic locations, not copied source claims. The common source inventory reused from the independent consumer check supplies no outcome for Runtime."
+    },
+    {
+      "id": "rust.frozen331.integration-proof-gate-finite-tests331",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen331/integration-proof-gate-finite-tests331/receipt.json.gz",
+        "sha256": "7757f0ae3b82e61d1e683fdc0d1124a9724cb9c6e0453077c17e96f8e081df47",
+        "compression": "gzip",
+        "uncompressed_sha256": "a730304eb53d59cd91891f687a39a05324cc6741c90b26520aec7abc85ff0d70"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen331/integration-proof-gate-finite-tests331/tests.log",
+        "sha256": "329708d0585ee6f0f2813bbc4f34d920dad39af09bbed2925e9793d3b1167b46"
+      },
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "scripts/dev",
+        "-p",
+        "test_name_resolution_proofs.py"
+      ],
+      "exit": 0,
+      "seconds": 0.25440146200708114,
+      "uniform_source": true,
+      "status": "passed",
+      "result": {
+        "passed": 20,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "source_inventory": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen331/integration-proof-gate-finite-tests331/receipt.json.gz",
+        "sha256": "7757f0ae3b82e61d1e683fdc0d1124a9724cb9c6e0453077c17e96f8e081df47",
+        "compression": "gzip",
+        "uncompressed_sha256": "a730304eb53d59cd91891f687a39a05324cc6741c90b26520aec7abc85ff0d70",
+        "json_pointer": "/source/source",
+        "authority": "Complete unchanged37800-leaf original Source331 inventory, exact HEAD/actual compile root/immutable archive associations, retained in this directly closed Python receipt. Exact checker/test/merger/schema/template input bytes independently join the immutable snapshot."
+      },
+      "tests": [
+        {
+          "selector": "test_changed_bytes_and_missing_rows_are_rejected",
+          "status": "passed",
+          "purpose": "Maintained finite synthetic Python proof-consumer boundary control at exact Source331 checker/test/schema/template bytes. Plain comment/function/document correspondence and existing source/evidence/provider refusal checks are validator behavior only; no Rust or original provider outcome.",
+          "proof_ids": [
+            "naming.proof-records.exact-evidence-and-coverage"
+          ]
+        },
+        {
+          "selector": "test_source_evidence_uses_lf_coordinates_and_retains_carriage_returns",
+          "status": "passed",
+          "purpose": "Maintained finite synthetic Python proof-consumer boundary control at exact Source331 checker/test/schema/template bytes. Plain comment/function/document correspondence and existing source/evidence/provider refusal checks are validator behavior only; no Rust or original provider outcome.",
+          "proof_ids": [
+            "naming.proof-records.exact-evidence-and-coverage"
+          ]
+        },
+        {
+          "selector": "test_pending_capture_cannot_certify_complete_coverage",
+          "status": "passed",
+          "purpose": "Maintained finite synthetic Python proof-consumer boundary control at exact Source331 checker/test/schema/template bytes. Plain comment/function/document correspondence and existing source/evidence/provider refusal checks are validator behavior only; no Rust or original provider outcome.",
+          "proof_ids": [
+            "naming.proof-records.exact-evidence-and-coverage"
+          ]
+        },
+        {
+          "selector": "test_pointer_root_and_escaped_keys_remain_distinct",
+          "status": "passed",
+          "purpose": "Maintained finite synthetic Python proof-consumer boundary control at exact Source331 checker/test/schema/template bytes. Plain comment/function/document correspondence and existing source/evidence/provider refusal checks are validator behavior only; no Rust or original provider outcome.",
+          "proof_ids": [
+            "naming.proof-records.exact-evidence-and-coverage"
+          ]
+        },
+        {
+          "selector": "test_json_capture_cannot_escape_review_by_clearing_candidate",
+          "status": "passed",
+          "purpose": "Maintained finite synthetic Python proof-consumer boundary control at exact Source331 checker/test/schema/template bytes. Plain comment/function/document correspondence and existing source/evidence/provider refusal checks are validator behavior only; no Rust or original provider outcome.",
+          "proof_ids": [
+            "naming.proof-records.exact-evidence-and-coverage"
+          ]
+        },
+        {
+          "selector": "test_paths_cannot_escape_the_repository",
+          "status": "passed",
+          "purpose": "Maintained finite synthetic Python proof-consumer boundary control at exact Source331 checker/test/schema/template bytes. Plain comment/function/document correspondence and existing source/evidence/provider refusal checks are validator behavior only; no Rust or original provider outcome.",
+          "proof_ids": [
+            "naming.proof-records.exact-evidence-and-coverage"
+          ]
+        },
+        {
+          "selector": "test_missing_capture_is_retained_as_unavailable",
+          "status": "passed",
+          "purpose": "Maintained finite synthetic Python proof-consumer boundary control at exact Source331 checker/test/schema/template bytes. Plain comment/function/document correspondence and existing source/evidence/provider refusal checks are validator behavior only; no Rust or original provider outcome.",
+          "proof_ids": [
+            "naming.proof-records.exact-evidence-and-coverage"
+          ]
+        },
+        {
+          "selector": "test_generated_python_cache_is_not_a_capture",
+          "status": "passed",
+          "purpose": "Maintained finite synthetic Python proof-consumer boundary control at exact Source331 checker/test/schema/template bytes. Plain comment/function/document correspondence and existing source/evidence/provider refusal checks are validator behavior only; no Rust or original provider outcome.",
+          "proof_ids": [
+            "naming.proof-records.exact-evidence-and-coverage"
+          ]
+        },
+        {
+          "selector": "test_adjacent_function_cannot_donate_its_proof_comment",
+          "status": "passed",
+          "purpose": "Maintained finite synthetic Python proof-consumer boundary control at exact Source331 checker/test/schema/template bytes. Plain comment/function/document correspondence and existing source/evidence/provider refusal checks are validator behavior only; no Rust or original provider outcome.",
+          "proof_ids": [
+            "naming.proof-records.exact-evidence-and-coverage"
+          ]
+        },
+        {
+          "selector": "test_plain_annotation_requires_the_actual_catalog_test_pair",
+          "status": "passed",
+          "purpose": "Maintained finite synthetic Python proof-consumer boundary control at exact Source331 checker/test/schema/template bytes. Plain comment/function/document correspondence and existing source/evidence/provider refusal checks are validator behavior only; no Rust or original provider outcome.",
+          "proof_ids": [
+            "naming.proof-records.exact-evidence-and-coverage"
+          ]
+        },
+        {
+          "selector": "test_plain_unknown_question_is_rejected_without_literal_or_helper_donation",
+          "status": "passed",
+          "purpose": "Maintained finite synthetic Python proof-consumer boundary control at exact Source331 checker/test/schema/template bytes. Plain comment/function/document correspondence and existing source/evidence/provider refusal checks are validator behavior only; no Rust or original provider outcome.",
+          "proof_ids": [
+            "naming.proof-records.exact-evidence-and-coverage"
+          ]
+        },
+        {
+          "selector": "test_actual_body_requires_its_own_matching_document_comment",
+          "status": "passed",
+          "purpose": "Maintained finite synthetic Python proof-consumer boundary control at exact Source331 checker/test/schema/template bytes. Plain comment/function/document correspondence and existing source/evidence/provider refusal checks are validator behavior only; no Rust or original provider outcome.",
+          "proof_ids": [
+            "naming.proof-records.exact-evidence-and-coverage"
+          ]
+        },
+        {
+          "selector": "test_missing_provider_and_native_donation_to_rust_contract_fail",
+          "status": "passed",
+          "purpose": "Maintained finite synthetic Python proof-consumer boundary control at exact Source331 checker/test/schema/template bytes. Plain comment/function/document correspondence and existing source/evidence/provider refusal checks are validator behavior only; no Rust or original provider outcome.",
+          "proof_ids": [
+            "naming.proof-records.exact-evidence-and-coverage"
+          ]
+        },
+        {
+          "selector": "test_classification_merge_cannot_accept_changed_input_or_unknown_question",
+          "status": "passed",
+          "purpose": "Maintained finite synthetic Python proof-consumer boundary control at exact Source331 checker/test/schema/template bytes. Plain comment/function/document correspondence and existing source/evidence/provider refusal checks are validator behavior only; no Rust or original provider outcome.",
+          "proof_ids": [
+            "naming.proof-records.exact-evidence-and-coverage"
+          ]
+        },
+        {
+          "selector": "test_unindexed_question_page_and_rust_annotation_block_certification",
+          "status": "passed",
+          "purpose": "Maintained finite synthetic Python proof-consumer boundary control at exact Source331 checker/test/schema/template bytes. Plain comment/function/document correspondence and existing source/evidence/provider refusal checks are validator behavior only; no Rust or original provider outcome.",
+          "proof_ids": [
+            "naming.proof-records.exact-evidence-and-coverage"
+          ]
+        },
+        {
+          "selector": "test_scope_and_conclusion_cannot_borrow_partial_heading_names",
+          "status": "passed",
+          "purpose": "Maintained finite synthetic Python proof-consumer boundary control at exact Source331 checker/test/schema/template bytes. Plain comment/function/document correspondence and existing source/evidence/provider refusal checks are validator behavior only; no Rust or original provider outcome.",
+          "proof_ids": [
+            "naming.proof-records.exact-evidence-and-coverage"
+          ]
+        },
+        {
+          "selector": "test_source_inspection_cannot_borrow_execution_or_another_provider",
+          "status": "passed",
+          "purpose": "Maintained finite synthetic Python proof-consumer boundary control at exact Source331 checker/test/schema/template bytes. Plain comment/function/document correspondence and existing source/evidence/provider refusal checks are validator behavior only; no Rust or original provider outcome.",
+          "proof_ids": [
+            "naming.proof-records.exact-evidence-and-coverage"
+          ]
+        },
+        {
+          "selector": "test_failed_native_setup_cannot_answer_the_intended_question",
+          "status": "passed",
+          "purpose": "Maintained finite synthetic Python proof-consumer boundary control at exact Source331 checker/test/schema/template bytes. Plain comment/function/document correspondence and existing source/evidence/provider refusal checks are validator behavior only; no Rust or original provider outcome.",
+          "proof_ids": [
+            "naming.proof-records.exact-evidence-and-coverage"
+          ]
+        },
+        {
+          "selector": "test_unreached_native_question_requires_boolean_false_not_integer_zero",
+          "status": "passed",
+          "purpose": "Maintained finite synthetic Python proof-consumer boundary control at exact Source331 checker/test/schema/template bytes. Plain comment/function/document correspondence and existing source/evidence/provider refusal checks are validator behavior only; no Rust or original provider outcome.",
+          "proof_ids": [
+            "naming.proof-records.exact-evidence-and-coverage"
+          ]
+        },
+        {
+          "selector": "test_measured_environment_cannot_issue_a_native_provider_answer",
+          "status": "passed",
+          "purpose": "Maintained finite synthetic Python proof-consumer boundary control at exact Source331 checker/test/schema/template bytes. Plain comment/function/document correspondence and existing source/evidence/provider refusal checks are validator behavior only; no Rust or original provider outcome.",
+          "proof_ids": [
+            "naming.proof-records.exact-evidence-and-coverage"
+          ]
+        }
+      ],
+      "question_ids": [
+        "naming.proof-records.exact-evidence-and-coverage"
+      ],
+      "sealed_images": {},
+      "reported_tool_observations": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen331/integration-proof-gate-finite-tests331/reported-tool-observations.json",
+        "sha256": "4c46ec393dbcc61326afc88ed7634b420117ef0af467148d3a8f0664d395145a",
+        "authority": "Reported actual tool outcomes only; not raw process receipts"
+      },
+      "limits": "The directly retained Python unittest command reports20 tests/OK and closes exit0 with uniform source true. Its complete command/log/source inventory and five actual maintained input hashes are preserved. These finite synthetic controls validate proof integrity/refusal behavior only, including known plain actual test binding, unknown/helper/literal refusal and exact actual document comments. They do not run the full current proof catalog or establish Rust executable/assertion, Native/appliance or benchmark outcomes. The independent Root-reported e5778e20-tests/3-failures and ae23ef20-tests/OK tool observations remain reported observations only; they have no manufactured raw process logs, source snapshots or uniform-source receipts."
     }
   ]
 }

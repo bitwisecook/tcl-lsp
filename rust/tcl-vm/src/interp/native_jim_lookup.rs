@@ -497,6 +497,105 @@ impl Vm {
         )
     }
 
+    /// Jim ArraySet's nullable original-variable read is independent of C's
+    /// LocateArray receiver. This borrows its real selected scalar before COW.
+    pub(crate) fn original_jim_array_root(
+        &mut self,
+        original: &Value,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+    ) -> Result<Option<crate::value::NativeObjectLifetimeLease>, Completion<Value>> {
+        use crate::command::completion_from_cmd_error;
+        currency
+            .check(self)
+            .map_err(|error| completion_from_cmd_error(self, error))?;
+        original
+            .check_native_header()
+            .map_err(|error| completion_from_cmd_error(self, error.into()))?;
+        if !self.uses_native_jim_lookup() {
+            return Err(completion_from_cmd_error(
+                self,
+                ValueError::CommandProtocolUnavailable("original Jim array variable read").into(),
+            ));
+        }
+        let reached = self.current_jim_variable_cell(original);
+        currency
+            .check(self)
+            .map_err(|error| completion_from_cmd_error(self, error))?;
+        if let Some(raw) = reached.map_err(|error| completion_from_cmd_error(self, error.into()))?
+            && let Some(Local::Scalar(value)) =
+                self.var_arena.get(raw).map(crate::vars::VarCell::state)
+        {
+            let root = value.native_lifetime_lease();
+            root.value()
+                .check_native_header()
+                .map_err(|error| completion_from_cmd_error(self, error.into()))?;
+            return Ok(Some(root));
+        }
+        if let Some((target, level)) = self.original_jim_alias_target(original) {
+            let frame = self.select_execution_frame(level).map_err(super::err)?;
+            let reached = self.original_jim_array_root(target.value(), currency);
+            self.restore_execution_frame(frame);
+            currency
+                .check(self)
+                .map_err(|error| completion_from_cmd_error(self, error))?;
+            return reached;
+        }
+        let reached = self.native_name_operand_bytes(original);
+        currency
+            .check(self)
+            .map_err(|error| completion_from_cmd_error(self, error))?;
+        let bytes = reached
+            .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
+            .map_err(|error| completion_from_cmd_error(self, error.into()))?;
+        if Self::is_original_jim_dictionary_name(original, &bytes) {
+            // A dictionary-sugar receiver needs its original path owner; this
+            // scalar adapter cannot synthesise that tuple from a byte spelling.
+            return Err(completion_from_cmd_error(
+                self,
+                ValueError::CommandProtocolUnavailable(
+                    "original Jim array dictionary-sugar receiver",
+                )
+                .into(),
+            ));
+        }
+        let reached = self.install_original_jim_variable(original, &bytes);
+        currency
+            .check(self)
+            .map_err(|error| completion_from_cmd_error(self, error))?;
+        reached.map_err(|error| completion_from_cmd_error(self, error.into()))?;
+        if let Some((target, level)) = self.original_jim_alias_target(original) {
+            let frame = self.select_execution_frame(level).map_err(super::err)?;
+            let reached = self.original_jim_array_root(target.value(), currency);
+            self.restore_execution_frame(frame);
+            currency
+                .check(self)
+                .map_err(|error| completion_from_cmd_error(self, error))?;
+            return reached;
+        }
+        let reached = self.current_jim_variable_cell(original);
+        currency
+            .check(self)
+            .map_err(|error| completion_from_cmd_error(self, error))?;
+        let Some(raw) = reached.map_err(|error| completion_from_cmd_error(self, error.into()))?
+        else {
+            return Ok(None);
+        };
+        let selected = match self.var_arena.get(raw).map(crate::vars::VarCell::state) {
+            Some(Local::Scalar(value)) => Ok(Some(value.native_lifetime_lease())),
+            Some(Local::Undefined) | None => Ok(None),
+            _ => Err(ValueError::CommandProtocolUnavailable(
+                "original Jim array scalar-root cell",
+            )),
+        };
+        let root = selected.map_err(|error| completion_from_cmd_error(self, error.into()))?;
+        if let Some(root) = &root {
+            root.value()
+                .check_native_header()
+                .map_err(|error| completion_from_cmd_error(self, error.into()))?;
+        }
+        Ok(root)
+    }
+
     pub(crate) fn read_original_named_variable(
         &mut self,
         original: &Value,

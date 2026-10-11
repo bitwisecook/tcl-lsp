@@ -4001,3 +4001,31 @@ compile-root identities. Its source object equals the immutable `naming330`
 snapshot. The identical 37,793-leaf [common source inventory](frozen330/integration-consumer-compile-check330/receipt.json.gz)
 is independently retained at `/source/source`; its reuse adds no execution
 credit. Original diagnostic source files retain their declared whole-file SHA.
+
+## Source331 maintained proof boundary controls
+
+The exact Python unittest command closes exit `0` after
+0.25440146200708114 seconds with uniform source `true`.
+Its [whole original log](frozen331/integration-proof-gate-finite-tests331/tests.log)
+reports `Ran 20 tests in 0.096s` and `OK`. The finite synthetic controls check
+retained evidence, classification and provider boundaries together with actual
+plain test/question/document correspondence. Helpers, literals, adjacent
+functions and a different document cannot supply an annotated test binding.
+
+This is a maintained validator unit-suite result. It is not the full current
+proof-catalog check, a Rust executable/assertion, an external interpreter or
+appliance result, or a measured performance outcome.
+
+The [exact closed receipt](frozen331/integration-proof-gate-finite-tests331/receipt.json.gz)
+retains the original 37,800-leaf source inventory at `/source/source`, HEAD
+`14f3bfeef42aa11688ed6eab464703d5e91bf10c`, immutable `naming331` archive and actual
+`naming-current-validation323` root. The source object equals the immutable
+snapshot. Exact checker, test, classification-merger, schema and template
+inputs join that source; the gzip payload round-trips to the original receipt.
+
+The [reported actual tool observations](frozen331/integration-proof-gate-finite-tests331/reported-tool-observations.json)
+retain the independent `e5778e` outcome (`20` tests, `3` failures, exit `1`)
+and `ae23ef` outcome (`20` tests, `OK`, exit `0`). Whole original tool output
+was not retained as filesystem process bytes. These are reported observations,
+with no manufactured raw logs, source snapshots or uniform-source attestations;
+the directly retained Source331 receipt supplies its own bounded result only.

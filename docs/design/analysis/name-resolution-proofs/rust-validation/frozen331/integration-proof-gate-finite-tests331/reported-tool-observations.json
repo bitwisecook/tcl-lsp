@@ -1,0 +1,65 @@
+{
+  "kind": "reported-actual-tool-observations",
+  "authority": "Root session message reports actual tool chunks; whole original stdout/stderr was not retained as filesystem process bytes. These records are not replayable raw process receipts.",
+  "observations": [
+    {
+      "tool_chunk": "e5778e",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "scripts/dev",
+        "-p",
+        "test_name_resolution_proofs.py"
+      ],
+      "cwd": "/workspace/tcl-lsp",
+      "exit": 1,
+      "reported_tests": 20,
+      "reported_failures": 3,
+      "reported_seconds": 0.074,
+      "reported_failed_controls": [
+        {
+          "selector": "test_actual_body_requires_its_own_matching_document_comment",
+          "line": 448,
+          "meaning": "The missing-comment expectation was false under a schema-invalid synthetic test binding."
+        },
+        {
+          "selector": "test_plain_annotation_requires_the_actual_catalog_test_pair",
+          "line": 401,
+          "meaning": "The synthetic binding omitted required assertion and supplied unknown purpose."
+        },
+        {
+          "selector": "test_unindexed_question_page_and_rust_annotation_block_certification",
+          "line": 538,
+          "meaning": "The final positive synthetic fixture lacked its actual catalog test binding and document comment."
+        }
+      ],
+      "raw_process_log_retained": false,
+      "uniform_source_claim": false
+    },
+    {
+      "tool_chunk": "ae23ef",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "scripts/dev",
+        "-p",
+        "test_name_resolution_proofs.py"
+      ],
+      "cwd": "/workspace/tcl-lsp",
+      "exit": 0,
+      "reported_tests": 20,
+      "reported_failures": 0,
+      "reported_seconds": 0.08,
+      "reported_completion": "OK",
+      "raw_process_log_retained": false,
+      "uniform_source_claim": false
+    }
+  ],
+  "limits": "The reported tool outcomes remain independent from the directly retained Source331 command, log and uniform source receipt. No original tool log, exact original source snapshot or uniform source attestation is fabricated for either chunk. No Rust executable, full current proof catalog validation or external provider result follows."
+}

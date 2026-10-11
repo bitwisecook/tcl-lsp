@@ -1773,6 +1773,24 @@ pub trait Aliases: tcl_syntax::value::ValueOps {
         &mut self,
         original_name: &Self::Value,
     ) -> Result<AliasPrefixLookup<Self::Value>, tcl_syntax::value::ValueError>;
+
+    /// Resolve the original alias name in a separately retained lookup namespace.
+    /// This does not change the caller's frame or destination namespace. The
+    /// Runtime Interp implements this query; the VM's current-context query
+    /// remains separate, and its explicit-context query is unavailable.
+    ///
+    /// # Errors
+    /// Missing implementation/context or retired original storage refuses;
+    /// the default never substitutes the current namespace.
+    fn alias_prefix_original_value_at(
+        &mut self,
+        _context: NsId,
+        _original_name: &Self::Value,
+    ) -> Result<AliasPrefixLookup<Self::Value>, tcl_syntax::value::ValueError> {
+        Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original alias lookup context",
+        ))
+    }
 }
 
 /// The namespace tree and actual command lookup owners.

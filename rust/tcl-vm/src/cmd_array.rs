@@ -30,6 +30,7 @@ use tcl_runtime_api::completion_options::{
 use tcl_runtime_api::{ArrayTarget, Code, Completion, VarStore};
 
 use crate::command::{completion_from_cmd_error, settle_control_options};
+use crate::interp::native_operation_currency::{NativeOperationCurrency, NativeOperationScope};
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
@@ -116,18 +117,34 @@ const ARRAY_SUBS: &[&str] = &[
 
 /// `array option arrayName ?arg ...?` — dispatch to the subcommand handler.
 fn cmd_array(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let scope = match NativeOperationScope::enter(vm) {
+        Ok(scope) => scope,
+        Err(error) => return completion_from_cmd_error(vm, error),
+    };
+    let result = cmd_array_entered(vm, args, scope.currency());
+    match scope.check(vm) {
+        Ok(()) => result,
+        Err(error) => {
+            drop(result);
+            completion_from_cmd_error(vm, error)
+        }
+    }
+}
+
+fn cmd_array_entered(
+    vm: &mut Vm,
+    args: &[Value],
+    currency: &NativeOperationCurrency,
+) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
         return crate::command::native_wrong_arguments_message(
             vm,
             "wrong # args: should be \"array subcommand ?arg ...?\"",
         );
     };
-    let word = match vm.native_name_operand_bytes(sub) {
+    let word = match original_bytes(vm, sub, currency) {
         Ok(word) => word,
-        Err(error) => {
-            return vm
-                .refuse_host_command(format!("native array subcommand is unavailable: {error:?}"));
-        }
+        Err(error) => return error,
     };
     // `array` is a `TclMakeEnsemble` command: exact match, else a unique
     // prefix, so `array e a` is `array exists a`.
@@ -153,8 +170,31 @@ fn cmd_array(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 fn array_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
+    let scope = match NativeOperationScope::enter(vm) {
+        Ok(scope) => scope,
+        Err(error) => return completion_from_cmd_error(vm, error),
+    };
+    let result = array_op_entered(vm, sub, rest, scope.currency());
+    match scope.check(vm) {
+        Ok(()) => result,
+        Err(error) => {
+            drop(result);
+            completion_from_cmd_error(vm, error)
+        }
+    }
+}
+
+fn array_op_entered(
+    vm: &mut Vm,
+    sub: &str,
+    rest: &[Value],
+    currency: &NativeOperationCurrency,
+) -> Completion<Value> {
     if sub == "default" {
         return array_default_command(vm, rest, None);
+    }
+    if sub == "set" {
+        return array_set(vm, rest, currency);
     }
     // `LocateArray` is the one semantic entry for every array subcommand,
     // including the compiler-lowered `::tcl::array::*` commands above. Derive
@@ -162,15 +202,12 @@ fn array_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
     // VarRead/VarWrite argument, not a second command-name/index table.
     let trace_target = array_trace_target(vm, sub, rest);
     if sub == "for" {
-        return array_for(vm, rest, trace_target.as_ref());
+        return array_for(vm, rest, trace_target, currency);
     }
     if let Some(name) = trace_target {
-        let name = match vm.native_name_operand_bytes(&name) {
+        let name = match original_bytes(vm, name, currency) {
             Ok(name) => name,
-            Err(error) => {
-                return vm
-                    .refuse_host_command(format!("native array name is unavailable: {error:?}"));
-            }
+            Err(error) => return error,
         };
         return vm.with_array_trace_target_bytes(&name, |vm, target| {
             array_op_after_trace(vm, sub, rest, Some(target))
@@ -287,13 +324,6 @@ fn array_op_after_trace(
     // Per-runtime: `array set` (its per-element write traces must fail the
     // command), `array for` (iterates a body), and the unknown-subcommand message.
     match sub {
-        "set" => match rest {
-            [n, list] => array_set_after_trace(vm, n, list),
-            _ => crate::command::native_wrong_arguments_message(
-                vm,
-                "wrong # args: should be \"array set arrayName list\"",
-            ),
-        },
         // Unreachable from `cmd_array` (every `ARRAY_SUBS` name is handled
         // above or by the shared core); the registered `::tcl::array::*`
         // entry points pass canonical names.
@@ -306,64 +336,124 @@ fn array_op_after_trace(
     }
 }
 
-fn array_set_after_trace(vm: &mut Vm, n: &Value, list: &Value) -> Completion<Value> {
-    // C's `Tcl_ArrayObjCmd` set path resolves the target through
-    // the standard variable lookup *before* it looks at the list,
-    // and that lookup parses the name: an element-form name yields
-    // a scalar element cell, never an array, so the command refuses
-    // it. The check therefore precedes both the list
-    // parse and the even-length test.
-    //
-    // Oracle, identical on tclsh 8.4.20 / 8.5.19 / 8.6.14 / 9.0.4 /
-    // 9.1 (`catch` result : message):
-    //
-    //   array set (x) {a 1}     -> 1:can't set "(x)": variable isn't array
-    //   array set (x) {}        -> 1:can't set "(x)": variable isn't array
-    //   array set (x) {a}       -> 1:can't set "(x)": variable isn't array
-    //   array set (x) "a \{b"   -> 1:can't set "(x)": variable isn't array
-    //   array set arr(k) {a 1}  -> 1:can't set "arr(k)": variable isn't array
-    //   array set {arr(k)} {a 1}-> 1:can't set "arr(k)": variable isn't array
-    //   array set okarr {a}     -> 1:list must have an even number of elements
-    //   array set {a)b} {a 1}   -> 0:            (a `)` with no `(` is a name)
-    //   array set {a(b} {a 1}   -> 0:            (an unclosed `(` is a name)
-    //
-    // 8.6+ also carry `errorCode` `TCL LOOKUP VARNAME <name>` (8.4 /
-    // 8.5: `NONE`); the VM's shared `TCL LOOKUP VARNAME` spelling
-    // omits the trailing name element here as it does at its
-    // sibling site (`missing_parent_ns`).
-    let name = match vm.native_name_operand_bytes(n) {
-        Ok(name) => name,
-        Err(error) => {
-            return vm.refuse_host_command(format!("native array name is unavailable: {error:?}"));
-        }
+fn original_bytes(
+    vm: &mut Vm,
+    original: &Value,
+    currency: &NativeOperationCurrency,
+) -> Result<std::rc::Rc<[u8]>, Completion<Value>> {
+    currency
+        .check(vm)
+        .map_err(|error| completion_from_cmd_error(vm, error))?;
+    original
+        .check_native_header()
+        .map_err(|error| completion_from_cmd_error(vm, error.into()))?;
+    let reached = vm.native_name_operand_bytes(original);
+    currency
+        .check(vm)
+        .map_err(|error| completion_from_cmd_error(vm, error))?;
+    reached
+        .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
+        .map_err(|error| completion_from_cmd_error(vm, error.into()))
+}
+
+fn original_list(
+    vm: &mut Vm,
+    original: &Value,
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+    currency: &NativeOperationCurrency,
+) -> Result<crate::NativeListItems, Completion<Value>> {
+    if protocol.is_jim084() {
+        let reached = vm.native_jim_object_context();
+        currency
+            .check(vm)
+            .map_err(|error| completion_from_cmd_error(vm, error))?;
+        original
+            .bind_native_jim_context(
+                &reached.map_err(|error| completion_from_cmd_error(vm, error.into()))?,
+            )
+            .map_err(|error| completion_from_cmd_error(vm, error.into()))?;
+    }
+    let reached =
+        original.native_object_list_elements_checked(protocol, &mut || currency.check(vm));
+    currency
+        .check(vm)
+        .map_err(|error| completion_from_cmd_error(vm, error))?;
+    reached.map_err(|error| completion_from_cmd_error(vm, error))
+}
+
+fn array_set(vm: &mut Vm, rest: &[Value], currency: &NativeOperationCurrency) -> Completion<Value> {
+    let [name, list] = rest else {
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"array set arrayName list\"",
+        );
     };
-    let target =
-        match VarStore::array_target_bytes(vm, tcl_runtime_api::FrameId(vm.current_level()), &name)
-        {
-            Ok(target) => target,
-            Err(error) => return completion_from_cmd_error(vm, error.into()),
-        };
-    if let Err(error) = VarStore::array_key_bytes_checked_at(vm, &target) {
+    let dialect = vm.actual_native_invocation_dialect();
+    let (Some(selected), Some(strings)) = (
+        dialect.native_array_set_protocol(),
+        dialect.native_string_protocol(),
+    ) else {
+        return completion_from_cmd_error(
+            vm,
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("original array set worker")
+                .into(),
+        );
+    };
+    match selected {
+        tcl_registry::native_array::NativeArraySetProtocol::COriginalName => {
+            let bytes = match original_bytes(vm, name, currency) {
+                Ok(bytes) => bytes,
+                Err(error) => return error,
+            };
+            vm.with_array_trace_target_bytes(&bytes, |vm, target| {
+                array_set_c_after_trace(vm, name, &bytes, list, strings, target, currency)
+            })
+        }
+        tcl_registry::native_array::NativeArraySetProtocol::JimOriginalVariable => {
+            array_set_jim(vm, name, list, strings, currency)
+        }
+    }
+}
+
+fn array_set_c_after_trace(
+    vm: &mut Vm,
+    original_name: &Value,
+    name: &[u8],
+    list: &Value,
+    strings: tcl_syntax::native_string::NativeStringProtocol,
+    target: &ArrayTarget,
+    currency: &NativeOperationCurrency,
+) -> Completion<Value> {
+    if let Err(error) = VarStore::array_key_bytes_checked_at(vm, target) {
         return completion_from_cmd_error(vm, error.into());
     }
     let Some(policy) = vm.name_policy_protocol() else {
-        return vm.refuse_host_command("native array name policy is unavailable".into());
+        return completion_from_cmd_error(
+            vm,
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("original array name policy")
+                .into(),
+        );
     };
-    if !vm.dictionary_variable_containers()
-        && policy
-            .recipe()
-            .combined_variable_input(&name)
-            .element()
-            .is_some()
+    if policy
+        .recipe()
+        .combined_variable_input(name)
+        .element()
+        .is_some()
     {
-        return match vm.ensure_array_bytes(&name) {
+        return match vm.ensure_array_bytes(name) {
             Err(error) => error,
-            Ok(()) => vm.refuse_host_command("array element cannot own an array".into()),
+            Ok(()) => completion_from_cmd_error(
+                vm,
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "array element cannot own an array",
+                )
+                .into(),
+            ),
         };
     }
-    let items = match tcl_syntax::value::ValueOps::list_elements(vm, list) {
-        Ok(i) => i,
-        Err(e) => return completion_from_cmd_error(vm, e.into()),
+    let items = match original_list(vm, list, strings, currency) {
+        Ok(items) => items,
+        Err(error) => return error,
     };
     if items.len() % 2 != 0 {
         return completion_from_cmd_error(
@@ -372,37 +462,108 @@ fn array_set_after_trace(vm: &mut Vm, n: &Value, list: &Value) -> Completion<Val
         );
     }
     if items.is_empty() {
-        // `array set a {}` still materialises an empty array; onto an
-        // existing scalar it errors. C words *this* case as the
-        // command (`can't array set "a"`), distinct from the
-        // per-element `set` message taken on a non-empty list.
-        if let Err(e) = vm.ensure_array_bytes(&name) {
-            return e;
+        if let Err(error) = vm.ensure_array_bytes(name) {
+            return error;
         }
     } else {
-        // Write element by element so a scalar target fails at the
-        // *element* write — naming `a(key)`, as C's `TclArraySet`
-        // does — rather than pre-checked under the bare name.
-        let mut i = 0;
-        while i + 1 < items.len() {
-            let key = match vm.native_name_operand_bytes(&items[i]) {
-                Ok(key) => key,
-                Err(error) => {
-                    return vm.refuse_host_command(format!(
-                        "native array key is unavailable: {error:?}"
-                    ));
-                }
-            };
-            if let Err(e) = vm.set_array_elem_bytes(&name, &key, items[i + 1].clone()) {
-                return e;
+        for pair in items.as_chunks::<2>().0 {
+            if let Err(error) = items.check_generation() {
+                return completion_from_cmd_error(vm, error.into());
             }
-            i += 2;
+            let reached = vm.store_original_c_array_member(original_name, &pair[0], &pair[1]);
+            if let Err(error) = currency.check(vm) {
+                drop(reached);
+                return completion_from_cmd_error(vm, error);
+            }
+            if let Err(error) = reached {
+                return error;
+            }
         }
     }
     ok(Value::empty())
 }
 
-fn array_trace_target(vm: &Vm, sub: &str, rest: &[Value]) -> Option<Value> {
+fn array_set_jim(
+    vm: &mut Vm,
+    name: &Value,
+    list: &Value,
+    strings: tcl_syntax::native_string::NativeStringProtocol,
+    currency: &NativeOperationCurrency,
+) -> Completion<Value> {
+    let items = match original_list(vm, list, strings, currency) {
+        Ok(items) => items,
+        Err(error) => return error,
+    };
+    if items.len() % 2 != 0 {
+        return completion_from_cmd_error(
+            vm,
+            tcl_cmd_core::CmdError::argument_format("list must have an even number of elements"),
+        );
+    }
+    let result: Result<(), Completion<Value>> = (|| {
+        let original = vm.original_jim_array_root(name, currency)?;
+        let Some(original) = original else {
+            // Jim's absent-target branch adopts the very same original List;
+            // no key operand is read before this variable publication.
+            list.check_native_header()
+                .map_err(|error| completion_from_cmd_error(vm, error.into()))?;
+            let reached = vm.store_original_named_variable(name, list.clone());
+            currency
+                .check(vm)
+                .map_err(|error| completion_from_cmd_error(vm, error))?;
+            reached?;
+            return Ok(());
+        };
+        let context = vm
+            .native_jim_object_context()
+            .map_err(|error| completion_from_cmd_error(vm, error.into()))?;
+        original
+            .value()
+            .bind_native_jim_context(&context)
+            .map_err(|error| completion_from_cmd_error(vm, error.into()))?;
+        // DictSize conversion precedes the sharing decision; the original root
+        // lease adds no native hold before either stage.
+        let reached = original
+            .value()
+            .prepare_native_dictionary_after_conversion_checked(strings, &mut || {
+                currency.check(vm)
+            });
+        currency
+            .check(vm)
+            .map_err(|error| completion_from_cmd_error(vm, error))?;
+        let mut working = reached.map_err(|error| completion_from_cmd_error(vm, error))?;
+        for pair in items.as_chunks::<2>().0 {
+            items
+                .check_generation()
+                .map_err(|error| completion_from_cmd_error(vm, error.into()))?;
+            let reached = working.set_member_checked(
+                pair[0].native_lifetime_lease().into_value(),
+                pair[1].native_lifetime_lease().into_value(),
+                &mut || currency.check(vm),
+            );
+            currency
+                .check(vm)
+                .map_err(|error| completion_from_cmd_error(vm, error))?;
+            reached.map_err(|error| completion_from_cmd_error(vm, error))?;
+        }
+        let reached = vm.store_original_named_variable(name, working.into_value());
+        currency
+            .check(vm)
+            .map_err(|error| completion_from_cmd_error(vm, error))?;
+        reached?;
+        Ok(())
+    })();
+    drop(items);
+    if let Err(error) = currency.check(vm) {
+        return completion_from_cmd_error(vm, error);
+    }
+    match result {
+        Ok(()) => ok(Value::empty()),
+        Err(error) => error,
+    }
+}
+
+fn array_trace_target<'a>(vm: &Vm, sub: &str, rest: &'a [Value]) -> Option<&'a Value> {
     let profile = vm.command_surface_profile();
     let registry = crate::environment::store_for_profile(profile);
     let words: Vec<InvocationWord<'_>> = std::iter::once(InvocationWord::Literal(sub))
@@ -421,56 +582,64 @@ fn array_trace_target(vm: &Vm, sub: &str, rest: &[Value]) -> Option<Value> {
     let index = facts
         .sole_argument_index_for_roles(words.len(), &[ArgRole::VarRead, ArgRole::VarWrite])?
         .checked_sub(1)?;
-    rest.get(index).cloned()
+    rest.get(index)
 }
 
 /// `array for {keyVar valueVar} arrayName script` — iterate the array's elements,
 /// binding the two vars and running the body once per pair (mirrors `dict for`;
 /// `break`/`continue` apply, an error/return propagates). The element set is
 /// snapshotted up front so body mutations don't perturb the walk.
-fn array_for(vm: &mut Vm, rest: &[Value], trace_target: Option<&Value>) -> Completion<Value> {
+fn array_for(
+    vm: &mut Vm,
+    rest: &[Value],
+    trace_target: Option<&Value>,
+    currency: &NativeOperationCurrency,
+) -> Completion<Value> {
     let [vars, arrname, body] = rest else {
         return crate::command::native_wrong_args(vm, "array for {key value} arrayName script");
     };
-    let vnames = match tcl_syntax::value::ValueOps::list_elements(vm, vars) {
-        Ok(names) => names,
-        Err(error) => return completion_from_cmd_error(vm, error.into()),
+    let Some(strings) = vm
+        .actual_native_invocation_dialect()
+        .native_array_for_protocol()
+    else {
+        return completion_from_cmd_error(
+            vm,
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("original array for worker")
+                .into(),
+        );
     };
-    let [kvar, vvar] = vnames.as_slice() else {
-        return err("must have two variable names");
-    };
-    let kvar = match vm.native_name_operand_bytes(kvar) {
-        Ok(name) => name,
-        Err(error) => {
-            return vm
-                .refuse_host_command(format!("native loop variable is unavailable: {error:?}"));
+    let result = (|| {
+        // ArrayForNRCmd validates the original List length first; it neither
+        // copies that List nor reads its variable members before LocateArray.
+        let names = original_list(vm, vars, strings, currency)?;
+        if names.len() != 2 {
+            return Err(crate::command::err_with_code(
+                "must have two variable names",
+                "TCL SYNTAX array for",
+            ));
         }
-    };
-    let vvar = match vm.native_name_operand_bytes(vvar) {
-        Ok(name) => name,
-        Err(error) => {
-            return vm
-                .refuse_host_command(format!("native loop variable is unavailable: {error:?}"));
-        }
-    };
-    let name = match vm.native_name_operand_bytes(trace_target.unwrap_or(arrname)) {
-        Ok(name) => name,
-        Err(error) => {
-            return vm.refuse_host_command(format!("native array name is unavailable: {error:?}"));
-        }
-    };
-    vm.with_array_trace_target_bytes(&name, |vm, target| {
-        array_for_after_trace(vm, &kvar, &vvar, &name, body, target)
-    })
+        drop(names);
+        let name = original_bytes(vm, trace_target.unwrap_or(arrname), currency)?;
+        Ok(vm.with_array_trace_target_bytes(&name, |vm, target| {
+            array_for_after_trace(vm, vars, &name, body, strings, target, currency)
+        }))
+    })();
+    if let Err(error) = currency.check(vm) {
+        return completion_from_cmd_error(vm, error);
+    }
+    match result {
+        Ok(completion) | Err(completion) => completion,
+    }
 }
 
 fn array_for_after_trace(
     vm: &mut Vm,
-    kvar: &[u8],
-    vvar: &[u8],
+    variables: &Value,
     name: &[u8],
     body: &Value,
+    strings: tcl_syntax::native_string::NativeStringProtocol,
     target: &ArrayTarget,
+    currency: &NativeOperationCurrency,
 ) -> Completion<Value> {
     let keys = match VarStore::array_search_key_bytes_at(vm, target) {
         Ok(Some(keys)) => keys,
@@ -489,7 +658,49 @@ fn array_for_after_trace(
         Err(error) => return completion_from_cmd_error(vm, error.into()),
     };
     let revision = VarStore::array_revision_at(vm, target);
-    for key in &keys {
+    let copied = match variables.native_list_copy_checked(strings, &mut || currency.check(vm)) {
+        Ok(copied) => copied,
+        Err(error) => return completion_from_cmd_error(vm, error),
+    };
+    let names = match original_list(vm, &copied, strings, currency) {
+        Ok(names) => names,
+        Err(error) => return error,
+    };
+    let [kvar, vvar] = names.as_ref().as_slice() else {
+        return completion_from_cmd_error(
+            vm,
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("array for copied variables")
+                .into(),
+        );
+    };
+    let script = body.clone();
+    let result = array_for_loop(
+        vm, kvar, vvar, name, &script, target, &keys, revision, currency,
+    );
+    drop(script);
+    drop(names);
+    drop(copied);
+    match currency.check(vm) {
+        Ok(()) => result,
+        Err(error) => {
+            drop(result);
+            completion_from_cmd_error(vm, error)
+        }
+    }
+}
+
+fn array_for_loop(
+    vm: &mut Vm,
+    kvar: &Value,
+    vvar: &Value,
+    name: &[u8],
+    body: &Value,
+    target: &ArrayTarget,
+    keys: &[Vec<u8>],
+    revision: Option<u64>,
+    currency: &NativeOperationCurrency,
+) -> Completion<Value> {
+    for key in keys {
         match same_array_target(vm, name, target, revision) {
             Ok(true) => {}
             Ok(false) => return array_for_changed(),
@@ -500,7 +711,24 @@ fn array_for_after_trace(
             Ok(false) => continue,
             Err(error) => return completion_from_cmd_error(vm, error.into()),
         }
-        let value = match vm.read_elem_traced_bytes(name, key) {
+        let original_key = match target
+            .cell_id()
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "array for actual receiver",
+            ))
+            .and_then(|array| {
+                vm.var_arena
+                    .original_array_key(array, &tcl_core_types::NameBytes::from(key.as_slice()))
+            }) {
+            Ok(key) => key,
+            Err(error) => return completion_from_cmd_error(vm, error.into()),
+        };
+        let reached = vm.read_elem_traced_bytes(name, key);
+        if let Err(error) = currency.check(vm) {
+            drop(reached);
+            return completion_from_cmd_error(vm, error);
+        }
+        let value = match reached {
             Ok(value) => value,
             Err(error) => {
                 if vm.refused_completion().is_some() {
@@ -510,15 +738,44 @@ fn array_for_after_trace(
                 None
             }
         };
-        if let Err(error) = vm.set_var_bytes(kvar, Value::from_string_bytes(key.clone())) {
+        let value = value.map(|value| {
+            let lease = value.native_lifetime_lease();
+            drop(value);
+            lease
+        });
+        if value.is_none() {
+            continue;
+        }
+        if let Err(error) = original_key.value().check_native_header() {
+            return completion_from_cmd_error(vm, error.into());
+        }
+        let reached = vm.store_original_named_variable(kvar, original_key.clone().into_value());
+        if let Err(error) = currency.check(vm) {
+            drop(reached);
+            return completion_from_cmd_error(vm, error);
+        }
+        if let Err(error) = reached {
             return error;
         }
-        if let Some(value) = value
-            && let Err(error) = vm.set_var_bytes(vvar, value)
-        {
-            return error;
+        if let Some(value) = value {
+            if let Err(error) = value.value().check_native_header() {
+                return completion_from_cmd_error(vm, error.into());
+            }
+            let reached = vm.store_original_named_variable(vvar, value.into_value());
+            if let Err(error) = currency.check(vm) {
+                drop(reached);
+                return completion_from_cmd_error(vm, error);
+            }
+            if let Err(error) = reached {
+                return error;
+            }
         }
         let completion = vm.eval_value_at_level(vm.current_level(), body);
+        drop(original_key);
+        if let Err(error) = currency.check(vm) {
+            drop(completion);
+            return completion_from_cmd_error(vm, error);
+        }
         match completion.code {
             Code::Ok | Code::Continue => {}
             Code::Break => break,
@@ -581,3 +838,7 @@ mod tests {
 #[cfg(test)]
 #[path = "cmd_array/native_unset_tests.rs"]
 mod native_unset_tests;
+
+#[cfg(test)]
+#[path = "cmd_array/original_argument_tests.rs"]
+mod original_argument_tests;

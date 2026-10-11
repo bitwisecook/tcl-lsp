@@ -3984,6 +3984,17 @@ impl Interp {
         original_name: *mut TclObj,
     ) -> Result<tcl_runtime_api::AliasPrefixLookup<*mut TclObj>, tcl_syntax::value::ValueError>
     {
+        self.original_alias_prefix_value_at(self.current_ns.get(), original_name)
+    }
+
+    /// Borrow the actual Jim prefix in the helper's retained lookup namespace.
+    /// Destination publication and the caller frame remain independent.
+    pub(crate) fn original_alias_prefix_value_at(
+        &mut self,
+        lookup: NsId,
+        original_name: *mut TclObj,
+    ) -> Result<tcl_runtime_api::AliasPrefixLookup<*mut TclObj>, tcl_syntax::value::ValueError>
+    {
         if self
             .native_invocation_dialect()
             .native_jim_lookup_protocol()
@@ -3993,7 +4004,12 @@ impl Interp {
                 "original Jim alias prefix issuer",
             ));
         }
-        let Some((command, _)) = self.resolve_original_command(original_name)? else {
+        if self.namespaces.borrow().jim_namespace_bytes(lookup).is_none() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original Jim alias lookup namespace",
+            ));
+        }
+        let Some((command, _)) = self.resolve_original_command_at(lookup, original_name)? else {
             return Ok(tcl_runtime_api::AliasPrefixLookup::MissingCommand);
         };
         match command {

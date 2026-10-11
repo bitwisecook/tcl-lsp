@@ -608,8 +608,6 @@ fn try_eliminate_switch(
 #[cfg(test)]
 use super::helpers::literals::is_plain_literal;
 #[cfg(test)]
-use crate::ir::SwitchMode;
-#[cfg(test)]
 use crate::naming::normalise_var_name;
 /// Resolve a switch subject to a literal string. Returns `None`
 /// when the subject contains substitutions we cannot fold.
@@ -642,26 +640,6 @@ fn resolve_subject(
             policy,
         ),
         EnvValue::Str(s) => Some(s.clone()),
-    }
-}
-
-/// Match a `switch` arm pattern against `subject`, honouring
-/// `mode` and `nocase`. `regexp` mode is rejected at the caller;
-/// this helper handles `exact` and `glob`.
-#[cfg(test)]
-fn pattern_matches(subject: &str, pattern: &str, mode: SwitchMode, nocase: bool) -> bool {
-    match mode {
-        SwitchMode::Exact => {
-            if nocase {
-                subject.eq_ignore_ascii_case(pattern)
-            } else {
-                subject == pattern
-            }
-        }
-        // `glob` folds through the shared `string match` dialect
-        // (`tcl_syntax::glob`) so the optimiser and runtime agree.
-        SwitchMode::Glob => tcl_syntax::glob::string_case_match(pattern, subject, nocase),
-        SwitchMode::Regexp => false,
     }
 }
 

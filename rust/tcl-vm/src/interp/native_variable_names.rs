@@ -583,6 +583,9 @@ impl Vm {
         self.var_arena.mark_namespace_declared(target);
         if let Some(value) = value {
             let captured = self.capture_selected_update(&bytes, None, &resolved)?;
+            value
+                .check_native_header()
+                .map_err(|error| completion_from_cmd_error(self, error.into()))?;
             self.with_variable_operation(&captured.cell, |vm| {
                 vm.store_captured_update_with_original(
                     &bytes,
@@ -1125,6 +1128,101 @@ impl Vm {
         value: Value,
     ) -> Result<Value, Completion<Value>> {
         self.store_original_c_variable_for(original, value, NativeVariableNameLookupPurpose::Write)
+    }
+
+    /// The array worker supplies two actual operands, independently of combined
+    /// name parsing. The existing lookup and captured write own every effect.
+    pub(crate) fn store_original_c_array_member(
+        &mut self,
+        original: &Value,
+        key: &Value,
+        value: &Value,
+    ) -> Result<Value, Completion<Value>> {
+        use super::native_operation_currency::NativeOperationScope;
+        use crate::command::completion_from_cmd_error;
+        let scope = NativeOperationScope::enter(self)
+            .map_err(|error| completion_from_cmd_error(self, error))?;
+        let root_lifetime = original.native_lifetime_lease();
+        let key_lifetime = key.native_lifetime_lease();
+        let result = (|| {
+            if self.native_c_variable_name_protocol().is_none() {
+                return Err(completion_from_cmd_error(
+                    self,
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original C array variable name owner",
+                    )
+                    .into(),
+                ));
+            }
+            original
+                .check_native_header()
+                .map_err(|error| completion_from_cmd_error(self, error.into()))?;
+            key.check_native_header()
+                .map_err(|error| completion_from_cmd_error(self, error.into()))?;
+            value
+                .check_native_header()
+                .map_err(|error| completion_from_cmd_error(self, error.into()))?;
+            let reached = self.native_name_operand_bytes(key);
+            scope
+                .check(self)
+                .map_err(|error| completion_from_cmd_error(self, error))?;
+            let key_bytes = reached
+                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
+                .map_err(|error| completion_from_cmd_error(self, error.into()))?;
+            let reached = self.prepare_native_original_variable_parts(
+                original,
+                NativeVariableNameLookupPurpose::Write,
+                None,
+                Some(&key_bytes),
+            );
+            scope
+                .check(self)
+                .map_err(|error| completion_from_cmd_error(self, error))?;
+            let (_root, bytes, element, resolved) = reached?;
+            let element_birth = resolved.elem.is_some() && resolved.id.is_none();
+            let captured = self.capture_selected_update(&bytes, element.as_deref(), &resolved)?;
+            if element_birth
+                && self
+                    .native_c_variable_name_protocol()
+                    .is_some_and(|protocol| protocol.element_table_retains_original())
+                && let (Some(array), Some(member)) =
+                    (captured.cell.array, captured.cell.elem.as_ref())
+            {
+                if !self
+                    .var_arena
+                    .retain_original_array_key(array, member, key.clone())
+                {
+                    return Err(completion_from_cmd_error(
+                        self,
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "original array member key publication",
+                        )
+                        .into(),
+                    ));
+                }
+            }
+            scope
+                .check(self)
+                .map_err(|error| completion_from_cmd_error(self, error))?;
+            value
+                .check_native_header()
+                .map_err(|error| completion_from_cmd_error(self, error.into()))?;
+            self.with_variable_operation(&captured.cell, |vm| {
+                vm.store_captured_update_with_original(
+                    &bytes,
+                    element.as_deref(),
+                    &captured,
+                    value.native_lifetime_lease().into_value(),
+                    Some(original),
+                )
+            })
+        })();
+        drop(key_lifetime);
+        drop(root_lifetime);
+        scope
+            .check(self)
+            .map_err(|error| completion_from_cmd_error(self, error))?;
+        result
     }
 
     fn store_original_c_variable_for(

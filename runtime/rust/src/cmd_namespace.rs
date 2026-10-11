@@ -1042,13 +1042,53 @@ fn ns_import_source_names(
             let mut destination = current_name.to_vec();
             destination.extend_from_slice(b"::");
             destination.extend_from_slice(protocol.namespace_tail_bytes(&source));
-            let mut alias = source.clone();
+            let mut alias = obj::Owned::fresh(obj::new_string_bytes(&source));
+            let destination_object = obj::Owned::fresh(obj::new_string_bytes(&destination));
             let mut seen = std::collections::BTreeSet::new();
-            while let Some((target, prefix)) = match interp.alias_info_at(GLOBAL, &alias) {
-                Ok(prefix) => prefix,
-                Err(error) => return interp.report_cmd_error(error.into()),
-            } {
-                if !seen.insert(alias.clone()) {
+            loop {
+                // The pinned helper is a root procedure. Its original alias
+                // List query has an independent lookup context from the actual
+                // destination namespace; neither context is reconstructed.
+                let lookup = tcl_runtime_api::Aliases::alias_prefix_original_value_at(
+                    interp,
+                    tcl_runtime_api::NsId(GLOBAL as u32),
+                    &alias.as_ptr(),
+                );
+                if let Err(error) = arguments.check() {
+                    return interp.report_cmd_error(error);
+                }
+                let next = match lookup {
+                    Ok(
+                        tcl_runtime_api::AliasPrefixLookup::MissingCommand
+                        | tcl_runtime_api::AliasPrefixLookup::NotAlias,
+                    ) => break,
+                    Ok(tcl_runtime_api::AliasPrefixLookup::Prefix(original)) => {
+                        obj::Owned::retain(original)
+                    }
+                    Err(error) => return interp.report_cmd_error(error.into()),
+                };
+                // The reached lookup owns this resident spelling. Keep the
+                // existing finite cycle guard without another String getter
+                // or decoding any retained prefix member.
+                let snapshot = interp.native_object_snapshot(&alias.as_ptr());
+                if let Err(error) = arguments.check() {
+                    return interp.report_cmd_error(error);
+                }
+                let resident = match snapshot {
+                    Ok(snapshot) => match snapshot.resident {
+                        Some(bytes) => bytes,
+                        None => {
+                            return interp.report_cmd_error(
+                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                    "Jim import reached alias spelling",
+                                )
+                                .into(),
+                            );
+                        }
+                    },
+                    Err(error) => return interp.report_cmd_error(error.into()),
+                };
+                if !seen.insert(resident) {
                     return interp.report_cmd_error(
                         tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                             "Jim namespace import cyclic alias chain",
@@ -1056,24 +1096,22 @@ fn ns_import_source_names(
                         .into(),
                     );
                 }
-                let mut words = vec![obj::Owned::fresh(obj::new_string_bytes(&target))];
-                words.extend(
-                    prefix
-                        .iter()
-                        .map(|word| obj::Owned::fresh(obj::new_string_bytes(word))),
-                );
-                let pointers: Vec<_> = words.iter().map(obj::Owned::as_ptr).collect();
-                let alias_object = obj::Owned::fresh(interp.new_list_object(&pointers));
-                alias = match interp.native_string_bytes(&alias_object.as_ptr()) {
-                    Ok(bytes) => bytes.to_vec(),
-                    Err(error) => return interp.report_cmd_error(error.into()),
-                };
-                let destination_object = obj::Owned::fresh(obj::new_string_bytes(&destination));
-                let closes_loop = match tcl_syntax::native_equality::full_native_equality(
+                // set alias [info alias $alias] owns the exact stored List.
+                // Equality reaches its selected String/cache before the next
+                // exists -alias lookup; it never rebuilds a prefix List.
+                alias = next;
+                if let Err(error) = arguments.check() {
+                    return interp.report_cmd_error(error);
+                }
+                let equality = tcl_syntax::native_equality::full_native_equality(
                     interp,
-                    &alias_object.as_ptr(),
+                    &alias.as_ptr(),
                     &destination_object.as_ptr(),
-                ) {
+                );
+                if let Err(error) = arguments.check() {
+                    return interp.report_cmd_error(error);
+                }
+                let closes_loop = match equality {
                     Ok(equal) => equal,
                     Err(error) => return interp.report_cmd_error(error.into()),
                 };
@@ -6192,3 +6230,285 @@ mod native_map_prefix_tests;
 
 #[cfg(test)]
 pub(crate) mod original_argument_tests;
+
+#[cfg(test)]
+mod original_import_alias_tests {
+    use super::*;
+    use crate::obj::Owned;
+    use std::cell::{Cell, RefCell};
+    use tcl_runtime_api::NativeExecutionError;
+
+    thread_local! {
+        static OWNER: RefCell<Option<Interp>> = const { RefCell::new(None) };
+        static READS: Cell<usize> = const { Cell::new(0) };
+        static MODE: Cell<u8> = const { Cell::new(0) };
+        static FIRST: RefCell<Option<NativeExecutionError>> = const { RefCell::new(None) };
+    }
+
+    extern "C" fn update(original: *mut TclObj) {
+        READS.with(|reads| reads.set(reads.get() + 1));
+        unsafe { obj::set_native_updater_string_rep(original, b"MEMBER", false) };
+        let mode = MODE.with(Cell::get);
+        if mode == 0 {
+            return;
+        }
+        let mut interp = OWNER.with(|owner| owner.borrow().as_ref().unwrap().clone());
+        match mode {
+            1 => {
+                interp.refuse_host_command("original Jim import member first cause");
+                FIRST.with(|first| *first.borrow_mut() = interp.native_execution_refusal());
+            }
+            2 => {
+                let current = interp.runtime_context();
+                let mut changed = current.clone();
+                changed.packages = vec![("original-import-member".to_owned(), "1.0".to_owned())];
+                interp.pin_context(&changed).unwrap();
+                interp.pin_context(&current).unwrap();
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    static TYPE: obj::TclObjType = obj::TclObjType {
+        name: c"originalJimImportMember".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(update),
+        set_from_any_proc: None,
+    };
+
+    fn native() -> Interp {
+        OWNER.with(|owner| owner.borrow_mut().take());
+        READS.with(|reads| reads.set(0));
+        MODE.with(|mode| mode.set(0));
+        FIRST.with(|first| first.borrow_mut().take());
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            tcl_registry::model::resolve_environment("jim").unit_profile(),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            interp.eval_str(b"namespace eval src {}; namespace eval dest {}"),
+            Code::Ok
+        );
+        OWNER.with(|owner| *owner.borrow_mut() = Some(interp.clone()));
+        interp
+    }
+
+    fn define(interp: &mut Interp, name: &[u8], members: &[*mut TclObj]) -> Owned {
+        let head = Owned::fresh(obj::new_string_bytes(b"alias"));
+        let name = Owned::fresh(obj::new_string_bytes(name));
+        let mut argv = vec![head.as_ptr(), name.as_ptr()];
+        argv.extend_from_slice(members);
+        assert_eq!(interp.dispatch(&argv), Code::Ok);
+        let query = tcl_runtime_api::Aliases::alias_prefix_original_value_at(
+            interp,
+            tcl_runtime_api::NsId(GLOBAL as u32),
+            &name.as_ptr(),
+        )
+        .unwrap();
+        let tcl_runtime_api::AliasPrefixLookup::Prefix(original) = query else {
+            panic!("actual just-published alias prefix");
+        };
+        let stored = Owned::retain(original);
+        assert_eq!(
+            ValueOps::list_elements(interp, &stored.as_ptr()).unwrap(),
+            members
+        );
+        interp.set_result_bytes(b"");
+        stored
+    }
+
+    fn import(interp: &mut Interp, destination: NsId, pattern: &[u8]) -> Code {
+        interp.set_current_ns(destination);
+        let words = [b"namespace".as_slice(), b"import", pattern]
+            .map(|word| Owned::fresh(obj::new_string_bytes(word)));
+        let argv = words.each_ref().map(Owned::as_ptr);
+        let code = super::namespace_cmd(interp, &argv);
+        assert_eq!(interp.current_ns(), destination);
+        assert_eq!(interp.entered_native_operation_count(), 0);
+        code
+    }
+
+    fn destination(interp: &Interp) -> NsId {
+        interp.namespaces().find_namespace(GLOBAL, b"dest").unwrap()
+    }
+
+    #[test]
+    fn original_jim_import_uses_the_cached_alias_list_without_member_getters() {
+        // naming.alias.jim-original-core-prefix-object-storage
+        // docs/design/analysis/name-resolution-proofs/alias-jim-original-core-prefix-object-storage.md
+        // Software helper control: cached List and original member identity;
+        // no original Enum name header or C import equivalence is inferred.
+        let mut interp = native();
+        let target = Owned::fresh(obj::new_string_bytes(b"list"));
+        let member = Owned::fresh(obj::alloc_typed(&TYPE, 0));
+        let stored = define(
+            &mut interp,
+            b"src::branch",
+            &[target.as_ptr(), member.as_ptr()],
+        );
+        assert_eq!(READS.with(Cell::get), 0);
+        assert_eq!(
+            ValueOps::native_string_bytes(&mut interp, &stored.as_ptr())
+                .unwrap()
+                .as_ref(),
+            b"list MEMBER"
+        );
+        assert_eq!(READS.with(Cell::get), 1);
+        obj::invalidate_string(member.as_ptr());
+        READS.with(|reads| reads.set(0));
+        MODE.with(|mode| mode.set(1));
+        let refs = unsafe { (*member.as_ptr()).ref_count };
+        let destination = destination(&interp);
+        assert_eq!(import(&mut interp, destination, b"::src::branch"), Code::Ok);
+        assert_eq!(READS.with(Cell::get), 0);
+        assert!(!obj::has_string_rep(member.as_ptr()));
+        assert_eq!(unsafe { (*member.as_ptr()).ref_count }, refs);
+        let name = Owned::fresh(obj::new_string_bytes(b"src::branch"));
+        let tcl_runtime_api::AliasPrefixLookup::Prefix(after) =
+            tcl_runtime_api::Aliases::alias_prefix_original_value_at(
+                &mut interp,
+                tcl_runtime_api::NsId(GLOBAL as u32),
+                &name.as_ptr(),
+            )
+            .unwrap()
+        else {
+            panic!("retained source alias");
+        };
+        assert_eq!(after, stored.as_ptr());
+        assert_eq!(
+            ValueOps::list_elements(&mut interp, &stored.as_ptr()).unwrap(),
+            vec![target.as_ptr(), member.as_ptr()]
+        );
+        assert!(matches!(
+            interp.namespaces().command_in(destination, b"branch"),
+            Some(Command::Alias { .. })
+        ));
+        assert!(interp.native_execution_refusal().is_none());
+        OWNER.with(|owner| owner.borrow_mut().take());
+    }
+
+    #[test]
+    fn original_jim_import_retains_reached_list_getter_first_cause_before_publication() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for mode in [1, 2] {
+            let mut interp = native();
+            let target = Owned::fresh(obj::new_string_bytes(b"list"));
+            let member = Owned::fresh(obj::alloc_typed(&TYPE, 0));
+            let stored = define(
+                &mut interp,
+                b"src::branch",
+                &[target.as_ptr(), member.as_ptr()],
+            );
+            let backing = list::native_list_backing(stored.as_ptr()).unwrap();
+            let destination = destination(&interp);
+            let prior = Owned::fresh(obj::new_string_bytes(b"PRIOR\0\xff"));
+            interp.set_result(prior.as_ptr());
+            let refs = unsafe { (*member.as_ptr()).ref_count };
+            let current = interp.runtime_context();
+            MODE.with(|selected| selected.set(mode));
+            assert_eq!(
+                import(&mut interp, destination, b"::src::branch"),
+                Code::Error
+            );
+            assert_eq!(READS.with(Cell::get), 1);
+            assert!(interp
+                .namespaces()
+                .command_in(destination, b"branch")
+                .is_none());
+            assert_eq!(interp.result_obj(), prior.as_ptr());
+            assert_eq!(obj::bytes_of(prior.as_ptr()), b"PRIOR\0\xff");
+            assert_eq!(interp.runtime_context(), current);
+            assert_eq!(unsafe { (*member.as_ptr()).ref_count }, refs);
+            assert_eq!(
+                &*backing.elements().unwrap(),
+                &[target.as_ptr(), member.as_ptr()]
+            );
+            let cause = interp
+                .native_execution_refusal()
+                .expect("first original operational cause");
+            if mode == 1 {
+                assert_eq!(Some(cause), FIRST.with(|first| first.borrow().clone()));
+            } else {
+                assert_eq!(cause, NativeExecutionError::ValueAccessRefusal(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("stale entered native operation")));
+            }
+            OWNER.with(|owner| owner.borrow_mut().take());
+        }
+    }
+
+    #[test]
+    fn original_jim_import_follows_original_alias_lists_and_refuses_destination_loops() {
+        // naming.alias.jim-original-core-prefix-object-storage
+        // docs/design/analysis/name-resolution-proofs/alias-jim-original-core-prefix-object-storage.md
+        for closes_loop in [false, true] {
+            let mut interp = native();
+            let destination = destination(&interp);
+            let end = Owned::fresh(obj::new_string_bytes(if closes_loop {
+                b"dest::branch"
+            } else {
+                b"list"
+            }));
+            let middle = define(&mut interp, b"chain", &[end.as_ptr()]);
+            let chain = Owned::fresh(obj::new_string_bytes(b"chain"));
+            let source = define(&mut interp, b"src::branch", &[chain.as_ptr()]);
+            assert_eq!(
+                import(&mut interp, destination, b"::src::branch"),
+                if closes_loop { Code::Error } else { Code::Ok }
+            );
+            assert_eq!(
+                interp
+                    .namespaces()
+                    .command_in(destination, b"branch")
+                    .is_some(),
+                !closes_loop
+            );
+            if closes_loop {
+                assert_eq!(
+                    interp.result_bytes(),
+                    b"import pattern \"::src::branch\" would create a loop"
+                );
+            }
+            assert!(interp.native_execution_refusal().is_none());
+            assert!(obj::has_string_rep(source.as_ptr()));
+            assert!(obj::has_string_rep(middle.as_ptr()));
+            OWNER.with(|owner| owner.borrow_mut().take());
+        }
+    }
+
+    #[test]
+    fn original_jim_import_keeps_root_alias_lookup_separate_from_destination_collisions() {
+        // naming.alias.jim-original-core-prefix-object-storage
+        // docs/design/analysis/name-resolution-proofs/alias-jim-original-core-prefix-object-storage.md
+        let mut interp = native();
+        assert_eq!(interp.eval_str(b"namespace eval dest::src {}"), Code::Ok);
+        let destination = destination(&interp);
+        let list = Owned::fresh(obj::new_string_bytes(b"list"));
+        let source = define(&mut interp, b"src::branch", &[list.as_ptr()]);
+        let loop_destination = Owned::fresh(obj::new_string_bytes(b"dest::branch"));
+        let collision = define(
+            &mut interp,
+            b"dest::src::branch",
+            &[loop_destination.as_ptr()],
+        );
+        assert_eq!(import(&mut interp, destination, b"::src::branch"), Code::Ok);
+        assert!(interp
+            .namespaces()
+            .command_in(destination, b"branch")
+            .is_some());
+        assert!(obj::has_string_rep(source.as_ptr()));
+        assert!(!obj::has_string_rep(collision.as_ptr()));
+        assert!(interp.native_execution_refusal().is_none());
+        let name = Owned::fresh(obj::new_string_bytes(b"src::branch"));
+        assert!(tcl_runtime_api::Aliases::alias_prefix_original_value_at(
+            &mut interp,
+            tcl_runtime_api::NsId(u32::MAX),
+            &name.as_ptr()
+        )
+        .is_err());
+        assert_eq!(interp.current_ns(), destination);
+        OWNER.with(|owner| owner.borrow_mut().take());
+    }
+}

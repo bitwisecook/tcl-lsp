@@ -14809,22 +14809,41 @@ impl Vm {
         name: &[u8],
         operation: impl FnOnce(&mut Self, &ArrayTarget) -> Completion<Value>,
     ) -> Completion<Value> {
+        use native_operation_currency::NativeOperationScope;
+        let scope = match NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(self, error),
+        };
         let here = FrameId(self.current_level());
         let target = match VarStore::array_target_bytes(self, here, name) {
             Ok(target) => target,
             Err(error) => return crate::command::completion_from_cmd_error(self, error.into()),
         };
         if self.observed_name_policy_selected() {
-            return operation(self, &target);
+            let result = operation(self, &target);
+            return match scope.check(self) {
+                Ok(()) => result,
+                Err(error) => {
+                    drop(result);
+                    crate::command::completion_from_cmd_error(self, error)
+                }
+            };
         }
         let id = target.cell_id();
         let protected_binding = id.and_then(|id| self.array_operation_binding(id));
         if let Some(id) = id {
             self.var_arena.retain_operation(id);
         }
-        let result = match self.fire_array_trace_at(name, id) {
-            Ok(()) => operation(self, &target),
-            Err(completion) => completion,
+        let reached = self.fire_array_trace_at(name, id);
+        let result = match scope.check(self) {
+            Err(error) => {
+                drop(reached);
+                crate::command::completion_from_cmd_error(self, error)
+            }
+            Ok(()) => match reached {
+                Ok(()) => operation(self, &target),
+                Err(completion) => completion,
+            },
         };
         if let Some(id) = id {
             if let Some(binding) = protected_binding {
@@ -14832,7 +14851,13 @@ impl Vm {
             }
             self.var_arena.release_operation(id);
         }
-        result
+        match scope.check(self) {
+            Ok(()) => result,
+            Err(error) => {
+                drop(result);
+                crate::command::completion_from_cmd_error(self, error)
+            }
+        }
     }
 
     /// Drop the undefined name-table shell retained for a direct array
@@ -19441,24 +19466,61 @@ impl Vm {
         original: Option<&Value>,
         leave_error_message: bool,
     ) -> Result<Value, Completion<Value>> {
+        use native_operation_currency::NativeOperationScope;
+        let scope = NativeOperationScope::enter(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
         let checked =
             self.check_captured_update_with_errors(name, key, captured, leave_error_message);
         if leave_error_message
             && checked.is_err()
             && let Some(original) = original
         {
-            self.native_name_operand_bytes(original)
-                .map_err(|error| self.refuse_host_command(error.to_string()))?;
+            let reached = self.native_name_operand_bytes(original);
+            scope
+                .check(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            reached
+                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
         }
+        scope
+            .check(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
         checked?;
         let cell = &captured.cell;
         let id = cell.id.expect("captured update cell");
         let _ = self.var_arena.replace_state(id, Local::Scalar(value));
+        scope
+            .check(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        if self.var_arena.get(id).is_none() {
+            return Err(crate::command::completion_from_cmd_error(
+                self,
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "actual captured variable cell",
+                )
+                .into(),
+            ));
+        }
+        if !self.var_arena.element_is_attached(id)
+            || captured.namespace.is_some_and(|namespace| {
+                namespace != ROOT_NS && !self.ns_vars.contains_key(&namespace)
+            })
+        {
+            // Recheck actual retained storage, without repeating constant/type
+            // acceptance after a reached old-value retirement callback.
+            self.check_captured_update_with_errors(name, key, captured, leave_error_message)?;
+        }
         if let Some(original) = original
             && self.original_variable_trace_requires_name(cell, key.is_some(), "write")
         {
-            self.native_name_operand_bytes(original)
-                .map_err(|error| self.refuse_host_command(error.to_string()))?;
+            let reached = self.native_name_operand_bytes(original);
+            scope
+                .check(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            reached
+                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
         }
         let input = if let Some(key) = key {
             let mut display = name.to_vec();
@@ -19469,7 +19531,7 @@ impl Vm {
         } else {
             (name.to_vec(), (name, None), false)
         };
-        self.fire_var_traces_from_parts(
+        let reached = self.fire_var_traces_from_parts(
             VarTraceInvocation {
                 leave_error_message,
                 name: &input.0,
@@ -19479,7 +19541,11 @@ impl Vm {
             },
             None,
             Some(cell.clone()),
-        )?;
+        );
+        scope
+            .check(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached?;
         Ok(self.read_resolved_cell(id).unwrap_or_else(Value::empty))
     }
 
