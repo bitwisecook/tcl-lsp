@@ -1837,4 +1837,5 @@ fn original_open_channel_retains_the_actual_checked_path_for_jim_seek_error() {
     std::fs::remove_file(&path).unwrap();
 }
 
+#[path = "native_string_stage_tests/original_list_membership_tests.rs"]
 mod original_list_membership_tests;

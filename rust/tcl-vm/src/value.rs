@@ -852,6 +852,9 @@ impl PreparedNativeDictionary {
     pub(crate) fn original(&self) -> &Value {
         &self.value
     }
+    pub(crate) fn string_protocol(&self) -> NativeStringProtocol {
+        self.protocol
+    }
     pub(crate) fn is_same_object(&self, value: &Value) -> bool {
         Rc::ptr_eq(&self.value.0, &value.0)
     }
@@ -888,9 +891,15 @@ impl PreparedNativeDictionary {
         key: Value,
         value: Value,
         check: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
+        strings: &mut dyn FnMut(&Value) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
     ) -> Result<(), tcl_cmd_core::CmdError> {
-        self.value
-            .set_native_dictionary_member_using(key, value, self.protocol, &mut Some(check))
+        self.value.set_native_dictionary_member_using(
+            key,
+            value,
+            self.protocol,
+            &mut Some(check),
+            &mut Some(strings),
+        )
     }
 
     pub(crate) fn remove_member(
@@ -5150,21 +5159,23 @@ impl Value {
         &self,
         protocol: NativeStringProtocol,
     ) -> Result<Self, ValueError> {
-        self.native_list_copy_using(protocol, &mut None)
+        self.native_list_copy_using(protocol, &mut None, &mut None)
     }
 
     pub(crate) fn native_list_copy_checked(
         &self,
         protocol: NativeStringProtocol,
         check: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
+        strings: &mut dyn FnMut(&Value) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
     ) -> Result<Self, tcl_cmd_core::CmdError> {
-        self.native_list_copy_using(protocol, &mut Some(check))
+        self.native_list_copy_using(protocol, &mut Some(check), &mut Some(strings))
     }
 
     fn native_list_copy_using<E: From<ValueError>>(
         &self,
         protocol: NativeStringProtocol,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>>,
     ) -> Result<Self, E> {
         if protocol
             .tcl_version()
@@ -5175,7 +5186,7 @@ impl Value {
             )
             .into());
         }
-        let backing = self.native_object_list_elements_using(protocol, check)?;
+        let backing = self.native_object_list_elements_using(protocol, check, strings)?;
         Self::native_stage_check(check)?;
         let value = Self::from_retained_native_list_backing(&backing, protocol)?;
         Self::native_stage_check(check)?;
@@ -5367,23 +5378,29 @@ impl Value {
         &self,
         protocol: tcl_syntax::native_string::NativeStringProtocol,
     ) -> Result<PreparedNativeDictionary, ValueError> {
-        self.prepare_native_dictionary_after_conversion_using(protocol, &mut None)
+        self.prepare_native_dictionary_after_conversion_using(protocol, &mut None, &mut None)
     }
 
     pub(crate) fn prepare_native_dictionary_after_conversion_checked(
         &self,
         protocol: tcl_syntax::native_string::NativeStringProtocol,
         check: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
+        strings: &mut dyn FnMut(&Value) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
     ) -> Result<PreparedNativeDictionary, tcl_cmd_core::CmdError> {
-        self.prepare_native_dictionary_after_conversion_using(protocol, &mut Some(check))
+        self.prepare_native_dictionary_after_conversion_using(
+            protocol,
+            &mut Some(check),
+            &mut Some(strings),
+        )
     }
 
     fn prepare_native_dictionary_after_conversion_using<E: From<ValueError>>(
         &self,
         protocol: tcl_syntax::native_string::NativeStringProtocol,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>>,
     ) -> Result<PreparedNativeDictionary, E> {
-        drop(self.native_object_dict_pairs_using(protocol, check)?);
+        drop(self.native_object_dict_pairs_using(protocol, check, strings)?);
         Self::native_stage_check(check)?;
         self.check_native_header()?;
         let value = if self.native_object_is_shared() {
@@ -5431,7 +5448,7 @@ impl Value {
         value: Value,
         protocol: NativeStringProtocol,
     ) -> Result<(), ValueError> {
-        self.set_native_dictionary_member_using(key, value, protocol, &mut None)
+        self.set_native_dictionary_member_using(key, value, protocol, &mut None, &mut None)
     }
 
     fn set_native_dictionary_member_using<E: From<ValueError>>(
@@ -5440,18 +5457,16 @@ impl Value {
         value: Value,
         protocol: NativeStringProtocol,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>>,
     ) -> Result<(), E> {
         Self::native_stage_check(check)?;
         key.check_native_header()?;
-        let reached = key
-            .native_string_bytes(protocol)
-            .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
-            .map_err(ValueError::from);
+        let reached = key.native_compound_string_using(protocol, strings);
         Self::native_stage_check(check)?;
         let key_bytes = reached?;
         value.check_native_header()?;
         if !matches!(*self.0.intrep.borrow(), IntRep::Dict(_)) {
-            drop(self.native_object_dict_pairs_using(protocol, check)?);
+            drop(self.native_object_dict_pairs_using(protocol, check, strings)?);
         }
         let dict = match &*self.0.intrep.borrow() {
             IntRep::Dict(dict) => Rc::clone(dict),
@@ -5537,13 +5552,29 @@ impl Value {
         &self,
         protocol: tcl_syntax::native_string::NativeStringProtocol,
     ) -> Result<Vec<(Value, Value)>, ValueError> {
-        self.native_object_dict_pairs_using(protocol, &mut None)
+        self.native_object_dict_pairs_using(protocol, &mut None, &mut None)
+    }
+
+    fn native_compound_string_using<E: From<ValueError>>(
+        &self,
+        protocol: NativeStringProtocol,
+        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>>,
+    ) -> Result<Rc<[u8]>, E> {
+        match strings.as_deref_mut() {
+            Some(strings) => strings(self),
+            None => self
+                .native_string_bytes(protocol)
+                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
+                .map_err(ValueError::from)
+                .map_err(E::from),
+        }
     }
 
     fn native_object_dict_pairs_using<E: From<ValueError>>(
         &self,
         protocol: tcl_syntax::native_string::NativeStringProtocol,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>>,
     ) -> Result<Vec<(Value, Value)>, E> {
         Self::native_stage_check(check)?;
         self.check_native_header()?;
@@ -5558,23 +5589,17 @@ impl Value {
         }
         let cached_list = self.cached_list_representation();
         if protocol.is_jim084() && cached_list.is_some() && self.native_object_is_shared() {
-            let reached = self
-                .native_string_bytes(protocol)
-                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
-                .map_err(ValueError::from);
+            let reached = self.native_compound_string_using(protocol, strings);
             Self::native_stage_check(check)?;
             reached?;
         }
         let items = match cached_list.as_ref() {
             Some((items, _)) => items.lifetime_view(),
             None if protocol.is_jim084() => {
-                self.native_object_list_elements_using(protocol, check)?
+                self.native_object_list_elements_using(protocol, check, strings)?
             }
             None => {
-                let reached = self
-                    .native_string_bytes(protocol)
-                    .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
-                    .map_err(ValueError::from);
+                let reached = self.native_compound_string_using(protocol, strings);
                 Self::native_stage_check(check)?;
                 let bytes = reached?;
                 let parsed = tcl_syntax::list::split_native_list_bytes(&bytes, protocol).map_err(
@@ -5602,19 +5627,13 @@ impl Value {
                 items.check_generation()?;
             }
             pair[0].check_native_header()?;
-            let reached = pair[0]
-                .native_string_bytes(protocol)
-                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
-                .map_err(ValueError::from);
+            let reached = pair[0].native_compound_string_using(protocol, strings);
             Self::native_stage_check(check)?;
             let bytes = reached?;
             duplicates |= !seen.insert(bytes);
         }
         if !protocol.is_jim084() && cached_list.is_some() && duplicates {
-            let reached = self
-                .native_string_bytes(protocol)
-                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
-                .map_err(ValueError::from);
+            let reached = self.native_compound_string_using(protocol, strings);
             Self::native_stage_check(check)?;
             reached?;
         }

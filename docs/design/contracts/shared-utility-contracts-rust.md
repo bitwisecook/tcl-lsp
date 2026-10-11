@@ -3413,3 +3413,14 @@ Its existing world/stamp and original-header checks bracket that stage and
 primary retirement. The first typed String refusal is retained before later
 checks or cleanup; ALL method-record upgrades follow successful settlement.
 Allocation leases and idle weak records add no Native method ownership.
+
+Checked VM List-copy, Dictionary conversion and prepared member updates require
+the same node-aware String provider as ordinary original List conversion. Their
+shared Value workers retain an explicit `None` route for independent pure APIs.
+The array command supplies `OriginalNumericOps::{copy_list_with_currency,
+prepare_dictionary_with_currency,set_dictionary_member_with_currency}` using its
+original entered currency; selected String protocol, root and reached child
+headers are checked before and after String, cleanup and cache publication.
+Dictionary key conversion does not acquire a fresh formatter or a new operation
+receipt. Full Host refusal precedes Guest dictionary parsing or command result
+publication. Allocation-only root views preserve the original COW observation.

@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Original numeric stages share the actual entered currency and Host ABI owner.
 
-use super::{Vm, native_operation_currency::NativeOperationScope};
+use super::{
+    Vm,
+    native_operation_currency::{NativeOperationCurrency, NativeOperationScope},
+};
 use crate::Value;
 use std::{
     cell::{Cell, RefCell},
@@ -261,6 +264,100 @@ impl<'a> OriginalNumericOps<'a> {
         self.list_using(value, protocol, |actual| {
             self.arithmetic_current_for_value(actual)
         })
+    }
+
+    fn retain_compound_failure<T>(&self, reached: &Result<T, CmdError>) {
+        if let Err(error) = reached
+            && let Some(first) = error.native_execution_refusal()
+        {
+            self.vm
+                .borrow_mut()
+                .retain_tcl_host_failure(crate::error::TclHostFailure::Execution(first.clone()));
+        }
+    }
+
+    fn compound_with_currency<T>(
+        &self,
+        original: &Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        currency: &NativeOperationCurrency,
+        operation: impl FnOnce(
+            &mut dyn FnMut() -> Result<(), CmdError>,
+            &mut dyn FnMut(&Value) -> Result<Rc<[u8]>, CmdError>,
+        ) -> Result<T, CmdError>,
+    ) -> Result<T, CmdError> {
+        let current = |actual: &Value| {
+            self.current_for_value(original)?;
+            self.current_for_value(actual)?;
+            currency.check(&mut self.vm.borrow_mut())
+        };
+        current(original)?;
+        if self.dialect.native_string_protocol() != Some(protocol) {
+            return Err(
+                ValueError::CommandProtocolUnavailable("original VM compound protocol").into(),
+            );
+        }
+        self.bind_jim_using(original, || current(original))?;
+        let reached = operation(&mut || current(original), &mut |actual| {
+            let reached = self.string_using(actual, protocol, &current);
+            self.retain_compound_failure(&reached);
+            current(actual)?;
+            reached
+        });
+        self.retain_compound_failure(&reached);
+        if let Err(first) = current(original) {
+            drop(reached);
+            current(original)?;
+            return Err(first);
+        }
+        reached
+    }
+
+    pub(crate) fn copy_list_with_currency(
+        &self,
+        original: &Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        currency: &NativeOperationCurrency,
+    ) -> Result<Value, CmdError> {
+        self.compound_with_currency(original, protocol, currency, |check, strings| {
+            original.native_list_copy_checked(protocol, check, strings)
+        })
+    }
+
+    pub(crate) fn prepare_dictionary_with_currency(
+        &self,
+        original: &Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        currency: &NativeOperationCurrency,
+    ) -> Result<crate::value::PreparedNativeDictionary, CmdError> {
+        self.compound_with_currency(original, protocol, currency, |check, strings| {
+            original.prepare_native_dictionary_after_conversion_checked(protocol, check, strings)
+        })
+    }
+
+    pub(crate) fn set_dictionary_member_with_currency(
+        &self,
+        original: &mut crate::value::PreparedNativeDictionary,
+        key: Value,
+        value: Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        currency: &NativeOperationCurrency,
+    ) -> Result<(), CmdError> {
+        self.current_for_value(original.original())?;
+        if original.string_protocol() != protocol {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original prepared Dictionary protocol",
+            )
+            .into());
+        }
+        let root = original.original().native_lifetime_lease();
+        let reached =
+            self.compound_with_currency(root.value(), protocol, currency, |check, strings| {
+                original.set_member_checked(key, value, check, strings)
+            });
+        drop(root);
+        self.current()?;
+        reached
     }
 
     pub(crate) fn getter(
@@ -1850,3 +1947,7 @@ mod tests {
 #[cfg(test)]
 #[path = "native_string_stage_tests.rs"]
 mod original_string_stage_tests;
+
+#[cfg(test)]
+#[path = "native_compound_stage_tests.rs"]
+mod original_compound_stage_tests;

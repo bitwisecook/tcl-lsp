@@ -523,6 +523,28 @@ fn array_set_c_after_trace(
     ok(Value::empty())
 }
 
+fn original_compound_ops<T>(
+    vm: &mut Vm,
+    currency: &NativeOperationCurrency,
+    operation: impl FnOnce(
+        &crate::interp::native_numeric_ops::OriginalNumericOps<'_>,
+    ) -> Result<T, tcl_cmd_core::CmdError>,
+) -> Result<T, tcl_cmd_core::CmdError> {
+    currency.check(vm)?;
+    let scope = NativeOperationScope::enter(vm)?;
+    let reached = {
+        let ops =
+            crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(vm, &scope)?;
+        operation(&ops)
+    };
+    if let Err(first) = scope.check(vm) {
+        drop(reached);
+        scope.check(vm)?;
+        return Err(first);
+    }
+    reached
+}
+
 fn array_set_jim(
     vm: &mut Vm,
     name: &Value,
@@ -563,11 +585,9 @@ fn array_set_jim(
             .map_err(|error| completion_from_cmd_error(vm, error.into()))?;
         // DictSize conversion precedes the sharing decision; the original root
         // lease adds no native hold before either stage.
-        let reached = original
-            .value()
-            .prepare_native_dictionary_after_conversion_checked(strings, &mut || {
-                currency.check(vm)
-            });
+        let reached = original_compound_ops(vm, currency, |ops| {
+            ops.prepare_dictionary_with_currency(original.value(), strings, currency)
+        });
         currency
             .check(vm)
             .map_err(|error| completion_from_cmd_error(vm, error))?;
@@ -576,11 +596,15 @@ fn array_set_jim(
             items
                 .check_generation()
                 .map_err(|error| completion_from_cmd_error(vm, error.into()))?;
-            let reached = working.set_member_checked(
-                pair[0].native_lifetime_lease().into_value(),
-                pair[1].native_lifetime_lease().into_value(),
-                &mut || currency.check(vm),
-            );
+            let reached = original_compound_ops(vm, currency, |ops| {
+                ops.set_dictionary_member_with_currency(
+                    &mut working,
+                    pair[0].native_lifetime_lease().into_value(),
+                    pair[1].native_lifetime_lease().into_value(),
+                    strings,
+                    currency,
+                )
+            });
             currency
                 .check(vm)
                 .map_err(|error| completion_from_cmd_error(vm, error))?;
@@ -698,7 +722,9 @@ fn array_for_after_trace(
         Err(error) => return completion_from_cmd_error(vm, error.into()),
     };
     let revision = VarStore::array_revision_at(vm, target);
-    let copied = match variables.native_list_copy_checked(strings, &mut || currency.check(vm)) {
+    let copied = match original_compound_ops(vm, currency, |ops| {
+        ops.copy_list_with_currency(variables, strings, currency)
+    }) {
         Ok(copied) => copied,
         Err(error) => return completion_from_cmd_error(vm, error),
     };
