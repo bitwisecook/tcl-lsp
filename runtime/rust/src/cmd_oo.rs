@@ -6983,7 +6983,7 @@ impl Interp {
                 let script = if let [original] = args {
                     *original
                 } else {
-                    let script = match tcl_cmd_core::list::concat_selected(self, args) {
+                    let script = match self.concat_original_arguments(args) {
                         Ok(script) => script,
                         Err(error) => return Some(self.report_cmd_error(error)),
                     };

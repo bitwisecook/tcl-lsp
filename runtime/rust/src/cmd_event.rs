@@ -55,7 +55,8 @@ fn script(
     if p.retains_single_script() && args.len() == 1 {
         return Ok(obj::Owned::retain(args[0]));
     }
-    tcl_cmd_core::list::concat_selected(interp, args)
+    interp
+        .concat_original_arguments(args)
         .map(obj::Owned::fresh)
         .map_err(|e| interp.report_cmd_error(e))
 }

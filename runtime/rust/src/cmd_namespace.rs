@@ -503,7 +503,7 @@ fn ns_eval(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Some(argv),
         );
     }
-    let body = match tcl_cmd_core::list::concat_selected(interp, &argv[3..]) {
+    let body = match interp.concat_original_arguments(&argv[3..]) {
         Ok(body) => obj::Owned::fresh(body),
         Err(error) => return interp.report_cmd_error(error),
     };
@@ -1396,7 +1396,7 @@ fn ns_inscope(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         )
     } else {
         let tail = obj::Owned::fresh(interp.new_list_object(&argv[4..]));
-        let body = match tcl_cmd_core::list::concat_selected(interp, &[argv[3], tail.as_ptr()]) {
+        let body = match interp.concat_original_arguments(&[argv[3], tail.as_ptr()]) {
             Ok(body) => obj::Owned::fresh(body),
             Err(error) => return interp.report_cmd_error(error),
         };

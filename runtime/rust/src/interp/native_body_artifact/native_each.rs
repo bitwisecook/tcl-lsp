@@ -63,22 +63,41 @@ impl Builder<'_> {
 
 // TclListObjCopy(NULL) returns an rc-0 working header in C8.5 STEP4.
 // Its backing owns the original members until the group finishes.
-struct GroupListCopy(*mut TclObj);
+struct GroupListCopy {
+    original: *mut TclObj,
+    _lifetime: obj::NativeObjectLifetime,
+}
 impl GroupListCopy {
-    fn new(original: *mut TclObj, protocol: NativeStringProtocol) -> Result<Self, ValueError> {
-        Ok(Self(
-            crate::list::native_list_copy(original, protocol)?.into_native_unowned(),
-        ))
+    fn new(
+        interpreter: &Interp,
+        original: *mut TclObj,
+        protocol: NativeStringProtocol,
+        captured: &BodyListArguments,
+    ) -> Result<Self, tcl_cmd_core::CmdError> {
+        let copy = crate::list::native_list_copy_using(
+            original,
+            protocol,
+            &|| captured.check(interpreter),
+            &|error| captured.refuse(error),
+        )?
+        .into_native_unowned();
+        Ok(Self {
+            original: copy,
+            _lifetime: obj::NativeObjectLifetime::retain(copy),
+        })
     }
 }
 impl Drop for GroupListCopy {
     fn drop(&mut self) {
-        // SAFETY: this reached working header stays live for the whole group.
-        if unsafe { (*self.0).ref_count == 0 } {
-            drop_fresh(self.0);
+        if !obj::allocation_is_live(self.original) {
+            return;
+        }
+        // SAFETY: the allocation-only lease keeps this exact reached header valid.
+        if unsafe { (*self.original).ref_count == 0 } {
+            drop_fresh(self.original);
         } else {
             // SAFETY: a callback-retained working header has a native reference.
-            unsafe { obj::decr_ref_count(self.0) };
+            unsafe { obj::decr_ref_count(self.original) };
         }
     }
 }
@@ -162,17 +181,30 @@ impl Interp {
             .ok()
             .flatten();
         if let Some(original) = previous {
-            obj::change_type(original, &obj::TCL_INT_TYPE, iteration as u64);
+            let captured = BodyListArguments::capture(self, original, Some(slot))
+                .map_err(|error| self.report_cmd_error(error))?;
+            let actual = self.clone();
+            obj::change_type_with_stage_check::<tcl_cmd_core::CmdError>(
+                original,
+                &obj::TCL_INT_TYPE,
+                iteration as u64,
+                &mut || captured.check(&actual),
+            )
+            .map_err(|error| self.report_cmd_error(error))?;
             obj::invalidate_string(original);
-            Ok(())
+            captured
+                .check(self)
+                .map_err(|error| self.report_cmd_error(error))
         } else {
             let value = obj::Owned::fresh(obj::new_wide_int_obj(iteration));
             self.each_store_temporary(slot, value.as_ptr())
         }
     }
 
-    fn each_list_length(&mut self, original: *mut TclObj) -> Result<usize, Code> {
-        ValueOps::list_len(self, &original).map_err(|error| self.report_cmd_error(error.into()))
+    fn each_list_length(&mut self, captured: &BodyListArguments) -> Result<usize, Code> {
+        captured
+            .length(self)
+            .map_err(|error| self.report_cmd_error(error))
     }
 
     fn each_assign(&mut self, name: &[u8], slot: usize, original: *mut TclObj) -> Result<(), Code> {
@@ -220,6 +252,27 @@ impl Interp {
         operation: &EachOperation,
         execution: &mut BodyExecution,
     ) -> Result<Code, Code> {
+        let original = crate::interp::native_arguments::OriginalArguments::enter(self, &[])
+            .map_err(|error| self.report_cmd_error(error))?;
+        let frame = BodyListFrame::capture(self);
+        let reached = self.execute_body_each_with_original(
+            artifact, command, operation, execution, &original, &frame,
+        );
+        frame
+            .check(self, &original)
+            .map_err(|error| self.report_cmd_error(error))?;
+        reached
+    }
+
+    fn execute_body_each_with_original(
+        &mut self,
+        artifact: &NativeBodyArtifact,
+        command: &CommandInstruction,
+        operation: &EachOperation,
+        execution: &mut BodyExecution,
+        entered: &crate::interp::native_arguments::OriginalArguments,
+        frame: &BodyListFrame,
+    ) -> Result<Code, Code> {
         let storage = native_compiled_each_storage(operation.recipe.version);
         let protocol = artifact.stamp.source_protocol;
         let collected = (operation.recipe.collection == NativeEachCollection::Lmap)
@@ -234,6 +287,9 @@ impl Interp {
                 &group.values,
                 execution,
             )?;
+            frame
+                .check(self, entered)
+                .map_err(|error| self.report_cmd_error(error))?;
             if execution.done {
                 return Ok(Code::Return);
             }
@@ -252,11 +308,21 @@ impl Interp {
         let mut maximum = 0;
         if storage == Storage::StackLists {
             for (group, source) in operation.recipe.groups.iter().zip(stack_groups.iter_mut()) {
-                source.length = self.each_list_length(source.original.as_ptr())?;
+                let captured = BodyListArguments::capture(self, source.original.as_ptr(), None)
+                    .map_err(|error| self.report_cmd_error(error))?;
+                source.length = self.each_list_length(&captured)?;
                 if obj::is_shared(source.original.as_ptr()) {
-                    source.original =
-                        crate::list::native_list_copy(source.original.as_ptr(), protocol)
-                            .map_err(|error| self.report_cmd_error(error.into()))?;
+                    let actual = self.clone();
+                    source.original = crate::list::native_list_copy_using(
+                        source.original.as_ptr(),
+                        protocol,
+                        &|| captured.check(&actual),
+                        &|error| captured.refuse(error),
+                    )
+                    .map_err(|error| self.report_cmd_error(error))?;
+                    captured
+                        .check_selection(self)
+                        .map_err(|error| self.report_cmd_error(error))?;
                 }
                 maximum = maximum.max(source.length.div_ceil(group.variables.len()));
             }
@@ -274,15 +340,27 @@ impl Interp {
             .then(|| StackIteration::new(&operation.recipe, maximum));
         let mut iteration = 0usize;
         loop {
+            frame
+                .check(self, entered)
+                .map_err(|error| self.report_cmd_error(error))?;
             if let Some(counter) = counter {
                 let value = i64::try_from(iteration).map_err(|_| {
                     self.report_cmd_error(unavailable("native iterator counter extent").into())
                 })?;
                 self.each_counter(counter, value)?;
+                frame
+                    .check(self, entered)
+                    .map_err(|error| self.report_cmd_error(error))?;
                 let mut continues = false;
                 for (index, group) in operation.recipe.groups.iter().enumerate() {
                     let original = self.each_temporary(operation.prepared.temporaries[index])?;
-                    let length = self.each_list_length(original)?;
+                    let captured = BodyListArguments::capture(
+                        self,
+                        original,
+                        Some(operation.prepared.temporaries[index]),
+                    )
+                    .map_err(|error| self.report_cmd_error(error))?;
+                    let length = self.each_list_length(&captured)?;
                     continues |= iteration < length.div_ceil(group.variables.len());
                 }
                 if !continues {
@@ -295,26 +373,48 @@ impl Interp {
                 cursor.advance(iteration + 1);
             }
             for (index, group) in operation.recipe.groups.iter().enumerate() {
+                frame
+                    .check(self, entered)
+                    .map_err(|error| self.report_cmd_error(error))?;
                 let original = if storage == Storage::StackLists {
                     stack_groups[index].original.as_ptr()
                 } else {
                     self.each_temporary(operation.prepared.temporaries[index])?
                 };
+                let captured = BodyListArguments::capture(
+                    self,
+                    original,
+                    (storage != Storage::StackLists)
+                        .then_some(operation.prepared.temporaries[index]),
+                )
+                .map_err(|error| self.report_cmd_error(error))?;
                 let copy = if storage == Storage::LocalGroupCopy {
                     Some(
-                        GroupListCopy::new(original, protocol)
-                            .map_err(|error| self.report_cmd_error(error.into()))?,
+                        GroupListCopy::new(self, original, protocol, &captured)
+                            .map_err(|error| self.report_cmd_error(error))?,
                     )
                 } else {
                     None
                 };
-                let selected = copy.as_ref().map_or(original, |copy| copy.0);
+                let selected = copy.as_ref().map_or(original, |copy| copy.original);
+                let selected_header = BodyListArguments::capture(self, selected, None)
+                    .map_err(|error| self.report_cmd_error(error))?;
+                let actual = self.clone();
+                let check = || {
+                    captured.check(&actual)?;
+                    selected_header.check(&actual)
+                };
                 let members = if storage == Storage::LocalRefetch {
                     None
                 } else {
                     Some(
-                        crate::list::list_elements_native_checked(selected, protocol)
-                            .map_err(|error| self.report_cmd_error(error.into()))?,
+                        crate::list::list_elements_native_using(
+                            selected,
+                            protocol,
+                            &check,
+                            &|error| captured.refuse(error),
+                        )
+                        .map_err(|error| self.report_cmd_error(error))?,
                     )
                 };
                 let first_value_index =
@@ -332,11 +432,21 @@ impl Interp {
                     let elements = if let Some(elements) = &members {
                         elements
                     } else {
-                        refreshed = crate::list::list_elements_native_checked(selected, protocol)
-                            .map_err(|_| {
-                            self.report_cmd_error(
-                                unavailable("native C8.4 compiled iterator fatal refetch").into(),
-                            )
+                        refreshed = crate::list::list_elements_native_using(
+                            selected,
+                            protocol,
+                            &check,
+                            &|error| captured.refuse(error),
+                        )
+                        .map_err(|error| {
+                            if error.native_execution_refusal().is_some() {
+                                self.report_cmd_error(error)
+                            } else {
+                                self.report_cmd_error(
+                                    unavailable("native C8.4 compiled iterator fatal refetch")
+                                        .into(),
+                                )
+                            }
                         })?;
                         &refreshed
                     };
@@ -358,22 +468,42 @@ impl Interp {
                         }
                     }
                     drop(lifetime);
+                    check().map_err(|error| self.report_cmd_error(error))?;
                     result?;
                 }
             }
+            frame
+                .check(self, entered)
+                .map_err(|error| self.report_cmd_error(error))?;
             let code = self.execute_body_region(artifact, operation.recipe.body_span, execution);
+            frame
+                .check(self, entered)
+                .map_err(|error| self.report_cmd_error(error))?;
             if execution.done || self.host_refusal_pending() || self.exit_pending() {
                 return Ok(code);
             }
             match code {
                 Code::Ok => {
                     if let Some(accumulator) = &collected {
-                        crate::list::append_prepared_native_elements(
+                        let captured = BodyListArguments::capture(self, accumulator.as_ptr(), None)
+                            .map_err(|error| self.report_cmd_error(error))?;
+                        let result = crate::interp::native_arguments::OriginalArguments::enter(
+                            self,
+                            &[self.result_obj()],
+                        )
+                        .map_err(|error| self.report_cmd_error(error))?;
+                        let actual = self.clone();
+                        crate::list::append_prepared_native_elements_using(
                             accumulator.as_ptr(),
                             &[self.result_obj()],
                             protocol,
+                            &|| {
+                                captured.check(&actual)?;
+                                result.check_for(&actual)
+                            },
+                            &|error| captured.refuse(error),
                         )
-                        .map_err(|error| self.report_cmd_error(error.into()))?;
+                        .map_err(|error| self.report_cmd_error(error))?;
                     }
                 }
                 Code::Continue => {}
@@ -386,6 +516,9 @@ impl Interp {
         }
         drop(stack_iteration);
         drop(stack_groups);
+        frame
+            .check(self, entered)
+            .map_err(|error| self.report_cmd_error(error))?;
         if let Some(collected) = collected {
             self.set_result(collected.as_ptr());
         } else {
@@ -534,3 +667,6 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod original_counter_tests;

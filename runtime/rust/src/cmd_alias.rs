@@ -1177,7 +1177,7 @@ fn interp_eval_original(
     let script = if argv.len() == 4 {
         obj::Owned::retain(argv[3])
     } else {
-        match tcl_cmd_core::list::concat_selected(interp, &argv[3..]) {
+        match interp.concat_original_arguments(&argv[3..]) {
             Ok(script) => obj::Owned::retain(script),
             Err(error) => return interp.report_cmd_error(error),
         }
@@ -4441,11 +4441,7 @@ mod original_alias_key_tests {
     fn define(interp: &mut Interp, originals: &[Owned], name: usize, jim: bool) {
         let jim_words = [b"alias".as_slice()];
         let c_words = [b"interp".as_slice(), b"alias", b"", b"unused", b""];
-        let words = super::original_operand_tests::words(if jim {
-            &jim_words
-        } else {
-            &c_words
-        });
+        let words = super::original_operand_tests::words(if jim { &jim_words } else { &c_words });
         let mut argv = words.iter().map(Owned::as_ptr).collect::<Vec<_>>();
         if jim {
             argv.push(originals[name].as_ptr());

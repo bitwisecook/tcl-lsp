@@ -28,6 +28,7 @@
 //!
 //! Semantics verified against tclsh 9.0.
 
+use crate::interp::native_arguments::OriginalArguments;
 use crate::interp::{drop_fresh, new_string, obj_bytes, Code, Interp};
 use crate::obj::TclObj;
 use tcl_syntax::value::ValueOps;
@@ -642,15 +643,33 @@ struct EachLoopGroup {
 }
 
 fn native_each_loop_members(
+    interp: &Interp,
+    arguments: &OriginalArguments,
     root: *mut TclObj,
     strings: tcl_syntax::native_string::NativeStringProtocol,
-) -> Result<crate::list::NativeListBacking, tcl_syntax::value::ValueError> {
-    drop(crate::list::list_elements_native_checked(root, strings)?);
-    crate::list::native_list_backing(root).ok_or(
-        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-            "native each-loop concrete List backing",
-        ),
-    )
+) -> Result<crate::list::NativeListBacking, tcl_cmd_core::CmdError> {
+    arguments.check_for(interp)?;
+    let selected = OriginalArguments::enter(interp, &[root])?;
+    drop(crate::list::list_elements_native_using(
+        root,
+        strings,
+        &|| {
+            arguments.check_for(interp)?;
+            selected.check_original_for(interp, 0, root)
+        },
+        &|error| arguments.retain_refusal(error.into()),
+    )?);
+    let backing = crate::list::native_list_backing(root).ok_or_else(|| {
+        arguments.retain_refusal(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native each-loop concrete List backing",
+            )
+            .into(),
+        )
+    });
+    selected.check_original_for(interp, 0, root)?;
+    arguments.check_for(interp)?;
+    backing
 }
 
 /// Prepare one original pair outside the recursively entered body frame.
@@ -660,13 +679,21 @@ fn prepare_each_loop_group(
     pair: &[*mut TclObj],
     protocol: tcl_registry::native_each_loop::NativeEachLoopProtocol,
     strings: tcl_syntax::native_string::NativeStringProtocol,
+    arguments: &OriginalArguments,
+    pair_index: usize,
 ) -> Result<(EachLoopGroup, (usize, usize)), Code> {
     let recipe = protocol.recipe();
     let kind = protocol.kind();
+    let actual = interp.clone();
     let variable_owner = if recipe.copies_headers() {
-        match crate::list::native_list_copy(pair[0], strings) {
+        match crate::list::native_list_copy_using(
+            pair[0],
+            strings,
+            &|| arguments.check_original_for(&actual, pair_index, pair[0]),
+            &|error| arguments.retain_refusal(error.into()),
+        ) {
             Ok(owner) => Some(owner),
-            Err(error) => return Err(interp.report_cmd_error(error.into())),
+            Err(error) => return Err(interp.report_cmd_error(error)),
         }
     } else {
         None
@@ -674,9 +701,9 @@ fn prepare_each_loop_group(
     let variables = variable_owner
         .as_ref()
         .map_or(pair[0], crate::obj::Owned::as_ptr);
-    let variable_items = match native_each_loop_members(variables, strings) {
+    let variable_items = match native_each_loop_members(interp, arguments, variables, strings) {
         Ok(items) => items,
-        Err(error) => return Err(interp.report_cmd_error(error.into())),
+        Err(error) => return Err(interp.report_cmd_error(error)),
     };
     let variable_count = variable_items.len();
     if variable_count == 0 && !recipe.live_iterators() {
@@ -691,12 +718,20 @@ fn prepare_each_loop_group(
             Ok(values) => values,
             Err(error) => return Err(interp.report_cmd_error(error.into())),
         };
+    if let Err(error) = arguments.check_original_for(interp, pair_index + 1, pair[1]) {
+        return Err(interp.report_cmd_error(error));
+    }
     let value_owner = if abstract_values.is_some() {
         None
     } else if recipe.copies_headers() {
-        match crate::list::native_list_copy(pair[1], strings) {
+        match crate::list::native_list_copy_using(
+            pair[1],
+            strings,
+            &|| arguments.check_original_for(&actual, pair_index + 1, pair[1]),
+            &|error| arguments.retain_refusal(error.into()),
+        ) {
             Ok(owner) => Some(owner),
-            Err(error) => return Err(interp.report_cmd_error(error.into())),
+            Err(error) => return Err(interp.report_cmd_error(error)),
         }
     } else {
         None
@@ -707,9 +742,9 @@ fn prepare_each_loop_group(
     let value_items = if abstract_values.is_some() || recipe.live_iterators() {
         None
     } else {
-        match native_each_loop_members(values, strings) {
+        match native_each_loop_members(interp, arguments, values, strings) {
             Ok(items) => Some(items),
-            Err(error) => return Err(interp.report_cmd_error(error.into())),
+            Err(error) => return Err(interp.report_cmd_error(error)),
         }
     };
     let lengths = (
@@ -739,6 +774,7 @@ fn prepare_each_loop_groups(
     argv: &[*mut TclObj],
     protocol: tcl_registry::native_each_loop::NativeEachLoopProtocol,
     strings: tcl_syntax::native_string::NativeStringProtocol,
+    arguments: &OriginalArguments,
 ) -> Result<(Vec<EachLoopGroup>, Vec<(usize, usize)>), Code> {
     interp
         .associate_native_jim_arguments(argv)
@@ -746,8 +782,12 @@ fn prepare_each_loop_groups(
     let mut groups = Vec::new();
     let mut lengths = Vec::new();
     let mut empty = false;
-    for pair in argv[1..argv.len() - 1].chunks_exact(2) {
-        let (group, length) = prepare_each_loop_group(interp, pair, protocol, strings)?;
+    arguments
+        .check_for(interp)
+        .map_err(|error| interp.report_cmd_error(error))?;
+    for (index, pair) in argv[1..argv.len() - 1].chunks_exact(2).enumerate() {
+        let (group, length) =
+            prepare_each_loop_group(interp, pair, protocol, strings, arguments, 1 + 2 * index)?;
         empty |= length.0 == 0;
         lengths.push(length);
         groups.push(group);
@@ -772,15 +812,16 @@ fn refresh_each_loop_group(
     action: tcl_cmd_core::native_each_loop::EachLoopAction,
     recipe: tcl_runtime_api::native_each_loop::NativeEachLoopRecipe,
     strings: tcl_syntax::native_string::NativeStringProtocol,
+    arguments: &OriginalArguments,
 ) -> Result<(), Code> {
     use tcl_cmd_core::native_each_loop::EachLoopAction;
     match action {
         EachLoopAction::Check(index) => {
             let group = &mut groups[index];
             group.value_items = None;
-            let items = match native_each_loop_members(group.values, strings) {
+            let items = match native_each_loop_members(interp, arguments, group.values, strings) {
                 Ok(items) => items,
-                Err(error) => return Err(interp.report_cmd_error(error.into())),
+                Err(error) => return Err(interp.report_cmd_error(error)),
             };
             cursor.set_value_length(index, items.len());
             group.value_items = Some(items);
@@ -788,34 +829,42 @@ fn refresh_each_loop_group(
         EachLoopAction::Refresh(index) => {
             let group = &mut groups[index];
             group.variable_items = None;
-            let variables = match native_each_loop_members(group.variables, strings) {
-                Ok(items) => items,
-                Err(_) if recipe.refetches_groups() => {
-                    return Err(interp.report_cmd_error(
-                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                            "native Tcl 8.4 each-loop variable-list refetch fatal boundary",
-                        )
-                        .into(),
-                    ));
-                }
-                Err(error) => return Err(interp.report_cmd_error(error.into())),
-            };
-            let count = variables.len();
-            group.variable_items = Some(variables);
-            if !recipe.live_iterators() || cursor.variable_cursor() < count {
-                group.value_items = None;
-                let values = match native_each_loop_members(group.values, strings) {
+            let variables =
+                match native_each_loop_members(interp, arguments, group.variables, strings) {
                     Ok(items) => items,
-                    Err(_) if recipe.refetches_groups() => {
+                    Err(error)
+                        if recipe.refetches_groups()
+                            && error.native_execution_refusal().is_none() =>
+                    {
                         return Err(interp.report_cmd_error(
                             tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                                "native Tcl 8.4 each-loop value-list refetch fatal boundary",
+                                "native Tcl 8.4 each-loop variable-list refetch fatal boundary",
                             )
                             .into(),
                         ));
                     }
-                    Err(error) => return Err(interp.report_cmd_error(error.into())),
+                    Err(error) => return Err(interp.report_cmd_error(error)),
                 };
+            let count = variables.len();
+            group.variable_items = Some(variables);
+            if !recipe.live_iterators() || cursor.variable_cursor() < count {
+                group.value_items = None;
+                let values =
+                    match native_each_loop_members(interp, arguments, group.values, strings) {
+                        Ok(items) => items,
+                        Err(error)
+                            if recipe.refetches_groups()
+                                && error.native_execution_refusal().is_none() =>
+                        {
+                            return Err(interp.report_cmd_error(
+                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                    "native Tcl 8.4 each-loop value-list refetch fatal boundary",
+                                )
+                                .into(),
+                            ));
+                        }
+                        Err(error) => return Err(interp.report_cmd_error(error)),
+                    };
                 cursor.set_lengths(index, count, values.len());
                 group.value_items = Some(values);
             } else {
@@ -840,6 +889,7 @@ fn assign_each_loop_variable(
     value: Option<usize>,
     protocol: tcl_registry::native_each_loop::NativeEachLoopProtocol,
     padding: Option<*mut TclObj>,
+    arguments: &OriginalArguments,
 ) -> Result<(), Code> {
     let recipe = protocol.recipe();
     let kind = protocol.kind();
@@ -888,11 +938,17 @@ fn assign_each_loop_variable(
         }
     }
     drop(fresh_lifetime);
+    arguments
+        .check_for(interp)
+        .map_err(|error| interp.report_cmd_error(error))?;
     if let Err(code) = stored {
-        let original = match interp.native_string_bytes(&name) {
-            Ok(bytes) => bytes,
-            Err(error) => return Err(interp.report_cmd_error(error.into())),
-        };
+        let selected = OriginalArguments::enter(interp, &[name])
+            .map_err(|error| interp.report_cmd_error(error))?;
+        let original = selected.bytes(0);
+        arguments
+            .check_for(interp)
+            .map_err(|error| interp.report_cmd_error(error))?;
+        let original = original.map_err(|error| interp.report_cmd_error(error))?;
         match tcl_cmd_core::native_each_loop::setter_failure(recipe, kind, &original) {
             tcl_cmd_core::native_each_loop::SetterFailure::Preserve => return Err(code),
             tcl_cmd_core::native_each_loop::SetterFailure::Replace(error) => {
@@ -911,6 +967,20 @@ fn assign_each_loop_variable(
 /// Preparation/refetch/assignment frames unwind before a nested body callback;
 /// the original group headers and padding/result owners remain live here.
 fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = each_loop_with_original(interp, argv, collect, &arguments);
+    arguments.finish(code)
+}
+
+fn each_loop_with_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    collect: bool,
+    arguments: &OriginalArguments,
+) -> Code {
     use tcl_cmd_core::native_each_loop::{BodyDecision, EachLoopAction};
     use tcl_runtime_api::completion_options::ControlOptionPolicy;
     use tcl_runtime_api::native_each_loop::NativeEachLoopKind;
@@ -942,10 +1012,11 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
         );
     };
     let recipe = protocol.recipe();
-    let (mut groups, lengths) = match prepare_each_loop_groups(interp, argv, protocol, strings) {
-        Ok(prepared) => prepared,
-        Err(code) => return code,
-    };
+    let (mut groups, lengths) =
+        match prepare_each_loop_groups(interp, argv, protocol, strings, arguments) {
+            Ok(prepared) => prepared,
+            Err(code) => return code,
+        };
     let jim_empty = if recipe.live_iterators() {
         match interp.native_jim_object_context() {
             Ok(context) => {
@@ -974,6 +1045,9 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
     let mut cursor = tcl_cmd_core::native_each_loop::EachLoopState::new(recipe, kind, lengths);
     let mut collected = Vec::<crate::obj::Owned>::new();
     loop {
+        if let Err(error) = arguments.check_for(interp) {
+            return interp.report_cmd_error(error);
+        }
         match cursor.advance() {
             action @ (EachLoopAction::Check(_) | EachLoopAction::Refresh(_)) => {
                 if let Err(code) = refresh_each_loop_group(
@@ -983,6 +1057,7 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
                     action,
                     recipe,
                     strings,
+                    arguments,
                 ) {
                     return code;
                 }
@@ -999,6 +1074,7 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
                     value,
                     protocol,
                     padding,
+                    arguments,
                 ) {
                     return code;
                 }
@@ -1008,6 +1084,9 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
                     return interp.refuse_native_execution(first);
                 }
                 let code = interp.eval_generic_control_body(argv[argv.len() - 1]);
+                if let Err(error) = arguments.check_for(interp) {
+                    return interp.report_cmd_error(error);
+                }
                 match cursor.body_completion(tcl_core_types::Code::from_int(
                     i32::try_from(code.as_int()).expect("runtime completion code is a C int"),
                 )) {
@@ -1355,3 +1434,7 @@ mod tests {
 
 #[cfg(test)]
 mod native_each_loop_tests;
+
+#[cfg(test)]
+#[path = "cmd_control/original_list_conversion_tests.rs"]
+pub(crate) mod original_list_conversion_tests;

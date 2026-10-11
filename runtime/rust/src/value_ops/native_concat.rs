@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Actual concat headers, borrowed original children and selected getters.
 use crate::{
-    interp::Interp,
+    interp::{native_arguments::OriginalArguments, Interp},
     list,
     obj::{self, TclObj},
 };
@@ -19,6 +19,10 @@ fn protocol(interp: &Interp) -> Result<NativeStringProtocol, ValueError> {
         ))
 }
 pub(super) fn shape(interp: &Interp, value: *mut TclObj) -> Result<Shape, ValueError> {
+    let arguments = OriginalArguments::enter(interp, &[value]).map_err(unwind)?;
+    arguments
+        .check_original_for(interp, 0, value)
+        .map_err(unwind)?;
     obj::check_native_liveness(value)?;
     let selected = protocol(interp)?;
     if crate::native_arithseries::is_series(value) {
@@ -37,58 +41,161 @@ pub(super) fn shape(interp: &Interp, value: *mut TclObj) -> Result<Shape, ValueE
     })
 }
 pub(super) fn empty(interp: &Interp) -> Result<*mut TclObj, ValueError> {
+    let original = OriginalArguments::enter(interp, &[]).map_err(unwind)?;
+    original.check_for(interp).map_err(unwind)?;
     Ok(list::new_list_obj_native(&[], protocol(interp)?))
 }
+// The portable ValueOps port keeps its ValueError shape. Full Host/currency
+// failures stay retained in the actual original operation; this carrier only
+// unwinds the same worker and cannot classify them as a new Guest error.
+fn unwind(error: tcl_cmd_core::CmdError) -> ValueError {
+    error
+        .native_access_refusal()
+        .map(Into::into)
+        .unwrap_or(ValueError::CommandProtocolUnavailable(
+            "native concat original operation",
+        ))
+}
+fn retained(arguments: &OriginalArguments, error: ValueError) -> ValueError {
+    let _ = arguments.retain_refusal(error.clone().into());
+    error
+}
 pub(super) fn copy(interp: &Interp, value: *mut TclObj) -> Result<*mut TclObj, ValueError> {
-    Ok(list::native_list_copy(value, protocol(interp)?)?.into_native_unowned())
+    let arguments = OriginalArguments::enter(interp, &[value]).map_err(unwind)?;
+    let copy = list::native_list_copy_using(
+        value,
+        protocol(interp)?,
+        &|| {
+            arguments
+                .check_original_for(interp, 0, value)
+                .map_err(unwind)
+        },
+        &|error| retained(&arguments, error),
+    )?;
+    arguments
+        .check_original_for(interp, 0, value)
+        .map_err(unwind)?;
+    Ok(copy.into_native_unowned())
 }
 pub(super) fn append(
     interp: &Interp,
     target: *mut TclObj,
     source: *mut TclObj,
 ) -> Result<(), ValueError> {
+    let arguments = OriginalArguments::enter(interp, &[target, source]).map_err(unwind)?;
     let selected = protocol(interp)?;
-    let members = list::list_elements_native_checked(source, selected)?;
+    let check = || {
+        arguments
+            .check_original_for(interp, 0, target)
+            .map_err(unwind)?;
+        arguments
+            .check_original_for(interp, 1, source)
+            .map_err(unwind)
+    };
+    let members = list::list_elements_native_using(source, selected, &check, &|error| {
+        retained(&arguments, error)
+    })?;
     if !members.is_empty() {
-        list::append_prepared_native_elements(target, &members, selected)?;
+        list::append_prepared_native_elements_using(
+            target,
+            &members,
+            selected,
+            &check,
+            &|error| retained(&arguments, error),
+        )?;
     }
-    Ok(())
+    check()
 }
 pub(super) fn first(
     interp: &mut Interp,
     source: *mut TclObj,
 ) -> Result<Option<NativeConcatFirstElement<*mut TclObj>>, ValueError> {
+    let arguments = OriginalArguments::enter(interp, &[source]).map_err(unwind)?;
     let selected = protocol(interp)?;
     if crate::native_arithseries::is_series(source) {
-        return crate::native_arithseries::index_in(source, 0, selected)?
-            .map(
-                |original| match interp.native_object_string_bytes(original) {
-                    Ok(bytes) => Ok(NativeConcatFirstElement {
-                        bytes,
-                        temporary: Some(original),
-                    }),
-                    Err(error) => {
-                        drop(obj::Owned::fresh(original));
-                        Err(error)
+        let created = crate::native_arithseries::index_in(source, 0, selected)
+            .map_err(|error| retained(&arguments, error))?;
+        if let Err(first) = arguments.check_original_for(interp, 0, source) {
+            if let Some(original) = created {
+                drop(obj::Owned::fresh(original));
+            }
+            let _ = arguments.check_for(interp);
+            return Err(unwind(first));
+        }
+        if let Some(original) = created {
+            let actual = OriginalArguments::enter(interp, &[original]).map_err(unwind);
+            let reached = match actual {
+                Ok(actual) => {
+                    let bytes = interp.native_object_string_bytes(original);
+                    let checked = actual
+                        .check_original_for(interp, 0, original)
+                        .map_err(unwind);
+                    match checked {
+                        Ok(()) => bytes.map_err(|error| retained(&arguments, error)),
+                        Err(first) => Err(first),
                     }
-                },
-            )
-            .transpose();
+                }
+                Err(first) => Err(first),
+            };
+            let bytes = match reached {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    let first = retained(&arguments, error);
+                    drop(obj::Owned::fresh(original));
+                    arguments.check_for(interp).map_err(unwind)?;
+                    return Err(first);
+                }
+            };
+            let current = arguments
+                .check_original_for(interp, 0, source)
+                .map_err(unwind);
+            if let Err(first) = current {
+                drop(obj::Owned::fresh(original));
+                arguments.check_for(interp).map_err(unwind)?;
+                return Err(first);
+            }
+            return Ok(Some(NativeConcatFirstElement {
+                bytes,
+                temporary: Some(original),
+            }));
+        }
+        return Ok(None);
     }
-    let members = list::list_elements_native_checked(source, selected)?;
-    members
-        .first()
-        .map(|&value| {
-            interp
-                .native_object_string_bytes(value)
-                .map(|bytes| NativeConcatFirstElement {
+    let actual = interp.clone();
+    let members = list::list_elements_native_using(
+        source,
+        selected,
+        &|| {
+            arguments
+                .check_original_for(&actual, 0, source)
+                .map_err(unwind)
+        },
+        &|error| retained(&arguments, error),
+    )?;
+    if let Some(&value) = members.first() {
+        let member = OriginalArguments::enter(interp, &[value]).map_err(unwind)?;
+        let reached = interp.native_object_string_bytes(value);
+        member
+            .check_original_for(interp, 0, value)
+            .map_err(unwind)?;
+        arguments
+            .check_original_for(interp, 0, source)
+            .map_err(unwind)?;
+        return reached
+            .map(|bytes| {
+                Some(NativeConcatFirstElement {
                     bytes,
                     temporary: None,
                 })
-        })
-        .transpose()
+            })
+            .map_err(|error| retained(&arguments, error));
+    }
+    Ok(None)
 }
+
 pub(super) fn string(interp: &Interp, bytes: &[u8]) -> Result<*mut TclObj, ValueError> {
+    let original = OriginalArguments::enter(interp, &[]).map_err(unwind)?;
+    original.check_for(interp).map_err(unwind)?;
     let selected = protocol(interp)?;
     let value = obj::Owned::fresh(obj::new_string_bytes(bytes));
     if selected
@@ -110,3 +217,29 @@ pub(super) fn string(interp: &Interp, bytes: &[u8]) -> Result<*mut TclObj, Value
     }
     Ok(value.into_native_unowned())
 }
+
+impl Interp {
+    /// Preserve the actual complete input operation through the same selected
+    /// concat worker, including its reached working-header/member retirement.
+    /// Currency is independent of Native/Logical concat capability selection.
+    pub(crate) fn concat_original_arguments(
+        &mut self,
+        values: &[*mut TclObj],
+    ) -> Result<*mut TclObj, tcl_cmd_core::CmdError> {
+        let arguments = OriginalArguments::enter(self, values)?;
+        let reached = tcl_cmd_core::list::concat_selected(self, values);
+        if let Err(first) = arguments.check_for(self) {
+            if let Ok(created) = reached {
+                drop(obj::Owned::fresh(created));
+            }
+            // Reached retirement cannot replace the already retained cause.
+            let _ = arguments.check_for(self);
+            return Err(first);
+        }
+        reached.map_err(|error| arguments.retain_refusal(error))
+    }
+}
+
+#[cfg(test)]
+#[path = "native_concat/original_conversion_tests.rs"]
+mod original_conversion_tests;

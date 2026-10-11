@@ -23,7 +23,6 @@ use tcl_registry::native_array_compilation::{NativeArrayCompilation, NativeArray
 use tcl_registry::native_compilation::NativeArrayCommand as Command;
 use tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand;
 use tcl_registry::native_info_exists_compilation::NativeInfoExistsReceiver;
-use tcl_syntax::value::ValueOps;
 
 enum ArrayReceiver {
     Original {
@@ -219,8 +218,32 @@ impl Interp {
         operation: &ArrayOperation,
         execution: &mut BodyExecution,
     ) -> Result<Code, Code> {
+        let original = crate::interp::native_arguments::OriginalArguments::enter(self, &[])
+            .map_err(|error| self.report_cmd_error(error))?;
+        let frame = BodyListFrame::capture(self);
+        let reached = self.execute_body_array_with_original(
+            artifact, command, operation, execution, &original, &frame,
+        );
+        frame
+            .check(self, &original)
+            .map_err(|error| self.report_cmd_error(error))?;
+        reached
+    }
+
+    fn execute_body_array_with_original(
+        &mut self,
+        artifact: &NativeBodyArtifact,
+        command: &CommandInstruction,
+        operation: &ArrayOperation,
+        execution: &mut BodyExecution,
+        entered: &crate::interp::native_arguments::OriginalArguments,
+        frame: &BodyListFrame,
+    ) -> Result<Code, Code> {
         let (evaluated, mut slot) =
             self.array_body_target(artifact, command, operation, execution)?;
+        frame
+            .check(self, entered)
+            .map_err(|error| self.report_cmd_error(error))?;
         if execution.done {
             return Ok(Code::Ok);
         }
@@ -238,6 +261,9 @@ impl Interp {
             slot = Some(alias);
         }
         let found = self.array_exists_original_opcode(slot, &evaluated.root, original)?;
+        frame
+            .check(self, entered)
+            .map_err(|error| self.report_cmd_error(error))?;
         if operation.recipe.command == Command::Exists {
             let result = self
                 .array_existence_result(found)
@@ -260,13 +286,19 @@ impl Interp {
             if let Some(values) = &operation.values {
                 let mut values =
                     self.body_namespace_operand(artifact, command, values, execution)?;
+                frame
+                    .check(self, entered)
+                    .map_err(|error| self.report_cmd_error(error))?;
                 if execution.done {
                     return Ok(Code::Ok);
                 }
                 let protocol =
                     tcl_syntax::native_string::NativeStringProtocol::C(artifact.stamp.physical);
-                let length = ValueOps::list_len(self, &values.as_ptr())
-                    .map_err(|error| self.report_cmd_error(error.into()))?;
+                let captured = BodyListArguments::capture(self, values.as_ptr(), None)
+                    .map_err(|error| self.report_cmd_error(error))?;
+                let length = captured
+                    .length(self)
+                    .map_err(|error| self.report_cmd_error(error))?;
                 if length % 2 != 0 {
                     let literals = operation.parity_error.ok_or_else(|| {
                         self.report_cmd_error(
@@ -287,16 +319,36 @@ impl Interp {
                     return Ok(code);
                 }
                 if obj::is_shared(values.as_ptr()) {
-                    values = crate::list::native_list_copy(values.as_ptr(), protocol)
-                        .map_err(|error| self.report_cmd_error(error.into()))?;
+                    let actual = self.clone();
+                    values = crate::list::native_list_copy_using(
+                        values.as_ptr(),
+                        protocol,
+                        &|| captured.check(&actual),
+                        &|error| captured.refuse(error),
+                    )
+                    .map_err(|error| self.report_cmd_error(error))?;
+                    captured
+                        .check_selection(self)
+                        .map_err(|error| self.report_cmd_error(error))?;
                 }
-                let members = crate::list::list_elements_native_checked(values.as_ptr(), protocol)
-                    .map_err(|error| self.report_cmd_error(error.into()))?;
+                let selected = BodyListArguments::capture(self, values.as_ptr(), None)
+                    .map_err(|error| self.report_cmd_error(error))?;
+                let actual = self.clone();
+                let members = crate::list::list_elements_native_using(
+                    values.as_ptr(),
+                    protocol,
+                    &|| selected.check(&actual),
+                    &|error| selected.refuse(error),
+                )
+                .map_err(|error| self.report_cmd_error(error))?;
                 let iteration = ArrayIteration::new(&operation.recipe);
                 let temporary = operation
                     .temporaries
                     .expect("Array iterator key/value slots");
                 for (index, pair) in members.chunks_exact(2).enumerate() {
+                    selected
+                        .check(self)
+                        .map_err(|error| self.report_cmd_error(error))?;
                     iteration.advance(index + 1);
                     for (slot, value) in temporary.into_iter().zip(pair.iter().copied()) {
                         let result = self.store_native_compiled_temporary_checked(slot, value);
@@ -305,6 +357,9 @@ impl Interp {
                                 unavailable("Array iterator original temporary").into(),
                             )
                         })?;
+                        selected
+                            .check(self)
+                            .map_err(|error| self.report_cmd_error(error))?;
                     }
                     let key = obj::Owned::retain(pair[0]);
                     let value = obj::Owned::retain(pair[1]);
@@ -320,12 +375,18 @@ impl Interp {
                     // the interpreter's result slot.
                     let stored = self.body_store_value(&evaluated, slot, &value)?;
                     drop(stored);
+                    selected
+                        .check(self)
+                        .map_err(|error| self.report_cmd_error(error))?;
                 }
                 drop(iteration);
                 drop(members);
                 drop(values);
             }
         }
+        frame
+            .check(self, entered)
+            .map_err(|error| self.report_cmd_error(error))?;
         self.set_result(
             artifact
                 .literals

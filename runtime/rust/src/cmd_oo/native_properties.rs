@@ -666,9 +666,11 @@ pub(super) fn lookup_property(
         table.check(interp)?;
     }
     let header = interp.native_all_property_header(target, false, writable)?;
+    let header_arguments = OriginalArguments::enter(interp, &[header.header])?;
     let observer = interp.clone();
     let check = || -> Result<(), CmdError> {
-        originals.check()?;
+        originals.check_for(&observer)?;
+        header_arguments.check_original_for(&observer, 0, header.header)?;
         header.check(&observer)
     };
     let words = if let Some(table) = table.as_ref() {
@@ -690,7 +692,12 @@ pub(super) fn lookup_property(
             words.push(word?);
         }
         if retain_table {
-            let copied = crate::list::native_list_copy(header.header, recipe.strings());
+            let copied = crate::list::native_list_copy_using(
+                header.header,
+                recipe.strings(),
+                &check,
+                &|error| originals.retain_refusal(error.into()),
+            );
             check()?;
             *table = Some(RetainedPropertyTable {
                 header: copied?,
@@ -778,7 +785,10 @@ pub(super) fn register_property(
     readable: bool,
     writable: bool,
 ) -> Result<(), CmdError> {
-    let Some(recipe) = interp.native_invocation_dialect().native_property_lookup_protocol() else {
+    let Some(recipe) = interp
+        .native_invocation_dialect()
+        .native_property_lookup_protocol()
+    else {
         return Ok(());
     };
     let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)?;
@@ -1924,3 +1934,6 @@ mod original_slot_boundary_tests {
 #[cfg(test)]
 #[path = "native_properties/original_order_tests.rs"]
 mod original_order_tests;
+
+#[cfg(test)]
+mod original_copy_boundary_tests;

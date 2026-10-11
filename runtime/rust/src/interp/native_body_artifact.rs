@@ -49,6 +49,8 @@ use native_introspection::IntrospectionOperation;
 use native_mathop::MathopOperation;
 use native_scalar::ScalarOperation;
 mod native_each;
+mod native_list_conversion;
+use native_list_conversion::{BodyListArguments, BodyListFrame};
 mod native_info_exists;
 mod native_unset;
 mod native_upvar;
@@ -3171,7 +3173,8 @@ impl Interp {
                     fragments.pop().expect("original sole uplevel script")
                 } else {
                     let originals = fragments.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
-                    let value = tcl_cmd_core::list::concat_selected(self, &originals)
+                    let value = self
+                        .concat_original_arguments(&originals)
                         .map_err(|error| self.report_cmd_error(error))?;
                     obj::Owned::fresh(value)
                 };
@@ -3571,7 +3574,7 @@ impl Interp {
                         .collect::<Result<Vec<_>, _>>()?;
                     let pointers = originals.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
                     obj::Owned::fresh(
-                        tcl_cmd_core::list::concat_selected(self, &pointers)
+                        self.concat_original_arguments(&pointers)
                             .map_err(|error| self.report_cmd_error(error))?,
                     )
                 };

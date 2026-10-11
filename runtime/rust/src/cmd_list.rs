@@ -26,7 +26,7 @@
 
 use tcl_cmd_core::list as list_core;
 
-use crate::interp::{Code, Interp, obj_bytes};
+use crate::interp::{obj_bytes, Code, Interp};
 use crate::list;
 use crate::obj::{self, TclObj};
 
@@ -228,8 +228,20 @@ fn lreverse(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `concat ?arg ...?` — trim each arg of surrounding whitespace, drop empties,
 /// join with single spaces (Tcl's string-level concat).
 fn concat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let value = list_core::concat_selected(interp, &argv[1..]);
-    adapt(interp, value)
+    let arguments = match crate::interp::native_arguments::OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let value = interp.concat_original_arguments(&argv[1..]);
+    if let Err(error) = arguments.check_for(interp) {
+        // A reached working result still completes its genuine retirement.
+        if let Ok(value) = value {
+            drop(crate::obj::Owned::fresh(value));
+        }
+        return interp.report_cmd_error(error);
+    }
+    let code = adapt(interp, value);
+    arguments.finish(code)
 }
 
 /// `join list ?joinString?` — element string reps joined by `joinString`
@@ -721,7 +733,7 @@ fn parse_wide(b: &[u8]) -> Option<i128> {
 /// the core; `-command` is split (the core prepares, this adapter runs the merge
 /// sort over the user comparator via `lsort_cmd_compare`, then the core builds).
 fn lsort(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    use tcl_cmd_core::lsort::{Lsort, build_command, prepare, sort_command};
+    use tcl_cmd_core::lsort::{build_command, prepare, sort_command, Lsort};
     let job = match prepare(interp, &argv[1..]) {
         Ok(Lsort::Done(v)) => {
             interp.set_result(v);

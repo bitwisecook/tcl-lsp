@@ -140,7 +140,7 @@ impl Interp {
         let script = if arguments.len() == 1 {
             obj::Owned::retain(arguments[0])
         } else {
-            match tcl_cmd_core::list::concat_selected(self, arguments) {
+            match self.concat_original_arguments(arguments) {
                 Ok(script) => obj::Owned::retain(script),
                 Err(error) => return self.report_cmd_error(error),
             }
@@ -250,7 +250,7 @@ impl Interp {
     fn eval_original_jim_child(&mut self, name: &[u8], arguments: &[*mut TclObj]) -> Code {
         // naming.interpreter.jim-original-object-crossing
         // docs/design/analysis/name-resolution-proofs/jim-original-object-crossing.md
-        let script = match tcl_cmd_core::list::concat_selected(self, arguments) {
+        let script = match self.concat_original_arguments(arguments) {
             Ok(script) => obj::Owned::retain(script),
             Err(error) => return self.report_cmd_error(error),
         };

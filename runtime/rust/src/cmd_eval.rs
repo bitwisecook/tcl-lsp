@@ -43,7 +43,8 @@ pub fn install(interp: &mut Interp) {
 /// Assemble multiple original script operands with the selected native concat
 /// owner. The fresh script keeps its full counted bytes and its own storage.
 fn joined_body(interp: &mut Interp, args: &[*mut TclObj]) -> Result<crate::obj::Owned, Code> {
-    tcl_cmd_core::list::concat_selected(interp, args)
+    interp
+        .concat_original_arguments(args)
         .map(crate::obj::Owned::fresh)
         .map_err(|error| interp.report_cmd_error(error))
 }

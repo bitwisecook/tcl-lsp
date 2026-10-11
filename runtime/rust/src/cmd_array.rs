@@ -186,11 +186,14 @@ fn array_for_variables(
     argv: &[*mut TclObj],
     arguments: &OriginalArguments,
 ) -> Result<(), Code> {
-    let length = ValueOps::list_len(interp, &argv[2]);
     arguments
-        .check()
+        .check_original_for(interp, 2, argv[2])
         .map_err(|error| interp.report_cmd_error(error))?;
-    let length = length.map_err(|error| interp.report_cmd_error(error.into()))?;
+    let length = tcl_cmd_core::index::NativeIndexOps::index_list_length(interp, &argv[2]);
+    arguments
+        .check_original_for(interp, 2, argv[2])
+        .map_err(|error| interp.report_cmd_error(error))?;
+    let length = length.map_err(|error| interp.report_cmd_error(error))?;
     if length != 2 {
         return Err(
             interp.error_with_code(b"must have two variable names", b"TCL SYNTAX array for")
@@ -485,13 +488,19 @@ fn array_for(
             )
         }
     };
-    let copied = crate::list::native_list_copy(argv[2], protocol);
-    if let Err(error) = arguments.check() {
+    let actual = interp.clone();
+    let copied = crate::list::native_list_copy_using(
+        argv[2],
+        protocol,
+        &|| arguments.check_original_for(&actual, 2, argv[2]),
+        &|error| arguments.retain_refusal(error.into()),
+    );
+    if let Err(error) = arguments.check_for(interp) {
         return interp.report_cmd_error(error);
     }
     let variables = match copied {
         Ok(copy) => copy,
-        Err(error) => return interp.report_cmd_error(error.into()),
+        Err(error) => return interp.report_cmd_error(error),
     };
     let body = crate::obj::Owned::retain(argv[4]);
     let code = (|| {
@@ -1477,3 +1486,7 @@ mod tests {
         });
     }
 }
+
+#[cfg(test)]
+#[path = "cmd_array/original_list_conversion_tests.rs"]
+mod original_list_conversion_tests;
