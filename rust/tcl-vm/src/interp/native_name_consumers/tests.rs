@@ -8,10 +8,7 @@ use tcl_platform::{
     NativeIntegerKind,
 };
 use tcl_runtime_api::NativeExecutionError;
-use tcl_syntax::{
-    native_string::NativeStringProtocol, number::Number, raw_string::NativeValueAccessRefusal,
-    scalar_getter::NativeScalarCache,
-};
+use tcl_syntax::{number::Number, scalar_getter::NativeScalarCache};
 
 #[derive(Default)]
 struct Formatter {
@@ -342,7 +339,7 @@ fn original_name_consumer_info_boundary_preserves_the_reached_getter_cause_and_r
     let result = prior(&mut vm);
     let original = numeric(&vm, i64::MIN);
     formatter.fail.set(true);
-    let crate::Command::Builtin(worker) = vm.lookup_command("info").unwrap() else {
+    let crate::command::Command::Builtin(worker) = vm.lookup_command("info").unwrap() else {
         panic!("actual C8.4 info worker");
     };
     let completion = worker(

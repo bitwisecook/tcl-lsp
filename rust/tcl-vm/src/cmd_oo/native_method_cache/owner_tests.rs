@@ -40,7 +40,11 @@ fn original_vm_idle_selector_cache_does_not_retain_deleted_method_records() {
         drop(owner);
         let selector = Value::string("m");
         assert_eq!(
-            call(&mut vm, target, &selector).result.as_bytes(),
+            call(&mut vm, target, &selector)
+                .result
+                .resident_string_bytes()
+                .unwrap()
+                .as_ref(),
             b"RESULT"
         );
         let duplicate = selector.duplicate_native_object();
@@ -136,7 +140,7 @@ fn original_vm_entered_chain_keeps_all_records_and_reads_current_same_record_pay
             let result = call(&mut vm, target, &Value::string("m"));
             assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
             assert_eq!(
-                result.result.as_bytes(),
+                result.result.resident_string_bytes().unwrap().as_ref(),
                 if mode == 1 {
                     b"REPLACED".as_slice()
                 } else {

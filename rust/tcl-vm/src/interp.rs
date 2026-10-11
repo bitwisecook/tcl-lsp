@@ -101,7 +101,7 @@ mod native_jim_links;
 pub(crate) mod native_jim_lookup;
 #[cfg(test)]
 mod native_legacy_increment_tests;
-mod native_name_consumers;
+pub(crate) mod native_name_consumers;
 mod native_name_operands;
 mod native_name_queries;
 mod native_name_world;
@@ -10421,6 +10421,12 @@ impl InterpState {
         self.compilation_epochs
             .cmd_epoch
             .set(self.compilation_epochs.cmd_epoch.get().saturating_add(1));
+    }
+
+    /// Inspect actual variable operation ownership without issuing a storage role.
+    #[cfg(test)]
+    pub(crate) fn has_variable_operation_refs_for_test(&self, id: VarId) -> bool {
+        self.var_arena.has_operation_refs(id)
     }
 
     /// Invalidate the guard domains that depend on the command lookup

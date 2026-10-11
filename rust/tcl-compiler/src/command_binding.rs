@@ -2263,6 +2263,8 @@ struct SourceBindingPoint {
     state: ModuleCommandBindings,
     lookup_snapshot: OnceLock<Arc<SourceLookupSnapshot>>,
     dispatch: bool,
+    /// The actual source invocation whose modeled continuation produced this state.
+    continuation_of: Option<CommandAllocationSite>,
 }
 
 // Derived lookup caches do not change the retained source interpretation.
@@ -2289,6 +2291,7 @@ impl PartialEq for SourceBindingPoint {
             && self.namespace_key == other.namespace_key
             && self.state == other.state
             && self.dispatch == other.dispatch
+            && self.continuation_of == other.continuation_of
     }
 }
 
@@ -7825,6 +7828,12 @@ impl SourceCommandBindings {
             state: state.clone(),
             lookup_snapshot: OnceLock::new(),
             dispatch: false,
+            continuation_of: state.current_source_origin.as_ref().map(|source| {
+                CommandAllocationSite {
+                    source: Arc::clone(source),
+                    offset: segment.span.start(),
+                }
+            }),
         });
     }
 
@@ -8116,6 +8125,7 @@ impl SourceCommandBindings {
             state: state.clone(),
             lookup_snapshot: OnceLock::new(),
             dispatch: true,
+            continuation_of: None,
         };
         let basis = Box::new(normal_result::InvocationResultBasis::of(&point, words));
         self.record_point(point);
@@ -9980,6 +9990,7 @@ impl SourceCommandBindings {
                     state: state.clone(),
                     lookup_snapshot: OnceLock::new(),
                     dispatch: false,
+                    continuation_of: None,
                 },
             });
         }

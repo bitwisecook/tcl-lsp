@@ -617,7 +617,7 @@ mod original_numeric_consumer_tests {
             Duration::from_millis(6)
         );
         assert!(original.resident_string_bytes().is_none());
-        let script = Value::new_native_string_bytes(b"set original_event_body REACHED");
+        let script = Value::new_native_string_bytes(b"set original_event_body REACHED".as_slice());
         assert_eq!(
             cmd_after(&mut vm, &[original.clone(), script.clone()]).code,
             tcl_runtime_api::Code::Ok

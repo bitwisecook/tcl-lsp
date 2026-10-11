@@ -276,7 +276,7 @@ fn original_vm_array_observer_refusal_stops_list_conversion_and_releases_receive
                 .as_ref(),
             b"REACHED"
         );
-        assert!(!vm.var_arena.has_operation_refs(id));
+        assert!(!vm.has_variable_operation_refs_for_test(id));
         let first = vm.execution_refusal.clone().unwrap();
         let again = array_op(
             &mut vm,

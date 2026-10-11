@@ -2652,7 +2652,7 @@ mod original_jim_import_tests {
         let member = Value::int(5);
         let stored = define(&mut vm, "src::branch", &[target.clone(), member.clone()]);
         assert_eq!(vm.native_string_bytes(&stored).unwrap().as_ref(), b"list 5");
-        member.invalidate_string();
+        member.invalidate_native_string_for_test();
         assert!(member.resident_string_bytes().is_none());
         let refs = member.native_object_reference_count();
         let destination = destination_frame(&mut vm);

@@ -777,7 +777,7 @@ mod tests {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         let (mut vm, numeric) = provided("tcl8.6");
-        let value = Value::new_native_string_bytes(b"6");
+        let value = Value::new_native_string_bytes(b"6".as_slice());
         let before = value.native_object_snapshot();
         let scope = NativeOperationScope::enter(&mut vm).unwrap();
         let original = vm.host_rc();
@@ -801,7 +801,7 @@ mod tests {
         // no VM extension object callback issuer is asserted.
         let (mut vm, numeric) = provided("tcl8.4");
         let dialect = vm.actual_native_invocation_dialect();
-        let value = Value::new_native_string_bytes(b"1.25");
+        let value = Value::new_native_string_bytes(b"1.25".as_slice());
         let alias = value.clone();
         let before = value.native_object_snapshot();
         let scope = NativeOperationScope::enter(&mut vm).unwrap();
@@ -856,7 +856,7 @@ mod tests {
         let (mut vm, _) = provided("tcl8.6");
         let dialect = vm.actual_native_invocation_dialect();
         let value = Value::native_list_constructor(
-            vec![Value::new_native_string_bytes(b"6")],
+            vec![Value::new_native_string_bytes(b"6".as_slice())],
             dialect.native_string_protocol().unwrap(),
         );
         let alias = value.clone();
@@ -1029,7 +1029,7 @@ mod tests {
             let (mut vm, numeric) = provided(version);
             let dialect = vm.actual_native_invocation_dialect();
             let value = if version == "tcl8.4" {
-                Value::new_native_string_bytes(b"6")
+                Value::new_native_string_bytes(b"6".as_slice())
             } else {
                 Value::from_native_scalar_cache(
                     NativeScalarCache::Number(Number::Int(6)),
@@ -1080,7 +1080,7 @@ mod tests {
         let (mut vm, numeric) = provided("jim");
         let dialect = vm.actual_native_invocation_dialect();
         let context = vm.native_jim_object_context().unwrap();
-        let value = Value::new_native_string_bytes(b"6");
+        let value = Value::new_native_string_bytes(b"6".as_slice());
         value.bind_native_jim_context(&context).unwrap();
         let before = value.native_object_snapshot();
         numeric.calls.borrow_mut().clear();
@@ -1133,7 +1133,7 @@ mod tests {
         assert!(numeric.calls.borrow().iter().all(|call| call.0 == "abi"));
 
         let (mut jim, numeric) = provided("jim");
-        let value = Value::new_native_string_bytes(b"6");
+        let value = Value::new_native_string_bytes(b"6".as_slice());
         assert_eq!(jim.as_int(&value).unwrap(), 6);
         assert!(
             numeric
@@ -1152,7 +1152,7 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         use tcl_syntax::value::ValueOps;
         let (mut vm, numeric) = provided("tcl8.6");
-        let value = Value::new_native_string_bytes(b"6");
+        let value = Value::new_native_string_bytes(b"6".as_slice());
         let before = value.native_object_snapshot();
         let scope = NativeOperationScope::enter(&mut vm).unwrap();
         let original = vm.host_rc();
@@ -1223,7 +1223,7 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         use tcl_syntax::value::ValueOps;
         let (mut vm, _) = provided("tcl8.6");
-        let original = Value::new_native_string_bytes(b"not_an_integer");
+        let original = Value::new_native_string_bytes(b"not_an_integer".as_slice());
         let before = original.native_object_snapshot();
         let error = vm.as_int(&original).unwrap_err();
         assert!(matches!(error, ValueError::NativeScalarGetter(_)));
@@ -1251,20 +1251,23 @@ mod tests {
         assert!(context.environment.is_none());
         assert_eq!(context.dialect, vm.native_invocation_dialect());
         assert!(vm.numeric_policy_context().environment.is_none());
-        let original = Value::new_native_string_bytes(b"077");
+        let original = Value::new_native_string_bytes(b"077".as_slice());
         assert_eq!(vm.as_int(&original).unwrap(), 63);
         assert!(original.native_scalar_cache().is_none());
         assert_eq!(
-            vm.as_double(&Value::new_native_string_bytes(b"1.25"))
+            vm.as_double(&Value::new_native_string_bytes(b"1.25".as_slice()))
                 .unwrap()
                 .to_bits(),
             1.25_f64.to_bits()
         );
-        assert!(vm.as_bool(&Value::new_native_string_bytes(b"2")).unwrap());
+        assert!(
+            vm.as_bool(&Value::new_native_string_bytes(b"2".as_slice()))
+                .unwrap()
+        );
         assert!(
             crate::expr::boolean_for_vm(
                 &mut vm,
-                &Value::new_native_string_bytes(b"2"),
+                &Value::new_native_string_bytes(b"2".as_slice()),
                 tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::LogicalNot
             )
             .unwrap()
@@ -1294,12 +1297,12 @@ mod tests {
             tcl_runtime_api::expression_policy::ExpressionEvaluationOrigin::AuthoredTcl84Parser
         );
         assert!(policy.numeric_simulation.is_some());
-        vm.prepare_increment_amount(&Value::new_native_string_bytes(b"6"))
+        vm.prepare_increment_amount(&Value::new_native_string_bytes(b"6".as_slice()))
             .unwrap();
         let value = crate::expr::logical_value_for_vm(
             &mut vm,
-            Value::new_native_string_bytes(b"2"),
-            &Value::new_native_string_bytes(b"3"),
+            Value::new_native_string_bytes(b"2".as_slice()),
+            &Value::new_native_string_bytes(b"3".as_slice()),
             true,
         )
         .unwrap();
@@ -1315,7 +1318,7 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // Actual VM header and software Host stages; no Runtime extension issuer is claimed.
         let (mut vm, numeric) = provided("tcl8.4");
-        let original = Value::new_native_string_bytes(b"6");
+        let original = Value::new_native_string_bytes(b"6".as_slice());
         let held = original.native_lifetime_lease();
         *numeric.original.borrow_mut() = Some(original.native_lifetime_lease());
         let count = original.native_object_reference_count();
@@ -1373,7 +1376,7 @@ mod tests {
         // A software callback releases the actual VM owner; the lease retains allocation only.
         for stage in ["abi", "state", "unsigned"] {
             let (mut vm, numeric) = provided("tcl8.4");
-            let original = Value::new_native_string_bytes(b"6");
+            let original = Value::new_native_string_bytes(b"6".as_slice());
             let held = original.native_lifetime_lease();
             *numeric.original.borrow_mut() = Some(original.native_lifetime_lease());
             assert_eq!(original.native_object_reference_count(), 1);
@@ -1441,7 +1444,7 @@ mod tests {
         for stage in ["abi", "double"] {
             for legacy in [false, true] {
                 let (mut vm, numeric) = provided("tcl8.4");
-                let original = Value::new_native_string_bytes(b"1.25");
+                let original = Value::new_native_string_bytes(b"1.25".as_slice());
                 let held = original.native_lifetime_lease();
                 *numeric.original.borrow_mut() = Some(original.native_lifetime_lease());
                 numeric.retire_at.set(Some(stage));
@@ -1483,7 +1486,7 @@ mod tests {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         let (mut vm, numeric) = provided("tcl8.6");
-        let original = Value::new_native_string_bytes(b"6");
+        let original = Value::new_native_string_bytes(b"6".as_slice());
         let held = original.native_lifetime_lease();
         let scope = NativeOperationScope::enter(&mut vm).unwrap();
         let ops = OriginalNumericOps::in_original_scope(&mut vm, &scope).unwrap();
@@ -1592,7 +1595,7 @@ mod tests {
         // continuation test, not a Tcl extension updater/free callback claim.
         for stage in ["abi", "reset", "unsigned"] {
             let (mut vm, numeric) = provided("tcl8.4");
-            let original = Value::new_native_string_bytes(b"6");
+            let original = Value::new_native_string_bytes(b"6".as_slice());
             let held = original.native_lifetime_lease();
             *numeric.original.borrow_mut() = Some(held.value().native_lifetime_lease());
             *numeric.retire_owner.borrow_mut() = Some(original);
@@ -1603,7 +1606,7 @@ mod tests {
                     context,
                     tcl_syntax::expr::BinOp::Add,
                     held.value(),
-                    &Value::new_native_string_bytes(b"18"),
+                    &Value::new_native_string_bytes(b"18".as_slice()),
                 )
             });
             let first = vm.execution_refusal.clone().unwrap();
@@ -1671,8 +1674,8 @@ mod tests {
         let error = adapter
             .arith(
                 BinOp::Add,
-                Value::new_native_string_bytes(b"not_numeric"),
-                Value::new_native_string_bytes(b"18"),
+                Value::new_native_string_bytes(b"not_numeric".as_slice()),
+                Value::new_native_string_bytes(b"18".as_slice()),
             )
             .unwrap_err();
         let guest = error.guest_completion().unwrap();
@@ -1692,8 +1695,8 @@ mod tests {
             crate::expr::arith_in(
                 context,
                 BinOp::Add,
-                &Value::new_native_string_bytes(b"6"),
-                &Value::new_native_string_bytes(b"18"),
+                &Value::new_native_string_bytes(b"6".as_slice()),
+                &Value::new_native_string_bytes(b"18".as_slice()),
             )
         })
         .unwrap();
@@ -1709,7 +1712,7 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // Withdrawal is in the supplied software String stage, not an external updater.
         let (mut vm, _) = provided("tcl8.6");
-        let original = Value::new_native_string_bytes(b"6");
+        let original = Value::new_native_string_bytes(b"6".as_slice());
         let held = original.native_lifetime_lease();
         let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
         let ops = OriginalNumericOps::in_original_scope(&mut vm, &scope).unwrap();
