@@ -19,6 +19,33 @@
 //! TclOO's original object-name header and selected variable-frame ownership.
 
 use super::*;
+use crate::interp::native_arguments::OriginalArguments;
+
+/// Command orchestration only: all original bytes and admission remain shared.
+pub(super) fn original_frame_words(
+    interpreter: &mut Interp,
+    argv: &[*mut TclObj],
+) -> Result<Vec<Vec<u8>>, Code> {
+    let originals = OriginalArguments::enter(interpreter, argv)
+        .map_err(|error| interpreter.report_cmd_error(error))?;
+    (0..argv.len())
+        .map(|index| originals.bytes(index).map(|bytes| bytes.to_vec()))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| interpreter.report_cmd_error(error))
+}
+
+pub(super) fn with_original_arguments(
+    interpreter: &mut Interp,
+    argv: &[*mut TclObj],
+    worker: impl FnOnce(&mut Interp, &OriginalArguments) -> Code,
+) -> Code {
+    let originals = match OriginalArguments::enter(interpreter, argv) {
+        Ok(originals) => originals,
+        Err(error) => return interpreter.report_cmd_error(error),
+    };
+    let code = worker(interpreter, &originals);
+    originals.finish(code)
+}
 
 pub(super) fn install_object_helpers(interp: &mut Interp, namespace: NsId) {
     let helpers = interp.ensure_namespace(b"::oo::Helpers");
@@ -67,19 +94,21 @@ pub(super) fn install_unknown(interp: &mut Interp) {
 }
 
 fn unknown_definition(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if interp.active_def_target().is_none() {
-        return monkey_business(interp);
-    }
-    let Some((&requested, operands)) = argv.get(1..).and_then(|args| args.split_first()) else {
-        return interp.set_error(b"bad call of unknown handler");
-    };
-    let requested_bytes = obj_bytes(requested);
-    let Some(head) = interp.oo_definition_head(&requested_bytes) else {
-        return interp.invalid_command(&requested_bytes);
-    };
-    let mut arguments = vec![head.as_ptr()];
-    arguments.extend_from_slice(operands);
-    interp.dispatch(&arguments)
+    with_original_arguments(interp, argv, |interp, originals| {
+        if interp.active_def_target().is_none() {
+            return monkey_business(interp);
+        }
+        let Some((_, operands)) = argv.get(1..).and_then(|args| args.split_first()) else {
+            return interp.set_error(b"bad call of unknown handler");
+        };
+        let requested_bytes = oo_original_bytes!(interp, originals, 1);
+        let Some(head) = interp.oo_definition_head(&requested_bytes) else {
+            return interp.invalid_command(&requested_bytes);
+        };
+        let mut arguments = vec![head.as_ptr()];
+        arguments.extend_from_slice(operands);
+        interp.dispatch(&arguments)
+    })
 }
 
 pub(super) fn monkey_business(interp: &mut Interp) -> Code {
@@ -176,13 +205,17 @@ impl Interp {
         requested: *mut TclObj,
         operands: &[*mut TclObj],
     ) -> Code {
-        let bytes = obj_bytes(requested);
-        let head = self
-            .oo_definition_head(&bytes)
-            .unwrap_or_else(|| obj::Owned::retain(requested));
-        let mut arguments = vec![head.as_ptr()];
-        arguments.extend_from_slice(operands);
-        self.dispatch(&arguments)
+        let mut original_argv = vec![requested];
+        original_argv.extend_from_slice(operands);
+        with_original_arguments(self, &original_argv, |interp, originals| {
+            let bytes = oo_original_bytes!(interp, originals, 0);
+            let head = interp
+                .oo_definition_head(&bytes)
+                .unwrap_or_else(|| obj::Owned::retain(requested));
+            let mut arguments = vec![head.as_ptr()];
+            arguments.extend_from_slice(operands);
+            interp.dispatch(&arguments)
+        })
     }
 
     pub(super) fn oo_enter_definition(
@@ -190,6 +223,8 @@ impl Interp {
         target: &DefTarget,
         argv: &[*mut TclObj],
     ) -> Result<NsId, Code> {
+        let originals =
+            OriginalArguments::enter(self, argv).map_err(|error| self.report_cmd_error(error))?;
         let default = match target {
             DefTarget::Class(_) => b"::oo::define".as_slice(),
             DefTarget::Object(_) => b"::oo::objdefine",
@@ -205,9 +240,19 @@ impl Interp {
         self.set_current_ns(namespace);
         self.enter_namespace_activation(namespace);
         self.frames.borrow_mut().push_namespace(namespace);
-        self.frames
-            .borrow_mut()
-            .set_words(argv.iter().map(|&word| obj_bytes(word)).collect());
+        let words = (0..argv.len())
+            .map(|index| originals.bytes(index).map(|bytes| bytes.to_vec()))
+            .collect::<Result<Vec<_>, _>>();
+        let words = match words {
+            Ok(words) => words,
+            Err(error) => {
+                let popped = self.pop_native_call_frame();
+                self.set_current_ns(caller);
+                self.leave_namespace_activation(popped);
+                return Err(self.report_cmd_error(error));
+            }
+        };
+        self.frames.borrow_mut().set_words(words);
         self.frames
             .borrow_mut()
             .install_original_error_stack_argv(argv);
