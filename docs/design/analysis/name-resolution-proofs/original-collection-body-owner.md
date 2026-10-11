@@ -104,37 +104,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/compilation_unit.rs](../../../../rust/tcl-compiler/src/compilation_unit.rs), `compilation_unit::selected_class_roster_tests::genuine_cu_roster_uses_selected_custom_renamed_and_direct_aliased_definers` (linked): A genuine full-owner CU selects custom, directly renamed and directly aliased definer grammar, including a namespaced empty class whose source has no stock-family spelling. Its descriptive roster agrees with the independently queried guarded signature producer; empty classes need no method-derived roster. This is an unexecuted software definition, not runtime class allocation.
 - [rust/tcl-compiler/src/compilation_unit.rs](../../../../rust/tcl-compiler/src/compilation_unit.rs), `compilation_unit::selected_class_roster_tests::selected_roster_preserves_changed_definition_and_captured_prefix_refusals` (linked): Original procedure replacement, deletion and a captured-prefix alias keep their selected source refusals. A same-spelled custom command without class grammar supplies no class declaration. These finite source branches do not establish dynamic-definer completeness or external execution.
 - [rust/tcl-compiler/src/compilation_unit.rs](../../../../rust/tcl-compiler/src/compilation_unit.rs), `compilation_unit::selected_class_roster_tests::class_source_producer_withdraws_foreign_missing_and_changed_full_owners` (linked): Changed whole source or Registry and four missing/changed retained-owner/config/input/channel axes withdraw the guarded producer. An authentic empty source independently produces an empty descriptive roster; refusal is not an empty inventory. No physical class, body entry or runtime result is observed.
+- [rust/tcl-compiler/src/compilation_unit.rs](../../../../rust/tcl-compiler/src/compilation_unit.rs), `compilation_unit::selected_class_roster_tests::retained_roster_projection_shares_empty_custom_and_selected_source_classes` (linked): Finite source-defined control: retained roster projection shares empty custom and selected source classes. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [rust/tcl-compiler/src/compilation_unit.rs](../../../../rust/tcl-compiler/src/compilation_unit.rs), `compilation_unit::selected_class_roster_tests::retained_roster_projection_withdraws_changed_cu_module_input_and_store` (linked): Finite source-defined control: retained roster projection withdraws changed cu module input and store. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [rust/tcl-compiler/src/object_types.rs](../../../../rust/tcl-compiler/src/object_types.rs), `object_types::tests::normal_result_query_uses_the_shared_roster_and_withdraws_missing_source_ownership` (linked): Finite source-defined control: normal result query uses the shared roster and withdraws missing source ownership. Conditional result types under existing allocation guards, not runtime execution. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
 A named test is a coverage binding, not a claim that it executed.
 
 ## Replay
 
 Executed software assertions require a matching independently successful owned Compiler producer, actual executable inventory and separately closed exact selector receipts. No such assertion outcome is attached to these eleven controls. The conditional source factory, model profiles and event-table labels do not establish any C/Jim/BIG-IP worker, physical frame/class/cell lifetime, dynamic-definer completeness or measured scanning/performance result.
-
-## Current conditional-source usage
-
-Retain the actual CompilationUnit and its original FunctionUnit. Pass the
-complete original parent command vector and argument ordinal to
-`conditional_original_body_unit`; propagate unavailable ownership instead
-of substituting body text, a report namespace or an empty pairing inventory.
-A secondary child's authentic original tokens may select another child
-through the same original function owner. The secondary FunctionUnit itself
-cannot impersonate that original owner.
-
-Use the child's retained namespace and full nested source input/configuration
-for source lookup and parsing. The shared descriptive class roster retains
-actual signature-producer spellings, including empty classes, under complete
-source correspondence. Every genuine CU calls the selected signature producer
-once under actual Registry grammar and original invocation ownership. Source
-spellings do not schedule the scan. Custom, directly renamed and directly
-aliased definers retain the same selected grammar; captured-prefix and changed
-owner refusals remain explicit. This conditional source inventory establishes
-no runtime class identity or complete dynamic-definer inventory. Its scanning
-cost has no attached measurement.
-
-Conditional inherited-frame existence starts MayBound and uses genuine local
-store/unset/branch refinements. Empty source retains an Unknown-frame fallback;
-the synthetic report name issues no activation. Keep independently selected
-event-table requirements and actual runtime collection/getter effects separate.
-The eleven linked controls have no attached execution result, and all seven
-external provider executions remain not tested for this question.

@@ -99,37 +99,13 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-explorer/src/view_tree.rs](../../../../rust/tcl-explorer/src/view_tree.rs), `view_tree::retained_source_view_tests::unavailable_source_fields_are_distinct_from_completed_empty_views` (linked): Direct Rust wire/render definitions distinguish null and absent retained fields from completed empty arrays and attach no navigable source range to the unavailable row.
 - [rust/tcl-explorer/src/view_tree.rs](../../../../rust/tcl-explorer/src/view_tree.rs), `view_tree::retained_source_view_tests::unavailable_event_section_preserves_independent_irules_warnings` (linked): An unavailable event section retains a separately supplied iRules warning row; a completed empty event/warning inventory keeps its empty presentation. This is structural rendering only.
 - [rust/tcl-cli/tests/explorer_gui.rs](../../../../rust/tcl-cli/tests/explorer_gui.rs), `retained_source_unavailable_payload_renders_without_empty_success_claims` (linked): The integration definition removes a real retained owner from an Explorer payload, then drives shipped JavaScript through Node with a DOM stand-in. Actual null payloads, completed empty/current inventories and shell badges remain distinct. Existing Node prerequisite/strict-mode handling remains required; no browser or Tcl-provider execution is asserted.
+- [rust/tcl-cli/tests/explorer_gui.rs](../../../../rust/tcl-cli/tests/explorer_gui.rs), `remaining_actual_cu_unavailable_payload_renders_all_retained_views` (linked): Finite source-defined control: remaining actual cu unavailable payload renders all retained views. Shared actual-CU consumers preserve structural unavailable output through shipped core renderers and both shell hooks/counts. The DOM is a stand-in. Warning unavailability does not erase independently retained tracking. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [rust/tcl-compiler/src/irules_checks.rs](../../../../rust/tcl-compiler/src/irules_checks.rs), `irules_checks::original_getter_source_config_tests::getter_source_keeps_function_config_and_selects_nested_parser_purpose` (linked): Finite source-defined control: getter source keeps function config and selects nested parser purpose. Actual source metadata and parser-purpose control, no BIG-IP execution. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [rust/tcl-explorer/src/serialise.rs](../../../../rust/tcl-explorer/src/serialise.rs), `serialise::retained_explorer_source_tests::remaining_actual_cu_views_retain_profiles_and_ignore_display_labels` (linked): Finite source-defined control: remaining actual cu views retain profiles and ignore display labels. Source/model agreement, independently of provider execution results. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [rust/tcl-explorer/src/view_tree.rs](../../../../rust/tcl-explorer/src/view_tree.rs), `view_tree::actual_cu_unavailable_view_tests::actual_cu_null_fields_do_not_render_as_empty_analysis` (linked): Finite source-defined control: actual cu null fields do not render as empty analysis. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
 A named test is a coverage binding, not a claim that it executed.
 
 ## Replay
 
 Execute each target only through an independently successful matching own producer and exact inventory with its original prerequisites. The CLI Node control is an integration target with existing prerequisite strict-mode handling; a DOM stand-in is not a browser. Keep all execution receipts separate from source/model definitions and obtain complete actual measurements before any performance claim.
-
-## Current retained-view usage
-
-For an existing Explorer result, retain its actual Module document image,
-resolved analysis input, registry snapshot and full lexer configuration. Use
-the checked positioned Module realm and the actual CompilationUnit for the
-listed event, optimiser, pass, statistics and annotation views. A display
-dialect label does not select a replacement owner.
-
-Select WholeInput or NestedScript parser purpose independently of parent
-metadata. Event boundary and priority parsing use that same selected
-configuration. Independently supplied new source has an explicit fresh-source
-ingress; rewritten source establishes its own image with supplied complete
-metadata and receives no old-image execution or edit receipt.
-
-Preserve unavailable values structurally: null or absent is unavailable,
-while an array, including an empty array, is a completed row inventory.
-Statistics retain their own available-object shape. Render unavailable views
-without a fabricated zero count, and keep independently supplied warning
-rows. The eight linked definitions remain unrun, including the Node driver
-with its DOM stand-in and existing prerequisite handling.
-
-The [retained Explorer usage contract](../../contracts/retained-explorer-source-views.md)
-describes the listed consumer interfaces. The underlying
-[positioned Module projection](retained-positioned-command-realm.md) is source
-advice; every required Native, frame, completion, operation and edit owner
-remains independent. Other Explorer surfaces retain their separate guards;
-this record makes no all-consumer, external-provider or performance closure.

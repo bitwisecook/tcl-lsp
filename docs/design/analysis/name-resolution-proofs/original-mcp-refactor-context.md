@@ -12,15 +12,11 @@ Do MCP refactor requests preserve their actual requested analysis and the shared
 
 ## Conclusion
 
-MCP resolves the request dialect, performs actual source analysis and passes that AnalysisResult to if/switch/expression rewrite helpers. Data-group extraction has an explicit dialect parameter and consumes the actual retained configuration/Registry only when that analysis independently selects lexical declaration advice. The aggregate refactor list uses the same guard. Native and hosted inputs cannot become lexical advice through a forced iRules registry; selected Native rewrites retain the shared disabled obligation reason where equivalence/store permission is absent. Supported explicit lexical source authoring remains a separate branch. No NativeValue, original name input, runtime effect or edit authority is fabricated from the API dialect string. The code-action response also retains the shared disabled reason beside its empty edit list, so tool clients can distinguish a missing rewrite permission from an available edit.
-
-MCP conditional data-group advice retains actual output availability, full source currency and selected horizons while independent rewrite obligations remain open.
+MCP resolves the request dialect, performs actual source analysis and passes that AnalysisResult to if/switch/expression rewrite helpers. Data-group extraction has an explicit dialect parameter and consumes the actual retained configuration/Registry only when that analysis independently selects lexical declaration advice. The aggregate refactor list uses the same guard. Native and hosted inputs cannot become lexical advice through a forced iRules registry; selected Native rewrites retain the shared disabled obligation reason where equivalence/store permission is absent. Supported explicit lexical source authoring remains a separate branch. No NativeValue, original name input, runtime effect or edit authority is fabricated from the API dialect string. The code-action response also retains the shared disabled reason beside its empty edit list, so tool clients can distinguish a missing rewrite permission from an available edit. MCP conditional data-group advice retains actual output availability, full source currency and selected horizons while independent rewrite obligations remain open.
 
 ## Scope
 
-Current MCP direct and aggregate refactor request adapters. Fixed controls cover several actual Native/hosted dialect requests and a shadowed expression head. No native transformed-program experiment or passing Rust result is attached. The code-action response assertion selects an authentic Tcl 8.6 if invocation and checks the shared missing-control-flow-equivalence reason.
-
-Current direct test attributes and real module parents attach these source/API contracts only. They do not certify an executable inventory, passed assertion, complete Native comparison or changed-current-image result. Each original provider answer and independently closed software command retains its exact input/channel/source purpose.
+Current MCP direct and aggregate refactor request adapters. Fixed controls cover several actual Native/hosted dialect requests and a shadowed expression head. No native transformed-program experiment or passing Rust result is attached. The code-action response assertion selects an authentic Tcl 8.6 if invocation and checks the shared missing-control-flow-equivalence reason. Current direct test attributes and real module parents attach these source/API contracts only. They do not certify an executable inventory, passed assertion, complete Native comparison or changed-current-image result. Each original provider answer and independently closed software command retains its exact input/channel/source purpose.
 
 ## Provider answers
 
@@ -83,13 +79,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-mcp/src/tools.rs](../../../../rust/tcl-mcp/src/tools.rs), `tools::original_refactor_request_tests::original_refactor_requests_do_not_replace_native_or_vendor_policy_with_irules` (linked): Native and hosted requests cannot emit a data-group transformation by substituting an iRules policy.
 - [rust/tcl-mcp/src/tools.rs](../../../../rust/tcl-mcp/src/tools.rs), `tools::original_refactor_request_tests::original_refactor_requests_use_the_selected_analysis_for_shadowed_heads` (linked): A source-defined expr head cannot receive a builtin expression rewrite from its spelling alone.
 - [rust/tcl-mcp/src/tools.rs](../../../../rust/tcl-mcp/src/tools.rs), `tools::original_refactor_request_tests::original_code_action_responses_retain_disabled_rewrite_obligations` (linked): An actual Tcl 8.6 if action keeps its empty edit list and missing-control-flow-equivalence disabled reason in the MCP response.
-
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-mcp/src/tools.rs](../../../../rust/tcl-mcp/src/tools.rs), `tools::original_refactor_request_tests::original_datagroup_tool_advice_keeps_actual_output_availability_and_selected_horizons` (linked): The public MCP data-group advice consumer retains actual output availability and selected original source horizons; conditional source suggestions cannot close an independent Native rewrite obligation.
 - [rust/tcl-mcp/src/tools.rs](../../../../rust/tcl-mcp/src/tools.rs), `tools::original_refactor_request_tests::original_datagroup_tool_advice_refuses_missing_stale_foreign_and_unavailable_owners` (linked): The MCP source-advice request withholds missing, stale, foreign or unavailable full input instead of borrowing reporting maps or displayed names.
+- [rust/tcl-mcp/src/tools.rs](../../../../rust/tcl-mcp/src/tools.rs), `tools::policy_tests::original_code_action_candidates_retain_the_supplied_unit_and_refuse_changed_owners` (linked): Finite source-defined control: original code action candidates retain the supplied unit and refuse changed owners. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
-Current source linkage supplies no execution or assertion credit.
+A named test is a coverage binding, not a claim that it executed.
 
 ## Replay
 

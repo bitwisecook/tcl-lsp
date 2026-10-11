@@ -405,7 +405,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+- [runtime/rust/src/frame/native_variable_names.rs](../../../../runtime/rust/src/frame/native_variable_names.rs), `frame::native_variable_names::original_frame_index_tests::indexed_original_argv_keeps_level_selection_and_retained_allocation_roles` (linked): Finite source-defined control: indexed original argv keeps level selection and retained allocation roles. Software indexing and allocation ownership; no native frame admission. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
 A named test is a coverage binding, not a claim that it executed.
 

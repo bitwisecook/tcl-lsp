@@ -5146,36 +5146,18 @@ JIM_EXPORT int Jim_GetBoolean(Jim_Interp *interp, Jim_Obj *objPtr,
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+- [rust/tcl-syntax/src/naming/native.rs](../../../../rust/tcl-syntax/src/naming/native.rs), `naming::native::original_command_key_tests::original_jim_command_key_constructors_keep_independent_capture_purposes` (linked): Finite source-defined control: original jim command key constructors keep independent capture purposes. Constructor selection is a pure recipe, not object ownership or a grant to install a command, evaluate a prefix or recover a context. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [runtime/rust/src/cmd_alias.rs](../../../../runtime/rust/src/cmd_alias.rs), `cmd_alias::original_alias_key_tests::original_alias_replacement_keeps_measured_name_key_and_query_roles` (linked): Finite source-defined control: original alias replacement keeps measured name key and query roles. Only observed name refs and query header/member roles are compared; no Jim body-only updater refcount or general frame claim is inferred. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [runtime/rust/src/cmd_alias.rs](../../../../runtime/rust/src/cmd_alias.rs), `cmd_alias::original_alias_key_tests::original_alias_rename_keeps_measured_record_and_destination_key_roles` (linked): Finite source-defined control: original alias rename keeps measured record and destination key roles. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [runtime/rust/src/cmd_alias.rs](../../../../runtime/rust/src/cmd_alias.rs), `cmd_alias::original_alias_key_tests::original_jim_key_retirement_runs_before_value_cleanup_without_adopting_replacement` (linked): Finite source-defined control: original jim key retirement runs before value cleanup without adopting replacement. Real destructor callbacks are software controls of cleanup/reentry. Native421b did not execute these Host/context callback modes. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [runtime/rust/src/cmd_alias.rs](../../../../runtime/rust/src/cmd_alias.rs), `cmd_alias::original_alias_key_tests::original_jim_replacement_refusal_keeps_occupied_key_and_reached_name_result` (linked): Finite source-defined control: original jim replacement refusal keeps occupied key and reached name result. These real value-destructor Host/context modes are software controls; the original421b probe did not execute these refusal callbacks. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [runtime/rust/src/cmd_alias.rs](../../../../runtime/rust/src/cmd_alias.rs), `cmd_alias::original_alias_key_tests::original_jim_rename_qualification_and_table_key_keep_distinct_native_references` (linked): Finite source-defined control: original jim rename qualification and table key keep distinct native references. The held temporary stage checks the pinned QualifyName/keyDup source roles. Native421b's measured comparison is after both temporaries have actually retired, rather than a claim of an observed callback. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [runtime/rust/src/interp/native_command_names.rs](../../../../runtime/rust/src/interp/native_command_names.rs), `interp::native_command_names::original_key_construction_tests::original_jim_qualification_keeps_namespace_owner_and_stops_after_refused_getter` (linked): Finite source-defined control: original jim qualification keeps namespace owner and stops after refused getter. Qualified source/first-cause controls; Native421b observes root keys. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [runtime/rust/src/interp/native_command_names.rs](../../../../runtime/rust/src/interp/native_command_names.rs), `interp::native_command_names::original_key_construction_tests::original_jim_key_append_keeps_the_actual_zero_reference_receiver` (linked): Finite source-defined control: original jim key append keeps the actual zero reference receiver. Retire the real constructor receiver directly; a lease is not a protective native reference or a manufactured key/lookup receipt. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [runtime/rust/src/interp/native_command_names.rs](../../../../runtime/rust/src/interp/native_command_names.rs), `interp::native_command_names::original_key_construction_tests::original_jim_missing_rename_source_stops_before_destination_lookup` (linked): Finite source-defined control: original jim missing rename source stops before destination lookup. The destination length getter was reached once before qualification. A missing exact source cannot publish or borrow a fallback binding. The source hash lookup is exact in the current Jim namespace. A. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
 A named test is a coverage binding, not a claim that it executed.
 
 ## Replay
 
 Restore exact original request/source/input/path mapping and fully verify both gzip and decompressed ELF hashes/size/mode before independent replay with matching tools/headers/libraries. Fresh outputs only. Preserve actual core/child API selection, observer versus deliberate getter stages, original name/key and member holds, Jim child public Guest query refusal, and FreeRep versus header lifetime. The six captures supply finite Native observations, no matching Rust executable/assertion or application issuer authority.
-
-## Original object roles and phases
-
-| Finite original purpose | C providers | Jim |
-| --- | --- | --- |
-| Core equal-byte replacement after result clear | Old original name caller-only1; new alias-record name2 | Occupied old table key2; new caller name1 |
-| Core rename after result clear | Original alias-record name2; destination caller-only1 | Old table key caller-only1; new destination key2 |
-| Child capture | Target getter refs1, then name getter refs2 | Caller-name getter; independent fresh String key; target/prefix Strings unread |
-| Child equal-byte replacement | Old/new original names refs1/2 | Both caller names1; separately created child keys |
-| Public query List | Fresh distinct headers, retaining original members | Core stored List; actual child query Guest1 and no public List |
-| Original invocation | Two callbacks/case; explicit arg2 then arg1 getters | Same counted original callbacks; public evaluator name holds remain independent |
-
-The raw observations retain five exact cases per provider, with separate
-capture, replacement-result clearing, query, invocation and retirement
-phases. Twenty pinned source windows join those selected original entry
-channels without replacing the process observations. The numbered windows
-retain their original terminal annotations; derived excerpts contain only
-actual physical-LF source bytes and append no EOF byte.
-
-Held query Lists retain original target/prefix members after alias deletion.
-An actual free-internalRep callback reports representation retirement;
-it does not attest header destruction. A role marked no longer caller-held
-is not dereferenced, and its `-1` count is not a zero-reference assertion.
-Counted NUL prefix bytes remain original data, without source-encoding or
-frame/native-issuer authority. C fresh query Lists and TclOO stored Lists
-remain separately scoped public purposes.

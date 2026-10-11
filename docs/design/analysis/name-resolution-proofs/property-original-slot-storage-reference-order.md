@@ -6679,25 +6679,11 @@ BumpGlobalEpoch(
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+- [runtime/rust/src/cmd_oo/original_property_retirement_tests.rs](../../../../runtime/rust/src/cmd_oo/original_property_retirement_tests.rs), `cmd_oo::original_property_retirement_tests::mandatory_property_retirement_releases_both_caches_before_original_members` (linked): Finite source-defined control: mandatory property retirement releases both caches before original members. Release order is inspected C91 source, not a measured teardown callback tape. Direct mandatory cleanup retains its own original operation before callbacks. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [runtime/rust/src/cmd_oo/native_properties/original_order_tests.rs](../../../../runtime/rust/src/cmd_oo/native_properties/original_order_tests.rs), `cmd_oo::native_properties::original_order_tests::original_property_replacement_matches_incoming_hash_and_cache_reference_stages` (linked): Finite source-defined control: original property replacement matches incoming hash and cache reference stages. Only matched C9.1 worker, held-cache and raw List stages; presentation is separate. Actual info issued the result role; the explicit caller hold is independent. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
 A named test is a coverage binding, not a claim that it executed.
 
 ## Replay
 
 Restore exact request/input/source mappings and matching independent toolchain/header/library bytes; fully verify original ELF restoration. Preserve public helper List, incoming storage, hash-key and returned cache roles and phase boundaries. Fresh outputs only; no arbitrary external List, optional package, Runtime issuer or Rust assertion equivalence.
-## Public helper and storage roles
-
-| Original role | Finite C9.1 observation |
-| --- | --- |
-| ResolveAll helper List | Contains the original incoming members and supplies its own member hold |
-| SetPropertyList incoming refs | All incoming p,p,q are held before unheld old storage retires |
-| ObjHash keys | Checked getters follow old retirement; temporary key holds are separate |
-| Duplicate property name | First p is stored; independent duplicate p is released |
-| Held old info cache | Delays old member free until explicit cache release |
-| New info -all List/cache | Holds original first-p and q members in its returned owner |
-
-Public-slot counts are not counts for an arbitrary caller-supplied List. The
-helper List, storage refs, transient keys and returned cache supply independent
-roles. Raw rows remain before later RESULT presentation. Other initialized
-providers supply availability only;509 is preparation, not an executed attempt.

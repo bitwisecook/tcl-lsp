@@ -6857,29 +6857,14 @@ tcl9.1 9.1.0, revision `Exact release source/hash; source-control revision unrec
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+- [runtime/rust/src/cmd_alias.rs](../../../../runtime/rust/src/cmd_alias.rs), `cmd_alias::original_operand_tests::original_alias_prefix_refusal_is_reached_only_at_actual_invocation` (linked): Finite source-defined control: original alias prefix refusal is reached only at actual invocation. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [runtime/rust/src/cmd_alias.rs](../../../../runtime/rust/src/cmd_alias.rs), `cmd_alias::original_operand_tests::original_child_handle_alias_reads_the_selected_operand_before_publication` (linked): Finite source-defined control: original child handle alias reads the selected operand before publication. This actual worker control distinguishes the C target pretest from Jim's List-first capture. It does not equate child and core name roles. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [runtime/rust/src/cmd_alias.rs](../../../../runtime/rust/src/cmd_alias.rs), `cmd_alias::original_alias_storage_tests::original_alias_capture_and_query_match_the_measured_member_and_header_recipe` (linked): Finite source-defined control: original alias capture and query match the measured member and header recipe. Bounded exact physical fields; Jim body-only name updater refs are not compared with its public EvalObjVector registration invocation. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [runtime/rust/src/cmd_alias.rs](../../../../runtime/rust/src/cmd_alias.rs), `cmd_alias::original_alias_storage_tests::original_alias_query_retains_unread_members_until_the_last_query_is_released` (linked): Finite source-defined control: original alias query retains unread members until the last query is released. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [runtime/rust/src/cmd_alias.rs](../../../../runtime/rust/src/cmd_alias.rs), `cmd_alias::original_alias_storage_tests::original_child_handle_alias_retains_lazy_parent_members_and_selected_name_role` (linked): Finite source-defined control: original child handle alias retains lazy parent members and selected name role. C aliases own the supplied name; Jim_RegisterCmd owns a fresh child key. These are software role controls, not unmeasured native counts. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
 A named test is a coverage binding, not a claim that it executed.
 
 ## Replay
 
 Restore exact request/input mapping and matching independent compiler/header/link/runtime payloads, verify compressed and fully decompressed original ELF hashes/size/mode, and use fresh output paths. Preserve supplied object/query ownership and phase boundaries; do not overwrite captured streams or infer application Native authority.
-
-## Original ownership and observation boundaries
-
-| Original stage | C8.4–9.1 observation | Jim observation |
-| --- | --- | --- |
-| Alias capture | Prefix members retained without String; C84/85 target pretest precedes name, C86+ name precedes target | Name String reached; target/prefix retained unread |
-| Two raw queries | Distinct List headers, same original target/prefix members | Same stored List header and original members |
-| Present first query | Shared member Strings reached; second List remains unstringified | Shared List and member String caches reached |
-| Invoke twice | Actual supplied callback reads prefix2 then prefix1, retains counted NUL bytes, reuses cache | Same finite callback reads; independent core alias purpose |
-| Delete with held query owners | Original members remain until final query release | Original members remain until final query release |
-| Delete without queries | Selected unread prefix internalRep retirement without getter | Selected unread prefix internalRep retirement without getter |
-| Child alias to parent callback | Exact original member correspondence retained | Selected C-style child/query purpose unavailable |
-
-The pointers identify supplied live members only. Free callbacks record
-internal representation retirement rather than header destruction. Raw query
-ownership and explicit presentation remain separate observations. All original
-annotated excerpts remain retained; canonical source anchors independently
-join complete physical-LF original byte extents. No software assertion or
-application Native binding/frame/issuer permission follows from these rows.

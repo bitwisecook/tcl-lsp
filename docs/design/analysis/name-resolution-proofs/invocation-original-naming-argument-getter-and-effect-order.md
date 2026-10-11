@@ -5487,51 +5487,14 @@ static int Jim_XtraceCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *a
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+- [rust/tcl-vm/src/command/native_definition_order_tests.rs](../../../../rust/tcl-vm/src/command/native_definition_order_tests.rs), `command::native_definition_order_tests::original_procedure_public_completions_match_all_eighteen_native_definition_windows` (linked): Finite source-defined control: original procedure public completions match all eighteen native definition windows. Public worker and invocation code/result only: these values already have Strings and cannot assert the original extension's getter tape or counts. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [runtime/rust/src/cmd_proc/original_argument_tests.rs](../../../../runtime/rust/src/cmd_proc/original_argument_tests.rs), `cmd_proc::original_argument_tests::original_procedure_definition_matches_all_c_name_body_and_formal_getter_windows` (linked): Finite source-defined control: original procedure definition matches all c name body and formal getter windows. Exact C499c original String reachability/public results, independently of body duplication, sharing counts, compiled code or Jim procedure semantics. Native499c supplies an original body already owned by its variable. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [runtime/rust/src/cmd_proc/original_argument_tests.rs](../../../../runtime/rust/src/cmd_proc/original_argument_tests.rs), `cmd_proc::original_argument_tests::original_procedure_definition_matches_jim_formal_name_and_deferred_body_getters` (linked): Finite source-defined control: original procedure definition matches jim formal name and deferred body getters. Jim499d reaches the original formals and name at definition. The body updater is reached by case11's later invocation, not by definition. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [runtime/rust/src/cmd_namespace/original_argument_tests.rs](../../../../runtime/rust/src/cmd_namespace/original_argument_tests.rs), `cmd_namespace::original_argument_tests::original_namespace_patterns_match_all_c_getter_and_public_effect_windows` (linked): Finite source-defined control: original namespace patterns match all c getter and public effect windows. Exact C499c selected windows only. C84's callback export axis stays unasserted; no binding-generation, header-count, Jim or whole-dispatch equivalence is claimed. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [runtime/rust/src/cmd_namespace/original_argument_tests.rs](../../../../runtime/rust/src/cmd_namespace/original_argument_tests.rs), `cmd_namespace::original_argument_tests::original_namespace_patterns_match_reached_jim_getter_and_public_effect_windows` (linked): Finite source-defined control: original namespace patterns match reached jim getter and public effect windows. The independent Jim499d worker uses global original operands. Jim499c's missing-variable setup does not establish getter order. Export's ignored inputs and unsupported forget remain distinct from the measured imports. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
 A named test is a coverage binding, not a claim that it executed.
 
 ## Replay
 
 Restore the exact independent request/probe/launcher/source/header/config/library/input mapping and original output paths only after full hash verification; decompress measured ELF after checking compressed SHA and original whole SHA/size/mode. Independently supply exact external system compiler/header/link/runtime inputs. Each new process uses fresh output paths; original captured directories cannot be overwritten. Preserve global versus setup-local operand scope, C84 observer NA, Jim distribution helper and actual unavailable axes, all Guest failures, callback/public result phases and produced-byte construction. Do not splice independent runs or infer Rust/Native application authority. Partial499b outer failure is a reported actual tool observation, not a retained original stderr/receipt.
-
-## Original reached argument and effect boundaries
-
-All five C releases agree on these finite fresh-interpreter cases. A, B and
-C identify the original lazy operands in the unchanged probe, not abstract
-argument roles manufactured by the application. C84 callback export-list
-inspection is `NA`; its public follow-up export results remain retained.
-
-| Fixed original case | Reached C getters | Actual boundary |
-| --- | --- | --- |
-| Leading clear, invalid first export | A | Export list cleared before A on the supported public observer; B unreached |
-| Valid export, invalid second, later third | A, B | First accepted pattern remains; C unreached |
-| Later `-clear` pattern | A, B, C | Appended as an ordinary pattern |
-| First import then missing namespace | A, B | First imported command remains; C unreached |
-| First forget then missing namespace | A, B | First import removed, second remains; C unreached |
-| Procedure unknown name namespace | A | Body and formal-list getters unreached |
-| Valid name, malformed formal list | A, C, B | Body String reached before formal-list failure; no procedure installed |
-| Valid empty formal list | A, C, B | Procedure installed; separate invocation returns `OK` |
-| Binary-produced NUL export/import suffix | A, B | Exact selected original prefix purpose and later failure retained |
-| UTF8-produced export prefix then failure | A, B | Accepted prefix retained; C unreached |
-
-Jim has independent distribution outcomes: export does not request the lazy
-Strings; import reaches selected later arguments and retains textual alias
-state; `forget` reports its actual unavailable subcommand. Procedure
-declaration reaches B then A, while the successful invocation later reaches
-C. Its exact query spelling and return bytes are preserved without a C
-namespace or formal-list validation claim.
-
-The three retained captures remain independent. `499b` has five closed C
-executions and a Jim compile/dependency stream before the reported tool
-refusal; its Jim dependency receipt and execution are absent. `499c` has six
-closed host executions, but Jim workers 1–14 cannot read their setup-local
-variable and reach no lazy getter. `499d` uses persistent global operands and
-retains all six fresh captures. No predecessor stream is substituted for a
-missing or failed stage. The partial outer tool failure has no retained raw
-stdout/stderr file and is described only as a reported actual tool result.
-
-Produced NUL/UTF8 payloads are explicit decoded hex, with ASCII source and
-scripts. They grant no generic counted-name or source-character equivalence.
-Public callback name existence is no binding-generation identity, and a
-reached body String is no compiler entry, bytecode or body-duplication proof.

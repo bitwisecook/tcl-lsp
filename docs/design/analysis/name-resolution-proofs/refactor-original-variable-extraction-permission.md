@@ -77,6 +77,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/refactor/extract_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/extract_variable.rs), `extract_variable`: Retain full actual analysis and stop at missing insertion/store/movement authority.
 - [rust/tcl-mcp/src/tools.rs](../../../../rust/tcl-mcp/src/tools.rs), `extract_variable`: Transport the actual analysis and disabled reason to the tool response.
 - [rust/tcl-lsp-core/src/refactor/extract_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/extract_variable.rs), `refactor::extract_variable::tests::original_variable_extraction_never_promotes_naming_proposals_to_motion_permission` (linked): Missing Native permission cannot be replaced by reporting maps, a changed dialect, future use, shadowed setter or effectful selection.
+- [rust/tcl-lsp-core/src/refactor/extract_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/extract_variable.rs), `refactor::extract_variable::tests::original_extraction_validates_complete_word_before_unlicensed_advice` (linked): Finite source-defined control: original extraction validates complete word before unlicensed advice. Geometry is read-only; this genuine Native input supplies no motion or store licence. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
 A named test is a coverage binding, not a claim that it executed.
 

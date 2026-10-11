@@ -19868,31 +19868,13 @@ Tcl_GetCommandFromObj(
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+- [rust/tcl-registry/src/native_tcloo_method_definition.rs](../../../../rust/tcl-registry/src/native_tcloo_method_definition.rs), `native_tcloo_method_definition::tests::original_method_rename_verdict_keeps_entry_identity_and_diagnostic_extent_separate` (linked): Finite source-defined control: original method rename verdict keeps entry identity and diagnostic extent separate. Pure verdict over supplied actual entry facts; no table or invocation admission. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [runtime/rust/src/cmd_oo/native_method_rename_tests.rs](../../../../runtime/rust/src/cmd_oo/native_method_rename_tests.rs), `cmd_oo::native_method_rename_tests::original_named_declarations_keep_record_name_and_table_key_roles_separate` (linked): Finite source-defined control: original named declarations keep record name and table key roles separate. Genuine authored/generated declaration roles; shallow Rust observations are not Native copies. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [runtime/rust/src/cmd_oo/native_method_rename_tests.rs](../../../../runtime/rust/src/cmd_oo/native_method_rename_tests.rs), `cmd_oo::native_method_rename_tests::original_rename_verdict_and_counted_headers_match_reached_stock_worker_stages` (linked): Finite source-defined control: original rename verdict and counted headers match reached stock worker stages. Match stock worker name/verdict/role phases only; the Runtime forward payload is independent. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [runtime/rust/src/cmd_oo/native_method_rename_tests.rs](../../../../runtime/rust/src/cmd_oo/native_method_rename_tests.rs), `cmd_oo::native_method_rename_tests::original_self_method_report_keeps_current_entered_name_and_unnamed_roles_distinct` (linked): Finite source-defined control: original self method report keeps current entered name and unnamed roles distinct. Source-selected SELF_METHOD name role; no measured custom MethodType payload/body equivalence. Unnamed slots retain no named-record role. Foundation-owned report headers are a separate consumer purpose, not supplied by this owner. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
 A named test is a coverage binding, not a claim that it executed.
 
 ## Replay
 
 Restore exact run-scoped request/source/input mappings, fully verify compressed and original ELF hashes/size/mode, and independently supply exact toolchain/header/library bytes. Select only the actual CmdInfo kind/count ABI. Preserve entry-channel getter/error/presentation phases, counted method-name bytes and original reference roles. Fresh outputs only; never substitute510b rows for original510 refusals or infer Native application generation, every payload kind or Rust admission.
-
-## Entry and reference boundaries
-
-| Original purpose | Finite observation |
-| --- | --- |
-| Original510 C90 direct 16 | Probe-sentinel-712; the stock worker is not reached |
-| Successor510b authentic CmdInfo | C86/C90 kind1/int; C91 kind2/Tcl_Size; all 32 supported cases reach |
-| Missing source in direct worker | Source getter and lookup failure; destination remains unread |
-| Missing source through public Eval | Error-context reporting reads destination before public return |
-| Successful destination header | Caller, Method-name and ObjHash-key holds supply independent refs3 roles |
-| Same table record / occupied destination | Rejection preserves both installed clientData payloads |
-| Successful uppercase destination | Original visibility follows the moved method |
-| Counted embedded-NUL names | Table lookup keeps counted bytes; reported text truncation is separate |
-| Seeded error-code option | Public successful Eval clears it; direct successful worker retains it |
-
-Raw rows and actual callback counters retain their original phases. RESULT,
-ERRORCODE and later definition/invocation rendering are separate reached
-getters. Diagnostic method addresses do not establish incarnation or application
-issuer. The available SDK header count width does not replace the actual
-CmdInfo function-pointer kind. Other initialized providers supply selected
-core availability only, without optional-extension absence claims.

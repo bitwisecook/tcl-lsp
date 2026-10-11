@@ -2262,43 +2262,13 @@ void Jim_RegisterCoreCommands(Jim_Interp *interp)
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+- [runtime/rust/src/cmd_oo/native_context.rs](../../../../runtime/rust/src/cmd_oo/native_context.rs), `cmd_oo::native_context::original_forward_prefix_tests::original_forward_definition_and_raw_report_match_original_member_stages` (linked): Finite source-defined control: original forward definition and raw report match original member stages. Fixed C86/C90/C91 ROW comparisons; presentation is an explicit later read. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [runtime/rust/src/cmd_oo/native_context.rs](../../../../runtime/rust/src/cmd_oo/native_context.rs), `cmd_oo::native_context::original_forward_prefix_tests::original_forward_invocation_passes_exact_member_before_its_worker_getter` (linked): Finite source-defined control: original forward invocation passes exact member before its worker getter. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [runtime/rust/src/cmd_oo/native_context.rs](../../../../runtime/rust/src/cmd_oo/native_context.rs), `cmd_oo::native_context::original_forward_prefix_tests::forward_declaration_clone_shares_the_retained_list_without_member_reference_donation` (linked): Finite source-defined control: forward declaration clone shares the retained list without member reference donation. Software sharing control for original CloneForwardMethod's source recipe; original nine-case rows contain no independent native clone observation. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+- [runtime/rust/src/cmd_oo/native_context.rs](../../../../runtime/rust/src/cmd_oo/native_context.rs), `cmd_oo::native_context::original_definition_frame_tests::original_definition_entry_waits_for_a_report_and_preserves_raw_list_members` (linked): Finite source-defined control: original definition entry waits for a report and preserves raw list members. Match String/update phases and the report's native member +1 delta. The direct software frame fixture has no public EvalObjv argv +1 role. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
 A named test is a coverage binding, not a claim that it executed.
 
 ## Replay
 
 Restore the original request/launcher/probe/scripts and all mapped retained SDK/header/config/library/CLI/compiler-link inputs at their recorded hashes. Gzip probe executable payloads restore only after both compressed and original whole SHA/size checks and recorded mode. Independently supply exact external-hash-record-only system inputs; this archive is not a complete system toolchain. Preserve original fresh-interpreter, caller +1 lifetime, legacy callback family, raw List-member and header-only ROW purposes. Keep public evaluator return effects separate from explicit RESULT/PRESENTATION String reads, including interleaved callback events. The existing capture directory cannot be overwritten; a new output request/process is a separate observation. No application or Rust outcome is inferred.
-
-## Original reached stage boundaries
-
-C8.4, C8.5 and Jim retain actual initialized availability `0 0 0`; they
-execute no C TclOO operand cases. The table below records the matched
-C8.6/C9.0/C9.1 boundaries. Exact per-role counts and all 159 ROW records
-remain in the whole original streams.
-
-| Original boundary | Observed retained original purpose |
-| --- | --- |
-| Forward definition | Original prefix refcount `1 → 2`, String absent, no updater |
-| `info class forward` and raw List access | Two-member List contains the original prefix; no updater |
-| Explicit forward List presentation | Original prefix updater reaches String; original member retained |
-| Independent invocation without report | Capture receives the original prefix while stringless; its explicit getter reaches String |
-| Definition entry without report | Original unused operand remains stringless through return |
-| `info level 0` and raw List access | Four-member frame List includes original operand; no String getter |
-| Explicit frame List or outer result presentation | Original operand updater reaches String at the separately recorded presentation boundary |
-| Method public return | Exact name/formal/body/option updates and reference fields include any evaluator error-context rendering |
-| Interpreter destroyed, originals still held | Caller +1 originals remain available for final public field/counter row; explicit release is separate |
-
-All option-free valid formal-list declarations return status `0`; malformed
-formal-list declarations return `1`. C8.6 optional method cases return
-arity error `1`; C9 valid `-export` returns `0`, invalid `-bad` returns
-export-flag error `1`. At the public failure return boundary, later String
-updates cannot be attributed solely to the rejected method worker.
-
-An updater may print EVENT after the already-emitted
-`RESULT...hex=` or `PRESENTATION...hex=` prefix, with result hex on the next
-physical line. The raw stream preserves that interleaving. The derived
-review retains raw presentation lines separately from all ROW stages and
-events; it does not invent a combined result/event record. Member equality
-is original object retention only; it gives no command generation, active
-frame/source issuer, procedure identity or Rust parity.
