@@ -2490,7 +2490,7 @@ impl Analyser {
                 registry,
                 self.declared_commands.as_ref(),
             ),
-            config: self.lexer_config(),
+            config: self.file_lexer_config(),
             identities: &self.head_identities,
             executed_source: self.head_identities.executed_script_for_word(body_span),
         };

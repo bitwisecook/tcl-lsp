@@ -410,10 +410,10 @@ pub struct TraitScanEnv<'a> {
     /// `# tcl-lsp: stub my_eval {script:body}` makes a `my_eval $param`
     /// invocation mark the parameter `ProcArgTrait::Body`.
     pub surface: DocumentCommandSurface<'a>,
-    /// The dialect lexer configuration the body re-segments under.  `{*}`
-    /// expansion (off for Tcl 8.4 / iRules) and the iRules `}{` ghost SEP
-    /// change how a body splits into commands and words, which changes which
-    /// arguments resolve to a clean `$param`.
+    /// Complete parent configuration retained by the original body/metadata
+    /// owner. Body parsers select `config.nested()` locally, including a body
+    /// at offset zero; `{*}`, quoting and all other grammar axes remain intact.
+    /// The parent configuration remains available for original word joins.
     pub config: LexerConfig,
     /// The document's proven command-identity facts — see
     /// [`crate::realm`].  Pass
@@ -559,7 +559,7 @@ fn scan_commands_bounded<'p>(
     aliases: &mut Aliases<'p>,
     depth: u8,
 ) {
-    let segments = segment_commands_with_offset_and_config(source, 0, ctx.config);
+    let segments = segment_commands_with_offset_and_config(source, 0, ctx.config.nested());
     for seg in &segments {
         if seg.texts.is_empty() {
             continue;
@@ -653,7 +653,7 @@ fn scan_deep<'p>(
 
     // Each nested body receives its original pre-dispatch copy state. A
     // conditional body cannot publish its assignments into a sibling path.
-    let segments = segment_commands_with_offset_and_config(source, 0, ctx.config);
+    let segments = segment_commands_with_offset_and_config(source, 0, ctx.config.nested());
     for seg in segments {
         if seg.texts.is_empty() {
             continue;
@@ -1384,7 +1384,7 @@ pub fn caller_frame_upvar_params(
             .executed_source
             .map(crate::command_binding::ExecutedScriptSource::base),
     };
-    for seg in &segment_commands_with_offset_and_config(body_source, 0, env.config) {
+    for seg in &segment_commands_with_offset_and_config(body_source, 0, env.config.nested()) {
         let Some(view) = ctx.body_assistance(body_source, seg) else {
             continue;
         };
@@ -1474,7 +1474,7 @@ pub fn caller_frame_literal_targets(
         return targets;
     }
     let mut alias_to_target = HashMap::new();
-    for seg in &segment_commands_with_offset_and_config(body_source, 0, env.config) {
+    for seg in &segment_commands_with_offset_and_config(body_source, 0, env.config.nested()) {
         let Some(view) = ctx.body_assistance(body_source, seg) else {
             continue;
         };
@@ -1583,6 +1583,58 @@ mod tests {
             infer_param_traits_deep(params, body, env)
         } else {
             infer_param_traits(params, body, env)
+        }
+    }
+
+    #[test]
+    fn original_parameter_scans_keep_parent_input_and_nested_body_bom() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Conditional own-body/caller-name advice only; no entered caller or alias link.
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let mut supplied = input.clone();
+            supplied.config.leading_bom = bom;
+            supplied.config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+            for per_item in [false, true] {
+                let mut analyser =
+                    crate::analyser::Analyser::new().with_resolved_input(supplied.clone());
+                let source =
+                    "proc p {body name} {eval $body; upvar 1 $name local; set local VALUE}";
+                let result = if per_item {
+                    analyser.analyse_per_item(source, "display-only")
+                } else {
+                    analyser.analyse(source, "display-only")
+                };
+                assert_eq!(result.resolved_input.as_ref(), Some(&supplied));
+                let procedure = result
+                    .all_procs
+                    .get("::p")
+                    .expect("genuine original procedure");
+                assert_trait(&procedure.param_traits, "body", ProcArgTrait::Eval);
+                assert!(procedure.caller_frame_params.contains("name"));
+
+                let mut analyser =
+                    crate::analyser::Analyser::new().with_resolved_input(supplied.clone());
+                let source = "proc p {body name} {\u{feff}eval $body; \u{feff}upvar 1 $name local; set local VALUE}";
+                let result = if per_item {
+                    analyser.analyse_per_item(source, "display-only")
+                } else {
+                    analyser.analyse(source, "display-only")
+                };
+                let procedure = result
+                    .all_procs
+                    .get("::p")
+                    .expect("genuine original procedure");
+                assert!(
+                    !procedure
+                        .param_traits
+                        .get("body")
+                        .is_some_and(|traits| traits.contains(&ProcArgTrait::Eval))
+                );
+                assert!(procedure.caller_frame_params.is_empty());
+            }
         }
     }
 

@@ -1,0 +1,450 @@
+
+running 172 tests
+test call_hierarchy::original_source_context_tests::original_method_hierarchy_keeps_replaced_helpers_unresolved_and_withdraws_stale_source ... ok
+test call_hierarchy::original_source_context_tests::original_method_hierarchy_uses_selected_helpers_and_same_source_frame ... 
+thread 'call_hierarchy::original_source_context_tests::original_method_hierarchy_uses_selected_helpers_and_same_source_frame' (1131676) panicked at rust/tcl-lsp-core/src/call_hierarchy.rs:2388:9:
+["source_dispatch", "if", "proc", "missing"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test code_actions::diagnostic_context::tests::original_context_diagnostic_currency_keeps_the_complete_availability_owner ... 
+thread 'code_actions::diagnostic_context::tests::original_context_diagnostic_currency_keeps_the_complete_availability_owner' (1131677) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:660:9:
+assertion failed: std::sync::Arc::ptr_eq(input.borrowed_context_registry().commands(),
+    older_input.borrowed_context_registry().commands())
+FAILED
+test code_actions::diagnostic_context::tests::original_diagnostic_actions_keep_typed_sink_and_source_when_prose_changes ... 
+thread 'code_actions::diagnostic_context::tests::original_diagnostic_actions_keep_typed_sink_and_source_when_prose_changes' (1131678) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:492:32:
+missing T100: []
+FAILED
+test code_actions::diagnostic_context::tests::original_diagnostic_actions_refuse_stale_source_configuration_registry_and_range ... 
+thread 'code_actions::diagnostic_context::tests::original_diagnostic_actions_refuse_stale_source_configuration_registry_and_range' (1131679) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:612:9:
+assertion failed: !actions(source, &analysis, &diagnostic).is_empty()
+FAILED
+test code_actions::diagnostic_currency::tests::original_check_actions_require_the_issuers_source_config_and_registry ... ok
+test code_actions::diagnostic_currency::tests::original_check_currency_refuses_same_store_changed_availability_and_missing_input ... ok
+test code_actions::diagnostic_currency::tests::original_diagnostic_actions_require_current_whole_source_and_owned_fixes ... ok
+test code_actions::diagnostic_currency::tests::original_diagnostic_source_extents_require_actual_byte_boundaries_and_channel ... ok
+test code_lens::tests::lens_count_matches_references_same_name_other_namespace ... ok
+test code_lens::tests::lens_per_user_proc ... ok
+test code_lens::tests::original_lenses_keep_repeated_and_opaque_source_declarations_without_ui_maps ... ok
+test code_lens::tests::original_logical_lenses_keep_complete_source_currency_and_actual_profile ... ok
+test completion::original_context::tests::original_completion_switches_use_actual_option_surface_and_current_source ... ok
+test completion::original_context::tests::original_logical_completion_uses_actual_availability_and_captured_ordinals ... ok
+test declaration::tests::conditional_declaration_preview_declines_explicit_body_replacements ... ok
+test declaration::tests::declaration_does_not_resolve_an_unclosed_braced_reference ... ok
+test declaration::tests::declaration_scan_abstains_for_a_builtin_shadowed_by_a_user_proc ... ok
+test declaration::tests::declaration_scan_follows_a_renamed_scoping_command ... ok
+test declaration::tests::declaration_scan_follows_an_aliased_scoping_command ... ok
+test declaration::tests::declaration_scan_keeps_conditional_lexical_advice_after_a_dynamic_binding ... ok
+test declaration::tests::declaration_scan_maps_a_prefixed_body_without_reparsing_alias_argv ... ok
+test declaration::tests::declaration_scan_maps_alias_prefixes_to_original_local_operands ... ok
+test declaration::tests::declaration_scan_recurses_through_an_aliased_body_command ... ok
+test declaration::tests::declaration_scan_uses_the_declared_local_tail_of_a_global_name ... 
+thread 'declaration::tests::declaration_scan_uses_the_declared_local_tail_of_a_global_name' (1131878) panicked at rust/tcl-lsp-core/src/declaration.rs:1001:9:
+assertion `left == right` failed
+  left: [0, 2]
+ right: [2]
+FAILED
+test declaration::tests::declaration_var_decoration_vectors_preserve_incomplete_braces ... ok
+test declaration::tests::global_declaration_in_proc_body ... 
+thread 'declaration::tests::global_declaration_in_proc_body' (1131880) panicked at rust/tcl-lsp-core/src/declaration.rs:675:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+FAILED
+test declaration::tests::global_declared_inside_apply_lambda_body_is_found ... 
+thread 'declaration::tests::global_declared_inside_apply_lambda_body_is_found' (1131907) panicked at rust/tcl-lsp-core/src/declaration.rs:773:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+FAILED
+test declaration::tests::global_declared_inside_apply_lambda_body_is_not_visible_outside_it ... ok
+test declaration::tests::global_declared_inside_control_flow_body_is_found ... 
+thread 'declaration::tests::global_declared_inside_control_flow_body_is_found' (1131973) panicked at rust/tcl-lsp-core/src/declaration.rs:747:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+FAILED
+test declaration::tests::logical_declaration_navigation_keeps_its_explicit_compatibility_scan ... ok
+test declaration::tests::namespace_variable_declaration_does_not_supply_a_global_bare_read ... ok
+test declaration::tests::non_variable_falls_back_to_definition ... ok
+test declaration::tests::original_alias_declaration_navigation_keeps_the_independent_local_operand ... 
+thread 'declaration::tests::original_alias_declaration_navigation_keeps_the_independent_local_operand' (1132005) panicked at rust/tcl-lsp-core/src/declaration.rs:843:13:
+assertion `left == right` failed: tcl8.6
+  left: []
+ right: [LspRange { start_line: 1, start_character: 30, end_line: 1, end_character: 35 }]
+FAILED
+test declaration::tests::original_declaration_navigation_declines_unowned_analysis_without_recapture ... ok
+test declaration::tests::original_logical_declarations_join_global_aliases_without_local_root_stripping ... 
+thread 'declaration::tests::original_logical_declarations_join_global_aliases_without_local_root_stripping' (1132007) panicked at rust/tcl-lsp-core/src/declaration.rs:571:13:
+assertion `left == right` failed
+  left: 28
+ right: 54
+FAILED
+test declaration::tests::original_logical_declarations_keep_qualified_targets_and_current_source_owners ... 
+thread 'declaration::tests::original_logical_declarations_keep_qualified_targets_and_current_source_owners' (1132008) panicked at rust/tcl-lsp-core/src/declaration.rs:598:13:
+$::ns::foo: [LspRange { start_line: 0, start_character: 28, end_line: 0, end_character: 31 }]
+FAILED
+test declaration::tests::upvar_local_alias_is_a_declaration ... 
+thread 'declaration::tests::upvar_local_alias_is_a_declaration' (1132009) panicked at rust/tcl-lsp-core/src/declaration.rs:724:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+FAILED
+test declaration::tests::variable_declaration_in_namespace ... ok
+test definition::original_next_source_context_tests::original_next_definition_uses_captured_target_and_selected_availability ... 
+thread 'definition::original_next_source_context_tests::original_next_definition_uses_captured_target_and_selected_availability' (1132085) panicked at rust/tcl-lsp-core/src/definition.rs:8275:9:
+assertion `left == right` failed
+  left: None
+ right: Some(Span { start: 30, end: 31 })
+FAILED
+test definition::tests::original_external_self_visibility_requires_its_own_entry_after_internal_dispatch ... ok
+test definition::tests::original_external_visibility_keeps_variable_and_object_names_separate_from_self_dispatch ... 
+thread 'definition::tests::original_external_visibility_keeps_variable_and_object_names_separate_from_self_dispatch' (1132166) panicked at rust/tcl-lsp-core/src/definition.rs:4407:17:
+assertion `left == right` failed: oo::class create C {}; set my [C new]; oo::objdefine $my {method Hidden {} {}}; $my Hidden
+  left: Clear
+ right: Native
+FAILED
+test definition::tests::original_external_visibility_withholds_populated_unavailable_stale_and_foreign_input ... ok
+test definition::tests::original_internal_visibility_uses_the_selected_receiver_local_head ... ok
+test definition::tests::original_source_visibility_keeps_full_lexer_input_and_conditional_mask_purpose ... 
+thread 'definition::tests::original_source_visibility_keeps_full_lexer_input_and_conditional_mask_purpose' (1132199) panicked at rust/tcl-lsp-core/src/definition.rs:4537:9:
+assertion `left == right` failed
+  left: Unavailable
+ right: ConditionalSource
+FAILED
+test diagnostic_report::tests::an_unavailable_overlay_is_not_a_successfully_empty_report ... ok
+test diagnostic_report::tests::supplied_policy_rewrites_keep_actual_source_config_and_refresh_directives ... 
+thread 'diagnostic_report::tests::supplied_policy_rewrites_keep_actual_source_config_and_refresh_directives' (1132202) panicked at rust/tcl-lsp-core/src/diagnostic_report.rs:497:14:
+current Logical branch advice reaches the real rewrite loop
+FAILED
+test diagnostic_report::tests::supplied_policy_rewrites_refuse_missing_unavailable_stale_and_foreign_input ... ok
+test document_links::original_hosted_document_link_tests::original_hosted_links_keep_source_schema_and_name_purposes_independent ... ok
+test document_links::original_hosted_document_link_tests::original_source_path_links_use_selected_operations_and_authentic_bound_values ... 
+thread 'document_links::original_hosted_document_link_tests::original_source_path_links_use_selected_operations_and_authentic_bound_values' (1132227) panicked at rust/tcl-lsp-core/src/document_links.rs:1853:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+FAILED
+test document_links::tests::original_namespace_source_links_use_typed_jim_local_scope_without_export ... ok
+test document_links::tests::original_source_links_use_actual_selected_navigation_and_decline_shadows_or_stale_input ... 
+thread 'document_links::tests::original_source_links_use_actual_selected_navigation_and_decline_shadows_or_stale_input' (1132250) panicked at rust/tcl-lsp-core/src/document_links.rs:1096:13:
+assertion `left == right` failed: rename source load; load /tmp/é.tcl: []
+  left: 0
+ right: 1
+FAILED
+test folding::tests::original_folding_keeps_actual_availability_without_native_body_entry ... ok
+test folding::tests::original_folding_keeps_captured_body_ordinals_and_source_replacements ... ok
+test formatting::engine::tests::analysed_layout_retains_supplied_entry_and_provider_world_without_recapture ... ok
+test formatting::engine::tests::formatting_budget_preserves_complete_source_before_analysis ... ok
+test formatting::engine::tests::original_source_formatting_uses_effective_roles_without_widening_captured_operands ... ok
+test formatting::tests::analysed_formatting_joins_complete_original_alias_words_across_crlf_and_unicode ... ok
+test formatting::tests::analysed_formatting_keeps_current_source_and_typed_unavailability ... ok
+test formatting::tests::analysed_formatting_keeps_original_terminators_and_lone_cr_analysis_currency ... ok
+test formatting::tests::analysed_formatting_keeps_replaced_unknown_and_provider_barrier_purposes_separate ... ok
+test formatting::tests::analysed_formatting_member_vocabulary_precedes_same_spelling_global_alias ... 
+thread 'formatting::tests::analysed_formatting_member_vocabulary_precedes_same_spelling_global_alias' (1132314) panicked at rust/tcl-lsp-core/src/formatting/mod.rs:606:9:
+interp alias {} method {} if 1
+
+oo::class create C {
+    method m {} { puts α }
+}
+
+FAILED
+test formatting::tests::analysed_formatting_retains_selected_definition_parent_body_geometry ... 
+thread 'formatting::tests::analysed_formatting_retains_selected_definition_parent_body_geometry' (1132315) panicked at rust/tcl-lsp-core/src/formatting/mod.rs:587:13:
+oo::class create C {
+    method m {} { puts α }
+}
+
+FAILED
+test formatting::tests::range_formatting_withdraws_before_analysis_above_lexical_budget ... ok
+test graphs::original::tests::original_graph_alias_edges_select_terminal_allocation_without_reporting_names ... 
+thread 'graphs::original::tests::original_graph_alias_edges_select_terminal_allocation_without_reporting_names' (1132317) panicked at rust/tcl-lsp-core/src/graphs/original.rs:334:9:
+assertion `left == right` failed: {"projection":"original-source-declarations","nodes":[],"edges":[],"references":[],"roots":[],"leaf_procs":[],"root_ids":[],"leaf_ids":[]}
+  left: 0
+ right: 1
+FAILED
+test graphs::original::tests::original_graph_nodes_preserve_opaque_redefinitions_and_canonical_edges_without_ui_maps ... ok
+test graphs::original::tests::original_graph_summary_requires_body_allocation_even_when_ir_labels_agree ... ok
+test graphs::tests::original_dataflow_warnings_keep_selected_source_availability_and_path_ordinals ... ok
+test hover::original_registry::tests::original_registry_head_hover_lists_only_retained_version_subcommands ... ok
+test hover::original_registry::tests::original_registry_hover_keeps_current_context_and_conditional_shadow_barriers ... 
+thread 'hover::original_registry::tests::original_registry_hover_keeps_current_context_and_conditional_shadow_barriers' (1132348) panicked at rust/tcl-lsp-core/src/hover/original_registry.rs:432:54:
+conditional source documentation
+FAILED
+test hover::original_registry::tests::original_registry_hover_uses_actual_heads_subcommands_options_and_origins ... ok
+test hover::original_registry::tests::original_registry_operand_hover_keeps_parent_nested_and_option_availability ... ok
+test hover::original_registry::tests::original_scoped_hover_keeps_body_receipts_and_ignores_copied_reporting_regions ... ok
+test hover::original_special_variable_context_tests::original_special_hover_keeps_authored_registry_shadow_rows_and_array_key_availability ... ok
+test hover::original_special_variable_context_tests::original_special_hover_uses_actual_availability_and_withdraws_changed_owners ... ok
+test hover::tests::logical_registry_hover_keeps_actual_context_and_source_currency ... ok
+test hover::tests::logical_registry_hover_preserves_whole_alias_operands_and_declines_data ... ok
+test inlay_hints::retained_hint_context_tests::logical_format_escape_hints_use_the_complete_selected_grammar ... ok
+test inlay_hints::retained_hint_context_tests::logical_format_hints_keep_actual_context_and_full_source_currency ... ok
+test inlay_hints::retained_hint_context_tests::logical_format_hints_keep_nested_escaped_words_and_refuse_captured_anchors ... ok
+test inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_actual_context_and_original_source_currency ... ok
+test inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_nested_and_prefix_ordinals_without_captured_anchors ... ok
+test inlay_hints::retained_hint_context_tests::original_builtin_hints_use_the_selected_availability_not_registry_profile ... ok
+test inlay_hints::retained_hint_context_tests::original_format_hints_follow_actual_nested_roles_and_known_shadow ... ok
+test inlay_hints::retained_hint_context_tests::original_format_hints_use_selected_option_roles_under_the_actual_context ... ok
+test inlay_hints::retained_hint_context_tests::original_hint_metadata_keeps_the_generation_after_reporting_maps_are_cleared ... ok
+test inlay_hints::retained_hint_context_tests::original_inlay_hints_keep_retained_profile_registry_and_whole_source ... 
+thread 'inlay_hints::retained_hint_context_tests::original_inlay_hints_keep_retained_profile_registry_and_whole_source' (1132697) panicked at rust/tcl-lsp-core/src/inlay_hints.rs:3011:9:
+[InlayHint { position_line: 1, position_character: 10, label: "int", kind: Type, padding_left: true }, InlayHint { position_line: 0, position_character: 4, label: "varName:", kind: Parameter, padding_left: false }, InlayHint { position_line: 0, position_character: 10, label: "value:", kind: Parameter, padding_left: false }, InlayHint { position_line: 1, position_character: 7, label: "formatString:", kind: Parameter, padding_left: false }]
+FAILED
+test linked_editing_range::original_linked_tests::original_linked_editing_does_not_mirror_escapes_computed_heads_or_unrelated_body_words ... ok
+test linked_editing_range::original_linked_tests::original_linked_editing_keeps_qualified_unicode_tail_and_refuses_stale_source ... 
+thread 'linked_editing_range::original_linked_tests::original_linked_editing_keeps_qualified_unicode_tail_and_refuses_stale_source' (1132699) panicked at rust/tcl-lsp-core/src/linked_editing_range.rs:536:78:
+tcl9.0
+FAILED
+test linked_editing_range::tests::links_recursive_self_call_to_declaration ... ok
+test linked_editing_range::tests::original_logical_linked_edits_require_the_current_whole_source_owner ... ok
+test namespace_rename::tests::namespace_hazard_keeps_original_roles_and_unavailable_owner_refusal ... 
+thread 'namespace_rename::tests::namespace_hazard_keeps_original_roles_and_unavailable_owner_refusal' (1132726) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:610:64:
+called `Option::unwrap()` on a `None` value
+FAILED
+test namespace_rename::tests::supplied_namespace_hazard_patterns_keep_parentheses_and_unknown_roles ... ok
+test namespace_rename::tests::tn_a_computed_namespace_word_elsewhere_does_not_refuse ... ok
+test original_context::tests::current_source_currency_is_independent_of_advice_and_execution_purpose ... ok
+test original_context::tests::current_source_currency_withdraws_changed_grammar_foreign_input_and_missing_owner ... ok
+test original_context::tests::original_logical_type_advice_keeps_current_class_source_and_withdraws_stale_owner ... ok
+test original_context::tests::supplied_editor_entries_do_not_use_logical_purpose_as_source_currency ... 
+thread 'original_context::tests::supplied_editor_entries_do_not_use_logical_purpose_as_source_currency' (1132748) panicked at rust/tcl-lsp-core/src/original_context.rs:127:9:
+assertion failed: !crate::definition::definition(source, 0, 13, &analysis).is_empty()
+FAILED
+test original_invocation::original_diagnostic_value_tests::original_core_word_contents_use_logical_advice_without_executable_constants ... ok
+test receiver_identity::tests::captured_method_registration_keeps_actual_metadata_and_source_currency ... ok
+test receiver_identity::tests::captured_prefix_references_require_actual_capture_and_deferred_registration ... 
+thread 'receiver_identity::tests::captured_prefix_references_require_actual_capture_and_deferred_registration' (1132751) panicked at rust/tcl-lsp-core/src/receiver_identity.rs:795:13:
+assertion failed: crate::rename::prepare_rename(&source, 0, cursor, &analysis).is_some()
+FAILED
+test receiver_identity::tests::original_method_reference_sets_do_not_merge_reused_class_names ... ok
+test receiver_identity::tests::original_own_object_navigation_joins_the_actual_configuration_allocation ... ok
+test receiver_identity::tests::original_receiver_entry_is_shared_by_navigation_hover_and_rename ... 
+thread 'receiver_identity::tests::original_receiver_entry_is_shared_by_navigation_hover_and_rename' (1132767) panicked at rust/tcl-lsp-core/src/receiver_identity.rs:975:72:
+called `Option::unwrap()` on a `None` value
+FAILED
+test receiver_identity::tests::original_receiver_navigation_joins_allocations_without_reporting_maps ... 
+thread 'receiver_identity::tests::original_receiver_navigation_joins_allocations_without_reporting_maps' (1132768) panicked at rust/tcl-lsp-core/src/receiver_identity.rs:734:18:
+an actual method entry must join its original class allocation
+FAILED
+test refactor::datagroup::tests::original_datagroup_proposals_require_the_selected_output_surface ... ok
+test refactor::datagroup::tests::supplied_datagroup_advice_keeps_actual_output_availability_and_arm_horizons ... ok
+test refactor::datagroup::tests::supplied_datagroup_advice_keeps_written_clauses_and_current_document_owner ... ok
+test refactor::datagroup::tests::supplied_datagroup_alias_does_not_restore_a_removed_output_handler ... ok
+test refactor::extract_proc::selected_source_variable_tests::original_extraction_classifies_captured_variable_roles_and_rejects_replaced_helpers ... ok
+test refactor::extract_proc::selected_source_variable_tests::original_extraction_uses_retained_brace_grammar_and_withdraws_changed_owners ... 
+thread 'refactor::extract_proc::selected_source_variable_tests::original_extraction_uses_retained_brace_grammar_and_withdraws_changed_owners' (1132874) panicked at rust/tcl-lsp-core/src/refactor/extract_proc.rs:2018:13:
+Some("the original command's frame effects are unavailable")
+FAILED
+test refactor::extract_proc::selected_source_variable_tests::original_logical_extraction_keeps_current_read_only_edit_and_withdraws_missing_input ... ok
+test refactor::extract_variable::tests::logical_complete_value_words_keep_explicit_compatibility_behaviour ... 
+thread 'refactor::extract_variable::tests::logical_complete_value_words_keep_explicit_compatibility_behaviour' (1132876) panicked at rust/tcl-lsp-core/src/refactor/extract_variable.rs:322:9:
+assertion failed: action.disabled.is_none()
+FAILED
+test refactor::extract_variable::tests::logical_extraction_keeps_supplied_availability_and_source_configuration ... 
+thread 'refactor::extract_variable::tests::logical_extraction_keeps_supplied_availability_and_source_configuration' (1132877) panicked at rust/tcl-lsp-core/src/refactor/extract_variable.rs:411:9:
+assertion failed: extract_variable(source, (5, end), "seasoning", &analyse(older),
+        &index).is_none()
+FAILED
+test refactor::extract_variable::tests::logical_invalid_multiword_value_never_becomes_a_four_argument_set ... 
+thread 'refactor::extract_variable::tests::logical_invalid_multiword_value_never_becomes_a_four_argument_set' (1132878) panicked at rust/tcl-lsp-core/src/refactor/extract_variable.rs:346:9:
+assertion failed: run(source, 5, u32::try_from(source.len()).unwrap(), "result").is_none()
+FAILED
+test refactor::extract_variable::tests::logical_one_line_body_insertion_remains_inside_the_original_body ... 
+thread 'refactor::extract_variable::tests::logical_one_line_body_insertion_remains_inside_the_original_body' (1132879) panicked at rust/tcl-lsp-core/src/refactor/extract_variable.rs:364:9:
+assertion `left == right` failed
+  left: "proc p {} {puts literal}"
+ right: "proc p {} {set result literal; puts $result}"
+FAILED
+test refactor::extract_variable::tests::original_variable_extraction_never_promotes_naming_proposals_to_motion_permission ... ok
+test refactor::inline_proc::original_inline_tests::original_inline_uses_opaque_allocation_formals_and_absolute_body_with_reports_cleared ... ok
+test refactor::inline_proc::selected_source_body_tests::logical_inline_call_selection_uses_current_original_body_regions ... ok
+test refactor::inline_proc::selected_source_body_tests::original_logical_inline_keeps_selected_expression_and_refuses_frame_sensitive_alias ... ok
+test refactor::inline_variable::tests::logical_inline_edits_require_current_source_and_complete_metadata_owner ... ok
+test refactor::inline_variable::tests::logical_inline_set_uses_selected_operation_and_preserves_capture_geometry ... ok
+test refactor::inline_variable::tests::original_inline_variable_requires_exact_definition_and_unobserved_read_without_ui_maps ... 
+thread 'refactor::inline_variable::tests::original_inline_variable_requires_exact_definition_and_unobserved_read_without_ui_maps' (1132886) panicked at rust/tcl-lsp-core/src/refactor/inline_variable.rs:624:82:
+tcl8.4
+FAILED
+test refactor::selected_frame_context_tests::original_frame_regions_keep_selected_expression_template_and_replacement_horizon ... ok
+test refactor::selected_frame_context_tests::original_frame_roles_keep_actual_availability_captures_and_source_currency ... ok
+test refactor::source_rewrite::tests::logical_source_rewrite_keeps_captured_values_outside_written_clause_positions ... ok
+test refactor::source_rewrite::tests::original_dictionary_conversion_does_not_insert_into_an_existing_or_observed_cell ... ok
+test refactor::source_rewrite::tests::original_source_rewrites_require_current_handler_and_distinct_permissions ... 
+thread 'refactor::source_rewrite::tests::original_source_rewrites_require_current_handler_and_distinct_permissions' (1132899) panicked at rust/tcl-lsp-core/src/refactor/source_rewrite.rs:156:60:
+selected original expr
+FAILED
+test refactor::source_rewrite::tests::source_rewrites_keep_actual_availability_and_command_horizons ... 
+thread 'refactor::source_rewrite::tests::source_rewrites_keep_actual_availability_and_command_horizons' (1132920) panicked at rust/tcl-lsp-core/src/refactor/source_rewrite.rs:227:9:
+assertion failed: select(source, invocation_cursor, &analyse(source, older),
+        LoweringHookId::Expr,
+        RewriteObligation::ExpressionEvaluation).is_none()
+FAILED
+test references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands ... 
+thread 'references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands' (1132921) panicked at rust/tcl-lsp-core/src/references/member_metadata.rs:169:66:
+called `Option::unwrap()` on a `None` value
+FAILED
+test references::member_metadata::tests::member_hazards_refuse_stale_missing_and_unowned_class_metadata ... 
+thread 'references::member_metadata::tests::member_hazards_refuse_stale_missing_and_unowned_class_metadata' (1132922) panicked at rust/tcl-lsp-core/src/references/member_metadata.rs:169:66:
+called `Option::unwrap()` on a `None` value
+FAILED
+test references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary ... 
+thread 'references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary' (1132923) panicked at rust/tcl-lsp-core/src/references/member_metadata.rs:169:66:
+called `Option::unwrap()` on a `None` value
+FAILED
+test references::original_next_dispatch_context_tests::original_next_dispatch_uses_selected_roles_captured_targets_and_actual_availability ... ok
+test references::original_next_dispatch_context_tests::original_next_dispatch_withdraws_known_replacements_missing_and_foreign_source ... ok
+test references::tests::callback_source_roles_keep_actual_availability_and_original_builder_geometry ... 
+thread 'references::tests::callback_source_roles_keep_actual_availability_and_original_builder_geometry' (1132934) panicked at rust/tcl-lsp-core/src/references.rs:7397:13:
+source_callback [namespace code [list source_dispatch selected]]
+FAILED
+test references::tests::callback_source_roles_keep_actual_package_availability_in_the_same_store ... ok
+test references::tests::callback_source_targets_withdraw_known_shadows_and_incomplete_stored_writes ... ok
+test references::tests::method_dispatch_scan_uses_retained_custom_schema_and_script_purpose ... 
+thread 'references::tests::method_dispatch_scan_uses_retained_custom_schema_and_script_purpose' (1132977) panicked at rust/tcl-lsp-core/src/references.rs:7572:9:
+assertion `left == right` failed: custom schema is retained; reference-only script is excluded
+  left: 0
+ right: 1
+FAILED
+test references::tests::method_source_dispatch_keeps_actual_store_availability_and_lookup_barriers ... 
+thread 'references::tests::method_source_dispatch_keeps_actual_store_availability_and_lookup_barriers' (1132978) panicked at rust/tcl-lsp-core/src/references.rs:7272:64:
+called `Option::unwrap()` on a `None` value
+FAILED
+test references::tests::shifted_dispatch_regions_follow_original_moves_and_known_source_barriers ... ok
+test rename_safety::original_hazard_context_tests::original_hazard_walk_preserves_grammar_and_missing_foreign_owner_refusal ... ok
+test rename_safety::original_hazard_context_tests::original_self_hazards_use_selected_helpers_and_captured_selector_positions ... 
+thread 'rename_safety::original_hazard_context_tests::original_self_hazards_use_selected_helpers_and_captured_selector_positions' (1133000) panicked at rust/tcl-lsp-core/src/rename_safety.rs:2165:13:
+assertion `left == right` failed: oo::class create C {method m {} {source_my $selector}}: []
+  left: 0
+ right: 1
+FAILED
+test rename_safety::original_hazard_context_tests::original_variable_hazards_keep_selected_alias_origins_and_unknown_roles ... ok
+test rename_safety::original_hazard_context_tests::supplied_variable_hazard_patterns_do_not_exclude_native_or_missing_targets ... ok
+test rename_safety::original_hazard_context_tests::supplied_variable_hazard_patterns_keep_qualified_and_open_roots_possible ... ok
+test rename_safety::tests::original_dynamic_name_value_narrowing_stays_in_its_logical_purpose ... 
+thread 'rename_safety::tests::original_dynamic_name_value_narrowing_stays_in_its_logical_purpose' (1133032) panicked at rust/tcl-lsp-core/src/rename_safety.rs:1548:68:
+called `Option::unwrap()` on a `None` value
+FAILED
+test rename_safety::tests::the_computed_name_bound_follows_the_document_close_rule ... ok
+test rename_safety::tests::tn_a_dominating_constant_name_no_longer_refuses ... ok
+test rename_safety::tests::tn_a_dynamic_name_under_another_namespace_no_longer_refuses ... ok
+test rename_safety::tests::tn_a_dynamic_name_with_an_unsatisfiable_affix_no_longer_refuses ... ok
+test semantic_tokens::original_proc_role_tests::original_role_lookup_requires_current_full_source_and_own_head_input ... ok
+test semantic_tokens::original_proc_role_tests::original_roles_keep_opaque_declarations_distinct_after_ui_is_cleared ... ok
+test semantic_tokens::original_realm_consumer_tests::original_semantic_consumer_declines_missing_realm_without_nominal_recapture ... ok
+test semantic_tokens::receiver_source::tests::original_receiver_class_receipt_cannot_be_replaced_by_foreign_hierarchy_metadata ... ok
+test semantic_tokens::receiver_source::tests::original_receiver_heads_keep_actual_leading_bom_policy ... ok
+test semantic_tokens::receiver_source::tests::original_receiver_heads_keep_canonical_class_and_actual_availability ... ok
+test semantic_tokens::receiver_source::tests::original_receiver_public_tokens_refuse_populated_unavailable_and_stale_source ... ok
+test semantic_tokens::receiver_source::tests::original_registry_and_collection_receivers_keep_selected_child_operands ... 
+thread 'semantic_tokens::receiver_source::tests::original_registry_and_collection_receivers_keep_selected_child_operands' (1133074) panicked at rust/tcl-lsp-core/src/semantic_tokens/receiver_source/tests.rs:87:5:
+assertion failed: method_at(source, &current, None, "curselection")
+FAILED
+test semantic_tokens::selected_source_token_tests::original_loop_handle_advice_keeps_actual_availability_captures_and_inert_data ... 
+thread 'semantic_tokens::selected_source_token_tests::original_loop_handle_advice_keeps_actual_availability_captures_and_inert_data' (1133075) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:10452:9:
+assertion failed: handles.contains_key("left")
+FAILED
+test semantic_tokens::selected_source_token_tests::original_member_handle_advice_uses_the_genuine_factory_member_body ... 
+thread 'semantic_tokens::selected_source_token_tests::original_member_handle_advice_uses_the_genuine_factory_member_body' (1133076) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:10477:9:
+assertion failed: regions.iter().any(|(span, _)|
+        {
+            source[span.as_range()].starts_with("install item using Engine $win.a")
+        })
+FAILED
+test semantic_tokens::selected_source_token_tests::original_semantic_tokens_withdraw_stale_grammar_foreign_and_missing_source_owner ... ok
+test semantic_tokens::tests::cross_file_constructor_dispatch_resolves ... 
+thread 'semantic_tokens::tests::cross_file_constructor_dispatch_resolves' (1133078) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7661:9:
+cross-file `[::Pin new] configure` should resolve; got [(0, 1, 5, 1, 0), (0, 7, 3, 3, 0), (0, 12, 9, 3, 0), (0, 22, 5, 3, 0), (0, 28, 1, 4, 0)]
+FAILED
+test semantic_tokens::tests::tcloo_dispatch_pattern_fixture ... 
+thread 'semantic_tokens::tests::tcloo_dispatch_pattern_fixture' (1133079) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7632:9:
+TclOO dispatch fixture regressions:
+  bare_self_receiver: `mrun` expected to resolve but did not
+  self_object_receiver: `mrun` expected to resolve but did not
+  configurable_property: `configure` expected to resolve but did not
+  dict_collection: `mrun` expected to resolve but did not
+  foreach_loopvar: `mrun` expected to resolve but did not
+  my_self_call: `helper` expected to resolve but did not
+  snit_self_call: `helper` expected to resolve but did not
+  itcl_this_call: `helper` expected to resolve but did not
+  snit_install_component: `draw` expected to resolve but did not
+  snit_bare_constructor: `run` expected to resolve but did not
+  oo_define_added: `added` expected to resolve but did not
+  registry_class: `Xaxis` expected to resolve but did not
+  widget_bareword: `instate` expected to resolve but did not
+  widget_var_captured: `curselection` expected to resolve but did not
+  snit_named_object: `smeth` expected to resolve but did not
+FAILED
+test source_structure::tests::original_case_and_lambda_geometry_skip_data_and_keep_dynamic_subject ... ok
+test source_structure::tests::original_cursor_declines_malformed_data_and_native_resolution_promotion ... ok
+test source_structure::tests::original_structure_retains_alias_body_and_bracket_geometry_after_ui_maps_clear ... ok
+test source_structure::tests::original_structure_uses_genuine_definition_wrappers_and_clears_ordinary_bodies ... ok
+test source_structure::tests::original_syntax_tokens_join_absolute_region_and_command_geometry ... ok
+test source_structure::tests::original_variable_cursor_keeps_selected_roots_and_complete_source_geometry ... ok
+test source_structure::tests::original_variable_cursor_retains_custom_reference_only_and_prefix_source_roles ... ok
+test tk_preview::tests::original_tk_source_context_keeps_explicit_store_version_and_operand_boundaries ... ok
+test tk_preview::tests::supplied_tk_preview_keeps_actual_availability_and_refuses_withheld_source ... 
+thread 'tk_preview::tests::supplied_tk_preview_keeps_actual_availability_and_refuses_withheld_source' (1133206) panicked at rust/tcl-lsp-core/src/tk_preview.rs:1564:9:
+assertion `left == right` failed
+  left: []
+ right: [".kept", ".new"]
+FAILED
+
+failures:
+
+failures:
+    call_hierarchy::original_source_context_tests::original_method_hierarchy_uses_selected_helpers_and_same_source_frame
+    code_actions::diagnostic_context::tests::original_context_diagnostic_currency_keeps_the_complete_availability_owner
+    code_actions::diagnostic_context::tests::original_diagnostic_actions_keep_typed_sink_and_source_when_prose_changes
+    code_actions::diagnostic_context::tests::original_diagnostic_actions_refuse_stale_source_configuration_registry_and_range
+    declaration::tests::declaration_scan_uses_the_declared_local_tail_of_a_global_name
+    declaration::tests::global_declaration_in_proc_body
+    declaration::tests::global_declared_inside_apply_lambda_body_is_found
+    declaration::tests::global_declared_inside_control_flow_body_is_found
+    declaration::tests::original_alias_declaration_navigation_keeps_the_independent_local_operand
+    declaration::tests::original_logical_declarations_join_global_aliases_without_local_root_stripping
+    declaration::tests::original_logical_declarations_keep_qualified_targets_and_current_source_owners
+    declaration::tests::upvar_local_alias_is_a_declaration
+    definition::original_next_source_context_tests::original_next_definition_uses_captured_target_and_selected_availability
+    definition::tests::original_external_visibility_keeps_variable_and_object_names_separate_from_self_dispatch
+    definition::tests::original_source_visibility_keeps_full_lexer_input_and_conditional_mask_purpose
+    diagnostic_report::tests::supplied_policy_rewrites_keep_actual_source_config_and_refresh_directives
+    document_links::original_hosted_document_link_tests::original_source_path_links_use_selected_operations_and_authentic_bound_values
+    document_links::tests::original_source_links_use_actual_selected_navigation_and_decline_shadows_or_stale_input
+    formatting::tests::analysed_formatting_member_vocabulary_precedes_same_spelling_global_alias
+    formatting::tests::analysed_formatting_retains_selected_definition_parent_body_geometry
+    graphs::original::tests::original_graph_alias_edges_select_terminal_allocation_without_reporting_names
+    hover::original_registry::tests::original_registry_hover_keeps_current_context_and_conditional_shadow_barriers
+    inlay_hints::retained_hint_context_tests::original_inlay_hints_keep_retained_profile_registry_and_whole_source
+    linked_editing_range::original_linked_tests::original_linked_editing_keeps_qualified_unicode_tail_and_refuses_stale_source
+    namespace_rename::tests::namespace_hazard_keeps_original_roles_and_unavailable_owner_refusal
+    original_context::tests::supplied_editor_entries_do_not_use_logical_purpose_as_source_currency
+    receiver_identity::tests::captured_prefix_references_require_actual_capture_and_deferred_registration
+    receiver_identity::tests::original_receiver_entry_is_shared_by_navigation_hover_and_rename
+    receiver_identity::tests::original_receiver_navigation_joins_allocations_without_reporting_maps
+    refactor::extract_proc::selected_source_variable_tests::original_extraction_uses_retained_brace_grammar_and_withdraws_changed_owners
+    refactor::extract_variable::tests::logical_complete_value_words_keep_explicit_compatibility_behaviour
+    refactor::extract_variable::tests::logical_extraction_keeps_supplied_availability_and_source_configuration
+    refactor::extract_variable::tests::logical_invalid_multiword_value_never_becomes_a_four_argument_set
+    refactor::extract_variable::tests::logical_one_line_body_insertion_remains_inside_the_original_body
+    refactor::inline_variable::tests::original_inline_variable_requires_exact_definition_and_unobserved_read_without_ui_maps
+    refactor::source_rewrite::tests::original_source_rewrites_require_current_handler_and_distinct_permissions
+    refactor::source_rewrite::tests::source_rewrites_keep_actual_availability_and_command_horizons
+    references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands
+    references::member_metadata::tests::member_hazards_refuse_stale_missing_and_unowned_class_metadata
+    references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary
+    references::tests::callback_source_roles_keep_actual_availability_and_original_builder_geometry
+    references::tests::method_dispatch_scan_uses_retained_custom_schema_and_script_purpose
+    references::tests::method_source_dispatch_keeps_actual_store_availability_and_lookup_barriers
+    rename_safety::original_hazard_context_tests::original_self_hazards_use_selected_helpers_and_captured_selector_positions
+    rename_safety::tests::original_dynamic_name_value_narrowing_stays_in_its_logical_purpose
+    semantic_tokens::receiver_source::tests::original_registry_and_collection_receivers_keep_selected_child_operands
+    semantic_tokens::selected_source_token_tests::original_loop_handle_advice_keeps_actual_availability_captures_and_inert_data
+    semantic_tokens::selected_source_token_tests::original_member_handle_advice_uses_the_genuine_factory_member_body
+    semantic_tokens::tests::cross_file_constructor_dispatch_resolves
+    semantic_tokens::tests::tcloo_dispatch_pattern_fixture
+    tk_preview::tests::supplied_tk_preview_keeps_actual_availability_and_refuses_withheld_source
+
+test result: FAILED. 121 passed; 51 failed; 0 ignored; 0 measured; 2761 filtered out; finished in 261.03s
+

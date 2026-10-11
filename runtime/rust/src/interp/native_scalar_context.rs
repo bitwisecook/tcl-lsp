@@ -6,7 +6,7 @@ use crate::obj::{self, TclObj};
 use std::rc::{Rc, Weak};
 use tcl_platform::{Host, NativeCIntegerAbi};
 use tcl_registry::InvocationDialect;
-use tcl_runtime_api::{guard::GuardDomain, NativeExecutionError, RuntimeContext};
+use tcl_runtime_api::{NativeExecutionError, RuntimeContext};
 use tcl_syntax::value::ValueError;
 
 /// A checked scalar access preserves an existing engine refusal or the exact
@@ -89,10 +89,8 @@ impl NativeScalarObjectContext {
         let host = interpreter.host();
         let abi = selected_abi(&host, &currency)?;
         let epoch = interpreter
-            .guards
-            .borrow()
-            .domain_epoch(GuardDomain::Interpreter)
-            .ok_or_else(|| unavailable("native scalar interpreter policy"))?;
+            .native_operation_context_epoch()
+            .ok_or_else(|| unavailable("native scalar execution context"))?;
         let issuer = Rc::new(Self {
             interpreter: Rc::downgrade(&interpreter.0),
             host: Rc::downgrade(&host),
@@ -118,10 +116,7 @@ impl NativeScalarObjectContext {
     }
 
     fn matches_current(&self, interpreter: &Interp, host: &Rc<dyn Host>) -> bool {
-        let epoch = interpreter
-            .guards
-            .borrow()
-            .domain_epoch(GuardDomain::Interpreter);
+        let epoch = interpreter.native_operation_context_epoch();
         Weak::ptr_eq(&self.host, &Rc::downgrade(host))
             && interpreter.runtime_context() == self.runtime
             && interpreter.native_invocation_dialect() == self.dialect

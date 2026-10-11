@@ -3437,3 +3437,27 @@ is lossless gzip and restores SHA-256 `832ec87208413ae9115b184ec010ac2ad1fdef55b
 The [whole original log](frozen317/integration-compiler-own-test-build317/tests.log) retains
 SHA-256 `1cb487d8da71a6918d6ed6f5ab2c3c0287306cb0bc489c592cb30d5eb7b8df32`. Its complete source association is identical to
 the independently retained [Source317 source snapshot](frozen317/sealed-own-core-image/source-snapshot.json.gz).
+
+## Source317 selected Core assertions
+
+The exact admitted 172-selector Core317 command closes exit `101` after
+261.0640560220054 seconds with uniform source `true`: 121 passed, 51 failed,
+zero ignored or measured, and 2,761 filtered. All 172 individual outcomes
+and every failure remain in the full log. No complete Core or current
+source pass is inferred; failure causes are not assigned to later repairs.
+
+The [exact selection](frozen317/selections/core-selected317.json) and
+[requested selectors](frozen317/selections/core-requested317.json) retain
+the actual 2,933-test inventory receipt/hash, strict image and original
+request association. The [original closed receipt](frozen317/integration-core-consumer-focus317/receipt.json.gz)
+is lossless gzip and restores SHA-256 `15a54003122ac85e3aa592683b7d36dcb61f76d42a669f9d60f2e2f4143bb24b`; the
+[whole original log](frozen317/integration-core-consumer-focus317/tests.log) retains
+SHA-256 `aaedc1e52e700f037d4c036d1d9aba2b7671108d89cdb328ab46781f02dfada2`.
+
+The complete 33,626-leaf source and HEAD
+`ea3a644447bc79bae42600055f061b824405dd1c` join the independently retained
+[own Core317 source companion](frozen317/sealed-own-core-image/source-snapshot.json.gz)
+and [whole lossless image](frozen317/sealed-own-core-image/pinned-core317.elf.gz).
+Build and inventory success supply no suite pass. Canonical question links
+require whole current source equality with the frozen source. Original
+Native answers and current implementation contexts remain unchanged.

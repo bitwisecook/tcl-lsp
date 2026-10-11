@@ -725,7 +725,11 @@ fn set_literal_body(seg: &SegmentedCommand) -> Option<(String, String)> {
 /// flag plus the absence of `$` / `[` in `Esc` text).
 fn eval_list_literal_body(cmd_text: &str, config: tcl_lexer::LexerConfig) -> Option<String> {
     let image = tcl_lexer::SourceImage::native(cmd_text.as_bytes());
-    let inner = crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)?;
+    let inner = crate::segmenter::segment_commands_image_with_offset_and_config(
+        &image,
+        0,
+        config.nested(),
+    )?;
     if inner.len() != 1 {
         return None;
     }
@@ -814,7 +818,7 @@ fn body_has_dynamic_barrier(
     use tcl_registry::prelude::Traits;
     let image = tcl_lexer::SourceImage::native(body_text.as_bytes());
     let Some(commands) =
-        crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+        crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config.nested())
     else {
         return true;
     };
@@ -975,6 +979,22 @@ impl CompileTarget {
 enum SourceEntryOrigin {
     Authoring,
     Driver,
+}
+
+/// Parser purpose of this span space, independent of retained parent metadata.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SourceSegmentationPurpose {
+    WholeInput,
+    NestedScript,
+}
+
+impl SourceSegmentationPurpose {
+    fn config(self, parent: tcl_lexer::LexerConfig) -> tcl_lexer::LexerConfig {
+        match self {
+            Self::WholeInput => parent,
+            Self::NestedScript => parent.nested(),
+        }
+    }
 }
 
 /// The lowering engine — accumulates procedures and IR statements.
@@ -1467,7 +1487,8 @@ impl<'r> Lowerer<'r> {
         trace_source_lowering(trace_start, "configured", source.len(), &self.module);
         self.module.top_level_namespace.clear();
         self.module.top_level_namespace.push_str("::");
-        self.module.top_level = self.lower_script(source, "::");
+        self.module.top_level =
+            self.lower_script(source, "::", SourceSegmentationPurpose::WholeInput);
         #[cfg(any(test, debug_assertions))]
         trace_source_lowering(trace_start, "lowered", source.len(), &self.module);
         &self.module
@@ -1492,9 +1513,9 @@ impl<'r> Lowerer<'r> {
         self.module.top_level_kind = crate::ir::TopLevelKind::ProcedureBody;
         self.module.source_entry.native_compilation.frame =
             tcl_registry::native_compilation::NativeCompilationFrame::ProcedureCode;
-        self.module.top_level = self
-            .in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
-                lowerer.lower_script(source, &namespace)
+        self.module.top_level =
+            self.in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
+                lowerer.lower_script(source, &namespace, SourceSegmentationPurpose::NestedScript)
             });
         &self.module
     }
@@ -1508,7 +1529,8 @@ impl<'r> Lowerer<'r> {
         self.start_module();
         let namespace = self.runtime_target_namespace(namespace);
         self.module.top_level_namespace.clone_from(&namespace);
-        self.module.top_level = self.lower_script(source, &namespace);
+        self.module.top_level =
+            self.lower_script(source, &namespace, SourceSegmentationPurpose::WholeInput);
         &self.module
     }
 
@@ -1639,7 +1661,7 @@ impl<'r> Lowerer<'r> {
     /// [`crate::inline_uplevel`] rewriter materialising a
     /// brace-literal callsite body).
     pub fn lower_into_script(&mut self, source: &str, namespace: &str) -> Script {
-        self.lower_script(source, namespace)
+        self.lower_script(source, namespace, SourceSegmentationPurpose::NestedScript)
     }
 
     /// Lower materialised text under an invocation-time binding proof, retaining
@@ -1866,10 +1888,19 @@ impl<'r> Lowerer<'r> {
         self.source_channel
     }
 
-    fn segment_source(&self, text: &str, base: u32) -> Option<Vec<SegmentedCommand>> {
+    fn segment_source(
+        &self,
+        text: &str,
+        base: u32,
+        purpose: SourceSegmentationPurpose,
+    ) -> Option<Vec<SegmentedCommand>> {
         let image =
             tcl_lexer::SourceImage::from_bytes(text.as_bytes(), self.current_source_channel());
-        crate::segmenter::segment_commands_image_with_offset_and_config(&image, base, self.config)
+        crate::segmenter::segment_commands_image_with_offset_and_config(
+            &image,
+            base,
+            purpose.config(self.config),
+        )
     }
 
     /// Lower a source string to an IR script.
@@ -1882,7 +1913,12 @@ impl<'r> Lowerer<'r> {
     /// opaque [`Statement::Barrier`] rather than silently dropping it —
     /// downstream passes (SCCP, dead-code elimination, …) must treat
     /// unanalysed content as having unknown effects, not as empty/dead.
-    fn lower_script(&mut self, source: &str, namespace: &str) -> Script {
+    fn lower_script(
+        &mut self,
+        source: &str,
+        namespace: &str,
+        purpose: SourceSegmentationPurpose,
+    ) -> Script {
         self.nest_depth += 1;
         if MAX_LOWER_NEST_DEPTH.exceeded(self.nest_depth) {
             self.nest_depth -= 1;
@@ -1897,12 +1933,15 @@ impl<'r> Lowerer<'r> {
         // one.  Swap it in for the descent and restore the enclosing one after
         // (see [`Self::source`]).
         let enclosing_source = std::mem::replace(&mut self.source, source.to_owned());
+        // The selected local parser purpose is shared by binding analysis and
+        // segmentation. Parent inputs/config remain unchanged for original
+        // word and metadata joins; a missing body receipt cannot borrow them.
         let frame = self.source_entry_frame(namespace);
         let image = tcl_lexer::SourceImage::from_bytes(source.as_bytes(), self.source_channel);
         let Some(bindings) = SourceCommandBindings::analyse_image_in_frame_with_options(
             &image,
             &frame,
-            self.config,
+            purpose.config(self.config),
             self.registry,
             SourceAnalysisOptions {
                 metadata_context: self.source_metadata_input(),
@@ -1951,7 +1990,7 @@ impl<'r> Lowerer<'r> {
             0,
         );
         let enclosing_bindings = self.source_bindings.replace(bindings);
-        let result = self.lower_script_inner(source, namespace);
+        let result = self.lower_script_inner(source, namespace, purpose);
         #[cfg(any(test, debug_assertions))]
         trace_source_script_lowering(
             trace_start,
@@ -2022,12 +2061,17 @@ impl<'r> Lowerer<'r> {
         result
     }
 
-    fn lower_script_inner(&mut self, source: &str, namespace: &str) -> Script {
+    fn lower_script_inner(
+        &mut self,
+        source: &str,
+        namespace: &str,
+        purpose: SourceSegmentationPurpose,
+    ) -> Script {
         #[cfg(any(test, debug_assertions))]
         let trace_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
             .is_some()
             .then(std::time::Instant::now);
-        let Some(commands) = self.segment_source(source, 0) else {
+        let Some(commands) = self.segment_source(source, 0, purpose) else {
             return over_depth_script(0, source.len());
         };
         #[cfg(any(test, debug_assertions))]
@@ -2148,7 +2192,7 @@ impl<'r> Lowerer<'r> {
         context: IrulesExecutionContext,
     ) -> Script {
         let previous = std::mem::replace(&mut self.irules_execution_context, context);
-        let result = self.lower_script(source, namespace);
+        let result = self.lower_script(source, namespace, SourceSegmentationPurpose::NestedScript);
         self.irules_execution_context = previous;
         result
     }
@@ -2190,7 +2234,9 @@ impl<'r> Lowerer<'r> {
         let trace_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
             .is_some()
             .then(std::time::Instant::now);
-        let Some(commands) = self.segment_source(text, base_offset) else {
+        let Some(commands) =
+            self.segment_source(text, base_offset, SourceSegmentationPurpose::NestedScript)
+        else {
             return over_depth_script(base_offset, text.len());
         };
         #[cfg(any(test, debug_assertions))]
@@ -4145,7 +4191,11 @@ impl<'r> Lowerer<'r> {
             // const-map to a brace-string literal — fold the literal
             // in and lower as a static UpFrame.
             let literal = self.const_map_lookup(&args[body_tok_idx])?;
-            self.lower_script(&literal, body_namespace)
+            self.lower_script(
+                &literal,
+                body_namespace,
+                SourceSegmentationPurpose::NestedScript,
+            )
         } else {
             return None;
         };
@@ -4175,7 +4225,7 @@ impl<'r> Lowerer<'r> {
     /// nothing.
     fn eval_subst_nocommands_body(&self, cmd_text: &str) -> Option<String> {
         use tcl_lexer::TokenType;
-        let inner = self.segment_source(cmd_text, 0)?;
+        let inner = self.segment_source(cmd_text, 0, SourceSegmentationPurpose::NestedScript)?;
         let [inner_cmd] = inner.as_slice() else {
             return None;
         };
@@ -4254,7 +4304,7 @@ impl<'r> Lowerer<'r> {
                         self.guarded_body_text(body_tok, body_text).as_bytes(),
                         self.current_source_channel()
                     ),
-                    self.config
+                    self.config.nested()
                 ),
                 Ok(None)
             ) {
@@ -4268,7 +4318,7 @@ impl<'r> Lowerer<'r> {
             if body_has_dynamic_barrier(&literal, self.registry, self.config) {
                 return None;
             }
-            self.lower_script(&literal, namespace)
+            self.lower_script(&literal, namespace, SourceSegmentationPurpose::NestedScript)
         } else if body_tok.kind == TokenType::Cmd {
             // ``eval [list lit1 lit2 ...]`` — synthesise the
             // body by joining the list's literal arguments and
@@ -4283,7 +4333,11 @@ impl<'r> Lowerer<'r> {
                 args[0].trim_start_matches('[').trim_end_matches(']')
             };
             let synthesised = eval_list_literal_body(inner_text, self.config)?;
-            self.lower_script(&synthesised, namespace)
+            self.lower_script(
+                &synthesised,
+                namespace,
+                SourceSegmentationPurpose::NestedScript,
+            )
         } else {
             return None;
         };
@@ -5111,8 +5165,11 @@ impl<'r> Lowerer<'r> {
                         // inside the namespace.
                         let child_ns = join_namespace(namespace, &ct.argv_texts[2]);
                         let body_off = ct.argv[3].start() + 1;
-                        let Some(segments) = self.segment_source(&ct.argv_texts[3], body_off)
-                        else {
+                        let Some(segments) = self.segment_source(
+                            &ct.argv_texts[3],
+                            body_off,
+                            SourceSegmentationPurpose::NestedScript,
+                        ) else {
                             self.module.oo_evidence.unretained_executable_roots = true;
                             continue;
                         };
@@ -5149,7 +5206,11 @@ impl<'r> Lowerer<'r> {
             } else if self.is_namespace_eval_shape(&tokens) {
                 let child_ns = join_namespace(namespace, &seg.texts[2]);
                 let off = seg.argv[3].span.start() + u32::from(seg.argv[3].content_offset);
-                let Some(sub) = self.segment_source(&seg.texts[3], off) else {
+                let Some(sub) = self.segment_source(
+                    &seg.texts[3],
+                    off,
+                    SourceSegmentationPurpose::NestedScript,
+                ) else {
                     self.module.oo_evidence.unretained_executable_roots = true;
                     continue;
                 };
@@ -5243,7 +5304,11 @@ impl<'r> Lowerer<'r> {
             }
             qualify_proc_name(namespace, target)
         };
-        let Some(segments) = self.segment_source(body_text, body_content_offset) else {
+        let Some(segments) = self.segment_source(
+            body_text,
+            body_content_offset,
+            SourceSegmentationPurpose::NestedScript,
+        ) else {
             self.module.oo_evidence.unretained_executable_roots = true;
             return;
         };
@@ -5329,7 +5394,11 @@ impl<'r> Lowerer<'r> {
                         // definition script with the same member grammar.
                         let block_tok = seg.argv[1];
                         let off = block_tok.span.start() + u32::from(block_tok.content_offset);
-                        let Some(sub) = self.segment_source(&seg.texts[1], off) else {
+                        let Some(sub) = self.segment_source(
+                            &seg.texts[1],
+                            off,
+                            SourceSegmentationPurpose::NestedScript,
+                        ) else {
                             self.module.oo_evidence.unretained_executable_roots = true;
                             continue;
                         };
@@ -10590,5 +10659,240 @@ mod tests {
             }
             other => panic!("expected AssignExpr + Return; got {other:?}"),
         }
+    }
+}
+
+#[cfg(test)]
+mod original_script_purpose_tests {
+    use super::*;
+
+    fn first_invocation(script: &Script) -> &CommandTokens {
+        script
+            .statements
+            .iter()
+            .find_map(Statement::tokens)
+            .expect("retained original invocation")
+    }
+
+    #[test]
+    fn original_whole_and_zero_base_body_parsers_keep_distinct_bom_purposes() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Parser purpose and retained source ancestry; no Native entry or Normal store.
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let registry = input.context.commands();
+        let source = "\u{feff}unknown argument";
+        for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let mut supplied = input.clone();
+            supplied.config.leading_bom = bom;
+            supplied.config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+            let config = supplied.lexer_config();
+            let mut whole = Lowerer::with_config(registry, config)
+                .with_resolved_analysis_input(supplied.clone());
+            let module = whole.lower(source);
+            let command = first_invocation(&module.top_level);
+            assert_eq!(
+                command.argv_texts[0],
+                if bom == tcl_lexer::LeadingBom::Skip {
+                    "unknown"
+                } else {
+                    "\u{feff}unknown"
+                }
+            );
+            assert_eq!(
+                command.argv[0].start(),
+                if bom == tcl_lexer::LeadingBom::Skip {
+                    3
+                } else {
+                    0
+                }
+            );
+            assert_eq!(module.lexer_config, config);
+            assert_eq!(module.source_metadata_input.as_ref(), Some(&supplied));
+
+            let mut body = Lowerer::with_config(registry, config)
+                .with_resolved_analysis_input(supplied.clone());
+            let script = body.lower_into_script(source, "::");
+            let command = first_invocation(&script);
+            assert_eq!(command.argv_texts[0], "\u{feff}unknown");
+            assert_eq!(command.argv[0].start(), 0);
+            assert_eq!(body.config, config);
+            assert_eq!(body.metadata_input.as_ref(), Some(&supplied));
+            if bom == tcl_lexer::LeadingBom::Skip {
+                // This fresh local span space does not own a projected input.
+                // Keep the actual parent input; mismatched metadata is terminal.
+                assert!(
+                    body.source_metadata_input()
+                        .retain()
+                        .metadata_context_for_source(
+                            registry,
+                            config.nested(),
+                            Some(supplied.unit_profile())
+                        )
+                        .is_none()
+                );
+            }
+            assert!(crate::registry_invocation::proved_native_inline_operation(command).is_none());
+
+            // An explicit non-BOM grammar override is retained for body parsing.
+            let script = body.lower_into_script("puts \"${a{}\"", "::");
+            let command = first_invocation(&script);
+            assert_eq!(command.argv_texts, ["puts", "${a{}"]);
+            assert!(
+                body.eval_subst_nocommands_body("\u{feff}subst -nocommands {literal}")
+                    .is_none()
+            );
+            assert!(eval_list_literal_body("\u{feff}list item", config).is_none());
+        }
+    }
+
+    #[test]
+    fn original_selected_nested_body_keeps_parent_metadata_for_known_command_advice() {
+        // naming.source.original-registry-header-advice
+        // docs/design/analysis/name-resolution-proofs/original-registry-header-advice.md
+        // Existing original body inventory and metadata; no entered/Normal handler donation.
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let mut supplied = input.clone();
+            supplied.config.leading_bom = bom;
+            supplied.config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+            let registry = supplied.context.commands();
+            let source = "eval {puts hi}";
+            let identities =
+                crate::realm::document_realm_bindings_with_resolved_input(source, &supplied, None);
+            let parent = crate::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                supplied.lexer_config(),
+            )
+            .pop()
+            .unwrap();
+            let original = identities
+                .executed_script_for_word(parent.argv[1].span)
+                .unwrap();
+            let bindings = identities
+                .source_bindings_ref()
+                .selected_source(original)
+                .unwrap();
+            let mut lowerer = Lowerer::with_config(registry, supplied.lexer_config())
+                .with_resolved_analysis_input(supplied.clone());
+            lowerer.set_source_image_channel(&original.text);
+            let script = lowerer.lower_into_script_with_bindings(
+                original.try_text().unwrap(),
+                original.base(),
+                "::",
+                bindings,
+            );
+            let command = first_invocation(&script);
+            let site = command
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .invocation_site()
+                .unwrap();
+            assert_eq!(&site.source, &original.origin);
+            assert_eq!(site.offset, original.base());
+            assert_eq!(command.argv_texts, ["puts", "hi"]);
+            let advice = crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
+                registry, lowerer.invocation_metadata_context(), command).unwrap();
+            assert_eq!(advice.unanimous_command_words().unwrap().command(), "puts");
+            assert_eq!(lowerer.metadata_input.as_ref(), Some(&supplied));
+            let mut changed = supplied.clone();
+            changed.config.strict_quoting = !changed.config.strict_quoting;
+            assert!(
+                crate::registry_invocation::InvocationMetadataContext::for_source_input(
+                    registry,
+                    &changed,
+                    supplied.lexer_config(),
+                    Some(supplied.unit_profile())
+                )
+                .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn original_materialised_zero_base_body_keeps_its_selected_point_owner() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Actual original escaped body and selected derived source; no compiler/frame grant.
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let registry = input.context.commands();
+        let source = "eval \\uFEFFunknown";
+        let identities =
+            crate::realm::document_realm_bindings_with_resolved_input(source, &input, None);
+        let parent = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            input.lexer_config(),
+        )
+        .pop()
+        .unwrap();
+        let original = identities
+            .executed_script_for_word(parent.argv[1].span)
+            .expect("original evaluated script");
+        assert_eq!(original.base(), 0);
+        assert_eq!(
+            original.mapping,
+            crate::command_binding::ExecutedScriptMapping::Materialised
+        );
+        let body = original.try_text().unwrap();
+        assert_eq!(body, "\u{feff}unknown");
+        let bindings = identities
+            .source_bindings_ref()
+            .selected_source(original)
+            .unwrap();
+        assert_eq!(bindings.source_origin(), Some(&original.origin));
+        let mut lowerer = Lowerer::with_config(registry, input.lexer_config())
+            .with_resolved_analysis_input(input.clone());
+        lowerer.set_source_image_channel(&original.text);
+        let script = lowerer.lower_into_script_with_bindings(body, 0, "::", bindings);
+        let command = first_invocation(&script);
+        assert_eq!(command.argv_texts, ["\u{feff}unknown"]);
+        let site = command
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .invocation_site()
+            .expect("actual derived point");
+        assert_eq!(site.offset, 0);
+        assert_eq!(&site.source, &original.origin);
+        assert_eq!(site.source.source_image().bytes(), body.as_bytes());
+        assert_eq!(
+            script.executed_source.as_ref().unwrap().origin,
+            original.origin
+        );
+        assert!(crate::registry_invocation::proved_native_inline_operation(command).is_none());
+        assert_eq!(lowerer.config, input.lexer_config());
+        assert_eq!(lowerer.metadata_input.as_ref(), Some(&input));
+
+        // Equal derived text under another original parent has no retained point.
+        let foreign_parent = crate::command_binding::CommandAllocationSite {
+            source: std::sync::Arc::new(crate::command_binding::SourceOriginId::authored(
+                &std::sync::Arc::from("eval $other"),
+            )),
+            offset: 0,
+        };
+        let foreign = crate::command_binding::ExecutedScriptSource::materialised(
+            foreign_parent,
+            vec![0],
+            body,
+        );
+        let foreign_bindings = identities
+            .source_bindings_ref()
+            .selected_source(&foreign)
+            .unwrap();
+        let refused = lowerer.lower_into_script_with_bindings(body, 0, "::", foreign_bindings);
+        assert!(
+            first_invocation(&refused)
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .invocation_site()
+                .is_none()
+        );
     }
 }

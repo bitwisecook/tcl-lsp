@@ -3,9 +3,10 @@
 //!
 //! A current receipt grants no native getter, command, value or expression
 //! authority. Each operation selects those separately from its actual ingress.
-//! Currency uses the existing interpreter guard epoch so changing and restoring
-//! an otherwise equal world cannot revive a receipt. No engine borrow is held
-//! across a Host call.
+//! Currency uses the actual execution-context epoch: changing and restoring
+//! Host, dialect, pinned world or logical ingress cannot revive a receipt.
+//! Legal Guest mutations invalidate their separate speculative policy guards.
+//! No engine borrow is held across a Host call.
 
 use super::{Interp, InterpState};
 use std::{
@@ -14,7 +15,7 @@ use std::{
 };
 use tcl_platform::Host;
 use tcl_registry::InvocationDialect;
-use tcl_runtime_api::{guard::GuardDomain, NativeExecutionError, RuntimeContext};
+use tcl_runtime_api::{NativeExecutionError, RuntimeContext};
 use tcl_syntax::raw_string::NativeValueAccessRefusal;
 
 #[derive(Clone)]
@@ -50,9 +51,7 @@ impl NativeOperationCurrency {
         }
         let host = interpreter.host();
         let epoch = interpreter
-            .guards
-            .borrow()
-            .domain_epoch(GuardDomain::Interpreter)
+            .native_operation_context_epoch()
             .ok_or_else(unavailable)?;
         let receipt = Self {
             interpreter: Rc::downgrade(&interpreter.0),
@@ -75,10 +74,7 @@ impl NativeOperationCurrency {
             return Err(first);
         }
         let current_host = interpreter.host();
-        let epoch = interpreter
-            .guards
-            .borrow()
-            .domain_epoch(GuardDomain::Interpreter);
+        let epoch = interpreter.native_operation_context_epoch();
         if !Weak::ptr_eq(&self.host, &Rc::downgrade(&current_host))
             || interpreter.runtime_context() != self.context
             || interpreter.native_invocation_dialect() != self.dialect
@@ -183,6 +179,23 @@ impl Drop for NativeOperationScope {
 }
 
 impl Interp {
+    /// Observe actual context currency; equality grants no semantic purpose.
+    pub(crate) fn native_operation_context_epoch(&self) -> Option<u64> {
+        self.0.native_operation_context_epoch.get()
+    }
+
+    /// Retire receipts before an actual execution ingress changes. Exhaustion
+    /// is permanent; neither resetting Guest state nor restoring equal context
+    /// can revive an older receipt. Command policy has its own guard owner.
+    pub(super) fn invalidate_native_operation_context(&self) {
+        self.0.native_operation_context_epoch.set(
+            self.0
+                .native_operation_context_epoch
+                .get()
+                .and_then(|epoch| epoch.checked_add(1)),
+        );
+    }
+
     /// Observe the real operation stack for ownership tests without exposing
     /// the mutable stack or granting a new operation.
     #[cfg(test)]
@@ -569,5 +582,154 @@ mod tests {
         drop(entry);
         crate::codegen_abi::tcl_runtime_set_current_interp(core::ptr::null_mut());
         assert!(interpreter.entered_native_operations.borrow().is_empty());
+    }
+
+    #[test]
+    fn legal_guest_command_policy_mutations_keep_original_context_and_scalar_issuer() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Software interpreter/issuer purpose; no original provider result is claimed.
+        use tcl_runtime_api::guard::GuardDomain;
+        let mut interpreter = original();
+        let value = obj::Owned::fresh(obj::new_string_bytes(b"17"));
+        interpreter
+            .bind_native_scalar_object(value.as_ptr())
+            .unwrap();
+        let references = unsafe { (*value.as_ptr()).ref_count };
+        let context_epoch = interpreter.native_operation_context_epoch();
+        let entry = NativeOperationScope::enter(&interpreter).unwrap();
+        for source in [
+            b"proc visible {} {return GUEST_OK}; interp hide {} visible hidden; interp expose {} hidden visible; visible".as_slice(),
+            b"interp create child; interp eval child {set x CHILD_OK}; interp delete child; set marker GUEST_OK".as_slice(),
+            b"interp recursionlimit {} 2048; interp limit {} commands -value 100000; interp bgerror {} list; set marker GUEST_OK".as_slice(),
+        ] {
+            let compiler_epoch = interpreter.guards.borrow().domain_epoch(GuardDomain::Interpreter);
+            assert_eq!(interpreter.eval_str(source), Code::Ok);
+            assert_eq!(interpreter.result_bytes(), b"GUEST_OK");
+            assert_ne!(interpreter.guards.borrow().domain_epoch(GuardDomain::Interpreter), compiler_epoch);
+            assert_eq!(interpreter.native_operation_context_epoch(), context_epoch);
+            entry.currency().ensure_current().unwrap();
+            let scalar = super::super::native_scalar_context::scalar_access(None, value.as_ptr()).unwrap();
+            scalar.ensure_current().unwrap();
+            let mut output = -777;
+            assert_eq!(unsafe { crate::capi::Tcl_GetIntFromObj(core::ptr::null_mut(), value.as_ptr(), &mut output) }, 0);
+            assert_eq!(output, 17);
+            assert_eq!(unsafe { (*value.as_ptr()).ref_count }, references);
+            assert_eq!(interpreter.result_bytes(), b"GUEST_OK");
+            assert!(interpreter.native_execution_refusal().is_none());
+        }
+        drop(entry);
+        assert_eq!(interpreter.entered_native_operation_count(), 0);
+    }
+
+    #[test]
+    fn operation_context_aba_and_first_host_do_not_refresh_original_receipts() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Real ingress changes with software receipt assertions; not a Native callback proof.
+        for change in 0..3 {
+            let mut interpreter = original();
+            let value = obj::Owned::fresh(obj::new_string_bytes(b"17"));
+            interpreter
+                .bind_native_scalar_object(value.as_ptr())
+                .unwrap();
+            let before = obj::native_object_snapshot(value.as_ptr()).unwrap();
+            let context = interpreter.runtime_context();
+            let entry = NativeOperationScope::enter(&interpreter).unwrap();
+            match change {
+                0 => change_and_restore(&mut interpreter),
+                1 => {
+                    interpreter
+                        .set_dialect_profile(crate::environment::profile_for_dialect("tcl8.4"));
+                    interpreter
+                        .set_dialect_profile(crate::environment::profile_for_dialect("tcl8.6"));
+                }
+                _ => {
+                    let retained_host = interpreter.host();
+                    let foreign = original();
+                    interpreter.set_host(foreign.host());
+                    interpreter.set_host(retained_host);
+                }
+            }
+            assert_eq!(interpreter.runtime_context(), context);
+            assert!(
+                super::super::native_scalar_context::scalar_access(None, value.as_ptr()).is_err()
+            );
+            assert_eq!(obj::native_object_snapshot(value.as_ptr()).unwrap(), before);
+            assert_eq!(entry.currency().ensure_current_or_refuse(), Err(stale()));
+            assert!(NativeOperationCurrency::issue(&interpreter).is_err());
+            drop(entry);
+            assert_eq!(interpreter.entered_native_operation_count(), 0);
+        }
+        let mut interpreter = original();
+        let entry = NativeOperationScope::enter(&interpreter).unwrap();
+        interpreter.refuse_host_command("original context first Host");
+        let first = interpreter.native_execution_refusal().unwrap();
+        interpreter.set_host(interpreter.host());
+        assert_eq!(
+            entry.currency().ensure_current_or_refuse(),
+            Err(first.clone())
+        );
+        assert_eq!(interpreter.native_execution_refusal(), Some(first));
+        drop(entry);
+        assert_eq!(interpreter.entered_native_operation_count(), 0);
+    }
+
+    #[test]
+    fn actual_logical_ingress_changes_context_without_granting_native_purpose() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Explicit authored ingress currency; no vendor/physical execution is asserted.
+        for provider in 0..4 {
+            let mut interpreter = Interp::with_host(crate::interp::default_host());
+            interpreter.set_dialect_profile(tcl_dialect::DialectProfile::irules());
+            let host = crate::environment::profile_for_dialect("tcl9.0");
+            let entry = NativeOperationScope::enter(&interpreter).unwrap();
+            let before = interpreter.native_operation_context_epoch();
+            let selected = match provider {
+                0 => interpreter.set_logical_eval_object_provider(tcl_registry::native_eval_object::LogicalEvalObjectProvider::Tcl84CoreSimulation, host),
+                1 => interpreter.set_logical_source_word_provider(tcl_registry::invocation_words::LogicalSourceWordProvider::Tcl84CoreSimulation, host),
+                2 => interpreter.set_logical_expression_parse_provider(tcl_registry::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation, host),
+                _ => interpreter.set_logical_name_provider(tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4)),
+            };
+            assert!(selected);
+            assert_ne!(interpreter.native_operation_context_epoch(), before);
+            assert_eq!(entry.currency().ensure_current_or_refuse(), Err(stale()));
+            assert!(interpreter
+                .native_invocation_dialect()
+                .native_scalar_getter_protocol()
+                .is_none());
+            drop(entry);
+        }
+    }
+
+    #[test]
+    fn unchanged_pin_and_exhausted_context_epoch_keep_distinct_admission() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Counter exhaustion is a software owner control, not a Tcl behaviour claim.
+        let mut interpreter = original();
+        let entry = NativeOperationScope::enter(&interpreter).unwrap();
+        let epoch = interpreter.native_operation_context_epoch();
+        let context = interpreter.runtime_context();
+        interpreter.pin_context(&context).unwrap();
+        assert_eq!(interpreter.native_operation_context_epoch(), epoch);
+        entry.currency().ensure_current().unwrap();
+        drop(entry);
+        interpreter
+            .native_operation_context_epoch
+            .set(Some(u64::MAX));
+        let entry = NativeOperationScope::enter(&interpreter).unwrap();
+        interpreter.set_host(interpreter.host());
+        assert_eq!(interpreter.native_operation_context_epoch(), None);
+        assert_eq!(entry.currency().ensure_current_or_refuse(), Err(stale()));
+        drop(entry);
+        interpreter.reset_native_compilation_admission();
+        interpreter.pin_context(&context).unwrap();
+        interpreter.set_host(interpreter.host());
+        assert_eq!(interpreter.native_operation_context_epoch(), None);
+        assert!(NativeOperationCurrency::issue(&interpreter).is_err());
+        assert!(interpreter.native_scalar_object_issuer().is_err());
+        assert_eq!(interpreter.entered_native_operation_count(), 0);
     }
 }

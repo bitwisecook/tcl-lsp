@@ -207072,6 +207072,1569 @@
       "question_ids": [],
       "sealed_images": {},
       "limits": "The independent Compiler library-test no-run command records three test-fixture errors: absent ContextRegistry authoring_query method1 and mismatched Token/string comparisons2. It creates no test executable and admits no Compiler own producer, strict image, inventory or assertion. The independently successful Core producer and its closed selected assertion failures retain separate scope. Current fixture repairs supply no retrospective Compiler build or assertion credit. Original Native answers and evidence are unchanged."
+    },
+    {
+      "id": "rust.frozen317.integration-core-consumer-focus317",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/integration-core-consumer-focus317/receipt.json.gz",
+        "sha256": "7f9e83c789539f1aab11be6187bd52d13239a0bc7d9ea69d724ebc72d2e455f8",
+        "compression": "gzip",
+        "uncompressed_sha256": "15a54003122ac85e3aa592683b7d36dcb61f76d42a669f9d60f2e2f4143bb24b"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/integration-core-consumer-focus317/tests.log",
+        "sha256": "aaedc1e52e700f037d4c036d1d9aba2b7671108d89cdb328ab46781f02dfada2"
+      },
+      "command": [
+        "/tmp/naming-owned317/pinned-core317.elf",
+        "call_hierarchy::original_source_context_tests::original_method_hierarchy_keeps_replaced_helpers_unresolved_and_withdraws_stale_source",
+        "call_hierarchy::original_source_context_tests::original_method_hierarchy_uses_selected_helpers_and_same_source_frame",
+        "code_actions::diagnostic_context::tests::original_context_diagnostic_currency_keeps_the_complete_availability_owner",
+        "code_actions::diagnostic_context::tests::original_diagnostic_actions_keep_typed_sink_and_source_when_prose_changes",
+        "code_actions::diagnostic_context::tests::original_diagnostic_actions_refuse_stale_source_configuration_registry_and_range",
+        "code_actions::diagnostic_currency::tests::original_check_actions_require_the_issuers_source_config_and_registry",
+        "code_actions::diagnostic_currency::tests::original_check_currency_refuses_same_store_changed_availability_and_missing_input",
+        "code_actions::diagnostic_currency::tests::original_diagnostic_actions_require_current_whole_source_and_owned_fixes",
+        "code_actions::diagnostic_currency::tests::original_diagnostic_source_extents_require_actual_byte_boundaries_and_channel",
+        "code_lens::tests::lens_count_matches_references_same_name_other_namespace",
+        "code_lens::tests::lens_per_user_proc",
+        "code_lens::tests::original_lenses_keep_repeated_and_opaque_source_declarations_without_ui_maps",
+        "code_lens::tests::original_logical_lenses_keep_complete_source_currency_and_actual_profile",
+        "completion::original_context::tests::original_completion_switches_use_actual_option_surface_and_current_source",
+        "completion::original_context::tests::original_logical_completion_uses_actual_availability_and_captured_ordinals",
+        "declaration::tests::conditional_declaration_preview_declines_explicit_body_replacements",
+        "declaration::tests::declaration_does_not_resolve_an_unclosed_braced_reference",
+        "declaration::tests::declaration_scan_abstains_for_a_builtin_shadowed_by_a_user_proc",
+        "declaration::tests::declaration_scan_follows_a_renamed_scoping_command",
+        "declaration::tests::declaration_scan_follows_an_aliased_scoping_command",
+        "declaration::tests::declaration_scan_keeps_conditional_lexical_advice_after_a_dynamic_binding",
+        "declaration::tests::declaration_scan_maps_a_prefixed_body_without_reparsing_alias_argv",
+        "declaration::tests::declaration_scan_maps_alias_prefixes_to_original_local_operands",
+        "declaration::tests::declaration_scan_recurses_through_an_aliased_body_command",
+        "declaration::tests::declaration_scan_uses_the_declared_local_tail_of_a_global_name",
+        "declaration::tests::declaration_var_decoration_vectors_preserve_incomplete_braces",
+        "declaration::tests::global_declaration_in_proc_body",
+        "declaration::tests::global_declared_inside_apply_lambda_body_is_found",
+        "declaration::tests::global_declared_inside_apply_lambda_body_is_not_visible_outside_it",
+        "declaration::tests::global_declared_inside_control_flow_body_is_found",
+        "declaration::tests::logical_declaration_navigation_keeps_its_explicit_compatibility_scan",
+        "declaration::tests::namespace_variable_declaration_does_not_supply_a_global_bare_read",
+        "declaration::tests::non_variable_falls_back_to_definition",
+        "declaration::tests::original_alias_declaration_navigation_keeps_the_independent_local_operand",
+        "declaration::tests::original_declaration_navigation_declines_unowned_analysis_without_recapture",
+        "declaration::tests::original_logical_declarations_join_global_aliases_without_local_root_stripping",
+        "declaration::tests::original_logical_declarations_keep_qualified_targets_and_current_source_owners",
+        "declaration::tests::upvar_local_alias_is_a_declaration",
+        "declaration::tests::variable_declaration_in_namespace",
+        "definition::original_next_source_context_tests::original_next_definition_uses_captured_target_and_selected_availability",
+        "definition::tests::original_external_self_visibility_requires_its_own_entry_after_internal_dispatch",
+        "definition::tests::original_external_visibility_keeps_variable_and_object_names_separate_from_self_dispatch",
+        "definition::tests::original_external_visibility_withholds_populated_unavailable_stale_and_foreign_input",
+        "definition::tests::original_internal_visibility_uses_the_selected_receiver_local_head",
+        "definition::tests::original_source_visibility_keeps_full_lexer_input_and_conditional_mask_purpose",
+        "diagnostic_report::tests::an_unavailable_overlay_is_not_a_successfully_empty_report",
+        "diagnostic_report::tests::supplied_policy_rewrites_keep_actual_source_config_and_refresh_directives",
+        "diagnostic_report::tests::supplied_policy_rewrites_refuse_missing_unavailable_stale_and_foreign_input",
+        "document_links::original_hosted_document_link_tests::original_hosted_links_keep_source_schema_and_name_purposes_independent",
+        "document_links::original_hosted_document_link_tests::original_source_path_links_use_selected_operations_and_authentic_bound_values",
+        "document_links::tests::original_namespace_source_links_use_typed_jim_local_scope_without_export",
+        "document_links::tests::original_source_links_use_actual_selected_navigation_and_decline_shadows_or_stale_input",
+        "folding::tests::original_folding_keeps_actual_availability_without_native_body_entry",
+        "folding::tests::original_folding_keeps_captured_body_ordinals_and_source_replacements",
+        "formatting::engine::tests::analysed_layout_retains_supplied_entry_and_provider_world_without_recapture",
+        "formatting::engine::tests::formatting_budget_preserves_complete_source_before_analysis",
+        "formatting::engine::tests::original_source_formatting_uses_effective_roles_without_widening_captured_operands",
+        "formatting::tests::analysed_formatting_joins_complete_original_alias_words_across_crlf_and_unicode",
+        "formatting::tests::analysed_formatting_keeps_current_source_and_typed_unavailability",
+        "formatting::tests::analysed_formatting_keeps_original_terminators_and_lone_cr_analysis_currency",
+        "formatting::tests::analysed_formatting_keeps_replaced_unknown_and_provider_barrier_purposes_separate",
+        "formatting::tests::analysed_formatting_member_vocabulary_precedes_same_spelling_global_alias",
+        "formatting::tests::analysed_formatting_retains_selected_definition_parent_body_geometry",
+        "formatting::tests::range_formatting_withdraws_before_analysis_above_lexical_budget",
+        "graphs::original::tests::original_graph_alias_edges_select_terminal_allocation_without_reporting_names",
+        "graphs::original::tests::original_graph_nodes_preserve_opaque_redefinitions_and_canonical_edges_without_ui_maps",
+        "graphs::original::tests::original_graph_summary_requires_body_allocation_even_when_ir_labels_agree",
+        "graphs::tests::original_dataflow_warnings_keep_selected_source_availability_and_path_ordinals",
+        "hover::original_registry::tests::original_registry_head_hover_lists_only_retained_version_subcommands",
+        "hover::original_registry::tests::original_registry_hover_keeps_current_context_and_conditional_shadow_barriers",
+        "hover::original_registry::tests::original_registry_hover_uses_actual_heads_subcommands_options_and_origins",
+        "hover::original_registry::tests::original_registry_operand_hover_keeps_parent_nested_and_option_availability",
+        "hover::original_registry::tests::original_scoped_hover_keeps_body_receipts_and_ignores_copied_reporting_regions",
+        "hover::original_special_variable_context_tests::original_special_hover_keeps_authored_registry_shadow_rows_and_array_key_availability",
+        "hover::original_special_variable_context_tests::original_special_hover_uses_actual_availability_and_withdraws_changed_owners",
+        "hover::tests::logical_registry_hover_keeps_actual_context_and_source_currency",
+        "hover::tests::logical_registry_hover_preserves_whole_alias_operands_and_declines_data",
+        "inlay_hints::retained_hint_context_tests::logical_format_escape_hints_use_the_complete_selected_grammar",
+        "inlay_hints::retained_hint_context_tests::logical_format_hints_keep_actual_context_and_full_source_currency",
+        "inlay_hints::retained_hint_context_tests::logical_format_hints_keep_nested_escaped_words_and_refuse_captured_anchors",
+        "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_actual_context_and_original_source_currency",
+        "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_nested_and_prefix_ordinals_without_captured_anchors",
+        "inlay_hints::retained_hint_context_tests::original_builtin_hints_use_the_selected_availability_not_registry_profile",
+        "inlay_hints::retained_hint_context_tests::original_format_hints_follow_actual_nested_roles_and_known_shadow",
+        "inlay_hints::retained_hint_context_tests::original_format_hints_use_selected_option_roles_under_the_actual_context",
+        "inlay_hints::retained_hint_context_tests::original_hint_metadata_keeps_the_generation_after_reporting_maps_are_cleared",
+        "inlay_hints::retained_hint_context_tests::original_inlay_hints_keep_retained_profile_registry_and_whole_source",
+        "linked_editing_range::original_linked_tests::original_linked_editing_does_not_mirror_escapes_computed_heads_or_unrelated_body_words",
+        "linked_editing_range::original_linked_tests::original_linked_editing_keeps_qualified_unicode_tail_and_refuses_stale_source",
+        "linked_editing_range::tests::links_recursive_self_call_to_declaration",
+        "linked_editing_range::tests::original_logical_linked_edits_require_the_current_whole_source_owner",
+        "namespace_rename::tests::namespace_hazard_keeps_original_roles_and_unavailable_owner_refusal",
+        "namespace_rename::tests::supplied_namespace_hazard_patterns_keep_parentheses_and_unknown_roles",
+        "namespace_rename::tests::tn_a_computed_namespace_word_elsewhere_does_not_refuse",
+        "original_context::tests::current_source_currency_is_independent_of_advice_and_execution_purpose",
+        "original_context::tests::current_source_currency_withdraws_changed_grammar_foreign_input_and_missing_owner",
+        "original_context::tests::original_logical_type_advice_keeps_current_class_source_and_withdraws_stale_owner",
+        "original_context::tests::supplied_editor_entries_do_not_use_logical_purpose_as_source_currency",
+        "original_invocation::original_diagnostic_value_tests::original_core_word_contents_use_logical_advice_without_executable_constants",
+        "receiver_identity::tests::captured_method_registration_keeps_actual_metadata_and_source_currency",
+        "receiver_identity::tests::captured_prefix_references_require_actual_capture_and_deferred_registration",
+        "receiver_identity::tests::original_method_reference_sets_do_not_merge_reused_class_names",
+        "receiver_identity::tests::original_own_object_navigation_joins_the_actual_configuration_allocation",
+        "receiver_identity::tests::original_receiver_entry_is_shared_by_navigation_hover_and_rename",
+        "receiver_identity::tests::original_receiver_navigation_joins_allocations_without_reporting_maps",
+        "refactor::datagroup::tests::original_datagroup_proposals_require_the_selected_output_surface",
+        "refactor::datagroup::tests::supplied_datagroup_advice_keeps_actual_output_availability_and_arm_horizons",
+        "refactor::datagroup::tests::supplied_datagroup_advice_keeps_written_clauses_and_current_document_owner",
+        "refactor::datagroup::tests::supplied_datagroup_alias_does_not_restore_a_removed_output_handler",
+        "refactor::extract_proc::selected_source_variable_tests::original_extraction_classifies_captured_variable_roles_and_rejects_replaced_helpers",
+        "refactor::extract_proc::selected_source_variable_tests::original_extraction_uses_retained_brace_grammar_and_withdraws_changed_owners",
+        "refactor::extract_proc::selected_source_variable_tests::original_logical_extraction_keeps_current_read_only_edit_and_withdraws_missing_input",
+        "refactor::extract_variable::tests::logical_complete_value_words_keep_explicit_compatibility_behaviour",
+        "refactor::extract_variable::tests::logical_extraction_keeps_supplied_availability_and_source_configuration",
+        "refactor::extract_variable::tests::logical_invalid_multiword_value_never_becomes_a_four_argument_set",
+        "refactor::extract_variable::tests::logical_one_line_body_insertion_remains_inside_the_original_body",
+        "refactor::extract_variable::tests::original_variable_extraction_never_promotes_naming_proposals_to_motion_permission",
+        "refactor::inline_proc::original_inline_tests::original_inline_uses_opaque_allocation_formals_and_absolute_body_with_reports_cleared",
+        "refactor::inline_proc::selected_source_body_tests::logical_inline_call_selection_uses_current_original_body_regions",
+        "refactor::inline_proc::selected_source_body_tests::original_logical_inline_keeps_selected_expression_and_refuses_frame_sensitive_alias",
+        "refactor::inline_variable::tests::logical_inline_edits_require_current_source_and_complete_metadata_owner",
+        "refactor::inline_variable::tests::logical_inline_set_uses_selected_operation_and_preserves_capture_geometry",
+        "refactor::inline_variable::tests::original_inline_variable_requires_exact_definition_and_unobserved_read_without_ui_maps",
+        "refactor::selected_frame_context_tests::original_frame_regions_keep_selected_expression_template_and_replacement_horizon",
+        "refactor::selected_frame_context_tests::original_frame_roles_keep_actual_availability_captures_and_source_currency",
+        "refactor::source_rewrite::tests::logical_source_rewrite_keeps_captured_values_outside_written_clause_positions",
+        "refactor::source_rewrite::tests::original_dictionary_conversion_does_not_insert_into_an_existing_or_observed_cell",
+        "refactor::source_rewrite::tests::original_source_rewrites_require_current_handler_and_distinct_permissions",
+        "refactor::source_rewrite::tests::source_rewrites_keep_actual_availability_and_command_horizons",
+        "references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands",
+        "references::member_metadata::tests::member_hazards_refuse_stale_missing_and_unowned_class_metadata",
+        "references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary",
+        "references::original_next_dispatch_context_tests::original_next_dispatch_uses_selected_roles_captured_targets_and_actual_availability",
+        "references::original_next_dispatch_context_tests::original_next_dispatch_withdraws_known_replacements_missing_and_foreign_source",
+        "references::tests::callback_source_roles_keep_actual_availability_and_original_builder_geometry",
+        "references::tests::callback_source_roles_keep_actual_package_availability_in_the_same_store",
+        "references::tests::callback_source_targets_withdraw_known_shadows_and_incomplete_stored_writes",
+        "references::tests::method_dispatch_scan_uses_retained_custom_schema_and_script_purpose",
+        "references::tests::method_source_dispatch_keeps_actual_store_availability_and_lookup_barriers",
+        "references::tests::shifted_dispatch_regions_follow_original_moves_and_known_source_barriers",
+        "rename_safety::original_hazard_context_tests::original_hazard_walk_preserves_grammar_and_missing_foreign_owner_refusal",
+        "rename_safety::original_hazard_context_tests::original_self_hazards_use_selected_helpers_and_captured_selector_positions",
+        "rename_safety::original_hazard_context_tests::original_variable_hazards_keep_selected_alias_origins_and_unknown_roles",
+        "rename_safety::original_hazard_context_tests::supplied_variable_hazard_patterns_do_not_exclude_native_or_missing_targets",
+        "rename_safety::original_hazard_context_tests::supplied_variable_hazard_patterns_keep_qualified_and_open_roots_possible",
+        "rename_safety::tests::original_dynamic_name_value_narrowing_stays_in_its_logical_purpose",
+        "rename_safety::tests::the_computed_name_bound_follows_the_document_close_rule",
+        "rename_safety::tests::tn_a_dominating_constant_name_no_longer_refuses",
+        "rename_safety::tests::tn_a_dynamic_name_under_another_namespace_no_longer_refuses",
+        "rename_safety::tests::tn_a_dynamic_name_with_an_unsatisfiable_affix_no_longer_refuses",
+        "semantic_tokens::original_proc_role_tests::original_role_lookup_requires_current_full_source_and_own_head_input",
+        "semantic_tokens::original_proc_role_tests::original_roles_keep_opaque_declarations_distinct_after_ui_is_cleared",
+        "semantic_tokens::original_realm_consumer_tests::original_semantic_consumer_declines_missing_realm_without_nominal_recapture",
+        "semantic_tokens::receiver_source::tests::original_receiver_class_receipt_cannot_be_replaced_by_foreign_hierarchy_metadata",
+        "semantic_tokens::receiver_source::tests::original_receiver_heads_keep_actual_leading_bom_policy",
+        "semantic_tokens::receiver_source::tests::original_receiver_heads_keep_canonical_class_and_actual_availability",
+        "semantic_tokens::receiver_source::tests::original_receiver_public_tokens_refuse_populated_unavailable_and_stale_source",
+        "semantic_tokens::receiver_source::tests::original_registry_and_collection_receivers_keep_selected_child_operands",
+        "semantic_tokens::selected_source_token_tests::original_loop_handle_advice_keeps_actual_availability_captures_and_inert_data",
+        "semantic_tokens::selected_source_token_tests::original_member_handle_advice_uses_the_genuine_factory_member_body",
+        "semantic_tokens::selected_source_token_tests::original_semantic_tokens_withdraw_stale_grammar_foreign_and_missing_source_owner",
+        "semantic_tokens::tests::cross_file_constructor_dispatch_resolves",
+        "semantic_tokens::tests::tcloo_dispatch_pattern_fixture",
+        "source_structure::tests::original_case_and_lambda_geometry_skip_data_and_keep_dynamic_subject",
+        "source_structure::tests::original_cursor_declines_malformed_data_and_native_resolution_promotion",
+        "source_structure::tests::original_structure_retains_alias_body_and_bracket_geometry_after_ui_maps_clear",
+        "source_structure::tests::original_structure_uses_genuine_definition_wrappers_and_clears_ordinary_bodies",
+        "source_structure::tests::original_syntax_tokens_join_absolute_region_and_command_geometry",
+        "source_structure::tests::original_variable_cursor_keeps_selected_roots_and_complete_source_geometry",
+        "source_structure::tests::original_variable_cursor_retains_custom_reference_only_and_prefix_source_roles",
+        "tk_preview::tests::original_tk_source_context_keeps_explicit_store_version_and_operand_boundaries",
+        "tk_preview::tests::supplied_tk_preview_keeps_actual_availability_and_refuses_withheld_source",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 101,
+      "seconds": 261.0640560220054,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 121,
+        "failed": 51,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 2761
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Complete original33626-leaf immutable Source317 source/head/archive/command associations exactly join the independently authenticated successful own Core317 producer, strict image and retained source companion. All172 selections have actual inventory admission; source equality alone supplies no assertion result."
+      },
+      "tests": [
+        {
+          "selector": "call_hierarchy::original_source_context_tests::original_method_hierarchy_keeps_replaced_helpers_unresolved_and_withdraws_stale_source",
+          "status": "passed",
+          "purpose": "Replaced helpers remain unresolved and stale complete source owners withdraw extra hierarchy advice.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "call_hierarchy::original_source_context_tests::original_method_hierarchy_uses_selected_helpers_and_same_source_frame",
+          "status": "failed",
+          "purpose": "Method hierarchy traverses authentic selected source helpers in the same original lexical frame under the full current input.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "code_actions::diagnostic_context::tests::original_context_diagnostic_currency_keeps_the_complete_availability_owner",
+          "status": "failed",
+          "purpose": "Typed diagnostic context actions retain complete issuer input/availability independently of original source/config/store equality; a same-store older availability request supplies no action despite identical original source geometry.",
+          "proof_ids": [
+            "naming.editor.original-diagnostic-edit-currency"
+          ]
+        },
+        {
+          "selector": "code_actions::diagnostic_context::tests::original_diagnostic_actions_keep_typed_sink_and_source_when_prose_changes",
+          "status": "failed",
+          "purpose": "A real Native subst warning keeps the exact insertion after diagnostic prose changes and declines without its issuer.",
+          "proof_ids": [
+            "naming.consumer.original-diagnostic-source-actions"
+          ]
+        },
+        {
+          "selector": "code_actions::diagnostic_context::tests::original_diagnostic_actions_refuse_stale_source_configuration_registry_and_range",
+          "status": "failed",
+          "purpose": "Whole-source, range, complete config, Registry and wire kind/code counterfactuals withdraw source actions.",
+          "proof_ids": [
+            "naming.consumer.original-diagnostic-source-actions"
+          ]
+        },
+        {
+          "selector": "code_actions::diagnostic_currency::tests::original_check_actions_require_the_issuers_source_config_and_registry",
+          "status": "passed",
+          "purpose": "A genuine current S100 warning supplies the exact line-one zero-width noqa edit; independently changed source/config/Registry and missing issuer provenance decline actions, while changed prose preserves the edit.",
+          "proof_ids": [
+            "naming.editor.original-diagnostic-edit-currency"
+          ]
+        },
+        {
+          "selector": "code_actions::diagnostic_currency::tests::original_check_currency_refuses_same_store_changed_availability_and_missing_input",
+          "status": "passed",
+          "purpose": "Generic compiler fix currency requires the issuer complete actual Module input; same command store and identical image/config with older availability still refuse, and missing Module input cannot issue compiler source context.",
+          "proof_ids": [
+            "naming.editor.original-diagnostic-edit-currency"
+          ]
+        },
+        {
+          "selector": "code_actions::diagnostic_currency::tests::original_diagnostic_actions_require_current_whole_source_and_owned_fixes",
+          "status": "passed",
+          "purpose": "A genuine E201 comment-boundary analyser warning retains its exact zero-width insertion at byte10 and closing bracket text on current source; changed whole source, changed configuration, absent analysis and foreign fixes withdraw actions. Changed diagnostic presentation preserves the independently owned edit.",
+          "proof_ids": [
+            "naming.editor.original-diagnostic-edit-currency"
+          ]
+        },
+        {
+          "selector": "code_actions::diagnostic_currency::tests::original_diagnostic_source_extents_require_actual_byte_boundaries_and_channel",
+          "status": "passed",
+          "purpose": "A genuine Document emoji extent and end-of-file insertion are valid; UTF8-interior/out-of-bounds positions decline, and identical Native bytes do not match the Document source owner.",
+          "proof_ids": [
+            "naming.editor.original-diagnostic-edit-currency"
+          ]
+        },
+        {
+          "selector": "code_lens::tests::lens_count_matches_references_same_name_other_namespace",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "code_lens::tests::lens_per_user_proc",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "code_lens::tests::original_lenses_keep_repeated_and_opaque_source_declarations_without_ui_maps",
+          "status": "passed",
+          "purpose": "Enumerate distinct opaque/repeated declarations with sealed identities after UI maps are cleared, and refuse stale complete source.",
+          "proof_ids": [
+            "naming.consumer.original-code-lens"
+          ]
+        },
+        {
+          "selector": "code_lens::tests::original_logical_lenses_keep_complete_source_currency_and_actual_profile",
+          "status": "passed",
+          "purpose": "Logical code-lens source advice keeps the actual full input/profile and current original source owner; its source candidates confer no callable or Native entry authority.",
+          "proof_ids": [
+            "naming.consumer.original-code-lens"
+          ]
+        },
+        {
+          "selector": "completion::original_context::tests::original_completion_switches_use_actual_option_surface_and_current_source",
+          "status": "passed",
+          "purpose": "Option completion uses the actual current source/context/available option surface; stale owners cannot supply a nominal descriptor.",
+          "proof_ids": [
+            "naming.core.original-registry-context-completion"
+          ]
+        },
+        {
+          "selector": "completion::original_context::tests::original_logical_completion_uses_actual_availability_and_captured_ordinals",
+          "status": "passed",
+          "purpose": "Logical source completion clones the authentic selected per-point descriptor and retains captured/effective operand origins under actual availability.",
+          "proof_ids": [
+            "naming.core.original-registry-context-completion"
+          ]
+        },
+        {
+          "selector": "declaration::tests::conditional_declaration_preview_declines_explicit_body_replacements",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::declaration_does_not_resolve_an_unclosed_braced_reference",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::declaration_scan_abstains_for_a_builtin_shadowed_by_a_user_proc",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::declaration_scan_follows_a_renamed_scoping_command",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::declaration_scan_follows_an_aliased_scoping_command",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::declaration_scan_keeps_conditional_lexical_advice_after_a_dynamic_binding",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::declaration_scan_maps_a_prefixed_body_without_reparsing_alias_argv",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::declaration_scan_maps_alias_prefixes_to_original_local_operands",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::declaration_scan_recurses_through_an_aliased_body_command",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::declaration_scan_uses_the_declared_local_tail_of_a_global_name",
+          "status": "failed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::declaration_var_decoration_vectors_preserve_incomplete_braces",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::global_declaration_in_proc_body",
+          "status": "failed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::global_declared_inside_apply_lambda_body_is_found",
+          "status": "failed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::global_declared_inside_apply_lambda_body_is_not_visible_outside_it",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::global_declared_inside_control_flow_body_is_found",
+          "status": "failed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::logical_declaration_navigation_keeps_its_explicit_compatibility_scan",
+          "status": "passed",
+          "purpose": "Actual independently retained custom Logical input selects its own separate declaration scanner.",
+          "proof_ids": [
+            "naming.core.original-declaration-navigation"
+          ]
+        },
+        {
+          "selector": "declaration::tests::namespace_variable_declaration_does_not_supply_a_global_bare_read",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::non_variable_falls_back_to_definition",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::original_alias_declaration_navigation_keeps_the_independent_local_operand",
+          "status": "failed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::original_declaration_navigation_declines_unowned_analysis_without_recapture",
+          "status": "passed",
+          "purpose": "Genuine original alias navigation selects its authored span; copied report scope/input with missing original root/realm and stale whole image cannot reopen nominal scans.",
+          "proof_ids": [
+            "naming.core.original-declaration-navigation"
+          ]
+        },
+        {
+          "selector": "declaration::tests::original_logical_declarations_join_global_aliases_without_local_root_stripping",
+          "status": "failed",
+          "purpose": "Actual checked Logical lexical scope/cell relationships join global and qualified namespace aliases while keeping same-named local roots distinct. Returned target spans preserve original labels without manufacturing a Native alias or frame.",
+          "proof_ids": [
+            "naming.core.original-declaration-navigation"
+          ]
+        },
+        {
+          "selector": "declaration::tests::original_logical_declarations_keep_qualified_targets_and_current_source_owners",
+          "status": "failed",
+          "purpose": "Selected Logical declaration targets retain complete current source/grammar/input/store/availability; changed source, missing input, foreign or older store, changed grammar and populated unavailable input withhold navigation.",
+          "proof_ids": [
+            "naming.core.original-declaration-navigation"
+          ]
+        },
+        {
+          "selector": "declaration::tests::upvar_local_alias_is_a_declaration",
+          "status": "failed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::variable_declaration_in_namespace",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "definition::original_next_source_context_tests::original_next_definition_uses_captured_target_and_selected_availability",
+          "status": "failed",
+          "purpose": "Next definition delegates the selected original source scanner, preserving captured targets and actual availability.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "definition::tests::original_external_self_visibility_requires_its_own_entry_after_internal_dispatch",
+          "status": "passed",
+          "purpose": "Actual C8.6/C9.0/C9.1 source-analysis fixtures distinguish my internal dispatch from ordinary [self] external calls: Hidden internal dispatch clears this local mask, an actual unexported external method entry masks fallback, an actual exported entry clears it, and deferred self identity without an external entry is unavailable. Self identity supplies no external visibility licence.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "definition::tests::original_external_visibility_keeps_variable_and_object_names_separate_from_self_dispatch",
+          "status": "failed",
+          "purpose": "External object mask advice distinguishes variable/literal receiver names from internal self dispatch and survives erased reporting maps; retained canonical visibility purpose is independent of names such as my or literal [self].",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "definition::tests::original_external_visibility_withholds_populated_unavailable_stale_and_foreign_input",
+          "status": "passed",
+          "purpose": "Populated reporting/configuration facts do not bypass missing, typed unavailable, stale grammar/source, older same-store availability or foreign complete input; Unavailable masks withhold every workspace fallback.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "definition::tests::original_internal_visibility_uses_the_selected_receiver_local_head",
+          "status": "passed",
+          "purpose": "Internal method visibility consumes the genuinely selected receiver-local head despite a same-spelling global decoy, rather than textual head recognition.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "definition::tests::original_source_visibility_keeps_full_lexer_input_and_conditional_mask_purpose",
+          "status": "failed",
+          "purpose": "Full retained BOM/lexer/source input supplies a typed ConditionalSource mask without inventing Native object configuration; changing a display dialect cannot widen it and another source namespace withholds it.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "diagnostic_report::tests::an_unavailable_overlay_is_not_a_successfully_empty_report",
+          "status": "passed",
+          "purpose": "A typed unavailable overlay produces no source walk and remains explicit Report input refusal, independently of a genuinely successful empty document/report. Empty findings cannot erase unavailable status.",
+          "proof_ids": [
+            "naming.diagnostic.typed-subject-reporting"
+          ]
+        },
+        {
+          "selector": "diagnostic_report::tests::supplied_policy_rewrites_keep_actual_source_config_and_refresh_directives",
+          "status": "failed",
+          "purpose": "Policy rewrite analysis preserves actual full source configuration and refreshes directives on each changed image.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "diagnostic_report::tests::supplied_policy_rewrites_refuse_missing_unavailable_stale_and_foreign_input",
+          "status": "passed",
+          "purpose": "Missing, typed unavailable, stale and foreign supplied owners refuse extra policy rewrites with unchanged source.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "document_links::original_hosted_document_link_tests::original_hosted_links_keep_source_schema_and_name_purposes_independent",
+          "status": "passed",
+          "purpose": "Current genuine hosted SourcePath/Package units retain source links while unknown units/values and stale/custom/tombstone or unsupported source contexts decline.",
+          "proof_ids": [
+            "naming.vendor.original-source-navigation"
+          ]
+        },
+        {
+          "selector": "document_links::original_hosted_document_link_tests::original_source_path_links_use_selected_operations_and_authentic_bound_values",
+          "status": "failed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "document_links::tests::original_namespace_source_links_use_typed_jim_local_scope_without_export",
+          "status": "passed",
+          "purpose": "Explicit Jim084 source simulation retains one genuine local-scope link and exports no path value; public Native links remain empty and unknown Jim079 recipe refuses. No executed namespace/source or current-value claim follows.",
+          "proof_ids": [
+            "naming.navigation.retained-path-source-inventory"
+          ]
+        },
+        {
+          "selector": "document_links::tests::original_source_links_use_actual_selected_navigation_and_decline_shadows_or_stale_input",
+          "status": "failed",
+          "purpose": "Authentic selected navigation through direct/moved/alias source keeps original word positions; known shadows, stale/missing input and captured-only anchors decline conditional link advice.",
+          "proof_ids": [
+            "naming.navigation.retained-path-source-inventory"
+          ]
+        },
+        {
+          "selector": "folding::tests::original_folding_keeps_actual_availability_without_native_body_entry",
+          "status": "passed",
+          "purpose": "Folding reads authentic selected source body roles under actual availability; older same-source availability, missing input and changed retained input withhold lmap body geometry without granting Native body entry.",
+          "proof_ids": [
+            "naming.source.original-editor-body-structure"
+          ]
+        },
+        {
+          "selector": "folding::tests::original_folding_keeps_captured_body_ordinals_and_source_replacements",
+          "status": "passed",
+          "purpose": "Folding retains original alias-captured body ordinals, refuses a replaced selected target and withdraws changed source. The shared original source structure supplies geometry only.",
+          "proof_ids": [
+            "naming.source.original-editor-body-structure"
+          ]
+        },
+        {
+          "selector": "formatting::engine::tests::analysed_layout_retains_supplied_entry_and_provider_world_without_recapture",
+          "status": "passed",
+          "purpose": "The actual-analysis layout retains the supplied complete input, realm, SourceAnalysisEntry unknown history and provider coverage; a freshly reanalysed equal image cannot replace that world.",
+          "proof_ids": [
+            "naming.editor.original-source-formatting"
+          ]
+        },
+        {
+          "selector": "formatting::engine::tests::formatting_budget_preserves_complete_source_before_analysis",
+          "status": "passed",
+          "purpose": "Over-budget input preserves exact original CRLF/source bytes despite ordinary whitespace/final-newline options.",
+          "proof_ids": [
+            "naming.editor.original-source-formatting-budget"
+          ]
+        },
+        {
+          "selector": "formatting::engine::tests::original_source_formatting_uses_effective_roles_without_widening_captured_operands",
+          "status": "passed",
+          "purpose": "Retained alias effective roles map only to genuine written arguments; a known custom handler withdraws body schema and actual for-body presentation remains selected.",
+          "proof_ids": [
+            "naming.editor.original-source-formatting"
+          ]
+        },
+        {
+          "selector": "formatting::tests::analysed_formatting_joins_complete_original_alias_words_across_crlf_and_unicode",
+          "status": "passed",
+          "purpose": "Complete original alias words join LF presentation across CRLF/Unicode for document and range formatting; captured prefix operands acquire no written word, and multiline data ranges remain data.",
+          "proof_ids": [
+            "naming.editor.original-source-formatting"
+          ]
+        },
+        {
+          "selector": "formatting::tests::analysed_formatting_keeps_current_source_and_typed_unavailability",
+          "status": "passed",
+          "purpose": "Actual analysis supplies both whole-document and range formatting under retained source/input/config/store; a reporting dialect label cannot replace it, and typed unavailable, missing/foreign/changed owner or changed source withholds edits.",
+          "proof_ids": [
+            "naming.editor.original-source-formatting"
+          ]
+        },
+        {
+          "selector": "formatting::tests::analysed_formatting_keeps_original_terminators_and_lone_cr_analysis_currency",
+          "status": "passed",
+          "purpose": "LF, CRLF and lone-CR presentation retain original client edit coordinates and chosen terminators while analysis uses its independently checked lone-CR projection; source geometry only, no evaluation-channel equivalence.",
+          "proof_ids": [
+            "naming.editor.original-source-formatting"
+          ]
+        },
+        {
+          "selector": "formatting::tests::analysed_formatting_keeps_replaced_unknown_and_provider_barrier_purposes_separate",
+          "status": "passed",
+          "purpose": "Known replaced or unknown command heads cannot donate script-body indentation, while authentic selected syntax remains independent of the has_dynamic_providers coverage flag.",
+          "proof_ids": [
+            "naming.editor.original-source-formatting"
+          ]
+        },
+        {
+          "selector": "formatting::tests::analysed_formatting_member_vocabulary_precedes_same_spelling_global_alias",
+          "status": "failed",
+          "purpose": "A genuine declaration-member method keeps its selected original argv/body vocabulary ahead of a same-spelling global alias; the same text in an ordinary procedure body supplies no definition-member receipt.",
+          "proof_ids": [
+            "naming.editor.original-source-formatting"
+          ]
+        },
+        {
+          "selector": "formatting::tests::analysed_formatting_retains_selected_definition_parent_body_geometry",
+          "status": "failed",
+          "purpose": "LF/CRLF/lone-CR member body formatting uses the genuine already-selected definition parent vocabulary and original complete body regions, preserving independent client ending/edit coordinates.",
+          "proof_ids": [
+            "naming.editor.original-source-formatting"
+          ]
+        },
+        {
+          "selector": "formatting::tests::range_formatting_withdraws_before_analysis_above_lexical_budget",
+          "status": "passed",
+          "purpose": "A range request on over-budget original source emits no edits before semantic preparation.",
+          "proof_ids": [
+            "naming.editor.original-source-formatting-budget"
+          ]
+        },
+        {
+          "selector": "graphs::original::tests::original_graph_alias_edges_select_terminal_allocation_without_reporting_names",
+          "status": "failed",
+          "purpose": "Select the terminal target declaration after all reporting names are counterfactual.",
+          "proof_ids": [
+            "naming.core.original-declaration-graphs"
+          ]
+        },
+        {
+          "selector": "graphs::original::tests::original_graph_nodes_preserve_opaque_redefinitions_and_canonical_edges_without_ui_maps",
+          "status": "passed",
+          "purpose": "Preserve three distinct declaration IDs, including two repeated opaque names, actual edges, unknown summaries and stale/missing-lookup refusal.",
+          "proof_ids": [
+            "naming.core.original-declaration-graphs"
+          ]
+        },
+        {
+          "selector": "graphs::original::tests::original_graph_summary_requires_body_allocation_even_when_ir_labels_agree",
+          "status": "passed",
+          "purpose": "Equal IR labels and source text cannot donate summary facts when independent body allocation inventory is removed.",
+          "proof_ids": [
+            "naming.core.original-declaration-graphs"
+          ]
+        },
+        {
+          "selector": "graphs::tests::original_dataflow_warnings_keep_selected_source_availability_and_path_ordinals",
+          "status": "passed",
+          "purpose": "The actual public graph reports conditional source path warnings from full current selected input/availability and captured alias geometry. Whole original spans and variable grammar remain intact; missing/foreign/older owners withhold without a Native filesystem or sanitisation grant.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "hover::original_registry::tests::original_registry_head_hover_lists_only_retained_version_subcommands",
+          "status": "passed",
+          "purpose": "Authored C Tcl 8.4, 8.5, 8.6, 9.0 and 9.1 contexts yield the corresponding info subcommand list despite foreign Jim caller metadata and changed reporting labels.",
+          "proof_ids": [
+            "naming.core.original-registry-source-hover"
+          ]
+        },
+        {
+          "selector": "hover::original_registry::tests::original_registry_hover_keeps_current_context_and_conditional_shadow_barriers",
+          "status": "failed",
+          "purpose": "Foreign caller owners do not override actual context; stale whole source, semantic configuration mismatch, foreign retained context, copied reporting maps and known shadows/tombstones refuse unsupported docs. Unknown applicability remains source documentation.",
+          "proof_ids": [
+            "naming.core.original-registry-source-hover"
+          ]
+        },
+        {
+          "selector": "hover::original_registry::tests::original_registry_hover_uses_actual_heads_subcommands_options_and_origins",
+          "status": "passed",
+          "purpose": "Whole heads, subcommands, expansions and aliases retain original geometry; nested ensemble configure option is queried after its actual target operand.",
+          "proof_ids": [
+            "naming.core.original-registry-source-hover"
+          ]
+        },
+        {
+          "selector": "hover::original_registry::tests::original_registry_operand_hover_keeps_parent_nested_and_option_availability",
+          "status": "passed",
+          "purpose": "Selected subcommands and actual excluded option rows preserve availability annotations; Jim regexp never borrows an omitted C -about row; omitted required configure targets remain data.",
+          "proof_ids": [
+            "naming.core.original-registry-source-hover"
+          ]
+        },
+        {
+          "selector": "hover::original_registry::tests::original_scoped_hover_keeps_body_receipts_and_ignores_copied_reporting_regions",
+          "status": "passed",
+          "purpose": "Actual scoped body receipts preserve head and operation docs after reporting regions are cleared; copied fake reporting regions under a custom definer cannot supply a scope.",
+          "proof_ids": [
+            "naming.core.original-registry-source-hover"
+          ]
+        },
+        {
+          "selector": "hover::original_special_variable_context_tests::original_special_hover_keeps_authored_registry_shadow_rows_and_array_key_availability",
+          "status": "passed",
+          "purpose": "A genuine shared insertion selects the authored auto_path card over shipped documentation; withdrawal cannot be bypassed by an optional registry hint. Selected C84 versus C91 tcl_platform card independently controls pointerSize documentation, with no installed variable cell implied.",
+          "proof_ids": [
+            "naming.core.original-registry-source-hover"
+          ]
+        },
+        {
+          "selector": "hover::original_special_variable_context_tests::original_special_hover_uses_actual_availability_and_withdraws_changed_owners",
+          "status": "passed",
+          "purpose": "Under actual source analysis and a shared store, selected C86 tcl_precision documentation is present and C91 absence is metadata-specific. Missing input, changed spelling/config, foreign registry, changed availability and typed OverlayMiss withhold.",
+          "proof_ids": [
+            "naming.core.original-registry-source-hover"
+          ]
+        },
+        {
+          "selector": "hover::tests::logical_registry_hover_keeps_actual_context_and_source_currency",
+          "status": "passed",
+          "purpose": "A modern store cannot override actual old context; copied report maps are irrelevant, and changed source/equivalent foreign ContextRegistry refuse.",
+          "proof_ids": [
+            "naming.core.original-registry-source-hover"
+          ]
+        },
+        {
+          "selector": "hover::tests::logical_registry_hover_preserves_whole_alias_operands_and_declines_data",
+          "status": "passed",
+          "purpose": "Current written aliases, nested bodies and complete escaped selectors have exact operand documentation; captured option prefixes, data, user shadows and dynamic selectors cannot supply an anchor.",
+          "proof_ids": [
+            "naming.core.original-registry-source-hover"
+          ]
+        },
+        {
+          "selector": "inlay_hints::retained_hint_context_tests::logical_format_escape_hints_use_the_complete_selected_grammar",
+          "status": "passed",
+          "purpose": "Modern versus legacy complete escape configuration remains independent under the same positively sealed Logical input.",
+          "proof_ids": [
+            "naming.core.original-inlay-retained-context"
+          ]
+        },
+        {
+          "selector": "inlay_hints::retained_hint_context_tests::logical_format_hints_keep_actual_context_and_full_source_currency",
+          "status": "passed",
+          "purpose": "Clock -format roles use actual older/newer contexts over the same modern command store; stale source and foreign ContextRegistry refuse.",
+          "proof_ids": [
+            "naming.core.original-inlay-retained-context"
+          ]
+        },
+        {
+          "selector": "inlay_hints::retained_hint_context_tests::logical_format_hints_keep_nested_escaped_words_and_refuse_captured_anchors",
+          "status": "passed",
+          "purpose": "Nested and written-alias bare/quoted escape hints retain original endpoints; captured/dynamic/shadowed and collapsed-brace operands have no fabricated anchors.",
+          "proof_ids": [
+            "naming.core.original-inlay-retained-context"
+          ]
+        },
+        {
+          "selector": "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_actual_context_and_original_source_currency",
+          "status": "passed",
+          "purpose": "Builtin parameter hints use actual retained context over the same modern store, survive cleared reporting maps, and refuse changed source/equivalent foreign ContextRegistry.",
+          "proof_ids": [
+            "naming.core.original-inlay-retained-context"
+          ]
+        },
+        {
+          "selector": "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_nested_and_prefix_ordinals_without_captured_anchors",
+          "status": "passed",
+          "purpose": "Static, nested, escaped and captured-prefix calls preserve the written charIndex ordinal; wholly captured, rebound and dynamic calls cannot supply a current parameter anchor.",
+          "proof_ids": [
+            "naming.core.original-inlay-retained-context"
+          ]
+        },
+        {
+          "selector": "inlay_hints::retained_hint_context_tests::original_builtin_hints_use_the_selected_availability_not_registry_profile",
+          "status": "passed",
+          "purpose": "Actual retained source-schema context and effective original ordinals select metadata; foreign reporting/profile labels, stale source and changed whole context cannot supply it. Captured operands receive no invented source anchor. The authored string-cat synopsis supplies only its genuine first string1: label at offset 11; no variadic second label is invented.",
+          "proof_ids": [
+            "naming.core.original-inlay-retained-context"
+          ]
+        },
+        {
+          "selector": "inlay_hints::retained_hint_context_tests::original_format_hints_follow_actual_nested_roles_and_known_shadow",
+          "status": "passed",
+          "purpose": "Authentic nested format operands retain hints under foreign callers; a selected custom format handler does not borrow builtin format roles.",
+          "proof_ids": [
+            "naming.core.original-inlay-retained-context"
+          ]
+        },
+        {
+          "selector": "inlay_hints::retained_hint_context_tests::original_format_hints_use_selected_option_roles_under_the_actual_context",
+          "status": "passed",
+          "purpose": "Actual retained source-schema context and effective original ordinals select metadata; foreign reporting/profile labels, stale source and changed whole context cannot supply it. Captured operands receive no invented source anchor.",
+          "proof_ids": [
+            "naming.core.original-inlay-retained-context"
+          ]
+        },
+        {
+          "selector": "inlay_hints::retained_hint_context_tests::original_hint_metadata_keeps_the_generation_after_reporting_maps_are_cleared",
+          "status": "passed",
+          "purpose": "Actual retained source-schema context and effective original ordinals select metadata; foreign reporting/profile labels, stale source and changed whole context cannot supply it. Captured operands receive no invented source anchor. Authentic selected user-call viewports retain their own argument hints after UI maps clear; declaration builtin hints outside that viewport remain independent.",
+          "proof_ids": [
+            "naming.core.original-inlay-retained-context"
+          ]
+        },
+        {
+          "selector": "inlay_hints::retained_hint_context_tests::original_inlay_hints_keep_retained_profile_registry_and_whole_source",
+          "status": "failed",
+          "purpose": "Real integer and format hints survive foreign caller owners; stale full source and semantic configuration mismatch withdraw hints.",
+          "proof_ids": [
+            "naming.core.original-inlay-retained-context"
+          ]
+        },
+        {
+          "selector": "linked_editing_range::original_linked_tests::original_linked_editing_does_not_mirror_escapes_computed_heads_or_unrelated_body_words",
+          "status": "passed",
+          "purpose": "The consumer selects the retained original procedure and independently matches direct self-call allocations. Native command component extents map through the shared literal source geometry. Each accepted range contains exactly the same plain source text; qualified heads retain their prefixes. Computed heads, linked aliases, escape-dependent components, unrelated arguments, stale source and missing scanner configuration cannot borrow a writable declaration range. ASCII and Unicode components use explicit validating patterns.",
+          "proof_ids": [
+            "naming.consumer.original-linked-editing"
+          ]
+        },
+        {
+          "selector": "linked_editing_range::original_linked_tests::original_linked_editing_keeps_qualified_unicode_tail_and_refuses_stale_source",
+          "status": "failed",
+          "purpose": "The consumer selects the retained original procedure and independently matches direct self-call allocations. Native command component extents map through the shared literal source geometry. Each accepted range contains exactly the same plain source text; qualified heads retain their prefixes. Computed heads, linked aliases, escape-dependent components, unrelated arguments, stale source and missing scanner configuration cannot borrow a writable declaration range. ASCII and Unicode components use explicit validating patterns.",
+          "proof_ids": [
+            "naming.consumer.original-linked-editing"
+          ]
+        },
+        {
+          "selector": "linked_editing_range::tests::links_recursive_self_call_to_declaration",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "linked_editing_range::tests::original_logical_linked_edits_require_the_current_whole_source_owner",
+          "status": "passed",
+          "purpose": "Logical linked-edit geometry requires the current complete original source owner and withdraws replaced or unavailable input; source correspondence is separate from executable identity or actual edit permission.",
+          "proof_ids": [
+            "naming.consumer.original-linked-editing"
+          ]
+        },
+        {
+          "selector": "namespace_rename::tests::namespace_hazard_keeps_original_roles_and_unavailable_owner_refusal",
+          "status": "failed",
+          "purpose": "An authentic custom NamespaceName role retains a computed-name rename blocker; unavailable same-store roles, stale config or missing complete source input retain explicit refusal instead of permitting namespace edits.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "namespace_rename::tests::supplied_namespace_hazard_patterns_keep_parentheses_and_unknown_roles",
+          "status": "passed",
+          "purpose": "Shared VariableRoot versus NamespaceName lexical pattern purpose requires a complete supplied Logical input and its actual independently authored C name policy/config. Variable roots use only split_element_ref closed geometry; namespace parentheses remain bytes. Fixed local tails no longer exclude namespace-cell hazards. The three supplied Core edit-hazard absence routes require current source currency and authentic selected name roles before lexical narrowing; missing/foreign/config drift/availability-only/unsupported/Native/Jim/hosted stays possible or unavailable. Native rename identity paths unchanged. Hazard-only fixture helpers use authentic plain Logical authoring input, actual availability and independently selected close-rule config, preserving all old source/assertions. No interpreter, Native identity, execution, cache/frame/store or edit permission supplied. This is a current source/software assertion definition only; no executed assertion or external provider outcome is attached.",
+          "proof_ids": [
+            "naming.core.original-dynamic-name-value-purpose"
+          ]
+        },
+        {
+          "selector": "namespace_rename::tests::tn_a_computed_namespace_word_elsewhere_does_not_refuse",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "original_context::tests::current_source_currency_is_independent_of_advice_and_execution_purpose",
+          "status": "passed",
+          "purpose": "Current complete image/configuration/retained realm/input receipt is independent of a source-advice purpose or reporting label.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "original_context::tests::current_source_currency_withdraws_changed_grammar_foreign_input_and_missing_owner",
+          "status": "passed",
+          "purpose": "Changed image or grammar and missing/foreign retained input withdraw the common current-source receipt.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "original_context::tests::original_logical_type_advice_keeps_current_class_source_and_withdraws_stale_owner",
+          "status": "passed",
+          "purpose": "Conditional Logical class/type source advice retains current class source and withdraws stale owners.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "original_context::tests::supplied_editor_entries_do_not_use_logical_purpose_as_source_currency",
+          "status": "failed",
+          "purpose": "Supplied editor queries use authentic current source correspondence rather than treating positive Logical purpose as sufficient currency.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "original_invocation::original_diagnostic_value_tests::original_core_word_contents_use_logical_advice_without_executable_constants",
+          "status": "passed",
+          "purpose": "Core delegates actual Logical word contents to Compiler advice while executable proven_word_value remains absent. Missing Module input, changed grammar and foreign registry refuse.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "receiver_identity::tests::captured_method_registration_keeps_actual_metadata_and_source_currency",
+          "status": "passed",
+          "purpose": "Captured method registration retains genuine current full metadata/source configuration and original callback geometry; missing, changed, foreign and unavailable owners withdraw it.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "receiver_identity::tests::captured_prefix_references_require_actual_capture_and_deferred_registration",
+          "status": "failed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "receiver_identity::tests::original_method_reference_sets_do_not_merge_reused_class_names",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "receiver_identity::tests::original_own_object_navigation_joins_the_actual_configuration_allocation",
+          "status": "passed",
+          "purpose": "Checks the actual allocation/worker/native-field/current-table axis stated in this contract, with unsupported cases remaining terminal.",
+          "proof_ids": [
+            "naming.tcloo.original-own-object-method-transfer"
+          ]
+        },
+        {
+          "selector": "receiver_identity::tests::original_receiver_entry_is_shared_by_navigation_hover_and_rename",
+          "status": "failed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "receiver_identity::tests::original_receiver_navigation_joins_allocations_without_reporting_maps",
+          "status": "failed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::datagroup::tests::original_datagroup_proposals_require_the_selected_output_surface",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::datagroup::tests::supplied_datagroup_advice_keeps_actual_output_availability_and_arm_horizons",
+          "status": "passed",
+          "purpose": "Actual document-backed refactors share CurrentSourceContext and original source-command geometry; source rewrites and Logical setters consume authentic selected schema/effective argv/origins. Captured operands remain data without current editable words. Data-group actual route retains complete supplied Logical source currency, selected If/Switch clause layout and original Set/Return arm horizons, actual proposed output availability/current descriptor identity; explicit standalone authoring APIs remain separate. Native movement/store/Normal/frame/control-flow/evaluation/edit refusal gates remain independent. No native-provider or software execution promotion. Current source definition only; execution and Native edit-equivalence outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "refactor::datagroup::tests::supplied_datagroup_advice_keeps_written_clauses_and_current_document_owner",
+          "status": "passed",
+          "purpose": "Actual document-backed refactors share CurrentSourceContext and original source-command geometry; source rewrites and Logical setters consume authentic selected schema/effective argv/origins. Captured operands remain data without current editable words. Data-group actual route retains complete supplied Logical source currency, selected If/Switch clause layout and original Set/Return arm horizons, actual proposed output availability/current descriptor identity; explicit standalone authoring APIs remain separate. Native movement/store/Normal/frame/control-flow/evaluation/edit refusal gates remain independent. No native-provider or software execution promotion. Current source definition only; execution and Native edit-equivalence outcomes remain independent.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "refactor::datagroup::tests::supplied_datagroup_alias_does_not_restore_a_removed_output_handler",
+          "status": "passed",
+          "purpose": "Actual document-backed refactors share CurrentSourceContext and original source-command geometry; source rewrites and Logical setters consume authentic selected schema/effective argv/origins. Captured operands remain data without current editable words. Data-group actual route retains complete supplied Logical source currency, selected If/Switch clause layout and original Set/Return arm horizons, actual proposed output availability/current descriptor identity; explicit standalone authoring APIs remain separate. Native movement/store/Normal/frame/control-flow/evaluation/edit refusal gates remain independent. No native-provider or software execution promotion. Current source definition only; execution and Native edit-equivalence outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "refactor::extract_proc::selected_source_variable_tests::original_extraction_classifies_captured_variable_roles_and_rejects_replaced_helpers",
+          "status": "passed",
+          "purpose": "Extraction classifies authentic captured variable roles under actual selected metadata and refuses replaced helpers.",
+          "proof_ids": [
+            "naming.refactor.original-frame-traversal"
+          ]
+        },
+        {
+          "selector": "refactor::extract_proc::selected_source_variable_tests::original_extraction_uses_retained_brace_grammar_and_withdraws_changed_owners",
+          "status": "failed",
+          "purpose": "The actual supplied analysis retains FirstClose versus Tcl9Nesting grammar and generates the corresponding scalar parameter while keeping the original selected body. Missing input, changed grammar/source, foreign store and changed older same-store availability refuse before extraction.",
+          "proof_ids": [
+            "naming.refactor.original-frame-traversal"
+          ]
+        },
+        {
+          "selector": "refactor::extract_proc::selected_source_variable_tests::original_logical_extraction_keeps_current_read_only_edit_and_withdraws_missing_input",
+          "status": "passed",
+          "purpose": "Conditional Logical extraction retains original read-only source edit premises and withdraws missing actual input.",
+          "proof_ids": [
+            "naming.refactor.original-frame-traversal"
+          ]
+        },
+        {
+          "selector": "refactor::extract_variable::tests::logical_complete_value_words_keep_explicit_compatibility_behaviour",
+          "status": "failed",
+          "purpose": "Valid complete literal and substitution words preserve explicit lexical behaviour.",
+          "proof_ids": [
+            "naming.refactor.logical-single-word-extraction"
+          ]
+        },
+        {
+          "selector": "refactor::extract_variable::tests::logical_extraction_keeps_supplied_availability_and_source_configuration",
+          "status": "failed",
+          "purpose": "The explicit Logical extraction proposal keeps genuine current setter availability and full source configuration; older same-store availability, missing/foreign input and changed grammar withdraw it. A source setter proposal supplies no independent Native inserted-store or motion permission.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "refactor::extract_variable::tests::logical_invalid_multiword_value_never_becomes_a_four_argument_set",
+          "status": "failed",
+          "purpose": "Invalid multiword values, absent parser and unsafe names refuse.",
+          "proof_ids": [
+            "naming.refactor.logical-single-word-extraction"
+          ]
+        },
+        {
+          "selector": "refactor::extract_variable::tests::logical_one_line_body_insertion_remains_inside_the_original_body",
+          "status": "failed",
+          "purpose": "One-line procedure insertion stays inside its actual body.",
+          "proof_ids": [
+            "naming.refactor.logical-single-word-extraction"
+          ]
+        },
+        {
+          "selector": "refactor::extract_variable::tests::original_variable_extraction_never_promotes_naming_proposals_to_motion_permission",
+          "status": "passed",
+          "purpose": "Missing Native permission cannot be replaced by reporting maps, a changed dialect, future use, shadowed setter or effectful selection.",
+          "proof_ids": [
+            "naming.refactor.original-variable-extraction-permission"
+          ]
+        },
+        {
+          "selector": "refactor::inline_proc::original_inline_tests::original_inline_uses_opaque_allocation_formals_and_absolute_body_with_reports_cleared",
+          "status": "passed",
+          "purpose": "Opaque allocation and actual formals survive cleared reporting maps with absolute body geometry.",
+          "proof_ids": [
+            "naming.refactor.original-procedure-inline-binding"
+          ]
+        },
+        {
+          "selector": "refactor::inline_proc::selected_source_body_tests::logical_inline_call_selection_uses_current_original_body_regions",
+          "status": "passed",
+          "purpose": "Actual document-backed refactors share CurrentSourceContext and original source-command geometry; source rewrites and Logical setters consume authentic selected schema/effective argv/origins. Captured operands remain data without current editable words. Data-group actual route retains complete supplied Logical source currency, selected If/Switch clause layout and original Set/Return arm horizons, actual proposed output availability/current descriptor identity; explicit standalone authoring APIs remain separate. Native movement/store/Normal/frame/control-flow/evaluation/edit refusal gates remain independent. No native-provider or software execution promotion. Current source definition only; execution and Native edit-equivalence outcomes remain independent.",
+          "proof_ids": [
+            "naming.source.original-refactor-command-selection"
+          ]
+        },
+        {
+          "selector": "refactor::inline_proc::selected_source_body_tests::original_logical_inline_keeps_selected_expression_and_refuses_frame_sensitive_alias",
+          "status": "passed",
+          "purpose": "Conditional Logical inline advice retains the selected original expression and refuses selected frame-sensitive alias targets.",
+          "proof_ids": [
+            "naming.refactor.original-frame-traversal"
+          ]
+        },
+        {
+          "selector": "refactor::inline_variable::tests::logical_inline_edits_require_current_source_and_complete_metadata_owner",
+          "status": "passed",
+          "purpose": "Actual document-backed refactors share CurrentSourceContext and original source-command geometry; source rewrites and Logical setters consume authentic selected schema/effective argv/origins. Captured operands remain data without current editable words. Data-group actual route retains complete supplied Logical source currency, selected If/Switch clause layout and original Set/Return arm horizons, actual proposed output availability/current descriptor identity; explicit standalone authoring APIs remain separate. Native movement/store/Normal/frame/control-flow/evaluation/edit refusal gates remain independent. No native-provider or software execution promotion. Current source definition only; execution and Native edit-equivalence outcomes remain independent.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "refactor::inline_variable::tests::logical_inline_set_uses_selected_operation_and_preserves_capture_geometry",
+          "status": "passed",
+          "purpose": "Actual document-backed refactors share CurrentSourceContext and original source-command geometry; source rewrites and Logical setters consume authentic selected schema/effective argv/origins. Captured operands remain data without current editable words. Data-group actual route retains complete supplied Logical source currency, selected If/Switch clause layout and original Set/Return arm horizons, actual proposed output availability/current descriptor identity; explicit standalone authoring APIs remain separate. Native movement/store/Normal/frame/control-flow/evaluation/edit refusal gates remain independent. No native-provider or software execution promotion. Current source definition only; execution and Native edit-equivalence outcomes remain independent.",
+          "proof_ids": [
+            "naming.refactor.original-variable-inline-permission"
+          ]
+        },
+        {
+          "selector": "refactor::inline_variable::tests::original_inline_variable_requires_exact_definition_and_unobserved_read_without_ui_maps",
+          "status": "failed",
+          "purpose": "Exact braced Unicode original store/read remains selectable with reporting maps cleared under each independently selected source dialect. Stale complete source and missing actual input refuse. The conditional rewrite still requires original SSA/read/observer/value-motion permission; metadata alone supplies no edit equivalence. Select the exact braced Unicode read and original literal store without reporting variables; refuse stale source. This source consumer assertion is independent of the recorded native shell outcomes.",
+          "proof_ids": [
+            "naming.refactor.original-variable-inline-permission",
+            "naming.refactor.variable-inline-literal-source-values"
+          ]
+        },
+        {
+          "selector": "refactor::selected_frame_context_tests::original_frame_regions_keep_selected_expression_template_and_replacement_horizon",
+          "status": "passed",
+          "purpose": "Selected source expression/template regions retain complete original body inventory and known replacement horizons.",
+          "proof_ids": [
+            "naming.refactor.original-frame-traversal"
+          ]
+        },
+        {
+          "selector": "refactor::selected_frame_context_tests::original_frame_roles_keep_actual_availability_captures_and_source_currency",
+          "status": "passed",
+          "purpose": "FrameWalk source roles retain actual availability, original captured arguments and full current source ownership.",
+          "proof_ids": [
+            "naming.refactor.original-frame-traversal"
+          ]
+        },
+        {
+          "selector": "refactor::source_rewrite::tests::logical_source_rewrite_keeps_captured_values_outside_written_clause_positions",
+          "status": "passed",
+          "purpose": "Actual document-backed refactors share CurrentSourceContext and original source-command geometry; source rewrites and Logical setters consume authentic selected schema/effective argv/origins. Captured operands remain data without current editable words. Data-group actual route retains complete supplied Logical source currency, selected If/Switch clause layout and original Set/Return arm horizons, actual proposed output availability/current descriptor identity; explicit standalone authoring APIs remain separate. Native movement/store/Normal/frame/control-flow/evaluation/edit refusal gates remain independent. No native-provider or software execution promotion. Current source definition only; execution and Native edit-equivalence outcomes remain independent.",
+          "proof_ids": [
+            "naming.refactor.original-source-rewrite-permissions"
+          ]
+        },
+        {
+          "selector": "refactor::source_rewrite::tests::original_dictionary_conversion_does_not_insert_into_an_existing_or_observed_cell",
+          "status": "passed",
+          "purpose": "Dictionary conversion cannot use structural advice to insert an arbitrary temporary into an occupied or observed cell.",
+          "proof_ids": [
+            "naming.refactor.original-source-rewrite-permissions"
+          ]
+        },
+        {
+          "selector": "refactor::source_rewrite::tests::original_source_rewrites_require_current_handler_and_distinct_permissions",
+          "status": "failed",
+          "purpose": "Actual Native selected handlers yield disabled no-edit obligations; stale/shadowed targets do not transform while separately selected Logical authoring remains supported.",
+          "proof_ids": [
+            "naming.refactor.original-source-rewrite-permissions"
+          ]
+        },
+        {
+          "selector": "refactor::source_rewrite::tests::source_rewrites_keep_actual_availability_and_command_horizons",
+          "status": "failed",
+          "purpose": "A genuine selected expression alias retains current source availability and original lookup; older same-store availability, known replacement and missing/foreign/stale grammar decline selection. Source structure remains separate from executable replacement permission.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands",
+          "status": "failed",
+          "purpose": "Source class moves and captured configuration target operands retain authentic reference words; represented deletion/replacement barriers refuse.",
+          "proof_ids": [
+            "naming.core.original-member-reference-hazard"
+          ]
+        },
+        {
+          "selector": "references::member_metadata::tests::member_hazards_refuse_stale_missing_and_unowned_class_metadata",
+          "status": "failed",
+          "purpose": "Stale image, missing actual input and unowned class metadata return no hazard spans instead of borrowing report labels.",
+          "proof_ids": [
+            "naming.core.original-member-reference-hazard"
+          ]
+        },
+        {
+          "selector": "references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary",
+          "status": "failed",
+          "purpose": "Retained custom class/configuration schemas and nested selected parent vocabulary yield genuine original method-reference words; no installed member identity follows.",
+          "proof_ids": [
+            "naming.core.original-member-reference-hazard"
+          ]
+        },
+        {
+          "selector": "references::original_next_dispatch_context_tests::original_next_dispatch_uses_selected_roles_captured_targets_and_actual_availability",
+          "status": "passed",
+          "purpose": "Source next dispatch scans authentic selected roles and captured targets under actual same-store availability.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "references::original_next_dispatch_context_tests::original_next_dispatch_withdraws_known_replacements_missing_and_foreign_source",
+          "status": "passed",
+          "purpose": "Known replacement/deletion and missing/foreign or stale source owners withdraw original next target advice.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "references::tests::callback_source_roles_keep_actual_availability_and_original_builder_geometry",
+          "status": "failed",
+          "purpose": "Keep conditional callback roles and source ranges under the actual selected list builder/config/availability, without a deferred parent or Native callback entry.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "references::tests::callback_source_roles_keep_actual_package_availability_in_the_same_store",
+          "status": "passed",
+          "purpose": "Actual package availability independently controls selected callback roles even when the underlying command store is unchanged.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "references::tests::callback_source_targets_withdraw_known_shadows_and_incomplete_stored_writes",
+          "status": "passed",
+          "purpose": "Known target replacement and incomplete stored-prefix writes withdraw authored callback target advice rather than fill from a command label or future lookup.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "references::tests::method_dispatch_scan_uses_retained_custom_schema_and_script_purpose",
+          "status": "failed",
+          "purpose": "Genuine custom current schema admits one potential body and excludes ReferenceOnly; stale source and missing actual input return empty source regions.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "references::tests::method_source_dispatch_keeps_actual_store_availability_and_lookup_barriers",
+          "status": "failed",
+          "purpose": "Genuine custom source dispatch traits select method-reference geometry under actual current same-store availability. Older availability, changed source config, foreign/missing input and a known replacement refuse the reference without live receiver or method entry.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "references::tests::shifted_dispatch_regions_follow_original_moves_and_known_source_barriers",
+          "status": "passed",
+          "purpose": "Original moved namespace source keeps its authentic shifted body; known replaced/deleted command and missing/stale context refuse without nominal re-entry.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "rename_safety::original_hazard_context_tests::original_hazard_walk_preserves_grammar_and_missing_foreign_owner_refusal",
+          "status": "passed",
+          "purpose": "Actual braced-variable grammar and complete source owner govern hazard geometry; foreign/missing/configuration refusal remains conservative.",
+          "proof_ids": [
+            "naming.core.original-dynamic-name-value-purpose"
+          ]
+        },
+        {
+          "selector": "rename_safety::original_hazard_context_tests::original_self_hazards_use_selected_helpers_and_captured_selector_positions",
+          "status": "failed",
+          "purpose": "Self-method hazard scanning retains selected helper/composite selector and captured/written original positions.",
+          "proof_ids": [
+            "naming.core.original-dispatch-region-context"
+          ]
+        },
+        {
+          "selector": "rename_safety::original_hazard_context_tests::original_variable_hazards_keep_selected_alias_origins_and_unknown_roles",
+          "status": "passed",
+          "purpose": "Variable hazards retain selected alias captured/written roles and preserve unknown computed-operand residuals.",
+          "proof_ids": [
+            "naming.core.original-dynamic-name-value-purpose"
+          ]
+        },
+        {
+          "selector": "rename_safety::original_hazard_context_tests::supplied_variable_hazard_patterns_do_not_exclude_native_or_missing_targets",
+          "status": "passed",
+          "purpose": "Shared VariableRoot versus NamespaceName lexical pattern purpose requires a complete supplied Logical input and its actual independently authored C name policy/config. Variable roots use only split_element_ref closed geometry; namespace parentheses remain bytes. Fixed local tails no longer exclude namespace-cell hazards. The three supplied Core edit-hazard absence routes require current source currency and authentic selected name roles before lexical narrowing; missing/foreign/config drift/availability-only/unsupported/Native/Jim/hosted stays possible or unavailable. Native rename identity paths unchanged. Hazard-only fixture helpers use authentic plain Logical authoring input, actual availability and independently selected close-rule config, preserving all old source/assertions. No interpreter, Native identity, execution, cache/frame/store or edit permission supplied. This is a current source/software assertion definition only; no executed assertion or external provider outcome is attached.",
+          "proof_ids": [
+            "naming.core.original-dynamic-name-value-purpose"
+          ]
+        },
+        {
+          "selector": "rename_safety::original_hazard_context_tests::supplied_variable_hazard_patterns_keep_qualified_and_open_roots_possible",
+          "status": "passed",
+          "purpose": "Shared VariableRoot versus NamespaceName lexical pattern purpose requires a complete supplied Logical input and its actual independently authored C name policy/config. Variable roots use only split_element_ref closed geometry; namespace parentheses remain bytes. Fixed local tails no longer exclude namespace-cell hazards. The three supplied Core edit-hazard absence routes require current source currency and authentic selected name roles before lexical narrowing; missing/foreign/config drift/availability-only/unsupported/Native/Jim/hosted stays possible or unavailable. Native rename identity paths unchanged. Hazard-only fixture helpers use authentic plain Logical authoring input, actual availability and independently selected close-rule config, preserving all old source/assertions. No interpreter, Native identity, execution, cache/frame/store or edit permission supplied. This is a current source/software assertion definition only; no executed assertion or external provider outcome is attached.",
+          "proof_ids": [
+            "naming.core.original-dynamic-name-value-purpose"
+          ]
+        },
+        {
+          "selector": "rename_safety::tests::original_dynamic_name_value_narrowing_stays_in_its_logical_purpose",
+          "status": "failed",
+          "purpose": "All five C versions, Jim and f5 source inputs retain the genuine dynamic site but cannot narrow the rename refusal here. An explicitly Logical source analysis retains other and narrows only its own target exclusion.",
+          "proof_ids": [
+            "naming.core.original-dynamic-name-value-purpose"
+          ]
+        },
+        {
+          "selector": "rename_safety::tests::the_computed_name_bound_follows_the_document_close_rule",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "rename_safety::tests::tn_a_dominating_constant_name_no_longer_refuses",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "rename_safety::tests::tn_a_dynamic_name_under_another_namespace_no_longer_refuses",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "rename_safety::tests::tn_a_dynamic_name_with_an_unsatisfiable_affix_no_longer_refuses",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "semantic_tokens::original_proc_role_tests::original_role_lookup_requires_current_full_source_and_own_head_input",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "semantic_tokens::original_proc_role_tests::original_roles_keep_opaque_declarations_distinct_after_ui_is_cleared",
+          "status": "passed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "semantic_tokens::original_realm_consumer_tests::original_semantic_consumer_declines_missing_realm_without_nominal_recapture",
+          "status": "passed",
+          "purpose": "Actual canonical declaration colours are positive; copied reports/input/config without the authentic retained realm cannot mint semantic provenance.",
+          "proof_ids": [
+            "naming.core.original-command-source-schema"
+          ]
+        },
+        {
+          "selector": "semantic_tokens::receiver_source::tests::original_receiver_class_receipt_cannot_be_replaced_by_foreign_hierarchy_metadata",
+          "status": "passed",
+          "purpose": "A same-name foreign reporting hierarchy cannot replace the canonical Logical class metadata before Method highlighting, despite having its own matching method label. Current source/API definition only; no executed assertion or original-provider outcome attached.",
+          "proof_ids": [
+            "naming.core.original-inlay-retained-context"
+          ]
+        },
+        {
+          "selector": "semantic_tokens::receiver_source::tests::original_receiver_heads_keep_actual_leading_bom_policy",
+          "status": "passed",
+          "purpose": "Original whole-head receiver scanning respects the actual retained leading-BOM policy; Skip and Content have independent source results rather than relexing under a nominal profile. Current source/API definition only; no executed assertion or original-provider outcome attached.",
+          "proof_ids": [
+            "naming.core.original-inlay-retained-context"
+          ]
+        },
+        {
+          "selector": "semantic_tokens::receiver_source::tests::original_receiver_heads_keep_canonical_class_and_actual_availability",
+          "status": "passed",
+          "purpose": "Canonical same-source Logical class constructors keep actual availability and genuine alias/move origins for Method highlighting; older availability, selected replacement, compound/multiple children and a class-only manufacturer refuse instance highlighting. Current source/API definition only; no executed assertion or original-provider outcome attached.",
+          "proof_ids": [
+            "naming.core.original-inlay-retained-context"
+          ]
+        },
+        {
+          "selector": "semantic_tokens::receiver_source::tests::original_receiver_public_tokens_refuse_populated_unavailable_and_stale_source",
+          "status": "passed",
+          "purpose": "The public semantic-token consumer refuses populated typed unavailable, missing input, stale source grammar and changed original source before using receiver hints. Current source/API definition only; no executed assertion or original-provider outcome attached.",
+          "proof_ids": [
+            "naming.core.original-inlay-retained-context"
+          ]
+        },
+        {
+          "selector": "semantic_tokens::receiver_source::tests::original_registry_and_collection_receivers_keep_selected_child_operands",
+          "status": "failed",
+          "purpose": "Registry factory and collection receiver candidates retain the actual selected child descriptor and original scalar container operand; a Registry-name collision with a user class, selected replacement or nested collection index cannot borrow that receiver purpose. Current source/API definition only; no executed assertion or original-provider outcome attached.",
+          "proof_ids": [
+            "naming.core.original-inlay-retained-context"
+          ]
+        },
+        {
+          "selector": "semantic_tokens::selected_source_token_tests::original_loop_handle_advice_keeps_actual_availability_captures_and_inert_data",
+          "status": "failed",
+          "purpose": "Loop-handle token advice uses actual selected binding roles/captured ordinals and preserves inert data.",
+          "proof_ids": [
+            "naming.core.original-inlay-retained-context"
+          ]
+        },
+        {
+          "selector": "semantic_tokens::selected_source_token_tests::original_member_handle_advice_uses_the_genuine_factory_member_body",
+          "status": "failed",
+          "purpose": "Member-handle token advice requires the genuine selected factory member source region, not a nominal body label.",
+          "proof_ids": [
+            "naming.core.original-inlay-retained-context"
+          ]
+        },
+        {
+          "selector": "semantic_tokens::selected_source_token_tests::original_semantic_tokens_withdraw_stale_grammar_foreign_and_missing_source_owner",
+          "status": "passed",
+          "purpose": "Semantic token source roles withdraw stale lexer policy and foreign or missing retained source ownership.",
+          "proof_ids": [
+            "naming.core.original-inlay-retained-context"
+          ]
+        },
+        {
+          "selector": "semantic_tokens::tests::cross_file_constructor_dispatch_resolves",
+          "status": "failed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "semantic_tokens::tests::tcloo_dispatch_pattern_fixture",
+          "status": "failed",
+          "purpose": "Exact original owned-image software assertion; its scope is retained by the unchanged frozen body and complete original log. No changed-current-source or original provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "source_structure::tests::original_case_and_lambda_geometry_skip_data_and_keep_dynamic_subject",
+          "status": "passed",
+          "purpose": "Case arms and lambda bodies retain commands while ordinary braced data remains opaque.",
+          "proof_ids": [
+            "naming.source.original-editor-body-structure"
+          ]
+        },
+        {
+          "selector": "source_structure::tests::original_cursor_declines_malformed_data_and_native_resolution_promotion",
+          "status": "passed",
+          "purpose": "Malformed, inert/data and unavailable original source geometry decline; genuine syntax cannot promote a Native variable read or bind from source alone.",
+          "proof_ids": [
+            "naming.core.selected-variable-cursor-syntax"
+          ]
+        },
+        {
+          "selector": "source_structure::tests::original_structure_retains_alias_body_and_bracket_geometry_after_ui_maps_clear",
+          "status": "passed",
+          "purpose": "Own source declarations, alias body operands and lexical bracket commands survive cleared reporting maps; stale source/config decline.",
+          "proof_ids": [
+            "naming.source.original-editor-body-structure"
+          ]
+        },
+        {
+          "selector": "source_structure::tests::original_structure_uses_genuine_definition_wrappers_and_clears_ordinary_bodies",
+          "status": "passed",
+          "purpose": "Exact wrapper/immediate body/fold geometry survives authentic source context; same-named ordinary command data stays inert, readonly structure grants no compaction, and stale source/config refuse.",
+          "proof_ids": [
+            "naming.source.original-editor-body-structure"
+          ]
+        },
+        {
+          "selector": "source_structure::tests::original_syntax_tokens_join_absolute_region_and_command_geometry",
+          "status": "passed",
+          "purpose": "Authentic complete C/Jim analyses join selected body/nested bracket tokens to whole-document command spans, preserve Unicode boundaries, exclude genuine data and refuse stale source; no executed provider or binding is inferred.",
+          "proof_ids": [
+            "naming.cli.original-source-highlight-geometry"
+          ]
+        },
+        {
+          "selector": "source_structure::tests::original_variable_cursor_keeps_selected_roots_and_complete_source_geometry",
+          "status": "passed",
+          "purpose": "Current complete analyses retain actual selected C/Jim/iRules roots and whole original source spans, including Unicode offsets and nested index components, with stale/config/input refusal.",
+          "proof_ids": [
+            "naming.core.selected-variable-cursor-syntax"
+          ]
+        },
+        {
+          "selector": "source_structure::tests::original_variable_cursor_retains_custom_reference_only_and_prefix_source_roles",
+          "status": "passed",
+          "purpose": "Actual custom Registry/prefix source roles and ReferenceOnly syntax retain original components independently of entered body or runtime variable authority.",
+          "proof_ids": [
+            "naming.core.selected-variable-cursor-syntax"
+          ]
+        },
+        {
+          "selector": "tk_preview::tests::original_tk_source_context_keeps_explicit_store_version_and_operand_boundaries",
+          "status": "passed",
+          "purpose": "Supplied C8.6 profile retains the newer command generation while unavailable ttk construction is omitted; captured widget names own no later span, prefixless aliases retain written names, and a known if replacement hides its apparent body.",
+          "proof_ids": [
+            "naming.core.original-tk-source-context"
+          ]
+        },
+        {
+          "selector": "tk_preview::tests::supplied_tk_preview_keeps_actual_availability_and_refuses_withheld_source",
+          "status": "failed",
+          "purpose": "Actual Server Tk preview consumes complete current AnalysisResult via analyse_tk_ui_with_analysis; the original standalone source/profile API shares the collector. Typed unavailable status, missing complete input, changed grammar/store/availability or source correspondence yields no widget facts plus SourceContextUnavailable uncertainty. Collector reads actual availability and source grammar; source widget advice supplies no Native identity, body entry or execution. Source/software definition only; no executed assertion or Native process result is attached by this binding.",
+          "proof_ids": [
+            "naming.core.original-tk-source-context"
+          ]
+        }
+      ],
+      "question_ids": [
+        "naming.cli.original-source-highlight-geometry",
+        "naming.compiler.original-analysis-metadata-context",
+        "naming.consumer.original-code-lens",
+        "naming.consumer.original-diagnostic-source-actions",
+        "naming.consumer.original-linked-editing",
+        "naming.core.original-command-source-schema",
+        "naming.core.original-declaration-graphs",
+        "naming.core.original-declaration-navigation",
+        "naming.core.original-dispatch-region-context",
+        "naming.core.original-dynamic-name-value-purpose",
+        "naming.core.original-inlay-retained-context",
+        "naming.core.original-member-reference-hazard",
+        "naming.core.original-registry-context-completion",
+        "naming.core.original-registry-source-hover",
+        "naming.core.original-tk-source-context",
+        "naming.core.selected-variable-cursor-syntax",
+        "naming.diagnostic.typed-subject-reporting",
+        "naming.editor.original-diagnostic-edit-currency",
+        "naming.editor.original-source-formatting",
+        "naming.editor.original-source-formatting-budget",
+        "naming.navigation.retained-path-source-inventory",
+        "naming.refactor.logical-single-word-extraction",
+        "naming.refactor.original-frame-traversal",
+        "naming.refactor.original-procedure-inline-binding",
+        "naming.refactor.original-source-rewrite-permissions",
+        "naming.refactor.original-variable-extraction-permission",
+        "naming.refactor.original-variable-inline-permission",
+        "naming.refactor.variable-inline-literal-source-values",
+        "naming.source.original-editor-body-structure",
+        "naming.source.original-refactor-command-selection",
+        "naming.tcloo.original-own-object-method-transfer",
+        "naming.vendor.original-source-navigation"
+      ],
+      "limits": "The exact admitted172-selector Core317 command closes121 passed/51 failed, 0 ignored/measured and2761 filtered. Every individual outcome and failure remains in the original complete log. This is a failed selected software suite; the independent own successful producer and2933-selector inventory retain build/list scope only. Failure cause is not attributed to a later source owner or fixture repair. No complete Core, current-source, Compiler, Runtime, VM, Native provider or combined gate pass is inferred. Canonical links require complete current source equality with the frozen source; old Native answers/evidence and current implementation contexts remain unchanged.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/sealed-own-core-image/pinned-core317.elf.gz",
+        "sha256": "4260157961eb05ead6b5dcb248e888cd95a60cca5855ad91a120eb81ff7b471c",
+        "compression": "gzip",
+        "uncompressed_sha256": "5d293d2829c2f12aa957ebe5eea561a4be590214f1156a5dea6bbce789344e62",
+        "uncompressed_bytes": 173678192,
+        "compressed_bytes": 31245463,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/sealed-own-core-image/lossless-core-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/sealed-own-core-image/pinned-core317.json",
+        "metadata_sha256": "74d6fb8032242593d8abed6abb250e73033fdc0d0012a95976e20bfddcdd20e9",
+        "build_receipt_id": "rust.frozen317.integration-core-own-test-build317",
+        "original_source_snapshot_sha256": "053247f11cabe62686fb906760015973ecf84fb255391e9043e431ac0d3debcb",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen317/sealed-own-core-image/source-snapshot.json.gz",
+          "sha256": "8f4aee63f10b3078079903b76c1605a76e13bdf329dfe326c307180d67b093b5",
+          "compression": "gzip",
+          "uncompressed_sha256": "053247f11cabe62686fb906760015973ecf84fb255391e9043e431ac0d3debcb"
+        }
+      }
     }
   ]
 }

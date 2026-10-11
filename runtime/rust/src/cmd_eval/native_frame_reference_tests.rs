@@ -102,10 +102,7 @@ fn level_reference_reselects_current_frames_in_thirty_native_windows() {
 fn compare(interp: &mut Interp, value: &Owned, record: &str) {
     let fields: Vec<_> = record.split('\t').collect();
     let dialect = interp.eval_frame_dialect();
-    let mut original = OriginalLevel {
-        value: value.as_ptr(),
-        dialect,
-    };
+    let mut original = OriginalLevel::selected(interp, value.as_ptr()).unwrap();
     let result = dialect
         .native_frame_level_protocol()
         .unwrap()
@@ -215,10 +212,7 @@ fn required_upvar_level_does_not_borrow_optional_leading_frame_default() {
         let original = Owned::fresh(obj::new_string_bytes(b"k"));
         let dialect = interp.eval_frame_dialect();
         let protocol = dialect.native_frame_level_protocol().unwrap();
-        let mut operand = OriginalLevel {
-            value: original.as_ptr(),
-            dialect,
-        };
+        let mut operand = OriginalLevel::selected(&interp, original.as_ptr()).unwrap();
         let optional = protocol
             .resolve_object(interp.current_level(), &mut operand)
             .unwrap()
@@ -254,4 +248,497 @@ fn required_upvar_level_does_not_borrow_optional_leading_frame_default() {
         assert!(!interp.host_refusal_pending());
         pop_frame(&mut interp);
     }
+}
+
+use std::{cell::Cell, rc::Rc};
+use tcl_platform::{
+    Capabilities, Clock, DoubleNumericConversion, Env, Host, NativeCIntegerAbi, NumericEnvironment,
+    NumericEnvironmentUnavailable, NumericErrorState, SignedNumericConversion, StdIo,
+    UnsignedNumericConversion,
+};
+
+struct FrameHost {
+    actual: Rc<dyn Host>,
+    numeric: bool,
+    change_at: Cell<u8>,
+    abi_calls: Cell<usize>,
+    reset_calls: Cell<usize>,
+    unsigned_calls: Cell<usize>,
+}
+impl FrameHost {
+    fn selected(interp: &Interp, numeric: bool) -> Rc<Self> {
+        Rc::new(Self {
+            actual: interp.host(),
+            numeric,
+            change_at: Cell::new(0),
+            abi_calls: Cell::new(0),
+            reset_calls: Cell::new(0),
+            unsigned_calls: Cell::new(0),
+        })
+    }
+    fn actual_numeric(&self) -> &dyn NumericEnvironment {
+        self.actual
+            .numeric_environment()
+            .expect("actual native test Host")
+    }
+    fn change(&self, stage: u8) {
+        if self.change_at.get() == stage {
+            self.change_at.set(0);
+            let mut interp = unsafe { crate::codegen_abi::current_interp().as_ref() }
+                .expect("actual test interpreter")
+                .clone();
+            change_frame_context(&mut interp);
+        }
+    }
+}
+impl Host for FrameHost {
+    fn capabilities(&self) -> Capabilities {
+        self.actual.capabilities()
+    }
+    fn clock(&self) -> &dyn Clock {
+        self.actual.clock()
+    }
+    fn stdio(&self) -> &dyn StdIo {
+        self.actual.stdio()
+    }
+    fn env(&self) -> &dyn Env {
+        self.actual.env()
+    }
+    fn numeric_environment(&self) -> Option<&dyn NumericEnvironment> {
+        self.numeric.then_some(self)
+    }
+    fn native_integer_formatter(&self) -> Option<&dyn tcl_platform::NativeIntegerFormatter> {
+        self.actual.native_integer_formatter()
+    }
+}
+impl NumericEnvironment for FrameHost {
+    fn c_integer_abi(&self) -> Result<NativeCIntegerAbi, NumericEnvironmentUnavailable> {
+        self.abi_calls.set(self.abi_calls.get() + 1);
+        let result = self.actual_numeric().c_integer_abi();
+        self.change(1);
+        result
+    }
+    fn state(&self) -> Result<NumericErrorState, NumericEnvironmentUnavailable> {
+        self.actual_numeric().state()
+    }
+    fn reset(&self) -> Result<(), NumericEnvironmentUnavailable> {
+        self.reset_calls.set(self.reset_calls.get() + 1);
+        self.actual_numeric().reset()
+    }
+    fn unsigned_c84(
+        &self,
+        input: &[u8],
+        offset: usize,
+        long: bool,
+    ) -> Result<UnsignedNumericConversion, NumericEnvironmentUnavailable> {
+        self.unsigned_calls.set(self.unsigned_calls.get() + 1);
+        let result = self.actual_numeric().unsigned_c84(input, offset, long);
+        self.change(2);
+        result
+    }
+    fn unsigned(
+        &self,
+        input: &[u8],
+        offset: usize,
+        base: u32,
+    ) -> Result<UnsignedNumericConversion, NumericEnvironmentUnavailable> {
+        self.actual_numeric().unsigned(input, offset, base)
+    }
+    fn signed_long(
+        &self,
+        input: &[u8],
+        base: u32,
+    ) -> Result<SignedNumericConversion, NumericEnvironmentUnavailable> {
+        self.actual_numeric().signed_long(input, base)
+    }
+    fn double(
+        &self,
+        input: &[u8],
+        reset: bool,
+    ) -> Result<DoubleNumericConversion, NumericEnvironmentUnavailable> {
+        self.actual_numeric().double(input, reset)
+    }
+}
+
+struct CurrentFrameInterp(*mut Interp);
+impl CurrentFrameInterp {
+    fn enter(interp: &mut Interp) -> Self {
+        let previous = crate::codegen_abi::current_interp();
+        crate::codegen_abi::tcl_runtime_set_current_interp(interp);
+        Self(previous)
+    }
+}
+impl Drop for CurrentFrameInterp {
+    fn drop(&mut self) {
+        crate::codegen_abi::tcl_runtime_set_current_interp(self.0);
+    }
+}
+fn change_frame_context(interp: &mut Interp) {
+    let original = interp.runtime_context();
+    let mut changed = original.clone();
+    changed.packages = vec![("original-frame-test".to_owned(), "1.0".to_owned())];
+    interp.pin_context(&changed).unwrap();
+    interp.pin_context(&original).unwrap();
+}
+thread_local! {
+    static FRAME_UPDATER_CALLS: Cell<usize> = const { Cell::new(0) };
+    static FRAME_UPDATER_CHANGE: Cell<bool> = const { Cell::new(false) };
+}
+extern "C" fn frame_updater(original: *mut obj::TclObj) {
+    FRAME_UPDATER_CALLS.with(|calls| calls.set(calls.get() + 1));
+    let mut interp = unsafe { crate::codegen_abi::current_interp().as_ref() }
+        .expect("original frame test interpreter")
+        .clone();
+    if FRAME_UPDATER_CHANGE.with(Cell::get) {
+        change_frame_context(&mut interp);
+    } else {
+        interp.refuse_host_command("first original frame updater refusal");
+    }
+    // Preserve the reached original String effect before the checked refusal.
+    unsafe { obj::set_native_updater_string_rep(original, b"1", false) };
+}
+static FRAME_UPDATER: obj::TclObjType = obj::TclObjType {
+    name: c"originalFrameUpdater".as_ptr(),
+    free_int_rep_proc: None,
+    dup_int_rep_proc: None,
+    update_string_proc: Some(frame_updater),
+    set_from_any_proc: None,
+};
+
+#[test]
+fn original_frame_level_uses_entered_environment_and_preserves_native_counts() {
+    // naming.variable.original-level-object-conversion-and-selection
+    // docs/design/analysis/name-resolution-proofs/variable.original-level-object-conversion-and-selection.md
+    // Software operation-owner control; existing provider recordings remain independent.
+    for engine in ["tcl8.4", "tcl8.6", "tcl9.1", "jimtcl"] {
+        let mut interp = actual(engine);
+        let host = FrameHost::selected(&interp, true);
+        interp.set_host(host.clone());
+        push_frame(&mut interp);
+        let original = Owned::fresh(obj::new_string_bytes(b"1"));
+        let before = unsafe { (*original.as_ptr()).ref_count };
+        assert!(
+            obj::scalar_object_context(original.as_ptr())
+                .unwrap()
+                .is_none()
+        );
+        let protocol = interp
+            .eval_frame_dialect()
+            .native_frame_level_protocol()
+            .unwrap();
+        let mut operand = OriginalLevel::selected(&interp, original.as_ptr()).unwrap();
+        let result = protocol.resolve_object(1, &mut operand).unwrap().unwrap();
+        assert_eq!(result.target, 0, "{engine}");
+        assert!(result.explicit);
+        operand.check().unwrap();
+        assert!(host.abi_calls.get() > 0, "{engine}");
+        if engine == "tcl8.4" {
+            assert!(host.reset_calls.get() > 0);
+            assert!(host.unsigned_calls.get() > 0);
+            assert!(
+                obj::native_scalar_cache(original.as_ptr())
+                    .unwrap()
+                    .is_none()
+            );
+        }
+        assert_eq!(unsafe { (*original.as_ptr()).ref_count }, before);
+        assert!(
+            obj::scalar_object_context(original.as_ptr())
+                .unwrap()
+                .is_none()
+        );
+        drop(operand);
+        assert_eq!(interp.entered_native_operation_count(), 0);
+        pop_frame(&mut interp);
+    }
+    // An independently bound C-API scalar issuer does not bind a portable
+    // levelReference to that issuer's interpreter or lifetime.
+    let mut first = actual("tcl8.5");
+    push_frame(&mut first);
+    let original = Owned::fresh(obj::new_string_bytes(b"#1"));
+    unsafe { crate::capi::bind_scalar_getter_context(&first, original.as_ptr()) }.unwrap();
+    let protocol = first
+        .eval_frame_dialect()
+        .native_frame_level_protocol()
+        .unwrap();
+    let mut operand = OriginalLevel::selected(&first, original.as_ptr()).unwrap();
+    assert_eq!(
+        protocol
+            .resolve_object(1, &mut operand)
+            .unwrap()
+            .unwrap()
+            .target,
+        1
+    );
+    drop(operand);
+    pop_frame(&mut first);
+    drop(first);
+    assert!(
+        unsafe {
+            crate::capi::probe_scalar_getter(
+                None,
+                original.as_ptr(),
+                tcl_syntax::scalar_getter::NativeScalarGetterKind::Int,
+            )
+        }
+        .is_err()
+    );
+    let mut second = actual("tcl8.5");
+    push_frame(&mut second);
+    let mut operand = OriginalLevel::selected(&second, original.as_ptr()).unwrap();
+    assert_eq!(
+        protocol
+            .resolve_object(1, &mut operand)
+            .unwrap()
+            .unwrap()
+            .target,
+        1
+    );
+    assert!(second.native_execution_refusal().is_none());
+    drop(operand);
+    pop_frame(&mut second);
+}
+
+#[test]
+fn original_frame_level_missing_environment_is_terminal_only_at_reached_numeric_stage() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Host refusal is independent of a native bad-level outcome or portable level cache.
+    let mut interp = actual("tcl8.4");
+    let host = FrameHost::selected(&interp, false);
+    interp.set_host(host);
+    interp.set_result_bytes(b"PRIOR");
+    let prior = interp.get_obj_result();
+    let original = Owned::fresh(obj::new_string_bytes(b"#0"));
+    let protocol = interp
+        .eval_frame_dialect()
+        .native_frame_level_protocol()
+        .unwrap();
+    let mut operand = OriginalLevel::selected(&interp, original.as_ptr()).unwrap();
+    let failure = protocol
+        .resolve_object(0, &mut operand)
+        .err()
+        .expect("temporary Int requires actual ENV");
+    assert!(failure.native_execution_refusal().is_some());
+    assert!(
+        obj::native_scalar_cache(original.as_ptr())
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(interp.get_obj_result(), prior);
+    drop(operand);
+
+    // C8.5's already reached original frame cache bypasses the temporary stage.
+    let interp = actual("tcl8.5");
+    interp.set_host(FrameHost::selected(&interp, false));
+    let original = Owned::fresh(obj::new_string_bytes(b"#0"));
+    let dialect = interp.eval_frame_dialect();
+    obj::install_native_frame_level_cache(
+        original.as_ptr(),
+        tcl_registry::NativeFrameLevelCache::Absolute(0),
+        dialect,
+    )
+    .unwrap();
+    let mut operand = OriginalLevel::selected(&interp, original.as_ptr()).unwrap();
+    let result = dialect
+        .native_frame_level_protocol()
+        .unwrap()
+        .resolve_object(0, &mut operand)
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.target, 0);
+    assert!(interp.native_execution_refusal().is_none());
+    drop(operand);
+
+    // Jim's #absolute suffix stage is independently selected and errno-free.
+    let interp = actual("jimtcl");
+    interp.set_host(FrameHost::selected(&interp, false));
+    let original = Owned::fresh(obj::new_string_bytes(b"#0"));
+    let protocol = interp
+        .eval_frame_dialect()
+        .native_frame_level_protocol()
+        .unwrap();
+    let mut operand = OriginalLevel::selected(&interp, original.as_ptr()).unwrap();
+    assert_eq!(
+        protocol
+            .resolve_object(0, &mut operand)
+            .unwrap()
+            .unwrap()
+            .target,
+        0
+    );
+    assert!(interp.native_execution_refusal().is_none());
+}
+
+#[test]
+fn original_frame_level_callbacks_cannot_restore_currency_before_script_or_cache() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Reached extension effects remain; these are software currency controls, not native rows.
+    for change in [false, true] {
+        let mut interp = actual("tcl8.4");
+        push_frame(&mut interp);
+        interp.set_result_bytes(b"PRIOR");
+        let prior = interp.get_obj_result();
+        let original = Owned::fresh(obj::alloc_typed(&FRAME_UPDATER, 0));
+        let command = Owned::fresh(obj::new_string_bytes(b"uplevel"));
+        let script = Owned::fresh(obj::new_string_bytes(b"set frame_touched YES"));
+        FRAME_UPDATER_CALLS.with(|calls| calls.set(0));
+        FRAME_UPDATER_CHANGE.with(|selected| selected.set(change));
+        let _current = CurrentFrameInterp::enter(&mut interp);
+        assert_eq!(
+            super::uplevel_cmd(
+                &mut interp,
+                &[command.as_ptr(), original.as_ptr(), script.as_ptr()]
+            ),
+            crate::interp::Code::Error
+        );
+        let first = interp
+            .native_execution_refusal()
+            .expect("original updater first cause");
+        assert_eq!(FRAME_UPDATER_CALLS.with(Cell::get), 1);
+        assert_eq!(obj::bytes_of(original.as_ptr()), b"1");
+        assert!(
+            obj::native_scalar_cache(original.as_ptr())
+                .unwrap()
+                .is_none()
+        );
+        assert!(interp.var_get(b"frame_touched").is_none());
+        assert_eq!(interp.get_obj_result(), prior);
+        assert_eq!(interp.entered_native_operation_count(), 0);
+        assert_eq!(interp.native_execution_refusal(), Some(first));
+        pop_frame(&mut interp);
+    }
+}
+
+#[test]
+fn original_frame_level_numeric_callbacks_stop_after_reached_environment_effect() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Actual Host stages may change and restore policy; no later stage inherits new currency.
+    for stage in [1, 2] {
+        let mut interp = actual("tcl8.4");
+        let host = FrameHost::selected(&interp, true);
+        interp.set_host(host.clone());
+        host.change_at.set(stage);
+        let original = Owned::fresh(obj::new_string_bytes(b"#0"));
+        let _current = CurrentFrameInterp::enter(&mut interp);
+        let protocol = interp
+            .eval_frame_dialect()
+            .native_frame_level_protocol()
+            .unwrap();
+        let mut operand = OriginalLevel::selected(&interp, original.as_ptr()).unwrap();
+        assert!(protocol.resolve_object(0, &mut operand).is_err());
+        assert!(interp.native_execution_refusal().is_some());
+        assert!(host.abi_calls.get() > 0);
+        if stage == 1 {
+            assert_eq!(host.reset_calls.get(), 0);
+            assert_eq!(host.unsigned_calls.get(), 0);
+        } else {
+            assert_eq!(host.reset_calls.get(), 1);
+            assert_eq!(host.unsigned_calls.get(), 1);
+        }
+        assert!(
+            obj::native_scalar_cache(original.as_ptr())
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            obj::native_frame_level_cache_in(original.as_ptr(), interp.eval_frame_dialect())
+                .unwrap()
+                .is_none()
+        );
+    }
+}
+
+#[test]
+fn original_frame_level_lease_refuses_retired_header_and_replaced_current_activation() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let interp = actual("tcl8.6");
+    let original = Owned::fresh(obj::new_string_bytes(b"1"));
+    let pointer = original.as_ptr();
+    let mut operand = OriginalLevel::selected(&interp, pointer).unwrap();
+    assert_eq!(unsafe { (*pointer).ref_count }, 1);
+    drop(original);
+    assert!(!obj::allocation_is_live(pointer));
+    assert!(operand.native_frame_is_integer().is_err());
+    assert!(
+        operand
+            .native_frame_probe(tcl_syntax::scalar_getter::NativeScalarGetterKind::Int)
+            .is_err()
+    );
+    drop(operand);
+    assert_eq!(interp.entered_native_operation_count(), 0);
+
+    let mut interp = actual("tcl8.5");
+    push_frame(&mut interp);
+    let original = Owned::fresh(obj::new_string_bytes(b"#1"));
+    let mut operand = OriginalLevel::selected(&interp, original.as_ptr()).unwrap();
+    let before = interp.frames.borrow().current_activation();
+    pop_frame(&mut interp);
+    push_frame(&mut interp);
+    assert_eq!(interp.current_level(), 1);
+    assert_ne!(interp.frames.borrow().current_activation(), before);
+    assert!(operand.native_frame_string().is_err());
+    assert!(
+        operand
+            .native_frame_set_cache(tcl_registry::NativeFrameLevelCache::Absolute(1))
+            .is_err()
+    );
+    assert!(
+        obj::native_frame_level_cache_in(original.as_ptr(), interp.eval_frame_dialect())
+            .unwrap()
+            .is_none()
+    );
+    drop(operand);
+    pop_frame(&mut interp);
+}
+
+#[test]
+fn compiled_frame_and_single_script_list_use_same_original_operation() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Single-List and compiled C9.1 routes retain the same original allocation and purpose.
+    let mut interp = actual("tcl9.1");
+    interp.set_host(FrameHost::selected(&interp, false));
+    push_frame(&mut interp);
+    let first = Owned::fresh(obj::new_string_bytes(b"one"));
+    let second = Owned::fresh(obj::new_string_bytes(b"two"));
+    let script = Owned::fresh(crate::list::new_list_obj(&[
+        first.as_ptr(),
+        second.as_ptr(),
+    ]));
+    let before = unsafe { (*script.as_ptr()).ref_count };
+    assert!(!obj::has_string_rep(script.as_ptr()));
+    assert_eq!(
+        super::select_frame(
+            &mut interp,
+            &[script.as_ptr()],
+            tcl_registry::FrameEffectSpec::UPLEVEL
+        ),
+        Ok((0, 0))
+    );
+    assert!(!obj::has_string_rep(script.as_ptr()));
+    assert_eq!(unsafe { (*script.as_ptr()).ref_count }, before);
+    assert!(interp.native_execution_refusal().is_none());
+    pop_frame(&mut interp);
+
+    let mut interp = actual("tcl9.1");
+    push_frame(&mut interp);
+    let original = Owned::fresh(obj::alloc_typed(&FRAME_UPDATER, 0));
+    FRAME_UPDATER_CALLS.with(|calls| calls.set(0));
+    FRAME_UPDATER_CHANGE.with(|selected| selected.set(true));
+    let _current = CurrentFrameInterp::enter(&mut interp);
+    assert!(super::select_compiled_uplevel_frame(&mut interp, original.as_ptr()).is_err());
+    assert_eq!(FRAME_UPDATER_CALLS.with(Cell::get), 1);
+    assert_eq!(obj::bytes_of(original.as_ptr()), b"1");
+    assert!(
+        obj::native_scalar_cache(original.as_ptr())
+            .unwrap()
+            .is_none()
+    );
+    assert!(interp.native_execution_refusal().is_some());
+    assert_eq!(interp.entered_native_operation_count(), 0);
+    pop_frame(&mut interp);
 }

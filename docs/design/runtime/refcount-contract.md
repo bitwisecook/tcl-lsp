@@ -293,3 +293,17 @@ dispatch boundary enters the same operation before rewrite retirement, result
 retirement, traces, lookup and invocation, and checks after tailcall settlement.
 An independent engine entry retains its separate reset contract; nested dispatch
 never resets the original operation's first cause.
+
+Entered operation and retained scalar issuer currency use one non-wrapping
+execution-context epoch. Host installation, a changed pinned context or dialect,
+and logical evaluation/source/expression/naming ingress retire those receipts
+before changing the actual context. Restoring equal context does not revive an
+older receipt; counter exhaustion permanently refuses issuance. An unchanged
+pin keeps its existing context currency.
+
+Speculative command guards have a separate interpreter-policy epoch. Legal
+Guest changes to commands, children, visibility, safety, limits and background
+handlers invalidate their relevant guards and preserve entered operation and
+scalar context currency. Currency does not attest command generations,
+namespace/frame lifecycle, native getter recipes or value headers; their
+existing owners check them independently.

@@ -28,9 +28,6 @@
 use crate::interp::{Code, Interp};
 use crate::obj::TclObj;
 use tcl_registry::frame_effect::{NativeFrameLevelFailure, NativeFrameLevelObject};
-use tcl_syntax::scalar_getter::{
-    NativeScalarGetterFailure, NativeScalarGetterKind, NativeScalarGetterValue,
-};
 use tcl_syntax::value::ValueError;
 
 #[cfg(test)]
@@ -74,61 +71,9 @@ fn eval_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     code
 }
 
-struct OriginalLevel {
-    value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
-}
-
-impl NativeFrameLevelObject for OriginalLevel {
-    type Error = ValueError;
-    fn native_frame_string(&mut self) -> Result<Vec<u8>, Self::Error> {
-        let protocol =
-            self.dialect
-                .native_string_protocol()
-                .ok_or(ValueError::CommandProtocolUnavailable(
-                    "native frame string",
-                ))?;
-        crate::dict::native_object_bytes(self.value, protocol)
-    }
-    fn native_frame_probe(
-        &mut self,
-        kind: NativeScalarGetterKind,
-    ) -> Result<Result<i64, NativeScalarGetterFailure>, Self::Error> {
-        crate::typed_value::native_scalar_probe(self.value, self.dialect, kind).map(|result| {
-            result.map(|value| match value {
-                NativeScalarGetterValue::Wide(integer) => integer,
-                _ => unreachable!("integer frame getter"),
-            })
-        })
-    }
-    fn native_frame_is_integer(&self) -> bool {
-        matches!(
-            crate::obj::native_scalar_cache(self.value),
-            Ok(Some(tcl_syntax::scalar_getter::NativeScalarCache::Number(
-                tcl_syntax::number::Number::Int(_) | tcl_syntax::number::Number::Big { .. }
-            )))
-        )
-    }
-    fn native_frame_is_machine_integer(&self) -> bool {
-        matches!(
-            crate::obj::native_scalar_cache(self.value),
-            Ok(Some(tcl_syntax::scalar_getter::NativeScalarCache::Number(
-                tcl_syntax::number::Number::Int(_)
-            )))
-        )
-    }
-    fn native_frame_cache(
-        &self,
-    ) -> Result<Option<tcl_registry::NativeFrameLevelCache>, Self::Error> {
-        crate::obj::native_frame_level_cache_in(self.value, self.dialect)
-    }
-    fn native_frame_set_cache(
-        &mut self,
-        cache: tcl_registry::NativeFrameLevelCache,
-    ) -> Result<(), Self::Error> {
-        crate::obj::install_native_frame_level_cache(self.value, cache, self.dialect)
-    }
-}
+#[path = "cmd_eval/original_level.rs"]
+mod original_level;
+use original_level::OriginalLevel;
 
 fn frame_failure(interp: &mut Interp, failure: NativeFrameLevelFailure) -> Code {
     interp.report_cmd_error(tcl_cmd_core::native_frame_error::present(failure))
@@ -168,38 +113,36 @@ pub(crate) fn select_frame(
         return default(interp);
     }
     let original = args[0];
+    let mut operand = OriginalLevel::selected(interp, original)
+        .map_err(|error| interp.report_cmd_error(error))?;
     if effect == tcl_registry::FrameEffectSpec::UPLEVEL
         && args.len() == 1
         && protocol.probes_single_script_list_first()
         && !crate::obj::has_string_rep(original)
     {
-        let string = dialect
-            .native_string_protocol()
-            .expect("native frame protocol owns string recipe");
-        match crate::list::list_elements_native_checked(original, string) {
-            Ok(elements) if elements.len() > 1 => return default(interp),
-            Err(error) if error.native_access_refusal().is_some() => {
-                return Err(interp.report_cmd_error(error.into()));
+        match operand.single_script_list_len() {
+            Ok(length) if length > 1 => return default(interp),
+            Err(error) if error.native_execution_refusal().is_some() => {
+                return Err(interp.report_cmd_error(error));
             }
             _ => {}
         }
     }
-    let mut operand = OriginalLevel {
-        value: original,
-        dialect,
-    };
     let result = if width == Some(1) {
         protocol.resolve_required_object(current, &mut operand)
     } else {
         protocol.resolve_leading_object(current, &mut operand)
     };
+    operand
+        .check()
+        .map_err(|error| interp.report_cmd_error(error))?;
     match result {
         Ok(Ok(selected)) => Ok((
             width.unwrap_or(usize::from(selected.explicit)),
             selected.target,
         )),
         Ok(Err(failure)) => Err(frame_failure(interp, failure)),
-        Err(error) => Err(interp.report_cmd_error(error.into())),
+        Err(error) => Err(interp.report_cmd_error(error)),
     }
 }
 
@@ -217,14 +160,16 @@ pub(crate) fn select_compiled_uplevel_frame(
             ValueError::CommandProtocolUnavailable("native UPLEVEL frame protocol").into(),
         ));
     };
-    let mut operand = OriginalLevel {
-        value: original,
-        dialect,
-    };
-    match protocol.resolve_object(interp.current_level(), &mut operand) {
+    let mut operand = OriginalLevel::selected(interp, original)
+        .map_err(|error| interp.report_cmd_error(error))?;
+    let result = protocol.resolve_object(operand.current_level(), &mut operand);
+    operand
+        .check()
+        .map_err(|error| interp.report_cmd_error(error))?;
+    match result {
         Ok(Ok(selected)) => Ok(selected.target),
         Ok(Err(failure)) => Err(frame_failure(interp, failure)),
-        Err(error) => Err(interp.report_cmd_error(error.into())),
+        Err(error) => Err(interp.report_cmd_error(error)),
     }
 }
 

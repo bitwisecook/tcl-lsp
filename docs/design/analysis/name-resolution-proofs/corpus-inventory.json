@@ -85512,6 +85512,1085 @@
       "candidate": false
     },
     {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.4.20/actual-header-inputs.json",
+      "sha256": "231b464fb84df1a8a253866fee97f1a032554201705c28af2ee403b666423ce1",
+      "bytes": 4122,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.4.20/cli-version.receipt.json",
+      "sha256": "d3ef6ecdad4162733bdab04551e9c508190bde0956cd8346b9f653bbc9d68db6",
+      "bytes": 57722,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.4.20/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.4.20/cli-version.stdout",
+      "sha256": "ede2f9015aff14bc8edd1fd1b2ec6ecc3dc7b6a649207bbb9c4c2f7aa18b31a9",
+      "bytes": 11,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.4.20/compile.receipt.json",
+      "sha256": "474d2eccfd94dab6b69972996e417f9883e7626395b61b7d9147637b34372737",
+      "bytes": 57433,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.4.20/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.4.20/compile.stdout",
+      "sha256": "c364f0ecfeb243654ac88e9035ff99c0ec5b95552d9175597ca948f7406b0d8f",
+      "bytes": 1306,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.4.20/dependencies.receipt.json",
+      "sha256": "f4784050c4f35319c0db109ce909cc93116ae72ed2ff076f65072750431fa6b3",
+      "bytes": 49730,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.4.20/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.4.20/dependencies.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.4.20/execute.receipt.json",
+      "sha256": "40248ea998251c214e761549b6c84ae629305bb520c0769fa45ed1f6c45ca7aa",
+      "bytes": 57720,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.4.20/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.4.20/execute.stdout",
+      "sha256": "2949887dc981449ed08e641dcfe5b0345ebef12e8e2783249d38deb0bdc1b193",
+      "bytes": 235,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.4.20/probe.dependencies",
+      "sha256": "e32b71f78647ff879dd1ddcf22a2bb7ebd46fcde9c0a1aa86d68f4f97613ec8b",
+      "bytes": 1666,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.4.20/probe.elf.gz",
+      "sha256": "d16320ac0327037630014abce14ecf472f732c351753111891ac811f4e154866",
+      "bytes": 389853,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.4.20/receipt.json",
+      "sha256": "e6814e4a6c10284e6334f467ed6383cb7066a1a915545591127ca46dfbe51bf8",
+      "bytes": 291326,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.5.19/actual-header-inputs.json",
+      "sha256": "3517efdcb6020d68d01bd8201227c7917d747c355b34a9f5f46cff43b449e61c",
+      "bytes": 4122,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.5.19/cli-version.receipt.json",
+      "sha256": "e7c78536a66b11a0e448f51c6135da3fc5c142a76c955ca2e8d8ca9f4f905fe5",
+      "bytes": 58756,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.5.19/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.5.19/cli-version.stdout",
+      "sha256": "510e2d09d60dc006dfc5d5878788779520c3f1bc62afb4fe7e48870f9de74fe1",
+      "bytes": 11,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.5.19/compile.receipt.json",
+      "sha256": "a0f750ec0710db38228aa7b912704309177851741ba11fc9868960f789ec1b3f",
+      "bytes": 58468,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.5.19/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.5.19/compile.stdout",
+      "sha256": "cca0eab1143d9e5d205b9b7d1df8de0d8d8f0fa88219ac18b3edb021a6fbdbce",
+      "bytes": 1306,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.5.19/dependencies.receipt.json",
+      "sha256": "8ea29baad0c35ba3f9fd4d6ac1cc4c662352a1f9aad6dd59bac04f39001d4b9f",
+      "bytes": 50763,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.5.19/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.5.19/dependencies.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.5.19/execute.receipt.json",
+      "sha256": "2c02519ce2a79e92a7031c499752cf6c08c0f7b66f040a61a39a4efaeac376fa",
+      "bytes": 58753,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.5.19/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.5.19/execute.stdout",
+      "sha256": "1b37b865711f40b76177532fd2a2c64b19a5805aa5ed2052b5cdf4c48ade75b0",
+      "bytes": 235,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.5.19/probe.dependencies",
+      "sha256": "570cd0b8b70cd011c2572fbc88672e0e87b05daaf9a30ca1145b6b3ef8561fa7",
+      "bytes": 1666,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.5.19/probe.elf.gz",
+      "sha256": "f1f50c2e319cbdcc1be8b689e6f6cf3f2c6b57183005fcb2acdeb5675b1adbb5",
+      "bytes": 569732,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.5.19/receipt.json",
+      "sha256": "cea0b768ecf3f8d41a2a9f5606ee693a1fee83eecd8cab225cadaa97e2b6bb61",
+      "bytes": 296042,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.6.18/actual-header-inputs.json",
+      "sha256": "ba573a533a959ec2f06121ae78ae5419f1de087ba470929d5bb775dcbd19baaa",
+      "bytes": 4122,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.6.18/cli-version.receipt.json",
+      "sha256": "701213f98bb7386783e9b46c559d2ad2501e1d93c67e8131796969148c6b2430",
+      "bytes": 61850,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.6.18/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.6.18/cli-version.stdout",
+      "sha256": "7ca7e2ae25a10e99a9945869f21ac489508c93f296803490941ae66587c10ec0",
+      "bytes": 11,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.6.18/compile.receipt.json",
+      "sha256": "c2be97e5443d911f784614a941ee22a77ea5d25c61e2c761299f80b19a9745cf",
+      "bytes": 61573,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.6.18/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.6.18/compile.stdout",
+      "sha256": "f5fbeaa1107ffa743e5606d74cd54af4e8a89b8761316b17cc5254190beeaaff",
+      "bytes": 1373,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.6.18/dependencies.receipt.json",
+      "sha256": "661fed06dd290a2676a3538f196860ad710ef22a53c733e931d2efdd21f69f1a",
+      "bytes": 53857,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.6.18/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.6.18/dependencies.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.6.18/execute.receipt.json",
+      "sha256": "8263b2a00a99300787eb2b46ef011cc0f70475a8010ed6671d60c5921d019455",
+      "bytes": 61847,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.6.18/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.6.18/execute.stdout",
+      "sha256": "045a666f179090dd1f75df45fe6b5b726f524fab506350151b827d845be8f5c5",
+      "bytes": 20121,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.6.18/probe.dependencies",
+      "sha256": "3209ee33c92ceb4c0f427126629260daa6f0af2772fc658ae2e22ab1371648a8",
+      "bytes": 1666,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.6.18/probe.elf.gz",
+      "sha256": "d2ce25b83d74a1a3a8639ec307ee308188fc5265ebbd159740326539f0336d33",
+      "bytes": 811979,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.6.18/receipt.json",
+      "sha256": "df3041e90491e2e16518548f20e9a4d0234b2ff7b492fcd20f04834655427d59",
+      "bytes": 310314,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.0.4/actual-header-inputs.json",
+      "sha256": "b8b7ac2d969f534ed911ae378632e31c7b2117ac06faef7dbe1cf6d98baf0468",
+      "bytes": 4119,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.0.4/cli-version.receipt.json",
+      "sha256": "6b51da25ac44cb42302145f28d0fbe367619f9c0dd0ea5dba54f4a806903f4e0",
+      "bytes": 63548,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.0.4/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.0.4/cli-version.stdout",
+      "sha256": "32ada7140f59d3bb7c967706b61cdf727ee4051c1f011f7477694f5b232d1ec9",
+      "bytes": 10,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.0.4/compile.receipt.json",
+      "sha256": "3baf90508675e258d6940dc19ec51185ff3407505b82058255ded29308ba9482",
+      "bytes": 63270,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.0.4/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.0.4/compile.stdout",
+      "sha256": "c439b73a21797003d38c16108a366105be3c85e3167340210a6253a3fe3118f1",
+      "bytes": 1372,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.0.4/dependencies.receipt.json",
+      "sha256": "d6a91f857843f9ef43adce3ec8fb396cdca3e99b2758408b0186c12dc5cf2377",
+      "bytes": 55557,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.0.4/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.0.4/dependencies.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.0.4/execute.receipt.json",
+      "sha256": "b7e7f5b86d254341051eddc688aff0e8aaa1dc349d76c1e5e4d67eaaf763f29c",
+      "bytes": 63547,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.0.4/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.0.4/execute.stdout",
+      "sha256": "f2f548e9801aa4dbf14c6176e5a4818bea68ee0fb7afa89962bc21e553156851",
+      "bytes": 20003,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.0.4/probe.dependencies",
+      "sha256": "937a2d26f4868157038d65dfb8edf7760cf22f8abb3062d040e13cf5642d1c59",
+      "bytes": 1663,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.0.4/probe.elf.gz",
+      "sha256": "f4f06db605d86aecc37335eed6dc7c9a25f6aa32b29ba8d3343108cffe6701df",
+      "bytes": 961000,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.0.4/receipt.json",
+      "sha256": "9d6945455e54173ea9bdf34740973674b7ec989f1ff9f9a2085f8674aac208bc",
+      "bytes": 318067,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.1.0/actual-header-inputs.json",
+      "sha256": "a7713717528da58f1bad9c9d932fbea1c25720cbdbde80f61294c58e6fb34de5",
+      "bytes": 4119,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.1.0/cli-version.receipt.json",
+      "sha256": "f9229a78d2b4bf3ed6c9b62393e37c714aaaf6880c13c9f8518bc57344acee4f",
+      "bytes": 63809,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.1.0/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.1.0/cli-version.stdout",
+      "sha256": "a88879ffa7ac4f34863959ff7f314ea863fd002511e61073c6fb8f586394d310",
+      "bytes": 10,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.1.0/compile.receipt.json",
+      "sha256": "1412f5e2b602148178dccf58959701a6c247cc4df549d8bbe7eed821501b0892",
+      "bytes": 63543,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.1.0/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.1.0/compile.stdout",
+      "sha256": "10c9b844ac4c1eb7bd7b9b65f9fe4426c97b8e2df82c9ed743663718f30ef881",
+      "bytes": 1439,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.1.0/dependencies.receipt.json",
+      "sha256": "c57f3ebc269336b86a0043dd32c81b19577fca9c22db4d1ae3aaec2424278874",
+      "bytes": 55817,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.1.0/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.1.0/dependencies.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.1.0/execute.receipt.json",
+      "sha256": "aef603cb0dc4ce5e5b9f718432d20ac78e3b6a4fa15e51fe20576aae73bd3237",
+      "bytes": 63807,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.1.0/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.1.0/execute.stdout",
+      "sha256": "6f51c940f7b011a4b36df2767e497cc4f2a063d2ffc88b644f1eb07b2421a264",
+      "bytes": 20003,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.1.0/probe.dependencies",
+      "sha256": "74e1ceabeb9c950265512aff3e6618e0787483c133df6d1ca5846eed4c64985e",
+      "bytes": 1663,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.1.0/probe.elf.gz",
+      "sha256": "dd7ea7671d2f150328fa2b553625bf8b02509e28936c4a49d296f9da5251285e",
+      "bytes": 1030263,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.1.0/receipt.json",
+      "sha256": "662f8074574b092394bf254162f662d8ed7424a4f6c5a2a3f6505ff96853550a",
+      "bytes": 319411,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/compiler-version.receipt.json",
+      "sha256": "875efea81d0e2e093e19bb0bb7aee9442b0d5f096e5136b58c284899ee7b4141",
+      "bytes": 32340,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/compiler-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/compiler-version.stdout",
+      "sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+      "bytes": 252,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/jim/actual-header-inputs.json",
+      "sha256": "70f5b51e9fbb9e84911981813682bc1e8147602a38f55a76380b85badec27ac2",
+      "bytes": 4714,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/jim/cli-version.receipt.json",
+      "sha256": "67926d7a8f0f413645a0190f422b4febf1a64bd4953c1bba12300f2c9c4b8231",
+      "bytes": 49609,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/jim/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/jim/cli-version.stdout",
+      "sha256": "f061a4141f0c4f07220cc8a8656910dd43801c0e2f4672f43bb50aa93ca31f73",
+      "bytes": 21,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/jim/compile.receipt.json",
+      "sha256": "0169930fa05936c799063b2c9b4ff201f59ccffd242496499b517e0b460612c9",
+      "bytes": 49311,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/jim/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/jim/compile.stdout",
+      "sha256": "f989bac910eec511729cb964d0ba0b907e2ba51e299e399606457c21fd504499",
+      "bytes": 1444,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/jim/dependencies.receipt.json",
+      "sha256": "9a3bd1e690b9f717f9c2543441ca5108663a98762d5c9d95362ed2e6e4fc0bbd",
+      "bytes": 40129,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/jim/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/jim/dependencies.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/jim/execute.receipt.json",
+      "sha256": "051cc05bd7bdf559d924e787bea5facf218d26940c48261488b67be2edf69ccc",
+      "bytes": 49596,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/jim/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/jim/execute.stdout",
+      "sha256": "d199c7bed5df88f48d74056325248484bbb14c365d6b523d01aca551d1e42fd9",
+      "bytes": 293,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/jim/probe.dependencies",
+      "sha256": "81fcfc1b0c72e17f6e4054d58cf08803143c08cfa92d490a09d808423dcc2da9",
+      "bytes": 1905,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/jim/probe.elf.gz",
+      "sha256": "4750eea3a74d8e3f22179734d3986f93d7c6fccdb60e21439f13f34c71501b1b",
+      "bytes": 186793,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/jim/receipt.json",
+      "sha256": "7117b10bdaeee8c5bb5b0e8b6473c0d48680739674e9fb4b2cac9e9e99a8ca34",
+      "bytes": 253007,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/summary.json",
+      "sha256": "634a1a0cdba8fa7bdd1b1f840554ff321544aa6c9c3d9d044c20d19b44426b0e",
+      "bytes": 1489,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/observations.json",
+      "sha256": "002595b91b44f170acf486ec1322e60c3a1cfbe76335afd1989108df526d46b3",
+      "bytes": 217294,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/original-inputs/tmp--receiver-oo-operand-stages-request499--source-inspection--8.6.18--tclOOBasic.c",
+      "sha256": "1a8f47994517980c374d71d6914412ec3348cacf5e272b6d87c2d973626cdc98",
+      "bytes": 36801,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/original-inputs/tmp--receiver-oo-operand-stages-request499--source-inspection--8.6.18--tclOOMethod.c",
+      "sha256": "c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728",
+      "bytes": 50906,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/original-inputs/tmp--receiver-oo-operand-stages-request499--source-inspection--9.0.4--tclOOBasic.c",
+      "sha256": "5782e57ef2753b052d904088cf26f43ceb96ab27afb7dbe99438e24a69e68e68",
+      "bytes": 61261,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/original-inputs/tmp--receiver-oo-operand-stages-request499--source-inspection--9.0.4--tclOOMethod.c",
+      "sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+      "bytes": 58997,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/original-inputs/tmp--receiver-oo-operand-stages-request499--source-inspection--9.1.0--tclOOBasic.c",
+      "sha256": "d8b40b5adf0e96bbcac34fa6a7035dbc4ac431218c28924766c4c13532aff158",
+      "bytes": 60877,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/original-inputs/tmp--receiver-oo-operand-stages-request499--source-inspection--9.1.0--tclOOMethod.c",
+      "sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+      "bytes": 60880,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--generic--tclOOBasic.c",
+      "sha256": "1a8f47994517980c374d71d6914412ec3348cacf5e272b6d87c2d973626cdc98",
+      "bytes": 36801,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.6.18--generic--tclOOMethod.c",
+      "sha256": "c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728",
+      "bytes": 50906,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--generic--tclOOBasic.c",
+      "sha256": "5782e57ef2753b052d904088cf26f43ceb96ab27afb7dbe99438e24a69e68e68",
+      "bytes": 61261,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.0.4--generic--tclOOMethod.c",
+      "sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+      "bytes": 58997,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--generic--tclOOBasic.c",
+      "sha256": "d8b40b5adf0e96bbcac34fa6a7035dbc4ac431218c28924766c4c13532aff158",
+      "bytes": 60877,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/original-inputs/workspace--tcl-lsp--tmp--tcl9.1.0--generic--tclOOMethod.c",
+      "sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+      "bytes": 60880,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/recorded-path-map.json",
+      "sha256": "a060b870e0f96bcfe6242515d0df14b8f8a5ea801316aa0f53c0ad1c75e39a97",
+      "bytes": 324918,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/request/availability.tcl",
+      "sha256": "8c94240d3e4b9650b5e2071cc68eb05d5f444357d6bc3f33b5a8523ba884d8da",
+      "bytes": 119,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/request/c-version.tcl",
+      "sha256": "94435c94329c585b6c1aeab67588b472dfce542e43c68cfc63a214ccdc6e72ea",
+      "bytes": 48,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/request/capture.py",
+      "sha256": "dbee0c294e338b0db4ff9dee59ee1b4ae74fbec8c4a823897cce0a4d92a54866",
+      "bytes": 7956,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/request/invoke-forward.tcl",
+      "sha256": "a8245c4452e661c97c4917d423f3895adb72af9c51a2e9a26c2810b98377ec6a",
+      "bytes": 4,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/request/jim-version-probe.tcl",
+      "sha256": "46f8390c69828657c3232ee571f00988b5dad2f520f441d40028de69cfa38770",
+      "bytes": 38,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/request/jim-version.tcl",
+      "sha256": "67c43f03e646543de96a1a97809fc0ab06a21cf2db5be74389b56938db38ec21",
+      "bytes": 45,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/request/launch-plan.json",
+      "sha256": "c29f7930af979f8215c5512234a8c7766740c7e8f359908e456f5eb36dd33c47",
+      "bytes": 81526,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/request/manifest.json",
+      "sha256": "7a7e731b7af7a42eea68a13d1fd408baf4df948995146a4f0022f4dfe5ad70f9",
+      "bytes": 6135,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/request/probe.c",
+      "sha256": "7560e1ae3b09446e2a45cf2503ef980e1462a58616c53415a772c881cdebb899",
+      "bytes": 10672,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/request/request.json",
+      "sha256": "07b205f6258c957ad11d43447fc068722e9e9a5c0eb4ea3a2212b6051126022a",
+      "bytes": 13427,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-operand-string-and-prefix-stages"
+      ],
+      "reason": "Complete unchanged original prepared request/probe/scripts, initialized provider compile/header/link/version/object-stage capture or bounded derived path/stage review. Preparation metadata, source interpretation, raw original members and output interleaving supply no new process, internal worker stop, application Native issuer or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/request/setup.tcl",
+      "sha256": "9c53fd81fa3ae9e0b6e2a8436139b1f6e8a8b87f694faebabd5d1d96ce0f12bb",
+      "bytes": 33,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/request/version-probe.tcl",
+      "sha256": "48ea443887443eb394745e58dc0921e1488421a1f781fb468f80cbc4da147cdd",
+      "bytes": 41,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/source-windows/8.4.20/Tcl_CreateInterp-290-646.txt",
+      "sha256": "70b0b0c043d7f8e3ee8b3200f6787a64867b448ce49c1c1035b8ab319f9c165e",
+      "bytes": 11541,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/source-windows/8.5.19/Tcl_CreateInterp-381-854.txt",
+      "sha256": "299792ddd0ff4cea339321ed549457d57ee17be3eb7e9539b03de38321aa9736",
+      "bytes": 14628,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/source-windows/8.6.18/InfoLevelCmd-1592-1642.txt",
+      "sha256": "0c59b955dbb91697b6ed4fa7be5ac19e27c3eb8d6aca8145f939d8b951786031",
+      "bytes": 1304,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/source-windows/8.6.18/InitDefineContext-667-695.txt",
+      "sha256": "93b3cfdb6d0f8bc1333eb9ede139323a2b13d6b7667dc800a9629796de7a5e1b",
+      "bytes": 804,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/source-windows/8.6.18/TclOODefineForwardObjCmd-1488-1535.txt",
+      "sha256": "eb9fe79889af7461bdf27bafd244b96c976b2c88a8eb50168c0b8bc41bba2a25",
+      "bytes": 1206,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/source-windows/8.6.18/TclOODefineMethodObjCmd-1548-1592.txt",
+      "sha256": "149f61556901b38088f841f849e86b9e55a4b7d2730a1fa0ccd39871531f1ca4",
+      "bytes": 1130,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/source-windows/8.6.18/TclOONewProcMethod-366-414.txt",
+      "sha256": "b2cc6240a276a38d7f2b26299f52d0ef7bf68e2b9ee78d50ea766b64f5522a3d",
+      "bytes": 1621,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/source-windows/9.0.4/InfoLevelCmd-1581-1631.txt",
+      "sha256": "50d2ad7aba7e500191ef64cddde1ea603e02f9bd50f092e72f6bfd8d4f643b5f",
+      "bytes": 1303,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/source-windows/9.0.4/InitDefineContext-970-997.txt",
+      "sha256": "dd5411cbc59741ff417b6e4bd0754b932ab1c7e938f30ec821b9079c9a08011d",
+      "bytes": 758,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/source-windows/9.0.4/TclOODefineForwardObjCmd-2166-2216.txt",
+      "sha256": "8d1c2c2020ec2b21225d956d37b5d0add7163827da5333ab3d8489b3dc37eb64",
+      "bytes": 1251,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/source-windows/9.0.4/TclOODefineMethodObjCmd-2277-2361.txt",
+      "sha256": "ca528ef582289d9f8483cc4767b04c7b0b97395acfa1a112abf3a591d5c9853f",
+      "bytes": 1918,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/source-windows/9.0.4/TclOONewProcMethod-467-515.txt",
+      "sha256": "4611c6df77db7808e76590b3df199561ed42ec0e6210adff836d24bb4a7f6e31",
+      "bytes": 1664,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/source-windows/9.1.0/InfoLevelCmd-1565-1615.txt",
+      "sha256": "9078e429102228044eafe37b415219fec4f16896e3b72642d68ad9acf168aaef",
+      "bytes": 1306,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/source-windows/9.1.0/InitDefineContext-953-980.txt",
+      "sha256": "09204a30a251aa0074fdb0cd89b75a54a5991c92bbe018d6b2fa0a8752b5837e",
+      "bytes": 762,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/source-windows/9.1.0/TclOODefineForwardObjCmd-2129-2176.txt",
+      "sha256": "672479cf9d0c9a7c2cef37da10797fad07c32c165a7a0d3910b1899a08047f23",
+      "bytes": 1126,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/source-windows/9.1.0/TclOODefineMethodObjCmd-2237-2318.txt",
+      "sha256": "a10f879e9ab4d7269c1f889ab63cb99cf586d0d07f8f5423c4b69c4d36c0e57b",
+      "bytes": 1784,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/source-windows/9.1.0/TclOONewProcMethod-473-521.txt",
+      "sha256": "5b5c1ac90af4552c91210450d2ddf617fb24bf0981d9418651e415a653464d4f",
+      "bytes": 1665,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/source-windows/jim/Jim_RegisterCoreCommands-16919-16928.txt",
+      "sha256": "7b59c282ab289fc7199b728a6bd63a1b4010d1a3a5c9868cf79d00e683443a5b",
+      "bytes": 337,
+      "candidate": false
+    },
+    {
       "path": "rust/tcl-registry/tests/data/native_oo_original_collision249/8.4.20/compile.receipt.json",
       "sha256": "2111620426974f0d44e5dacfb7d8816b27128fe0c010cc0fd3612d6c10161ff5",
       "bytes": 2118,

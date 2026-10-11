@@ -50,15 +50,18 @@ impl Interp {
         event: tcl_registry::f5::naming::BigIpNameEvent,
         body: impl FnOnce(&mut Self) -> R,
     ) -> Result<R, ValueError> {
+        self.invalidate_native_operation_context();
         let previous_names = self.observed_names.borrow_mut().take();
         let previous_storage = self.observed_frame_storage.borrow_mut().take();
         if !self.set_observed_bigip_name_policy(build, context, event) {
+            self.invalidate_native_operation_context();
             *self.observed_names.borrow_mut() = previous_names;
             *self.observed_frame_storage.borrow_mut() = previous_storage;
             self.invalidate_execution_name_policy();
             return Err(Self::observed_unavailable());
         }
         let result = body(self);
+        self.invalidate_native_operation_context();
         *self.observed_names.borrow_mut() = previous_names;
         *self.observed_frame_storage.borrow_mut() = previous_storage;
         self.invalidate_execution_name_policy();
@@ -72,6 +75,7 @@ impl Interp {
         event: tcl_registry::f5::naming::BigIpNameEvent,
     ) -> bool {
         let policy = tcl_registry::f5::naming::observed_name_policy(build, context, event);
+        self.invalidate_native_operation_context();
         *self.observed_names.borrow_mut() = policy.map(|policy| ObservedNameSelection {
             policy,
             build,
@@ -111,10 +115,16 @@ impl Interp {
         {
             return false;
         }
+        let changed = self.logical_name_provider.get() != Some(provider);
+        if changed {
+            self.invalidate_native_operation_context();
+        }
         self.logical_name_provider.set(Some(provider));
         self.namespaces.borrow_mut().variable_name_protocol =
             self.name_policy_protocol().map(|policy| policy.recipe());
-        self.invalidate_execution_name_policy();
+        if changed {
+            self.invalidate_execution_name_policy();
+        }
         true
     }
 
@@ -144,9 +154,11 @@ impl Interp {
             interpreter: self.native_command_interpreter,
         };
         drop(frames);
+        self.invalidate_native_operation_context();
         let previous = self.observed_frame_storage.borrow_mut().replace(storage);
         self.invalidate_execution_name_policy();
         let result = body(self);
+        self.invalidate_native_operation_context();
         *self.observed_frame_storage.borrow_mut() = previous;
         self.invalidate_execution_name_policy();
         Ok(result)

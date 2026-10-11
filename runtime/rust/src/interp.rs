@@ -73,11 +73,11 @@ mod native_procedure_resources;
 pub use native_procedure_resources::NativeProcedureCommand;
 pub(crate) use native_procedure_resources::{NativeCallableProcedure, NativeProcedureDefinition};
 mod execution_name_policy;
+pub(crate) mod native_arguments;
 mod native_command_rename;
 mod native_event_context;
 mod native_object_vector;
 pub(crate) mod native_operation_currency;
-pub(crate) mod native_arguments;
 pub(crate) mod native_scalar_context;
 mod native_script;
 mod native_substitution;
@@ -93,7 +93,6 @@ use std::rc::{Rc, Weak};
 
 use native_error_headers::{NativeErrorStack, NativeReturnOptions};
 use tcl_core_types::{OoId, RecursionLimit};
-use tcl_runtime_api::RegisteredBacking;
 use tcl_runtime_api::codegen_abi::NATIVE_PROC_STATUS_DECLINED;
 use tcl_runtime_api::error_stack::validate_error_stack;
 use tcl_runtime_api::guard::{
@@ -101,13 +100,14 @@ use tcl_runtime_api::guard::{
     OwnedGuardManager,
 };
 use tcl_runtime_api::jim_error_stack::{
-    JimErrorStack, JimErrorTrace, JimEvaluationFrame, JimScriptLocation, NativeErrorStackProtocol,
-    capture_jim_error_frames,
+    capture_jim_error_frames, JimErrorStack, JimErrorTrace, JimEvaluationFrame, JimScriptLocation,
+    NativeErrorStackProtocol,
 };
+use tcl_runtime_api::RegisteredBacking;
 
 use crate::builtins;
 use crate::frame::{FrameStack, Link, VarError};
-use crate::namespace::{CommandBinding, GLOBAL, Namespaces, NsId, RenameOutcome};
+use crate::namespace::{CommandBinding, Namespaces, NsId, RenameOutcome, GLOBAL};
 use crate::obj::{self, TclObj};
 use crate::parse::{self, WordBody, WordPart};
 
@@ -1417,6 +1417,9 @@ pub struct InterpState {
     jim_invocation_borrows: RefCell<Vec<JimBorrowedInvocation>>,
     jim_procedure_level: Cell<u32>,
     native_dispatch_depth: Cell<u32>,
+    /// Actual execution-context currency, independent of speculative command policy.
+    /// Exhaustion permanently refuses new receipts; ordinary Guest mutations do not move it.
+    native_operation_context_epoch: Cell<Option<u64>>,
     /// Original entered ABI operations, inherited by synchronous nested work.
     entered_native_operations: RefCell<Vec<Rc<native_operation_currency::NativeOperationCurrency>>>,
     deferred_tailcalls: RefCell<Vec<(u32, crate::frame::PendingTailcall)>>,
@@ -1901,6 +1904,7 @@ impl Interp {
             jim_invocation_borrows: RefCell::new(Vec::new()),
             jim_procedure_level: Cell::new(0),
             native_dispatch_depth: Cell::new(0),
+            native_operation_context_epoch: Cell::new(Some(0)),
             entered_native_operations: RefCell::new(Vec::new()),
             deferred_tailcalls: RefCell::new(Vec::new()),
             during: Cell::new(None),
@@ -2032,6 +2036,7 @@ impl Interp {
     /// no-subprocess host to prove the capability gate, or a safe interp taking
     /// a restricted one). Interior-mutable since the interp is shared via `Rc`.
     pub fn set_host(&self, host: Rc<dyn tcl_platform::Host>) {
+        self.invalidate_native_operation_context();
         self.invalidate_interpreter_policy();
         let system_encoding = host.system_encoding();
         *self.0.host.borrow_mut() = host;
@@ -2098,6 +2103,7 @@ impl Interp {
             })
         {
             self.invalidate_interpreter_policy();
+            self.invalidate_native_operation_context();
             self.logical_eval_object_provider
                 .set(Some((provider, actual_host)));
         }
@@ -2164,6 +2170,7 @@ impl Interp {
         let capability = Some((provider, actual_host.cache_key()));
         if self.logical_source_word_provider.get() != capability {
             self.invalidate_interpreter_policy();
+            self.invalidate_native_operation_context();
             self.logical_source_word_provider.set(capability);
         }
         true
@@ -2207,6 +2214,7 @@ impl Interp {
         let capability = Some((provider, actual_host.cache_key()));
         if self.logical_expression_parse_provider.get() != capability {
             self.invalidate_interpreter_policy();
+            self.invalidate_native_operation_context();
             self.logical_expression_parse_provider.set(capability);
         }
         true
@@ -2308,6 +2316,9 @@ impl Interp {
     fn install_pin(&mut self, pin: tcl_registry::model::PinnedContext) {
         let context_changed = self.0.pin.borrow().context != pin.context;
         let profile = pin.profile;
+        if context_changed || !std::ptr::eq(self.dialect_profile(), profile) {
+            self.invalidate_native_operation_context();
+        }
         *self.0.pin.borrow_mut() = pin;
         let version = profile.vm_runtime_version;
         // Ahead of the unchanged-profile short-circuit: the numeric grammar is
@@ -11761,7 +11772,7 @@ impl Interp {
     /// by owner+prefix handles recursion: only the outermost installs). Returns
     /// how many were pushed (the last `n` of `step_active`, popped on exit).
     fn install_step_traces(&mut self, fqn: &[u8], token: Option<u64>) -> usize {
-        use crate::cmd_trace::{StepActive, ops};
+        use crate::cmd_trace::{ops, StepActive};
         let to_install: Vec<(u8, Vec<u8>)> = {
             let t = self.traces.borrow();
             t.cmd_traces
@@ -11953,7 +11964,7 @@ impl Interp {
         origin: tcl_registry::command_lookup::CommandLookupOrigin,
     ) -> Result<Box<PreparedMissingCommand>, Code> {
         use tcl_registry::command_lookup::{
-            UnknownHandlerNamespace, native_lookup_fallback_policy,
+            native_lookup_fallback_policy, UnknownHandlerNamespace,
         };
         use tcl_syntax::value::ValueOps;
         let Some(policy) = native_lookup_fallback_policy(self.native_invocation_dialect(), origin)
@@ -12754,6 +12765,16 @@ impl Interp {
         if let Err(error) = initialisation {
             self.report_cmd_error(error.into());
             return name;
+        }
+        // Inherited logical ingress can differ from the fresh child constructor.
+        // Invalidate that child's actual context before changing any provider.
+        if child.logical_expression_parse_provider.get()
+            != self.logical_expression_parse_provider.get()
+            || child.logical_source_word_provider.get() != self.logical_source_word_provider.get()
+            || child.logical_eval_object_provider.get() != self.logical_eval_object_provider.get()
+        {
+            child.invalidate_native_operation_context();
+            child.invalidate_interpreter_policy();
         }
         child
             .logical_expression_parse_provider
@@ -17168,10 +17189,9 @@ mod tests {
             ok(i, b"interp alias {} baz {} bar");
             ok(i, b"rename baz {}");
             assert!(i.check_command_guard(token, b"guarded"));
-            assert!(
-                i.prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
-                    .is_ok()
-            );
+            assert!(i
+                .prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
+                .is_ok());
 
             // A change to the lookup environment itself stales the token over
             // it, and the attestation stays.
@@ -17185,10 +17205,9 @@ mod tests {
             // depend on interpreter policy.
             i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
             assert!(i.check_command_guard(token, b"guarded"));
-            assert!(
-                i.prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
-                    .is_ok()
-            );
+            assert!(i
+                .prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
+                .is_ok());
 
             // Renaming the command away drops the guard at its name, and the
             // attestation goes with the command; restoring the name restores it.
@@ -17198,10 +17217,9 @@ mod tests {
                 i.prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains),
                 Err(GuardError::IdentityUnavailable)
             );
-            assert!(
-                i.prepare_command_guard(b"moved", GUARDED_IDENTITY, domains)
-                    .is_ok()
-            );
+            assert!(i
+                .prepare_command_guard(b"moved", GUARDED_IDENTITY, domains)
+                .is_ok());
             ok(i, b"rename moved guarded");
             assert!(i.check_command_guard(token, b"guarded"));
 
@@ -17426,17 +17444,17 @@ mod tests {
         leak_free(|interp| {
             interp.register_builtin(b"opaque_\xff", guarded_builtin);
             interp.register_builtin("café".as_bytes(), guarded_builtin);
-            assert!(
-                interp
-                    .command_names()
-                    .iter()
-                    .any(|name| name == b"opaque_\xff")
-            );
+            assert!(interp
+                .command_names()
+                .iter()
+                .any(|name| name == b"opaque_\xff"));
             let head = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"opaque_\xff"));
             assert_eq!(interp.dispatch_invoke(&[head.as_ptr()]), Code::Ok);
             assert!(interp.native_execution_refusal().is_none());
             let report = interp.backing_report();
-            assert!(report.iter().any(|(name, backing)| name == "café" && *backing == RegisteredBacking::Builtin));
+            assert!(report
+                .iter()
+                .any(|(name, backing)| name == "café" && *backing == RegisteredBacking::Builtin));
             assert!(!report.iter().any(|(name, _)| name == "opaque_�"));
             assert!(!report.iter().any(|(name, _)| name.starts_with("opaque_")));
         });
@@ -17891,12 +17909,10 @@ mod tests {
                 assert!(!check_retained_fixture_guard(interp, policy, generation));
                 assert!(check_retained_fixture_guard(interp, command, generation));
                 assert!(interp.native_compiler_cache_epochs(GLOBAL).is_none());
-                assert!(
-                    interp
-                        .native_invocation_dialect()
-                        .execution_point()
-                        .is_none()
-                );
+                assert!(interp
+                    .native_invocation_dialect()
+                    .execution_point()
+                    .is_none());
                 assert!(interp.release_command_guard(policy));
                 assert!(interp.release_command_guard(command));
             });
@@ -18057,10 +18073,9 @@ mod tests {
             );
 
             i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
-            assert!(
-                i.prepare_command_guard(b"lassign", GUARDED_IDENTITY, domains)
-                    .is_ok()
-            );
+            assert!(i
+                .prepare_command_guard(b"lassign", GUARDED_IDENTITY, domains)
+                .is_ok());
         });
     }
 
@@ -18783,7 +18798,7 @@ mod tests {
 
     #[test]
     fn original_variable_word_vectors_match_the_selected_native_interpreter() {
-        use tcl_syntax::execution_conformance::{ExecutionDomain, vectors};
+        use tcl_syntax::execution_conformance::{vectors, ExecutionDomain};
         let cases: Vec<_> = vectors(ExecutionDomain::CommandBinding)
             .into_iter()
             .filter(|case| case.id.starts_with("variable_word_"))
@@ -19243,7 +19258,7 @@ mod tests {
     /// here rather than inherited from another test.
     #[test]
     fn completion_code_integers_follow_the_release_selected_number_grammar() {
-        use tcl_syntax::number::{NumberSyntax, set_runtime_syntax};
+        use tcl_syntax::number::{set_runtime_syntax, NumberSyntax};
 
         // Release-independent: decimal, hex, the full signed *and* unsigned
         // 32-bit window, and its reduction to an `int`.

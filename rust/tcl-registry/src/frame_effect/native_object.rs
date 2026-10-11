@@ -4,8 +4,8 @@
 use super::{NativeFrameLevelCache, NativeFrameLevelProtocol};
 use tcl_dialect::TclVersion;
 use tcl_syntax::scalar_getter::{
-    NativeScalarGetterError, NativeScalarGetterFailure, NativeScalarGetterKind,
-    NativeScalarGetterProtocol, NativeScalarGetterValue,
+    NativeScalarGetterConversion, NativeScalarGetterError, NativeScalarGetterFailure,
+    NativeScalarGetterKind, NativeScalarGetterProtocol, NativeScalarGetterValue,
 };
 
 /// Original object operations required by the selected native frame recipe.
@@ -27,10 +27,27 @@ pub trait NativeFrameLevelObject {
         &mut self,
         kind: NativeScalarGetterKind,
     ) -> Result<Result<i64, NativeScalarGetterFailure>, Self::Error>;
+    /// Run the selected temporary Int stage under this actual operation's
+    /// numeric environment. Its conversion cache belongs to the temporary
+    /// getter, never to the original level header.
+    ///
+    /// # Errors
+    /// Refuses missing numeric input or stale original operation currency.
+    fn native_frame_temporary_int(
+        &mut self,
+        protocol: NativeScalarGetterProtocol,
+        bytes: &[u8],
+    ) -> Result<NativeScalarGetterConversion, Self::Error>;
     /// Inspect the original integer cache, including exact big magnitudes.
-    fn native_frame_is_integer(&self) -> bool;
+    ///
+    /// # Errors
+    /// Refuses retired storage or a stale original operation.
+    fn native_frame_is_integer(&self) -> Result<bool, Self::Error>;
     /// Inspect only native machine-int/wide caches, excluding bignums.
-    fn native_frame_is_machine_integer(&self) -> bool;
+    ///
+    /// # Errors
+    /// Refuses retired storage or a stale original operation.
+    fn native_frame_is_machine_integer(&self) -> Result<bool, Self::Error>;
     /// Inspect the original release-authenticated frame cache.
     ///
     /// # Errors
@@ -191,7 +208,7 @@ impl NativeFrameLevelProtocol {
             return self.absolute_suffix(current, original, prefix, version);
         }
         let is_level = if version >= TclVersion::V9_0 {
-            original.native_frame_is_integer()
+            original.native_frame_is_integer()?
         } else {
             prefix.first().is_some_and(u8::is_ascii_digit)
         };
@@ -220,7 +237,7 @@ impl NativeFrameLevelProtocol {
                 };
                 return Ok(self.finish(current, Some(selector), true, prefix));
             }
-            if original.native_frame_is_machine_integer() {
+            if original.native_frame_is_machine_integer()? {
                 let level = original
                     .native_frame_probe(NativeScalarGetterKind::Int)?
                     .ok();
@@ -231,7 +248,7 @@ impl NativeFrameLevelProtocol {
             return self.absolute_suffix(current, original, prefix, version);
         }
         if prefix.first().is_some_and(u8::is_ascii_digit) {
-            match temporary_int(version, prefix) {
+            match temporary_int(version, original, prefix)? {
                 Ok(level) => {
                     if version == TclVersion::V8_5 {
                         original.native_frame_set_cache(NativeFrameLevelCache::Relative(level))?;
@@ -251,7 +268,7 @@ impl NativeFrameLevelProtocol {
         name: &[u8],
         version: TclVersion,
     ) -> Result<Result<NativeFrameLevelResolution, NativeFrameLevelFailure>, O::Error> {
-        match temporary_int(version, &name[1..]) {
+        match temporary_int(version, original, &name[1..])? {
             Ok(level)
                 if level >= 0
                     && !(version >= TclVersion::V9_0
@@ -317,13 +334,15 @@ fn target(current: usize, selector: Option<(bool, i64)>) -> Option<usize> {
         .flatten()
 }
 
-fn temporary_int(version: TclVersion, bytes: &[u8]) -> Result<i32, Box<NativeScalarGetterError>> {
+fn temporary_int<O: NativeFrameLevelObject>(
+    version: TclVersion,
+    original: &mut O,
+    bytes: &[u8],
+) -> Result<Result<i32, Box<NativeScalarGetterError>>, O::Error> {
     let protocol = NativeScalarGetterProtocol::for_tcl_version(version);
-    let conversion = protocol
-        .fresh_conversion(NativeScalarGetterKind::Int, bytes)
-        .expect("selected C temporary Int stage");
+    let conversion = original.native_frame_temporary_int(protocol, bytes)?;
     let (_, _, outcome) = conversion.into_parts();
-    match outcome {
+    Ok(match outcome {
         Ok(NativeScalarGetterValue::Wide(level)) => {
             Ok(i32::try_from(level).expect("native Int result is signed32"))
         }
@@ -333,8 +352,9 @@ fn temporary_int(version: TclVersion, bytes: &[u8]) -> Result<i32, Box<NativeSca
                 .expect("selected C Int failure"),
         )),
         _ => unreachable!("native Int getter result"),
-    }
+    })
 }
+
 fn c_prefix(bytes: &[u8]) -> &[u8] {
     bytes.split(|byte| *byte == 0).next().unwrap_or_default()
 }

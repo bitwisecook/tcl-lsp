@@ -3590,10 +3590,12 @@ pub(crate) fn cmd_upvar(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 struct OriginalFrameLevel<'a> {
     value: &'a Value,
     dialect: tcl_registry::InvocationDialect,
+    host: std::rc::Rc<dyn tcl_platform::Host>,
 }
 
 impl<'a> OriginalFrameLevel<'a> {
     fn selected(vm: &Vm, value: &'a Value) -> Result<Self, tcl_syntax::value::ValueError> {
+        value.check_native_header()?;
         let dialect = vm.native_scalar_carrier_dialect();
         if dialect.native_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
@@ -3602,7 +3604,30 @@ impl<'a> OriginalFrameLevel<'a> {
                 &crate::interp::InterpState::native_jim_object_context(vm)?,
             )?;
         }
-        Ok(Self { value, dialect })
+        value.check_native_header()?;
+        Ok(Self {
+            value,
+            dialect,
+            host: vm.host_rc(),
+        })
+    }
+
+    // The existing VM value adapter retains the selected Host and original
+    // header. Runtime's entered-interpreter currency is a separate owner.
+    fn after<T>(
+        &self,
+        result: Result<T, tcl_syntax::value::ValueError>,
+    ) -> Result<T, tcl_syntax::value::ValueError> {
+        self.value.check_native_header()?;
+        result
+    }
+
+    fn environment(
+        &self,
+    ) -> Result<&dyn tcl_platform::NumericEnvironment, tcl_syntax::value::ValueError> {
+        self.value.check_native_header()?;
+        let actual = self.host.numeric_environment();
+        self.after(actual.ok_or(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable))
     }
 }
 
@@ -3610,15 +3635,19 @@ impl tcl_registry::frame_effect::NativeFrameLevelObject for OriginalFrameLevel<'
     type Error = tcl_syntax::value::ValueError;
 
     fn native_frame_string(&mut self) -> Result<Vec<u8>, Self::Error> {
+        self.value.check_native_header()?;
         let protocol = self.dialect.native_string_protocol().ok_or(
             tcl_syntax::value::ValueError::CommandProtocolUnavailable("native frame string"),
         )?;
-        self.value
-            .native_string_bytes(protocol)
+        let formatter = self.host.native_integer_formatter();
+        self.value.check_native_header()?;
+        let result = self
+            .value
+            .native_string_bytes_with_integer_formatter(protocol, formatter)
             .map(|bytes| bytes.to_vec())
-            .map_err(|_| {
-                tcl_syntax::value::ValueError::CommandProtocolUnavailable("native frame string")
-            })
+            .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
+            .map_err(Self::Error::from);
+        self.after(result)
     }
 
     fn native_frame_probe(
@@ -3627,46 +3656,86 @@ impl tcl_registry::frame_effect::NativeFrameLevelObject for OriginalFrameLevel<'
     ) -> Result<Result<i64, tcl_syntax::scalar_getter::NativeScalarGetterFailure>, Self::Error>
     {
         use tcl_syntax::scalar_getter::NativeScalarGetterValue;
-        self.value
-            .native_scalar_probe(self.dialect, kind)
-            .map(|outcome| {
-                outcome.map(|value| match value {
-                    NativeScalarGetterValue::Wide(integer) => integer,
-                    _ => unreachable!("integer frame getter"),
-                })
+        let environment = self.environment()?;
+        let result =
+            self.value
+                .native_scalar_probe_with_environment(self.dialect, kind, Some(environment));
+        self.after(result).map(|outcome| {
+            outcome.map(|value| match value {
+                NativeScalarGetterValue::Wide(integer) => integer,
+                _ => unreachable!("integer frame getter"),
             })
+        })
     }
 
-    fn native_frame_is_integer(&self) -> bool {
-        matches!(
+    fn native_frame_temporary_int(
+        &mut self,
+        protocol: tcl_syntax::scalar_getter::NativeScalarGetterProtocol,
+        bytes: &[u8],
+    ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterConversion, Self::Error> {
+        use tcl_syntax::scalar_getter::{NativeScalarGetterKind, NativeScalarGetterStage};
+        self.value.check_native_header()?;
+        if self.dialect.native_scalar_getter_protocol() != Some(protocol) {
+            return Err(Self::Error::ScalarNumericInputUnavailable);
+        }
+        let environment = self.environment()?;
+        self.after(tcl_cmd_core::native_numeric::scalar_getter_recipe_abi(
+            protocol,
+            NativeScalarGetterKind::Int,
+            NativeScalarGetterStage::Fresh,
+            environment,
+        ))?;
+        let result = if protocol.tcl_version() == Some(tcl_dialect::TclVersion::V8_4) {
+            tcl_cmd_core::native_numeric::fresh_c84_conversion(
+                protocol,
+                NativeScalarGetterKind::Int,
+                bytes,
+                environment,
+            )
+        } else {
+            protocol
+                .fresh_conversion(NativeScalarGetterKind::Int, bytes)
+                .ok_or(Self::Error::ScalarNumericInputUnavailable)
+        };
+        self.after(result)
+    }
+
+    fn native_frame_is_integer(&self) -> Result<bool, Self::Error> {
+        self.value.check_native_header()?;
+        self.after(Ok(matches!(
             self.value.native_scalar_cache(),
             Some(tcl_syntax::scalar_getter::NativeScalarCache::Number(
                 tcl_syntax::number::Number::Int(_) | tcl_syntax::number::Number::Big { .. }
             ))
-        )
+        )))
     }
 
-    fn native_frame_is_machine_integer(&self) -> bool {
-        matches!(
+    fn native_frame_is_machine_integer(&self) -> Result<bool, Self::Error> {
+        self.value.check_native_header()?;
+        self.after(Ok(matches!(
             self.value.native_scalar_cache(),
             Some(tcl_syntax::scalar_getter::NativeScalarCache::Number(
                 tcl_syntax::number::Number::Int(_)
             ))
-        )
+        )))
     }
 
     fn native_frame_cache(
         &self,
     ) -> Result<Option<tcl_registry::NativeFrameLevelCache>, Self::Error> {
-        self.value.native_frame_level_cache_in(self.dialect)
+        self.value.check_native_header()?;
+        self.after(self.value.native_frame_level_cache_in(self.dialect))
     }
 
     fn native_frame_set_cache(
         &mut self,
         cache: tcl_registry::NativeFrameLevelCache,
     ) -> Result<(), Self::Error> {
-        self.value
-            .install_native_frame_level_cache(cache, self.dialect)
+        self.value.check_native_header()?;
+        self.after(
+            self.value
+                .install_native_frame_level_cache(cache, self.dialect),
+        )
     }
 }
 
@@ -4610,6 +4679,77 @@ mod tests {
         assert_eq!(count, 101);
     }
 
+    struct NoFrameNumeric(std::rc::Rc<dyn tcl_platform::Host>);
+    impl tcl_platform::Host for NoFrameNumeric {
+        fn capabilities(&self) -> tcl_platform::Capabilities {
+            self.0.capabilities()
+        }
+        fn clock(&self) -> &dyn tcl_platform::Clock {
+            self.0.clock()
+        }
+        fn stdio(&self) -> &dyn tcl_platform::StdIo {
+            self.0.stdio()
+        }
+        fn env(&self) -> &dyn tcl_platform::Env {
+            self.0.env()
+        }
+        fn native_integer_formatter(&self) -> Option<&dyn tcl_platform::NativeIntegerFormatter> {
+            self.0.native_integer_formatter()
+        }
+    }
+
+    #[test]
+    fn original_frame_value_adapter_requires_selected_environment_and_live_header() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // VM Value/Host operation control; Runtime interpreter currency remains independent.
+        use tcl_registry::frame_effect::NativeFrameLevelObject;
+        for environment in ["tcl8.4", "tcl8.5"] {
+            let host = std::rc::Rc::new(NoFrameNumeric(std::rc::Rc::new(
+                crate::host_native::NativeHost::new(),
+            )));
+            let vm = crate::Vm::with_native_core(
+                Box::new(Vec::<u8>::new()),
+                host,
+                tcl_registry::model::resolve_environment(environment).unit_profile(),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let original = crate::Value::new_native_string_bytes(b"#0".as_slice());
+            let dialect = vm.native_scalar_carrier_dialect();
+            let protocol = dialect.native_frame_level_protocol().unwrap();
+            let lease = original.native_lifetime_lease();
+            let mut operand = super::OriginalFrameLevel::selected(&vm, lease.value()).unwrap();
+            if environment == "tcl8.4" {
+                assert!(matches!(
+                    protocol.resolve_object(0, &mut operand),
+                    Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable)
+                ));
+                assert!(original.native_frame_level_cache().is_none());
+            } else {
+                original
+                    .install_native_frame_level_cache(
+                        tcl_registry::NativeFrameLevelCache::Absolute(0),
+                        dialect,
+                    )
+                    .unwrap();
+                assert_eq!(
+                    protocol
+                        .resolve_object(0, &mut operand)
+                        .unwrap()
+                        .unwrap()
+                        .target,
+                    0
+                );
+                drop(original);
+                assert!(!lease.value().native_object_is_live());
+                assert!(operand.native_frame_is_integer().is_err());
+                assert!(operand.native_frame_is_machine_integer().is_err());
+                assert!(operand.native_frame_cache().is_err());
+            }
+        }
+    }
+
     fn native_frame_field<'a>(line: &'a str, name: &str) -> &'a str {
         let marker = format!("\"{name}\":\"");
         line.split_once(&marker)
@@ -4655,15 +4795,27 @@ mod tests {
             ),
         };
         let alias = original.clone();
-        let outcome = protocol
-            .resolve_leading_object(
-                2,
-                &mut OriginalFrameLevel {
-                    value: &original,
-                    dialect,
-                },
-            )
-            .unwrap();
+        let environment = if protocol.is_jim084() {
+            "jimtcl"
+        } else {
+            match protocol.tcl_version().unwrap() {
+                tcl_dialect::TclVersion::V8_4 => "tcl8.4",
+                tcl_dialect::TclVersion::V8_5 => "tcl8.5",
+                tcl_dialect::TclVersion::V8_6 => "tcl8.6",
+                tcl_dialect::TclVersion::V9_0 => "tcl9.0",
+                tcl_dialect::TclVersion::V9_1 => "tcl9.1",
+            }
+        };
+        let vm = crate::Vm::with_native_core(
+            Box::new(Vec::<u8>::new()),
+            std::rc::Rc::new(crate::host_native::NativeHost::new()),
+            tcl_registry::model::resolve_environment(environment).unit_profile(),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        assert_eq!(vm.native_scalar_carrier_dialect(), dialect);
+        let mut operand = OriginalFrameLevel::selected(&vm, &original).unwrap();
+        let outcome = protocol.resolve_leading_object(2, &mut operand).unwrap();
         let expected = decode_native_frame_hex(native_frame_field(line, "result"));
         match outcome {
             Ok(NativeFrameLevelResolution {
