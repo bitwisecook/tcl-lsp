@@ -48,6 +48,9 @@ mod native_concat_tests;
 mod native_integer_refusal_tests;
 #[path = "value_ops/native_list_index.rs"]
 pub(crate) mod native_list_index;
+#[cfg(test)]
+#[path = "value_ops/original_name_birth_tests.rs"]
+mod original_name_birth_tests;
 
 use std::rc::Rc;
 
@@ -1619,7 +1622,7 @@ impl ValueOps for Interp {
     }
 
     fn native_command_full_name_result(&mut self, bytes: &[u8]) -> Result<*mut TclObj, ValueError> {
-        Ok(self.native_namespace_origin_result(bytes)?.into_raw())
+        Ok(self.native_namespace_origin_result(bytes)?.into_native_unowned())
     }
 
     fn try_append_bytes_in_place(&mut self, v: &mut *mut TclObj, bytes: &[u8]) -> bool {

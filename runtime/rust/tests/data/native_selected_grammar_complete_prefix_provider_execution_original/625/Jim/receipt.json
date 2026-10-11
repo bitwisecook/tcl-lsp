@@ -1,0 +1,23 @@
+{
+  "provider": "Jim",
+  "argv": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/root-native-checked-script625/probe.tcl"
+  ],
+  "cwd": "/workspace/.proofs/root-native-checked-script625",
+  "environment": {
+    "PATH": "/usr/bin:/bin",
+    "LC_ALL": "C",
+    "LANG": "C"
+  },
+  "exit": 0,
+  "seconds": 0.01444244384765625,
+  "before_source_and_executable_pins": {
+    "/workspace/.proofs/root-native-checked-script625/probe.tcl": "6ed458994510989a4567820460f508e8a5d966f70bfda2db9fa6f37c4dc04e99",
+    "/workspace/.proofs/native-providers/jimtcl/jimsh": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806"
+  },
+  "all_after_pins_match": true,
+  "stdout_sha256": "3623d567afed1ab206088869754336f67b0b9a07478b77080220a7baaaf9b448",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "limitations": "Measures info complete and actual Direct command-at-time evaluation of these two counted byte source values only. No bytecode identity, Native lifetime/teardown, current Rust assertions, F5 or opaque-source inference."
+}

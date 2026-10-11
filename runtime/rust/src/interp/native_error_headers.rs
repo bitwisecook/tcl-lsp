@@ -1165,7 +1165,7 @@ mod original_prepared_stack_tests {
             }
             3 => {
                 let saved = interpreter
-                    .save_native_variable_trace_result(true)
+                    .save_native_variable_trace_result(false)
                     .unwrap()
                     .unwrap();
                 interpreter.mark_error_stack_reset();
@@ -1222,11 +1222,61 @@ mod original_prepared_stack_tests {
     }
 
     #[test]
+    fn original_prepared_stack_unavailable_releases_do_not_issue_or_retire_private_headers() {
+        // naming.error.original-private-error-stack-header
+        // docs/design/analysis/name-resolution-proofs/error-original-private-error-stack-header.md
+        // These real releases lack the private stack; they cannot borrow the modern positive premise.
+        for name in ["tcl8.4", "tcl8.5"] {
+            crate::counters::reset();
+            {
+                let interpreter = native(name);
+                let arm = Rc::new(Cell::new(true));
+                let events = Rc::new(RefCell::new(Vec::new()));
+                let published = Rc::new(Cell::new(false));
+                let member = original(&interpreter, 0, 0, &arm, &events, &published);
+                let scope = super::super::native_operation_currency::NativeOperationScope::enter(
+                    &interpreter,
+                )
+                .unwrap();
+                let recipe = interpreter
+                    .native_invocation_dialect()
+                    .native_error_objects_protocol()
+                    .unwrap();
+                assert!(!recipe.has_error_stack());
+                interpreter.configure_native_error_stack_checked().unwrap();
+                interpreter.error_stack_log(b"UNAVAILABLE STACK").unwrap();
+                assert!(interpreter.error_stack.borrow().original_header().is_none());
+                assert!(interpreter
+                    .error_stack
+                    .borrow()
+                    .original_inner_context()
+                    .is_none());
+                assert!(interpreter.error_stack.borrow().protocol.is_none());
+                let refused = interpreter.seed_original_error_stack(member.as_ptr());
+                assert!(refused.unwrap_err().native_access_refusal().is_some());
+                assert_eq!(unsafe { (*member.as_ptr()).ref_count }, 1);
+                assert_eq!(
+                    obj::obj_type_ptr(member.as_ptr()),
+                    &ORIGINAL as *const obj::TclObjType
+                );
+                assert!(events.borrow().is_empty());
+                assert!(!published.get());
+                scope.currency().ensure_current_or_refuse().unwrap();
+                clear(&interpreter, &arm);
+                drop(member);
+                drop(scope);
+            }
+            assert_eq!(crate::counters::finalize(), 0);
+            assert_eq!(crate::counters::double_free_count(), 0);
+        }
+    }
+
+    #[test]
     fn original_prepared_stack_members_retire_outside_borrows_and_stop_on_episode_aba() {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // Actual software member frees/tickets; no external Native stack chronology is inferred.
-        for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        for name in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             for operation in 0..2 {
                 for mode in 0..4 {
                     crate::counters::reset();
@@ -1336,7 +1386,7 @@ mod original_prepared_stack_tests {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // Generic configuration software publication and cleanup, not selected Reset/Setter order.
-        for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        for name in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             for mode in 0..4 {
                 crate::counters::reset();
                 {
@@ -1400,7 +1450,7 @@ mod original_prepared_stack_tests {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // Source-only actual List/member roles; no public getter or frame-admission grant.
-        for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        for name in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             crate::counters::reset();
             {
                 let interpreter = native(name);

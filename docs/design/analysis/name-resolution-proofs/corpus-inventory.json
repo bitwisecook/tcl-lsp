@@ -21634,6 +21634,866 @@
       "candidate": false
     },
     {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.4.20/receipt.json",
+      "sha256": "af4357be0f26ac06890af7a6f8b87b67b7b906963a8aaa76070bb0e33beb6555",
+      "bytes": 4193,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.selected-grammar-complete-prefix-and-provider-execution"
+      ],
+      "reason": "Six actual closed public CLI query/evaluation captures and independently read-only twelve-row associations, limited to these two original inputs. The projection issues no new Native process or Rust outcome."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.4.20/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.4.20/stdout",
+      "sha256": "3dab6b4a0b4b1b202669e2cb7b55fa9e607fa5322fe592cf783546add7d59b2e",
+      "bytes": 163,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.5.19/receipt.json",
+      "sha256": "a7ae57200bd3776f8d245fe113b0a7720a97b90f70bac32d1283ac3adf67343d",
+      "bytes": 4314,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.selected-grammar-complete-prefix-and-provider-execution"
+      ],
+      "reason": "Six actual closed public CLI query/evaluation captures and independently read-only twelve-row associations, limited to these two original inputs. The projection issues no new Native process or Rust outcome."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.5.19/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.5.19/stdout",
+      "sha256": "bc3f8144e23fc8d9af647118f5d12e69232b91bf0f940429fbf1f7309ebeaf79",
+      "bytes": 163,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.6.18/receipt.json",
+      "sha256": "c1e7081c1cfe316866bd704454bf6e9bfd58e158f12cd2564ae238ee5e4e2702",
+      "bytes": 4314,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.selected-grammar-complete-prefix-and-provider-execution"
+      ],
+      "reason": "Six actual closed public CLI query/evaluation captures and independently read-only twelve-row associations, limited to these two original inputs. The projection issues no new Native process or Rust outcome."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.6.18/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.6.18/stdout",
+      "sha256": "8e44c1ad43a8f494e090fd4512a8930e4d6ce97578e4ec34cd6428f9b79f53c2",
+      "bytes": 163,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/9.0.4/receipt.json",
+      "sha256": "121cb65136619f6ed456d32770396d45b7d0f0dfdf4cc7efc9474e2fd9a36bac",
+      "bytes": 5072,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.selected-grammar-complete-prefix-and-provider-execution"
+      ],
+      "reason": "Six actual closed public CLI query/evaluation captures and independently read-only twelve-row associations, limited to these two original inputs. The projection issues no new Native process or Rust outcome."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/9.0.4/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/9.0.4/stdout",
+      "sha256": "31cddde13cba6e34e96816c1eacbfe9861823dd2063d0d42e18144229a6282ac",
+      "bytes": 234,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/9.1.0/receipt.json",
+      "sha256": "f7a9d621143f5a4cae9986d576946496540c1ea18663adb48a05a0302e1d9d20",
+      "bytes": 5202,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.selected-grammar-complete-prefix-and-provider-execution"
+      ],
+      "reason": "Six actual closed public CLI query/evaluation captures and independently read-only twelve-row associations, limited to these two original inputs. The projection issues no new Native process or Rust outcome."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/9.1.0/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/9.1.0/stdout",
+      "sha256": "cd19b3f24168a0b1465869fdf0362d0d3e6c42bd04fb6fe7bff65f20457e91c4",
+      "bytes": 234,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/Jim/receipt.json",
+      "sha256": "d3971ed71a1857ea4bfc06d9f6952efcb531b0dd07dea0c00d880143c1c4d44a",
+      "bytes": 1105,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.selected-grammar-complete-prefix-and-provider-execution"
+      ],
+      "reason": "Six actual closed public CLI query/evaluation captures and independently read-only twelve-row associations, limited to these two original inputs. The projection issues no new Native process or Rust outcome."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/Jim/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/Jim/stdout",
+      "sha256": "3623d567afed1ab206088869754336f67b0b9a07478b77080220a7baaaf9b448",
+      "bytes": 178,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/cases.json",
+      "sha256": "c721a0036d1db54e1be3e382a9c3e47b388f0d320b7fd7d3c381bf8ea2fac935",
+      "bytes": 675,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.source.selected-grammar-complete-prefix-and-provider-execution"
+      ],
+      "reason": "Original exact two ASCII source byte values and their whole hashes. This input declares no additional operation or outcome."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/interpretation.json",
+      "sha256": "0202983c086e5fbee493cd4775c28fd0acb11ecbcac00386fc4a02d279610170",
+      "bytes": 8945,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.selected-grammar-complete-prefix-and-provider-execution"
+      ],
+      "reason": "Six actual closed public CLI query/evaluation captures and independently read-only twelve-row associations, limited to these two original inputs. The projection issues no new Native process or Rust outcome."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/0113aee4c0edbd2d6f0235693d24dc896a7ad30f8eb30f255ef24a1d2982d311.tcl.gz",
+      "sha256": "e004312c1416f9de0f0ff0b8d1f6bfa4f2fff5ce4cf1bbba06006f6c75bfcc37",
+      "bytes": 28241,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/0227624ef7ab99d60f0aa76e74419c34267a322db36cf945e66ed705525eedc0.tcl.gz",
+      "sha256": "2da297a6041dbbf70371dd4800e851a67c7ba4aa3036b9881cc26e66e84b0e64",
+      "bytes": 7201,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/02af9afd6f876e6432bd67084b2e8983213ba33cba036bb4d78cca9072b3de96.tcl.gz",
+      "sha256": "ef0ba3d4dbefd8daa4b4eea846f30d4aa3c21310ff4d857f0d0ab031ccf2f030",
+      "bytes": 14225,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/0345d47af9786eb20eab98519140306b924f32cd7c685d34bc40d3b6f1f6f27e.tcl.gz",
+      "sha256": "219c1b08c9daf7eb07693494cf2ff3852b5d19dfb1f37231da1bebaab8d6093a",
+      "bytes": 185,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67.tcl.gz",
+      "sha256": "70f72d2963568ba039f022f0ea742c60327a4a32def8d769e1453fb3f996d862",
+      "bytes": 28139,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/04f4b2f34d959cff47c6502a137d15ac9dc4f54d4a6e78478f64c8c7e14849a8.tcl.gz",
+      "sha256": "2f5866148e8c5c39134cd1694205ac0962fa91776514a41e2eebc3cb9a06f76f",
+      "bytes": 9857,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/0b102f22297356a9873a81224962fde4cbd4b59889c54b1d0632695701eb10fe.tcl.gz",
+      "sha256": "d0edb6f9d148d7a85e752db1c324f42f1d748efcaf2c67259afe20728ed60525",
+      "bytes": 4435,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/0d3e8ddb147d713206139b7c4c915f11d0a53aebeee3a5ca3e7aebf26854e238.tcl.gz",
+      "sha256": "e3ed0e8805ab7f71af8e5f043cdcce75da2517904de813033cd472ca5aea3c8f",
+      "bytes": 14278,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/0e8c796d23795489ca9f710ee963f685a67ce6a0052ebcde4eefe40295221779.tcl.gz",
+      "sha256": "4438f7939744c9fe50e63f3f978d68cb67c40168824640316536fcdf707d4331",
+      "bytes": 432,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/17c82510641fa0048bc1e8b3cc47e2f18cac46e594f0171bdc3100c6c09a5221.tcl.gz",
+      "sha256": "5c4c8dcb8ea9274b0476ec3e1eb943743b68378ebfc69efb012e29e2300c1fb4",
+      "bytes": 137,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/1953e3830f90106aa322cfc66644cc36ae39f8350bf214f07fa4d75afd80da02.tcl.gz",
+      "sha256": "5d7d093aa618983ae99f2a82124979bc87a1be2376bb78117d26dfe39d4087e4",
+      "bytes": 7081,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/1d808c59aaf46b7a24ea360246a5fa3824a510d703750eb234b702f8106c708c.tcl.gz",
+      "sha256": "9a5231d829443eec78fa2a6349d2d5ab088c4522d4cda973194ea33cab2d5fc7",
+      "bytes": 111,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/21668d84700b94eb650c902000b9490106267b444c632148dfcf5b60e3621fcd.tcl.gz",
+      "sha256": "d340e65cb7d4d610f079de6f83e6790ebacbd2060fe1809127efe4ed43c15715",
+      "bytes": 192,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/217074e45fc877ceddb0eb10fca94fcf43dc235dd8dc4bd1c9b6ec3121ae726c.tcl.gz",
+      "sha256": "5425dcc85297d15a7dc8887689b180c1994f1049c3be9790d1794e7ca8f6cade",
+      "bytes": 9921,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1.tcl.gz",
+      "sha256": "f6babceec025cb80b55e115752ec6edcb8ae3abd07ba90184b9336a145e30426",
+      "bytes": 8096,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/21ed0584bad0589bad98c5684cea7c113ef0d0339599ee20fa45d835683eb64e.tcl.gz",
+      "sha256": "11aec3ee0a82c2bf6b21dc25267c4ece16609f0b42f057882c3cad282d650030",
+      "bytes": 4919,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/24561d73e6fced367e6a09b824afd107ef20de2d476425b15019dfa6130662df.tcl.gz",
+      "sha256": "14003a8aa035046512fe049df6b5ab48b3fc23b852dd1b280c83c490eabe34f4",
+      "bytes": 200,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/26cbf5ae8928a273e8404ddb5d92c0d086eb1cb64369db9365930388feecd199.tcl.gz",
+      "sha256": "dcde28ff80462b68dc36e2efca7ec2410282bce10d8eee6d11585d40850e5bc3",
+      "bytes": 387,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/29c57ad6fe369a9fed7d378471aec5a7bdd5bd153c57222f83485245a3f23e44.tcl.gz",
+      "sha256": "13b8111b318df5a9809f118ecafd70d6e1e965726dd679260056b388ad29dcf5",
+      "bytes": 377,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/2efa43679969abd5748f6e7d64408617396300b469e1ec9d0b6c1a7764c886e5.tcl.gz",
+      "sha256": "4099773628c239d953d7c103b1e31cc91504aa644bf1bec8de71ae923bdbfec0",
+      "bytes": 5665,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/2f812a0550716b88930174a8ca245698427cd286680c0968558ae269ab52440d.tcl.gz",
+      "sha256": "97ea63eab177dbfbebb85e854cc27fdc435ac3de10c70dcd0736a6119f7628c4",
+      "bytes": 2058,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/30d8ec3404ae35102274f991e84f7cdda6bb84181d60328ae50c2c6143ccd4de.tcl.gz",
+      "sha256": "27cf1f8329c766e645a4250c3de2e96f54fb2459f5093fe1c81b790f945717a5",
+      "bytes": 378,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/3373e053b6b698e9aaf66542b97be199b59beb9a7eb73878238c0915a844343f.tcl.gz",
+      "sha256": "c05d4d4d60436268d35b804d27f2ce70a9e601a3099a5440ea642095e9d6d0fd",
+      "bytes": 7579,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/3a481eacbcca1c611843cdc387ac51be0b8ac98a994cbe8fa43091fee35b207e.tcl.gz",
+      "sha256": "098e29beb5eca0bbaa493dcefa90d20484da55b7942584101667478dc7e19bcf",
+      "bytes": 1322,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/3d14ecf300f9fdd21875e22ce348988f852c177c4bf25fb6a7f37ba4be9fca73.tcl.gz",
+      "sha256": "449128bfcd103a566480605af932eb65192e1dd88a3300cb03c2707634e5959e",
+      "bytes": 9633,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/3d391b5c9219666880499e6e5c87edb05e64c5d25fe2c0e66874fb0271f2e3d1.tcl.gz",
+      "sha256": "7ef49f92169a5c05176da21b26a82adaa95cddfb10a016e9b1bdc41f6f8fe5a9",
+      "bytes": 138,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/3e9a139b7d2d768a8b94327feb402c4fc7afeda156e46ab2d22e8c40266142a5.tcl.gz",
+      "sha256": "6ed8604de109466a1d1b92823f875cde72953a2fe44959061444d557924678cc",
+      "bytes": 2071,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/3fd236d0d8cd613dee7e4ece236396bd424bc81673e9bd403bee4695d0ff5c75.tcl.gz",
+      "sha256": "f093b543ea47ae099db1e50183952e04dea5bf0a45990740db347c45e8751888",
+      "bytes": 30056,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/420c4b3088c9dacd21bc348011cac61d7cb283b9bee78ae72eed764ab094651c.tcl.gz",
+      "sha256": "2be552877ff083a561e8a6d38672e77c861871b71d5f5b34c0dfc00f681aebc2",
+      "bytes": 430,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/425f41cbee04fe48b5803a77f1649257e4dcb475491c01f6d58704c3af4399c1.tcl.gz",
+      "sha256": "2cb14cdd4465e9b1bbfbd4da39abd6f0d69228fd69b1228cfc6b1f122dbee9fd",
+      "bytes": 12453,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/446a2dad2b197c17cd6ff4b638b1fbc5f93a5337548330c6bc6ac6886058b7eb.tcl.gz",
+      "sha256": "7865dc420f7b576c1ba1b9fec5bf94b4c6c9db8420564534a234a4b8a7cff489",
+      "bytes": 10898,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/473bf551d3156a144d6483ce730c72add640168a3ab426b3ee0b122f6d06a96e.tcl.gz",
+      "sha256": "8bb93c863667dc101939377ae21172230b1d92fa66188699623823aa103e75c2",
+      "bytes": 7288,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/49a8824f7d1d44e1ae5f1a0b9f3e8c363d89014e2e31bcdf1ae7045d698ff512.tcl.gz",
+      "sha256": "7473f753b8ac8ffd862bbf140ca2dc3f432daa82c7408870f2b4ff2e49f8730d",
+      "bytes": 9638,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/4af798475ffe6a0af32f0202a7cbc7b07b59de5ddcd7f89fcbdd1b07ffe5f6e1.tcl.gz",
+      "sha256": "b2c21b3084cc5c25800e3593a27b451bef41b7e18e280fd17ad21d76cfd97361",
+      "bytes": 3775,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/4ef7e224231e5430270ae03eebf54d3d0e8ca6b976cb8d8b2e7e6bf9147eaefe.tcl.gz",
+      "sha256": "758ce0f4e8e18062e7ac4a290dec253e18077b62a48f3b427b4040113ed44e74",
+      "bytes": 1430,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/5073f9015583f00b25354a7877f55c68d93674ae11384ee042e3b094a8a900e8.tcl.gz",
+      "sha256": "3dd79a5320778d78a2ee0b0031f7523dcb2fb84eff765c30acde51d1972792ac",
+      "bytes": 399,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35.tcl.gz",
+      "sha256": "be90f127175b0d9230a2881811123d2ebbe560355049b350652087e1b60bdb0c",
+      "bytes": 8102,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/54337e9db387e5f3c0a714ae225d3d915da83751d5be4a9e177e9b726d3f92d6.tcl.gz",
+      "sha256": "b389ceebd4d0c52eff562516dd87249a009b728f30a89975be3f46ea0f96f262",
+      "bytes": 2063,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/5508d98832c4f3cf52b297511206c5dd020111f1dfbe358eee023ee1bff3e012.tcl.gz",
+      "sha256": "e7a03a30eca2702e704c41e2577e3309d81513012d1e0b71b3d7303327bb94d9",
+      "bytes": 2210,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/56372f15e8f73234b7fb2b68f597d5a56a42d995416cdf65fe0c2da1c114e5a9.tcl.gz",
+      "sha256": "6507d80787ff777f97daa0ece0833f642f7a0486926ef0d06da6a1c2787dd1c8",
+      "bytes": 47712,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/5732951b02b45c3702c2f9ee7c43deabfcfe0aaae893f89bcc59e32bd9444ce3.tcl.gz",
+      "sha256": "ca2814d56a2395d0ca6d7d7f2d62676329e009fe24071bdd474515e946385c94",
+      "bytes": 9955,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/5a3a93234a418f3a8e1814dd8e6d95344045a6d3a4e62af6a8fad2c48d2aa1ce.tcl.gz",
+      "sha256": "3a7570d156329cd9d78b219737a12fcaa0e536c4f41295bcd3064264d8a780ba",
+      "bytes": 173,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/5d86054b2ce7ecb7ad39a6a2ee7afc98816a837e9819ce7b7c31c19ba0b123cf.tcl.gz",
+      "sha256": "cecb0e674d468b37323d4c0037a30ce66fd82ee2556df2c8499dd11f9bde2df9",
+      "bytes": 4393,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/629dc86958aa1c5f8697a638f296c706458e7a3418d2d81a2e81ce945f3828c6.tcl.gz",
+      "sha256": "6d3b7e08232bc980fec4da365dd5e0ceeddfe663af8e7c29abd394a07d32409d",
+      "bytes": 7086,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f.tcl.gz",
+      "sha256": "43d2ed2e9dad44534e23a9ebe1ba702da3ddad90ff6345c7f197d4d03da44358",
+      "bytes": 6388,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/64585c5327b0710d31bff61c14564ff289acaad8743174f95544d8c04306d8c7.tcl.gz",
+      "sha256": "858108134acdadb81aa3902f769d69c27e2e06c79302c89f47dc7fa6814e0989",
+      "bytes": 1308,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/6611d96f69fff00d09b625786298b001c7b794147057a1f57163d910cf2b5d0a.tcl.gz",
+      "sha256": "3a37871acdb2aac5696c4e09d714a9b3ad1a20994039e38ed9da74e1d191dfca",
+      "bytes": 2061,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/67be04b5aa4c0845f8c5143171acf31ad6b3f23eb1a0be98133133e8abc9822b.tcl.gz",
+      "sha256": "973a6fcfb383cd9106953068845165fa9f03bd4da64aa89552f1fa6e2198feeb",
+      "bytes": 6649,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/695157c85d3a27c435abd2998ba06fb24cad7b1e7ecb280fc1c60986749634f0.tcl.gz",
+      "sha256": "fed09a452cf22be3130fe9138ad3f62e539999fc54d8aeee9c32362bc0c6bdf3",
+      "bytes": 2567,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/6b286804649120c7c249d8c2941cee8e1da59211132d985ad97b8ab196073546.tcl.gz",
+      "sha256": "54b93ff8a97f3d52ffa2998bc2108413e6138181a8e39c3b57b5cecc6653fffb",
+      "bytes": 16377,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/6b7f3bf260c40ecf823f6fb7246ef3b833597e97bfd0e6963aa117ae196cd602.tcl.gz",
+      "sha256": "86ce113de6f24b4d40abe01c6d302b4e7bd127de5afc2fd67830e24f504a488c",
+      "bytes": 137,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/6c7262b1ed5b376d84776d347e1d3ade7d565fabf1ac956a61649b95318a5d5b.tcl.gz",
+      "sha256": "df701c52d6c82ef5535d718f29d1597b1045a98fa41ea8572d540f8fad6847ca",
+      "bytes": 2501,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/71966a6cecd4d718b8b6286573bf50539c1d4bffad26a1126d056a5da48a66e4.tcl.gz",
+      "sha256": "d173d7268dab490a5e7642c498804edb6a36a000f0c2c09742cc2e12b2a07deb",
+      "bytes": 30279,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/7372fd028e8165994e6c1e0ee2e3f3f7551ff75def535a414443e9e6c0138c65.tcl.gz",
+      "sha256": "c42215a07b2ba3d1d5663ef4b770c089e199c3a30f787016885b2e22833e4912",
+      "bytes": 389,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/7c1de0bc512b362c26d489bd332f3d883041d98c2ed1cc99b4d64cd97e646786.tcl.gz",
+      "sha256": "09a5edd866238706ad9efc076b63a179989384fbf6b00513cce5773db60d0e52",
+      "bytes": 4478,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/7d6f5e0236fad3b60cf5b7b10fa5629effcebead382083a7d9543c9526095d1f.tcl.gz",
+      "sha256": "44f4a1bcf1d8ec007d439cc0c8565737bc007bd4b5aa62816c1c1f4c206e83d5",
+      "bytes": 150,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/80301481addb70362ffd4eb1c301471a41e59987d39dbbc2a6096ddfb415071e.tcl.gz",
+      "sha256": "7e51d5d3e44cff7408ca6fb65af54b0e9c29910fb209e02e3fac9a0777098cfc",
+      "bytes": 10898,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/803ca646b09304bc21b79f3c5618ac1359a0bc34a2762d40dea933c23e4f7ae6.tcl.gz",
+      "sha256": "04ab8c22d6973ec745f4e0cc7de3204352cb2986cf860136d62d7c7378b77c45",
+      "bytes": 30793,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/83bb9de4d5ce47be75668bd196b945407bfd0ec8a3fbf425f137fee723d25742.tcl.gz",
+      "sha256": "7a6ff1114c5d8a6dce12df5f5638930cef5dc9570848d4e8f1d89b572a1a13ea",
+      "bytes": 187,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/88220b059956d3f331b29c514f0d4ad77fbd840efb27f0c2621510800a9b9094.tcl.gz",
+      "sha256": "8cef485a173a2358410bc7eb759c9eadbbd092af50e5cbc34b9533c95ca384f2",
+      "bytes": 3057,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/8989f8e8d7f96da5fd51f5271cd32aadc4fa5c23d7c4010838378d921c3d8d1e.tcl.gz",
+      "sha256": "fc312aa42e98f2ffcc2689f2b663b0477b9544e4db9601dab3cf10602e27f8ec",
+      "bytes": 128,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a.tcl.gz",
+      "sha256": "c596ffc1dae211375522a96353ab40fee74dd1c4e8d0fdf781b557f8422f8f6c",
+      "bytes": 7763,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/8dd8f2d040863b062283f9e569502e014cac14a0989175e553ad5bc181fd9361.tcl.gz",
+      "sha256": "edd1866367abda81c8d53f1a7c6b79841c1bb525116133e85119ba90e9859a83",
+      "bytes": 162,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/92c9f7d88e023844fd51d400c41144ad8d71f99099c896044d5693b190e3e3fa.tcl.gz",
+      "sha256": "f63876dad3c7f9f7d00aaec187a43263b0eac25d88ba4c5acf044dbeaf2b9a00",
+      "bytes": 3290,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/953bc6cbf03a7ff492de59828c6d31a12d80b45873d85c03cb62a6099fed976c.tcl.gz",
+      "sha256": "ece755cd957146eee8c57e9b77bfc80f2e903b712e5c08be02ac52e23a90cbb6",
+      "bytes": 10111,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/9a13ce96018100685b26aa450f5a8cbce925ac70d5c1bdb2b323259c9956a5f7.tcl.gz",
+      "sha256": "366d3f5fc5e2788b7b502de0d2889bee0764d2bb7326dcfeeeb0f7036c582e0d",
+      "bytes": 148,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/9d0811415b98c15bbb5c8f86ec3b92e812dac61e3f4d564f7e0dd0b066ba632a.tcl.gz",
+      "sha256": "cb9da302677a4af52e10161f6ccdaa6684bc84d93c22305fac265d183c2ca1ac",
+      "bytes": 6111,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/9eaa82aeb3d308b655b69660380829c54a6bbc011280667ac8cf0e5882132846.tcl.gz",
+      "sha256": "089666e7ad32616ac18b19ae4423cc4a716ecab6c8d3bbe124d3d83dfbe3f2ea",
+      "bytes": 391,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/a04176d99af9264972f25f115bf3a354a47d6791b0fb65dc956698147454fd13.tcl.gz",
+      "sha256": "f9b266cb17bdf92ba91ab45555945d4859a8fc9bbacef18b44337d2dec3f6d86",
+      "bytes": 6690,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/a088e549d18ade683273e31c004daa7e614642fe801afb3861eb85445250186b.tcl.gz",
+      "sha256": "8050b9d0f9c196a7c84a19f5b146f367f3a27d2e11b6c3cb416a4456621a28b6",
+      "bytes": 378,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/a1b01ef4a09299dc30efcf3cfd647a3b99efc945bf8f1980a43d9fc43f075b26.tcl.gz",
+      "sha256": "3fe7a404dcb13682cf306e9c785948542a0756e0dc466f9575ced9422b65593d",
+      "bytes": 7218,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/a7665fe9abcc7340f34e6470b94001c67d6c68824f214ed736dd27e8d62a8d32.tcl.gz",
+      "sha256": "6c4b29ddee603dbb7ea05d6a45f1fe5dcd02e9ad37aba6850b6090351ae9e37e",
+      "bytes": 9930,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b.tcl.gz",
+      "sha256": "60370fb94f9db2a2ac39a57e44d2f4d20292bc89d67389daee188a1ace978b4b",
+      "bytes": 7448,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/b454723873db2e587ac1323bcebff2e8929f5dc98a6fe001ed34fcaf0c2aa320.tcl.gz",
+      "sha256": "9b0aba4875625af1c387b3e47700f9a2efd878441d4cfc6f11eaf7000266bf60",
+      "bytes": 540,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/b5e9def32c99ee9b2199b46d3e37e7d075091d7e3c42921c754ee9e18cfff233.tcl.gz",
+      "sha256": "b10c3ebc81f1f22f05fa7be44ed8929fe8583415d7995d3491b7f7816e803bdb",
+      "bytes": 547,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/b8677236d4e687e686426718e78d3984146d2f318e5b34cbd43824206e85a40a.tcl.gz",
+      "sha256": "2761f825258baf7e7e1d73dc59f136146837fce4646c8d4ed31b39e1eabcf79b",
+      "bytes": 466,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/bc125ef0732af6e67367e324c0b3de87e03f04f48c72c42fbb8f77b7b5849a8d.tcl.gz",
+      "sha256": "1e55dc8e2cbfb348bee906a46f355fbf88bc571bb967ecb2bf3e2d8e3b94ed03",
+      "bytes": 1373,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/bd70548ea2090135918f2e61a39bfdd6163ec8cef82f400ce220a1edc4bedd6c.tcl.gz",
+      "sha256": "e1c70e30afd6a93e0a85c20cf31b69eb09057c6ae8363f2121039ea4aa6a5b81",
+      "bytes": 12717,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/be3df25f0cf653c20b69784aee0fd719634d5421746b5b1141bc0592a59841c9.tcl.gz",
+      "sha256": "3ec1c931a48706aa9a86902b98d10ffe2cd7555a760198ab136ac783cafdd8e5",
+      "bytes": 7095,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/c0a3df8e2d0f4681be9e4078e56d294406073131d2be0cd3d0b63b20fa0c4feb.tcl.gz",
+      "sha256": "8303233e6e29b1d96552d0599659be99d86212af4d740a625fbcc982e6d65a78",
+      "bytes": 2898,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/c1a9ceabcd60f33cd80a1187916ded8df6e319ded07347bbc7c7255f08c87442.tcl.gz",
+      "sha256": "de8731762395a95491de1253a496035b811b18e6ee7ec2845d069ae8c0c88316",
+      "bytes": 2931,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/c2e7fd1110cf83cf9b8c5dcc823e02955576615dd67d8f912c151ced735c0d8f.tcl.gz",
+      "sha256": "7fecee0d01d912bf1d17a41c60a6ed2d3e8f0e7d02687b1310e6deda05bca0dc",
+      "bytes": 207,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/c3a195332dd743956eb38ebc22f1873eeea06501c2cd3ba91cee3838eb62da5f.tcl.gz",
+      "sha256": "52fe7ed4b1abbdf271a5e39fd1a41fd659799ed291a3e48e7ffa4008866cd217",
+      "bytes": 213,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/c4a5c0dc93486d7ac086313410983f34717e431128212a4e2c4dec82ae834f77.tcl.gz",
+      "sha256": "de6015503ea0b7a1a4e8abeb0a640b878301281cea6555db4155cd757e6af9b5",
+      "bytes": 379,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/c4b31e1a407db7566ab0f0b1e36eecc5e5d72dd9eac1916c5d69304e0df4c26e.tcl.gz",
+      "sha256": "8ad016626fe03f17e451ca4fb7fb7ebe9c6800b8a1a9707fe8759e21d4ef5429",
+      "bytes": 1092,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/c61f803073c3183a49d5524221c05f295dee6cbef57272ceacc8ee5cc0d54c2c.tcl.gz",
+      "sha256": "8d362391b3e06455cdabdd46564eb882cc52052987910d8cabbfb2acb7705541",
+      "bytes": 207,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/c6ef00c55362782a3b8c185e84413225dde64cec690fb324158d7028c53c3745.tcl.gz",
+      "sha256": "5d2512e6875f03f1d72f424389a54e44e60ec432610c2f214dd46dfd25771c55",
+      "bytes": 390,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/c975b8db8a368d4eee415eaa2d9cfca0cf98445c314772f82a64ebde07bce906.tcl.gz",
+      "sha256": "b7ee9fb30b469c6ec0bdbce96af354cf91c86a1451e17985bab97521fd85c6c0",
+      "bytes": 8476,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/ca38bb6652bbc562a3a82d2919f4e900cc5deedfb3582fa4503c573754ccf007.tcl.gz",
+      "sha256": "b76d0a18b8c125b7572fde69ffff98af263ed800f1bdb05a5dbb2949f0ce05f0",
+      "bytes": 2608,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/cff00c9471fa6941bca5a934ea331cc63ecf750c93c320f3cb378cd27c77b89a.tcl.gz",
+      "sha256": "b19396a9716fa1afe3e307e44048c92335f1b232651060810d6bb179af87847f",
+      "bytes": 451,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/d2c0e68e0b9d53faf7d9a34ecc49560b14eaae108eb25681335f51e231755c6e.tcl.gz",
+      "sha256": "d0e1a69966ffb9ab6d0fff01744ccfcfde8b68e0515b8ed91bd07c5020d5a83d",
+      "bytes": 3474,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/d4b3d9601454ea4828dff3be426c33fb845d005e98d2cc139dbb0d69cad3168b.tcl.gz",
+      "sha256": "a6ac1924ad84f77a955e5e648bfc924ecf0388db4d83dc1bc37ccb32eb0bc159",
+      "bytes": 3529,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/d9ce3119271af29ac600a3cbec9866be750a306c01c3d28897f655e3e9b35c46.tcl.gz",
+      "sha256": "667e6442cdd669dccab05c5e6336ae8756a856188516aef9b3e9c9fcc522763f",
+      "bytes": 9324,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/db4e5898291e7fd3cf522e9c9c5b714d81d6d148ba53ed2052073d12327f8d8d.tcl.gz",
+      "sha256": "7a155102f9daa3de9e9e72baf783e3a7f8163d9306b546b6ca4da1be2cfc11eb",
+      "bytes": 26797,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/df9750e9a99622ca48727f45f32db3313d1d6487c3f92de60d730209708622c7.tcl.gz",
+      "sha256": "3a10875d509496e5bad35b1b74cc9e030751f7ec6006179f0ebb829f1c4eb36d",
+      "bytes": 128,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/e2eb8bdf39732ca48173e61d9ada4f0d095ddaa3ed1fcce21c0a520c75493d8f.tcl.gz",
+      "sha256": "0f105a2770774817ed08f51aadaa7439342fcf32e7a4bb60d618a97a57fa6f26",
+      "bytes": 2606,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/e744fb8cd80fa0d40eb7fd96b0190e4d441376eeb4dca23efc16ae1b5152c0ad.tcl.gz",
+      "sha256": "dc2375115e51408e583cd2cfc99173eeee06cbfa2258e783bc70eb0738f98756",
+      "bytes": 160,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/ebe5a2b4cbbcd7fd3f7a6f76d68d7856301db01b350c040942a7b806a46e0014.tcl.gz",
+      "sha256": "1bbc8aeaa782941f8c90f3928aff6e19edb57f7354d2481f551a522a8f9c6246",
+      "bytes": 462,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/ec8cca09e045ecc3d61d7aa2a336f4c6366a5bc0e8207feca37eab38fc0cd292.tcl.gz",
+      "sha256": "f013421a3b6fb821c8124f3ac9fddaa33e80a2b28d0d4d9c7cc0d8de192fb548",
+      "bytes": 3777,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/edda8af864f40c3d92c318472213497477616cc18089028c72c03852ecc9f587.tcl.gz",
+      "sha256": "4f9495439edc3890499f44c757fa8cb43249909edd45bdabee7bafdbe67f5cea",
+      "bytes": 26336,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/eff41b30c70251d068e24d1500ad504404d692f8d48ab74cf8f99bb4dba64414.tcl.gz",
+      "sha256": "3b9979a3390defdec5f77390254285e98085c77ec93f0418de716b2382e6d9b8",
+      "bytes": 390,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/f115d9d2be5886175fe610484eaac8e17d9feb1c71d419af66c6e31b0c215523.tcl.gz",
+      "sha256": "4d89708e3ddf92f4a52c1212174eb621377b03217c892d3819260359d1745667",
+      "bytes": 3054,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/f136e0db9e71468e4d9d93200cd2d04e6915d5546681bfeca6cb9a620ba648ba.tcl.gz",
+      "sha256": "381c2c39a73537b168a59d1cdd9f58335ef0cf6248c877c6283e7096d6bacb89",
+      "bytes": 2505,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/f140827f677c522b3dce28b61609142da79c565e43ce176141c36766bc95265e.tcl.gz",
+      "sha256": "c5ada874a03eb3c0cf75d47599eb4621f1d390b2179001e89943cf0bd137ad19",
+      "bytes": 256,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/f18e8ae29aa8ed2be2cbb5568b4243f654f7fb0aa2066e16977863ee1415b9bc.tcl.gz",
+      "sha256": "b9abc8c530546fac0fe24583cef470e536d6429026b17b48c3cd388092f67e1c",
+      "bytes": 1352,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/f1dc4c6b3bdac23e08b34af6a0fb4b04103d875d2698064d7490151617275d59.tcl.gz",
+      "sha256": "e5e825f0dc41ef4f8614b60d049fc2210c31400c086908fa2f07c1906d7aeeaa",
+      "bytes": 16381,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/f33a19dafa35af4765cd1a6dd8557047a73a21b2b8a7288d52cec6bdf7cea6cc.tcl.gz",
+      "sha256": "a9d7a5d80e561b9007c4bdbf5428777142609e2932ccedb7eff0f6b9ba1f3d91",
+      "bytes": 209,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/f33b4e6ca8ac8a86ace39ad57628d7588ef04ec3d8d86c700f54ccba77b242fc.tcl.gz",
+      "sha256": "f0af9f32ae28b69919aeed657a3cd26d20b0f5088500fac757a07a5f492552bf",
+      "bytes": 6515,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/f485327543f043f62c1ad12416d3c959b98aa2b77320503cb2db0e16e773fb78.tcl.gz",
+      "sha256": "bb2f19a7f16e60ccaa92f1ff95301339debe31ba56bf9c1af67b4932d8df60e6",
+      "bytes": 249,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/fa329853cd186ea405f4bec122913f1e4286c54488d0ffd445f7f120c71583fe.tcl.gz",
+      "sha256": "5ea19b8751604e9b009b5ed0cf8a834ef3244a4662d6b0de52c32284b5dab3b7",
+      "bytes": 2899,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/fbb2ece354ab60a262509773cc9c28b77940e26af005963ea1402547d43fae8a.tcl.gz",
+      "sha256": "0b18315a7ae5fa34547e0b7a27b401d589a6a6fe32104c2c9d897335c4661d00",
+      "bytes": 112,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/probe.tcl",
+      "sha256": "6ed458994510989a4567820460f508e8a5d966f70bfda2db9fa6f37c4dc04e99",
+      "bytes": 918,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/provider-retention.json",
+      "sha256": "34bd7d3a2a3b6decd4cb88616b42f50a530254c25fe55ab0c03cf0314a4a95e6",
+      "bytes": 82246,
+      "candidate": true,
+      "classification": "provider-scaffolding",
+      "proof_ids": [
+        "naming.source.selected-grammar-complete-prefix-and-provider-execution"
+      ],
+      "reason": "Exact whole invoked ELF reuse joins and lossless captured Tcl-library .tcl bytes. It grants no build, loaded shared-library, SDK/header or source closure."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/results.json",
+      "sha256": "f02a6adbb17643eefe24194a2eef66167e91772c1d35e7de985df1241e97fc5b",
+      "bytes": 2806,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.selected-grammar-complete-prefix-and-provider-execution"
+      ],
+      "reason": "Six actual closed public CLI query/evaluation captures and independently read-only twelve-row associations, limited to these two original inputs. The projection issues no new Native process or Rust outcome."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/run.py",
+      "sha256": "f41367789eccb55a09eaeee2aa71cff59a5bf1fec06ff617fcdb93dfa8afb349",
+      "bytes": 2636,
+      "candidate": false
+    },
+    {
       "path": "runtime/rust/tests/data/native_selected_method_role_report_source_contract/independent-source-inspection.json",
       "sha256": "9c2c3b22169be4aed8eb7da8800ad227c1efcbda05e7e208238a8f3e8996434e",
       "bytes": 19977,

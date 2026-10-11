@@ -1,0 +1,208 @@
+{
+  "question_id": "naming.source.selected-grammar-complete-prefix-and-provider-execution",
+  "cases": [
+    {
+      "id": "selected_braced_var",
+      "hex": "736574206265666f726520313b207075747320247b617b627d3b207365742061667465722032",
+      "sha256": "c77f8bab07cb96f7dab84c5bc04eedaae5053c9183535f2b782905c37c49bf0b",
+      "purpose": "Fixed counted byte source. Completeness and actual command-at-time evaluation recorded independently.",
+      "counted_bytes": 38,
+      "source_ascii": "set before 1; puts ${a{b}; set after 2"
+    },
+    {
+      "id": "terminal_word",
+      "hex": "736574206265666f726520313b2073657420696e76616c6964207b617d623b207365742061667465722032",
+      "sha256": "62acf5cb465443a35184278c18cb226b8020635f998adb08c939025cf1181422",
+      "purpose": "Fixed counted byte source. Completeness and actual command-at-time evaluation recorded independently.",
+      "counted_bytes": 43,
+      "source_ascii": "set before 1; set invalid {a}b; set after 2"
+    }
+  ],
+  "results": [
+    {
+      "provider": "8.4.20",
+      "receipt_sha256": "af4357be0f26ac06890af7a6f8b87b67b7b906963a8aaa76070bb0e33beb6555",
+      "stdout_sha256": "3dab6b4a0b4b1b202669e2cb7b55fa9e607fa5322fe592cf783546add7d59b2e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pinned_inputs": 25,
+      "current_input_rejoin": true,
+      "rows": [
+        {
+          "case": "selected_braced_var",
+          "complete_query_status": 0,
+          "complete_query_ascii": "1",
+          "eval_status": 0,
+          "eval_result_hex": "32",
+          "before": "1",
+          "after": "2"
+        },
+        {
+          "case": "terminal_word",
+          "complete_query_status": 0,
+          "complete_query_ascii": "1",
+          "eval_status": 1,
+          "eval_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "before": "1",
+          "after": "MISSING"
+        }
+      ],
+      "limits": "Counted ASCII script-visible complete query and eval result/prefix/suffix effects only; no all-script Jim evaluation rule or Native source/callback/frame/lifetime role is inferred."
+    },
+    {
+      "provider": "8.5.19",
+      "receipt_sha256": "a7ae57200bd3776f8d245fe113b0a7720a97b90f70bac32d1283ac3adf67343d",
+      "stdout_sha256": "bc3f8144e23fc8d9af647118f5d12e69232b91bf0f940429fbf1f7309ebeaf79",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pinned_inputs": 26,
+      "current_input_rejoin": true,
+      "rows": [
+        {
+          "case": "selected_braced_var",
+          "complete_query_status": 0,
+          "complete_query_ascii": "1",
+          "eval_status": 0,
+          "eval_result_hex": "32",
+          "before": "1",
+          "after": "2"
+        },
+        {
+          "case": "terminal_word",
+          "complete_query_status": 0,
+          "complete_query_ascii": "1",
+          "eval_status": 1,
+          "eval_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "before": "1",
+          "after": "MISSING"
+        }
+      ],
+      "limits": "Counted ASCII script-visible complete query and eval result/prefix/suffix effects only; no all-script Jim evaluation rule or Native source/callback/frame/lifetime role is inferred."
+    },
+    {
+      "provider": "8.6.18",
+      "receipt_sha256": "c1e7081c1cfe316866bd704454bf6e9bfd58e158f12cd2564ae238ee5e4e2702",
+      "stdout_sha256": "8e44c1ad43a8f494e090fd4512a8930e4d6ce97578e4ec34cd6428f9b79f53c2",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pinned_inputs": 26,
+      "current_input_rejoin": true,
+      "rows": [
+        {
+          "case": "selected_braced_var",
+          "complete_query_status": 0,
+          "complete_query_ascii": "1",
+          "eval_status": 0,
+          "eval_result_hex": "32",
+          "before": "1",
+          "after": "2"
+        },
+        {
+          "case": "terminal_word",
+          "complete_query_status": 0,
+          "complete_query_ascii": "1",
+          "eval_status": 1,
+          "eval_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "before": "1",
+          "after": "MISSING"
+        }
+      ],
+      "limits": "Counted ASCII script-visible complete query and eval result/prefix/suffix effects only; no all-script Jim evaluation rule or Native source/callback/frame/lifetime role is inferred."
+    },
+    {
+      "provider": "9.0.4",
+      "receipt_sha256": "121cb65136619f6ed456d32770396d45b7d0f0dfdf4cc7efc9474e2fd9a36bac",
+      "stdout_sha256": "31cddde13cba6e34e96816c1eacbfe9861823dd2063d0d42e18144229a6282ac",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pinned_inputs": 32,
+      "current_input_rejoin": true,
+      "rows": [
+        {
+          "case": "selected_braced_var",
+          "complete_query_status": 0,
+          "complete_query_ascii": "0",
+          "eval_status": 1,
+          "eval_result_hex": "6d697373696e6720636c6f73652d627261636520666f72207661726961626c65206e616d65",
+          "before": "1",
+          "after": "MISSING"
+        },
+        {
+          "case": "terminal_word",
+          "complete_query_status": 0,
+          "complete_query_ascii": "1",
+          "eval_status": 1,
+          "eval_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "before": "1",
+          "after": "MISSING"
+        }
+      ],
+      "limits": "Counted ASCII script-visible complete query and eval result/prefix/suffix effects only; no all-script Jim evaluation rule or Native source/callback/frame/lifetime role is inferred."
+    },
+    {
+      "provider": "9.1.0",
+      "receipt_sha256": "f7a9d621143f5a4cae9986d576946496540c1ea18663adb48a05a0302e1d9d20",
+      "stdout_sha256": "cd19b3f24168a0b1465869fdf0362d0d3e6c42bd04fb6fe7bff65f20457e91c4",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pinned_inputs": 33,
+      "current_input_rejoin": true,
+      "rows": [
+        {
+          "case": "selected_braced_var",
+          "complete_query_status": 0,
+          "complete_query_ascii": "0",
+          "eval_status": 1,
+          "eval_result_hex": "6d697373696e6720636c6f73652d627261636520666f72207661726961626c65206e616d65",
+          "before": "1",
+          "after": "MISSING"
+        },
+        {
+          "case": "terminal_word",
+          "complete_query_status": 0,
+          "complete_query_ascii": "1",
+          "eval_status": 1,
+          "eval_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "before": "1",
+          "after": "MISSING"
+        }
+      ],
+      "limits": "Counted ASCII script-visible complete query and eval result/prefix/suffix effects only; no all-script Jim evaluation rule or Native source/callback/frame/lifetime role is inferred."
+    },
+    {
+      "provider": "Jim",
+      "receipt_sha256": "d3971ed71a1857ea4bfc06d9f6952efcb531b0dd07dea0c00d880143c1c4d44a",
+      "stdout_sha256": "3623d567afed1ab206088869754336f67b0b9a07478b77080220a7baaaf9b448",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pinned_inputs": 2,
+      "current_input_rejoin": true,
+      "rows": [
+        {
+          "case": "selected_braced_var",
+          "complete_query_status": 0,
+          "complete_query_ascii": "1",
+          "eval_status": 0,
+          "eval_result_hex": "32",
+          "before": "1",
+          "after": "2"
+        },
+        {
+          "case": "terminal_word",
+          "complete_query_status": 0,
+          "complete_query_ascii": "1",
+          "eval_status": 1,
+          "eval_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "before": "MISSING",
+          "after": "MISSING"
+        }
+      ],
+      "limits": "Counted ASCII script-visible complete query and eval result/prefix/suffix effects only; no all-script Jim evaluation rule or Native source/callback/frame/lifetime role is inferred."
+    }
+  ],
+  "probe_sha256": "6ed458994510989a4567820460f508e8a5d966f70bfda2db9fa6f37c4dc04e99",
+  "runner_sha256": "f41367789eccb55a09eaeee2aa71cff59a5bf1fec06ff617fcdb93dfa8afb349",
+  "case_file_sha256": "c721a0036d1db54e1be3e382a9c3e47b388f0d320b7fd7d3c381bf8ea2fac935",
+  "result_file_sha256": "f02a6adbb17643eefe24194a2eef66167e91772c1d35e7de985df1241e97fc5b",
+  "actual_processes": 6,
+  "actual_rows": 12,
+  "bigip": "not-tested",
+  "limits": [
+    "The probe public uplevel input consists only of the two original ASCII byte values; it does not measure compiler bytecode, binding admission or current Rust assertions.",
+    "Library pins are exactly the actual captured Tcl library inputs. This inventory is not a shared-library/source/header closure or a Jim SDK closure."
+  ]
+}

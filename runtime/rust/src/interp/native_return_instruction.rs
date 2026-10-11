@@ -783,7 +783,7 @@ mod original_syntax_transport_tests {
                 }
                 3 if state.effect_on_free => {
                     let saved = interpreter
-                        .save_native_variable_trace_result(true)
+                        .save_native_variable_trace_result(false)
                         .unwrap()
                         .unwrap();
                     interpreter.mark_error_stack_reset();
@@ -1129,7 +1129,9 @@ mod original_syntax_transport_tests {
                         .is_empty());
                     let later = match interpreter.capture_original_c_syntax_options() {
                         Err(error) => error,
-                        Ok(_) => panic!("retained first cause must refuse later syntax-option capture"),
+                        Ok(_) => {
+                            panic!("retained first cause must refuse later syntax-option capture")
+                        }
                     };
                     assert_eq!(later.native_execution_refusal(), Some(&first));
                     assert_eq!(interpreter.get_obj_result(), result);
