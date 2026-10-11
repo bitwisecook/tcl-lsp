@@ -64,9 +64,9 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-diagnostics-original-resolved-variable-name-advice-helpers.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/helpers.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/helpers.rs). SHA-256 `4c49e4e1f3ebaf80c1309f655536d08baf6171687ea0125e46f3aa5002ce98ab`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-diagnostics-original-resolved-variable-name-advice-var_command.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/var_command.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/var_command.rs). SHA-256 `182a6ad9b6ba58959f65b7ffea8349e95f51297423b380ee29c8c019766e707e`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-diagnostics-original-resolved-variable-name-advice-naming.rs` (implementation): [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs). SHA-256 `77c05067c4a55d218010c4225b664fbb07d16624293457299a52d96e3912c6fc`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-diagnostics-original-resolved-variable-name-advice-helpers.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/helpers.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/helpers.rs). SHA-256 `90644205ac85894d798c2b6b30b14c7f3d2aea1a88a3c76588662f0323c08298`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-diagnostics-original-resolved-variable-name-advice-var_command.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/var_command.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/var_command.rs). SHA-256 `13a8cbf312ceafd31012ec27923be71df2c59375f9c48ff22f199304c6b690a5`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-diagnostics-original-resolved-variable-name-advice-naming.rs` (implementation): [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs). SHA-256 `2bd969811fe70211d1178492219f9757ef0c6ba7bc0b6b7647b50bc4acda209b`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 
 ## Source inspection
 

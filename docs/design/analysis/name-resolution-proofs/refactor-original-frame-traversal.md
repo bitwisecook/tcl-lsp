@@ -72,8 +72,8 @@ This Rust consumer contract has no native execution receipt.
 
 ## Exact evidence
 
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/refactor/mod.rs](../../../../rust/tcl-lsp-core/src/refactor/mod.rs). SHA-256 `08e083ba8ecadc5e148b7bdfcedf510d04dca382a7b67021eb5583c9b04456ed`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
-- `implementation-1` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). SHA-256 `0efa08e10a26ad28447bc155a536b4c7b35414e7aae81e35024c32364ee8972e`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
+- `implementation-0` (implementation): [rust/tcl-lsp-core/src/refactor/mod.rs](../../../../rust/tcl-lsp-core/src/refactor/mod.rs). SHA-256 `22ae4df4ff30d722720444010dc253c02fe9080e34c0f8e8cb54bb485156c184`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
+- `implementation-1` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). SHA-256 `0b0692b0caabefd9189e7768caa928d4b755a492683224b47f136f97d6411977`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
 
 ## Source inspection
 

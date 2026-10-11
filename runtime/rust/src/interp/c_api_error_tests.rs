@@ -116,7 +116,7 @@ fn original_result_retirement_stops_later_exception_and_counter_publication() {
             assert_eq!(interpreter.snapshot_error().code_bytes(), expected);
             assert_eq!(
                 interpreter.c_api_errors.get(),
-                count + usize::from(mode == 0)
+                count + u64::from(mode == 0)
             );
             assert_refusal(interpreter, mode);
         });
@@ -149,7 +149,7 @@ fn original_exception_retirement_observes_reached_state_without_a_live_borrow() 
                 assert_eq!(interpreter.snapshot_error().code_bytes(), b"FRESH CODE");
                 assert_eq!(
                     interpreter.c_api_errors.get(),
-                    count + usize::from(mode == 0)
+                    count + u64::from(mode == 0)
                 );
                 if with_result {
                     assert_eq!(obj::bytes_of(interpreter.get_obj_result()), b"FRESH RESULT");

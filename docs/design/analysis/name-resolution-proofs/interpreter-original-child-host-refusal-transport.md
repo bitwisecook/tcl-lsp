@@ -76,8 +76,8 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-interpreter-original-child-host-refusal-transport-native_children.rs` (implementation): [runtime/rust/src/interp/native_children.rs](../../../../runtime/rust/src/interp/native_children.rs). SHA-256 `8c881f13d44ad4f867fb1a888f488d2ad471a46d299332175dc43aa0c4fd4635`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-interpreter-original-child-host-refusal-transport-native_compilation.rs` (implementation): [runtime/rust/src/interp/native_compilation.rs](../../../../runtime/rust/src/interp/native_compilation.rs). SHA-256 `78abdaf067bb75527a8a4236e1582f702bb717d6a087c649d823350188af8ff9`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-interpreter-original-child-host-refusal-transport-native_children.rs` (implementation): [runtime/rust/src/interp/native_children.rs](../../../../runtime/rust/src/interp/native_children.rs). SHA-256 `aa128c45f51f1df3bf79b2a8f8767823380971a8f6dca12772a76d8c572c239f`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-interpreter-original-child-host-refusal-transport-native_compilation.rs` (implementation): [runtime/rust/src/interp/native_compilation.rs](../../../../runtime/rust/src/interp/native_compilation.rs). SHA-256 `306715ec0226f5363594d4ec6a434791d6c5f7ddccaf3727d2b3844261dea659`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 
 ## Source inspection
 

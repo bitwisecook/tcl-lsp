@@ -64,8 +64,8 @@ This is a Rust Registry effect/provenance contract. No C Tcl, Jim or BIG-IP exec
 
 ## Exact evidence
 
-- `selected-descriptor` (implementation): [rust/tcl-registry/src/commands/tcl/package_.rs](../../../../rust/tcl-registry/src/commands/tcl/package_.rs). SHA-256 `f44e76a08cea2d79adb3051499b0410ea0fc7bc355e276c050345c413900890a`. Registry-selected descriptor and regression assertion source; no test execution outcome is attached.
-- `effect-merge` (implementation): [rust/tcl-registry/src/world_effect.rs](../../../../rust/tcl-registry/src/world_effect.rs). SHA-256 `8e200733bc23f4e06b1d6831995fe6869c878bbb16453418603229eedc3a3e5e`. Shared source-qualified transition coverage and callback composition owner.
+- `selected-descriptor` (implementation): [rust/tcl-registry/src/commands/tcl/package_.rs](../../../../rust/tcl-registry/src/commands/tcl/package_.rs). SHA-256 `5372b9f675f64d5ba28bc220d66895c23124038bcd9a36f009592e64fb1cc9e5`. Registry-selected descriptor and regression assertion source; no test execution outcome is attached.
+- `effect-merge` (implementation): [rust/tcl-registry/src/world_effect.rs](../../../../rust/tcl-registry/src/world_effect.rs). SHA-256 `8be16401238212a1965051a4eced54d21decfa0810754ff5660bf9abe188bb30`. Shared source-qualified transition coverage and callback composition owner.
 
 ## Source inspection
 

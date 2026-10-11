@@ -64,7 +64,7 @@ This readonly editor integration is a Rust implementation invariant; no native p
 
 ## Exact evidence
 
-- `actual-consumer-source` (implementation): [rust/tcl-lsp-core/src/variable_symbol.rs](../../../../rust/tcl-lsp-core/src/variable_symbol.rs). SHA-256 `a1cbe154d4ce877607ee8cc0d29d0f0722936fa07711d84776366aba71ee18d8`. Exact current consumer and fixed test source; not an execution receipt or native observation.
+- `actual-consumer-source` (implementation): [rust/tcl-lsp-core/src/variable_symbol.rs](../../../../rust/tcl-lsp-core/src/variable_symbol.rs). SHA-256 `fe243fd98790457564374fbea514a1920084c695335734f8a0574b4bd7569509`. Exact current consumer and fixed test source; not an execution receipt or native observation.
 
 ## Source inspection
 

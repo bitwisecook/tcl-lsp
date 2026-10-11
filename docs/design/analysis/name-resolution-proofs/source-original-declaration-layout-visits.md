@@ -68,7 +68,7 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-source-original-declaration-layout-visits-declaration_preview.rs` (implementation): [rust/tcl-compiler/src/command_binding/declaration_preview.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_preview.rs). SHA-256 `ba634165e4833be781b425f4e28666f6d973a2c889c5e4943d3359e03c23c421`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-source-original-declaration-layout-visits-declaration_preview.rs` (implementation): [rust/tcl-compiler/src/command_binding/declaration_preview.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_preview.rs). SHA-256 `887286ecf495eaa83ce92ed828a2a2bb69716fe11aa4b4f02b43d470f06ca6a0`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 
 ## Source inspection
 

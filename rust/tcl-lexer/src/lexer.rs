@@ -454,6 +454,8 @@ pub enum LexError {
     /// A syntax error detected in strict-quoting mode.
     #[error("{message}")]
     SyntaxError {
+        /// Structured issue retained at its lexical creation site.
+        kind: crate::ParseIssueKind,
         /// Human-readable message.
         message: String,
     },
@@ -463,6 +465,8 @@ pub enum LexError {
 /// harvests these to produce LSP diagnostics.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LexWarning {
+    /// Structured issue retained independently of its diagnostic presentation.
+    pub kind: crate::ParseIssueKind,
     /// Byte offset in the source where the issue was detected.
     pub offset: u32,
     /// Human-readable message.
@@ -936,15 +940,17 @@ impl<'src> Lexer<'src> {
     /// Called from `parse_brace`, `parse_command`, and
     /// `parse_quoted` for unterminated constructs and
     /// extra-chars-after-close violations.
-    fn warn_or_error(&mut self, message: &str) -> Result<(), LexError> {
+    fn warn_or_error(&mut self, kind: crate::ParseIssueKind) -> Result<(), LexError> {
         if self.config.strict_quoting {
             Err(LexError::SyntaxError {
-                message: message.to_owned(),
+                kind,
+                message: kind.message().to_owned(),
             })
         } else {
             self.warnings.push(LexWarning {
+                kind,
                 offset: self.pos,
-                message: message.to_owned(),
+                message: kind.message().to_owned(),
             });
             Ok(())
         }
@@ -1205,7 +1211,7 @@ impl<'src> Lexer<'src> {
             if has_close {
                 self.pos += 1;
             } else if self.token_protocol != TokenProtocol::JimNative {
-                self.warn_or_error("missing close-paren for expression substitution")?;
+                self.warn_or_error(crate::ParseIssueKind::MissingExpressionParenthesis)?;
             }
             return Ok(Token::with_content_offset(
                 TokenType::ExprSugar,
@@ -1239,7 +1245,7 @@ impl<'src> Lexer<'src> {
             if has_close_brace {
                 self.pos += 1;
             } else if self.token_protocol != TokenProtocol::JimNative {
-                self.warn_or_error("missing close-brace for variable name")?;
+                self.warn_or_error(crate::ParseIssueKind::MissingVariableBrace)?;
             }
             return Ok(Token::with_content_offset(
                 TokenType::Var,
@@ -1273,7 +1279,7 @@ impl<'src> Lexer<'src> {
                 if self.current_byte() == Some(b')') {
                     self.pos += 1;
                 } else if self.token_protocol != TokenProtocol::JimNative {
-                    self.warn_or_error("missing close-paren for array index")?;
+                    self.warn_or_error(crate::ParseIssueKind::MissingArrayIndexParenthesis)?;
                 }
             } else {
                 self.scan_array_index_body()?;
@@ -1352,7 +1358,7 @@ impl<'src> Lexer<'src> {
         );
         if let Some(invalid) = scan.invalid {
             self.pos = u32::try_from(invalid).expect("source offset fits u32");
-            self.warn_or_error(crate::INVALID_CHARACTER_IN_ARRAY_INDEX)?;
+            self.warn_or_error(crate::ParseIssueKind::InvalidArrayIndexCharacter)?;
         }
         match scan.end {
             crate::ArrayIndexEnd::Closed(end) => {
@@ -1360,7 +1366,7 @@ impl<'src> Lexer<'src> {
             }
             crate::ArrayIndexEnd::Unterminated => {
                 self.pos = u32::try_from(self.source().len()).expect("source length fits u32");
-                self.warn_or_error("missing )")?;
+                self.warn_or_error(crate::ParseIssueKind::MissingParenthesis)?;
             }
         }
         Ok(())
@@ -1499,7 +1505,7 @@ impl<'src> Lexer<'src> {
                         || after == b']'
                         || is_bs_nl;
                     if !ok {
-                        self.warn_or_error(crate::EXTRA_AFTER_CLOSE_QUOTE)?;
+                        self.warn_or_error(crate::ParseIssueKind::ExtraAfterQuote)?;
                     }
                 }
             }
@@ -1508,7 +1514,7 @@ impl<'src> Lexer<'src> {
             if self.token_protocol == TokenProtocol::JimNative {
                 self.jim_missing = Some(b'"');
             }
-            self.warn_or_error("missing \"")?;
+            self.warn_or_error(crate::ParseIssueKind::MissingQuote)?;
         }
 
         let content_offset: u8 = if !opening && content_empty && closed {
@@ -1684,7 +1690,7 @@ impl<'src> Lexer<'src> {
                         // that turns this recoverable warning into C's hard
                         // error (`runtime/rust`, via
                         // `script::WordSpan::welded_after_close`).
-                        self.warn_or_error(crate::word_parts::EXTRA_AFTER_CLOSE_BRACE)?;
+                        self.warn_or_error(crate::ParseIssueKind::ExtraAfterBrace)?;
                     }
                 }
             }
@@ -1693,7 +1699,7 @@ impl<'src> Lexer<'src> {
                 self.jim_missing = Some(b'{');
                 self.jim_missing_line = Some(brace_pos);
             }
-            self.warn_or_error("missing close-brace")?;
+            self.warn_or_error(crate::ParseIssueKind::MissingBrace)?;
         }
 
         Ok(Token::with_content_offset(
@@ -1835,7 +1841,7 @@ impl<'src> Lexer<'src> {
                 self.jim_missing = Some(b'[');
                 self.jim_missing_line = Some(bracket_pos);
             }
-            self.warn_or_error("missing close-bracket")?;
+            self.warn_or_error(crate::ParseIssueKind::MissingBracket)?;
         }
         Ok(Token::with_content_offset(
             TokenType::Cmd,

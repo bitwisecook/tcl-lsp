@@ -502,7 +502,7 @@ mod tests {
                 if let Some((tokens, binding)) = tokens.and_then(|tokens| {
                     tokens
                         .source_binding
-                        .as_deref()
+                        .as_ref()
                         .map(|binding| (tokens, binding))
                 }) {
                     let point_input = binding.logical_source_name_advice_input();

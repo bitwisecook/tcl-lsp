@@ -375,8 +375,16 @@ pub(crate) struct CodegenOperation {
 
 impl CodegenOperation {
     pub(crate) fn enter() -> Result<Self, i32> {
-        // SAFETY: the host retains its installed interpreter through ABI entry.
-        let Some(mut interpreter) = (unsafe { current_interp().as_ref() }).cloned() else {
+        Self::enter_for(original_frame_owner::interpreter()?)
+    }
+
+    fn enter_installed() -> Result<Self, i32> {
+        // SAFETY: explicit entry borrows the host's live installed interpreter.
+        Self::enter_for(unsafe { current_interp().as_ref() }.cloned())
+    }
+
+    fn enter_for(interpreter: Option<Interp>) -> Result<Self, i32> {
+        let Some(mut interpreter) = interpreter else {
             return Err(TCL_INVOKE_ABI_NO_CURRENT_INTERP);
         };
         let scope = NativeOperationScope::enter(&interpreter).map_err(|first| {
@@ -532,6 +540,7 @@ pub(crate) fn current_interp() -> *mut Interp {
 /// null to clear it (e.g. before the interp is deleted).
 #[no_mangle]
 pub extern "C" fn tcl_runtime_set_current_interp(interp: *mut Interp) {
+    original_frame_owner::explicit_bootstrap();
     #[cfg(not(target_arch = "wasm32"))]
     {
         CURRENT_INTERP.with(|c| c.set(interp));
@@ -580,12 +589,10 @@ pub extern "C" fn tcl_runtime_init_library() -> i32 {
 /// be non-negative.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_runtime_identity(out: *mut u8, capacity: i32) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() {
+    let Ok(Some(interpreter)) = original_frame_owner::interpreter() else {
         return 0;
-    }
-    // SAFETY: `interp` is the live current interp set by the bootstrap.
-    let bytes = unsafe { (*interp).held_identity() }.to_bytes();
+    };
+    let bytes = interpreter.held_identity().to_bytes();
     let Ok(len) = i32::try_from(bytes.len()) else {
         return 0;
     };
@@ -965,19 +972,7 @@ impl Drop for AbiActivation {
 /// not leave one.
 #[no_mangle]
 pub extern "C" fn tcl_codegen_activation_enter() -> i32 {
-    let Ok(mut operation) = CodegenOperation::enter() else {
-        return 1;
-    };
-    let entered = operation.interpreter.codegen_activation_enter();
-    if operation.ensure_current().is_err() {
-        if entered {
-            operation
-                .interpreter
-                .codegen_activation_leave(crate::interp::Code::Error);
-        }
-        return TCL_INVOKE_ABI_HOST_REFUSED;
-    }
-    i32::from(!entered)
+    original_frame_owner::activation_enter()
 }
 
 /// `tcl_codegen_activation_leave(code)` — leave the activation entered by the
@@ -990,32 +985,20 @@ pub extern "C" fn tcl_codegen_activation_enter() -> i32 {
 /// queued background errors are drained with the current handler.
 #[no_mangle]
 pub extern "C" fn tcl_codegen_activation_leave(code: i32) {
-    let interp = current_interp();
-    if interp.is_null() {
-        return;
-    }
-    // SAFETY: the bootstrap installed a live current interpreter.
-    unsafe { (*interp).codegen_activation_leave(crate::interp::Code::from_int(code)) };
+    original_frame_owner::activation_leave(code);
 }
 
-/// Push a name-addressable Tcl frame for a generated procedure.
+/// Attempt a name-addressable Tcl frame on the explicitly installed interpreter.
+/// Every attempt, including refusal, requires exactly one matching pop.
 #[no_mangle]
 pub extern "C" fn tcl_codegen_frame_push() {
-    let Ok(mut operation) = CodegenOperation::enter() else {
-        return;
-    };
-    operation.interpreter.codegen_frame_push();
-    let _ = operation.ensure_current();
+    original_frame_owner::frame_push();
 }
 
-/// Pop the current generated procedure frame.
+/// Retire the matching original frame attempt, independent of mutable TLS.
 #[no_mangle]
 pub extern "C" fn tcl_codegen_frame_pop() {
-    let interp = current_interp();
-    if !interp.is_null() {
-        // SAFETY: the bootstrap installed a live current interpreter.
-        unsafe { (*interp).codegen_frame_pop() };
-    }
+    original_frame_owner::frame_pop();
 }
 
 /// Bind a compiled slot index to the Tcl-visible variable cell and store value.
@@ -1867,12 +1850,10 @@ pub extern "C" fn tcl_codegen_return_state(level: i32, code: i32) {
 /// behavioural assertion green.
 #[no_mangle]
 pub extern "C" fn tcl_codegen_native_proc_dispatches() -> i32 {
-    let interp = current_interp();
-    if interp.is_null() {
+    let Ok(Some(interpreter)) = original_frame_owner::interpreter() else {
         return -1;
-    }
-    // SAFETY: the bootstrap installed a live current interpreter.
-    let dispatches = unsafe { (*interp).native_proc_dispatches() };
+    };
+    let dispatches = interpreter.native_proc_dispatches();
     i32::try_from(dispatches).unwrap_or(i32::MAX)
 }
 
@@ -2200,12 +2181,8 @@ pub unsafe extern "C" fn tcl_codegen_guard_check(
 /// `tcl_codegen_guard_release(token)` — release a token exactly once.
 #[no_mangle]
 pub extern "C" fn tcl_codegen_guard_release(token: u64) {
-    let interp = current_interp();
-    if !interp.is_null() {
-        // SAFETY: `interp` is the live current interpreter.
-        unsafe {
-            let _ = (*interp).release_command_guard(GuardToken::from_raw(token));
-        }
+    if let Some(mut interpreter) = original_frame_owner::cleanup_interpreter() {
+        let _ = interpreter.release_command_guard(GuardToken::from_raw(token));
     }
 }
 
@@ -2473,10 +2450,10 @@ unsafe fn expr_bool_impl(_interp: &mut Interp, _expr: *mut TclObj) -> i32 {
 /// This does not reset the failure or publish a catchable Tcl completion.
 #[unsafe(no_mangle)]
 pub extern "C" fn tcl_codegen_host_refusal_pending() -> i32 {
-    // SAFETY: the registered current interpreter is live until its host clears it.
-    unsafe { current_interp().as_ref() }
-        .map_or(0, |interp| i32::from(interp.host_refusal_pending()))
+    i32::from(original_frame_owner::refusal_pending())
 }
+
+mod original_frame_owner;
 
 #[cfg(test)]
 mod tests {

@@ -64,11 +64,11 @@ This precise Rust source contract has no native execution receipt.
 
 ## Exact evidence
 
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/type_definition.rs](../../../../rust/tcl-lsp-core/src/type_definition.rs). SHA-256 `128350d2f210f4ad676c34f07b9ba686d0f910e1ab73b8e341126fec787776af`. Current Rust source and fixed assertion bindings; no execution receipt.
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/implementation.rs](../../../../rust/tcl-lsp-core/src/implementation.rs). SHA-256 `55712f99f83f913f14f4fb7cb2a2366b03d53aa388797b1d70dc37054881b4f1`. Current Rust source and fixed assertion bindings; no execution receipt.
-- `implementation-2` (implementation): [rust/tcl-lsp-core/src/method_symbol.rs](../../../../rust/tcl-lsp-core/src/method_symbol.rs). SHA-256 `bf5f62d0395ea9719c5e550fa8a6060e59f28e5adb2f4ac9fe9f8fea059870c5`. Current Rust source and fixed assertion bindings; no execution receipt.
-- `implementation-3` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `23386c1e89d183e32bcb45e2852c9106bf69a1a37e91f673850983ff22405eb4`. Current Rust source and fixed assertion bindings; no execution receipt.
-- `implementation-class-inventory` (implementation): [rust/tcl-lsp-core/src/original_declaration.rs](../../../../rust/tcl-lsp-core/src/original_declaration.rs). SHA-256 `eb71dcd56b7311d88e3c423b67dc90b57d1df0f4eb87057a2aa8674f00b527c2`. Current common readonly class inventory and meaningful fixed assertions; no native or Rust execution receipt.
+- `implementation-0` (implementation): [rust/tcl-lsp-core/src/type_definition.rs](../../../../rust/tcl-lsp-core/src/type_definition.rs). SHA-256 `384ccc4b1ea166c52d01656d4bfd49c35aaf8f693d3684a1d7e92f0fccb81225`. Current Rust source and fixed assertion bindings; no execution receipt.
+- `implementation-1` (implementation): [rust/tcl-lsp-core/src/implementation.rs](../../../../rust/tcl-lsp-core/src/implementation.rs). SHA-256 `d20b3e902762c6a847428af7d97e6fb43ac52af5e13bae1d3df51bf256c7c41b`. Current Rust source and fixed assertion bindings; no execution receipt.
+- `implementation-2` (implementation): [rust/tcl-lsp-core/src/method_symbol.rs](../../../../rust/tcl-lsp-core/src/method_symbol.rs). SHA-256 `a4d76d8b8eb4d2a06cf2680c8fb57bb2960b3bcd7c7ea766a92ead79d34cb84d`. Current Rust source and fixed assertion bindings; no execution receipt.
+- `implementation-3` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `0dd77cf689cea5843308375483dccca76f958c40b223078469fe95ffa9389bb6`. Current Rust source and fixed assertion bindings; no execution receipt.
+- `implementation-class-inventory` (implementation): [rust/tcl-lsp-core/src/original_declaration.rs](../../../../rust/tcl-lsp-core/src/original_declaration.rs). SHA-256 `2fb2df2a8b110a27c0119df4d1d2a6a804e75d6dfc58d18921644cec31b4012e`. Current common readonly class inventory and meaningful fixed assertions; no native or Rust execution receipt.
 
 ## Source inspection
 

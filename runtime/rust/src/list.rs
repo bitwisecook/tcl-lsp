@@ -632,7 +632,22 @@ pub(crate) fn list_elements_in(
     syntax: tcl_dialect::ListParse,
     escapes: tcl_dialect::EscapeSyntax,
 ) -> Result<Vec<*mut TclObj>, ListError> {
-    list_elements_using(value, None, syntax, escapes, None)
+    list_elements_using(
+        value,
+        None,
+        syntax,
+        escapes,
+        None,
+        |error| error,
+        |backing| {
+            obj::change_type(
+                value,
+                &TCL_LIST_TYPE,
+                Box::into_raw(backing) as usize as u64,
+            );
+            Ok(())
+        },
+    )
 }
 
 /// Convert original native object-list storage while preserving host refusals.
@@ -640,34 +655,138 @@ pub(crate) fn list_elements_native_checked(
     value: *mut TclObj,
     protocol: tcl_syntax::native_string::NativeStringProtocol,
 ) -> Result<Vec<*mut TclObj>, tcl_syntax::value::ValueError> {
+    list_elements_native_with_currency(value, protocol, None)
+}
+
+/// Original selected List conversion, checked after reached getters and before
+/// installing a later backing. Neutral utilities deliberately pass no currency.
+pub(crate) fn list_elements_native_with_currency(
+    value: *mut TclObj,
+    protocol: NativeStringProtocol,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+) -> Result<Vec<*mut TclObj>, tcl_syntax::value::ValueError> {
+    list_stage_current(value, currency)?;
     if crate::native_arithseries::is_series(value) {
-        return crate::native_arithseries::elements(value, protocol);
+        let result = crate::native_arithseries::elements(value, protocol);
+        list_stage_current(value, currency)?;
+        return result;
     }
     seal_string_protocol(value, protocol)?;
+    crate::dict::seal_string_protocol(value, protocol)?;
     let direct = obj::obj_type_ptr(value) == &TCL_LIST_TYPE
         || (obj::obj_type_ptr(value) == &crate::dict::TCL_DICT_TYPE && !obj::has_string_rep(value));
     let source = if protocol.is_jim084() && !direct {
-        let context = crate::native_source::context(value)?;
-        let info = crate::native_source::pin_source_info(value, &context)?;
-        Some((context, info))
+        let context = crate::native_source::context(value);
+        list_stage_current(value, currency)?;
+        let context = context?;
+        let info = crate::native_source::pin_source_info(value, &context);
+        list_stage_current(value, currency)?;
+        Some((context, info?))
     } else {
         None
     };
-    if !direct {
-        drop(crate::dict::native_object_bytes(value, protocol)?);
-    }
-    list_elements_using(
+    let original = if direct {
+        Vec::new()
+    } else {
+        let result = crate::dict::native_object_bytes(value, protocol);
+        list_stage_current(value, currency)?;
+        result?
+    };
+    let result = list_elements_using(
         value,
         Some(protocol),
         tcl_dialect::ListParse::Strict,
         protocol.escape_syntax(),
         source,
-    )
-    .map_err(|error| tcl_syntax::value::ValueError::NativeListParse {
-        error: error.shared(),
-        source: obj::bytes_of(value),
-        protocol,
-    })
+        |error| tcl_syntax::value::ValueError::NativeListParse {
+            error: error.shared(),
+            source: original.clone(),
+            protocol,
+        },
+        |backing| install_list_backing(value, backing, currency),
+    );
+    list_stage_current(value, currency)?;
+    result
+}
+
+fn list_stage_current(
+    value: *mut TclObj,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    if let Some(currency) = currency {
+        currency.ensure_current_or_refuse().map_err(|_| {
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "stale original List conversion",
+            )
+        })?;
+    }
+    obj::check_native_liveness(value)
+}
+
+fn install_list_backing(
+    value: *mut TclObj,
+    backing: Box<TclList>,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    list_stage_current(value, currency)?;
+    if currency.is_some() && !obj::obj_type_ptr(value).is_null() {
+        if obj::has_string_rep(value) {
+            obj::discard_native_internal_representation(value)?;
+        } else {
+            // Direct Dictionary members or Jim's intermediate empty List are
+            // already retained by the prepared backing. Preserve absent String
+            // while releasing the original backing through the type owner.
+            obj::change_type(value, core::ptr::null(), 0);
+        }
+        list_stage_current(value, currency)?;
+    }
+    obj::change_type(
+        value,
+        &TCL_LIST_TYPE,
+        Box::into_raw(backing) as usize as u64,
+    );
+    list_stage_current(value, currency)
+}
+
+/// Borrow the selected ordinary or abstract GetElements window without adding
+/// a native header reference. The caller owns its original header lifetime.
+pub(crate) fn elements_raw_native_with_currency(
+    value: *mut TclObj,
+    protocol: NativeStringProtocol,
+    currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
+) -> Result<(*mut *mut TclObj, usize), tcl_syntax::value::ValueError> {
+    list_stage_current(value, Some(currency))?;
+    if obj::obj_type_ptr(value) != &TCL_LIST_TYPE
+        && obj::has_canonical_empty_string(value)
+        && protocol
+            .tcl_version()
+            .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_5)
+    {
+        return Ok((core::ptr::null_mut(), 0));
+    }
+    list_elements_native_with_currency(value, protocol, Some(currency))?;
+    list_stage_current(value, Some(currency))?;
+    if crate::native_arithseries::is_series(value) {
+        return crate::native_arithseries::cached_elements_raw(value, protocol);
+    }
+    // SAFETY: selected conversion owns the actual ordinary List backing.
+    let list = unsafe { list_ref(value) };
+    Ok((list.elems.elements().as_ptr().cast_mut(), list.elems.len()))
+}
+
+/// Append to the actual unshared original header; backing COW is independent
+/// of that header's reference count and no working hold changes the decision.
+pub(crate) fn append_native_element_with_currency(
+    value: *mut TclObj,
+    element: *mut TclObj,
+    protocol: NativeStringProtocol,
+    currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    list_elements_native_with_currency(value, protocol, Some(currency))?;
+    list_stage_current(value, Some(currency))?;
+    let result = append_prepared_native_elements(value, &[element], protocol);
+    list_stage_current(value, Some(currency))?;
+    result
 }
 
 /// Enter ordinary `SetListFromAny`; abstract Index hooks create fresh members
@@ -905,7 +1024,7 @@ pub(crate) fn native_full_list_range(
     Ok(value)
 }
 
-fn list_elements_using(
+fn list_elements_using<E>(
     value: *mut TclObj,
     native: Option<tcl_syntax::native_string::NativeStringProtocol>,
     syntax: tcl_dialect::ListParse,
@@ -914,7 +1033,9 @@ fn list_elements_using(
         Rc<crate::native_source::NativeJimObjectContext>,
         crate::native_source::NativeJimSourceInfo,
     )>,
-) -> Result<Vec<*mut TclObj>, ListError> {
+    parse_error: impl Fn(ListError) -> E,
+    mut install: impl FnMut(Box<TclList>) -> Result<(), E>,
+) -> Result<Vec<*mut TclObj>, E> {
     if obj::obj_type_ptr(value) == &crate::dict::TCL_DICT_TYPE && !obj::has_string_rep(value) {
         // Native SetListFromAny reads dictionary members directly. Retain the
         // original member objects before releasing the dictionary backing;
@@ -932,20 +1053,18 @@ fn list_elements_using(
             canonical: Rc::new(Cell::new(false)),
             string_protocol: Cell::new(native),
         });
-        obj::change_type(
-            value,
-            &TCL_LIST_TYPE,
-            Box::into_raw(backing) as usize as u64,
-        );
+        install(backing)?;
     }
     if obj::obj_type_ptr(value) != &TCL_LIST_TYPE {
         let bytes = obj::bytes_of(value);
         let parsed: Vec<_> = match native {
-            Some(protocol) => tcl_syntax::list::split_native_list_elements(&bytes, protocol)?
+            Some(protocol) => tcl_syntax::list::split_native_list_elements(&bytes, protocol)
+                .map_err(|error| parse_error(error.into()))?
                 .into_iter()
                 .map(|element| (element.value, element.line_delta))
                 .collect(),
-            None => tcl_syntax::list::split_list_bytes_in(&bytes, syntax, escapes)?
+            None => tcl_syntax::list::split_list_bytes_in(&bytes, syntax, escapes)
+                .map_err(|error| parse_error(error.into()))?
                 .into_iter()
                 .map(|value| (value, 0))
                 .collect(),
@@ -956,11 +1075,7 @@ fn list_elements_using(
                 canonical: Rc::new(Cell::new(false)),
                 string_protocol: Cell::new(native),
             });
-            obj::change_type(
-                value,
-                &TCL_LIST_TYPE,
-                Box::into_raw(backing) as usize as u64,
-            );
+            install(backing)?;
         }
         let elems = parsed
             .iter()
@@ -995,11 +1110,7 @@ fn list_elements_using(
             canonical: Rc::new(Cell::new(false)),
             string_protocol: Cell::new(native),
         });
-        obj::change_type(
-            value,
-            &TCL_LIST_TYPE,
-            Box::into_raw(backing) as usize as u64,
-        );
+        install(backing)?;
     }
     // SAFETY: successful selected conversion or the prior live rep owns them.
     Ok(unsafe { list_ref(value) }.elems.elements().to_vec())
@@ -1398,7 +1509,7 @@ mod tests {
     }
     use super::*;
     use crate::counters;
-    use crate::obj::{TclObj, new_string_bytes};
+    use crate::obj::{new_string_bytes, TclObj};
 
     fn leak_free(body: impl FnOnce()) {
         counters::reset();

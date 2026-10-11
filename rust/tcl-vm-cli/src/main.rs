@@ -30,7 +30,7 @@
 //! - `tclvm -c "<script>"` — evaluate an inline script string.
 //! - `tclvm` with piped stdin — run the piped script.
 //! - `tclvm` on a TTY — an interactive REPL (`info complete`-aware line
-//!   accumulation via `tcl_lexer::script_is_complete`).
+//!   accumulation under the VM's complete Document source configuration).
 //!
 //! `--static-extensions` opts the VM into a `load` command over the C Tcl
 //! extensions the build links in (`tcl-cshim`; the `static-extensions`
@@ -46,7 +46,6 @@ use std::sync::{Arc, Mutex};
 
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
-use tcl_lexer::script_is_complete;
 use tcl_vm::{CompileService, Value, Vm};
 
 /// The `CompileService` the VM uses for runtime `eval` / command substitution
@@ -342,7 +341,7 @@ fn run() -> i32 {
 
 /// Interactive REPL loop over an arbitrary reader/writer (so it is testable
 /// without a real terminal). Accumulates input lines until they form a complete
-/// command (`tcl_lexer::script_is_complete`, the `info complete` oracle),
+/// original Document under Vm::source_is_complete,
 /// evaluates it in the persistent global frame, and writes a non-empty result.
 /// Variables and procs persist across evaluations because each line runs in the
 /// same VM. Prompts (`% ` primary, `> ` continuation) and results go to `out`;
@@ -369,10 +368,20 @@ fn repl_loop<R: std::io::BufRead, W: Write>(vm: &mut Vm, reader: &mut R, out: &m
             let _ = out.flush();
             continue;
         }
-        if !script_is_complete(&buffer) {
-            let _ = write!(out, "> ");
-            let _ = out.flush();
-            continue;
+        match vm.source_is_complete(&buffer) {
+            Ok(true) => {}
+            Ok(false) => {
+                let _ = write!(out, "> ");
+                let _ = out.flush();
+                continue;
+            }
+            Err(error) => {
+                eprintln!("tclvm: original Document completeness unavailable: {error}");
+                buffer.clear();
+                let _ = write!(out, "% ");
+                let _ = out.flush();
+                continue;
+            }
         }
 
         let result = vm.eval_source(&buffer);
@@ -497,6 +506,42 @@ mod tests {
         assert!(out.contains("> "), "no continuation prompt: {out:?}");
         // `llength {a\nb}` is 2 (two whitespace-separated words).
         assert!(out.contains('2'), "joined value not evaluated: {out:?}");
+    }
+
+    #[test]
+    fn repl_completeness_keeps_selected_source_configuration_and_document_channel() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Distribution Document contract, independent of native String
+        // observations and native handler/header/entry admission.
+        for version in [TclVersion::V8_4, TclVersion::V8_6, TclVersion::V9_0] {
+            let vm = build_vm(
+                Box::new(Capture(Rc::new(RefCell::new(Vec::new())))),
+                &Options {
+                    version: Some(version),
+                    ..Options::default()
+                },
+            );
+            assert_eq!(
+                vm.source_is_complete("set x ${a{}"),
+                Ok(version != TclVersion::V9_0)
+            );
+            assert_eq!(
+                vm.source_is_complete("set x {*}{"),
+                Ok(version == TclVersion::V8_4)
+            );
+            assert_eq!(vm.source_is_complete("# c\\\r\n"), Ok(false));
+            assert_eq!(vm.source_is_complete("set x \"é"), Ok(false));
+        }
+        let out = drive("set y {a\r\nb}\r\nllength $y\r\n");
+        assert!(
+            out.contains("> "),
+            "no Document continuation prompt: {out:?}"
+        );
+        assert!(
+            out.contains('2'),
+            "continuation did not reach original source: {out:?}"
+        );
     }
 
     #[test]

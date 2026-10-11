@@ -68,8 +68,10 @@ mod line_index;
 mod native_script_words;
 mod native_word;
 pub mod parse_cut;
+mod parse_issue;
 mod ranges;
 pub mod script;
+mod script_completeness;
 mod source_map;
 mod span;
 mod structural_index;
@@ -102,10 +104,11 @@ pub use native_script_words::{
     NativeScriptWordsUnavailable, native_script_words_in, source_region_tokens_in,
 };
 pub use parse_cut::{
-    EXTRA_AFTER_CLOSE_QUOTE, ParseCut, ParseCutUnavailable, first_parse_cut, first_parse_cut_bytes,
-    first_parse_cut_bytes_in, first_parse_cut_image, first_parse_cut_image_checked,
-    first_parse_cut_image_in_checked, first_parse_cut_in,
+    EXTRA_AFTER_CLOSE_QUOTE, ParseCut, ParseCutCompleteness, ParseCutUnavailable, first_parse_cut,
+    first_parse_cut_bytes, first_parse_cut_bytes_in, first_parse_cut_image,
+    first_parse_cut_image_checked, first_parse_cut_image_in_checked, first_parse_cut_in,
 };
+pub use parse_issue::ParseIssueKind;
 pub use ranges::{
     ArrayIndexEnd, ArrayIndexScan, BracedVarEnd, INVALID_CHARACTER_IN_ARRAY_INDEX,
     MISSING_CLOSE_BRACE_FOR_VAR, braced_var_name_end, close_quote_offset, command_substitution_end,
@@ -113,6 +116,7 @@ pub use ranges::{
     word_end_position, word_span, word_span_at,
 };
 pub use script::{CommandSpan, WordKind, WordSpan, group_commands, group_commands_bytes};
+pub use script_completeness::{ScriptCompletenessUnavailable, script_image_is_complete};
 pub use source_map::{DocumentLineEndingProjection, SourceChannel, SourceImage, SourceMap};
 pub use span::Span;
 pub use structural_index::{

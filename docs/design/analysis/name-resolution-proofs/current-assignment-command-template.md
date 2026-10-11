@@ -64,7 +64,7 @@ No native interpreter executes this current-point Rust proposal contract.
 
 ## Exact evidence
 
-- `implementation` (implementation): [rust/tcl-compiler/src/command_binding/insertion_template.rs](../../../../rust/tcl-compiler/src/command_binding/insertion_template.rs). SHA-256 `f03d37e07c84bfe360f0b3f9500f1eddc755ac5f4cb9cfe539d79d87487c4331`. Actual shared current-point issuer and fixed discriminating tests. The source digest records implementation correspondence and does not claim test execution.
+- `implementation` (implementation): [rust/tcl-compiler/src/command_binding/insertion_template.rs](../../../../rust/tcl-compiler/src/command_binding/insertion_template.rs). SHA-256 `4a9caf48a4851504f7de431c8bfd9d4bb063c3c97b6d5b31f8fc2f0fcdfe4c67`. Actual shared current-point issuer and fixed discriminating tests. The source digest records implementation correspondence and does not claim test execution.
 
 ## Source inspection
 

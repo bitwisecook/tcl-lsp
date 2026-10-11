@@ -174,6 +174,7 @@ fn strict_quoting_rejects_unterminated_brace() {
     assert_eq!(
         strict_error("set x {abc"),
         Some(LexError::SyntaxError {
+            kind: tcl_lexer::ParseIssueKind::MissingBrace,
             message: "missing close-brace".to_string()
         })
     );
@@ -185,12 +186,14 @@ fn strict_quoting_rejects_unterminated_bracket_and_quote() {
     assert_eq!(
         strict_error("set x [foo bar"),
         Some(LexError::SyntaxError {
+            kind: tcl_lexer::ParseIssueKind::MissingBracket,
             message: "missing close-bracket".to_string()
         })
     );
     assert_eq!(
         strict_error("set x \"hello"),
         Some(LexError::SyntaxError {
+            kind: tcl_lexer::ParseIssueKind::MissingQuote,
             message: "missing \"".to_string()
         })
     );
@@ -201,12 +204,14 @@ fn strict_quoting_rejects_unterminated_braced_var_and_array() {
     assert_eq!(
         strict_error("${name"),
         Some(LexError::SyntaxError {
+            kind: tcl_lexer::ParseIssueKind::MissingVariableBrace,
             message: "missing close-brace for variable name".to_string()
         })
     );
     assert_eq!(
         strict_error("$arr(idx"),
         Some(LexError::SyntaxError {
+            kind: tcl_lexer::ParseIssueKind::MissingParenthesis,
             message: "missing )".to_string()
         })
     );
@@ -219,12 +224,14 @@ fn strict_quoting_rejects_extra_chars_after_close() {
     assert_eq!(
         strict_error("\"ab\"x"),
         Some(LexError::SyntaxError {
+            kind: tcl_lexer::ParseIssueKind::ExtraAfterQuote,
             message: "extra characters after close-quote".to_string()
         })
     );
     assert_eq!(
         strict_error("{ab}x"),
         Some(LexError::SyntaxError {
+            kind: tcl_lexer::ParseIssueKind::ExtraAfterBrace,
             message: "extra characters after close-brace".to_string()
         })
     );

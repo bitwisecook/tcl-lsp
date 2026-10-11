@@ -35,9 +35,9 @@
 
 use core::ptr;
 
-use crate::codegen_abi::{
-    current_interp, CodegenOperation, TclCompletionAbi, TCL_INVOKE_ABI_HOST_REFUSED,
-};
+#[cfg(test)]
+use crate::codegen_abi::current_interp;
+use crate::codegen_abi::{CodegenOperation, TclCompletionAbi, TCL_INVOKE_ABI_HOST_REFUSED};
 use crate::interp::native_operation_currency::{NativeOperationCurrency, NativeOperationScope};
 use crate::interp::{Code, Interp};
 use crate::obj::{self, TclObj};
@@ -433,12 +433,15 @@ pub unsafe extern "C" fn tcl_codegen_expr_eval(
     expr: *mut TclObj,
     out: *mut TclCompletionAbi,
 ) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() || expr.is_null() || out.is_null() {
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(TCL_INVOKE_ABI_HOST_REFUSED) => return TCL_INVOKE_ABI_HOST_REFUSED,
+        Err(_) => return TCL_NATIVE_ABI_INVALID,
+    };
+    if expr.is_null() || out.is_null() {
         return TCL_NATIVE_ABI_INVALID;
     }
-    // SAFETY: the bootstrap installed a live current interpreter.
-    let interp = unsafe { &mut *interp };
+    let interp = &mut operation.interpreter;
     let currency = match completion_entry(interp) {
         Ok(currency) => currency,
         Err(status) => return status,
@@ -508,12 +511,15 @@ pub unsafe extern "C" fn tcl_codegen_expr_bool(
     completion_out: *mut TclCompletionAbi,
     truth_out: *mut i32,
 ) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() || expr.is_null() || completion_out.is_null() || truth_out.is_null() {
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(TCL_INVOKE_ABI_HOST_REFUSED) => return TCL_INVOKE_ABI_HOST_REFUSED,
+        Err(_) => return TCL_NATIVE_ABI_INVALID,
+    };
+    if expr.is_null() || completion_out.is_null() || truth_out.is_null() {
         return TCL_NATIVE_ABI_INVALID;
     }
-    // SAFETY: current_interp and all outputs satisfy this entry's contract.
-    let interp = unsafe { &mut *interp };
+    let interp = &mut operation.interpreter;
     let currency = match completion_entry(interp) {
         Ok(currency) => currency,
         Err(status) => return status,
@@ -590,8 +596,12 @@ pub unsafe extern "C" fn tcl_codegen_mathop(
     argc: i32,
     out: *mut TclCompletionAbi,
 ) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() || out.is_null() {
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(TCL_INVOKE_ABI_HOST_REFUSED) => return TCL_INVOKE_ABI_HOST_REFUSED,
+        Err(_) => return TCL_NATIVE_ABI_INVALID,
+    };
+    if out.is_null() {
         return TCL_NATIVE_ABI_INVALID;
     }
     let Ok(argc) = usize::try_from(argc) else {
@@ -602,7 +612,7 @@ pub unsafe extern "C" fn tcl_codegen_mathop(
     }
     // SAFETY: readable per the contract; the interpreter is live.
     let op = unsafe { input_bytes(op_ptr, op_len) };
-    let interp = unsafe { &mut *interp };
+    let interp = &mut operation.interpreter;
     let words = if argc == 0 {
         &[][..]
     } else {
@@ -673,8 +683,12 @@ pub unsafe extern "C" fn tcl_codegen_mathfunc(
     argc: i32,
     out: *mut TclCompletionAbi,
 ) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() || out.is_null() {
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(TCL_INVOKE_ABI_HOST_REFUSED) => return TCL_INVOKE_ABI_HOST_REFUSED,
+        Err(_) => return TCL_NATIVE_ABI_INVALID,
+    };
+    if out.is_null() {
         return TCL_NATIVE_ABI_INVALID;
     }
     let Ok(argc) = usize::try_from(argc) else {
@@ -685,7 +699,7 @@ pub unsafe extern "C" fn tcl_codegen_mathfunc(
     }
     // SAFETY: readable per the contract; the interpreter is live.
     let name = unsafe { input_bytes(name_ptr, name_len) };
-    let interp = unsafe { &mut *interp };
+    let interp = &mut operation.interpreter;
     let words = if argc == 0 {
         &[][..]
     } else {

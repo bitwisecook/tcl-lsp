@@ -112,8 +112,9 @@ The obj-lifecycle and result slice of `tcl.h`, exported for extensions
 
 ### `codegen_abi.rs` — the compiled-module host bridge
 
-The import table an emitted WASM module links against. It evaluates against a
-**current interp** installed by the bootstrap, not an interp argument.
+The import table an emitted WASM module links against. Explicit entry selects
+the interpreter installed by the bootstrap. Paired work retains that actual
+interpreter until its matching cleanup, independent of later pointer changes.
 
 The table below covers the eval / value / variable core. The slot family
 (`tcl_codegen_slot_*`), the guard and activation families
@@ -129,7 +130,7 @@ a convention at the call site.
 
 | Function | Args | Return | Storage | Notes |
 |---|---|---|---|---|
-| `tcl_runtime_set_current_interp(interp)` | raw pointer, not retained | `void` | module-level current-interp cell | Null clears it. Every other export here no-ops or reports failure when it is null. |
+| `tcl_runtime_set_current_interp(interp)` | raw pointer, not retained | `void` | module-level current-interp cell | Null clears the bootstrap pointer. Outstanding paired work retains its actual interpreter; otherwise interpreter-dependent exports use their documented absent-interpreter behaviour. Installing a pointer outside paired work clears the completed cleanup observation, while preserving each interpreter's actual first Host cause. |
 | `tcl_runtime_init_library()` | (n/a) | i32 (0 ok) | (n/a) | C's `Tcl_Init` equivalent: sources `$TCL_LIBRARY/init.tcl` (the embedded-stdlib VFS on the `wasm_stdlib` build). Returns 1 with no current interp. |
 | `tcl_runtime_identity(out, capacity)` | writable bytes, not retained | i32 (the encoding's byte length; 0 with no current interp) | (n/a) | What the runtime states of itself — the current interp's pinned context and this build's ABI, intrinsic table and embedded library — as an `ArtefactIdentityManifest`'s bytes, written only when `capacity` holds them, so a host asks once with a null buffer for the size and compares a module's own manifest before linking. No object is created or retained. |
 | `tcl_obj_new_string(ptr, len)` | copied bytes | `owned` (`rc 0`) | none | **Not retained.** Its consumer (`tcl_eval` / `tcl_eval_code` / `tcl_expr_bool`) *adopts* and frees it. |
@@ -174,6 +175,26 @@ its Guest error state; mandatory activation cleanup then runs before final
 publication. A refusal during capture or cleanup releases retained result and
 options and leaves caller output untouched. Mutable ambient interpreter state
 cannot retarget this settlement.
+
+Separate compiler frame and activation calls retain their actual interpreter
+and entered currency in a LIFO ledger. Ordinary facade calls, completion
+exports and Host-status reads use that owner while it is outstanding; explicit
+entry selects the bootstrap's installed interpreter. Every void frame-push
+attempt requires one pop, including a refused attempt, so a failed nested push
+cannot remove an outer frame. Activation callers owe a leave only after a
+successful status. Cleanup stays on the original owner during reentrant object
+retirement and always runs under refusal. A wrong entry kind or repeated
+reentrant exit retains an operational refusal without removing another entry.
+If cleanup leaves a callback-entered entry open, its completed record remains
+below that entry. The matching nested exit retires completed scopes in order,
+without repeating frame or activation cleanup. No ledger borrow crosses a
+callback or scope destructor. A cleanup refusal retains its weak actual owner
+and exact first cause until
+an explicit independent entry or bootstrap outside paired work; it is never
+copied into an outer interpreter. Installing a pointer during held work clears
+none of its original currency or refusal. The native
+ledger is per thread; the single-threaded Wasm module uses a lazy module-global
+ledger without requiring TLS initialisation.
 
 ### `regex_capi.rs` — the ARE engine's C shim
 

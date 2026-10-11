@@ -64,8 +64,8 @@ This precise Rust source contract has no native execution receipt.
 
 ## Exact evidence
 
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs). SHA-256 `8bced033c8137c270b9624383a1c40228acd6a525f55cfef6d7c434e4696b247`. Current typed invalidation owner and meaningful fixed assertion source; no Rust or native execution receipt.
-- `implementation-1` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `d020a4bd5495065f688c793c660459950ed549bf6e835fbffaed16ebf82f43a1`. Current typed invalidation owner and meaningful fixed assertion source; no Rust or native execution receipt.
+- `implementation-0` (implementation): [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs). SHA-256 `feefb4b2da2ae821f3ebec02282bd7a92da59461cfbccfd7f09bf21aea6c13dc`. Current typed invalidation owner and meaningful fixed assertion source; no Rust or native execution receipt.
+- `implementation-1` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `0dd77cf689cea5843308375483dccca76f958c40b223078469fe95ffa9389bb6`. Current typed invalidation owner and meaningful fixed assertion source; no Rust or native execution receipt.
 
 ## Source inspection
 

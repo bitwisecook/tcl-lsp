@@ -64,7 +64,7 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-diagnostics-original-matcher-output-retention-dataflow.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs). SHA-256 `849687fdcb52715c81f439380424d8d45025be2e63b8542087ceb849af1f4926`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-diagnostics-original-matcher-output-retention-dataflow.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs). SHA-256 `8337ea1787785cabfa9d2d4e4cf98f0c1c855ecface322bef0b250bf22ae9f13`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 
 ## Source inspection
 

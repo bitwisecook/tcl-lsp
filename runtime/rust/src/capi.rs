@@ -31,16 +31,15 @@
 
 #![allow(non_snake_case)]
 
-use core::ffi::{CStr, c_char, c_int, c_long, c_void};
-
-use tcl_cmd_core::prefix::{self, Resolution};
+use core::ffi::{c_char, c_int, c_long, c_void, CStr};
 
 use crate::cmd_package::provide_package;
-use crate::interp::{Code, Interp, ObjCommand, TclCmdDeleteProc, TclObjCmdProc, error_code_list};
-use crate::list::{self, append_list_element};
+use crate::interp::{Code, Interp, ObjCommand, TclCmdDeleteProc, TclObjCmdProc};
+use crate::list;
 use crate::namespace::RenameOutcome;
-use crate::obj::{self, TclObj, TclObjType, TclSize, TclWideInt};
-use crate::parse::{self, ListError};
+use crate::obj::{self, TclObj, TclSize, TclWideInt};
+mod collections;
+pub use collections::probe_list_elements;
 mod scalar;
 pub(crate) use scalar::publish_access_error as scalar_publish_access_error;
 pub(crate) use scalar::read_scalar_for_interpreter;
@@ -419,30 +418,6 @@ pub unsafe extern "C" fn Tcl_GetDoubleFromObj(
     }
 }
 
-/// The index an option table lookup resolved, kept on the word it resolved: the
-/// internal rep is the address of the table's entry, so [`Tcl_WrongNumArgs`]
-/// can spell an abbreviated word in full, as C Tcl's `tclIndexType` lets it.
-/// The string rep is the word's own and is never regenerated.
-static TCL_INDEX_TYPE: TclObjType = TclObjType {
-    name: c"index".as_ptr(),
-    free_int_rep_proc: None,
-    dup_int_rep_proc: None,
-    update_string_proc: None,
-    set_from_any_proc: None,
-};
-
-/// The table entry a word resolved to through [`Tcl_GetIndexFromObjStruct`],
-/// if it did.
-fn index_entry(word: *mut TclObj) -> Option<Vec<u8>> {
-    if obj::obj_type_ptr(word) != &TCL_INDEX_TYPE {
-        return None;
-    }
-    let entry = obj::internal_rep(word) as usize as *const c_char;
-    // SAFETY: the rep was set from a live table's terminated entry, which an
-    // extension's static table keeps for as long as it is loaded.
-    Some(unsafe { CStr::from_ptr(entry) }.to_bytes().to_vec())
-}
-
 /// `Tcl_GetIndexFromObjStruct` (and, through the header's macro,
 /// `Tcl_GetIndexFromObj`): resolve the word against a NULL-terminated table of
 /// strings `offset` bytes apart, with C Tcl's unique-prefix rule
@@ -453,7 +428,9 @@ fn index_entry(word: *mut TclObj) -> Option<Vec<u8>> {
 /// # Safety
 /// `interp` must be null or live; `objPtr` null or live; `tablePtr` such a
 /// table; `msg` a terminated string; `indexPtr` null or writable at the width
-/// `flags` encodes.
+/// `flags` encodes. A null interpreter has no collection/index issuer and
+/// returns `TCL_ERROR` without writing the output. This facade's backing keeps
+/// its actual table, stride and selected protocol for cache reuse.
 #[no_mangle]
 pub unsafe extern "C" fn Tcl_GetIndexFromObjStruct(
     interp: *mut Interp,
@@ -464,71 +441,8 @@ pub unsafe extern "C" fn Tcl_GetIndexFromObjStruct(
     flags: c_int,
     indexPtr: *mut c_void,
 ) -> c_int {
-    if offset < core::mem::size_of::<*const c_char>() as TclSize {
-        let message = format!("Invalid struct offset value {offset}.");
-        // SAFETY: forwarded per this fn's contract.
-        return unsafe { report(interp, message.as_bytes(), None) };
-    }
-    // SAFETY: forwarded per this fn's contract.
-    let entries = unsafe { read_table(tablePtr, offset) };
-    let names: Vec<&[u8]> = entries.iter().map(|(name, _)| name.as_slice()).collect();
-    // SAFETY: as above.
-    let what = unsafe { c_bytes(msg) };
-    let key = if objPtr.is_null() {
-        Vec::new()
-    } else {
-        obj::bytes_of(objPtr)
-    };
-    let null_ok = flags & TCL_NULL_OK != 0;
-    let resolution = prefix::scan(&names, &key, flags & TCL_EXACT != 0);
-    let index = match resolution {
-        _ if key.is_empty() && null_ok => -1,
-        Resolution::Exact(index) | Resolution::UniquePrefix(index) => index as TclSize,
-        Resolution::Ambiguous | Resolution::NoMatch => {
-            let ambiguous = matches!(resolution, Resolution::Ambiguous);
-            let message = if null_ok {
-                let mut message = if ambiguous {
-                    b"ambiguous ".to_vec()
-                } else {
-                    b"bad ".to_vec()
-                };
-                message.extend_from_slice(&what);
-                message.extend_from_slice(b" \"");
-                message.extend_from_slice(&key);
-                message.extend_from_slice(b"\": must be ");
-                for (position, name) in names.iter().enumerate() {
-                    if position > 0 {
-                        message.extend_from_slice(b", ");
-                    }
-                    message.extend_from_slice(name);
-                }
-                message.extend_from_slice(b", or \"\"");
-                message
-            } else {
-                prefix::bad_key_message(&names, &what, &key, ambiguous)
-            };
-            let code = error_code_list(&[b"TCL", b"LOOKUP", b"INDEX", &what, &key]);
-            // SAFETY: forwarded per this fn's contract.
-            return unsafe { report(interp, &message, Some(code.as_slice())) };
-        }
-    };
-    if index >= 0 && !objPtr.is_null() && flags & TCL_INDEX_TEMP_TABLE == 0 {
-        let entry = entries[index as usize].1;
-        obj::change_type(objPtr, &TCL_INDEX_TYPE, entry as usize as u64);
-    }
-    if !indexPtr.is_null() {
-        // SAFETY: the header encoded `sizeof(*indexPtr) << 1` into these bits,
-        // so the pointer is writable at exactly the width each arm writes.
-        unsafe {
-            match flags & 0b1_0110 {
-                2 => indexPtr.cast::<u8>().write(index as u8),
-                4 => indexPtr.cast::<u16>().write(index as u16),
-                16 => indexPtr.cast::<i64>().write(index as i64),
-                _ => indexPtr.cast::<i32>().write(index as i32),
-            }
-        }
-    }
-    TCL_OK
+    // SAFETY: forward the original public table/header/output contract unchanged.
+    unsafe { collections::get_index(interp, objPtr, tablePtr, offset, msg, flags, indexPtr) }
 }
 
 /// The entries of a NULL-terminated table with `offset` bytes between them, each
@@ -558,28 +472,16 @@ unsafe fn read_table(table: *const c_void, offset: TclSize) -> Vec<(Vec<u8>, *co
 /// in place. A shared list is refused with an error where C Tcl panics.
 ///
 /// # Safety
-/// `interp` must be null or live; `listPtr` and `objPtr` live.
+/// `interp` must be null or live; `listPtr` and `objPtr` live. A null
+/// interpreter returns `TCL_ERROR` without entering a collection mutation.
 #[no_mangle]
 pub unsafe extern "C" fn Tcl_ListObjAppendElement(
     interp: *mut Interp,
     listPtr: *mut TclObj,
     objPtr: *mut TclObj,
 ) -> c_int {
-    if obj::is_shared(listPtr) {
-        // SAFETY: forwarded per this fn's contract.
-        return unsafe {
-            report(
-                interp,
-                b"Tcl_ListObjAppendElement called with shared object",
-                None,
-            )
-        };
-    }
-    match list::list_append(listPtr, objPtr) {
-        Ok(()) => TCL_OK,
-        // SAFETY: forwarded per this fn's contract.
-        Err(error) => unsafe { list_error(interp, listPtr, error) },
-    }
+    // SAFETY: forward actual original receiver/member lifetimes and nullable issuer.
+    unsafe { collections::append(interp, listPtr, objPtr) }
 }
 
 /// `Tcl_ListObjGetElements` — the list's length and its own element array, good
@@ -587,7 +489,9 @@ pub unsafe extern "C" fn Tcl_ListObjAppendElement(
 ///
 /// # Safety
 /// `interp` must be null or live; `listPtr` live; `objcPtr` and `objvPtr`
-/// writable.
+/// writable at this runtime's `TclSize` and pointer widths. A null interpreter
+/// returns `TCL_ERROR` with both outputs unchanged because this facade has no
+/// retained collection interpreter issuer.
 #[no_mangle]
 pub unsafe extern "C" fn Tcl_ListObjGetElements(
     interp: *mut Interp,
@@ -595,39 +499,24 @@ pub unsafe extern "C" fn Tcl_ListObjGetElements(
     objcPtr: *mut TclSize,
     objvPtr: *mut *mut *mut TclObj,
 ) -> c_int {
-    match list::elements_raw(listPtr) {
-        Ok((elements, count)) => {
-            // SAFETY: the caller guarantees writable out-pointers.
-            unsafe {
-                objcPtr.write(count as TclSize);
-                objvPtr.write(elements);
-            }
-            TCL_OK
-        }
-        // SAFETY: forwarded per this fn's contract.
-        Err(error) => unsafe { list_error(interp, listPtr, error) },
-    }
+    // SAFETY: actual TclSize output and original header-owned element window.
+    unsafe { collections::get_elements(interp, listPtr, objcPtr, objvPtr) }
 }
 
 /// `Tcl_ListObjLength` — the number of elements, shimmering a string to a list.
 ///
 /// # Safety
-/// `interp` must be null or live; `listPtr` live; `lengthPtr` writable.
+/// `interp` must be null or live; `listPtr` live; `lengthPtr` writable at this
+/// runtime's `TclSize` width. A null interpreter returns `TCL_ERROR` without
+/// changing the output. Abstract native Length does not create an element cache.
 #[no_mangle]
 pub unsafe extern "C" fn Tcl_ListObjLength(
     interp: *mut Interp,
     listPtr: *mut TclObj,
     lengthPtr: *mut TclSize,
 ) -> c_int {
-    match list::list_length(listPtr) {
-        Ok(length) => {
-            // SAFETY: the caller guarantees a writable size.
-            unsafe { lengthPtr.write(length as TclSize) };
-            TCL_OK
-        }
-        // SAFETY: forwarded per this fn's contract.
-        Err(error) => unsafe { list_error(interp, listPtr, error) },
-    }
+    // SAFETY: original live header and actual writable TclSize output.
+    unsafe { collections::length(interp, listPtr, lengthPtr) }
 }
 
 // the interpreter's error state
@@ -657,23 +546,8 @@ pub unsafe extern "C" fn Tcl_WrongNumArgs(
     objv: *const *mut TclObj,
     message: *const c_char,
 ) {
-    // SAFETY: forwarded per this fn's contract.
-    let words = unsafe { words(objc, objv) };
-    let mut text = b"wrong # args: should be \"".to_vec();
-    for (position, &word) in words.iter().enumerate() {
-        let spelling = index_entry(word).unwrap_or_else(|| obj::bytes_of(word));
-        append_list_element(&mut text, &spelling, true);
-        if position + 1 < words.len() || !message.is_null() {
-            text.push(b' ');
-        }
-    }
-    if !message.is_null() {
-        // SAFETY: as above.
-        text.extend_from_slice(&unsafe { c_bytes(message) });
-    }
-    text.push(b'"');
-    // SAFETY: as above.
-    unsafe { report(interp, &text, Some(b"TCL WRONGARGS".as_slice())) };
+    // SAFETY: preserve caller-owned argv through all reached original getters.
+    unsafe { collections::wrong_arguments(interp, objc, objv, message) }
 }
 
 /// `Tcl_SetObjErrorCode` — the `-errorcode` of the error the running command
@@ -683,14 +557,8 @@ pub unsafe extern "C" fn Tcl_WrongNumArgs(
 /// `interp` must be live; `errorObjPtr` live.
 #[no_mangle]
 pub unsafe extern "C" fn Tcl_SetObjErrorCode(interp: *mut Interp, errorObjPtr: *mut TclObj) {
-    let code = obj::bytes_of(errorObjPtr);
-    // SAFETY: caller guarantees both pointers are live; the hold and release
-    // free an object no one else holds, as storing it and dropping it would.
-    unsafe {
-        (*interp).set_c_error_code(&code);
-        obj::incr_ref_count(errorObjPtr);
-        obj::decr_ref_count(errorObjPtr);
-    }
+    // SAFETY: original live error-code header and actual entered interpreter.
+    unsafe { collections::set_error_code(interp, errorObjPtr) }
 }
 
 /// The fixed-arity export behind the header's inline `Tcl_SetResult`: the
@@ -930,18 +798,6 @@ unsafe fn report(interp: *mut Interp, message: &[u8], code: Option<&[u8]>) -> c_
         interp.c_api_error(message, code);
     }
     TCL_ERROR
-}
-
-/// A list that would not parse, reported with the shared list owner's message
-/// and code.
-///
-/// # Safety
-/// `interp` must be null or live; `listPtr` live.
-unsafe fn list_error(interp: *mut Interp, listPtr: *mut TclObj, error: ListError) -> c_int {
-    let source = obj::bytes_of(listPtr);
-    let message = parse::list_error_message(&source, error);
-    // SAFETY: forwarded per this fn's contract.
-    unsafe { report(interp, &message, Some(error.error_code())) }
 }
 
 /// A C `long` as a `Tcl_WideInt`, whichever width `long` has.

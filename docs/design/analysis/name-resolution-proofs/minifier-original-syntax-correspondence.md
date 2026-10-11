@@ -68,8 +68,8 @@ This Rust consumer contract has no native execution receipt.
 
 ## Exact evidence
 
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs). SHA-256 `56eb1b8daeb449d75a7b89dd8da684fc0d8328de90f78352e18ef534129081da`. Current source owner and fixed authored assertions; no native or Rust execution receipt.
-- `implementation-1` (implementation): [rust/tcl-lexer/src/native_script_words.rs](../../../../rust/tcl-lexer/src/native_script_words.rs). SHA-256 `33ef0fe774ab6ce176cf0543f6f7b80e40532a20fb5cd353907fb4d9c2f0bb7f`. Current source owner and fixed authored assertions; no native or Rust execution receipt.
+- `implementation-0` (implementation): [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs). SHA-256 `c96d983aa91a639d27bd4e0416eee420b0ec9be1aab8523aa4a49638a51229fe`. Current source owner and fixed authored assertions; no native or Rust execution receipt.
+- `implementation-1` (implementation): [rust/tcl-lexer/src/native_script_words.rs](../../../../rust/tcl-lexer/src/native_script_words.rs). SHA-256 `ddb7bf7144dfda8a76818bc3a44d30f73dda78c52101ef0795d0135576c83fbc`. Current source owner and fixed authored assertions; no native or Rust execution receipt.
 
 ## Source inspection
 

@@ -64,8 +64,8 @@ This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP ex
 
 ## Exact evidence
 
-- `workspace-requirements` (implementation): [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs). SHA-256 `806bbb1db56e6e3b1b92d411bd63a0ba18c642dace68c9d05b90d51edb424276`. Inspected original requirement metadata/projection and exact constraints/preference/unknown/withdrawal regression.
-- `generic-source-graph` (implementation): [rust/tcl-lsp-core/src/source_graph.rs](../../../../rust/tcl-lsp-core/src/source_graph.rs). SHA-256 `7d6c7bd5d966018be3acc2235af12d18874c24a0ed78d415e51941aeb6cb9747`. Inspected generic ancestor/positioned descendant requirement transport retaining complete K records.
+- `workspace-requirements` (implementation): [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs). SHA-256 `feefb4b2da2ae821f3ebec02282bd7a92da59461cfbccfd7f09bf21aea6c13dc`. Inspected original requirement metadata/projection and exact constraints/preference/unknown/withdrawal regression.
+- `generic-source-graph` (implementation): [rust/tcl-lsp-core/src/source_graph.rs](../../../../rust/tcl-lsp-core/src/source_graph.rs). SHA-256 `5ed1d9e78b4c3ecdbe07c1b80712984a7a1f9e06f70f5b3fa9defedb0e8994c3`. Inspected generic ancestor/positioned descendant requirement transport retaining complete K records.
 
 ## Source inspection
 

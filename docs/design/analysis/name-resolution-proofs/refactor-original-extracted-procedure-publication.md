@@ -64,8 +64,8 @@ This Rust consumer contract has no native execution receipt.
 
 ## Exact evidence
 
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/original_declaration.rs](../../../../rust/tcl-lsp-core/src/original_declaration.rs). SHA-256 `efdc989f3ed8d58262d3d0c520a12fcbf1474ca8495d9856e2d45905dfa2d426`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/refactor/extract_proc.rs](../../../../rust/tcl-lsp-core/src/refactor/extract_proc.rs). SHA-256 `ec21553efbae4b3a2a5936e7c57f530f6d04d883598bc5f24df082589809a055`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
+- `implementation-0` (implementation): [rust/tcl-lsp-core/src/original_declaration.rs](../../../../rust/tcl-lsp-core/src/original_declaration.rs). SHA-256 `2fb2df2a8b110a27c0119df4d1d2a6a804e75d6dfc58d18921644cec31b4012e`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
+- `implementation-1` (implementation): [rust/tcl-lsp-core/src/refactor/extract_proc.rs](../../../../rust/tcl-lsp-core/src/refactor/extract_proc.rs). SHA-256 `3626852b1fff20078fbaba0bac0cc8c0f3f0a80ac40eae01475c55521f98a418`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
 
 ## Source inspection
 

@@ -72,8 +72,8 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-source-logical-original-operation-transfer-logical_definition.rs` (implementation): [rust/tcl-compiler/src/command_binding/logical_definition.rs](../../../../rust/tcl-compiler/src/command_binding/logical_definition.rs). SHA-256 `24394e2771e1b62c1cd61278da40cbb39cf77c3302f2a5b4d616a758f36a0011`. Current source/API owner and marked fixed assertion bodies; no executed Rust or native provider observation.
-- `naming-source-logical-original-operation-transfer-logical_operation.rs` (implementation): [rust/tcl-compiler/src/command_binding/logical_operation.rs](../../../../rust/tcl-compiler/src/command_binding/logical_operation.rs). SHA-256 `d5d65240905e56ac8407498b918f6eafeeae5501d8377ba65fe36db2b8cc3072`. Current source/API owner and marked fixed assertion bodies; no executed Rust or native provider observation.
+- `naming-source-logical-original-operation-transfer-logical_definition.rs` (implementation): [rust/tcl-compiler/src/command_binding/logical_definition.rs](../../../../rust/tcl-compiler/src/command_binding/logical_definition.rs). SHA-256 `b03c057aaef40df29e0847f606c4a4c770d53c91a502c6bf111ae0674ecb8dbe`. Current source/API owner and marked fixed assertion bodies; no executed Rust or native provider observation.
+- `naming-source-logical-original-operation-transfer-logical_operation.rs` (implementation): [rust/tcl-compiler/src/command_binding/logical_operation.rs](../../../../rust/tcl-compiler/src/command_binding/logical_operation.rs). SHA-256 `cdf9ad88ae18112f1e28faecde83d61f6df3b0eb0db5e0dfd81d0010b5ae0c0c`. Current source/API owner and marked fixed assertion bodies; no executed Rust or native provider observation.
 
 ## Source inspection
 

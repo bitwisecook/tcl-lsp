@@ -64,7 +64,7 @@ This typed workspace rename integration is a Rust implementation invariant; no n
 
 ## Exact evidence
 
-- `consumer-source` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `93afa314052ead19f04f6116e17d8bd3ed14caac5d1ab997efd599176e7c6a3d`. Current actual typed Server consumer and fixed emitted-edit/collision assertion; not an execution receipt.
+- `consumer-source` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `0dd77cf689cea5843308375483dccca76f958c40b223078469fe95ffa9389bb6`. Current actual typed Server consumer and fixed emitted-edit/collision assertion; not an execution receipt.
 
 ## Source inspection
 

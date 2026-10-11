@@ -3012,3 +3012,57 @@ Every original source association is independently byte-verified. The
 [whole original log](frozen312/integration-compiler-own-test-build312/tests.log) has SHA-256
 `08b7b1c3fdef98c963e2976aa46d058f4a8a3925f7d30adef85e0d7e9fd6b8b3`. This command remains distinct from all Source311 Python,
 catalogue, Runtime and Compiler operations.
+
+## Source313 independent Compiler compilation failure
+
+The exact Compiler library-test no-run command closes exit `101` after
+132.29232739500003 seconds, with uniform source `true` on the unchanged
+33311-leaf Source313 image, HEAD `aa83fc21e6e2b5f85bdcfc946adec1a22a5092f0`.
+The original log retains two VM dependency compatibility errors: E0277
+for the checked String error conversion at `expr.rs:876`, and E0599
+for the absent `native_execution_refusal` method at `expr.rs:1898`.
+
+No test-executable creation event, successful producer, strict image,
+inventory or assertion is admitted from this command. Dependency artifact
+events remain unsealed. Later typed-interface source corrections supply no retrospective
+compile or Native-provider success.
+
+The [complete original receipt](frozen313/integration-compiler-own-test-build313/receipt.json.gz)
+is losslessly retained; decompression returns SHA-256 `8b93bd5a1834841867bef49bc53c5ed1bdac55814d241b8cf8f15e3738c7de51`.
+Every original source association is independently byte-verified. The
+[whole original log](frozen313/integration-compiler-own-test-build313/tests.log) has SHA-256
+`60a2e6d33968931a8695d11b7f1978313271c70f5c8e35e41925b6786f6094e0`. This command remains distinct from the failed Source312 and Source314
+Compiler commands and every independent Runtime or Python operation.
+
+## Source314 independent Compiler compilation failure
+
+The exact own library-test no-run command closes exit `101` after
+134.34822080898448 seconds with uniform source `true`. Its unchanged33402-leaf
+Source314 image retains HEAD `aa83fc21e6e2b5f85bdcfc946adec1a22a5092f0`.
+The original log preserves one cfg(test) trace E0599: `Option<SourceInvocationBinding>::as_deref` at `source_paths.rs:505`.
+
+No successful own producer, strict image, executable inventory or assertion
+is admitted; dependency artifacts remain unsealed. Source corrections and
+independent later commands supply no retrospective build or Native credit.
+
+The [complete original receipt](frozen314/integration-compiler-own-test-build314/receipt.json.gz)
+is lossless gzip; decompression returns SHA-256 `ad6273eb7ef3c978c53d20244cbd43a95a116bbf2483c63f906ec34cc24cec8c`.
+The [whole original log](frozen314/integration-compiler-own-test-build314/tests.log) retains
+SHA-256 `229519af2cb08619b98fe3d68287552c284328027c76e794fb2fbfe4b152587c`. The two original314 commands remain separate.
+
+
+## Source314 independent Runtime engine compilation failure
+
+The exact own library-test no-run command closes exit `101` after
+48.107551683002384 seconds with uniform source `true`. Its unchanged33402-leaf
+Source314 image retains HEAD `aa83fc21e6e2b5f85bdcfc946adec1a22a5092f0`.
+The original log preserves nine compile errors: undefined dictionary dialect, three Engine Rc inference errors, four u64/usize counter fixture errors, and the absent checked Native execution error conversion.
+
+No successful own producer, strict image, executable inventory or assertion
+is admitted; dependency artifacts remain unsealed. Source corrections and
+independent later commands supply no retrospective build or Native credit.
+
+The [complete original receipt](frozen314/integration-runtime-own-test-build314/receipt.json.gz)
+is lossless gzip; decompression returns SHA-256 `67f45b7379b035535f55a7b83abda97d0bc6f8ff0cf0b3da03b7d7c2875ac0c8`.
+The [whole original log](frozen314/integration-runtime-own-test-build314/tests.log) retains
+SHA-256 `93ca0144bff01c2e1eb9cd52088462519c3022c088833a005e9304791744e590`. The two original314 commands remain separate.

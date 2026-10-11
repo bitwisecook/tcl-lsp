@@ -324,10 +324,17 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             ),
         },
         "complete" => match rest {
-            [script] => match vm.native_name_operand_bytes(script) {
-                Ok(bytes) => ok(Value::bool(tcl_cmd_core::info::complete(&bytes))),
-                Err(error) => vm.refuse_host_command(error.to_string()),
-            },
+            [script] => {
+                // String worker grammar and the CLI's Document configuration
+                // retain their independent actual purposes.
+                let config = vm
+                    .lexer_config()
+                    .with_grammar(vm.actual_native_invocation_dialect().lexer_grammar);
+                match tcl_cmd_core::info::complete_value(vm, script, config) {
+                    Ok(value) => ok(value),
+                    Err(error) => completion_from_cmd_error(vm, error),
+                }
+            }
             _ => crate::command::native_wrong_arguments_message(
                 vm,
                 "wrong # args: should be \"info complete command\"",
@@ -698,6 +705,62 @@ mod tests {
     use super::*;
     use crate::Code;
     use tcl_dialect::TclVersion;
+
+    #[test]
+    fn original_info_complete_keeps_string_worker_and_document_source_configuration_separate() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Six original String observation fields under actual fixture ingress;
+        // no native header encoding or entered-source equivalence is inferred.
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let mut vm =
+                crate::native_fixture::core(crate::environment::profile_for_dialect(engine));
+            let jim = engine == "jim";
+            let modern = matches!(engine, "tcl9.0" | "tcl9.1");
+            for (source, expected) in [
+                ("set x ${a{}", !modern),
+                ("set x {*}{", engine == "tcl8.4"),
+                ("set x \\", !jim),
+                ("set x \\\n", jim),
+                ("set x \"a\"b {", !jim),
+                ("# c\\\r\n", true),
+            ] {
+                let original = Value::string(source);
+                let completion = vm
+                    .try_invoke_command("info", &[Value::string("complete"), original])
+                    .unwrap();
+                assert_eq!(
+                    completion.code,
+                    Code::Ok,
+                    "{engine}/{source:?}: {completion:?}"
+                );
+                assert_eq!(
+                    vm.native_name_operand_bytes(&completion.result)
+                        .unwrap()
+                        .as_ref(),
+                    if expected { b"1" } else { b"0" },
+                    "{engine}/{source:?}"
+                );
+            }
+        }
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
+        vm.set_dialect_profile(crate::environment::profile_for_dialect("tcl8.4"));
+        assert_eq!(vm.source_is_complete("set x ${a{}"), Ok(true));
+        let completion = vm
+            .try_invoke_command(
+                "info",
+                &[Value::string("complete"), Value::string("set x ${a{}")],
+            )
+            .unwrap();
+        assert_eq!(completion.code, Code::Ok);
+        assert_eq!(
+            vm.native_name_operand_bytes(&completion.result)
+                .unwrap()
+                .as_ref(),
+            b"0"
+        );
+        assert_eq!(vm.source_is_complete("# c\\\r\n"), Ok(false));
+    }
 
     fn info(vm: &mut Vm, subcommand: &str) -> Completion<Value> {
         cmd_info(vm, &[Value::string(subcommand)])

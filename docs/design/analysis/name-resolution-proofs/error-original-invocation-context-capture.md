@@ -69,8 +69,8 @@ No external provider is executed for this software question. Rust fixture protoc
 ## Exact evidence
 
 - `naming.error.original-invocation-context-capture.definition.0` (implementation): [rust/tcl-vm/src/interp/native_error_stack.rs](../../../../rust/tcl-vm/src/interp/native_error_stack.rs). SHA-256 `3090f391be31fa5cf9433bfd1a0ec4e2a9334987f94788c793e489ab875270f1`. Current source definition of the named software owner/control; this digest is not an executed assertion or Native provider/build identity.
-- `naming.error.original-invocation-context-capture.definition.1` (implementation): [rust/tcl-vm/src/value.rs](../../../../rust/tcl-vm/src/value.rs). SHA-256 `07c92bd8dbce0e144a5bb7224b3ed1a3577debc826f978d0eb1d5da9455b9d6a`. Current source definition of the named software owner/control; this digest is not an executed assertion or Native provider/build identity.
-- `naming.error.original-invocation-context-capture.definition.2` (implementation): [rust/tcl-vm/src/native_list_backing.rs](../../../../rust/tcl-vm/src/native_list_backing.rs). SHA-256 `95c864b625e718e075a7c5caa4886b74ec9aaa82db8812397c3a20bff9153761`. Current source definition of the named software owner/control; this digest is not an executed assertion or Native provider/build identity.
+- `naming.error.original-invocation-context-capture.definition.1` (implementation): [rust/tcl-vm/src/value.rs](../../../../rust/tcl-vm/src/value.rs). SHA-256 `685ae118300f126392e017702c64f9a12c59485ac4383a3887bbfc2ea0a802d8`. Current source definition of the named software owner/control; this digest is not an executed assertion or Native provider/build identity.
+- `naming.error.original-invocation-context-capture.definition.2` (implementation): [rust/tcl-vm/src/native_list_backing.rs](../../../../rust/tcl-vm/src/native_list_backing.rs). SHA-256 `7dd0c3ef3b8759c5b8aa7d3df1769ff5998d809fc1b6da81f2b26a46f009c7bb`. Current source definition of the named software owner/control; this digest is not an executed assertion or Native provider/build identity.
 
 ## Source inspection
 

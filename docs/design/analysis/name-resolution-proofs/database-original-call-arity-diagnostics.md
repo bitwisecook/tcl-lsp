@@ -64,7 +64,7 @@ This authentic-call diagnostic selection invariant is a Rust implementation cont
 
 ## Exact evidence
 
-- `database-call-consumer` (implementation): [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs). SHA-256 `489a9c177add18e04ee506fe11be00cce295bd7a004946483e3c05d8b623a8e2`. Current authentic-call arity demand, original-site diagnostic partition and exact opaque-slot/unrelated-namespace regression assertions.
+- `database-call-consumer` (implementation): [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs). SHA-256 `16c45c1c4106233d782d15d74b462620e6461157f0f928eba6373a3ea678b228`. Current authentic-call arity demand, original-site diagnostic partition and exact opaque-slot/unrelated-namespace regression assertions.
 
 ## Source inspection
 

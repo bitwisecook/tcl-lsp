@@ -1390,7 +1390,7 @@ mod tests {
             .unwrap();
         let input = Value::NativeScalar(NativeScalarCache::Integer(16))
             .with_resident_string_storage(
-                Rc::from(&b"0x10"[..]),
+                Rc::<[u8]>::from(&b"0x10"[..]),
                 NativeStringStorageIdentity::Allocated,
             );
         engine.invoke(&handle, &[input]).unwrap();
@@ -1411,7 +1411,7 @@ mod tests {
             engine.invoke(&handle, &[foreign]),
             Err(EngineError::ExecutionRefusal(_))
         ));
-        let unknown = Value::Int(16).with_resident_string(Rc::from(&b"0x10"[..]));
+        let unknown = Value::Int(16).with_resident_string(Rc::<[u8]>::from(&b"0x10"[..]));
         assert!(matches!(
             engine.invoke(&handle, &[unknown]),
             Err(EngineError::ExecutionRefusal(_))

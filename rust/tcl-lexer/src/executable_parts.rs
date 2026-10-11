@@ -57,6 +57,7 @@ pub struct SpannedExecutablePart {
     pub span: Span,
     source_span: Span,
     error_term: Option<u32>,
+    error_kind: Option<crate::ParseIssueKind>,
 }
 
 impl SpannedExecutablePart {
@@ -64,6 +65,12 @@ impl SpannedExecutablePart {
     #[must_use]
     pub const fn parse_error_term(&self) -> Option<u32> {
         self.error_term
+    }
+
+    /// Structured issue issued by the retained original component parser.
+    #[must_use]
+    pub const fn parse_issue_kind(&self) -> Option<crate::ParseIssueKind> {
+        self.error_kind
     }
 }
 
@@ -285,6 +292,7 @@ impl ExecutablePartArena {
                         span,
                         source_span: span,
                         error_term: None,
+                        error_kind: None,
                     });
                 }
                 ExecutableInput::Substitute { span, flags } => {
@@ -424,6 +432,7 @@ fn retain_component(
         span,
         source_span,
         error_term,
+        error_kind: component.error_kind,
     })
 }
 

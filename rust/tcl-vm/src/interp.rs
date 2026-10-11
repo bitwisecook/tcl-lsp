@@ -2578,6 +2578,23 @@ impl Vm {
         tcl_lexer::LexerConfig::from_grammar(self.source_profile().grammar)
     }
 
+    /// Query original Document completeness under this VM's full source configuration.
+    /// This retains the Document newline channel and creates no native value,
+    /// command selection or evaluation entry. The String worker independently
+    /// uses its actual selected invocation grammar.
+    ///
+    /// # Errors
+    /// Returns unavailable selected grammar or original Document geometry.
+    pub fn source_is_complete(
+        &self,
+        source: &str,
+    ) -> Result<bool, tcl_syntax::script_completeness::ScriptCompletenessUnavailable> {
+        tcl_syntax::script_completeness::script_image_is_complete(
+            &tcl_lexer::SourceImage::document(source),
+            self.lexer_config(),
+        )
+    }
+
     /// Generation of the dialect profile used to compile dynamic bytecode.
     #[must_use]
     pub(crate) fn profile_generation(&self) -> u64 {

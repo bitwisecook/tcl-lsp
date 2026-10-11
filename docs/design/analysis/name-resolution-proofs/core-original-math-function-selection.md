@@ -64,8 +64,8 @@ This Rust consumer contract has no native execution receipt.
 
 ## Exact evidence
 
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/math_function_symbol.rs](../../../../rust/tcl-lsp-core/src/math_function_symbol.rs). SHA-256 `49039bfa844bba74fa181031a50f0f59a3144d61ddb9656999d97d1e2fa58726`. Current source selection owner, consumer and fixed authored assertions. No Rust or native execution result is implied.
-- `implementation-1` (implementation): [rust/tcl-compiler/src/command_binding/original_math_function.rs](../../../../rust/tcl-compiler/src/command_binding/original_math_function.rs). SHA-256 `c54a84411ee10b7c76df090c5385723d2bf0326d1cefb3bd740ce928fc9d24b7`. Current source selection owner, consumer and fixed authored assertions. No Rust or native execution result is implied.
+- `implementation-0` (implementation): [rust/tcl-lsp-core/src/math_function_symbol.rs](../../../../rust/tcl-lsp-core/src/math_function_symbol.rs). SHA-256 `19e7526b19fdb64d24bf81cf54b46e04a146afb9b27b007697afaea09f4d9f6f`. Current source selection owner, consumer and fixed authored assertions. No Rust or native execution result is implied.
+- `implementation-1` (implementation): [rust/tcl-compiler/src/command_binding/original_math_function.rs](../../../../rust/tcl-compiler/src/command_binding/original_math_function.rs). SHA-256 `36dc5cf970e350b7846fe2f337b182830875cf6e8bc1cd2910d3cdacc6aa3d96`. Current source selection owner, consumer and fixed authored assertions. No Rust or native execution result is implied.
 
 ## Source inspection
 

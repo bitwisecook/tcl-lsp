@@ -64,8 +64,8 @@ This is a Rust source-consumer contract. No executed interpreter or appliance ob
 
 ## Exact evidence
 
-- `implementation-0` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `2cb6ca20a493d45b8a2b8105fe59c8454867e337feda537cf026bb0f64bd9293`. Current Rust owner for this readonly source purpose; this digest is not an execution receipt.
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/original_call_hierarchy.rs](../../../../rust/tcl-lsp-core/src/original_call_hierarchy.rs). SHA-256 `cd2fe6dd100dc3e6f74d1838dd6b9ac6415dea1da7a34f1e258dda5805acf9a1`. Current Rust owner for this readonly source purpose; this digest is not an execution receipt.
+- `implementation-0` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `0dd77cf689cea5843308375483dccca76f958c40b223078469fe95ffa9389bb6`. Current Rust owner for this readonly source purpose; this digest is not an execution receipt.
+- `implementation-1` (implementation): [rust/tcl-lsp-core/src/original_call_hierarchy.rs](../../../../rust/tcl-lsp-core/src/original_call_hierarchy.rs). SHA-256 `1e72c30cdc65eb27bc88a2ff4f1234959f22bf34ff72a13db2c19fe117407be1`. Current Rust owner for this readonly source purpose; this digest is not an execution receipt.
 
 ## Source inspection
 

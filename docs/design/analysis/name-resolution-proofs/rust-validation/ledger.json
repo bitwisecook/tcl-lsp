@@ -206064,6 +206064,130 @@
       "question_ids": [],
       "limits": "The exact independent Compiler library-test no-run build closes exit101 with one production E0425: resolve_registry_words_in_realm is missing from declaration_flow.rs:403. The command emits no test-executable creation event, and supplies no successful Compiler producer, strict image, executable inventory or assertion. Any dependency artifact event remains unsealed. A later source import correction, successful owner build or independently run suite cannot supply retrospective admission or a Native answer.",
       "sealed_images": {}
+    },
+    {
+      "id": "rust.frozen313.integration-compiler-own-test-build313",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen313/integration-compiler-own-test-build313/receipt.json.gz",
+        "sha256": "5a9ba068787af88793656e9861f13f9870291e549b583749e13170641464d8c7",
+        "compression": "gzip",
+        "uncompressed_sha256": "8b93bd5a1834841867bef49bc53c5ed1bdac55814d241b8cf8f15e3738c7de51"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen313/integration-compiler-own-test-build313/tests.log",
+        "sha256": "60a2e6d33968931a8695d11b7f1978313271c70f5c8e35e41925b6786f6094e0"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 132.29232739500003,
+      "uniform_source": true,
+      "status": "compile-failed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Complete unchanged33311-leaf original Source313 source/head/command/archive associations; every original source leaf independently byte-verified."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The exact independent Compiler library-test no-run build closes exit101 with two VM dependency compatibility errors: E0277 for checked String error conversion at expr.rs:876 and E0599 for the missing native_execution_refusal method at expr.rs:1898. The command emits no test-executable creation event and supplies no successful Compiler producer, strict image, executable inventory or assertion. Any dependency artifact event remains unsealed. Later typed-interface source corrections cannot supply retrospective admission or a Native answer.",
+      "sealed_images": {}
+    },
+    {
+      "id": "rust.frozen314.integration-compiler-own-test-build314",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen314/integration-compiler-own-test-build314/receipt.json.gz",
+        "sha256": "7a6bb5db78d1d519a798a113cd72f62ce46fb03c10800a8fc7a1874249d1abd9",
+        "compression": "gzip",
+        "uncompressed_sha256": "ad6273eb7ef3c978c53d20244cbd43a95a116bbf2483c63f906ec34cc24cec8c"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen314/integration-compiler-own-test-build314/tests.log",
+        "sha256": "229519af2cb08619b98fe3d68287552c284328027c76e794fb2fbfe4b152587c"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 134.34822080898448,
+      "uniform_source": true,
+      "status": "compile-failed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Complete unchanged33402-leaf original Source314 source/head/command/archive associations; every original source leaf independently byte-verified."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The Compiler library-test no-run command closes exit101 with one cfg(test) trace E0599: Option<SourceInvocationBinding> has no permitted as_deref at source_paths.rs:505. The command emits no test-executable creation event and supplies no successful Compiler producer, strict image, inventory or assertion. Later trace-only as_ref correction does not change this original closure. Dependency artifacts remain unsealed; source fixes, independent later producers or Native observations cannot supply retrospective build or assertion credit.",
+      "sealed_images": {}
+    },
+    {
+      "id": "rust.frozen314.integration-runtime-own-test-build314",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen314/integration-runtime-own-test-build314/receipt.json.gz",
+        "sha256": "a0b2a6bf7d2a007fa8011d6bdb817ed43fdf2a052b57a6dd63e0612bcf914192",
+        "compression": "gzip",
+        "uncompressed_sha256": "67f45b7379b035535f55a7b83abda97d0bc6f8ff0cf0b3da03b7d7c2875ac0c8"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen314/integration-runtime-own-test-build314/tests.log",
+        "sha256": "93ca0144bff01c2e1eb9cd52088462519c3022c088833a005e9304791744e590"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "TCL_TOMMATH_DIR=/workspace/tcl-lsp/tmp/tcl9.0.4/libtommath",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "runtime/rust/Cargo.toml",
+        "--features",
+        "engine",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 48.107551683002384,
+      "uniform_source": true,
+      "status": "compile-failed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Complete unchanged33402-leaf original Source314 source/head/command/archive associations; every original source leaf independently byte-verified."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The independent Runtime engine library-test no-run command closes exit101 with nine compile errors: undefined dictionary dialect, three Engine Rc inference errors, four counter-width fixture errors, and the missing NativeValueAccessRefusal-to-NativeExecutionError conversion. No Runtime executable creation event, successful own producer, strict image, inventory or assertion is admitted. The workspace Compiler command is a distinct scope and does not compile the Runtime engine crate. Dependency artifacts remain unsealed; source fixes, independent later producers or Native observations cannot supply retrospective build or assertion credit.",
+      "sealed_images": {}
     }
   ]
 }

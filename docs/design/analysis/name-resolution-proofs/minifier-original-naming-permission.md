@@ -68,9 +68,9 @@ This Rust consumer contract has no native execution receipt.
 
 ## Exact evidence
 
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs). SHA-256 `56eb1b8daeb449d75a7b89dd8da684fc0d8328de90f78352e18ef534129081da`. Current source owner and fixed authored assertions; no native or Rust execution receipt.
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/minify.rs](../../../../rust/tcl-lsp-core/src/minify.rs). SHA-256 `0031fa5bae7e3e3e3fe590dc5ee57e19e61215f1609d1ef3658296331fb31957`. Current source owner and fixed authored assertions; no native or Rust execution receipt.
-- `implementation-2` (implementation): [rust/tcl-cli/src/commands/transform.rs](../../../../rust/tcl-cli/src/commands/transform.rs). SHA-256 `e813d52d5d31150736bcb72a94b20381fafcfa3554b0d9dd52cbd055f013646d`. Current source owner and fixed authored assertions; no native or Rust execution receipt.
+- `implementation-0` (implementation): [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs). SHA-256 `c96d983aa91a639d27bd4e0416eee420b0ec9be1aab8523aa4a49638a51229fe`. Current source owner and fixed authored assertions; no native or Rust execution receipt.
+- `implementation-1` (implementation): [rust/tcl-lsp-core/src/minify.rs](../../../../rust/tcl-lsp-core/src/minify.rs). SHA-256 `ef09ecff001237bafa091e32eb95c92fc0239640816c47435a4f13c9a3677b60`. Current source owner and fixed authored assertions; no native or Rust execution receipt.
+- `implementation-2` (implementation): [rust/tcl-cli/src/commands/transform.rs](../../../../rust/tcl-cli/src/commands/transform.rs). SHA-256 `e0c3daa06994d6f0445a5f89fa08da4df91903bbe5d618cc959daf6a98a1c639`. Current source owner and fixed authored assertions; no native or Rust execution receipt.
 - `implementation-3` (implementation): [rust/f5-cli/src/commands/irule.rs](../../../../rust/f5-cli/src/commands/irule.rs). SHA-256 `eeb443c027a20694b14621a7c4e6ba457d54ad965d4ae9ee645b3437e1319697`. Current source owner and fixed authored assertions; no native or Rust execution receipt.
 
 ## Source inspection

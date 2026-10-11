@@ -55,7 +55,8 @@
 //!
 //! Nothing here is a new scanner.  Each class of failure is delegated to
 //! the primitive that already owns its spelling:
-//! [`quoted_word_close`] for `missing "` and the close-quote position,
+//! [`quoted_word_close`](crate::word_parts::quoted_word_close) for `missing "`
+//! and the close-quote position,
 //! [`word_closer_offset_at`] for an unterminated brace,
 //! [`ExecutablePartArena`] for everything inside a word, and
 //! [`crate::group_commands`] for `{*}` and the welded close-brace.  This
@@ -74,8 +75,7 @@ use std::rc::Rc;
 
 use crate::script::{CommandSpan, WordKind, group_commands_bytes};
 use crate::word_parts::{
-    EXTRA_AFTER_CLOSE_BRACE, ExecutablePart, ExecutablePartArena, MISSING_CLOSE_BRACE, PartListId,
-    SubstFlags, quoted_word_close,
+    ExecutablePart, ExecutablePartArena, PartListId, SubstFlags, quoted_word_close_with_issue,
 };
 use crate::{
     Lexer, LexerConfig, SourceChannel, SourceImage, SourceMap, Span, Token, word_closer_offset_at,
@@ -131,8 +131,33 @@ pub struct ParseCut {
     /// failure C reports in place, such as `extra characters after
     /// close-brace`.
     pub term: u32,
-    /// C's exact message for the construct.
+    /// Structured issue retained from its original creation site.
+    pub kind: crate::ParseIssueKind,
+    /// C's exact message for the construct, retained as presentation only.
     pub message: &'static str,
+}
+
+/// Whether an authentic syntax cut can be resolved by appending input.
+/// This is a parse projection only; neither case licenses evaluation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParseCutCompleteness {
+    /// A closer is absent at the reached original input boundary.
+    Incomplete,
+    /// A terminal syntax error remains complete for the C script query.
+    Terminal,
+}
+
+impl ParseCut {
+    /// Project the retained issue kind into the C parser's incomplete flag.
+    /// Diagnostic presentation does not participate in this query.
+    #[must_use]
+    pub const fn completeness(self) -> ParseCutCompleteness {
+        if self.kind.is_incomplete() {
+            ParseCutCompleteness::Incomplete
+        } else {
+            ParseCutCompleteness::Terminal
+        }
+    }
 }
 
 /// A lexical stream or source geometry the cut owner cannot inspect.
@@ -271,12 +296,13 @@ fn first_parse_cut_channel_in(
     channel: SourceChannel,
 ) -> Result<Option<ParseCut>, ParseCutUnavailable> {
     for (index, command) in commands.iter().enumerate() {
-        if let Some((offset, term, message)) = command_cut(command, tokens, src, config, channel)? {
+        if let Some((offset, term, kind)) = command_cut(command, tokens, src, config, channel)? {
             return Ok(Some(ParseCut {
                 command: index,
                 offset,
                 term,
-                message,
+                kind,
+                message: kind.message(),
             }));
         }
     }
@@ -329,7 +355,7 @@ enum Frame {
         next: usize,
         report_at: Option<u32>,
         /// The word's own delimiter failure, used only if no inner failure wins.
-        fallback: Option<(u32, u32, &'static str)>,
+        fallback: Option<(u32, u32, crate::ParseIssueKind)>,
     },
 }
 
@@ -341,11 +367,11 @@ enum Frame {
 enum WordJob {
     Unavailable,
     /// The word fails here, whatever its content holds.
-    Cut(u32, u32, &'static str),
+    Cut(u32, u32, crate::ParseIssueKind),
     /// Walk this content; if nothing in it fails, report `fallback`.
     Content {
         content: crate::Span,
-        fallback: Option<(u32, u32, &'static str)>,
+        fallback: Option<(u32, u32, crate::ParseIssueKind)>,
     },
     /// A braced word: C does not parse its content as anything.
     Literal,
@@ -358,7 +384,7 @@ fn command_cut(
     src: &[u8],
     config: LexerConfig,
     channel: SourceChannel,
-) -> Result<Option<(u32, u32, &'static str)>, ParseCutUnavailable> {
+) -> Result<Option<(u32, u32, crate::ParseIssueKind)>, ParseCutUnavailable> {
     let jobs = word_jobs(&command.words, tokens, src, 0, config);
     let mut stack = vec![Frame::Words {
         image: SourceImage::from_bytes(src, channel),
@@ -400,21 +426,22 @@ fn word_job(
     if word.welded_after_close {
         // C reports this one in place, so the term is the offending byte.
         let weld = at(weld_offset(word, tokens, src));
-        return WordJob::Cut(weld, weld, EXTRA_AFTER_CLOSE_BRACE);
+        return WordJob::Cut(weld, weld, crate::ParseIssueKind::ExtraAfterBrace);
     }
     let Some(written) = written_span(word, tokens, src, config) else {
         return WordJob::Unavailable;
     };
     let (start, end) = (written.start() as usize, written.end() as usize);
-    let content = |from: usize, to: usize, fallback: Option<(u32, u32, &'static str)>| match src
-        .get(from..to)
-    {
-        Some(_) => WordJob::Content {
-            content: crate::Span::new(offset_of(from), offset_of(to)),
-            fallback,
-        },
-        None => WordJob::Unavailable,
-    };
+    let content =
+        |from: usize, to: usize, fallback: Option<(u32, u32, crate::ParseIssueKind)>| match src
+            .get(from..to)
+        {
+            Some(_) => WordJob::Content {
+                content: crate::Span::new(offset_of(from), offset_of(to)),
+                fallback,
+            },
+            None => WordJob::Unavailable,
+        };
     match word.kind {
         // A braced word is C's `TCL_TOKEN_SIMPLE_WORD`: its content is not
         // parsed as anything, so the only thing that can fail is the brace
@@ -431,12 +458,16 @@ fn word_job(
         WordKind::Braced => {
             if src.get(start) == Some(&b'{') && word_closer_offset_at(src, word.span).is_none() {
                 // Unterminated: C's term is the `{` that opened it.
-                WordJob::Cut(at(written.end()), at(written.start()), MISSING_CLOSE_BRACE)
+                WordJob::Cut(
+                    at(written.end()),
+                    at(written.start()),
+                    crate::ParseIssueKind::MissingBrace,
+                )
             } else {
                 WordJob::Literal
             }
         }
-        WordKind::Quoted => match quoted_word_close(src, start) {
+        WordKind::Quoted => match quoted_word_close_with_issue(src, start) {
             // The quote never closed — but that is not necessarily why C
             // stopped.  `quoted_word_close` steps over complete `[…]`
             // substitutions to find the closer, so an *incomplete* one makes
@@ -445,10 +476,10 @@ fn word_job(
             // `puts "[foo"` is `missing close-bracket` on 8.6.16 and 9.0.4.
             // Walk the content first and keep `missing "` as the fallback.
             // Unterminated: C's term is the `"` that opened it.
-            Err(message) => content(
+            Err(kind) => content(
                 start + 1,
                 end,
-                Some((at(written.end()), at(written.start()), message)),
+                Some((at(written.end()), at(written.start()), kind)),
             ),
             // Anything written between the closing `"` and the end of the
             // word is C's `extra characters after close-quote`.
@@ -456,7 +487,7 @@ fn word_job(
                 // Reported in place, so the term is the offending byte.
                 {
                     let extra = at(offset_of(close + 1));
-                    WordJob::Cut(extra, extra, EXTRA_AFTER_CLOSE_QUOTE)
+                    WordJob::Cut(extra, extra, crate::ParseIssueKind::ExtraAfterQuote)
                 }
             }
             Ok(close) if end > close + 1 => content(start + 1, end, None),
@@ -471,7 +502,7 @@ fn drain(
     stack: &mut Vec<Frame>,
     config: LexerConfig,
     channel: SourceChannel,
-) -> Result<Option<(u32, u32, &'static str)>, ParseCutUnavailable> {
+) -> Result<Option<(u32, u32, crate::ParseIssueKind)>, ParseCutUnavailable> {
     while let Some(frame) = stack.last_mut() {
         match frame {
             Frame::Words {
@@ -494,8 +525,8 @@ fn drain(
                         ));
                     }
                     WordJob::Literal => {}
-                    WordJob::Cut(offset, term, message) => {
-                        return Ok(Some((report_at.unwrap_or(*offset), *term, message)));
+                    WordJob::Cut(offset, term, kind) => {
+                        return Ok(Some((report_at.unwrap_or(*offset), *term, *kind)));
                     }
                     WordJob::Content { content, fallback } => {
                         let pushed = content_part_frame(
@@ -534,14 +565,19 @@ fn drain(
                     ExecutablePart::Text(_)
                     | ExecutablePart::Expression { .. }
                     | ExecutablePart::Variable { index: None, .. } => {}
-                    ExecutablePart::ParseError(message) => {
+                    ExecutablePart::ParseError(_) => {
                         let term = component
                             .parse_error_term()
                             .and_then(|term| base.checked_add(term))
                             .ok_or(ParseCutUnavailable::SourceGeometry(
                                 crate::word_parts::ExecutablePartsUnavailable::SourceGeometry,
                             ))?;
-                        return Ok(Some((at, term, message)));
+                        let kind = component.parse_issue_kind().ok_or(
+                            ParseCutUnavailable::SourceGeometry(
+                                crate::word_parts::ExecutablePartsUnavailable::SourceGeometry,
+                            ),
+                        )?;
+                        return Ok(Some((at, term, kind)));
                     }
                     ExecutablePart::Variable {
                         index: Some(index), ..
@@ -575,7 +611,7 @@ fn content_part_frame(
     content: Span,
     base: u32,
     report_at: Option<u32>,
-    fallback: Option<(u32, u32, &'static str)>,
+    fallback: Option<(u32, u32, crate::ParseIssueKind)>,
     config: LexerConfig,
 ) -> Result<Frame, ParseCutUnavailable> {
     let arena = ExecutablePartArena::decompose(image, content, SubstFlags::default(), config)
@@ -587,8 +623,7 @@ fn content_part_frame(
         base,
         next: 0,
         report_at,
-        fallback: fallback
-            .map(|(offset, term, message)| (report_at.unwrap_or(offset), term, message)),
+        fallback: fallback.map(|(offset, term, kind)| (report_at.unwrap_or(offset), term, kind)),
     })
 }
 
@@ -992,6 +1027,7 @@ mod tests {
                 offset: 17,
                 // Reported in place, so the term is the same byte.
                 term: 17,
+                kind: crate::ParseIssueKind::ExtraAfterBrace,
                 message: crate::word_parts::EXTRA_AFTER_CLOSE_BRACE,
             }),
         );

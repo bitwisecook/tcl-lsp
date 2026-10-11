@@ -185,9 +185,12 @@ impl Interp {
                 &inputs[..keys],
             ),
             Kind::Append => {
-                let issued = dialect.native_object_append_protocol(None).ok_or(
-                    ValueError::CommandProtocolUnavailable("native compiled dictionary append"),
-                )?;
+                let issued = append_objects
+                    .dialect
+                    .native_object_append_protocol(None)
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "native compiled dictionary append",
+                    ))?;
                 tcl_cmd_core::native_dictionary::update_prepared_member(
                     objects,
                     prepared,

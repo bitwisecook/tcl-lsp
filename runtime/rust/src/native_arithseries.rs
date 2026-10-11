@@ -242,6 +242,24 @@ pub(crate) fn elements(
         .expect("actual element cache")
         .clone())
 }
+/// Borrow an already reached abstract GetElements cache without another hook
+/// call, materialisation, reference or backing copy.
+pub(crate) fn cached_elements_raw(
+    value: *mut TclObj,
+    protocol: NativeStringProtocol,
+) -> Result<(*mut *mut TclObj, usize), ValueError> {
+    validate(value, protocol)?;
+    let backing = &header(value).backing;
+    let elements = backing.elements.borrow();
+    match elements.as_ref() {
+        Some(elements) => Ok((elements.as_ptr().cast_mut(), elements.len())),
+        None if backing.series.length() == 0 => Ok((core::ptr::null_mut(), 0)),
+        None => Err(ValueError::CommandProtocolUnavailable(
+            "unreached abstract GetElements cache",
+        )),
+    }
+}
+
 pub(crate) fn materialize_string(
     value: *mut TclObj,
     protocol: NativeStringProtocol,

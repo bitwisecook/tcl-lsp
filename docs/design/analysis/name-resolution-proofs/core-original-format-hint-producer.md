@@ -64,7 +64,7 @@ This Rust consumer contract has no native execution receipt.
 
 ## Exact evidence
 
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/inlay_hints.rs](../../../../rust/tcl-lsp-core/src/inlay_hints.rs). SHA-256 `124e9fc837f1a9c86133f09c5ddce7d693bcd44cd63e7779b2e52bfe15561369`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
+- `implementation-0` (implementation): [rust/tcl-lsp-core/src/inlay_hints.rs](../../../../rust/tcl-lsp-core/src/inlay_hints.rs). SHA-256 `a5e7236f82d302ef563ff4d2148f1389e5fb46c68c6be45a6e7875e7afeabfc1`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
 
 ## Source inspection
 

@@ -64,8 +64,8 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-command-native-command-entry-currency-native_body_artifact.rs` (implementation): [runtime/rust/src/interp/native_body_artifact.rs](../../../../runtime/rust/src/interp/native_body_artifact.rs). SHA-256 `478c95196702bde74a38596a2c7ed013ef9b8782f4d63d9993347d716d3dc1c8`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-command-native-command-entry-currency-native_compilation.rs` (implementation): [rust/tcl-registry/src/native_compilation.rs](../../../../rust/tcl-registry/src/native_compilation.rs). SHA-256 `69ae8ca5df7b9e78728f657c4c67f423e1b2952975d2bff9ba64361241ff513d`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-command-native-command-entry-currency-native_body_artifact.rs` (implementation): [runtime/rust/src/interp/native_body_artifact.rs](../../../../runtime/rust/src/interp/native_body_artifact.rs). SHA-256 `779627b58ea8b0f44a9b33b1f81f482b5b7fe13a43cba2038b62a228269e73f3`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-command-native-command-entry-currency-native_compilation.rs` (implementation): [rust/tcl-registry/src/native_compilation.rs](../../../../rust/tcl-registry/src/native_compilation.rs). SHA-256 `d03939131ab28e3992aaf69eb5049e2c17ad1d662689dd76454db778cad468d3`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 
 ## Source inspection
 

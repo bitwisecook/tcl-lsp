@@ -64,9 +64,9 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-compiler-original-positioned-child-body-reachability-origin_inventory.rs` (implementation): [rust/tcl-compiler/src/command_binding/origin_inventory.rs](../../../../rust/tcl-compiler/src/command_binding/origin_inventory.rs). SHA-256 `13d2e2f06da226b3539d1c518b58093a032e454262f4141f06a9762f30d8dc6e`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-compiler-original-positioned-child-body-reachability-interprocedural.rs` (implementation): [rust/tcl-compiler/src/interprocedural.rs](../../../../rust/tcl-compiler/src/interprocedural.rs). SHA-256 `fb603bfbaf20532e3e5803b93995291b70a6edb8254c7ad7ff6c7f34b60e079f`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-compiler-original-positioned-child-body-reachability-realm.rs` (implementation): [rust/tcl-compiler/src/realm.rs](../../../../rust/tcl-compiler/src/realm.rs). SHA-256 `8b5e2e03e80a5f8a87622fbfecbd1e689be69a0eeba6fa5427e3d100c9e0826e`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-compiler-original-positioned-child-body-reachability-origin_inventory.rs` (implementation): [rust/tcl-compiler/src/command_binding/origin_inventory.rs](../../../../rust/tcl-compiler/src/command_binding/origin_inventory.rs). SHA-256 `479a813919f0408628d242082b462156efc8e4bb56fe24c026aa61e3d594892a`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-compiler-original-positioned-child-body-reachability-interprocedural.rs` (implementation): [rust/tcl-compiler/src/interprocedural.rs](../../../../rust/tcl-compiler/src/interprocedural.rs). SHA-256 `02ae211cc258d4d2ba96c6b86d1a963478e9663231ea9776ae83162b50ed14cb`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-compiler-original-positioned-child-body-reachability-realm.rs` (implementation): [rust/tcl-compiler/src/realm.rs](../../../../rust/tcl-compiler/src/realm.rs). SHA-256 `beac0f46f328d8a1301a5eee4eb42d91c05fd6bc6e2f4e85268d565077af4cc9`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 
 ## Source inspection
 

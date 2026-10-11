@@ -32,64 +32,38 @@ use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
 
-/// `info complete script` — whether `script` is a syntactically complete command
-/// (or sequence): no unclosed `{}`/`[]`/`"` and no trailing backslash
-/// continuation. Mirrors C's `Tcl_CommandComplete`.
+/// Query an original String script under the supplied complete configuration.
+/// The shared Lexer owns ordered typed C parse issues and Jim Script markers.
+/// This readonly query creates no value, handler or entered-source ownership.
 ///
-/// Pure (no runtime state), unlike the rest of this module. Crucially, command
-/// substitution is **not** parsed inside `{braces}` (a `[` there is literal), so
-/// `{[}` is complete, where a naive bracket counter would call it incomplete.
-#[must_use]
-pub fn complete(s: &[u8]) -> bool {
-    let mut stack: Vec<u8> = Vec::new(); // expected closers: `}` or `]`
-    let mut in_quote = false;
-    let mut i = 0;
-    while i < s.len() {
-        let c = s[i];
-        if c == b'\\' {
-            // A backslash escapes the next byte; a trailing one leaves the
-            // command incomplete (line continuation awaiting more input).
-            if i + 1 >= s.len() {
-                return false;
-            }
-            i += 2;
-            continue;
-        }
-        let in_brace = stack.last() == Some(&b'}');
-        if in_brace {
-            // Inside braces only brace nesting matters — `[`/`"` are literal.
-            match c {
-                b'{' => stack.push(b'}'),
-                b'}' => {
-                    stack.pop();
-                }
-                _ => {}
-            }
-        } else if in_quote {
-            match c {
-                b'"' => in_quote = false,
-                b'[' => stack.push(b']'),
-                b']' if stack.last() == Some(&b']') => {
-                    stack.pop();
-                }
-                _ => {}
-            }
-        } else {
-            match c {
-                b'{' => stack.push(b'}'),
-                b'[' => stack.push(b']'),
-                b']' => {
-                    if stack.last() == Some(&b']') {
-                        stack.pop();
-                    }
-                }
-                b'"' => in_quote = true,
-                _ => {}
-            }
-        }
-        i += 1;
-    }
-    stack.is_empty() && !in_quote
+/// # Errors
+/// Returns unavailable selected grammar or original source geometry.
+pub fn complete(
+    script: &[u8],
+    config: tcl_syntax::script_completeness::LexerConfig,
+) -> Result<bool, tcl_syntax::script_completeness::ScriptCompletenessUnavailable> {
+    use tcl_syntax::script_completeness::{SourceImage, script_image_is_complete};
+    script_image_is_complete(&SourceImage::native(script), config)
+}
+
+/// Query completeness through the original value's checked String getter.
+/// The complete worker configuration is supplied independently of its header.
+///
+/// # Errors
+/// Retains typed String access failures and unavailable parser ownership.
+pub fn complete_value<O, V>(
+    ops: &mut O,
+    script: &V,
+    config: tcl_syntax::script_completeness::LexerConfig,
+) -> Result<V, CmdError>
+where
+    O: ValueOps<Value = V>,
+{
+    let bytes = ops.native_string_bytes(script)?;
+    let complete = complete(&bytes, config).map_err(|_| {
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable("configured script completeness")
+    })?;
+    Ok(ops.new_bool(complete))
 }
 
 /// `info level ?number?` — with no argument, the current call-stack depth; with
@@ -866,14 +840,27 @@ mod tests {
 
     #[test]
     fn complete_matches_c_semantics() {
-        assert!(complete(b"set x 1"));
-        assert!(!complete(b"set x {")); // unclosed brace
-        assert!(!complete(b"set x [")); // unclosed bracket
-        assert!(!complete(b"a \"")); // unclosed quote
-        assert!(!complete(b"a \\")); // trailing backslash continuation
-        // `[` is literal inside braces, so `{[}` is complete — a plain bracket
-        // counter would report it incomplete.
-        assert!(complete(b"{[}"));
-        assert!(complete(b"puts {a [ b}"));
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Native452 row25: the trailing backslash is complete on all captured
+        // C releases. Row26's backslash-LF is the pending continuation.
+        let config = tcl_syntax::script_completeness::LexerConfig::from_grammar(
+            tcl_dialect::model::grammar(
+                tcl_dialect::model::Family::Tcl,
+                tcl_dialect::model::Release::TCL_9_0,
+            ),
+        );
+        for (script, expected) in [
+            (b"set x 1".as_slice(), true),
+            (b"set x {", false),
+            (b"set x [", false),
+            (b"a \"", false),
+            (b"a \\", true),
+            (b"a \\\n", false),
+            (b"{[}", true),
+            (b"puts {a [ b}", true),
+        ] {
+            assert_eq!(complete(script, config), Ok(expected), "{script:?}");
+        }
     }
 }

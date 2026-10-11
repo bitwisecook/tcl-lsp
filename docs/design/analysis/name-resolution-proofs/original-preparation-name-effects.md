@@ -64,10 +64,10 @@ No appliance observation for this question.
 
 ## Exact evidence
 
-- `implementation-0` (implementation): [rust/tcl-registry/src/native_compilation.rs](../../../../rust/tcl-registry/src/native_compilation.rs). SHA-256 `0e02a7271419386b37ad455ccb0dab9c575f58133998972dc339528c112e7f4e`. Retain the original selected preparation visits independently of opcode admission.
-- `implementation-1` (implementation): [rust/tcl-registry/src/native_compilation.rs](../../../../rust/tcl-registry/src/native_compilation.rs). SHA-256 `0e02a7271419386b37ad455ccb0dab9c575f58133998972dc339528c112e7f4e`. Preserve selected loop and exception compiler environments without inventing entry mode or nesting.
-- `implementation-2` (implementation): [rust/tcl-registry/src/native_expression_program.rs](../../../../rust/tcl-registry/src/native_expression_program.rs). SHA-256 `7981bf64f1361b4187e841105f2296cdd0eb76b1207eeadd9d846ea9c8303cfb`. Read nested command topology from the retained checked expression tree and source.
-- `implementation-3` (implementation): [rust/tcl-compiler/src/command_binding/original_compiler_effects.rs](../../../../rust/tcl-compiler/src/command_binding/original_compiler_effects.rs). SHA-256 `fade48450e4ce0fbfa8b6e1839b570d0268b7d03ee06a6623d9328323c9fc20a`. Close exact original nested compiler effects against the immutable current registration and independently selected resolver world.
+- `implementation-0` (implementation): [rust/tcl-registry/src/native_compilation.rs](../../../../rust/tcl-registry/src/native_compilation.rs). SHA-256 `d03939131ab28e3992aaf69eb5049e2c17ad1d662689dd76454db778cad468d3`. Retain the original selected preparation visits independently of opcode admission.
+- `implementation-1` (implementation): [rust/tcl-registry/src/native_compilation.rs](../../../../rust/tcl-registry/src/native_compilation.rs). SHA-256 `d03939131ab28e3992aaf69eb5049e2c17ad1d662689dd76454db778cad468d3`. Preserve selected loop and exception compiler environments without inventing entry mode or nesting.
+- `implementation-2` (implementation): [rust/tcl-registry/src/native_expression_program.rs](../../../../rust/tcl-registry/src/native_expression_program.rs). SHA-256 `3d8fa7eb4fc11815c82576e2b2bc37a9dc01791f424ba075c7f2a9ae498e0120`. Read nested command topology from the retained checked expression tree and source.
+- `implementation-3` (implementation): [rust/tcl-compiler/src/command_binding/original_compiler_effects.rs](../../../../rust/tcl-compiler/src/command_binding/original_compiler_effects.rs). SHA-256 `e3f8823081c97bf6aa1c55d029eb3f91576aa7a321eec3ad6f3459e51507ba15`. Close exact original nested compiler effects against the immutable current registration and independently selected resolver world.
 
 ## Source inspection
 

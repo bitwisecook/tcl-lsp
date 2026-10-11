@@ -64,11 +64,11 @@ This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP exec
 
 ## Exact evidence
 
-- `owner-0` (implementation): [rust/tcl-compiler/src/command_binding/original_command_table.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_table.rs). SHA-256 `849a48bae53c0cd389f227b342efd2ca5e9d62d45701e40ad1fe2088580a99c6`. Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome.
+- `owner-0` (implementation): [rust/tcl-compiler/src/command_binding/original_command_table.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_table.rs). SHA-256 `5c3aaaffda53821d4b8aeb9cd3203f7897347e01b14339befd02d63f2be990da`. Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome.
 
-- `owner-1` (implementation): [rust/tcl-compiler/src/command_binding/original_name_value.rs](../../../../rust/tcl-compiler/src/command_binding/original_name_value.rs). SHA-256 `efac70f728d1d88f2cc83702554b52bb8c27845459e500e080fdf269c5f8f18e`. Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome.
+- `owner-1` (implementation): [rust/tcl-compiler/src/command_binding/original_name_value.rs](../../../../rust/tcl-compiler/src/command_binding/original_name_value.rs). SHA-256 `af1f747d8aa4e98fb1ce59a983891789cd9ac7475211a7d2ebe33072cee6d629`. Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome.
 
-- `owner-2` (implementation): [rust/tcl-compiler/src/command_binding/source_command_world.rs](../../../../rust/tcl-compiler/src/command_binding/source_command_world.rs). SHA-256 `2959d3909763c4d8e0b627fec9abf5ce5a74449df958cd1450a65264459f5320`. Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome.
+- `owner-2` (implementation): [rust/tcl-compiler/src/command_binding/source_command_world.rs](../../../../rust/tcl-compiler/src/command_binding/source_command_world.rs). SHA-256 `a5c40ed6c933ad80fae149b06c3ffffd834fa537f33ac417a423b3ecc753158f`. Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome.
 
 ## Source inspection
 

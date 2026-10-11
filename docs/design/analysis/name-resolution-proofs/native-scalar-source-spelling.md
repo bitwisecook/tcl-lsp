@@ -64,7 +64,7 @@ This precise Rust source contract has no native execution receipt.
 
 ## Exact evidence
 
-- `implementation` (implementation): [rust/tcl-syntax/src/naming/variable_spelling.rs](../../../../rust/tcl-syntax/src/naming/variable_spelling.rs). SHA-256 `a3234a2b787d837586191c4c684cb39596d343be60f0d129aa0d25446440cd4b`. Current Rust source and fixed meaningful coverage selectors; no Rust or native execution receipt.
+- `implementation` (implementation): [rust/tcl-syntax/src/naming/variable_spelling.rs](../../../../rust/tcl-syntax/src/naming/variable_spelling.rs). SHA-256 `aa25b2802cf45b7409f23ae58531db9eff20e56426de69253ddd7c9455a4e386`. Current Rust source and fixed meaningful coverage selectors; no Rust or native execution receipt.
 
 ## Source inspection
 

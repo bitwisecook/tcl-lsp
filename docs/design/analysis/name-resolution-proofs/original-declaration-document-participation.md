@@ -64,7 +64,7 @@ This precise Rust source contract has no native execution receipt.
 
 ## Exact evidence
 
-- `implementation` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `637201343394fa8386fdaf493d9f1f623b724d42f283de5e4e227ba93f861412`. Shared participant collector and fixed mixed-workspace assertion source; no Rust or native execution receipt.
+- `implementation` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `0dd77cf689cea5843308375483dccca76f958c40b223078469fe95ffa9389bb6`. Shared participant collector and fixed mixed-workspace assertion source; no Rust or native execution receipt.
 
 ## Source inspection
 

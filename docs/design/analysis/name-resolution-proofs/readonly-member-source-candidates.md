@@ -64,9 +64,9 @@ This is a current Rust implementation contract. No native provider observation o
 
 ## Exact evidence
 
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/document_symbols/original.rs](../../../../rust/tcl-lsp-core/src/document_symbols/original.rs). SHA-256 `b69dc7a649c9c1a037a7e4ea7a8e6f975cbc903fafbbacf2316721e5a5e9cb84`. Current original consumer implementation and fixed assertions. No Rust or native execution receipt.
-- `implementation-2` (implementation): [rust/tcl-lsp-core/src/original_oo.rs](../../../../rust/tcl-lsp-core/src/original_oo.rs). SHA-256 `18c90c8d65afc3ad002d8f1fbd1e4ef462a31787df1182bfd8d835309e6f6489`. Current original consumer implementation and fixed assertions. No Rust or native execution receipt.
-- `implementation-3` (implementation): [rust/tcl-lsp-core/src/semantic_tokens/original.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens/original.rs). SHA-256 `fd6266a3a928c0b92f1bce29812541438c413d29ec851b93b86591708be8a33c`. Current original consumer implementation and fixed assertions. No Rust or native execution receipt.
+- `implementation-1` (implementation): [rust/tcl-lsp-core/src/document_symbols/original.rs](../../../../rust/tcl-lsp-core/src/document_symbols/original.rs). SHA-256 `c922d09d220b037294a9dc120ad68d8adcc3b358fe20a7510aa43c96d2cb52d9`. Current original consumer implementation and fixed assertions. No Rust or native execution receipt.
+- `implementation-2` (implementation): [rust/tcl-lsp-core/src/original_oo.rs](../../../../rust/tcl-lsp-core/src/original_oo.rs). SHA-256 `de5a0c048df6e3b16166e4658307f93850e71a1ad4f0f10ab0043a838d8de0c1`. Current original consumer implementation and fixed assertions. No Rust or native execution receipt.
+- `implementation-3` (implementation): [rust/tcl-lsp-core/src/semantic_tokens/original.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens/original.rs). SHA-256 `56244028733eac7ff76abc6f308134f75607d67d1668457b9b9374caa25216f0`. Current original consumer implementation and fixed assertions. No Rust or native execution receipt.
 
 ## Source inspection
 

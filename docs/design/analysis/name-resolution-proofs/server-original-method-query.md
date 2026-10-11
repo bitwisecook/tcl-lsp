@@ -64,8 +64,8 @@ This readonly editor integration is a Rust implementation invariant; no native p
 
 ## Exact evidence
 
-- `implementation-0` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `42be4431c50dbc03d96dca7e69d3eadcfa04d9039fbfe38d2f4f3230a2feb3cf`. Exact current Rust consumer source and linked fixed assertions; no native or Rust execution receipt.
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/method_symbol.rs](../../../../rust/tcl-lsp-core/src/method_symbol.rs). SHA-256 `60ce3a01155c329e41cdae33ce5a3aae7be8d2c7a0f2523d813eefd90c14d4aa`. Exact current Rust consumer source and linked fixed assertions; no native or Rust execution receipt.
+- `implementation-0` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `0dd77cf689cea5843308375483dccca76f958c40b223078469fe95ffa9389bb6`. Exact current Rust consumer source and linked fixed assertions; no native or Rust execution receipt.
+- `implementation-1` (implementation): [rust/tcl-lsp-core/src/method_symbol.rs](../../../../rust/tcl-lsp-core/src/method_symbol.rs). SHA-256 `a4d76d8b8eb4d2a06cf2680c8fb57bb2960b3bcd7c7ea766a92ead79d34cb84d`. Exact current Rust consumer source and linked fixed assertions; no native or Rust execution receipt.
 
 ## Source inspection
 

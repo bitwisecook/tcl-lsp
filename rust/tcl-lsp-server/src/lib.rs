@@ -15635,7 +15635,14 @@ impl Backend {
         analysis: &AnalysisResult,
         pos: Position,
     ) -> Vec<String> {
-        if !analysis.allows_lexical_declaration_advice() {
+        if !analysis.allows_lexical_declaration_advice()
+            || analysis.body_lexer_config.is_none_or(|config| {
+                !analysis.matches_original_source_image(
+                    &tcl_lexer::SourceImage::document(source),
+                    config,
+                )
+            })
+        {
             return Vec::new();
         }
         if core_hover::find_var_at_position(source, pos.line, pos.character).is_some() {
@@ -15697,6 +15704,9 @@ impl Backend {
             // Pack-aware: a call site settled against the workspace index must
             // see the same command universe hover and diagnostics do.
             let registry = self.registry_for_dialect(&analysis.dialect).await;
+            if workspace_reporting_context(analysis, &registry).is_none() {
+                return Vec::new();
+            }
             let exports = index.export_snapshot();
             if let Some(cand) = settle_call_against_workspace(
                 &index,
@@ -31785,6 +31795,28 @@ fn refine_original_w123_diagnostics(
         .collect()
 }
 
+/// Borrow the complete checked Logical reporting owner. A current catalogue
+/// generation is only a store-currency check; its nominal profile cannot
+/// replace the analysis's independently retained availability or lexer.
+fn workspace_reporting_context<'a>(
+    analysis: &'a AnalysisResult,
+    registry: &CommandRegistry,
+) -> Option<&'a tcl_registry::model::ContextRegistry> {
+    if !analysis.allows_lexical_declaration_advice() {
+        return None;
+    }
+    let input = analysis.resolved_input.as_ref()?;
+    let context = input.borrowed_context_registry();
+    let image = analysis.retained_command_realm()?.original_source_image()?;
+    let config = analysis.body_lexer_config?;
+    if context.commands().semantic_key() != registry.semantic_key()
+        || !analysis.matches_original_source_image(image, config)
+    {
+        return None;
+    }
+    Some(context)
+}
+
 /// Settle an explicitly selected Logical invocation against the reporting index.
 /// Ordered compatibility candidates preserve namespace order, import shadowing
 /// and pending source transitions. The shared source owner independently selects
@@ -31800,11 +31832,9 @@ fn settle_call_against_workspace<'a>(
     exports: &dyn tcl_lsp_core::namespace_import::NamespaceExportOracle,
     call_off: u32,
 ) -> Option<&'a str> {
-    // Original command lookups require their own current source owners;
-    // reporting candidates cannot replace an unavailable cross-file entry.
-    if !analysis.allows_lexical_declaration_advice() {
-        return None;
-    }
+    // Original command lookups remain separate. Conditional reporting uses
+    // its complete current source owner; absence cannot reopen a catalogue.
+    let context = workspace_reporting_context(analysis, registry)?;
     if core_definition::forced_import_shadows_call(
         analysis,
         core_definition::CallResolution::document_only().in_program(
@@ -31823,9 +31853,9 @@ fn settle_call_against_workspace<'a>(
         .iter()
         .map(String::as_str)
         .find(|cand| {
-            let has_builtin = registry
-                .get(tcl_compiler::naming::unroot_rooted_key(cand).unwrap_or(cand))
-                .is_some();
+            // Shared resolution preserves qualification and actual provider,
+            // version and package availability; a catalogue row is insufficient.
+            let has_builtin = context.resolve_command(cand).is_some();
             if core_definition::indirection_pending_at(analysis, cand, call_off) {
                 return false;
             }
@@ -31873,7 +31903,8 @@ fn settle_cross_file_calls(
     // naming.consumer.original-workspace-diagnostic-refinement
     // docs/design/analysis/name-resolution-proofs/original-workspace-diagnostic-refinement.md
     let mut out = CrossFileCalls::default();
-    if !analysis.allows_lexical_declaration_advice() || analysis.unresolved_command_sites.is_empty()
+    if workspace_reporting_context(analysis, registry).is_none()
+        || analysis.unresolved_command_sites.is_empty()
     {
         return out;
     }

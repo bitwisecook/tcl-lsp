@@ -64,8 +64,8 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-compiler-logical-upvar-target-element-geometry-handlers.rs` (implementation): [rust/tcl-compiler/src/analyser/handlers.rs](../../../../rust/tcl-compiler/src/analyser/handlers.rs). SHA-256 `e8af8ad1520e09091efee1bd8f6e8d2da453b05b14f78975e3ec9e4fc74aba5f`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-compiler-logical-upvar-target-element-geometry-naming.rs` (implementation): [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs). SHA-256 `77c05067c4a55d218010c4225b664fbb07d16624293457299a52d96e3912c6fc`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-compiler-logical-upvar-target-element-geometry-handlers.rs` (implementation): [rust/tcl-compiler/src/analyser/handlers.rs](../../../../rust/tcl-compiler/src/analyser/handlers.rs). SHA-256 `fab679c51c4039669df9cd8babc80af3b272a5a6ed5a6c5f32a0bb8fc25e06b2`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-compiler-logical-upvar-target-element-geometry-naming.rs` (implementation): [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs). SHA-256 `2bd969811fe70211d1178492219f9757ef0c6ba7bc0b6b7647b50bc4acda209b`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 
 ## Source inspection
 

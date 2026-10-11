@@ -64,8 +64,8 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-compiler-original-summary-dependency-source-heads-rust-tcl-compiler-src-taint_interproc.rs` (implementation): [rust/tcl-compiler/src/taint_interproc.rs](../../../../rust/tcl-compiler/src/taint_interproc.rs). SHA-256 `28c35255b1e332ce1b286316ac5985ef9615074c8b0931dd67c487a90262af73`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-compiler-original-summary-dependency-source-heads-rust-tcl-lsp-db-src-lib.rs` (implementation): [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs). SHA-256 `90cbc64251c19d3621c67a1c9c26fed364496e128d86b455acb4238d5741b0ac`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
+- `naming-compiler-original-summary-dependency-source-heads-rust-tcl-compiler-src-taint_interproc.rs` (implementation): [rust/tcl-compiler/src/taint_interproc.rs](../../../../rust/tcl-compiler/src/taint_interproc.rs). SHA-256 `89469048c073de20384ee88ae017f18f5ea1cea1ab4243d7780b9fdff18e6781`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
+- `naming-compiler-original-summary-dependency-source-heads-rust-tcl-lsp-db-src-lib.rs` (implementation): [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs). SHA-256 `16c45c1c4106233d782d15d74b462620e6461157f0f928eba6373a3ea678b228`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
 
 ## Source inspection
 

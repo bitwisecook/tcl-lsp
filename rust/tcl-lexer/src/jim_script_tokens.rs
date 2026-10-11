@@ -143,6 +143,17 @@ pub fn jim_script_tokens(
     Ok(result)
 }
 
+/// Readonly Script missing-marker projection through the existing roster.
+/// Document input keeps its channel; no native Script object is constructed.
+pub(crate) fn jim_script_is_complete(
+    image: &SourceImage,
+    config: LexerConfig,
+) -> Result<bool, JimScriptTokensUnavailable> {
+    let roster = Lexer::with_source_image(image, config).jim_script_roster(image.clone())?;
+    // Jim_ScriptIsComplete accepts space and the terminal extra-brace marker.
+    Ok(matches!(roster.missing, None | Some(b'}')))
+}
+
 pub(crate) fn line_delta(source: &[u8], at: u32) -> u32 {
     u32::try_from(bytecount::count(&source[..at as usize], b'\n'))
         .expect("source line count fits its u32 byte extent")

@@ -105,6 +105,8 @@ pub mod raw_string;
 pub mod release_expectations;
 pub mod scalar_getter;
 pub mod scan;
+/// Selected script completeness delegates to the shared original Lexer owner.
+pub mod script_completeness;
 pub mod switch_body;
 pub mod value;
 pub mod var_conformance;

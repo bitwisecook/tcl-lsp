@@ -68,7 +68,7 @@ No native provider run establishes this Rust source-edit invariant. Native name/
 
 ## Exact evidence
 
-- `plan` (implementation): [rust/tcl-lsp-core/src/variable_symbol/rename.rs](../../../../rust/tcl-lsp-core/src/variable_symbol/rename.rs). SHA-256 `6d33395aaf6db04061ef7918172271e256494e47526d84005eafde8dbedd605c`. Actual source plan and dedicated fixed-input regression; source digest is reissued only after owner formatting is stable.
+- `plan` (implementation): [rust/tcl-lsp-core/src/variable_symbol/rename.rs](../../../../rust/tcl-lsp-core/src/variable_symbol/rename.rs). SHA-256 `c092cce1049b6bb88e3d39e65301e27fbdbbde5e48113dde387c8b88cefe1647`. Actual source plan and dedicated fixed-input regression; source digest is reissued only after owner formatting is stable.
 
 ## Source inspection
 

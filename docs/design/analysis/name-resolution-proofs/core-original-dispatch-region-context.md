@@ -92,7 +92,7 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-core-original-dispatch-region-context-references.rs` (implementation): [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs). SHA-256 `f212a16b06b3b1ea7a9d637d953e1d2955568ddff986761689c923d18fbc05a9`. Current original source/API owner and fixed assertion bodies; these bytes are not native provider observations or an executed Rust result.
+- `naming-core-original-dispatch-region-context-references.rs` (implementation): [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs). SHA-256 `2d5de32bc2dc262142b671549a85f31899a8ec2fa32a08d67c8b5fcfa1909188`. Current original source/API owner and fixed assertion bodies; these bytes are not native provider observations or an executed Rust result.
 
 ## Source inspection
 

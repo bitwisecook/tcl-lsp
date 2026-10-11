@@ -327,6 +327,7 @@ impl NativeWord {
                 start: 0,
                 end: bytes.len(),
                 error_term: None,
+                error_kind: None,
             }]
         } else {
             decompose_spanned_checked(bytes, SubstFlags::default(), self.config)
@@ -361,6 +362,7 @@ impl NativeWord {
                     start: at,
                     end: at + content.len(),
                     error_term: None,
+                    error_kind: None,
                 });
             } else {
                 let flags = if token.kind == TokenType::Esc {

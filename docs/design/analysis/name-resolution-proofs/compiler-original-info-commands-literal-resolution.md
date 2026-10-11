@@ -18,6 +18,8 @@ Three linked software controls cover the current shared C recipe selector and bo
 
 The generic operand software definition shares the retained original source-channel and escape policy: escaped Unicode NUL and a counted raw NUL remain different literal byte projections. Authentic original operand spelling is required; detached derived text does not issue the same projection.
 
+The explicitly selected Jim NamespaceInfo software fixture keeps the genuine imported helper key separate from the later global report prefix and resulting member geometry.
+
 ## Scope
 
 Exact original binary input files, public proc definition/object argv, independent preludes and runtime argument objects are retained. C probes use Tcl_CreateInterp plus genuine Tcl_Init under each recorded TCL_LIBRARY; Jim registers core and genuine static extensions. VERSION is independently queried in every original process; reused prior CLI receipts are provider provenance only, not these executions. All32 input tuples are preserved; the C interpreter alias and Jim core alias preludes are provider-specific, so each actual provider runs31 cases. Before exposing result strings the probe captures original result primary/resident state and existing List children; body literal/token headers and dynamic original argument headers have their own distinct capture positions. Opcode bytes and original instruction-table decoding are independent from later original C8.6+ disassembly. Whole stdout includes exact native addresses/disassembly text and is never normalised. Fifty-six exact source windows, their whole original source pins, configured header/Makefile/archive/executable pins and all192 receipts are retained. cases.rs/windows.tsv are explicitly derived comparison projections (32 tuples/186 selected-field rows), byte/field checked against the original request and observations, not independent measurements. The linked Compiler software consumers do not replace independent native process evidence; their exact assertion outcomes belong to independently pinned Rust validation receipts. Other source channels, repeated header identity, mutable command-table freshness, opaque object hooks, native admission/entered frame and BIG-IP remain outside this finite experiment.
@@ -27,6 +29,8 @@ Exact software assertion outcomes belong to their independently pinned Rust sour
 The independently sealed VM278 comparison fails at the C8.4 escaped-nul-prefix primary-before-getter window (actual list, captured none). Its two return-options ownership controls pass separately; neither outcome establishes complete186-window InfoCommands software success or changes the original Native observations.
 
 This linked generic emission control has no assertion result attached and establishes lexical/source integration only. Its selected String/lexer policy does not certify native header/cache birth, compiled Info hook admission, actual command lookup or the complete186-window comparison. Exact independent VM280 validation retains the C8.6 escaped-NUL primary-before-getter failure and its separate activation/binary-control results; original Native observations remain unchanged.
+
+This bounded imported-command control attaches no new original Native process or complete186-window backend result. Existing failed/passed software operations retain their own exact source/image scope; source header assertions alone are not an executed comparison.
 
 ## Provider answers
 
@@ -5075,6 +5079,10 @@ These source bindings establish no executed assertion result; exact software out
 - [rust/tcl-compiler/src/codegen/values.rs](../../../../rust/tcl-compiler/src/codegen/values.rs), `codegen::values::tests::generic_original_operands_share_native_source_channel_and_escape_rules` (linked): Software source-channel integration retains actual original operand bytes and independent escaped-NUL versus counted raw-NUL rules under selected source String/lexer policy. It asserts lexical/literal emission only, not a native header birth or whole186 comparison.
 
 These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
+
+- [rust/tcl-vm/src/interp/native_command_names/info_commands_literal_tests.rs](../../../../rust/tcl-vm/src/interp/native_command_names/info_commands_literal_tests.rs), `interp::native_command_names::info_commands_literal_tests::original_jim_import_retains_helper_publication_before_inventory_root_prefix` (linked): The actual Jim software import helper publishes the original I::target table key; the explicitly installed NamespaceInfo helper independently adds the global report prefix. The fixture inspects pre-getter list/member header geometry but does not attach a complete186 comparison pass or new Native observation.
+
+These actual source registrations require their own successful executable producer, inventory and assertion command before execution claims. Original provider observations and independent software commands retain their recorded purposes.
 
 ## Replay
 

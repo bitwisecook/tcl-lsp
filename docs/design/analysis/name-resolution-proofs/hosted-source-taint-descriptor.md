@@ -14,9 +14,13 @@ Can authored hosted source taint diagnostics use current conditional Registry me
 
 The actual invocation SourceOrigin retains its complete original image/channel after token stamping, with full configuration and independently supplied ContextRegistry on command tokens. Positioned lowering body buffers cannot replace that whole-source owner. Source-restoration and nested-word transport preserve that owner. The analyser diagnostic build supplies its actual availability generation; a foreign command store declines rather than replacing it from a profile label. The descriptor revalidates original unchanged words and invokes the common guarded hosted metadata issuer. Known custom or missing cells block nominal schema selection, while unknown alternatives retain explicit authored-coordinate and applicability obligations. Getter metadata can produce only possible taint, and sink metadata can produce conditional warnings with the original source spans. Neither path supplies sanitiser certainty, storage effects, execution reachability, Native command selection, Normal completion, compiler admission or edit equivalence. Equality compares complete structural context and source/configuration independently of presentation. At an exact original sole-variable sink operand, private HostedSourceRead retains the guarded hosted metadata and actual positioned SsaSourceView. Only its independent read_reference receipt can select a cell and contents version; missing cell, version or taint keeps an unknown MAY value rather than consulting an SSA display-name clean default. Whole original word correspondence is mandatory. Native sink paths retain their separate physical read rules.
 
+Actual selected hosted setter source warnings use their independent genuine F5 source issuer and full Module ownership. Missing supplied input withholds the conditional warning.
+
 ## Scope
 
 Current Rust conditional hosted-source taint descriptor, lowering/IR transport, analyser diagnostic ingress and taint warning consumption. Fixed assertions require genuine stamped tokens, unchanged complete image/configuration/Registry, keyed context discrimination and an actual produced IRULE3001 warning with its typed source subject. Shared metadata controls independently distinguish known custom, missing and unknown cells. All seven native providers are not-tested for this Rust source-analysis contract; no executed Rust receipt is attached. Literal, braced non-read and incomplete compound operands cannot supply this sole-read facet. Known source shadows/deletions remain blocked through shared hosted metadata. No SSA symbol, variable presence, store, contents guarantee, effect or Normal receipt is created.
+
+The added HTTP::path software control grants no external BIG-IP result, loader/event execution, Native handler, sanitisation or storage certainty. Its current source binding attaches no assertion outcome.
 
 ## Provider answers
 
@@ -86,6 +90,10 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/registry_invocation/source_taint.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_taint.rs), `registry_invocation::source_taint::tests::hosted_taint_lowering_keeps_the_invocations_whole_original_image` (linked): A genuine lowered hosted event-body sink retains the complete original source, conditional applicability and no native handler claim; an equal-offset padded body image cannot borrow that owner.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/taint/source_warnings.rs](../../../../rust/tcl-compiler/src/taint/source_warnings.rs), `taint::source_warnings::tests::original_setter_warnings_use_the_independent_hosted_source_schema` (linked): A genuine F5 source issuer selects the independent setter schema for conditional HTTP::path warnings. Literal/unknown arguments and missing Module input retain their own source-only outcomes; no Native handler, sanitisation, effect or BIG-IP result is issued.
+
+These actual source registrations require their own successful executable producer, inventory and assertion command before execution claims. Original provider observations and independent software commands retain their recorded purposes.
 
 ## Replay
 

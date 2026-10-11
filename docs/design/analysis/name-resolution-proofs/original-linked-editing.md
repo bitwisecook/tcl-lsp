@@ -64,7 +64,7 @@ This precise Rust source contract has no native execution receipt.
 
 ## Exact evidence
 
-- `implementation-source` (implementation): [rust/tcl-lsp-core/src/linked_editing_range.rs](../../../../rust/tcl-lsp-core/src/linked_editing_range.rs). SHA-256 `2f5e010c9ed9558cd5ab2e80acad85d935edd7cfc6918f3e6af708abb41cfa59`. Current Rust source geometry and consumer assertions; no native or Rust execution receipt.
+- `implementation-source` (implementation): [rust/tcl-lsp-core/src/linked_editing_range.rs](../../../../rust/tcl-lsp-core/src/linked_editing_range.rs). SHA-256 `c07aba7a312b846ca5d54c103d869a7638a2c84c4b20f577233df142c7a6fa59`. Current Rust source geometry and consumer assertions; no native or Rust execution receipt.
 
 ## Source inspection
 

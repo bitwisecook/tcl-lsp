@@ -64,7 +64,7 @@ This workspace declaration/URI transport invariant is a Rust implementation cont
 
 ## Exact evidence
 
-- `workspace-owner` (implementation): [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs). SHA-256 `dabdaa43f7d963ad998c46079fff2ecacb1e99e6f93a7b04f188968abe647cf4`. Current document-owned original declaration storage, shared candidate projections and regression assertions; source evidence grants no native execution or editor authority.
+- `workspace-owner` (implementation): [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs). SHA-256 `feefb4b2da2ae821f3ebec02282bd7a92da59461cfbccfd7f09bf21aea6c13dc`. Current document-owned original declaration storage, shared candidate projections and regression assertions; source evidence grants no native execution or editor authority.
 
 ## Source inspection
 

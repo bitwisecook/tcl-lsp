@@ -64,8 +64,8 @@ This precise Rust source contract has no native execution receipt.
 
 ## Exact evidence
 
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/original_declaration.rs](../../../../rust/tcl-lsp-core/src/original_declaration.rs). SHA-256 `d113b984e87601ade6ea5c03fe31ec43391afb1033b05c27aa2f8e293e91191e`. Current implementation source and fixed assertion bindings; no execution receipt.
-- `implementation-1` (implementation): [rust/tcl-compiler/src/command_binding/command_reference.rs](../../../../rust/tcl-compiler/src/command_binding/command_reference.rs). SHA-256 `bef3e3d1c6d1fc6911b5dd869738ccb6fba347f386b4c8ba4617b9698911d0cc`. Current implementation source and fixed assertion bindings; no execution receipt.
+- `implementation-0` (implementation): [rust/tcl-lsp-core/src/original_declaration.rs](../../../../rust/tcl-lsp-core/src/original_declaration.rs). SHA-256 `2fb2df2a8b110a27c0119df4d1d2a6a804e75d6dfc58d18921644cec31b4012e`. Current implementation source and fixed assertion bindings; no execution receipt.
+- `implementation-1` (implementation): [rust/tcl-compiler/src/command_binding/command_reference.rs](../../../../rust/tcl-compiler/src/command_binding/command_reference.rs). SHA-256 `bf6f608800d6624a52ab22ca06a2845f19ce2af7a7101388340a254264554332`. Current implementation source and fixed assertion bindings; no execution receipt.
 
 ## Source inspection
 

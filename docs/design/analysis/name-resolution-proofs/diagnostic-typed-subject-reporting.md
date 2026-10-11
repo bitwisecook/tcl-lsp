@@ -68,8 +68,8 @@ This reporting/provenance invariant is a Rust implementation contract. No C Tcl,
 
 ## Exact evidence
 
-- `source-owner` (implementation): [rust/tcl-compiler/src/analyser/diagnostic_subject.rs](../../../../rust/tcl-compiler/src/analyser/diagnostic_subject.rs). SHA-256 `b4c829668e1b3f841be184776e79d4e620b33acef2139393912dfff8f1314675`. Current typed diagnostic subject manufacturer or readonly reporting transport. Code provenance is separate from native execution and writable-source authority.
-- `reporting-transport` (implementation): [rust/tcl-lsp-core/src/diagnostic_subject.rs](../../../../rust/tcl-lsp-core/src/diagnostic_subject.rs). SHA-256 `1168b10e3561f6a7b545dcee386bc278af2caccfe166785e76f2af951236f671`. Current typed diagnostic subject manufacturer or readonly reporting transport. Code provenance is separate from native execution and writable-source authority.
+- `source-owner` (implementation): [rust/tcl-compiler/src/analyser/diagnostic_subject.rs](../../../../rust/tcl-compiler/src/analyser/diagnostic_subject.rs). SHA-256 `dbb548238c723389b0e79b272bca143f32ebd0376feebff1d4d69d492d17c91b`. Current typed diagnostic subject manufacturer or readonly reporting transport. Code provenance is separate from native execution and writable-source authority.
+- `reporting-transport` (implementation): [rust/tcl-lsp-core/src/diagnostic_subject.rs](../../../../rust/tcl-lsp-core/src/diagnostic_subject.rs). SHA-256 `eefaf8bacaaaec50bae4761b1e73553873331775f616206974eb243f783c41f6`. Current typed diagnostic subject manufacturer or readonly reporting transport. Code provenance is separate from native execution and writable-source authority.
 
 ## Source inspection
 

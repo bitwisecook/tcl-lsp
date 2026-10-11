@@ -64,9 +64,9 @@ No appliance observation for this question.
 
 ## Exact evidence
 
-- `native_oo` (implementation): [rust/tcl-runtime-api/src/native_oo.rs](../../../../rust/tcl-runtime-api/src/native_oo.rs). SHA-256 `ab324692f0a766620e35102e0141f77976bd0cac161471e34b72d84bc87ced3d`. Current independently issued backend observation implementation; Root final formatting may reissue this mutable source digest.
-- `native_compilation` (implementation): [rust/tcl-runtime-api/src/native_compilation.rs](../../../../rust/tcl-runtime-api/src/native_compilation.rs). SHA-256 `4706c5992d0a4009a73bf02837d9c70ca06be3b50ea18dec7f575b993f4cf0a8`. Current independently issued backend observation implementation; Root final formatting may reissue this mutable source digest.
-- `native_bootstrap` (implementation): [rust/tcl-vm/src/cmd_oo/native_bootstrap.rs](../../../../rust/tcl-vm/src/cmd_oo/native_bootstrap.rs). SHA-256 `90898f4372bc2db2302a7bb523a0703ad4bf9fa57d9e96fe1660c6d699e5aec8`. Current independently issued backend observation implementation; Root final formatting may reissue this mutable source digest.
+- `native_oo` (implementation): [rust/tcl-runtime-api/src/native_oo.rs](../../../../rust/tcl-runtime-api/src/native_oo.rs). SHA-256 `a33ee52d1b12df77cea1403653d2a58b05017a8ecf4e229c7fb7de20713c513a`. Current independently issued backend observation implementation; Root final formatting may reissue this mutable source digest.
+- `native_compilation` (implementation): [rust/tcl-runtime-api/src/native_compilation.rs](../../../../rust/tcl-runtime-api/src/native_compilation.rs). SHA-256 `dc642bbf0181e849561b09db0c5ec98b5097444dda05aa80bc365607b2de4171`. Current independently issued backend observation implementation; Root final formatting may reissue this mutable source digest.
+- `native_bootstrap` (implementation): [rust/tcl-vm/src/cmd_oo/native_bootstrap.rs](../../../../rust/tcl-vm/src/cmd_oo/native_bootstrap.rs). SHA-256 `ccaff3640251ebfcb6ec76c035ff77cce93fc9a987ea1407ab2a30c912810d92`. Current independently issued backend observation implementation; Root final formatting may reissue this mutable source digest.
 
 ## Source inspection
 

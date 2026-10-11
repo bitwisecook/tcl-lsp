@@ -64,7 +64,7 @@ This precise Rust source contract has no native execution receipt.
 
 ## Exact evidence
 
-- `implementation` (implementation): [rust/tcl-lsp-core/src/selection_range.rs](../../../../rust/tcl-lsp-core/src/selection_range.rs). SHA-256 `ac3d1452431f3930bd24a402d8730cc3221cf3ab5c9d1e9103c0f38ce24b92b8`. Current Rust source and fixed meaningful coverage selectors; no Rust or native execution receipt.
+- `implementation` (implementation): [rust/tcl-lsp-core/src/selection_range.rs](../../../../rust/tcl-lsp-core/src/selection_range.rs). SHA-256 `bbe692f4c468433e1ae89185131cc27d0382abe8020c90d4b342249ff1b00a87`. Current Rust source and fixed meaningful coverage selectors; no Rust or native execution receipt.
 
 ## Source inspection
 

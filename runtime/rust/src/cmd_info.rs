@@ -27,7 +27,7 @@
 //! introspection `body`/`args`/`default`. `info errorstack` (TIP 348) is the
 //! remaining `CmdFrame`-adjacent item.
 
-use crate::interp::{Code, Interp, new_string, obj_bytes};
+use crate::interp::{new_string, obj_bytes, Code, Interp};
 use crate::obj::TclObj;
 use tcl_syntax::value::ValueOps;
 
@@ -397,9 +397,16 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() != 3 {
                 return interp.wrong_args_for_prefix(argv, 2, b"command");
             }
-            let ok = tcl_cmd_core::info::complete(&obj_bytes(argv[2]));
-            interp.set_result_bytes(if ok { b"1" } else { b"0" });
-            Code::Ok
+            let config = interp
+                .lexer_config()
+                .with_grammar(interp.native_invocation_dialect().lexer_grammar);
+            match tcl_cmd_core::info::complete_value(interp, &argv[2], config) {
+                Ok(value) => {
+                    interp.set_result(value);
+                    Code::Ok
+                }
+                Err(error) => interp.report_cmd_error(error),
+            }
         }
         b"body" => info_body(interp, argv),
         b"args" => info_args(interp, argv),
@@ -813,9 +820,7 @@ fn info_frame(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-/// `Tcl_CommandComplete` (approximation): a script is complete when no brace,
-/// bracket, or quote is left open and it doesn't end mid-escape. Inside braces
-/// only `{`/`}` nest; inside quotes `[...]` command substitution still nests.
+/// Publish the selected info-level selector failure.
 fn bad_level(interp: &mut Interp, spec: &[u8]) -> Code {
     let mut m = b"bad level \"".to_vec();
     m.extend_from_slice(spec);
@@ -940,6 +945,50 @@ fn info_default(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 mod tests {
     use crate::counters;
     use crate::interp::{Code, Interp};
+
+    #[test]
+    fn original_info_complete_retains_checked_string_worker_and_selected_runtime_grammar() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Form original scalar text through format%c as in the captured String
+        // request. Raw source encoding, object/header and entry remain separate.
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(engine),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let jim = engine == "jim";
+            let modern = matches!(engine, "tcl9.0" | "tcl9.1");
+            for (original, expected) in [
+                ("set x ${a{}", !modern),
+                ("set x {*}{", engine == "tcl8.4"),
+                ("set x \\", !jim),
+                ("set x \\\n", jim),
+                ("set x \"a\"b {", !jim),
+                ("# c\\\r\n", true),
+            ] {
+                let points = original
+                    .chars()
+                    .map(|point| u32::from(point).to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                let source = format!("set original {{}}; foreach point {{{points}}} {{append original [format %c $point]}}; info complete $original");
+                assert_eq!(
+                    interp.eval_str(source.as_bytes()),
+                    Code::Ok,
+                    "{engine}/{original:?}: {:?}",
+                    interp.result_bytes()
+                );
+                assert_eq!(
+                    interp.result_bytes(),
+                    if expected { b"1" } else { b"0" },
+                    "{engine}/{original:?}"
+                );
+            }
+        }
+    }
 
     #[test]
     fn original_info_functions_follow_selected_native_script_and_helpers() {

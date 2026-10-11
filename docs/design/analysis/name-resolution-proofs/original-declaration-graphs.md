@@ -64,7 +64,7 @@ This is a current Rust implementation contract. No native provider observation o
 
 ## Exact evidence
 
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/graphs/original.rs](../../../../rust/tcl-lsp-core/src/graphs/original.rs). SHA-256 `2cee1d14eff671791fc6362b1f86a33e197c34e962864d5010b4e3e39253e109`. Current source graph consumer and fixed Rust assertions; no execution receipt.
+- `implementation-1` (implementation): [rust/tcl-lsp-core/src/graphs/original.rs](../../../../rust/tcl-lsp-core/src/graphs/original.rs). SHA-256 `e57951537fd7dd3f611e66cdce47a115784ca1940ea8c7e21c76dbec772c2e86`. Current source graph consumer and fixed Rust assertions; no execution receipt.
 
 ## Source inspection
 

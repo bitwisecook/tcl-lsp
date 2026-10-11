@@ -218,3 +218,156 @@ fn explicit_lexical_workspace_diagnostics_retain_their_compatibility_behaviour()
         refine_workspace_index_w123(vec![diagnostic], &analysis, None, &calls, false).is_empty()
     );
 }
+
+fn reporting_analysis_with_input(
+    source: &str,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+) -> AnalysisResult {
+    let result = Analyser::new()
+        .with_resolved_input(input.clone())
+        .analyse(source, input.analyser_profile().name);
+    assert!(result.allows_lexical_declaration_advice());
+    result
+}
+
+#[test]
+fn original_workspace_reporting_keeps_actual_builtin_availability_on_the_same_store() {
+    // naming.consumer.original-workspace-diagnostic-refinement
+    // docs/design/analysis/name-resolution-proofs/original-workspace-diagnostic-refinement.md
+    // Conditional nested source declarations are independent of entered Native
+    // dispatch. Their exclusion depends on the actual builtin availability.
+    let registry = CommandRegistry::build_default();
+    let store = registry.snapshot().shared_registry();
+    let profile = tcl_dialect::DialectProfile::plain_tcl();
+    let input = |environment| {
+        tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::new(
+                tcl_registry::model::ingress::resolve_environment(environment)
+                    .default_context_registry()
+                    .with_command_store(Arc::clone(&store)),
+            ),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        )
+    };
+    let older = input("tcl8.4");
+    let current = input("tcl8.6");
+    assert!(
+        older
+            .borrowed_context_registry()
+            .resolve_command("try")
+            .is_none()
+    );
+    assert!(
+        current
+            .borrowed_context_registry()
+            .resolve_command("try")
+            .is_some()
+    );
+    let provider = reporting_analysis_with_input(
+        "proc factory {} {proc try {value} {return $value}}",
+        &current,
+    );
+    let index =
+        core_workspace_index::WorkspaceIndex::from_documents([("file:///provider.tcl", &provider)]);
+    assert!(
+        index
+            .live_procs()
+            .any(|proc| proc.qualified_name == "::try" && proc.nested)
+    );
+    let exports = index.export_snapshot();
+    for (input, expected) in [(&older, Some("::try")), (&current, None)] {
+        let analysis = reporting_analysis_with_input("try value", input);
+        let invocation = analysis
+            .command_invocations
+            .iter()
+            .find(|invocation| invocation.name == "try")
+            .expect("the actual source scanner retains this call");
+        assert_eq!(
+            settle_call_against_workspace(
+                &index,
+                &analysis,
+                &registry,
+                "file:///caller.tcl",
+                invocation,
+                exports.as_ref(),
+                invocation.range.start(),
+            ),
+            expected,
+        );
+        if expected.is_some() {
+            // The diagnostic consumer shares the same selection owner.
+            let calls = settle_cross_file_calls(&index, &analysis, &registry, "file:///caller.tcl");
+            assert!(
+                calls
+                    .resolved
+                    .contains(&(invocation.range.start(), invocation.range.end()))
+            );
+        }
+    }
+}
+
+#[test]
+fn original_workspace_reporting_refuses_pack_generations_and_withdrawn_source_owners() {
+    // naming.consumer.original-workspace-diagnostic-refinement
+    // docs/design/analysis/name-resolution-proofs/original-workspace-diagnostic-refinement.md
+    let source = "donated VALUE";
+    let analysis = lexical_analysis(source);
+    let index = report_index("proc donated {value} {return $value}");
+    let registry = analysis.resolved_registry().unwrap();
+    let select = |analysis: &AnalysisResult, registry: &CommandRegistry| {
+        let invocation = analysis.command_invocations.first().unwrap();
+        settle_call_against_workspace(
+            &index,
+            analysis,
+            registry,
+            "file:///caller.tcl",
+            invocation,
+            index.export_snapshot().as_ref(),
+            invocation.range.start(),
+        )
+        .is_some()
+    };
+    assert!(select(&analysis, registry));
+    assert!(
+        !settle_cross_file_calls(&index, &analysis, registry, "file:///caller.tcl")
+            .resolved
+            .is_empty()
+    );
+    let mut changed = CommandRegistry::build_default();
+    let mut descriptor = changed.get("set").unwrap().clone();
+    descriptor.name = "workspace_reporting_pack_change";
+    changed.insert(descriptor);
+    assert_ne!(changed.semantic_key(), registry.semantic_key());
+    assert!(!select(&analysis, &changed));
+    assert!(
+        settle_cross_file_calls(&index, &analysis, &changed, "file:///caller.tcl")
+            .resolved
+            .is_empty()
+    );
+
+    let mut missing = analysis.clone();
+    missing.resolved_input = None;
+    assert!(!select(&missing, registry));
+    let mut stale = analysis.clone();
+    let config = stale.body_lexer_config.as_mut().unwrap();
+    config.strict_quoting = !config.strict_quoting;
+    assert!(!select(&stale, registry));
+    let mut unavailable = analysis.clone();
+    unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+        environment: analysis.dialect.clone(),
+        overlay: u64::MAX - 403,
+    });
+    assert!(!unavailable.command_invocations.is_empty());
+    assert!(!select(&unavailable, registry));
+    assert!(
+        settle_cross_file_calls(&index, &unavailable, registry, "file:///caller.tcl")
+            .resolved
+            .is_empty()
+    );
+    assert!(
+        select(&analysis, registry),
+        "the restored genuine owner remains nonvacuous"
+    );
+}

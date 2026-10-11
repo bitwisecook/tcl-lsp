@@ -64,7 +64,7 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-expression-scalar-reference-constant-source-projection-expr_simplify.rs` (implementation): [rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs](../../../../rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs). SHA-256 `72fd5caf486425aa3e275f3786a5b61aee4d3f253ca49d15ddb11a90edbc2f3c`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-expression-scalar-reference-constant-source-projection-expr_simplify.rs` (implementation): [rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs](../../../../rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs). SHA-256 `fe48f2c1942811fc51d7818cd3972f5f9ff5c60cb0dc11662f6266c5c9535859`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 
 ## Source inspection
 

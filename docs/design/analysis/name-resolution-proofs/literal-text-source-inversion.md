@@ -64,7 +64,7 @@ This is a Rust implementation assertion; no native provider observation answers 
 
 ## Exact evidence
 
-- `source-backslash` (implementation): [rust/tcl-syntax/src/backslash.rs](../../../../rust/tcl-syntax/src/backslash.rs). SHA-256 `b5e0c4b86c8e54dd4df5405c29ffa1c509183b00075e82e0b260dcf9129560df`. Reviewed current implementation and linked fixed assertions; no execution receipt.
+- `source-backslash` (implementation): [rust/tcl-syntax/src/backslash.rs](../../../../rust/tcl-syntax/src/backslash.rs). SHA-256 `afdbb8dcf02748133b483f7b29c9b8edfa0b5e280f71e406ece9367bcf89c02e`. Reviewed current implementation and linked fixed assertions; no execution receipt.
 
 ## Source inspection
 

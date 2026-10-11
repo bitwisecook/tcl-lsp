@@ -64,8 +64,8 @@ This is a Rust ownership contract. No interpreter or appliance observation is at
 
 ## Exact evidence
 
-- `implementation-0` (implementation): [rust/tcl-compiler/src/command_binding/declaration_flow.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_flow.rs). SHA-256 `1a373be10eae84d08069438b7fd234c43bd14745dfd2de80ff136d48d02bd06a`. Reviewed Rust owner for this implementation invariant; this file is not an executed provider capture.
-- `implementation-1` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs). SHA-256 `cf31061a835b716fe092603844d3fc860b927f825c13ce3b9f3be2c5b23178a9`. Reviewed Rust owner for this implementation invariant; this file is not an executed provider capture.
+- `implementation-0` (implementation): [rust/tcl-compiler/src/command_binding/declaration_flow.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_flow.rs). SHA-256 `2eab142f2f17b22ecec97d0a24aad342044ca90c2583fe058800f95f4a9cbacc`. Reviewed Rust owner for this implementation invariant; this file is not an executed provider capture.
+- `implementation-1` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs). SHA-256 `8337ea1787785cabfa9d2d4e4cf98f0c1c855ecface322bef0b250bf22ae9f13`. Reviewed Rust owner for this implementation invariant; this file is not an executed provider capture.
 
 ## Source inspection
 

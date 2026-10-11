@@ -64,10 +64,10 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-list-original-value-append-storage-currency-list.rs` (implementation): [runtime/rust/src/list.rs](../../../../runtime/rust/src/list.rs). SHA-256 `f8af5926c34b6864def47c5e14eb4510ad03e0c1c7637b9bc347214a3aafd39b`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-list-original-value-append-storage-currency-value_ops.rs` (implementation): [runtime/rust/src/value_ops.rs](../../../../runtime/rust/src/value_ops.rs). SHA-256 `b8bb22b2fcf5917c926c45e938607906b48b6d45361cccf49422d2b1c1a05f48`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-list-original-value-append-storage-currency-var.rs` (implementation): [rust/tcl-cmd-core/src/var.rs](../../../../rust/tcl-cmd-core/src/var.rs). SHA-256 `b46b7a88e2bf04c8e780be9a4025ada724f8cda39242616143aff73eb21e69ce`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-list-original-value-append-storage-currency-value.rs` (implementation): [rust/tcl-syntax/src/value.rs](../../../../rust/tcl-syntax/src/value.rs). SHA-256 `ca20b4b18eb356de2818909538a5a2e00090e92c4b6c1ca941e0a6407c9ff702`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-list-original-value-append-storage-currency-list.rs` (implementation): [runtime/rust/src/list.rs](../../../../runtime/rust/src/list.rs). SHA-256 `2c4a149c0837fec21caa22a0ca92065f8bdb3898746c75d8fe70a859e13ece82`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-list-original-value-append-storage-currency-value_ops.rs` (implementation): [runtime/rust/src/value_ops.rs](../../../../runtime/rust/src/value_ops.rs). SHA-256 `b94dce453557fbf53991909f008607ee71f5c981b669d7f87eabd9ea54b6844e`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-list-original-value-append-storage-currency-var.rs` (implementation): [rust/tcl-cmd-core/src/var.rs](../../../../rust/tcl-cmd-core/src/var.rs). SHA-256 `59eddbc76d5849eebdfe263c8e349798dc3114fbdea163823b3b2485decd8e31`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-list-original-value-append-storage-currency-value.rs` (implementation): [rust/tcl-syntax/src/value.rs](../../../../rust/tcl-syntax/src/value.rs). SHA-256 `d412e3a6736721b78a27c805245568689617faf248811acf8a046c6e556ed037`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 
 ## Source inspection
 

@@ -1105,19 +1105,16 @@ pub type NativeProcEntry = unsafe extern "C" fn(
 #[derive(Clone)]
 pub struct Interp(Rc<InterpState>);
 
-/// A test callback's original weak interpreter holder, with no public state access.
-#[cfg(test)]
+/// Weak actual interpreter holder. Upgrading grants no operation or native purpose.
 #[derive(Clone)]
 pub(crate) struct WeakInterp(Weak<InterpState>);
 
-#[cfg(test)]
 impl WeakInterp {
     pub(crate) fn upgrade(&self) -> Option<Interp> {
         self.0.upgrade().map(Interp)
     }
 }
 
-#[cfg(test)]
 impl Interp {
     pub(crate) fn downgrade(&self) -> WeakInterp {
         WeakInterp(Rc::downgrade(&self.0))

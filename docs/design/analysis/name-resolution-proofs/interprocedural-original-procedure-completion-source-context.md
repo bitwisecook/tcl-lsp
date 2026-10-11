@@ -65,7 +65,7 @@ No external provider execution answers this original Logical procedure-completio
 ## Exact evidence
 
 - `naming-interprocedural-original-procedure-completion-source-context-completion-definition` (implementation): [rust/tcl-compiler/src/interprocedural/completion.rs](../../../../rust/tcl-compiler/src/interprocedural/completion.rs). SHA-256 `732155a21ad495e484443e034241b2ffad01c6016a6760303b5ff5b6be649533`. Current Root-ACKed396/397 conditional source walk and ten marked completion definitions; no executed assertion or provider result.
-- `naming-interprocedural-original-procedure-completion-source-context-call-definition` (implementation): [rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs](../../../../rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs). SHA-256 `74784b6eeacfb1536d60458b717ec229670abb4be5a9b5261b3f372667a9abb0`. Typed original declaration/effective argv/selected formal ownership query; no Native frame, argument values or completion admission.
+- `naming-interprocedural-original-procedure-completion-source-context-call-definition` (implementation): [rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs](../../../../rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs). SHA-256 `bb50fb19ef6a215cd9e062e08cffdcdbcaa16e42490e847ebdf5d63c0caf0494`. Typed original declaration/effective argv/selected formal ownership query; no Native frame, argument values or completion admission.
 
 ## Source inspection
 

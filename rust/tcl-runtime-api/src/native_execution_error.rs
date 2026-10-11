@@ -107,6 +107,12 @@ impl From<NativeCompilationAdmissionError> for NativeExecutionError {
     }
 }
 
+impl From<tcl_syntax::raw_string::NativeValueAccessRefusal> for NativeExecutionError {
+    fn from(error: tcl_syntax::raw_string::NativeValueAccessRefusal) -> Self {
+        Self::ValueAccessRefusal(error)
+    }
+}
+
 impl std::fmt::Display for NativeExecutionError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

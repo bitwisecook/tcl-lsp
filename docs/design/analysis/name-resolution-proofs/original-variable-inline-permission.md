@@ -68,8 +68,8 @@ This precise Rust source contract has no native execution receipt.
 
 ## Exact evidence
 
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/refactor/inline_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/inline_variable.rs). SHA-256 `6a94860b32c16a74e76bc29d9dffafffd935a009d632403b33adf7b2d3acdbaa`. Current refactor/shared SSA owner source and fixed assertions; no execution receipt.
-- `implementation-1` (implementation): [rust/tcl-compiler/src/ssa.rs](../../../../rust/tcl-compiler/src/ssa.rs). SHA-256 `aed9342499c50ed49dff1679a088ff8d42031413402c42b61483d520208f6389`. Current refactor/shared SSA owner source and fixed assertions; no execution receipt.
+- `implementation-0` (implementation): [rust/tcl-lsp-core/src/refactor/inline_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/inline_variable.rs). SHA-256 `05d6cb5cbed7cc632d67683ac2a7d36a9dcf453dd5c21a1034d80b2c8dd621a6`. Current refactor/shared SSA owner source and fixed assertions; no execution receipt.
+- `implementation-1` (implementation): [rust/tcl-compiler/src/ssa.rs](../../../../rust/tcl-compiler/src/ssa.rs). SHA-256 `d2a81336b6f73bef1e40dc1c98cbdadd08b8c1c00f8e0523bf20d3fea6964da5`. Current refactor/shared SSA owner source and fixed assertions; no execution receipt.
 
 ## Source inspection
 

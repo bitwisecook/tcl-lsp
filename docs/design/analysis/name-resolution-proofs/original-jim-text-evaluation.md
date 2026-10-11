@@ -64,8 +64,8 @@ No native implementation-equivalence assertion is attached. Exact source/result 
 
 ## Exact evidence
 
-- `implementation-0` (implementation): [rust/tcl-compiler/src/command_binding/literal_object_pool.rs](../../../../rust/tcl-compiler/src/command_binding/literal_object_pool.rs). SHA-256 `90e75e4053d5e6d88a1d746043d97be412cf2f6f916e1436bb151a8dd6947b18`. Current Rust owner for the independent text-effect axis; this file is not an executed provider capture.
-- `implementation-1` (implementation): [rust/tcl-compiler/src/command_binding/evaluated_word.rs](../../../../rust/tcl-compiler/src/command_binding/evaluated_word.rs). SHA-256 `7ce74178d2c3ce4daad839b4c5888ab53a849c942ec8a47f34854c54f5b74321`. Current Rust owner for the independent text-effect axis; this file is not an executed provider capture.
+- `implementation-0` (implementation): [rust/tcl-compiler/src/command_binding/literal_object_pool.rs](../../../../rust/tcl-compiler/src/command_binding/literal_object_pool.rs). SHA-256 `1c4948e53aa0230689f6b827e706df0c00ea4534e2e52262d13ffc4a83cacc35`. Current Rust owner for the independent text-effect axis; this file is not an executed provider capture.
+- `implementation-1` (implementation): [rust/tcl-compiler/src/command_binding/evaluated_word.rs](../../../../rust/tcl-compiler/src/command_binding/evaluated_word.rs). SHA-256 `36e6afdc5cd67cf659d6f0c42d003af46520986cb273c9b03faf1a822778d355`. Current Rust owner for the independent text-effect axis; this file is not an executed provider capture.
 
 ## Source inspection
 

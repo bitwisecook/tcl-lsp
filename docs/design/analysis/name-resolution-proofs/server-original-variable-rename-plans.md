@@ -64,7 +64,7 @@ No native provider run establishes this Rust source-edit invariant. Native name/
 
 ## Exact evidence
 
-- `plan` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `8837a17c9c7c7636b882f5c2f8414a42a4faad407d707f588c7402b8e122ff44`. Actual source plan and dedicated fixed-input regression; source digest is reissued only after owner formatting is stable.
+- `plan` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `0dd77cf689cea5843308375483dccca76f958c40b223078469fe95ffa9389bb6`. Actual source plan and dedicated fixed-input regression; source digest is reissued only after owner formatting is stable.
 
 ## Source inspection
 

@@ -64,8 +64,8 @@ This Rust consumer contract has no native execution receipt.
 
 ## Exact evidence
 
-- `implementation-0` (implementation): [rust/tcl-compiler/src/command_binding/declaration_lookup.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_lookup.rs). SHA-256 `480e4982a5d651f92dcd67be9c9b74c888ed69cbd374ee33f856c5057d934296`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/refactor/inline_proc.rs](../../../../rust/tcl-lsp-core/src/refactor/inline_proc.rs). SHA-256 `e0ee37cbf0aa0f515f434021eb30aa31adf46a2396f05a62749d0884a949bbac`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
+- `implementation-0` (implementation): [rust/tcl-compiler/src/command_binding/declaration_lookup.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_lookup.rs). SHA-256 `ce27f4f054a1441a6c62ffc4006e633e99ee8807d09a4e87b0b7e891da9847c6`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
+- `implementation-1` (implementation): [rust/tcl-lsp-core/src/refactor/inline_proc.rs](../../../../rust/tcl-lsp-core/src/refactor/inline_proc.rs). SHA-256 `f8518efeb2c34ba9f4ff9d3dbd9582261241f58109f3599abfb120b47205f17a`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
 
 ## Source inspection
 

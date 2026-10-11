@@ -64,8 +64,8 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-runtime-compiled-procedure-fallback-and-source-log-codegen_abi.rs` (implementation): [runtime/rust/src/codegen_abi.rs](../../../../runtime/rust/src/codegen_abi.rs). SHA-256 `ed85233d3d145ebf36226a423ae10544c3023d4cec9708e04ead04af59803bbf`. Current original source/API owner and fixed assertion bodies; these bytes are not native provider observations or an executed Rust result.
-- `naming-runtime-compiled-procedure-fallback-and-source-log-interp.rs` (implementation): [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs). SHA-256 `c068052ef1740e5e3eb16b40e886788c6420bad9f9158bce47319073cf0f6be3`. Current original source/API owner and fixed assertion bodies; these bytes are not native provider observations or an executed Rust result.
+- `naming-runtime-compiled-procedure-fallback-and-source-log-codegen_abi.rs` (implementation): [runtime/rust/src/codegen_abi.rs](../../../../runtime/rust/src/codegen_abi.rs). SHA-256 `7acce48b03e10bad46f7070a2c7003f644911be17641845cbdc2e9f7f7210161`. Current original source/API owner and fixed assertion bodies; these bytes are not native provider observations or an executed Rust result.
+- `naming-runtime-compiled-procedure-fallback-and-source-log-interp.rs` (implementation): [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs). SHA-256 `39ad5bbe238343e6964986866b595038115a63d4778df5cd4c8b4cfb312c185c`. Current original source/API owner and fixed assertion bodies; these bytes are not native provider observations or an executed Rust result.
 
 ## Source inspection
 

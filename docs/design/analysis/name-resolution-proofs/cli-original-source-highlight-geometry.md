@@ -64,8 +64,8 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-cli-original-source-highlight-geometry-highlight.rs` (implementation): [rust/tcl-cli-support/src/highlight.rs](../../../../rust/tcl-cli-support/src/highlight.rs). SHA-256 `8cab93e4cf53333545e71dfbeae9cb6a3543825f0964b2f2a4e6f2a2e66e6156`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-cli-original-source-highlight-geometry-source_structure.rs` (implementation): [rust/tcl-lsp-core/src/source_structure.rs](../../../../rust/tcl-lsp-core/src/source_structure.rs). SHA-256 `77aee56bb58e3db03487a680167c745efa20c5ef17021a0108e864f0f03670a7`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-cli-original-source-highlight-geometry-highlight.rs` (implementation): [rust/tcl-cli-support/src/highlight.rs](../../../../rust/tcl-cli-support/src/highlight.rs). SHA-256 `a0e016ba97dea1a578b99839f5009eeff2f6a1868fefaef11ae4f017cfc0e4eb`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-cli-original-source-highlight-geometry-source_structure.rs` (implementation): [rust/tcl-lsp-core/src/source_structure.rs](../../../../rust/tcl-lsp-core/src/source_structure.rs). SHA-256 `3cc56d094553d0fac6de91248a06fd6a1dd99701fa3f60e79d0ce0443fe19e29`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 
 ## Source inspection
 

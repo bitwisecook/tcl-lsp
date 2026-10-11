@@ -64,7 +64,7 @@ This precise Rust source contract has no native execution receipt.
 
 ## Exact evidence
 
-- `implementation-source` (implementation): [rust/tcl-syntax/src/naming/command_geometry.rs](../../../../rust/tcl-syntax/src/naming/command_geometry.rs). SHA-256 `5ade0f2baf5d03f076ed1b900a8c5bea4937067b62b797b542d2c9d19dec495b`. Current Rust source geometry and consumer assertions; no native or Rust execution receipt.
+- `implementation-source` (implementation): [rust/tcl-syntax/src/naming/command_geometry.rs](../../../../rust/tcl-syntax/src/naming/command_geometry.rs). SHA-256 `258d2404a6b27c4176b74092100a821a6df9ae8268240124780a7b537298e008`. Current Rust source geometry and consumer assertions; no native or Rust execution receipt.
 
 ## Source inspection
 

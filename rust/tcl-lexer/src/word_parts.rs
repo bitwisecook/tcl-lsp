@@ -40,10 +40,11 @@ use std::borrow::Cow;
 
 use tcl_dialect::EscapeSyntax;
 
+use crate::ParseIssueKind;
 use crate::lexer::LexerConfig;
 use crate::ranges::{
-    ArrayIndexEnd, BracedVarEnd, INVALID_CHARACTER_IN_ARRAY_INDEX, MISSING_CLOSE_BRACE_FOR_VAR,
-    braced_var_name_end, close_quote_offset, command_substitution_end_bytes, scan_array_index,
+    ArrayIndexEnd, BracedVarEnd, braced_var_name_end, close_quote_offset,
+    command_substitution_end_bytes, scan_array_index,
 };
 use crate::substitution::backslash_subst_bytes_in;
 
@@ -101,6 +102,14 @@ pub fn scan_expression_sugar(
     at: usize,
     config: LexerConfig,
 ) -> Result<Option<(&[u8], usize)>, &'static str> {
+    scan_expression_sugar_with_issue(source, at, config).map_err(ParseIssueKind::message)
+}
+
+fn scan_expression_sugar_with_issue(
+    source: &[u8],
+    at: usize,
+    config: LexerConfig,
+) -> Result<Option<(&[u8], usize)>, ParseIssueKind> {
     if !config.var_syntax.has_expr_sugar()
         || !source.get(at..).is_some_and(|tail| tail.starts_with(b"$("))
     {
@@ -108,7 +117,7 @@ pub fn scan_expression_sugar(
     }
     let end = crate::ranges::jim_parenthesis_body_end(source, at + 2);
     if source.get(end) != Some(&b')') {
-        return Err("missing close-paren for expression substitution");
+        return Err(ParseIssueKind::MissingExpressionParenthesis);
     }
     Ok(Some((&source[at + 1..=end], end + 1)))
 }
@@ -356,6 +365,8 @@ pub struct SpannedPart<'s> {
     pub end: usize,
     /// Exact rejected delimiter within the source, independently of the raw component extent.
     pub error_term: Option<usize>,
+    /// Structured issue retained by the component parser, not inferred from its text.
+    pub error_kind: Option<ParseIssueKind>,
 }
 
 /// Cap on `$name(index)` nesting depth [`decompose`] recurses into while
@@ -451,6 +462,7 @@ pub fn decompose_template_spanned(
             start: 0,
             end: src.len(),
             error_term: None,
+            error_kind: None,
         }]);
     }
     Ok(scan_parts(src, flags, config, 0, variables, &mut false))
@@ -604,7 +616,14 @@ pub fn quoted_word_close(
     source: impl AsRef<[u8]>,
     open_quote: usize,
 ) -> Result<usize, &'static str> {
-    close_quote_offset(source, open_quote).ok_or(MISSING_QUOTE)
+    quoted_word_close_with_issue(source, open_quote).map_err(ParseIssueKind::message)
+}
+
+pub(crate) fn quoted_word_close_with_issue(
+    source: impl AsRef<[u8]>,
+    open_quote: usize,
+) -> Result<usize, ParseIssueKind> {
+    close_quote_offset(source, open_quote).ok_or(ParseIssueKind::MissingQuote)
 }
 
 /// Scan the `$`-reference at `src[at]`, leaving any array index as raw source.
@@ -622,18 +641,18 @@ pub fn scan_var_ref(
     at: usize,
     config: LexerConfig,
 ) -> Result<Option<RawVarRef<'_>>, &'static str> {
-    scan_var_ref_with_term(src, at, config).map_err(|error| error.message)
+    scan_var_ref_with_term(src, at, config).map_err(|error| error.kind.message())
 }
 
 #[derive(Debug, Clone, Copy)]
 struct ComponentParseError {
-    message: &'static str,
+    kind: ParseIssueKind,
     term: usize,
 }
 
 impl ComponentParseError {
-    const fn new(message: &'static str, term: usize) -> Self {
-        Self { message, term }
+    const fn new(kind: ParseIssueKind, term: usize) -> Self {
+        Self { kind, term }
     }
     fn rebased(self, base: usize) -> Self {
         Self {
@@ -658,7 +677,7 @@ fn scan_var_ref_with_term(
                 next: end + 1,
             })),
             BracedVarEnd::Unterminated => Err(ComponentParseError::new(
-                MISSING_CLOSE_BRACE_FOR_VAR,
+                ParseIssueKind::MissingVariableBrace,
                 at + 1,
             )),
         };
@@ -677,7 +696,10 @@ fn scan_var_ref_with_term(
         if config.var_syntax.index_parens_nest() {
             let end = crate::ranges::jim_parenthesis_body_end(src, name_end + 1);
             if src.get(end) != Some(&b')') {
-                return Err(ComponentParseError::new(MISSING_PAREN, name_end));
+                return Err(ComponentParseError::new(
+                    ParseIssueKind::MissingParenthesis,
+                    name_end,
+                ));
             }
             return Ok(Some(RawVarRef {
                 name: &src[start..name_end],
@@ -688,7 +710,7 @@ fn scan_var_ref_with_term(
         let scan = scan_array_index(src, name_end, config.array_index, config.braced_var);
         if let Some(term) = scan.invalid {
             return Err(ComponentParseError::new(
-                INVALID_CHARACTER_IN_ARRAY_INDEX,
+                ParseIssueKind::InvalidArrayIndexCharacter,
                 term,
             ));
         }
@@ -707,7 +729,12 @@ fn scan_var_ref_with_term(
                 Err(
                     error_inside_unterminated(&src[name_end + 1..], SubstFlags::default(), config)
                         .map_or_else(
-                            || ComponentParseError::new(MISSING_PAREN, name_end),
+                            || {
+                                ComponentParseError::new(
+                                    ParseIssueKind::MissingParenthesis,
+                                    name_end,
+                                )
+                            },
                             |error| error.rebased(name_end + 1),
                         ),
                 )
@@ -755,7 +782,7 @@ pub fn command_subst_close(
     flags: SubstFlags,
     config: LexerConfig,
 ) -> Result<usize, &'static str> {
-    command_subst_close_with_term(src, at, flags, config).map_err(|error| error.message)
+    command_subst_close_with_term(src, at, flags, config).map_err(|error| error.kind.message())
 }
 
 fn command_subst_close_with_term(
@@ -793,6 +820,7 @@ pub(crate) fn shallow_spanned_parts(
             start: 0,
             end: src.len(),
             error_term: None,
+            error_kind: None,
         }];
     }
     scan_parts(src, flags, config, MAX_INDEX_DEPTH, variables, &mut false)
@@ -811,6 +839,7 @@ fn decompose_at_depth<'s>(
             start: 0,
             end: src.len(),
             error_term: None,
+            error_kind: None,
         }];
     }
     scan_parts(
@@ -825,9 +854,9 @@ fn decompose_at_depth<'s>(
 
 /// Package the selected sugar's exact span, including its terminal parse error.
 fn expression_component(src: &[u8], at: usize, config: LexerConfig) -> SpannedPart<'_> {
-    let (part, end) = match scan_expression_sugar(src, at, config) {
-        Ok(Some((expression, next))) => (WordPart::Expression(expression), next),
-        Err(message) => (WordPart::ParseError(message), src.len()),
+    let (part, end, error_kind) = match scan_expression_sugar_with_issue(src, at, config) {
+        Ok(Some((expression, next))) => (WordPart::Expression(expression), next, None),
+        Err(kind) => (WordPart::ParseError(kind.message()), src.len(), Some(kind)),
         Ok(None) => unreachable!("selected expression sugar prefix"),
     };
     let error_term = matches!(part, WordPart::ParseError(_)).then_some(at + 1);
@@ -836,6 +865,7 @@ fn expression_component(src: &[u8], at: usize, config: LexerConfig) -> SpannedPa
         start: at,
         end,
         error_term,
+        error_kind,
     }
 }
 
@@ -874,6 +904,7 @@ fn variable_component<'s>(
         start: at,
         end: raw.next,
         error_term: None,
+        error_kind: None,
     }
 }
 
@@ -911,6 +942,7 @@ fn scan_parts<'s>(
                 start: i,
                 end: i + 1,
                 error_term: None,
+                error_kind: None,
             });
             i += 1;
             lit_start = i;
@@ -953,10 +985,11 @@ fn scan_parts<'s>(
                 // the error terminates the walk.
                 Err(error) => {
                     parts.push(SpannedPart {
-                        part: WordPart::ParseError(error.message),
+                        part: WordPart::ParseError(error.kind.message()),
                         start: i,
                         end: len,
                         error_term: Some(error.term),
+                        error_kind: Some(error.kind),
                     });
                     return parts;
                 }
@@ -971,6 +1004,7 @@ fn scan_parts<'s>(
                         start: i,
                         end,
                         error_term: None,
+                        error_kind: None,
                     });
                     i = end;
                     lit_start = i;
@@ -983,10 +1017,11 @@ fn scan_parts<'s>(
                 Err(error) => {
                     flush_text(&mut parts, src, lit_start, i, flags, config.escapes);
                     parts.push(SpannedPart {
-                        part: WordPart::ParseError(error.message),
+                        part: WordPart::ParseError(error.kind.message()),
                         start: i,
                         end: len,
                         error_term: Some(error.term),
+                        error_kind: Some(error.kind),
                     });
                     return parts;
                 }
@@ -1021,7 +1056,7 @@ fn error_inside_unterminated_bracket(
     config: LexerConfig,
 ) -> ComponentParseError {
     error_inside_unterminated(&src[at + 1..], flags, config).map_or_else(
-        || ComponentParseError::new(MISSING_CLOSE_BRACKET, at),
+        || ComponentParseError::new(ParseIssueKind::MissingBracket, at),
         |error| error.rebased(at + 1),
     )
 }
@@ -1096,7 +1131,7 @@ fn error_inside_unterminated(
                     command_position = false;
                     in_word = true;
                 } else {
-                    pending = Some(ComponentParseError::new(MISSING_CLOSE_BRACKET, i));
+                    pending = Some(ComponentParseError::new(ParseIssueKind::MissingBracket, i));
                     closable = src[i..].contains(&b']');
                     i += 1;
                     // The unclosed bracket opens a nested script.
@@ -1105,7 +1140,7 @@ fn error_inside_unterminated(
                 }
             }
             b'[' => {
-                pending = Some(ComponentParseError::new(MISSING_CLOSE_BRACKET, i));
+                pending = Some(ComponentParseError::new(ParseIssueKind::MissingBracket, i));
                 i += 1;
                 command_position = true;
                 in_word = false;
@@ -1124,7 +1159,7 @@ fn error_inside_unterminated(
                     command_position = false;
                     in_word = true;
                 }
-                None => return Some(ComponentParseError::new(MISSING_CLOSE_BRACE, i)),
+                None => return Some(ComponentParseError::new(ParseIssueKind::MissingBrace, i)),
             },
             b'\n' | b';' => {
                 command_position = true;
@@ -1174,13 +1209,13 @@ fn close_quote_offset_bytes(src: &[u8], at: usize) -> Result<usize, ComponentPar
             b'\\' => i += 2,
             b'[' => match command_substitution_end_bytes(src, i) {
                 Some(end) => i = end,
-                None => return Err(ComponentParseError::new(MISSING_CLOSE_BRACKET, i)),
+                None => return Err(ComponentParseError::new(ParseIssueKind::MissingBracket, i)),
             },
             b'"' => return Ok(i),
             _ => i += 1,
         }
     }
-    Err(ComponentParseError::new(MISSING_QUOTE, at))
+    Err(ComponentParseError::new(ParseIssueKind::MissingQuote, at))
 }
 
 /// The index of the `}` closing the braced word opening at `at`, counting
@@ -1230,6 +1265,7 @@ fn flush_text<'s>(
             start,
             end,
             error_term: None,
+            error_kind: None,
         });
     }
 }
@@ -1418,6 +1454,7 @@ mod template_policy_tests {
 
 #[cfg(test)]
 mod tests {
+    use crate::{INVALID_CHARACTER_IN_ARRAY_INDEX, MISSING_CLOSE_BRACE_FOR_VAR};
 
     #[test]
     fn outer_substitution_mask_does_not_disable_array_index_commands() {
@@ -1877,6 +1914,7 @@ mod tests {
                 start: 0,
                 end: 5,
                 error_term: None,
+                error_kind: None,
             }]
         );
     }
