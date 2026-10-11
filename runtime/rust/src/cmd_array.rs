@@ -26,7 +26,7 @@
 use tcl_registry::{ArgRole, InvocationWord, InvocationWords};
 
 use crate::interp::native_arguments::OriginalArguments;
-use crate::interp::{new_string, Code, Interp};
+use crate::interp::{Code, Interp};
 use crate::obj::TclObj;
 use tcl_syntax::value::ValueOps;
 
@@ -761,7 +761,7 @@ mod undefined_root;
 #[cfg(test)]
 mod tests {
     use crate::counters;
-    use crate::interp::{Code, Interp, new_string, obj_bytes};
+    use crate::interp::{Code, Interp, new_string};
 
     fn leak_free(body: impl FnOnce(&mut Interp)) {
         leak_free_native(crate::environment::profile_for_dialect("tcl9.0"), body);

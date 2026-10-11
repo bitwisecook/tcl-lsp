@@ -28,11 +28,9 @@
 //!
 //! Tower-gated like `expr`. Semantics verified against tclsh 9.0.
 
-use crate::interp::{Code, Interp, obj_bytes};
+use crate::interp::{Code, Interp};
 use crate::obj::Owned;
 use crate::obj::TclObj;
-use tcl_syntax::expr::operators::{ALL_BIN_OPS, ALL_UNARY_OPS};
-use tcl_syntax::naming::qualifier_segments;
 
 /// Register `::tcl::mathop::*`.
 pub fn install(interp: &mut Interp) {

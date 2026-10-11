@@ -27,7 +27,7 @@
 
 use crate::interp::{Code, Interp};
 use crate::obj::TclObj;
-use tcl_registry::frame_effect::{NativeFrameLevelFailure, NativeFrameLevelObject};
+use tcl_registry::frame_effect::NativeFrameLevelFailure;
 use tcl_syntax::value::ValueError;
 
 #[cfg(test)]

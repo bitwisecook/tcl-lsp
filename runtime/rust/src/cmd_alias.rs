@@ -3825,11 +3825,9 @@ mod original_alias_storage_tests {
         ]
     }
     fn query(interp: &mut Interp, original_name: *mut TclObj, jim: bool, child: bool) -> Owned {
-        let words = super::original_operand_tests::words(if jim {
-            &[b"info", b"alias"]
-        } else {
-            &[b"interp", b"alias", if child { b"child" } else { b"" }]
-        });
+        let jim_words: &[&[u8]] = &[b"info", b"alias"];
+        let c_words: &[&[u8]] = &[b"interp", b"alias", if child { b"child" } else { b"" }];
+        let words = super::original_operand_tests::words(if jim { jim_words } else { c_words });
         let mut argv = words.iter().map(Owned::as_ptr).collect::<Vec<_>>();
         argv.push(original_name);
         let code = if jim {
@@ -3891,11 +3889,11 @@ mod original_alias_storage_tests {
                     *members.borrow_mut() = originals[1..].iter().map(Owned::as_ptr).collect()
                 });
                 let jim = version == "jim";
-                let words = super::original_operand_tests::words(if jim {
-                    &[b"alias"]
-                } else {
-                    &[b"interp", b"alias", if child { b"child" } else { b"" }]
-                });
+                let jim_words: &[&[u8]] = &[b"alias"];
+                let c_words: &[&[u8]] =
+                    &[b"interp", b"alias", if child { b"child" } else { b"" }];
+                let words =
+                    super::original_operand_tests::words(if jim { jim_words } else { c_words });
                 let target_path = Owned::fresh(obj::new_string_bytes(b""));
                 let mut argv = words.iter().map(Owned::as_ptr).collect::<Vec<_>>();
                 argv.push(originals[0].as_ptr());

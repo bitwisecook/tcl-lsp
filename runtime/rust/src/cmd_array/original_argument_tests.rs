@@ -168,19 +168,14 @@ fn original_array_set_successful_rows_preserve_selected_header_getter_order() {
             let later = lazy(b'C');
             let first = text(b"FIRST");
             let second = text(b"SECOND");
-            let values = list(
-                &interp,
-                if case == 4 {
-                    &[key.as_ptr(), later.as_ptr()]
-                } else {
-                    &[
-                        key.as_ptr(),
-                        first.as_ptr(),
-                        later.as_ptr(),
-                        second.as_ptr(),
-                    ]
-                },
-            );
+            let pair = [key.as_ptr(), later.as_ptr()];
+            let pairs = [
+                key.as_ptr(),
+                first.as_ptr(),
+                later.as_ptr(),
+                second.as_ptr(),
+            ];
+            let values = list(&interp, if case == 4 { &pair } else { &pairs });
             let refs = unsafe { (*later.as_ptr()).ref_count };
             let current = Current::enter(&mut interp);
             let code = array_cmd(
@@ -275,14 +270,9 @@ fn original_array_for_selected_rejections_leave_later_member_getters_unreached()
             let key_name = lazy(b'A');
             let value_name = lazy(b'B');
             let name = lazy(b'C');
-            let variables = list(
-                &interp,
-                if malformed {
-                    &[key_name.as_ptr()]
-                } else {
-                    &[key_name.as_ptr(), value_name.as_ptr()]
-                },
-            );
+            let one = [key_name.as_ptr()];
+            let two = [key_name.as_ptr(), value_name.as_ptr()];
+            let variables = list(&interp, if malformed { &one } else { &two });
             let body = text(b"");
             let current = Current::enter(&mut interp);
             assert_eq!(
@@ -378,9 +368,10 @@ extern "C" fn retirement(_original: *mut TclObj) {
     let mut interp = (unsafe { crate::codegen_abi::current_interp().as_ref() })
         .unwrap()
         .clone();
-    RELEASED.with(|v| {
-        v.set(interp.frames.try_borrow_mut().is_ok() && interp.namespaces.try_borrow_mut().is_ok())
-    });
+    let frames_released = interp.frames.try_borrow_mut().is_ok();
+    // Taking this actual mutable owner fails if the reached store kept a borrow.
+    drop(interp.namespaces_mut());
+    RELEASED.with(|v| v.set(frames_released));
     NEW_VISIBLE
         .with(|v| v.set(interp.var_get_elem(b"arr", b"k") == Some(EXPECTED.with(Cell::get))));
     refuse(&mut interp);
