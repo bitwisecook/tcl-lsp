@@ -3406,9 +3406,18 @@ fn index_text_fragment(
     fragment
 }
 
+/// Source selection is independent of an actual entered-body observation.
+/// Conditional descendants retain their selected source and analysis frame.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SourceBodyEntryPurpose {
+    Selected,
+    Conditional,
+}
+
 #[derive(Clone, Copy)]
 struct SourceExecutionContext<'a> {
     source_purpose: tcl_lexer::SourceSegmentationPurpose,
+    body_entry: SourceBodyEntryPurpose,
     realm: tcl_dialect::model::InvocationRealm,
     compilation: tcl_registry::native_compilation::NativeCompilationContext,
     compilation_snapshot: Option<&'a NativeCompilationSnapshot>,
@@ -3435,7 +3444,15 @@ struct SourceExecutionContext<'a> {
     expression_source: Option<&'a ExecutedExpressionSource>,
 }
 
-impl SourceExecutionContext<'_> {
+impl<'a> SourceExecutionContext<'a> {
+    fn conditional(self) -> Self {
+        Self { body_entry: SourceBodyEntryPurpose::Conditional, ..self }
+    }
+
+    fn entered_frame(&self) -> Option<&'a crate::var_resolve::VariableExecutionFrame> {
+        (self.body_entry == SourceBodyEntryPurpose::Selected).then_some(self.frame)
+    }
+
     fn withdraw_observed_operand_facts(&mut self, observed: bool) {
         if observed {
             self.written_method_prefixes = None;
@@ -3923,6 +3940,7 @@ fn root_source_execution_context<'a>(
     source_purpose: tcl_lexer::SourceSegmentationPurpose,
 ) -> SourceExecutionContext<'a> {
     SourceExecutionContext {
+        body_entry: SourceBodyEntryPurpose::Selected,
         source_purpose,
         realm: options.invocation_realm,
         compilation: options.native_compilation,
@@ -6581,6 +6599,7 @@ impl SourceCommandBindings {
             root.offset,
             &mut branch,
             &SourceExecutionContext {
+                body_entry: SourceBodyEntryPurpose::Conditional,
                 source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                 realm: root.realm,
                 compilation,
@@ -7369,6 +7388,7 @@ impl SourceCommandBindings {
             source_base,
             &mut state,
             &SourceExecutionContext {
+                body_entry: SourceBodyEntryPurpose::Selected,
                 source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                 realm,
                 compilation,
@@ -8230,7 +8250,12 @@ impl SourceCommandBindings {
                 operation: proof.operation,
                 guard: proof.guard,
             };
-            let selected_context = source_selected_context_boxed(context, &selection);
+            let selected_entry = if proof.certainty == compiled_invocation::CompiledExecutionCertainty::May {
+                context.conditional()
+            } else {
+                *context
+            };
+            let selected_context = source_selected_context_boxed(&selected_entry, &selection);
             let mut result = self.walk_source_target(
                 segment,
                 words,
@@ -8380,8 +8405,13 @@ impl SourceCommandBindings {
             })
         {
             let mut stable = boxed_source_branch(incoming);
+            let conditional = if transfer == compiled_invocation::HandlerSourceTransfer::PossibleBodies {
+                context.conditional()
+            } else {
+                *context
+            };
             let selected_context =
-                source_selected_context_boxed(context, &NativeCompilationSelection::Unknown);
+                source_selected_context_boxed(&conditional, &NativeCompilationSelection::Unknown);
             let mut result = self.walk_source_target(
                 segment,
                 words,
@@ -8448,7 +8478,12 @@ impl SourceCommandBindings {
         for target in &proof.targets {
             let mut branch = boxed_source_branch(incoming);
             let selected_context = projected.context(context);
-            let context = selected_context.as_ref();
+            let conditional = if proof.unknown || proof.may_be_absent || proof.targets.len() != 1 {
+                selected_context.conditional()
+            } else {
+                *selected_context
+            };
+            let context = &conditional;
             let mut result = if target.registry_backed {
                 self.walk_source_target(
                     segment,
@@ -8537,6 +8572,12 @@ impl SourceCommandBindings {
                 &incoming,
             );
         }
+        let selected_context = if binding.unknown || binding.may_be_absent || binding.targets.len() != 1 {
+            context.conditional()
+        } else {
+            *context
+        };
+        let context = &selected_context;
         for target in &binding.targets {
             let mut alternative = boxed_source_branch(&incoming);
             let mut result = if target.registry_backed {
@@ -8691,7 +8732,7 @@ impl SourceCommandBindings {
             &called,
             context.config,
         );
-        self.record_called_body_source(body, &frame, Some(&namespace_key), receiver_context);
+        self.record_called_body_source(body, context.body_entry, &frame, Some(&namespace_key), receiver_context);
         state.source_variables = Arc::new(called);
         state.variable_frame = frame.clone();
         let previous_origin = state.current_source_origin.clone();
@@ -8724,6 +8765,7 @@ impl SourceCommandBindings {
     fn record_called_body_source(
         &mut self,
         body: &DeferredSourceBody,
+        entry: SourceBodyEntryPurpose,
         frame: &crate::var_resolve::VariableExecutionFrame,
         namespace: Option<&SourceNamespaceKey>,
         receiver_context: Option<Arc<original_receiver_body_context::OriginalReceiverBodyContext>>,
@@ -8733,7 +8775,7 @@ impl SourceCommandBindings {
                 parent.clone(),
                 *argument,
                 script.clone(),
-                Some(frame),
+                (entry == SourceBodyEntryPurpose::Selected).then_some(frame),
                 namespace,
             );
             self.record_original_receiver_body_context(
@@ -8741,7 +8783,7 @@ impl SourceCommandBindings {
                 *argument,
                 script,
                 frame,
-                receiver_context,
+                (entry == SourceBodyEntryPurpose::Selected).then_some(receiver_context).flatten(),
             );
             if let Some((origin, span)) = &body.executed_word {
                 self.record_executed_word(origin, *span, None, script.clone());
@@ -10069,7 +10111,7 @@ impl SourceCommandBindings {
             // than comparing a newly issued stamp with itself.
             let mut iteration_state = head.clone();
             let iteration =
-                self.walk_lifecycle_iteration(invocation, &mut iteration_state, context);
+                self.walk_lifecycle_iteration(invocation, &mut iteration_state, context.conditional());
             outcomes.join(&iteration);
             if let Some(normal) = iteration.normal {
                 head.join(&normal);
@@ -10473,6 +10515,7 @@ impl SourceCommandBindings {
             )
         };
         let incoming = boxed_source_branch(state);
+        let context = context.conditional();
         for &index in indices {
             let mut branch = boxed_source_branch(&incoming);
             possible.join(&self.walk_body_operand(
@@ -10577,6 +10620,7 @@ impl SourceCommandBindings {
             &script,
             &frame,
             Some(&namespace_key),
+            context.body_entry,
         );
         let realm = evaluated_script_realm(
             lambda.lambda_argument..lambda.lambda_argument + 1,
@@ -10621,6 +10665,7 @@ impl SourceCommandBindings {
         script: &ExecutedScriptSource,
         frame: &crate::var_resolve::VariableExecutionFrame,
         namespace: Option<&SourceNamespaceKey>,
+        entry: SourceBodyEntryPurpose,
     ) {
         let parent = CommandAllocationSite {
             source: Arc::clone(state.current_source_origin.as_ref().unwrap()),
@@ -10637,7 +10682,7 @@ impl SourceCommandBindings {
             parent,
             lambda.lambda_argument,
             script.clone(),
-            Some(frame),
+            (entry == SourceBodyEntryPurpose::Selected).then_some(frame),
             namespace,
         );
     }
@@ -10758,7 +10803,7 @@ impl SourceCommandBindings {
                     parent.clone(),
                     argument,
                     script.clone(),
-                    Some(context.frame),
+                    context.entered_frame(),
                     state.source_variables.namespace_identity.as_ref(),
                 );
             }
@@ -10803,13 +10848,14 @@ impl SourceCommandBindings {
     ) -> SourceOutcomes {
         let mut outcomes = SourceOutcomes::default();
         let mut fallthrough = Some(boxed_source_branch(state));
+        let mut branch_context = context;
         for (condition, body) in branches {
             let Some(mut incoming) = fallthrough.take() else {
                 break;
             };
             if let Some(condition) = condition {
                 let evaluated =
-                    self.walk_expression_operand(*condition, operands, &mut incoming, context);
+                    self.walk_expression_operand(*condition, operands, &mut incoming, branch_context);
                 for (route, state) in &evaluated.abrupt {
                     outcomes.add_abrupt(*route, state);
                 }
@@ -10818,6 +10864,9 @@ impl SourceCommandBindings {
                 };
                 incoming = normal;
                 let truth = source_operand_truth(*condition, operands, &incoming, context.registry);
+                if truth.is_none() {
+                    branch_context = branch_context.conditional();
+                }
                 if truth != Some(true) {
                     fallthrough = Some(incoming.clone());
                 }
@@ -10825,7 +10874,7 @@ impl SourceCommandBindings {
                     continue;
                 }
             }
-            outcomes.join(&self.walk_body_operand(*body, operands, &mut incoming, &context));
+            outcomes.join(&self.walk_body_operand(*body, operands, &mut incoming, &branch_context));
         }
         if let Some(fallthrough) = fallthrough {
             outcomes.join(&SourceOutcomes::normal(&fallthrough));
@@ -10865,7 +10914,7 @@ impl SourceCommandBindings {
             parent,
             index,
             script.clone(),
-            Some(context.frame),
+            context.entered_frame(),
             state.source_variables.namespace_identity.as_ref(),
         );
         let previous_origin = state
@@ -15819,6 +15868,7 @@ fn interpret_binding_source(
         offset,
         &mut post,
         &SourceExecutionContext {
+            body_entry: SourceBodyEntryPurpose::Conditional,
             source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
             realm: bindings.baseline.invocation_realm,
             compilation: if matches!(

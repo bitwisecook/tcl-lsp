@@ -472,8 +472,13 @@ impl SourceCommandBindings {
             if observer.conditional {
                 outcomes.join(&SourceOutcomes::normal(&continuing));
             }
+            let selected_context = if observer.conditional {
+                context.conditional()
+            } else {
+                context
+            };
             let entered =
-                self.walk_command_observer(site, observer, operation, &mut continuing, context);
+                self.walk_command_observer(site, observer, operation, &mut continuing, selected_context);
             outcomes.join(&entered);
         }
         outcomes.publish(state);

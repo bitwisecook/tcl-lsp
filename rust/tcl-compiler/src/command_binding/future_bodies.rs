@@ -258,6 +258,7 @@ impl SourceCommandBindings {
             root.offset,
             &mut state,
             &SourceExecutionContext {
+                body_entry: super::SourceBodyEntryPurpose::Conditional,
                 source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                 realm: root.realm,
                 compilation,

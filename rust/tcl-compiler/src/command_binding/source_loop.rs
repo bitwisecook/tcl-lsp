@@ -43,13 +43,14 @@ impl SourceCommandBindings {
             IterationEntry::Required | IterationEntry::Unknown => {
                 let mut required = operands.entry == IterationEntry::Required;
                 let mut initial = true;
+                let mut loop_context = *context;
                 loop {
                     let before = head.clone();
                     let Some((mut iteration, truth)) = self.prepare_source_loop_iteration(
                         operands,
                         scripts,
                         &mut head,
-                        context,
+                        &loop_context,
                         &mut outcomes,
                     ) else {
                         break;
@@ -60,13 +61,18 @@ impl SourceCommandBindings {
                     if truth == Some(false) {
                         break;
                     }
+                    if !required && truth != Some(true) {
+                        loop_context = loop_context.conditional();
+                    }
+                    let mut selected_context = loop_context;
                     let next = self.walk_source_loop_iteration(
                         operands,
                         scripts,
                         &mut iteration,
-                        context,
+                        &mut selected_context,
                         &mut outcomes,
                     );
+                    loop_context = selected_context;
                     if required || (initial && truth == Some(true)) {
                         let Some(next) = next else { break };
                         // Only a completed first iteration can seed repetition.
@@ -110,6 +116,7 @@ impl SourceCommandBindings {
         outcomes: &mut SourceOutcomes,
     ) {
         use crate::variable_bindings::SourceIterationBindingOutcome;
+        let mut loop_context = *context;
         for iteration in 0..finite.iterations() {
             let Some(values) = finite.bindings(iteration) else {
                 head.mark_opaque_binding_mutation();
@@ -117,6 +124,7 @@ impl SourceCommandBindings {
                 return;
             };
             select_contents_write_source(head);
+            let mut selected_context = loop_context;
             match crate::variable_bindings::transfer_finite_iteration_bindings(
                 Arc::make_mut(&mut head.source_variables),
                 &values,
@@ -131,11 +139,13 @@ impl SourceCommandBindings {
                 SourceIterationBindingOutcome::Unknown => {
                     head.mark_opaque_binding_mutation();
                     outcomes.add_abrupt(Route::Unknown, head);
+                    selected_context = selected_context.conditional();
+                    loop_context = selected_context;
                 }
             }
-            let executed = self.walk_body_sequence(operands.repeated, scripts, head, context);
+            let executed = self.walk_body_sequence(operands.repeated, scripts, head, &selected_context);
             let Some(next) =
-                self.settle_source_loop_iteration(executed, operands, scripts, context, outcomes)
+                self.settle_source_loop_iteration(executed, operands, scripts, &selected_context, outcomes)
             else {
                 return;
             };
@@ -184,11 +194,12 @@ impl SourceCommandBindings {
         operands: SourceLoopOperands<'_>,
         scripts: SourceScriptOperands<'_>,
         iteration: &mut ModuleCommandBindings,
-        context: &SourceExecutionContext<'_>,
+        context: &mut SourceExecutionContext<'_>,
         outcomes: &mut SourceOutcomes,
     ) -> Option<Box<ModuleCommandBindings>> {
         use crate::variable_bindings::SourceIterationBindingOutcome;
         select_contents_write_source(iteration);
+        let mut selected_context = *context;
         match crate::variable_bindings::transfer_source_iteration_bindings(
             Arc::make_mut(&mut iteration.source_variables),
             operands.variable_lists,
@@ -204,10 +215,12 @@ impl SourceCommandBindings {
             SourceIterationBindingOutcome::Unknown => {
                 iteration.mark_opaque_binding_mutation();
                 outcomes.add_abrupt(Route::Unknown, iteration);
+                selected_context = selected_context.conditional();
             }
         }
-        let executed = self.walk_body_sequence(operands.repeated, scripts, iteration, context);
-        self.settle_source_loop_iteration(executed, operands, scripts, context, outcomes)
+        *context = selected_context;
+        let executed = self.walk_body_sequence(operands.repeated, scripts, iteration, &selected_context);
+        self.settle_source_loop_iteration(executed, operands, scripts, &selected_context, outcomes)
     }
 
     /// Process completed body routes outside the frame for its descent. The

@@ -2227,6 +2227,7 @@ mod tests {
         frame: &'a crate::var_resolve::VariableExecutionFrame,
     ) -> SourceExecutionContext<'a> {
         SourceExecutionContext {
+            body_entry: super::SourceBodyEntryPurpose::Selected,
             source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
             realm: tcl_dialect::model::InvocationRealm::RuleLoader,
             compilation,

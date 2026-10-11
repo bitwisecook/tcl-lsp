@@ -756,7 +756,7 @@ impl SourceCommandBindings {
                 prefix,
                 &arguments,
                 &mut possible,
-                context,
+                context.conditional(),
             );
             if operation == TraceOperation::Unset {
                 delivered = delivered.capture_tcl_completions();

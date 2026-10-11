@@ -770,4 +770,118 @@ mod tests {
             Some(expected)
         );
     }
+    #[test]
+    fn original_conditional_entry_retains_selected_native_source_without_entered_frames() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Actual captured software entry/input; source selection is independent
+        // of an entered handler frame or a physical Native callback measurement.
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let source = "if {$unknown} {if {1} {set selected YES}} elseif {1} {if {1} {set later YES}}";
+            let fixture = original_fixture(source, environment);
+            let config = fixture.input.lexer_config();
+            let request = InvocationMetadataContext::for_analysis_input(
+                fixture.context.commands(), &fixture.input,
+            ).unwrap();
+            let parent = &fixture.tokens[0];
+            let binding = parent.source_binding.as_ref().unwrap();
+            let expected = SourceNamespaceKey::from_native_entry(
+                fixture.entry.native_entry.as_deref().unwrap(),
+            ).unwrap();
+            for index in [2, 5] {
+                let body = body_at(parent, index, config);
+                assert_eq!(binding.original_body_namespace_context(
+                    fixture.context.commands(), request, parent, &body,
+                ), Some(expected.clone()));
+                assert!(fixture.bindings.executed_script_namespace_context(&body).is_none());
+                assert!(fixture.bindings.compiled_script_namespace_context(&body).is_none());
+            }
+            let observations = fixture.bindings.entered_scripts.values()
+                .flat_map(|arguments| arguments.values().flatten()).collect::<Vec<_>>();
+            assert!(!observations.is_empty(), "conditional source must stay inventoried: {environment}");
+            assert!(observations.iter().any(|entry| entry.source.text.bytes() == b"set selected YES"));
+            assert!(observations.iter().any(|entry| entry.source.text.bytes() == b"set later YES"));
+            assert!(observations.iter().all(|entry| entry.frame.is_none()
+                && entry.namespace.is_none() && entry.receiver_context.is_none()));
+        }
+    }
+
+    #[test]
+    fn original_conditional_calls_lambda_and_materialized_sources_preserve_the_entry_purpose() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // These are retained source continuations under an actual selected C
+        // software entry. The control observes no external Native execution.
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut sources = vec![
+                "proc p {} {if {1} {set selected YES}}; if {$unknown} {p}",
+                "if {$unknown} {eval {if {1} {set selected YES}}}",
+            ];
+            if environment != "tcl8.4" {
+                sources.push("if {$unknown} {apply {{} {if {1} {set selected YES}}}}");
+            }
+            for source in sources {
+                let fixture = original_fixture(source, environment);
+                let observations = fixture.bindings.entered_scripts.values()
+                    .flat_map(|arguments| arguments.values().flatten()).collect::<Vec<_>>();
+                assert!(observations.iter().any(|entry| entry.source.text.bytes() == b"set selected YES"),
+                    "original descendant source remains available: {environment}: {source}");
+                assert!(observations.iter().all(|entry| entry.frame.is_none()
+                    && entry.namespace.is_none() && entry.receiver_context.is_none()),
+                    "a conditional or declaration preview cannot report entered descendants: {environment}: {source}");
+                assert!(!fixture.bindings.points.is_empty());
+            }
+        }
+    }
+
+    fn original_selected_compiler_entry_fixture(source: &str, environment: &str) -> OriginalBodyFixture {
+        let mut fixture = original_fixture(source, environment);
+        fixture.entry.native_compilation.mode = tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject;
+        fixture.bindings = SourceCommandBindings::analyse_with_options(
+            source, fixture.input.lexer_config(), fixture.context.commands(), fixture.entry.options(),
+        );
+        let image = tcl_lexer::SourceImage::document(source);
+        fixture.tokens = crate::segmenter::segment_commands_image_with_offset_and_config(
+            &image, 0, fixture.input.lexer_config(),
+        ).unwrap().iter().map(|segment| {
+            let mut tokens = CommandTokens::from_segmented(
+                &image.source_map(), fixture.input.lexer_config(), segment,
+            );
+            fixture.bindings.stamp_original_tokens(&mut tokens);
+            tokens
+        }).collect();
+        fixture
+    }
+
+    #[test]
+    fn original_known_compiler_branch_and_finally_keep_the_selected_frame() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // The genuine held compiler entry selects BytecodeObject independently
+        // of namespace syntax. No Direct handler or absent Jim compiler is inferred.
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let fixture = original_selected_compiler_entry_fixture(
+                "if {1} {set selected YES}", environment,
+            );
+            let body = body_at(&fixture.tokens[0], 2, fixture.input.lexer_config());
+            let expected = SourceNamespaceKey::from_native_entry(
+                fixture.entry.native_entry.as_deref().unwrap(),
+            ).unwrap();
+            assert_eq!(fixture.bindings.executed_script_namespace_context(&body), Some(expected));
+            assert!(fixture.bindings.entered_scripts.values()
+                .flat_map(|arguments| arguments.values().flatten())
+                .any(|entry| entry.source == body && entry.frame.is_some()));
+        }
+        for environment in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let fixture = original_selected_compiler_entry_fixture(
+                "try {error caught} finally {set selected YES}", environment,
+            );
+            let body = body_at(&fixture.tokens[0], 3, fixture.input.lexer_config());
+            let expected = SourceNamespaceKey::from_native_entry(
+                fixture.entry.native_entry.as_deref().unwrap(),
+            ).unwrap();
+            assert_eq!(fixture.bindings.executed_script_namespace_context(&body), Some(expected));
+        }
+    }
+
 }

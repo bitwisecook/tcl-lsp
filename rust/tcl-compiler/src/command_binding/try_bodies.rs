@@ -43,6 +43,11 @@ impl SourceCommandBindings {
             state,
             &context,
         );
+        let route_context = if usize::from(body.normal.is_some()) + body.abrupt.len() != 1 {
+            context.conditional()
+        } else {
+            context
+        };
         let mut handled = SourceOutcomes::default();
         if let Some(normal) = &body.normal {
             handled.join(&self.walk_try_route(
@@ -50,7 +55,7 @@ impl SourceCommandBindings {
                 native,
                 Route::Tcl(CompletionCode::Ok),
                 normal,
-                context,
+                route_context,
                 body.normal_value.as_ref(),
             ));
         }
@@ -60,7 +65,7 @@ impl SourceCommandBindings {
                 native,
                 *route,
                 branch,
-                context,
+                route_context,
                 body.result_for(*route),
             ));
         }
@@ -111,6 +116,7 @@ impl SourceCommandBindings {
         }
         let mut outcomes = SourceOutcomes::default();
         let mut unmatched = true;
+        let mut selected_context = context;
         for (index, clause) in selected.clauses.iter().enumerate() {
             let matches = match clause.kind {
                 TryClauseKind::On(selector) => selector.matches_route(route),
@@ -122,6 +128,9 @@ impl SourceCommandBindings {
             if matches == Some(false) {
                 continue;
             }
+            if matches.is_none() {
+                selected_context = selected_context.conditional();
+            }
             let mut branch = boxed_source_branch(state);
             if bind_try_outputs(clause, native, &mut branch, context) {
                 if let Some(body) = selected.clauses[index..].iter().find(|candidate| {
@@ -131,7 +140,7 @@ impl SourceCommandBindings {
                         body.body_index,
                         native.script_operands(),
                         &mut branch,
-                        &context,
+                        &selected_context,
                     ));
                 }
             } else {
@@ -163,6 +172,11 @@ impl SourceCommandBindings {
         if matches!(pending, Route::ProcessExit) {
             return SourceOutcomes::invocation(state, pending);
         }
+        let context = if pending.immediate_code().is_none() {
+            context.conditional()
+        } else {
+            context
+        };
         let mut branch = boxed_source_branch(state);
         let mut completed =
             self.walk_body_operand(operand, native.script_operands(), &mut branch, &context);
