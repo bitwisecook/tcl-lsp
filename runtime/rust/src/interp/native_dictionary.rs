@@ -50,8 +50,15 @@ impl Interp {
             &base,
             element.as_deref(),
         );
+        // Tcl's initial GetVar uses flags=0: an ordinary scalar/element
+        // clash is quiet absence, so the dictionary operation can report its
+        // own missing key before a later SetVar. Execution refusal is separate.
+        if let Err(first) = self.check_entered_native_operation() {
+            return self.refuse_native_execution(first);
+        }
         let selected = match selected_result {
             Ok(selected) => selected,
+            Err(crate::frame::VarError::IsScalar) => None,
             Err(error) => return crate::builtins::var_error(self, name, error),
         };
         let original = if let Some(receiver) = &selected {
@@ -67,7 +74,17 @@ impl Interp {
             let value = if failed {
                 None
             } else {
-                receiver.read_initial().ok().flatten()
+                match receiver.read_initial() {
+                    Ok(value) => value,
+                    Err(crate::frame::VarError::NameProtocolUnavailable) => {
+                        return crate::builtins::var_error(
+                            self,
+                            name,
+                            crate::frame::VarError::NameProtocolUnavailable,
+                        );
+                    }
+                    Err(_) => None,
+                }
             };
             if value.is_none() {
                 // TclPtrGetVarIdx retains this primitive state even when its
@@ -240,3 +257,6 @@ impl Interp {
         cleanup.check()
     }
 }
+
+#[cfg(test)]
+mod quiet_read_tests;

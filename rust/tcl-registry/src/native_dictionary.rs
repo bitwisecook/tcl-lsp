@@ -63,6 +63,8 @@ pub struct NativeDictionaryAppendPolicy {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NativeDictionaryVariableLookup {
     /// Existing roots only; create a missing element shell in an existing array.
+    /// The initial flags-zero read treats an ordinary scalar/element clash as
+    /// quiet absence; operational or name-protocol refusal remains terminal.
     ExistingRootWithElementCreation,
 }
 
