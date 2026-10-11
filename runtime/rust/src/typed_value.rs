@@ -415,14 +415,6 @@ pub(crate) fn scalar_object_stage_current(
     Ok(())
 }
 
-fn adopt_scalar_cache_for_original(
-    value: *mut TclObj,
-    cache: tcl_syntax::scalar_getter::NativeScalarCache,
-    protocol: tcl_syntax::scalar_getter::NativeScalarGetterProtocol,
-    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
-) -> Result<(), tcl_syntax::value::ValueError> {
-    adopt_scalar_cache_for_original_using(value, cache, protocol, currency, None)
-}
 fn adopt_scalar_cache_for_original_using(
     value: *mut TclObj,
     cache: tcl_syntax::scalar_getter::NativeScalarCache,
@@ -524,8 +516,23 @@ pub(crate) fn native_number_probe_with_currency(
     Result<tcl_syntax::number::Number, tcl_syntax::scalar_getter::NativeScalarGetterFailure>,
     tcl_syntax::value::ValueError,
 > {
+    native_number_probe_with_stage_check(value, dialect, kind, currency, None)
+}
+
+/// Same Number/Bignum worker with the captured original frame/storage guard
+/// before reached String, numeric conversion and primary cache adoption.
+pub(crate) fn native_number_probe_with_stage_check(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    kind: tcl_syntax::scalar_getter::NativeNumberGetterKind,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+    stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
+) -> Result<
+    Result<tcl_syntax::number::Number, tcl_syntax::scalar_getter::NativeScalarGetterFailure>,
+    tcl_syntax::value::ValueError,
+> {
     scalar_with_original_lifetime(value, currency, || {
-        native_number_probe_using(value, dialect, kind, currency)
+        native_number_probe_using(value, dialect, kind, currency, stage_check)
     })
 }
 
@@ -534,12 +541,17 @@ fn native_number_probe_using(
     dialect: tcl_registry::InvocationDialect,
     kind: tcl_syntax::scalar_getter::NativeNumberGetterKind,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+    stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
 ) -> Result<
     Result<tcl_syntax::number::Number, tcl_syntax::scalar_getter::NativeScalarGetterFailure>,
     tcl_syntax::value::ValueError,
 > {
     use tcl_syntax::value::ValueError;
-    scalar_object_stage_current(value, currency)?;
+    let stage = || {
+        scalar_object_stage_current(value, currency)?;
+        stage_check.map_or(Ok(()), |check| check())
+    };
+    stage()?;
     obj::check_native_liveness(value)?;
     let protocol = dialect
         .native_scalar_getter_protocol()
@@ -565,17 +577,23 @@ fn native_number_probe_using(
     let conversion = if let Some(conversion) = cached {
         conversion
     } else {
+        let primary = stage_check
+            .map(|_| obj::NativePrimaryReceipt::capture(value))
+            .transpose()?;
         let original = crate::bytearray::scalar_getter_string(value, protocol);
-        scalar_object_stage_current(value, currency)?;
+        stage()?;
+        if let Some(primary) = primary {
+            primary.check_for(value, "changed original Number String primary")?;
+        }
         let original = original?;
         protocol
             .fresh_number_conversion(kind, &original)
             .ok_or(ValueError::ScalarNumericInputUnavailable)?
     };
     let (cache, outcome) = conversion.into_parts();
-    scalar_object_stage_current(value, currency)?;
+    stage()?;
     if let Some(cache) = cache {
-        adopt_scalar_cache_for_original(value, cache, protocol, currency)?;
+        adopt_scalar_cache_for_original_using(value, cache, protocol, currency, stage_check)?;
     }
     Ok(outcome)
 }
@@ -644,8 +662,23 @@ pub(crate) fn native_scalar_failure_presentation_with_currency(
     failure: tcl_syntax::scalar_getter::NativeScalarGetterFailure,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
 ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterError, tcl_syntax::value::ValueError> {
+    native_scalar_failure_presentation_with_stage_check(
+        value, dialect, kind, failure, currency, None,
+    )
+}
+
+/// Present the same reached scalar failure while retaining its original
+/// physical frame/storage guard through dependent String materialisation.
+pub(crate) fn native_scalar_failure_presentation_with_stage_check(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
+    failure: tcl_syntax::scalar_getter::NativeScalarGetterFailure,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+    stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
+) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterError, tcl_syntax::value::ValueError> {
     scalar_with_original_lifetime(value, currency, || {
-        scalar_failure_presentation_using(value, dialect, kind, failure, currency)
+        scalar_failure_presentation_using(value, dialect, kind, failure, currency, stage_check)
     })
 }
 
@@ -655,9 +688,14 @@ fn scalar_failure_presentation_using(
     kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
     failure: tcl_syntax::scalar_getter::NativeScalarGetterFailure,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+    stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
 ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterError, tcl_syntax::value::ValueError> {
     use tcl_syntax::value::ValueError;
-    scalar_object_stage_current(value, currency)?;
+    let stage = || {
+        scalar_object_stage_current(value, currency)?;
+        stage_check.map_or(Ok(()), |check| check())
+    };
+    stage()?;
     obj::check_native_liveness(value)?;
     let protocol = dialect
         .native_scalar_getter_protocol()
@@ -666,8 +704,14 @@ fn scalar_failure_presentation_using(
         .failure_requires_original_string(kind, failure)
         .ok_or(ValueError::ScalarNumericInputUnavailable)?;
     let record = if requires_string {
+        let primary = stage_check
+            .map(|_| obj::NativePrimaryReceipt::capture(value))
+            .transpose()?;
         let original = crate::bytearray::scalar_getter_string(value, protocol);
-        scalar_object_stage_current(value, currency)?;
+        stage()?;
+        if let Some(primary) = primary {
+            primary.check_for(value, "changed original scalar failure String primary")?;
+        }
         let original = original?;
         protocol.failure_presentation(kind, failure, &original)
     } else {

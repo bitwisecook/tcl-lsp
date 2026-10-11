@@ -39,6 +39,9 @@ pub trait NativeIncrementObjects {
 
     /// Apply receiver COW before taking any working getter reference.
     fn prepare(&self, original: Option<&Self::Value>) -> Result<Self::Prepared, CmdError>;
+    /// Retain the actual entered failure before mandatory prepared receiver retirement.
+    /// Neutral object utilities have no original operation and keep an empty projection.
+    fn retain_increment_failure(&self, _first: &CmdError) {}
     /// Borrow the prepared current object without changing its sharing observation.
     fn current<'a>(&self, prepared: &'a Self::Prepared) -> &'a Self::Value;
     /// Probe the selected original numeric primitive, applying cache effects on failure.
@@ -92,22 +95,29 @@ pub fn increment<O: NativeIncrementObjects>(
     amount: &O::Value,
 ) -> Result<O::Value, CmdError> {
     let mut prepared = ops.prepare(original)?;
-    let current = number(ops, ops.current(&prepared))?;
-    let amount_number = number(ops, amount).map_err(reading_increment)?;
-    if !matches!(current, Number::Int(_) | Number::Big { .. }) {
-        return Err(ops.integer_failure(
-            ops.current(&prepared),
-            NativeNumberGetterKind::IncrementNumber,
-        )?);
+    let reached = (|| -> Result<(), CmdError> {
+        let current = number(ops, ops.current(&prepared))?;
+        let amount_number = number(ops, amount).map_err(reading_increment)?;
+        if !matches!(current, Number::Int(_) | Number::Big { .. }) {
+            return Err(ops.integer_failure(
+                ops.current(&prepared),
+                NativeNumberGetterKind::IncrementNumber,
+            )?);
+        }
+        if !matches!(amount_number, Number::Int(_) | Number::Big { .. }) {
+            return Err(reading_increment(ops.integer_failure(
+                amount,
+                NativeNumberGetterKind::IncrementNumber,
+            )?));
+        }
+        let sum = ops.add(current, amount_number)?;
+        ops.store(&mut prepared, sum)?;
+        Ok(())
+    })();
+    if let Err(first) = &reached {
+        ops.retain_increment_failure(first);
     }
-    if !matches!(amount_number, Number::Int(_) | Number::Big { .. }) {
-        return Err(reading_increment(ops.integer_failure(
-            amount,
-            NativeNumberGetterKind::IncrementNumber,
-        )?));
-    }
-    let sum = ops.add(current, amount_number)?;
-    ops.store(&mut prepared, sum)?;
+    reached?;
     Ok(ops.finish(prepared))
 }
 

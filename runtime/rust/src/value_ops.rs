@@ -262,6 +262,7 @@ struct IncrementContext {
     currency: crate::interp::native_operation_currency::NativeOperationCurrency,
     host: Rc<dyn tcl_platform::Host>,
     abi: std::cell::Cell<Option<tcl_platform::NativeCIntegerAbi>>,
+    original: Option<Rc<RuntimeDictionaryChecks>>,
 }
 impl IncrementContext {
     fn selected(interp: &Interp) -> Result<Self, tcl_cmd_core::CmdError> {
@@ -272,16 +273,38 @@ impl IncrementContext {
             .map_err(tcl_cmd_core::CmdError::from_execution_refusal)?,
             host: interp.host(),
             abi: std::cell::Cell::new(None),
+            original: None,
         })
     }
     fn check(&self) -> Result<(), tcl_cmd_core::CmdError> {
         self.currency
             .ensure_current_or_refuse()
-            .map_err(tcl_cmd_core::CmdError::from_execution_refusal)
+            .map_err(tcl_cmd_core::CmdError::from_execution_refusal)?;
+        self.original
+            .as_ref()
+            .map_or(Ok(()), |original| original.check())
+    }
+    fn retain(&self, error: tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError {
+        match &self.original {
+            Some(original) => (original.retain)(error),
+            None => error,
+        }
+    }
+    fn refuse(&self, error: ValueError) -> tcl_cmd_core::CmdError {
+        match &self.original {
+            Some(original) => self.retain((original.refuse)(error)),
+            None => error.into(),
+        }
+    }
+    fn stage(&self, value: *mut TclObj) -> Result<(), ValueError> {
+        self.check()
+            .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
+        crate::typed_value::scalar_object_stage_current(value, Some(&self.currency))
     }
     fn after<T>(&self, result: Result<T, ValueError>) -> Result<T, tcl_cmd_core::CmdError> {
+        let result = result.map_err(|error| self.refuse(error));
         self.check()?;
-        result.map_err(Into::into)
+        result
     }
     fn prepare(
         &self,
@@ -292,7 +315,23 @@ impl IncrementContext {
             obj::check_native_liveness(value.as_ptr())?;
         }
         let prepared = RuntimeAppendValue::retain(match original {
-            Some(value) if obj::is_shared(value.as_ptr()) => obj::duplicate(value.as_ptr()),
+            Some(value) if obj::is_shared(value.as_ptr()) => {
+                if self.original.is_some() {
+                    obj::duplicate_with_stage_check(
+                        value.as_ptr(),
+                        &mut || {
+                            self.check()?;
+                            obj::check_native_liveness(value.as_ptr())
+                                .map_err(|error| self.refuse(error))
+                        },
+                        &mut |error| {
+                            self.retain(error.clone());
+                        },
+                    )?
+                } else {
+                    obj::duplicate(value.as_ptr())
+                }
+            }
             Some(value) => value.as_ptr(),
             None => obj::new_wide_int_obj(0),
         });
@@ -331,7 +370,8 @@ impl IncrementContext {
                 }
             }
         }
-        let outcome = crate::typed_value::native_scalar_probe_with_environment_and_currency(
+        let stage = || self.stage(value);
+        let outcome = crate::typed_value::native_scalar_probe_with_stage_check(
             value,
             dialect,
             kind,
@@ -339,17 +379,23 @@ impl IncrementContext {
                 .as_ref()
                 .map(|environment| environment as &dyn tcl_platform::NumericEnvironment),
             Some(&self.currency),
+            self.original
+                .as_ref()
+                .map(|_| &stage as &dyn Fn() -> Result<(), ValueError>),
         );
         match self.after(outcome)? {
             Ok(value) => Ok(value),
             Err(failure) => {
                 let presentation =
-                    crate::typed_value::native_scalar_failure_presentation_with_currency(
+                    crate::typed_value::native_scalar_failure_presentation_with_stage_check(
                         value,
                         dialect,
                         kind,
                         failure,
                         Some(&self.currency),
+                        self.original
+                            .as_ref()
+                            .map(|_| &stage as &dyn Fn() -> Result<(), ValueError>),
                     );
                 let presentation = self.after(presentation)?;
                 Err(ValueError::NativeScalarGetter(Box::new(presentation)).into())
@@ -366,8 +412,13 @@ impl IncrementContext {
         let protocol = dialect
             .native_scalar_getter_protocol()
             .ok_or(ValueError::ScalarNumericInputUnavailable)?;
-        let mut check =
-            || crate::typed_value::scalar_object_stage_current(value, Some(&self.currency));
+        let mut check = || {
+            crate::typed_value::scalar_object_stage_current(value, Some(&self.currency))?;
+            if self.original.is_some() {
+                self.stage(value)?;
+            }
+            Ok(())
+        };
         let stored =
             obj::adopt_native_scalar_cache_with_stage_check(value, cache, protocol, &mut check);
         self.after(stored)?;
@@ -525,6 +576,9 @@ impl tcl_cmd_core::native_increment::NativeIncrementObjects for RuntimeIncrement
     ) -> Result<Self::Prepared, tcl_cmd_core::CmdError> {
         self.context.prepare(original)
     }
+    fn retain_increment_failure(&self, first: &tcl_cmd_core::CmdError) {
+        self.context.retain(first.clone());
+    }
     fn current<'a>(&self, prepared: &'a Self::Prepared) -> &'a Self::Value {
         prepared
     }
@@ -537,12 +591,17 @@ impl tcl_cmd_core::native_increment::NativeIncrementObjects for RuntimeIncrement
         tcl_cmd_core::CmdError,
     > {
         self.context.check()?;
+        let stage = || self.context.stage(value.as_ptr());
         self.context
-            .after(crate::typed_value::native_number_probe_with_currency(
+            .after(crate::typed_value::native_number_probe_with_stage_check(
                 value.as_ptr(),
                 self.dialect,
                 kind,
                 Some(&self.context.currency),
+                self.context
+                    .original
+                    .as_ref()
+                    .map(|_| &stage as &dyn Fn() -> Result<(), ValueError>),
             ))
     }
     fn integer_failure(
@@ -748,6 +807,21 @@ impl RuntimeDictionaryObjects {
                 .expect("checked original dictionary owner")
                 .clone(),
         ))
+    }
+    pub(crate) fn original_increment_objects(
+        &self,
+        actual: &Interp,
+    ) -> Result<RuntimeIncrementObjects, tcl_cmd_core::CmdError> {
+        self.original_check()?;
+        let mut increment = RuntimeIncrementObjects::selected(actual)?;
+        increment.context.original = Some(
+            self.original
+                .as_ref()
+                .expect("checked original dictionary owner")
+                .clone(),
+        );
+        increment.context.check()?;
+        Ok(increment)
     }
     pub(crate) fn with_preparation(
         mut self,
