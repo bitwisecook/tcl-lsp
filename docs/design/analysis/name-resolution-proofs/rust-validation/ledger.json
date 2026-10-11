@@ -214546,6 +214546,97 @@
       "question_ids": [],
       "sealed_images": {},
       "limits": "This cargo check --lib --tests operation closes exit101 with seven VM library-test configuration errors: one E0603 private module reference, two E0277 Rc byte-array conversions, two E0308 method-report types and two E0599 absent Value.as_bytes calls. It is a five-package check-only request, not an own no-run test producer. There is no executable creation event, admitted test image, executable inventory or assertion summary. Complete source/head/actual compile-root identities are retained inside the original receipt. The separate root-written freeze-incomplete-copy provenance record reports an ENOSPC archive-copy failure with no Cargo launch and no snapshot receipt; it is not the successful source330 capture or a check receipt. Other operations and external Native observations establish no result for this check."
+    },
+    {
+      "id": "rust.frozen330.integration-compiler-own-test-build330",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen330/integration-compiler-own-test-build330/receipt.json.gz",
+        "sha256": "a7192d746ce3aaca3aba6f69ed0e6c1b5181833ca257a79bc60a2af7b75e09c1",
+        "compression": "gzip",
+        "uncompressed_sha256": "d116ea00eaa32abe26db25f017513879c4349bf06508ccbaf2a3d14c2c98df66"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen330/integration-compiler-own-test-build330/build.log",
+        "sha256": "6fba36f19661aecdb74db90cdc419113a8dad8567ad2354b0ae329ab1642f237"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 180.1810622200137,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen330/integration-consumer-compile-check330/receipt.json.gz",
+        "sha256": "a66393875fbcc754fd24815e778f2d9393b826b0640eaa2a2f249fd709db23ea",
+        "compression": "gzip",
+        "uncompressed_sha256": "db3449a73db816d8fc9c7bbc0873cf0e07e3d17ef92180ab6833166bd3a663c9",
+        "json_pointer": "/source/source",
+        "authority": "Exact common37793-leaf source inventory in the independently closed Source330 consumer check receipt. This operation retains its own complete original receipt/command/log; inventory reuse supplies no outcome from another command."
+      },
+      "tests": [],
+      "question_ids": [],
+      "sealed_images": {},
+      "limits": "The original tcl-compiler --lib --no-run test producer closes exit101 with exactly two fixture compilation errors: E0061 missing the required finish_module source argument and E0596 borrowing a shared registry as mutable. There are no executable creation events, admitted own Compiler image, executable inventory or assertion summaries. The original command, log and complete37793-leaf source/head/actual compile-root identities remain exact. The independently closed consumer check receipt supplies the identical source inventory only; no result from that operation or external Native observations is inferred."
+    },
+    {
+      "id": "rust.frozen330.integration-runtime-compile-check330",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen330/integration-runtime-compile-check330/receipt.json.gz",
+        "sha256": "8f6d8a60282712247d3b43143337a0405d60b36f5e827505f7186f1a1fa58872",
+        "compression": "gzip",
+        "uncompressed_sha256": "0bba32d3e835ad5732d511174b1fe0f4e055770d11953f87c9f96afad700ba79"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen330/integration-runtime-compile-check330/check.log",
+        "sha256": "6a0af61252dc4ec60a1a627b3040d1a5605d49285b2603b8352d4d78720ff840"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "TCL_TOMMATH_DIR=/workspace/tcl-lsp/tmp/tcl9.0.4/libtommath",
+        "cargo",
+        "check",
+        "--manifest-path",
+        "runtime/rust/Cargo.toml",
+        "--features",
+        "engine",
+        "--lib",
+        "--tests",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 48.01072594101424,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen330/integration-consumer-compile-check330/receipt.json.gz",
+        "sha256": "a66393875fbcc754fd24815e778f2d9393b826b0640eaa2a2f249fd709db23ea",
+        "compression": "gzip",
+        "uncompressed_sha256": "db3449a73db816d8fc9c7bbc0873cf0e07e3d17ef92180ab6833166bd3a663c9",
+        "json_pointer": "/source/source",
+        "authority": "Exact common37793-leaf source inventory in the independently closed Source330 consumer check receipt. This operation retains its own complete original receipt/command/log; inventory reuse supplies no outcome from another command."
+      },
+      "tests": [],
+      "question_ids": [],
+      "sealed_images": {},
+      "limits": "The original Runtime engine cargo check --lib --tests request closes exit101. Its exact log retains twelve error diagnostic events across library/test compilation, including the repeated production bool-versus-Option branch E0308, fixture getter/type/borrow mismatches and assertion macro comparisons. Repeated diagnostic events are not twelve independently failing tests. It has no executable creation events, admitted Runtime image, executable inventory or assertion summaries. Its engine/check-only command and complete37793-leaf source identities are retained exactly. Absolute compiler-sysroot primary macro spans remain reported diagnostic locations, not copied source claims. The common source inventory reused from the independent consumer check supplies no outcome for Runtime."
     }
   ]
 }

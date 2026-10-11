@@ -3956,3 +3956,48 @@ inside `/source/source`, HEAD `5253854bd0d1ab9f842c765f2305d82f548f5879`, immuta
 Its source object equals the original immutable snapshot, and its diagnostic
 source retains the exact recorded whole-file SHA. The gzip copy round-trips to
 the complete original receipt bytes; no second source-catalogue copy is needed.
+
+## Source330 own Compiler no-run outcome
+
+The original `tcl-compiler --lib --no-run` test producer closes exit `101`
+with two fixture compilation diagnostics: `E0061` at
+`rust/tcl-compiler/src/ir_helpers.rs:2992` and `E0596` at
+`rust/tcl-compiler/src/value_transfer.rs:10625`.
+The command closes after 180.1810622200137 seconds with uniform source
+`true`; its [whole original log](frozen330/integration-compiler-own-test-build330/build.log)
+retains every diagnostic and its original physical source location.
+
+This failed operation has no executable creation event, admitted test image,
+executable inventory or assertion summary. Other command outcomes and external
+Native observations establish no result for this request.
+
+The [exact closed receipt](frozen330/integration-compiler-own-test-build330/receipt.json.gz)
+round-trips to all original bytes and retains the complete source/head/actual
+compile-root identities. Its source object equals the immutable `naming330`
+snapshot. The identical 37,793-leaf [common source inventory](frozen330/integration-consumer-compile-check330/receipt.json.gz)
+is independently retained at `/source/source`; its reuse adds no execution
+credit. Original diagnostic source files retain their declared whole-file SHA.
+
+## Source330 Runtime engine check outcome
+
+The original Runtime `--features engine --lib --tests` cargo-check request
+closes exit `101`. Its log retains twelve error diagnostic events across
+library/test compilation, including a repeated production `E0308` branch
+type mismatch, fixture getter/type/borrow mismatches and assertion-macro
+comparisons. These are diagnostic events rather than a test failure count.
+Absolute compiler-sysroot primary macro locations retain their reported
+meaning; they are not copied source anchors.
+The command closes after 48.01072594101424 seconds with uniform source
+`true`; its [whole original log](frozen330/integration-runtime-compile-check330/check.log)
+retains every diagnostic and its original physical source location.
+
+This failed operation has no executable creation event, admitted test image,
+executable inventory or assertion summary. Other command outcomes and external
+Native observations establish no result for this request.
+
+The [exact closed receipt](frozen330/integration-runtime-compile-check330/receipt.json.gz)
+round-trips to all original bytes and retains the complete source/head/actual
+compile-root identities. Its source object equals the immutable `naming330`
+snapshot. The identical 37,793-leaf [common source inventory](frozen330/integration-consumer-compile-check330/receipt.json.gz)
+is independently retained at `/source/source`; its reuse adds no execution
+credit. Original diagnostic source files retain their declared whole-file SHA.
