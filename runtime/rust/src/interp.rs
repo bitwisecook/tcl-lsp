@@ -6108,6 +6108,7 @@ impl Interp {
         drop(retired);
     }
 
+    #[cfg(test)]
     pub(crate) fn pending_return_option_objects(
         &self,
     ) -> Vec<tcl_cmd_core::return_options::ReturnOptionPair<obj::Owned>> {
@@ -11547,9 +11548,7 @@ impl Interp {
     pub(crate) fn error_code_bytes_checked(
         &mut self,
     ) -> Result<Vec<u8>, tcl_runtime_api::NativeExecutionError> {
-        if let Some(error) = self.native_execution_refusal() {
-            return Err(error);
-        }
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
         self.check_native_error_object_readable(
             tcl_registry::special_vars::NativeErrorStorageVariable::ErrorCode,
         )?;
@@ -11565,8 +11564,15 @@ impl Interp {
             )
         };
         let original = if self.uses_c84_global_error_info() {
-            self.var_get_at(b"::errorCode", 0)
-                .map(obj::NativeObjectLifetime::retain)
+            let reached = self.var_get_at(b"::errorCode", 0);
+            scope.currency().ensure_current_or_refuse()?;
+            if let Some(original) = reached {
+                obj::check_native_liveness(original)
+                    .map_err(|error| self.refuse_completion_value_access(error))?;
+                Some(obj::NativeObjectLifetime::retain(original))
+            } else {
+                None
+            }
         } else {
             original
         };
@@ -11577,20 +11583,18 @@ impl Interp {
                 .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "private error-code string",
                 ));
-            let bytes = protocol
-                .and_then(|protocol| crate::dict::native_object_bytes(original.as_ptr(), protocol))
-                .map_err(|error| self.refuse_completion_value_access(error))?;
+            let reached = protocol
+                .and_then(|protocol| crate::dict::native_object_bytes(original.as_ptr(), protocol));
+            scope.currency().ensure_current_or_refuse()?;
             obj::check_native_liveness(original.as_ptr())
                 .map_err(|error| self.refuse_completion_value_access(error))?;
-            bytes
+            reached.map_err(|error| self.refuse_completion_value_access(error))?
         } else if stamped.is_empty() && !explicit {
             b"NONE".to_vec()
         } else {
             stamped
         };
-        if let Some(error) = self.native_execution_refusal() {
-            return Err(error);
-        }
+        scope.currency().ensure_current_or_refuse()?;
         Ok(bytes)
     }
 
@@ -11605,37 +11609,35 @@ impl Interp {
     pub(crate) fn completion_error_info_bytes_checked(
         &mut self,
     ) -> Result<Vec<u8>, tcl_runtime_api::NativeExecutionError> {
-        if let Some(error) = self.native_execution_refusal() {
-            return Err(error);
-        }
-        if self.uses_jim_error_stack() {
-            return self.jim_stacktrace();
-        }
-        let accumulated = self.exc.borrow().info.clone();
-        match accumulated {
-            Some(bytes) => Ok(bytes),
-            None => self.completion_result_bytes_checked(),
-        }
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let reached = if self.uses_jim_error_stack() {
+            self.jim_stacktrace()
+        } else {
+            let accumulated = self.exc.borrow().info.clone();
+            match accumulated {
+                Some(bytes) => Ok(bytes),
+                None => self.completion_result_bytes_checked(),
+            }
+        };
+        scope.currency().ensure_current_or_refuse()?;
+        reached
     }
 
     fn completion_object_bytes_checked(
         &mut self,
         original: *mut TclObj,
     ) -> Result<Vec<u8>, tcl_runtime_api::NativeExecutionError> {
-        if let Some(error) = self.native_execution_refusal() {
-            return Err(error);
-        }
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
         obj::check_native_liveness(original)
             .map_err(|error| self.refuse_completion_value_access(error))?;
         let original = obj::NativeObjectLifetime::retain(original);
-        let bytes = self
-            .native_object_string_bytes(original.as_ptr())
-            .map_err(|error| self.refuse_completion_value_access(error))?;
+        let reached = self.native_object_string_bytes(original.as_ptr());
+        scope.currency().ensure_current_or_refuse()?;
         obj::check_native_liveness(original.as_ptr())
             .map_err(|error| self.refuse_completion_value_access(error))?;
-        if let Some(error) = self.native_execution_refusal() {
-            return Err(error);
-        }
+        let bytes = reached.map_err(|error| self.refuse_completion_value_access(error))?;
+        drop(original);
+        scope.currency().ensure_current_or_refuse()?;
         Ok(bytes.to_vec())
     }
 
@@ -11732,6 +11734,7 @@ impl Interp {
     }
 
     /// Retain the actual private List header without reconstructing its members.
+    #[cfg(test)]
     pub(crate) fn original_error_stack_value(&self) -> obj::Owned {
         self.error_stack.borrow().value()
     }
@@ -15371,7 +15374,13 @@ impl Interp {
                 return self.transport_host_refusal_from(&parent);
             }
         };
-        let options = parent.pending_return_option_objects();
+        let options = match parent.pending_return_option_objects_checked(scope.currency()) {
+            Ok(options) => options,
+            Err(first) => {
+                parent.refuse_native_execution(first);
+                return self.transport_host_refusal_from(&parent);
+            }
+        };
         if let Err(first) = scope.currency().ensure_current_or_refuse() {
             parent.refuse_native_execution(first);
             return self.transport_host_refusal_from(&parent);

@@ -760,6 +760,22 @@ mod original_syntax_transport_tests {
                     interpreter.pin_context(&changed).unwrap();
                     interpreter.pin_context(&original).unwrap();
                 }
+                7 | 8 | 9 => {
+                    // The new carried-key observer reaches the actual private
+                    // slot. Its getter must run after the owner releases its borrow.
+                    drop(interpreter.return_options.borrow_mut());
+                    if state.mode == 8 {
+                        interpreter
+                            .refuse_host_command("original carried-key callback first cause");
+                    } else if state.mode == 9 {
+                        let original = interpreter.runtime_context();
+                        let mut changed = original.clone();
+                        changed.packages =
+                            vec![("original-carried-key-callback".into(), "1.0".into())];
+                        interpreter.pin_context(&changed).unwrap();
+                        interpreter.pin_context(&original).unwrap();
+                    }
+                }
                 3 if state.effect_on_free => {
                     let saved = interpreter
                         .save_native_variable_trace_result(true)
@@ -1273,6 +1289,177 @@ mod original_syntax_transport_tests {
                     assert_eq!(crate::counters::finalize(), 0);
                     assert_eq!(crate::counters::double_free_count(), 0);
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn original_completion_reads_keep_original_borrowed_roles_and_full_callback_cause() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Real software getter callbacks measure roles and typed transport, not external chronology.
+        for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for operation in 0..2 {
+                for mode in 0..3 {
+                    crate::counters::reset();
+                    {
+                        let mut interpreter = native(name);
+                        interpreter.set_result_bytes(b"PRIOR COMPLETION");
+                        let prior = interpreter.get_obj_result();
+                        interpreter.error_line.set(37);
+                        let (value, arm, updates, frees, references, _) =
+                            original(&interpreter, mode, false);
+                        if operation == 0 {
+                            interpreter.set_result(value.as_ptr());
+                        } else {
+                            interpreter
+                                .set_original_c_error_code(value.as_ptr())
+                                .unwrap();
+                        }
+                        let scope =
+                            super::super::native_operation_currency::NativeOperationScope::enter(
+                                &interpreter,
+                            )
+                            .unwrap();
+                        let reached = if operation == 0 {
+                            interpreter.completion_result_bytes_checked()
+                        } else {
+                            interpreter.error_code_bytes_checked()
+                        };
+                        assert_eq!(updates.get(), 1, "{name} operation{operation} mode{mode}");
+                        assert_eq!(references.borrow().as_slice(), &[2]);
+                        assert_eq!(frees.get(), 0);
+                        assert_eq!(interpreter.error_line.get(), 37);
+                        assert_eq!(
+                            interpreter.get_obj_result(),
+                            if operation == 0 {
+                                value.as_ptr()
+                            } else {
+                                prior
+                            },
+                        );
+                        assert_eq!(
+                            obj::native_object_snapshot(value.as_ptr())
+                                .unwrap()
+                                .resident
+                                .unwrap()
+                                .as_ref(),
+                            b"ORIGINAL SYNTAX VALUE",
+                        );
+                        if mode == 0 {
+                            assert_eq!(reached.unwrap(), b"ORIGINAL SYNTAX VALUE");
+                            scope.currency().ensure_current_or_refuse().unwrap();
+                            assert!(interpreter.native_execution_refusal().is_none());
+                        } else {
+                            let first = interpreter.native_execution_refusal().unwrap();
+                            assert_eq!(reached.unwrap_err(), first);
+                            let later = if operation == 0 {
+                                interpreter.completion_result_bytes_checked()
+                            } else {
+                                interpreter.error_code_bytes_checked()
+                            };
+                            assert_eq!(later.unwrap_err(), first);
+                            assert_eq!(updates.get(), 1);
+                        }
+                        arm.set(false);
+                        retire_test_state(&interpreter);
+                        drop(value);
+                        drop(scope);
+                        assert_eq!(frees.get(), 1);
+                    }
+                    assert_eq!(crate::counters::finalize(), 0);
+                    assert_eq!(crate::counters::double_free_count(), 0);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn original_completion_options_read_real_carried_key_before_duplicate_or_overlay() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual stored Dictionary members and software updater effects, independent of Native options order.
+        for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for mode in 7..10 {
+                crate::counters::reset();
+                {
+                    let mut interpreter = native(name);
+                    interpreter.set_result_bytes(b"PRIOR COMPLETION");
+                    let prior = interpreter.get_obj_result();
+                    let (key, arm, updates, frees, references, _) =
+                        original(&interpreter, mode, false);
+                    arm.set(false);
+                    unsafe { obj::set_string_rep(key.as_ptr(), b"ORIGINAL SYNTAX VALUE") };
+                    let value = Owned::fresh(obj::new_string_bytes(b"CARRIED ORIGINAL VALUE"));
+                    interpreter.set_return_option_objects(vec![
+                        tcl_cmd_core::return_options::ReturnOptionPair {
+                            key: key.clone(),
+                            value: value.clone(),
+                            key_bytes: b"ORIGINAL SYNTAX VALUE".to_vec(),
+                        },
+                    ]);
+                    assert!(interpreter.native_execution_refusal().is_none());
+                    let header = interpreter.return_options.borrow().header().unwrap();
+                    let backing = crate::dict::original_dictionary_backing(header).unwrap();
+                    assert_eq!(unsafe { (*key.as_ptr()).ref_count }, 2);
+                    assert_eq!(updates.get(), 0);
+                    obj::invalidate_string(key.as_ptr());
+                    arm.set(true);
+                    let scope =
+                        super::super::native_operation_currency::NativeOperationScope::enter(
+                            &interpreter,
+                        )
+                        .unwrap();
+                    let reached = crate::cmd_error::completion_options(&mut interpreter, Code::Ok);
+                    assert_eq!(updates.get(), 1, "{name} mode{mode}");
+                    assert_eq!(references.borrow().as_slice(), &[2]);
+                    assert_eq!(frees.get(), 0);
+                    assert_eq!(interpreter.return_options.borrow().header(), Some(header));
+                    crate::dict::original_dictionary_backing_current(header, &backing).unwrap();
+                    assert_eq!(interpreter.get_obj_result(), prior);
+                    if mode == 7 {
+                        let options = Owned::fresh(reached.unwrap());
+                        let strings = interpreter
+                            .native_invocation_dialect()
+                            .native_string_protocol()
+                            .unwrap();
+                        let pairs =
+                            crate::dict::native_dict_pairs(options.as_ptr(), strings).unwrap();
+                        assert!(pairs.iter().any(|&(original_key, original_value)| {
+                            original_key == key.as_ptr() && original_value == value.as_ptr()
+                        }));
+                        for (name, expected) in [
+                            (b"-code".as_slice(), b"0".as_slice()),
+                            (b"-level".as_slice(), b"0".as_slice()),
+                        ] {
+                            let (_, original) = pairs
+                                .iter()
+                                .find(|&&(original, _)| obj::bytes_of(original) == name)
+                                .unwrap();
+                            assert_eq!(obj::bytes_of(*original), expected);
+                        }
+                        scope.currency().ensure_current_or_refuse().unwrap();
+                        drop(options);
+                    } else {
+                        let first = interpreter.native_execution_refusal().unwrap();
+                        assert_eq!(reached.unwrap_err(), first);
+                        assert_eq!(unsafe { (*key.as_ptr()).ref_count }, 2);
+                        assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 2);
+                        assert!(interpreter.exc.borrow().native.info.is_none());
+                        let later =
+                            crate::cmd_error::completion_options(&mut interpreter, Code::Ok);
+                        assert_eq!(later.unwrap_err(), first);
+                        assert_eq!(updates.get(), 1);
+                    }
+                    arm.set(false);
+                    retire_test_state(&interpreter);
+                    drop(value);
+                    drop(key);
+                    drop(scope);
+                    assert_eq!(frees.get(), 1);
+                }
+                assert_eq!(crate::counters::finalize(), 0);
+                assert_eq!(crate::counters::double_free_count(), 0);
             }
         }
     }

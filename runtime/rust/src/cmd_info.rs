@@ -581,8 +581,21 @@ fn info_cmd_original(
             if argv.len() > 3 {
                 return interp.wrong_args_for_prefix(argv, 2, b"?interp?");
             }
-            let es = interp.original_error_stack_value();
+            let scope =
+                match crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
+                {
+                    Ok(scope) => scope,
+                    Err(first) => return interp.refuse_native_execution(first),
+                };
+            let es = match interp.original_error_stack_value_checked(scope.currency()) {
+                Ok(value) => value,
+                Err(first) => return interp.refuse_native_execution(first),
+            };
             interp.set_result(es.as_ptr());
+            drop(es);
+            if let Err(first) = scope.currency().ensure_current_or_refuse() {
+                return interp.refuse_native_execution(first);
+            }
             Code::Ok
         }
         b"constant" => {

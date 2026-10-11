@@ -117,6 +117,7 @@ impl NativeReturnOptions {
             .as_ref()
             .is_some_and(|header| header.as_ptr() == original)
     }
+    #[cfg(test)]
     pub(super) fn pairs(&self) -> Vec<ReturnOptionPair<obj::Owned>> {
         let (Some(header), Some(protocol)) = (&self.header, self.protocol) else {
             return self.other.as_ref().clone();
@@ -324,6 +325,7 @@ impl NativeErrorStack {
             .map(|value| crate::dict::native_object_bytes(value, protocol).unwrap())
             .collect()
     }
+    #[cfg(test)]
     pub(super) fn value(&self) -> obj::Owned {
         self.header
             .as_ref()
@@ -549,15 +551,68 @@ impl super::Interp {
         Ok(())
     }
 
+    /// Retain the genuine current private stack role under the caller's original
+    /// operation. This is a query hold, not a protective conversion reference.
+    pub(crate) fn original_error_stack_value_checked(
+        &self,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+    ) -> Result<obj::Owned, tcl_runtime_api::NativeExecutionError> {
+        currency.ensure_current_or_refuse()?;
+        let original = {
+            self.error_stack
+                .borrow()
+                .header
+                .as_ref()
+                .map(obj::Owned::as_ptr)
+        };
+        let original = original.ok_or_else(|| {
+            self.clone()
+                .refuse_completion_value_access(ValueError::CommandProtocolUnavailable(
+                    "current original error-stack header",
+                ))
+        })?;
+        obj::check_native_liveness(original)
+            .map_err(|error| self.clone().refuse_completion_value_access(error))?;
+        let original = obj::Owned::retain(original);
+        currency.ensure_current_or_refuse()?;
+        Ok(original)
+    }
+
     /// Duplicate the actual private return-options header before overlaying live
     /// metadata. Retaining its members alone loses dictionary storage history.
     pub(crate) fn duplicate_original_return_options(
         &self,
-    ) -> Option<(obj::Owned, NativeStringProtocol)> {
-        let options = self.return_options.borrow();
-        let original = options.header()?;
-        let protocol = options.protocol?;
-        Some((obj::Owned::fresh(obj::duplicate(original)), protocol))
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+    ) -> Result<Option<(obj::Owned, NativeStringProtocol)>, tcl_runtime_api::NativeExecutionError>
+    {
+        currency.ensure_current_or_refuse()?;
+        let (original, protocol) = {
+            let options = self.return_options.borrow();
+            (options.header(), options.protocol)
+        };
+        let (Some(original), Some(protocol)) = (original, protocol) else {
+            return Ok(None);
+        };
+        self.check_original_return_option_header(currency, original)?;
+        let lifetime = obj::NativeObjectLifetime::retain(original);
+        let backing = crate::dict::original_dictionary_backing(original)
+            .map_err(|error| self.clone().refuse_completion_value_access(error))?;
+        let duplicate = obj::Owned::fresh(obj::duplicate(original));
+        let reached = self
+            .check_original_return_option_header(currency, original)
+            .and_then(|()| {
+                crate::dict::original_dictionary_backing_current(original, &backing)
+                    .map_err(|error| self.clone().refuse_completion_value_access(error))
+            });
+        if let Err(first) = reached {
+            drop(duplicate);
+            drop(lifetime);
+            currency.ensure_current_or_refuse()?;
+            return Err(first);
+        }
+        drop(lifetime);
+        currency.ensure_current_or_refuse()?;
+        Ok(Some((duplicate, protocol)))
     }
 }
 

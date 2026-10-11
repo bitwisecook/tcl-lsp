@@ -244,146 +244,185 @@ pub(crate) fn completion_options(
     interp: &mut Interp,
     code: Code,
 ) -> Result<*mut TclObj, tcl_runtime_api::NativeExecutionError> {
-    if let Some(error) = interp.native_execution_refusal() {
-        return Err(error);
-    }
-    if interp.uses_jim_error_stack() {
-        let receipt = interp.jim_return_receipt()?;
-        return jim_options_raw(interp, receipt, code);
-    }
-    // Tcl_GetReturnOptions reaches Tcl_AddObjErrorInfo with an empty suffix
-    // on an ERROR result. In particular, this re-arms legacy publication
-    // after a compatibility write trace evaluated and reset the interpreter.
-    // Keep the restored private original; no bytes are appended here. C8.4
-    // has no Tcl_GetReturnOptions and retains its global error-info path.
-    if code == Code::Error
-        && interp
-            .native_invocation_dialect()
-            .native_error_variable_protocol()
-            .is_some()
-    {
-        interp.update_native_error_info();
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)?;
+    let reached = (|| -> Result<*mut TclObj, tcl_runtime_api::NativeExecutionError> {
         if let Some(error) = interp.native_execution_refusal() {
             return Err(error);
         }
-    }
-    // A body that completed via `return` propagates the return's *own* requested
-    // options (`-code C -level L`), not the settled `RETURN`(2)/level-0 — what
-    // `catch`'s options dict and TIP 329 `-during` chaining record
-    // (`Tcl_GetReturnOptions`, `tclResult.c`). Every other code is at level 0.
-    let (eff_code, level) = if code == Code::Return {
-        (interp.pending_return_code(), interp.pending_return_level())
-    } else {
-        (code, 0)
-    };
-    let carried = interp.pending_return_option_objects();
-    let protocol = interp.native_invocation_dialect().return_options_protocol();
-    let error = if eff_code == Code::Error {
-        Some(ErrorOptions {
-            error_code: Some(
-                if let Some(pair) = carried.iter().find(|pair| {
-                    protocol.is_some_and(|protocol| pair.name_in(protocol) == b"-errorcode")
-                }) {
-                    pair.value.clone()
-                } else if let Some(original) = interp.native_private_error_object(false) {
-                    original
-                } else {
-                    let bytes = interp.error_code_bytes_checked()?;
-                    crate::obj::Owned::fresh(new_string(&bytes))
-                },
-            ),
-            error_info: if level == 0 {
-                Some(
-                    if let Some(original) = interp.native_private_error_object(true) {
+        if interp.uses_jim_error_stack() {
+            let receipt = interp.jim_return_receipt()?;
+            return jim_options_raw(interp, receipt, code);
+        }
+        // Tcl_GetReturnOptions reaches Tcl_AddObjErrorInfo with an empty suffix
+        // on an ERROR result. In particular, this re-arms legacy publication
+        // after a compatibility write trace evaluated and reset the interpreter.
+        // Keep the restored private original; no bytes are appended here. C8.4
+        // has no Tcl_GetReturnOptions and retains its global error-info path.
+        if code == Code::Error
+            && interp
+                .native_invocation_dialect()
+                .native_error_variable_protocol()
+                .is_some()
+        {
+            interp.update_native_error_info_checked(scope.currency())?;
+        }
+        // A body that completed via `return` propagates the return's *own* requested
+        // options (`-code C -level L`), not the settled `RETURN`(2)/level-0 — what
+        // `catch`'s options dict and TIP 329 `-during` chaining record
+        // (`Tcl_GetReturnOptions`, `tclResult.c`). Every other code is at level 0.
+        let (eff_code, level) = if code == Code::Return {
+            (interp.pending_return_code(), interp.pending_return_level())
+        } else {
+            (code, 0)
+        };
+        let carried = interp.pending_return_option_objects_checked(scope.currency())?;
+        let protocol = interp.native_invocation_dialect().return_options_protocol();
+        let error = if eff_code == Code::Error {
+            Some(ErrorOptions {
+                error_code: Some(
+                    if let Some(pair) = carried.iter().find(|pair| {
+                        protocol.is_some_and(|protocol| pair.name_in(protocol) == b"-errorcode")
+                    }) {
+                        pair.value.clone()
+                    } else if let Some(original) =
+                        interp.native_private_error_object_checked(scope.currency(), false)?
+                    {
                         original
                     } else {
-                        let bytes = interp.completion_error_info_bytes_checked()?;
+                        let bytes = interp.error_code_bytes_checked()?;
                         crate::obj::Owned::fresh(new_string(&bytes))
                     },
-                )
-            } else {
-                None
-            },
-            error_stack: (level == 0
-                && !interp.uses_jim_error_stack()
-                && interp.runtime_version().has_error_stack())
-            .then(|| interp.original_error_stack_value()),
-            error_line: (level == 0 && !interp.uses_jim_error_stack())
-                .then(|| i64::from(interp.error_line())),
-            during: (level == 0)
-                .then(|| interp.during_opts().map(crate::obj::Owned::retain))
-                .flatten(),
-        })
-    } else {
-        None
-    };
-    let values: Vec<_> = carried
-        .iter()
-        .map(|pair| (pair.key_bytes.clone(), pair.value.clone()))
-        .collect();
-    let planned = completion_options::plan(
-        interp.runtime_version(),
-        api_code(eff_code),
-        i64::try_from(level).unwrap_or(i64::MAX),
-        &values,
-        error.as_ref(),
-    );
-    if let Some((original, strings)) = interp.duplicate_original_return_options() {
-        let mut snapshot = match crate::dict::PreparedNativeDictionary::prepare(
-            Some(original.as_ptr()),
-            strings,
-        ) {
-            Ok(snapshot) => snapshot,
-            Err(error) => return Err(interp.refuse_completion_value_access(error)),
+                ),
+                error_info: if level == 0 {
+                    Some(
+                        if let Some(original) =
+                            interp.native_private_error_object_checked(scope.currency(), true)?
+                        {
+                            original
+                        } else {
+                            let bytes = interp.completion_error_info_bytes_checked()?;
+                            crate::obj::Owned::fresh(new_string(&bytes))
+                        },
+                    )
+                } else {
+                    None
+                },
+                error_stack: if level == 0
+                    && !interp.uses_jim_error_stack()
+                    && interp.runtime_version().has_error_stack()
+                {
+                    Some(interp.original_error_stack_value_checked(scope.currency())?)
+                } else {
+                    None
+                },
+                error_line: (level == 0 && !interp.uses_jim_error_stack())
+                    .then(|| i64::from(interp.error_line())),
+                during: (level == 0)
+                    .then(|| interp.during_opts().map(crate::obj::Owned::retain))
+                    .flatten(),
+            })
+        } else {
+            None
         };
-        drop(original);
-        let overlay = completion_options::plan_with_origin(
+        let values: Vec<_> = carried
+            .iter()
+            .map(|pair| (pair.key_bytes.clone(), pair.value.clone()))
+            .collect();
+        let planned = completion_options::plan(
             interp.runtime_version(),
             api_code(eff_code),
             i64::try_from(level).unwrap_or(i64::MAX),
-            tcl_core_types::CompletionOptionOrigin::ErrorMetadata,
-            &[],
+            &values,
             error.as_ref(),
         );
-        for (key, value) in overlay {
-            let key = obj::Owned::fresh(new_string(&key));
-            let value = match value {
-                OptionValue::Integer(integer) => obj::Owned::fresh(obj::new_wide_int_obj(integer)),
-                OptionValue::Value(original) => original,
+        if let Some((original, strings)) =
+            interp.duplicate_original_return_options(scope.currency())?
+        {
+            let snapshot = match crate::dict::PreparedNativeDictionary::prepare_using(
+                Some(original.as_ptr()),
+                strings,
+                &|| scope.currency().ensure_current_or_refuse(),
+                &|error| interp.clone().refuse_completion_value_access(error),
+            ) {
+                Ok(snapshot) => snapshot,
+                Err(first) => return Err(first),
             };
-            if let Some(error) = interp.native_execution_refusal() {
-                return Err(error);
-            }
-            snapshot
-                .set_member(key.as_ptr(), value.as_ptr())
-                .map_err(|error| interp.refuse_completion_value_access(error))?;
-        }
-        return finish_completion_options(interp, snapshot.into_value().into_native_unowned());
-    }
-    let retained: Vec<_> = planned
-        .into_iter()
-        .map(|(key, value)| {
-            let key = carried
-                .iter()
-                .find(|pair| pair.key_bytes == key)
-                .map_or_else(
-                    || crate::obj::Owned::fresh(new_string(&key)),
-                    |pair| pair.key.clone(),
-                );
-            let value = match value {
-                OptionValue::Integer(value) => {
-                    crate::obj::Owned::fresh(new_string(value.to_string().as_bytes()))
+            drop(original);
+            scope.currency().ensure_current_or_refuse()?;
+            let original_currency = scope.currency().clone();
+            let stage: crate::dict::NativeDictionaryStageCheck = std::rc::Rc::new(move || {
+                original_currency.ensure_current_or_refuse().map_err(|_| {
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original completion options stage",
+                    )
+                })
+            });
+            let working = crate::dict::EnteredNativeDictionary::borrowed_prepared(
+                snapshot.original(),
+                strings,
+                scope.currency(),
+                stage,
+            )
+            .map_err(|error| interp.refuse_completion_value_access(error))?;
+            let overlay = completion_options::plan_with_origin(
+                interp.runtime_version(),
+                api_code(eff_code),
+                i64::try_from(level).unwrap_or(i64::MAX),
+                tcl_core_types::CompletionOptionOrigin::ErrorMetadata,
+                &[],
+                error.as_ref(),
+            );
+            for (key, value) in overlay {
+                let key = obj::Owned::fresh(new_string(&key));
+                let value = match value {
+                    OptionValue::Integer(integer) => {
+                        obj::Owned::fresh(obj::new_wide_int_obj(integer))
+                    }
+                    OptionValue::Value(original) => original,
+                };
+                if let Some(error) = interp.native_execution_refusal() {
+                    return Err(error);
                 }
-                OptionValue::Value(value) => value,
-            };
-            (key, value)
-        })
-        .collect();
-    let pairs: Vec<_> = retained
-        .iter()
-        .map(|(key, value)| (key.as_ptr(), value.as_ptr()))
-        .collect();
-    finish_completion_options(interp, dict::new_dict_obj(&pairs))
+                let reached = working.set_member(key.as_ptr(), value.as_ptr());
+                scope.currency().ensure_current_or_refuse()?;
+                reached.map_err(|error| interp.refuse_completion_value_access(error))?;
+            }
+            drop(working);
+            scope.currency().ensure_current_or_refuse()?;
+            return finish_completion_options(interp, snapshot.into_value().into_native_unowned());
+        }
+        let retained: Vec<_> = planned
+            .into_iter()
+            .map(|(key, value)| {
+                let key = carried
+                    .iter()
+                    .find(|pair| pair.key_bytes == key)
+                    .map_or_else(
+                        || crate::obj::Owned::fresh(new_string(&key)),
+                        |pair| pair.key.clone(),
+                    );
+                let value = match value {
+                    OptionValue::Integer(value) => {
+                        crate::obj::Owned::fresh(new_string(value.to_string().as_bytes()))
+                    }
+                    OptionValue::Value(value) => value,
+                };
+                (key, value)
+            })
+            .collect();
+        let pairs: Vec<_> = retained
+            .iter()
+            .map(|(key, value)| (key.as_ptr(), value.as_ptr()))
+            .collect();
+        finish_completion_options(interp, dict::new_dict_obj(&pairs))
+    })();
+    if let Err(first) = scope.currency().ensure_current_or_refuse() {
+        if let Ok(options) = reached {
+            drop_fresh(options);
+        }
+        return Err(first);
+    }
+    reached
 }
 
 fn api_code(code: Code) -> tcl_runtime_api::Code {

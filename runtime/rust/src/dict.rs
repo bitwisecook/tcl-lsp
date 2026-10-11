@@ -745,6 +745,27 @@ impl EnteredNativeDictionary {
         owner.convert()?;
         Ok(owner)
     }
+    /// Observe an already converted actual backing without replaying conversion.
+    /// This retains the caller's selected header and operation, adding no native hold.
+    pub(crate) fn borrowed_prepared(
+        original: *mut TclObj,
+        protocol: NativeStringProtocol,
+        currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
+        stage_check: NativeDictionaryStageCheck,
+    ) -> Result<Self, ValueError> {
+        dictionary_stage_current_checked(original, Some(currency), Some(stage_check.as_ref()))?;
+        let backing = original_dictionary_backing(original)?;
+        let owner = Self {
+            original: obj::NativeObjectLifetime::retain(original),
+            prepared: std::cell::RefCell::new(Some(backing)),
+            fresh: false,
+            protocol,
+            currency: currency.clone(),
+            stage_check: Some(stage_check),
+        };
+        owner.check_prepared()?;
+        Ok(owner)
+    }
     /// Existing Link(None) compatibility storage copies every dictionary root.
     /// This schedule is not an original Jim sharing/recursive-name receipt.
     pub(crate) fn compatibility_copy_after_conversion(
