@@ -27,12 +27,16 @@
 #![allow(clippy::cast_precision_loss)]
 
 mod native_boolean_truth;
+mod original_numeric_context;
 pub(crate) use native_boolean_truth::{
     boolean_for_vm, expression_boolean_for_vm, logical_right_for_vm, logical_value_for_vm,
     normalize_numeric_instruction_for_vm, normalize_result_for_vm, unary_for_vm,
 };
+pub(crate) use original_numeric_context::{
+    OriginalArithmeticStages, with_original_numeric_context,
+};
 
-use std::cmp::Ordering;
+use std::{cmp::Ordering, rc::Rc};
 
 use num_bigint::BigInt;
 use num_integer::Integer;
@@ -52,6 +56,7 @@ use crate::value::Value;
 #[derive(Clone, Copy)]
 pub(crate) struct NumericContext<'a> {
     pub(crate) environment: Option<&'a dyn tcl_platform::NumericEnvironment>,
+    pub(crate) original: Option<&'a dyn OriginalArithmeticStages>,
     pub(crate) dialect: tcl_registry::InvocationDialect,
     pub(crate) simulation:
         Option<tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation>,
@@ -63,6 +68,7 @@ impl From<tcl_registry::InvocationDialect> for NumericContext<'_> {
             dialect,
             simulation: None,
             environment: None,
+            original: None,
         }
     }
 }
@@ -677,14 +683,39 @@ fn compare_string_units(
     a: &Value,
     b: &Value,
 ) -> Result<Ordering, TclError> {
+    compare_string_units_using(model, a, b, None)
+}
+
+fn compare_string_units_using(
+    model: Option<tcl_dialect::StringCharacterModel>,
+    a: &Value,
+    b: &Value,
+    context: Option<NumericContext<'_>>,
+) -> Result<Ordering, TclError> {
     let model =
         model.ok_or(tcl_syntax::raw_string::NativeValueAccessRefusal::CharacterModelUnavailable)?;
-    let counts = (
-        a.native_character_count(model, None)?,
-        b.native_character_count(model, None)?,
-    );
-    let left = tcl_syntax::raw_string::RawString::from_bytes(a.string_bytes());
-    let right = tcl_syntax::raw_string::RawString::from_bytes(b.string_bytes());
+    let (left_bytes, right_bytes, counts) = match context {
+        Some(context) => {
+            let left = context.string_for_value(a)?;
+            let right = context.string_for_value(b)?;
+            context.current_for_value(a)?;
+            let left_count = a.native_character_count(model, None)?;
+            context.current_for_value(a)?;
+            context.current_for_value(b)?;
+            let right_count = b.native_character_count(model, None)?;
+            context.current_for_value(b)?;
+            (left, right, (left_count, right_count))
+        }
+        None => {
+            let counts = (
+                a.native_character_count(model, None)?,
+                b.native_character_count(model, None)?,
+            );
+            (a.string_bytes(), b.string_bytes(), counts)
+        }
+    };
+    let left = tcl_syntax::raw_string::RawString::from_bytes(left_bytes);
+    let right = tcl_syntax::raw_string::RawString::from_bytes(right_bytes);
     left.compare_character_units(model, &right, counts)
         .map_err(Into::into)
 }
@@ -705,14 +736,33 @@ fn compare_with_numeric(
     numeric: Option<NumericCompare>,
     model: Option<tcl_dialect::StringCharacterModel>,
 ) -> Result<bool, TclError> {
+    compare_with_numeric_using(op, a, b, numeric, model, None)
+}
+
+fn compare_with_numeric_using(
+    op: BinOp,
+    a: &Value,
+    b: &Value,
+    numeric: Option<NumericCompare>,
+    model: Option<tcl_dialect::StringCharacterModel>,
+    context: Option<NumericContext<'_>>,
+) -> Result<bool, TclError> {
     use BinOp::{Eq, Ge, Gt, Le, Lt, Ne, StrEq, StrGe, StrGt, StrLe, StrLt, StrNe};
     use NumericCompare::{Ordered, Unordered};
     if matches!(op, StrEq | StrNe) {
-        return equal_string_bytes(model, a, b).map(|equal| equal ^ (op == StrNe));
+        let equal = if let Some(context) = context {
+            model.ok_or(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CharacterModelUnavailable,
+            )?;
+            context.string_for_value(a)? == context.string_for_value(b)?
+        } else {
+            equal_string_bytes(model, a, b)?
+        };
+        return Ok(equal ^ (op == StrNe));
     }
     let outcome = match (string_comparison(op), numeric) {
         (false, Some(numeric)) => numeric,
-        _ => Ordered(compare_string_units(model, a, b)?),
+        _ => Ordered(compare_string_units_using(model, a, b, context)?),
     };
     Ok(match (op, outcome) {
         (Ne | StrNe, Unordered) => true,
@@ -787,7 +837,7 @@ pub fn unary(op: UnaryOp, v: &Value) -> Result<Value, TclError> {
 
 /// Convert one operand with the selected native grammar and integer tower.
 fn native_num(dialect: NumericContext<'_>, value: &Value) -> Result<Num, TclError> {
-    value.check_native_header()?;
+    dialect.current_for_value(value)?;
     if let Some(simulation) = dialect.simulation {
         let number = simulation
             .parse_number(
@@ -799,10 +849,7 @@ fn native_num(dialect: NumericContext<'_>, value: &Value) -> Result<Num, TclErro
     }
 
     if dialect.arithmetic() == Some(tcl_dialect::NativeArithmetic::Tcl84Wide)
-        && !value.prepare_native_expression_integer84_with_environment(
-            dialect.dialect,
-            dialect.environment,
-        )?
+        && !dialect.prepare_integer84(value)?
     {
         return Err(TclError::new("non-numeric operand"));
     }
@@ -819,9 +866,9 @@ fn native_num(dialect: NumericContext<'_>, value: &Value) -> Result<Num, TclErro
             )
         )
     {
-        match value.native_int(input, dialect.numbers) {
+        match dialect.integer(value) {
             Ok(integer) => return Ok(Num::Int(integer)),
-            Err(error) if error.native_access_refusal().is_some() => return Err(error.into()),
+            Err(error) if error.is_host() => return Err(error),
             Err(_) => {}
         }
     }
@@ -832,12 +879,11 @@ fn native_num(dialect: NumericContext<'_>, value: &Value) -> Result<Num, TclErro
         return Ok(Num::Dbl(value));
     }
     if dialect.arithmetic() == Some(tcl_dialect::NativeArithmetic::Tcl84Wide)
-        && dialect.environment.is_some()
+        && (dialect.original.is_some() || dialect.environment.is_some())
     {
-        return match value.native_scalar_probe_with_environment(
-            dialect.dialect,
+        return match dialect.scalar_probe(
+            value,
             tcl_syntax::scalar_getter::NativeScalarGetterKind::Double,
-            dialect.environment,
         )? {
             Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Double(value)) => {
                 Ok(Num::Dbl(value))
@@ -870,14 +916,7 @@ fn native_num(dialect: NumericContext<'_>, value: &Value) -> Result<Num, TclErro
             .to_i128()
             .map_or_else(|| Num::Huge(integer), Num::Big));
     }
-    let protocol = dialect.dialect.native_string_protocol().ok_or_else(|| {
-        TclError::from(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable)
-    })?;
-    let original = value.native_string_bytes(protocol).map_err(|error| {
-        tcl_syntax::value::ValueError::NativeStringAccess(
-            tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
-        )
-    })?;
+    let original = dialect.native_string_for_value(value)?;
     let text = match std::str::from_utf8(input.input_bytes(&original)) {
         Ok(text) => text,
         Err(_) if input == number::NativeScalarNumericInputPolicy::NulTerminatedJim084 => {
@@ -902,11 +941,11 @@ fn parsed_native_number(
 ) -> Result<Num, TclError> {
     match number::parse_whole_with(text, number::ParseFlags::for_syntax(dialect.numbers)) {
         Some(Number::Int(integer)) => {
-            value.cache_integer_representation(integer);
+            dialect.cache(value, Number::Int(integer))?;
             Ok(Num::Int(integer))
         }
         Some(Number::Double(double)) => {
-            value.cache_double_representation(double);
+            dialect.cache(value, Number::Double(double))?;
             Ok(Num::Dbl(double))
         }
         Some(Number::Nan { .. }) => Ok(Num::Dbl(f64::NAN)),
@@ -925,7 +964,7 @@ fn parsed_native_number(
             }
             let integer = tcl_syntax::expr::wide::literal(policy, &integer)
                 .map_err(|error| native_wide_error(dialect, policy, error))?;
-            value.cache_integer_representation(integer);
+            dialect.cache(value, Number::Int(integer))?;
             Ok(Num::Int(integer))
         }
         None => Err(TclError::new("non-numeric operand")),
@@ -1009,6 +1048,9 @@ fn native_wide_error(
 }
 
 fn native_numeric_error84(dialect: NumericContext<'_>, error: TclError) -> TclError {
+    if let Err(first) = dialect.current() {
+        return first;
+    }
     if dialect
         .native_scalar_getter_protocol()
         .is_none_or(|protocol| protocol.tcl_version() != Some(tcl_dialect::TclVersion::V8_4))
@@ -1025,7 +1067,10 @@ fn native_numeric_error84(dialect: NumericContext<'_>, error: TclError) -> TclEr
     {
         return refusal.into();
     }
-    error
+    match dialect.current() {
+        Ok(()) => error,
+        Err(first) => first,
+    }
 }
 
 /// Arithmetic used by both native expression evaluation and inline opcodes.
@@ -1088,8 +1133,12 @@ fn expression_operand_error(
     value: &Value,
 ) -> Option<TclError> {
     let presenter = dialect.expression_operand_error_presentation()?;
+    let original = match dialect.string_for_value(value) {
+        Ok(original) => original,
+        Err(cause) => return Some(cause),
+    };
     Some(TclError::with_error_code(
-        presenter.message(stage, &value.string_bytes()),
+        presenter.message(stage, &original),
         presenter.error_code(),
     ))
 }
@@ -1117,7 +1166,10 @@ fn context_operand_error(
     } else {
         return TclError::from(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable);
     };
-    let original = value.string_bytes();
+    let original = match context.string_for_value(value) {
+        Ok(original) => original,
+        Err(cause) => return cause,
+    };
     let parsed = if let Some(simulation) = context.simulation {
         simulation
             .parse_number(
@@ -1152,7 +1204,7 @@ fn context_operand_error(
     };
     let spelling =
         if release >= tcl_dialect::TclVersion::V9_0 && description != errors::OperandDesc::List {
-            match value.try_to_str() {
+            match tcl_syntax::raw_string::RawString::from_bytes(Rc::clone(&original)).unicode() {
                 Ok(text) => text,
                 Err(error) => return error.into(),
             }
@@ -1166,6 +1218,9 @@ fn context_operand_error(
 }
 
 fn selected_operand_error_code(dialect: NumericContext<'_>, mut error: TclError) -> TclError {
+    if let Err(first) = dialect.current() {
+        return first;
+    }
     let policy = dialect.simulation.map_or_else(
         || dialect.expression_operand_error_code_policy(),
         |simulation| match simulation {
@@ -1187,7 +1242,10 @@ fn selected_operand_error_code(dialect: NumericContext<'_>, mut error: TclError)
             return cause.into();
         }
     }
-    error
+    match dialect.current() {
+        Ok(()) => error,
+        Err(first) => first,
+    }
 }
 
 #[cfg(test)]
@@ -1259,6 +1317,9 @@ fn native_operand(
     op: BinOp,
 ) -> Result<Num, TclError> {
     native_num(dialect, value).map_err(|error| {
+        if let Err(first) = dialect.current_for_value(value) {
+            return first;
+        }
         if error.is_host() {
             return error;
         }
@@ -1306,17 +1367,21 @@ pub(crate) fn unary_in<'a>(
             .map(|truth| native_boolean_result(dialect, !truth));
     }
     let number = native_num(dialect, value).map_err(|error| {
+        if let Err(first) = dialect.current_for_value(value) {
+            return first;
+        }
         if error.is_host() {
             return error;
         }
         if let Some(presenter) = dialect.expression_operand_error_presentation()
             && matches!(op, UnaryOp::Pos | UnaryOp::Neg)
-            && dialect
-                .scalar_numeric_input_policy()
-                .is_some_and(|input| value.native_bool(input, dialect.numbers).is_ok())
+            && dialect.boolean(value).is_ok()
             && let Some(message) = presenter.non_numeric_unary_message(op)
         {
             return TclError::with_error_code(message, presenter.error_code());
+        }
+        if let Err(first) = dialect.current_for_value(value) {
+            return first;
         }
         let stage = if op == UnaryOp::BitNot {
             tcl_registry::native_numeric_error::NativeExpressionOperandStage::Integer
@@ -1393,6 +1458,7 @@ fn native_literal(dialect: NumericContext<'_>, text: &str) -> Result<Value, TclE
     match native_num(dialect, &Value::string(text)) {
         Ok(Num::Int(value)) => Ok(Value::int(value)),
         Ok(Num::Dbl(value)) if !value.is_nan() => Ok(Value::double(value)),
+        Err(error) if error.is_host() => Err(error),
         Err(error) => match error.message_bytes() {
             Ok(message) if message.as_ref() == b"integer value too large to represent" => {
                 Err(error)
@@ -1455,7 +1521,14 @@ pub(crate) fn compare_in<'a>(
     } else {
         compare_values_numeric_checked_in(dialect, a, b)?
     };
-    compare_with_numeric(op, a, b, numeric, dialect.characters)
+    compare_with_numeric_using(
+        op,
+        a,
+        b,
+        numeric,
+        dialect.characters,
+        dialect.original.map(|_| dialect),
+    )
 }
 
 /// Apply an iRules-dialect binary operator to two already-evaluated operands
@@ -1747,10 +1820,12 @@ impl ExprOps for ExprEval<'_> {
 
     fn literal(&mut self, text: &str) -> Result<Value, TclError> {
         let dialect = self.vm.native_invocation_dialect();
-        native_literal(self.vm.numeric_context(), text).map(|value| {
-            self.vm
-                .format_authored_math_result(value.with_native_double_format(dialect))
-        })
+        with_original_numeric_context(self.vm, |context| native_literal(context, text)).map(
+            |value| {
+                self.vm
+                    .format_authored_math_result(value.with_native_double_format(dialect))
+            },
+        )
     }
 
     fn string(&mut self, inner: &str, substitutes: bool) -> Result<Value, TclError> {
@@ -1875,10 +1950,12 @@ impl ExprOps for ExprEval<'_> {
 
     fn arith(&mut self, op: BinOp, l: Value, r: Value) -> Result<Value, TclError> {
         let dialect = self.vm.native_invocation_dialect();
-        arith_in(self.vm.numeric_context(), op, &l, &r).map(|value| {
-            self.vm
-                .format_authored_math_result(value.with_native_double_format(dialect))
-        })
+        with_original_numeric_context(self.vm, |context| arith_in(context, op, &l, &r)).map(
+            |value| {
+                self.vm
+                    .format_authored_math_result(value.with_native_double_format(dialect))
+            },
+        )
     }
 
     fn unary(&mut self, op: UnaryOp, v: Value) -> Result<Value, TclError> {
@@ -1902,15 +1979,28 @@ impl ExprOps for ExprEval<'_> {
         if let Some(first) = self.vm.execution_refusal.clone() {
             return Err(TclError::from_execution_failure(first));
         }
-        compare_values_numeric_checked_in(self.vm.numeric_context(), left, right)
+        with_original_numeric_context(self.vm, |context| {
+            compare_values_numeric_checked_in(context, left, right)
+        })
     }
 
     fn compare_string(&mut self, l: &Value, r: &Value) -> Result<Ordering, TclError> {
-        compare_string_units(self.vm.native_invocation_dialect().characters, l, r)
+        with_original_numeric_context(self.vm, |context| {
+            compare_string_units_using(context.characters, l, r, context.original.map(|_| context))
+        })
     }
 
     fn equal_string(&mut self, l: &Value, r: &Value) -> Result<bool, TclError> {
-        equal_string_bytes(self.vm.native_invocation_dialect().characters, l, r)
+        with_original_numeric_context(self.vm, |context| {
+            compare_with_numeric_using(
+                BinOp::StrEq,
+                l,
+                r,
+                None,
+                context.characters,
+                context.original.map(|_| context),
+            )
+        })
     }
 
     fn in_list(&mut self, needle: &Value, list: &Value) -> Result<bool, TclError> {

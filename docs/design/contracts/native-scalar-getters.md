@@ -366,8 +366,11 @@ ValueError-compatible `string_value`) and `Value::native_string_bytes_checked`.
 The selected protocol must match the captured actual invocation; the same
 entered scope and exact original header check Host formatter acquisition,
 formatter build and format, compound children, and publication of String bytes.
-Actual header withdrawal remains a typed first cause even when the formatter
-also returns an unavailable result. The existing worker's optional checker
+A resident String is returned only after the actual entered scope, root header,
+selected protocol and Jim context checks. That path does not query the Host
+formatter or manufacture a native conversion recipe. Actual header withdrawal
+remains a typed first cause even when the formatter also returns an unavailable
+result. The existing worker's optional checker
 receives each reached original value. The canonical facade checks both its
 original root and that actual child before further work; a live root cannot
 replace a retired child's header or cause after backing retirement. Compound backing leases
@@ -386,3 +389,52 @@ supplied numeric or formatter callback while retaining only allocation leases.
 They check first-cause transport and suppression of later workers or cache
 publication. They do not establish a Runtime extension object issuer or an
 external Tcl updater/free callback chronology.
+
+## Entered arithmetic contexts
+
+The VM expression adapter and arithmetic opcodes use
+`expr::with_original_numeric_context` before invoking the shared arithmetic,
+unary and comparison algorithms. Routing uses callback-free policy data. An
+explicit authored simulation supplies no native environment or receipt. A
+native context borrows `OriginalNumericOps` in its original scope and separately
+joins the selected arithmetic, scalar-getter and String protocols to the actual
+invocation. Other policy fields do not substitute for those independent joins.
+
+`NumericContext` carries an optional borrowed `OriginalArithmeticStages`.
+The sole live implementation is the canonical numeric facade. Its String,
+integer, Boolean, scalar-probe, cache and C84 long-store stages use the existing
+Value kernels, with the same original header check before and after reached
+workers, including failed workers. It shares the actual Host and ABI observation
+cell. C84 expression preparation does not install an integer cache after a
+reached worker withdraws the original header. Cache replacement extracts and
+retires the old backing outside its borrow, then checks the original owner
+before publishing the replacement. Allocation leases supply no native object
+reference or execution permission.
+
+The context returns the complete `NativeExecutionError` through the existing
+`TclError` Host channel. An unavailable numeric-environment enum, compatibility
+unwind token or diagnostic message cannot reconstruct that cause. Operand
+presentation follows the owner check; a genuine Guest conversion failure keeps
+its selected diagnostic. The eager C84 logical result keeps the same entered
+scope across both operand conversions and its allowed original-header store.
+
+Context-free Value and explicit policy arithmetic routes pass no stage provider
+to the same kernels. They remain pure or explicitly supplied adapters and do not
+issue an entered VM receipt. Consumers with a VM must retain the checked context
+for the complete operation, rather than reacquiring a Host or issuing a fresh
+entry after a callback. Software Host controls validate those continuation and
+reference-role boundaries independently of external Tcl/Jim observations.
+
+Checked scalar, Number, getter-failure and C84 integer-expression workers pass
+the captured String provider to the existing Value kernels. The provider is
+invoked only where the selected worker requires String bytes; cached or neutral
+branches preserve their existing behaviour. Compound numeric operands use the
+same actual Host formatter and node-aware header checks as direct String
+consumers. The check follows a successful or failed String stage before parsing,
+failure presentation or cache adoption. A diagnostic renderer cannot replace
+this handoff with a pure String call.
+
+The pure Value and explicit policy wrappers pass no provider and preserve their
+existing conversion and header checks. Test-only checked probe wrappers retain
+their supplied checker without issuing VM currency. The original facade uses
+the String-aware siblings; no caller replays the conversion to recover bytes.

@@ -530,7 +530,7 @@ pub(crate) fn unary_for_vm(
             !boolean,
         ));
     }
-    super::unary_in(vm.numeric_context(), op, value)
+    super::with_original_numeric_context(vm, |context| super::unary_in(context, op, value))
 }
 
 /// Consume a real eager logical opcode while preserving C8.4's original
@@ -542,9 +542,17 @@ pub(crate) fn logical_value_for_vm(
     conjunction: bool,
 ) -> Result<Value, TclError> {
     pending(vm)?;
+    let scope = if vm.authored_numeric_context().is_some() {
+        None
+    } else {
+        Some(
+            crate::interp::native_operation_currency::NativeOperationScope::enter_native(vm)
+                .map_err(TclError::from_execution_failure)?,
+        )
+    };
     let truth = logical_right_for_vm(vm, &left, right, conjunction)?;
     let context = vm.numeric_policy_context();
-    if context.simulation.is_none()
+    let reached = if context.simulation.is_none()
         && context
             .dialect
             .native_scalar_getter_protocol()
@@ -552,11 +560,19 @@ pub(crate) fn logical_value_for_vm(
             == Some(tcl_dialect::TclVersion::V8_4)
         && !left.native_object_is_shared()
     {
-        left.store_native_expression_long84(i64::from(truth), context.dialect)?;
+        super::with_original_numeric_context(vm, |context| {
+            context.store_long84(&left, i64::from(truth))
+        })?;
         Ok(left)
     } else {
         Ok(super::native_boolean_result(context, truth))
+    };
+    if let Some(scope) = scope {
+        scope
+            .check_native(vm)
+            .map_err(TclError::from_execution_failure)?;
     }
+    reached
 }
 
 #[cfg(test)]

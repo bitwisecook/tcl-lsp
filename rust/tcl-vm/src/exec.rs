@@ -1228,7 +1228,7 @@ fn bin(vm: &mut Vm, f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
     let dialect = vm.native_invocation_dialect();
     let b = pop(f);
     let a = pop(f);
-    match expr::arith_in(vm.numeric_context(), op, &a, &b) {
+    match expr::with_original_numeric_context(vm, |context| expr::arith_in(context, op, &a, &b)) {
         Ok(v) => {
             f.stack.push(v.with_native_double_format(dialect));
             Ok(())
@@ -1245,10 +1245,10 @@ fn bin(vm: &mut Vm, f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
 fn cmp(vm: &mut Vm, f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
     let b = pop(f);
     let a = pop(f);
-    match expr::compare_in(vm.numeric_context(), op, &a, &b) {
+    match expr::with_original_numeric_context(vm, |context| expr::compare_in(context, op, &a, &b)) {
         Ok(t) => {
             f.stack
-                .push(expr::native_boolean_result(vm.numeric_context(), t));
+                .push(expr::native_boolean_result(vm.numeric_policy_context(), t));
             Ok(())
         }
         Err(e) => Err(crate::command::completion_from_tcl_error(vm, e)),
@@ -9776,6 +9776,61 @@ mod tests {
         // Out-of-range and non-numeric indices still error.
         assert!(lset(&flat, &[n(5)], n(0)).is_err());
         assert!(lset(&flat, &[Value::string("bogus")], n(0)).is_err());
+    }
+
+    #[test]
+    fn original_arithmetic_opcode_workers_keep_cached_values_and_retained_host_failure() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Calls the actual opcode workers with a placeholder frame; this does
+        // not claim compiler admission or external native execution.
+        use super::{Frame, bin, cmp};
+        use tcl_syntax::expr::BinOp;
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"));
+        let dialect = vm.actual_native_invocation_dialect();
+        let value = |integer| {
+            Value::from_native_scalar_cache(
+                tcl_syntax::scalar_getter::NativeScalarCache::Number(
+                    tcl_syntax::number::Number::Int(integer),
+                ),
+                None,
+                dialect,
+            )
+            .unwrap()
+        };
+        let left = value(6);
+        let right = value(18);
+        let before = [
+            left.native_object_snapshot(),
+            right.native_object_snapshot(),
+        ];
+        let mut frame = Frame::new(vm.current_placeholder_unit(), false);
+        frame.stack.extend([left.clone(), right.clone()]);
+        bin(&mut vm, &mut frame, BinOp::Add).unwrap();
+        assert_eq!(frame.stack.pop().unwrap().as_int().unwrap(), 24);
+        assert_eq!(
+            [
+                left.native_object_snapshot(),
+                right.native_object_snapshot()
+            ],
+            before
+        );
+        frame.stack.extend([left.clone(), right.clone()]);
+        cmp(&mut vm, &mut frame, BinOp::Lt).unwrap();
+        assert!(frame.stack.pop().unwrap().as_bool().unwrap());
+        assert_eq!(left.native_object_reference_count(), 1);
+        assert_eq!(right.native_object_reference_count(), 1);
+        let scope =
+            crate::interp::native_operation_currency::NativeOperationScope::enter_native(&mut vm)
+                .unwrap();
+        let _ = vm.refuse_host_command("entered arithmetic opcode owner".into());
+        let first = vm.execution_refusal.clone().unwrap();
+        frame.stack.extend([left, right]);
+        assert!(bin(&mut vm, &mut frame, BinOp::Add).is_err());
+        assert!(frame.stack.is_empty());
+        assert_eq!(vm.execution_refusal.as_ref(), Some(&first));
+        assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
+        assert_eq!(vm.try_invoke_command("set", &[]).unwrap_err(), first);
     }
 }
 

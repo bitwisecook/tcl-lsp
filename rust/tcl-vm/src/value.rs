@@ -3622,9 +3622,10 @@ impl Value {
         Result<NativeScalarGetterValue, tcl_syntax::scalar_getter::NativeScalarGetterFailure>,
         ValueError,
     > {
-        self.native_scalar_probe_using(dialect, kind, environment, &mut None)
+        self.native_scalar_probe_using(dialect, kind, environment, &mut None, &mut None)
     }
 
+    #[cfg(test)]
     pub(crate) fn native_scalar_probe_checked<E: From<ValueError>>(
         &self,
         dialect: tcl_registry::InvocationDialect,
@@ -3635,7 +3636,27 @@ impl Value {
         Result<NativeScalarGetterValue, tcl_syntax::scalar_getter::NativeScalarGetterFailure>,
         E,
     > {
-        self.native_scalar_probe_using(dialect, kind, environment, &mut Some(check))
+        self.native_scalar_probe_using(dialect, kind, environment, &mut Some(check), &mut None)
+    }
+
+    pub(crate) fn native_scalar_probe_checked_with_string<E: From<ValueError>>(
+        &self,
+        dialect: tcl_registry::InvocationDialect,
+        kind: NativeScalarGetterKind,
+        environment: Option<&dyn tcl_platform::NumericEnvironment>,
+        check: &mut dyn FnMut() -> Result<(), E>,
+        string: &mut dyn FnMut() -> Result<Rc<[u8]>, E>,
+    ) -> Result<
+        Result<NativeScalarGetterValue, tcl_syntax::scalar_getter::NativeScalarGetterFailure>,
+        E,
+    > {
+        self.native_scalar_probe_using(
+            dialect,
+            kind,
+            environment,
+            &mut Some(check),
+            &mut Some(string),
+        )
     }
 
     fn native_scalar_probe_using<E: From<ValueError>>(
@@ -3644,6 +3665,7 @@ impl Value {
         kind: NativeScalarGetterKind,
         environment: Option<&dyn tcl_platform::NumericEnvironment>,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        string_provider: &mut Option<&mut dyn FnMut() -> Result<Rc<[u8]>, E>>,
     ) -> Result<
         Result<NativeScalarGetterValue, tcl_syntax::scalar_getter::NativeScalarGetterFailure>,
         E,
@@ -3740,11 +3762,16 @@ impl Value {
                     }
                 }
             }
-            let reached = self
-                .native_string_bytes(string_protocol)
-                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
-                .map_err(ValueError::from);
-            let original = Self::native_stage_result(reached, check)?;
+            let reached = if let Some(provider) = string_provider {
+                provider()
+            } else {
+                self.native_string_bytes(string_protocol)
+                    .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
+                    .map_err(ValueError::from)
+                    .map_err(E::from)
+            };
+            Self::native_stage_check(check)?;
+            let original = reached?;
             if protocol.is_jim084()
                 && matches!(
                     kind,
@@ -3782,11 +3809,16 @@ impl Value {
         };
         let (materialize, cache, outcome) = conversion.into_parts();
         if materialize {
-            let reached = self
-                .native_string_bytes(string_protocol)
-                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
-                .map_err(ValueError::from);
-            Self::native_stage_result(reached, check)?;
+            let reached = if let Some(provider) = string_provider {
+                provider()
+            } else {
+                self.native_string_bytes(string_protocol)
+                    .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
+                    .map_err(ValueError::from)
+                    .map_err(E::from)
+            };
+            Self::native_stage_check(check)?;
+            reached?;
         }
         if let Some(cache) = cache {
             self.adopt_native_scalar_cache_using(cache, protocol, dialect, check)?;
@@ -3808,7 +3840,55 @@ impl Value {
         &self,
         dialect: tcl_registry::InvocationDialect,
         environment: Option<&dyn tcl_platform::NumericEnvironment>,
-    ) -> Result<bool, tcl_syntax::value::ValueError> {
+    ) -> Result<bool, ValueError> {
+        self.prepare_native_expression_integer84_using::<ValueError>(
+            dialect,
+            environment,
+            &mut None,
+            &mut None,
+        )
+    }
+
+    pub(crate) fn prepare_native_expression_integer84_checked<E: From<ValueError>>(
+        &self,
+        dialect: tcl_registry::InvocationDialect,
+        environment: Option<&dyn tcl_platform::NumericEnvironment>,
+        check: &mut dyn FnMut() -> Result<(), E>,
+        string: &mut dyn FnMut() -> Result<Rc<[u8]>, E>,
+    ) -> Result<bool, E> {
+        self.prepare_native_expression_integer84_using(
+            dialect,
+            environment,
+            &mut Some(check),
+            &mut Some(string),
+        )
+    }
+
+    fn arithmetic_string_using<E: From<ValueError>>(
+        &self,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        string: &mut Option<&mut dyn FnMut() -> Result<Rc<[u8]>, E>>,
+    ) -> Result<Rc<[u8]>, E> {
+        Self::native_stage_check(check)?;
+        let reached = if let Some(string) = string {
+            string()
+        } else {
+            self.native_string_bytes(protocol)
+                .map_err(|_| ValueError::ScalarNumericInputUnavailable.into())
+        };
+        Self::native_stage_check(check)?;
+        reached
+    }
+
+    fn prepare_native_expression_integer84_using<E: From<ValueError>>(
+        &self,
+        dialect: tcl_registry::InvocationDialect,
+        environment: Option<&dyn tcl_platform::NumericEnvironment>,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        string: &mut Option<&mut dyn FnMut() -> Result<Rc<[u8]>, E>>,
+    ) -> Result<bool, E> {
+        Self::native_stage_check(check)?;
         self.check_native_header()?;
         let protocol = dialect
             .native_scalar_getter_protocol()
@@ -3818,24 +3898,27 @@ impl Value {
             .native_word_boolean_version()
             .is_some_and(|version| version != tcl_dialect::TclVersion::V8_4)
         {
-            return Err(ValueError::ScalarNumericInputUnavailable);
+            return Err(ValueError::ScalarNumericInputUnavailable.into());
         }
         let current = self.native_scalar_cache();
         if let Some(NativeScalarCache::WordBoolean(boolean)) = current
             .as_ref()
             .filter(|_| self.resident_string_bytes().is_none())
         {
-            self.adopt_native_scalar_cache(
+            self.adopt_native_scalar_cache_using(
                 NativeScalarCache::Tcl84Long(i64::from(*boolean)),
                 protocol,
                 dialect,
+                check,
             )?;
+            Self::native_stage_check(check)?;
             return Ok(true);
         }
         if matches!(
             &current,
             Some(NativeScalarCache::Tcl84Long(_) | NativeScalarCache::Number(Number::Int(_)))
         ) {
+            Self::native_stage_check(check)?;
             return Ok(true);
         }
         if matches!(
@@ -3845,14 +3928,13 @@ impl Value {
             ))
         ) && self.resident_string_bytes().is_none()
         {
+            Self::native_stage_check(check)?;
             return Ok(true);
         }
-        let string = dialect
+        let string_protocol = dialect
             .native_string_protocol()
             .ok_or(ValueError::ScalarNumericInputUnavailable)?;
-        let original = self
-            .native_string_bytes(string)
-            .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
+        let original = self.arithmetic_string_using(string_protocol, check, string)?;
         let cached_wide = current
             .as_ref()
             .map(|cache| protocol.cached_conversion(NativeScalarGetterKind::Wide, cache, None))
@@ -3863,22 +3945,25 @@ impl Value {
             && cached_wide.is_none()
             && let Some(environment) = environment
         {
-            tcl_cmd_core::native_numeric::fresh_c84_conversion(
+            let reached = tcl_cmd_core::native_numeric::fresh_c84_conversion(
                 protocol,
                 NativeScalarGetterKind::Wide,
                 &original,
                 environment,
-            )?;
+            );
+            Self::native_stage_result(reached, check)?;
         }
         if let Some(conversion) =
             protocol.expression_integer_conversion84(current.as_ref(), &original)
         {
             let (_, cache, outcome) = conversion.into_parts();
             if let Some(cache) = cache {
-                self.adopt_native_scalar_cache(cache, protocol, dialect)?;
+                self.adopt_native_scalar_cache_using(cache, protocol, dialect, check)?;
             }
+            Self::native_stage_check(check)?;
             return Ok(outcome.is_ok());
         }
+        Self::native_stage_check(check)?;
         Ok(true)
     }
 
@@ -3888,22 +3973,46 @@ impl Value {
         &self,
         integer: i64,
         dialect: tcl_registry::InvocationDialect,
-    ) -> Result<(), tcl_syntax::value::ValueError> {
+    ) -> Result<(), ValueError> {
+        self.store_native_expression_long84_using::<ValueError>(integer, dialect, &mut None)
+    }
+
+    pub(crate) fn store_native_expression_long84_checked<E: From<ValueError>>(
+        &self,
+        integer: i64,
+        dialect: tcl_registry::InvocationDialect,
+        check: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.store_native_expression_long84_using(integer, dialect, &mut Some(check))
+    }
+
+    fn store_native_expression_long84_using<E: From<ValueError>>(
+        &self,
+        integer: i64,
+        dialect: tcl_registry::InvocationDialect,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+    ) -> Result<(), E> {
+        Self::native_stage_check(check)?;
         self.check_native_header()?;
         let protocol = dialect
             .native_scalar_getter_protocol()
             .filter(|protocol| protocol.tcl_version() == Some(tcl_dialect::TclVersion::V8_4))
             .ok_or(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable)?;
         if self.native_object_is_shared() {
-            return Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable);
+            return Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable.into());
         }
-        self.adopt_native_scalar_cache(NativeScalarCache::Tcl84Long(integer), protocol, dialect)?;
+        self.adopt_native_scalar_cache_using(
+            NativeScalarCache::Tcl84Long(integer),
+            protocol,
+            dialect,
+            check,
+        )?;
         *self.0.string.borrow_mut() = None;
         self.0
             .string_storage
             .set(NativeStringStorageIdentity::Unknown);
         *self.0.source_location.borrow_mut() = None;
-        Ok(())
+        Self::native_stage_check(check)
     }
 
     pub(crate) fn store_native_increment_number(
@@ -3935,16 +4044,27 @@ impl Value {
         kind: tcl_syntax::scalar_getter::NativeNumberGetterKind,
     ) -> Result<Result<Number, tcl_syntax::scalar_getter::NativeScalarGetterFailure>, ValueError>
     {
-        self.native_number_probe_using(dialect, kind, &mut None)
+        self.native_number_probe_using(dialect, kind, &mut None, &mut None)
     }
 
+    #[cfg(test)]
     pub(crate) fn native_number_probe_checked<E: From<ValueError>>(
         &self,
         dialect: tcl_registry::InvocationDialect,
         kind: tcl_syntax::scalar_getter::NativeNumberGetterKind,
         check: &mut dyn FnMut() -> Result<(), E>,
     ) -> Result<Result<Number, tcl_syntax::scalar_getter::NativeScalarGetterFailure>, E> {
-        self.native_number_probe_using(dialect, kind, &mut Some(check))
+        self.native_number_probe_using(dialect, kind, &mut Some(check), &mut None)
+    }
+
+    pub(crate) fn native_number_probe_checked_with_string<E: From<ValueError>>(
+        &self,
+        dialect: tcl_registry::InvocationDialect,
+        kind: tcl_syntax::scalar_getter::NativeNumberGetterKind,
+        check: &mut dyn FnMut() -> Result<(), E>,
+        string: &mut dyn FnMut() -> Result<Rc<[u8]>, E>,
+    ) -> Result<Result<Number, tcl_syntax::scalar_getter::NativeScalarGetterFailure>, E> {
+        self.native_number_probe_using(dialect, kind, &mut Some(check), &mut Some(string))
     }
 
     fn native_number_probe_using<E: From<ValueError>>(
@@ -3952,6 +4072,7 @@ impl Value {
         dialect: tcl_registry::InvocationDialect,
         kind: tcl_syntax::scalar_getter::NativeNumberGetterKind,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        string_provider: &mut Option<&mut dyn FnMut() -> Result<Rc<[u8]>, E>>,
     ) -> Result<Result<Number, tcl_syntax::scalar_getter::NativeScalarGetterFailure>, E> {
         Self::native_stage_check(check)?;
         self.check_native_header()?;
@@ -3983,10 +4104,14 @@ impl Value {
             let string_protocol = dialect
                 .native_string_protocol()
                 .ok_or(ValueError::ScalarNumericInputUnavailable)?;
-            let reached = self
-                .native_string_bytes(string_protocol)
-                .map_err(|_| ValueError::ScalarNumericInputUnavailable);
-            let original = Self::native_stage_result(reached, check)?;
+            let reached = if let Some(provider) = string_provider {
+                provider()
+            } else {
+                self.native_string_bytes(string_protocol)
+                    .map_err(|_| ValueError::ScalarNumericInputUnavailable.into())
+            };
+            Self::native_stage_check(check)?;
+            let original = reached?;
             protocol
                 .fresh_number_conversion(kind, &original)
                 .ok_or(ValueError::ScalarNumericInputUnavailable)?
@@ -4129,17 +4254,24 @@ impl Value {
         kind: NativeScalarGetterKind,
         environment: Option<&dyn tcl_platform::NumericEnvironment>,
     ) -> Result<NativeScalarGetterValue, ValueError> {
-        self.native_scalar_getter_using(dialect, kind, environment, &mut None)
+        self.native_scalar_getter_using(dialect, kind, environment, &mut None, &mut None)
     }
 
-    pub(crate) fn native_scalar_getter_checked<E: From<ValueError>>(
+    pub(crate) fn native_scalar_getter_checked_with_string<E: From<ValueError>>(
         &self,
         dialect: tcl_registry::InvocationDialect,
         kind: NativeScalarGetterKind,
         environment: Option<&dyn tcl_platform::NumericEnvironment>,
         check: &mut dyn FnMut() -> Result<(), E>,
+        string: &mut dyn FnMut() -> Result<Rc<[u8]>, E>,
     ) -> Result<NativeScalarGetterValue, E> {
-        self.native_scalar_getter_using(dialect, kind, environment, &mut Some(check))
+        self.native_scalar_getter_using(
+            dialect,
+            kind,
+            environment,
+            &mut Some(check),
+            &mut Some(string),
+        )
     }
 
     fn native_scalar_getter_using<E: From<ValueError>>(
@@ -4148,12 +4280,18 @@ impl Value {
         kind: NativeScalarGetterKind,
         environment: Option<&dyn tcl_platform::NumericEnvironment>,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        string_provider: &mut Option<&mut dyn FnMut() -> Result<Rc<[u8]>, E>>,
     ) -> Result<NativeScalarGetterValue, E> {
-        match self.native_scalar_probe_using(dialect, kind, environment, check)? {
+        match self.native_scalar_probe_using(dialect, kind, environment, check, string_provider)? {
             Ok(value) => Ok(value),
             Err(failure) => {
-                let record =
-                    self.native_scalar_failure_presentation_using(dialect, kind, failure, check)?;
+                let record = self.native_scalar_failure_presentation_using(
+                    dialect,
+                    kind,
+                    failure,
+                    check,
+                    string_provider,
+                )?;
                 Err(ValueError::NativeScalarGetter(Box::new(record)).into())
             }
         }
@@ -4167,17 +4305,24 @@ impl Value {
         kind: NativeScalarGetterKind,
         failure: tcl_syntax::scalar_getter::NativeScalarGetterFailure,
     ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterError, ValueError> {
-        self.native_scalar_failure_presentation_using(dialect, kind, failure, &mut None)
+        self.native_scalar_failure_presentation_using(dialect, kind, failure, &mut None, &mut None)
     }
 
-    pub(crate) fn native_scalar_failure_presentation_checked<E: From<ValueError>>(
+    pub(crate) fn native_scalar_failure_presentation_checked_with_string<E: From<ValueError>>(
         &self,
         dialect: tcl_registry::InvocationDialect,
         kind: NativeScalarGetterKind,
         failure: tcl_syntax::scalar_getter::NativeScalarGetterFailure,
         check: &mut dyn FnMut() -> Result<(), E>,
+        string: &mut dyn FnMut() -> Result<Rc<[u8]>, E>,
     ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterError, E> {
-        self.native_scalar_failure_presentation_using(dialect, kind, failure, &mut Some(check))
+        self.native_scalar_failure_presentation_using(
+            dialect,
+            kind,
+            failure,
+            &mut Some(check),
+            &mut Some(string),
+        )
     }
 
     fn native_scalar_failure_presentation_using<E: From<ValueError>>(
@@ -4186,6 +4331,7 @@ impl Value {
         kind: NativeScalarGetterKind,
         failure: tcl_syntax::scalar_getter::NativeScalarGetterFailure,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        string_provider: &mut Option<&mut dyn FnMut() -> Result<Rc<[u8]>, E>>,
     ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterError, E> {
         Self::native_stage_check(check)?;
         self.check_native_header()?;
@@ -4199,11 +4345,16 @@ impl Value {
             let string = dialect
                 .native_string_protocol()
                 .ok_or(ValueError::ScalarNumericInputUnavailable)?;
-            let reached = self
-                .native_string_bytes(string)
-                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
-                .map_err(ValueError::from);
-            let original = Self::native_stage_result(reached, check)?;
+            let reached = if let Some(provider) = string_provider {
+                provider()
+            } else {
+                self.native_string_bytes(string)
+                    .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
+                    .map_err(ValueError::from)
+                    .map_err(E::from)
+            };
+            Self::native_stage_check(check)?;
+            let original = reached?;
             protocol.failure_presentation(kind, failure, &original)
         } else {
             protocol.failure_presentation_without_original_string(kind, failure)
@@ -4291,14 +4442,56 @@ impl Value {
     /// Retain a successfully converted native operand on the shared object.
     /// Conversion preserves its existing source bytes, including list spelling.
     pub(crate) fn cache_integer_representation(&self, value: i64) {
-        let _ = self.string_bytes();
-        *self.0.intrep.borrow_mut() = IntRep::Int(value);
+        let _ = self.cache_numeric_representation_using::<ValueError>(
+            Number::Int(value),
+            &mut None,
+            &mut None,
+        );
     }
 
     /// Retain a successfully converted double without changing its source bytes.
     pub(crate) fn cache_double_representation(&self, value: f64) {
-        let _ = self.string_bytes();
-        *self.0.intrep.borrow_mut() = IntRep::Double(value);
+        let _ = self.cache_numeric_representation_using::<ValueError>(
+            Number::Double(value),
+            &mut None,
+            &mut None,
+        );
+    }
+
+    pub(crate) fn cache_numeric_representation_checked<E: From<ValueError>>(
+        &self,
+        value: Number,
+        check: &mut dyn FnMut() -> Result<(), E>,
+        string: &mut dyn FnMut() -> Result<Rc<[u8]>, E>,
+    ) -> Result<(), E> {
+        self.cache_numeric_representation_using(value, &mut Some(check), &mut Some(string))
+    }
+
+    fn cache_numeric_representation_using<E: From<ValueError>>(
+        &self,
+        value: Number,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        string: &mut Option<&mut dyn FnMut() -> Result<Rc<[u8]>, E>>,
+    ) -> Result<(), E> {
+        Self::native_stage_check(check)?;
+        let replacement = match value {
+            Number::Int(integer) => IntRep::Int(integer),
+            Number::Double(double) => IntRep::Double(double),
+            _ => return Err(ValueError::ScalarNumericInputUnavailable.into()),
+        };
+        let reached = if let Some(string) = string {
+            string()
+        } else {
+            Ok(self.string_bytes())
+        };
+        Self::native_stage_check(check)?;
+        reached?;
+        if check.is_none() {
+            self.replace_primary(replacement);
+        } else {
+            self.replace_primary_using(replacement, check)?;
+        }
+        Self::native_stage_check(check)
     }
 
     fn from_parts(string: Option<Rc<str>>, intrep: IntRep) -> Self {
@@ -5957,8 +6150,30 @@ impl Value {
         &self,
         input: number::NativeScalarNumericInputPolicy,
         syntax: tcl_dialect::NumberSyntax,
-    ) -> Result<i64, tcl_syntax::value::ValueError> {
+    ) -> Result<i64, ValueError> {
+        self.native_int_using::<ValueError>(input, syntax, &mut None, &mut None)
+    }
+
+    pub(crate) fn native_int_checked<E: From<ValueError>>(
+        &self,
+        input: number::NativeScalarNumericInputPolicy,
+        syntax: tcl_dialect::NumberSyntax,
+        check: &mut dyn FnMut() -> Result<(), E>,
+        string: &mut dyn FnMut() -> Result<Rc<[u8]>, E>,
+    ) -> Result<i64, E> {
+        self.native_int_using(input, syntax, &mut Some(check), &mut Some(string))
+    }
+
+    fn native_int_using<E: From<ValueError>>(
+        &self,
+        input: number::NativeScalarNumericInputPolicy,
+        syntax: tcl_dialect::NumberSyntax,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        string: &mut Option<&mut dyn FnMut() -> Result<Rc<[u8]>, E>>,
+    ) -> Result<i64, E> {
+        Self::native_stage_check(check)?;
         if let Some(value) = self.restore_coerced_integer() {
+            Self::native_stage_check(check)?;
             return Ok(value);
         }
         match *self.0.intrep.borrow() {
@@ -5966,17 +6181,23 @@ impl Value {
             IntRep::Bool(value) => return Ok(i64::from(value)),
             _ => {}
         }
-        let original = self.string_bytes();
+        let reached = if let Some(string) = string {
+            string()
+        } else {
+            Ok(self.string_bytes())
+        };
+        Self::native_stage_check(check)?;
+        let original = reached?;
         let text = std::str::from_utf8(input.input_bytes(&original))
             .map_err(|_| ValueError::NotIntegerBytes(original.to_vec()))?;
         let mut flags = number::ParseFlags::for_syntax(syntax);
         flags.integer_only = true;
         match number::parse_whole_with(text, flags) {
             Some(Number::Int(value)) => {
-                self.cache_integer_representation(value);
+                self.cache_numeric_representation_using(Number::Int(value), check, string)?;
                 Ok(value)
             }
-            _ => Err(ValueError::NotIntegerBytes(original.to_vec())),
+            _ => Err(ValueError::NotIntegerBytes(original.to_vec()).into()),
         }
     }
 
@@ -5986,7 +6207,28 @@ impl Value {
         &self,
         input: number::NativeScalarNumericInputPolicy,
         syntax: tcl_dialect::NumberSyntax,
-    ) -> Result<bool, tcl_syntax::value::ValueError> {
+    ) -> Result<bool, ValueError> {
+        self.native_bool_using::<ValueError>(input, syntax, &mut None, &mut None)
+    }
+
+    pub(crate) fn native_bool_checked<E: From<ValueError>>(
+        &self,
+        input: number::NativeScalarNumericInputPolicy,
+        syntax: tcl_dialect::NumberSyntax,
+        check: &mut dyn FnMut() -> Result<(), E>,
+        string: &mut dyn FnMut() -> Result<Rc<[u8]>, E>,
+    ) -> Result<bool, E> {
+        self.native_bool_using(input, syntax, &mut Some(check), &mut Some(string))
+    }
+
+    fn native_bool_using<E: From<ValueError>>(
+        &self,
+        input: number::NativeScalarNumericInputPolicy,
+        syntax: tcl_dialect::NumberSyntax,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        string: &mut Option<&mut dyn FnMut() -> Result<Rc<[u8]>, E>>,
+    ) -> Result<bool, E> {
+        Self::native_stage_check(check)?;
         match *self.0.intrep.borrow() {
             IntRep::Int(value) | IntRep::Tcl84Long(value) => return Ok(value != 0),
             IntRep::Bool(value) => return Ok(value),
@@ -5997,7 +6239,13 @@ impl Value {
             }
             _ => {}
         }
-        let original = self.string_bytes();
+        let reached = if let Some(string) = string {
+            string()
+        } else {
+            Ok(self.string_bytes())
+        };
+        Self::native_stage_check(check)?;
+        let original = reached?;
         let text = std::str::from_utf8(input.input_bytes(&original))
             .map_err(|_| ValueError::NotBooleanBytes(original.to_vec()))?;
         if input == number::NativeScalarNumericInputPolicy::LengthDelimited
@@ -6008,13 +6256,13 @@ impl Value {
                 Number::Int(value) => Ok(value != 0),
                 Number::Double(value) => Ok(value != 0.0),
                 Number::Big { .. } => Ok(true),
-                Number::Nan { .. } => Err(ValueError::NotBooleanBytes(original.to_vec())),
+                Number::Nan { .. } => Err(ValueError::NotBooleanBytes(original.to_vec()).into()),
             };
         }
         let value = tcl_syntax::boolean::parse_boolean_word(text)
             .ok_or_else(|| ValueError::NotBooleanBytes(original.to_vec()))?;
         if input == number::NativeScalarNumericInputPolicy::NulTerminatedJim084 {
-            self.cache_integer_representation(i64::from(value));
+            self.cache_numeric_representation_using(Number::Int(i64::from(value)), check, string)?;
         }
         Ok(value)
     }

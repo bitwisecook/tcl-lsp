@@ -13,13 +13,19 @@ use tcl_syntax::{
 };
 
 impl Value {
-    pub(crate) fn original_expression_integer84_checked<E: From<ValueError>>(
+    pub(crate) fn original_expression_integer84_checked_with_string<E: From<ValueError>>(
         &self,
         dialect: InvocationDialect,
         environment: Option<&dyn tcl_platform::NumericEnvironment>,
         check: &mut dyn FnMut() -> Result<(), E>,
+        string: &mut dyn FnMut() -> Result<std::rc::Rc<[u8]>, E>,
     ) -> Result<Result<GetterValue, Failure>, E> {
-        self.original_expression_integer84_using(dialect, environment, &mut Some(check))
+        self.original_expression_integer84_using(
+            dialect,
+            environment,
+            &mut Some(check),
+            &mut Some(string),
+        )
     }
 
     fn original_expression_integer84_using<E: From<ValueError>>(
@@ -27,6 +33,7 @@ impl Value {
         dialect: InvocationDialect,
         environment: Option<&dyn tcl_platform::NumericEnvironment>,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        string_provider: &mut Option<&mut dyn FnMut() -> Result<std::rc::Rc<[u8]>, E>>,
     ) -> Result<Result<GetterValue, Failure>, E> {
         Self::native_stage_check(check)?;
         self.check_native_header()?;
@@ -38,11 +45,16 @@ impl Value {
             .native_string_protocol()
             .ok_or(ValueError::ScalarNumericInputUnavailable)?;
         let current = self.native_scalar_cache();
-        let reached = self
-            .native_string_bytes(string)
-            .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
-            .map_err(ValueError::from);
-        let original = Self::native_stage_result(reached, check)?;
+        let reached = if let Some(provider) = string_provider {
+            provider()
+        } else {
+            self.native_string_bytes(string)
+                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
+                .map_err(ValueError::from)
+                .map_err(E::from)
+        };
+        Self::native_stage_check(check)?;
+        let original = reached?;
         if let Some(environment) = environment {
             let reached = environment
                 .c_integer_abi()
@@ -75,11 +87,16 @@ impl Value {
             .ok_or(ValueError::ScalarNumericInputUnavailable)?;
         let (materialize, cache, outcome) = conversion.into_parts();
         if materialize {
-            let reached = self
-                .native_string_bytes(string)
-                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
-                .map_err(ValueError::from);
-            Self::native_stage_result(reached, check)?;
+            let reached = if let Some(provider) = string_provider {
+                provider()
+            } else {
+                self.native_string_bytes(string)
+                    .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
+                    .map_err(ValueError::from)
+                    .map_err(E::from)
+            };
+            Self::native_stage_check(check)?;
+            reached?;
         }
         if let Some(cache) = cache {
             self.adopt_native_scalar_cache_using(cache, scalar, dialect, check)?;

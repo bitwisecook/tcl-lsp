@@ -469,3 +469,346 @@ fn original_string_facade_retains_child_header_refusal_after_live_root_shimmer()
     assert_eq!(vm.try_invoke_command("set", &[]).unwrap_err(), first);
     assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
 }
+
+#[test]
+fn original_resident_string_checks_owner_and_protocol_without_querying_formatter_host() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // This observes actual software Host query counts, not external native String chronology.
+    let (mut vm, formatter, acquisitions) = provided();
+    let original = Value::new_native_string_bytes(b"already resident");
+    let before = original.native_object_snapshot();
+    let count = original.native_object_reference_count();
+    let bytes = original.resident_string_bytes().unwrap();
+    let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+    let ops = OriginalNumericOps::in_original_scope(&mut vm, &scope).unwrap();
+    let output = ops.string(&original, protocol()).unwrap();
+    assert!(Rc::ptr_eq(&bytes, &output));
+    assert_eq!(original.native_object_snapshot(), before);
+    assert_eq!(original.native_object_reference_count(), count);
+    assert!(
+        ops.string(
+            &original,
+            NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6)
+        )
+        .is_err()
+    );
+    assert_eq!(acquisitions.get(), 0);
+    assert!(formatter.calls.borrow().is_empty());
+    drop(ops);
+    let held = original.native_lifetime_lease();
+    drop(original);
+    let ops = OriginalNumericOps::in_original_scope(&mut vm, &scope).unwrap();
+    let error = ops.string(held.value(), protocol()).unwrap_err();
+    let first = ops.vm.borrow().execution_refusal.clone().unwrap();
+    assert_eq!(error.native_execution_refusal(), Some(&first));
+    assert_eq!(acquisitions.get(), 0);
+    assert!(formatter.calls.borrow().is_empty());
+    drop(ops);
+    assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
+}
+
+#[derive(Default)]
+struct CompoundNumeric {
+    calls: RefCell<Vec<(&'static str, Vec<u8>)>>,
+}
+impl CompoundNumeric {
+    fn state_value() -> tcl_platform::NumericErrorState {
+        tcl_platform::NumericErrorState {
+            errno: 0,
+            domain_error: false,
+            range_error: false,
+        }
+    }
+}
+impl tcl_platform::NumericEnvironment for CompoundNumeric {
+    fn c_integer_abi(
+        &self,
+    ) -> Result<tcl_platform::NativeCIntegerAbi, tcl_platform::NumericEnvironmentUnavailable> {
+        self.calls.borrow_mut().push(("abi", Vec::new()));
+        Ok(tcl_platform::NativeCIntegerAbi {
+            char_bits: 8,
+            int_bytes: 4,
+            long_bytes: 8,
+        })
+    }
+    fn state(
+        &self,
+    ) -> Result<tcl_platform::NumericErrorState, tcl_platform::NumericEnvironmentUnavailable> {
+        self.calls.borrow_mut().push(("state", Vec::new()));
+        Ok(Self::state_value())
+    }
+    fn reset(&self) -> Result<(), tcl_platform::NumericEnvironmentUnavailable> {
+        self.calls.borrow_mut().push(("reset", Vec::new()));
+        Ok(())
+    }
+    fn unsigned_c84(
+        &self,
+        input: &[u8],
+        offset: usize,
+        _long: bool,
+    ) -> Result<tcl_platform::UnsignedNumericConversion, tcl_platform::NumericEnvironmentUnavailable>
+    {
+        tcl_platform::NumericEnvironment::unsigned(self, input, offset, 10)
+    }
+    fn unsigned(
+        &self,
+        input: &[u8],
+        offset: usize,
+        base: u32,
+    ) -> Result<tcl_platform::UnsignedNumericConversion, tcl_platform::NumericEnvironmentUnavailable>
+    {
+        self.calls.borrow_mut().push(("unsigned", input.to_vec()));
+        assert_eq!(base, 10);
+        let mut value = 0_u64;
+        let mut end = offset;
+        for byte in &input[offset..] {
+            if !byte.is_ascii_digit() {
+                break;
+            }
+            value = value
+                .saturating_mul(10)
+                .saturating_add(u64::from(byte - b'0'));
+            end += 1;
+        }
+        Ok(tcl_platform::UnsignedNumericConversion {
+            value,
+            end,
+            before: Self::state_value(),
+            after: Self::state_value(),
+        })
+    }
+    fn double(
+        &self,
+        input: &[u8],
+        _reset: bool,
+    ) -> Result<tcl_platform::DoubleNumericConversion, tcl_platform::NumericEnvironmentUnavailable>
+    {
+        self.calls.borrow_mut().push(("double", input.to_vec()));
+        let number = std::str::from_utf8(input)
+            .ok()
+            .and_then(|text| text.parse::<f64>().ok());
+        Ok(tcl_platform::DoubleNumericConversion {
+            value: number.unwrap_or(0.0),
+            end: number.map_or(0, |_| input.len()),
+            before: Self::state_value(),
+            after: Self::state_value(),
+        })
+    }
+}
+struct CompoundHost {
+    original: Rc<dyn tcl_platform::Host>,
+    numeric: Rc<CompoundNumeric>,
+}
+impl tcl_platform::Host for CompoundHost {
+    fn capabilities(&self) -> tcl_platform::Capabilities {
+        self.original.capabilities()
+    }
+    fn clock(&self) -> &dyn tcl_platform::Clock {
+        self.original.clock()
+    }
+    fn stdio(&self) -> &dyn tcl_platform::StdIo {
+        self.original.stdio()
+    }
+    fn env(&self) -> &dyn tcl_platform::Env {
+        self.original.env()
+    }
+    fn numeric_environment(&self) -> Option<&dyn tcl_platform::NumericEnvironment> {
+        Some(&*self.numeric)
+    }
+    fn native_integer_formatter(&self) -> Option<&dyn NativeIntegerFormatter> {
+        self.original.native_integer_formatter()
+    }
+}
+fn compound_provided() -> (Vm, Rc<Formatter>, Rc<Cell<usize>>, Rc<CompoundNumeric>) {
+    let (mut vm, formatter, queries) = provided();
+    let numeric = Rc::new(CompoundNumeric::default());
+    vm.set_host(Rc::new(CompoundHost {
+        original: vm.host_rc(),
+        numeric: Rc::clone(&numeric),
+    }));
+    (vm, formatter, queries, numeric)
+}
+
+#[test]
+fn original_scalar_and_expression_compound_strings_keep_the_actual_formatter_once() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Numeric/formatter methods are authored software workers. This observes
+    // forwarding/ref roles, not C strtod/strtoul or external execution chronology.
+    use tcl_syntax::scalar_getter::{
+        NativeScalarGetterKind as Kind, NativeScalarGetterValue as Scalar,
+    };
+    for getter in ["probe", "getter", "expression"] {
+        let (mut vm, formatter, queries, numeric) = compound_provided();
+        let root = Value::native_list_constructor(
+            vec![
+                Value::from_native_scalar_cache(
+                    NativeScalarCache::Tcl84Long(i64::MIN),
+                    None,
+                    vm.actual_native_invocation_dialect(),
+                )
+                .unwrap(),
+            ],
+            protocol(),
+        );
+        let held = root.native_lifetime_lease();
+        let child = root
+            .native_list_backing_in(protocol())
+            .unwrap()
+            .unwrap()
+            .elements()
+            .unwrap()[0]
+            .native_lifetime_lease();
+        *formatter.original.borrow_mut() = Some(child);
+        let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+        let ops = OriginalNumericOps::in_original_scope(&mut vm, &scope).unwrap();
+        let scalar = match getter {
+            "probe" => ops.probe(held.value(), Kind::Double).unwrap().unwrap(),
+            "getter" => ops.getter(held.value(), Kind::Double).unwrap(),
+            _ => ops.expression_integer84(held.value()).unwrap().unwrap(),
+        };
+        match scalar {
+            Scalar::Double(actual) => assert_eq!(actual.to_bits(), (i64::MIN as f64).to_bits()),
+            Scalar::Wide(actual) => assert_eq!(actual, i64::MIN),
+            other => panic!("selected original scalar {other:?}"),
+        }
+        drop(ops);
+        assert_eq!(queries.get(), 1);
+        assert_eq!(
+            formatter
+                .calls
+                .borrow()
+                .iter()
+                .filter(|call| call.0 == "format")
+                .count(),
+            1
+        );
+        assert!(
+            formatter
+                .references
+                .borrow()
+                .iter()
+                .all(|count| *count == 1)
+        );
+        assert_eq!(held.value().native_object_reference_count(), 1);
+        assert_eq!(
+            held.value().resident_string_bytes().unwrap().as_ref(),
+            b"-9223372036854775808"
+        );
+        assert!(
+            numeric
+                .calls
+                .borrow()
+                .iter()
+                .any(|(stage, _)| matches!(*stage, "double" | "unsigned"))
+        );
+        assert!(vm.execution_refusal.is_none());
+    }
+}
+
+#[test]
+fn original_scalar_compound_formatter_withdrawal_stops_before_later_numeric_workers() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // The supplied software formatter releases the real root reference;
+    // allocation-only leases supply no extension/free callback issuer.
+    use tcl_syntax::scalar_getter::NativeScalarGetterKind as Kind;
+    for getter in ["probe", "getter", "expression"] {
+        for stage in ["build", "format"] {
+            let (mut vm, formatter, _, numeric) = compound_provided();
+            let root = Value::native_list_constructor(
+                vec![
+                    Value::from_native_scalar_cache(
+                        NativeScalarCache::Tcl84Long(i64::MIN),
+                        None,
+                        vm.actual_native_invocation_dialect(),
+                    )
+                    .unwrap(),
+                ],
+                protocol(),
+            );
+            let held = root.native_lifetime_lease();
+            *formatter.retire_owner.borrow_mut() = Some(root);
+            formatter.retire_at.set(Some(stage));
+            let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+            let ops = OriginalNumericOps::in_original_scope(&mut vm, &scope).unwrap();
+            let error = match getter {
+                "probe" => ops.probe(held.value(), Kind::Double).unwrap_err(),
+                "getter" => ops.getter(held.value(), Kind::Double).unwrap_err(),
+                _ => ops.expression_integer84(held.value()).unwrap_err(),
+            };
+            let first = ops.vm.borrow().execution_refusal.clone().unwrap();
+            assert_eq!(error.native_execution_refusal(), Some(&first));
+            drop(ops);
+            assert_eq!(formatter.calls.borrow().last().unwrap().0, stage);
+            assert!(
+                !numeric
+                    .calls
+                    .borrow()
+                    .iter()
+                    .any(|(stage, _)| matches!(*stage, "unsigned" | "double"))
+            );
+            assert!(!held.value().native_object_is_live());
+            assert!(held.value().resident_string_bytes().is_none());
+            assert!(held.value().native_scalar_cache().is_none());
+            assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
+            assert_eq!(vm.try_invoke_command("set", &[]).unwrap_err(), first);
+        }
+    }
+}
+
+#[test]
+fn original_number_and_failure_string_providers_check_currentness_before_interpretation() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // This directly supplies the String worker's result before withdrawing its
+    // actual owner, so it claims no arbitrary callback in the closed Number parser.
+    use tcl_syntax::scalar_getter::{
+        NativeNumberGetterKind, NativeScalarGetterFailure, NativeScalarGetterKind,
+    };
+    for failure in [false, true] {
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"));
+        let dialect = vm.actual_native_invocation_dialect();
+        let original = Value::new_native_string_bytes(if failure {
+            b"invalid".as_slice()
+        } else {
+            b"6".as_slice()
+        });
+        let held = original.native_lifetime_lease();
+        let mut owner = Some(original);
+        let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+        let ops = OriginalNumericOps::in_original_scope(&mut vm, &scope).unwrap();
+        let mut check = || ops.current_for_value(held.value());
+        let mut string = || {
+            let result = held.value().resident_string_bytes().unwrap();
+            drop(owner.take());
+            Ok(result)
+        };
+        let error = if failure {
+            held.value()
+                .native_scalar_failure_presentation_checked_with_string(
+                    dialect,
+                    NativeScalarGetterKind::Wide,
+                    NativeScalarGetterFailure::Invalid,
+                    &mut check,
+                    &mut string,
+                )
+                .unwrap_err()
+        } else {
+            held.value()
+                .native_number_probe_checked_with_string(
+                    dialect,
+                    NativeNumberGetterKind::Number,
+                    &mut check,
+                    &mut string,
+                )
+                .unwrap_err()
+        };
+        let first = ops.vm.borrow().execution_refusal.clone().unwrap();
+        assert_eq!(error.native_execution_refusal(), Some(&first));
+        assert!(held.value().native_scalar_cache().is_none());
+        drop(ops);
+        assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
+    }
+}

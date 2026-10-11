@@ -101,8 +101,8 @@ mod native_jim_links;
 pub(crate) mod native_jim_lookup;
 #[cfg(test)]
 mod native_legacy_increment_tests;
-mod native_name_world;
 mod native_name_operands;
+mod native_name_world;
 mod native_namespace_names;
 #[cfg(test)]
 mod native_namespace_root_tests;
@@ -2433,6 +2433,7 @@ impl Vm {
     pub(crate) fn numeric_policy_context(&self) -> crate::expr::NumericContext<'static> {
         let dialect = self.native_invocation_dialect();
         crate::expr::NumericContext {
+            original: None,
             environment: None,
             dialect,
             simulation: self
@@ -2451,6 +2452,7 @@ impl Vm {
     pub(crate) fn numeric_context(&self) -> crate::expr::NumericContext<'_> {
         let policy = self.numeric_policy_context();
         crate::expr::NumericContext {
+            original: None,
             environment: self.host.numeric_environment(),
             dialect: policy.dialect,
             simulation: policy.simulation,
