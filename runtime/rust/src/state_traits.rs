@@ -32,7 +32,7 @@ use tcl_runtime_api::{
     Namespaces, NsId, ProcInfo, ProcParam, Procs, Traces, VarStore, VarUnsetError,
 };
 
-use crate::interp::{Interp, new_string};
+use crate::interp::{new_string, Interp};
 use crate::obj::{self, TclObj};
 
 /// The Family-B variable store, honouring `FrameId` (the absolute frame level,
@@ -2342,15 +2342,13 @@ mod original_completion_capture_tests {
             )
             .unwrap();
             assert_eq!(obj::bytes_of(before), b"ORIGINAL");
-            assert!(
-                crate::vars::get(
-                    &interpreter.frames.borrow(),
-                    &interpreter.namespaces(),
-                    interpreter.current_ns(),
-                    b"::after",
-                )
-                .is_none()
-            );
+            assert!(crate::vars::get(
+                &interpreter.frames.borrow(),
+                &interpreter.namespaces(),
+                interpreter.current_ns(),
+                b"::after",
+            )
+            .is_none());
             assert_eq!(interpreter.entered_native_operation_count(), 0);
         }
     }

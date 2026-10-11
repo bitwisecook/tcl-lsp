@@ -2332,10 +2332,10 @@ mod tests {
                 assert!(
                     crate::ensemble::NativeEnsembleObjects::pointer(&query.originals.map).is_none()
                 );
-                assert!(
-                    crate::ensemble::NativeEnsembleObjects::pointer(&another_query.originals.map)
-                        .is_none()
-                );
+                assert!(crate::ensemble::NativeEnsembleObjects::pointer(
+                    &another_query.originals.map
+                )
+                .is_none());
                 assert_eq!(unsafe { (*original).ref_count }, references - 1);
             });
         }
@@ -2749,12 +2749,10 @@ namespace eval ::caller {
                 Code::Ok
             );
             assert_eq!(interp.result_obj(), script.as_ptr());
-            assert!(
-                interp
-                    .native_invocation_dialect()
-                    .native_namespace_code_policy()
-                    .is_none()
-            );
+            assert!(interp
+                .native_invocation_dialect()
+                .native_namespace_code_policy()
+                .is_none());
         });
     }
 

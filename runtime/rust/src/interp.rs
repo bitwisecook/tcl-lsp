@@ -2925,21 +2925,6 @@ impl Interp {
         generation
     }
 
-    /// Bind a builtin and attest `identities` for the token it is bound under.
-    /// The token it displaces takes its attestation with it.
-    fn bind_attested_builtin(
-        &mut self,
-        name: &[u8],
-        f: BuiltinFn,
-        identities: std::collections::BTreeSet<GuardIdentity>,
-    ) {
-        let displaced = self.namespaces.borrow().resolve_generation(GLOBAL, name);
-        let generation = self.bind_builtin(name, f);
-        if generation != 0 {
-            self.attest(generation, displaced, identities);
-        }
-    }
-
     /// The one writer of the attestation table: attest `identities` for the
     /// command token `generation` and drop the entry of the token it displaced.
     /// What is already attested for `generation` stays.
@@ -3949,35 +3934,6 @@ impl Interp {
         self.retire_pending_native_ensemble_roles();
     }
 
-    /// The `(target, prefix)` of the alias bound to `name` (the query form), or
-    /// `None` if `name` resolves to something that isn't an alias.
-    pub(crate) fn alias_info(
-        &self,
-        name: &[u8],
-    ) -> Result<Option<(Vec<u8>, Vec<Vec<u8>>)>, tcl_syntax::value::ValueError> {
-        self.alias_info_at(self.current_ns.get(), name)
-    }
-
-    pub(crate) fn alias_info_at(
-        &self,
-        namespace: NsId,
-        name: &[u8],
-    ) -> Result<Option<(Vec<u8>, Vec<Vec<u8>>)>, tcl_syntax::value::ValueError> {
-        let Some(command) = self.namespaces.borrow().resolve(namespace, name) else {
-            return Ok(None);
-        };
-        let Some(mut words) = self.alias_prefix_bytes_checked(&command)? else {
-            return Ok(None);
-        };
-        if words.is_empty() {
-            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "original alias prefix target",
-            ));
-        }
-        let target = words.remove(0);
-        Ok(Some((target, words)))
-    }
-
     /// Return the actual Jim prefix header selected by the original name object.
     pub(crate) fn original_alias_prefix_value(
         &mut self,
@@ -4004,7 +3960,12 @@ impl Interp {
                 "original Jim alias prefix issuer",
             ));
         }
-        if self.namespaces.borrow().jim_namespace_bytes(lookup).is_none() {
+        if self
+            .namespaces
+            .borrow()
+            .jim_namespace_bytes(lookup)
+            .is_none()
+        {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "original Jim alias lookup namespace",
             ));
@@ -9563,15 +9524,6 @@ impl Interp {
             self.error_line.set(line);
         }
         Code::Error
-    }
-
-    /// Publish a list parse failure using the shared list owner's message and
-    /// structured code.
-    pub(crate) fn report_list_error(&mut self, source: &[u8], error: parse::ListError) -> Code {
-        self.error_with_code(
-            &parse::list_error_message(source, error),
-            error.error_code(),
-        )
     }
 
     /// Set an authored background-handler prefix in a fixture.

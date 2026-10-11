@@ -547,6 +547,7 @@ pub(crate) mod durable_field_inventory {
         ir_module,
         cfg_module,
         command_mutations,
+        source_class_facts,
         top_level,
         procedures,
         methods,
@@ -664,6 +665,8 @@ type ParamSeeds<'a> = Option<
 /// positional arguments.
 #[derive(Clone, Copy)]
 struct FunctionBuildInputs<'a> {
+    /// Initial presence facts are separate from actual source frame ownership.
+    initial_state: crate::sccp::ExistenceInitialState,
     source_metadata_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
     /// Actual frame entry; synthetic body units must not infer it from their names.
     entry_context: Option<&'a crate::var_resolve::ResolveContext>,
@@ -747,6 +750,7 @@ impl<'a> FunctionBuildInputs<'a> {
     /// iRules `when` handler adds the names its connection may hold.
     fn existence_entry(&self, name: &str) -> crate::sccp::ExistenceEntry<'a> {
         crate::sccp::ExistenceEntry {
+            initial_state: self.initial_state,
             params: self.params,
             object_state: self.object_state,
             initial_global: self.initial_global,
@@ -1290,6 +1294,7 @@ impl FunctionUnit {
             name,
             cfg,
             FunctionBuildInputs {
+                initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
                 source_metadata_input,
                 entry_context: entry.as_ref(),
                 config,
@@ -1308,6 +1313,51 @@ impl FunctionUnit {
         );
         unit.irules_event_body = event_body.map(|(event, _)| Arc::clone(event));
         unit
+    }
+
+    /// Conditional inherited-frame facts for an admitted original child CFG.
+    /// The actual source namespace is independent of the synthetic report name.
+    fn build_conditional_original_body(
+        cfg: CfgFunction,
+        inputs: FunctionLatticeInputs<'_>,
+    ) -> Self {
+        let FunctionLatticeInputs {
+            dialect:
+                UnitDialect {
+                    registry,
+                    config,
+                    source_metadata_input,
+                },
+            param_constants: _,
+            known_classes,
+            trace_facts,
+            analysis_context,
+            command_trust,
+            event_body: _,
+        } = inputs;
+        let entry = conditional_function_source_entry(&cfg, source_metadata_input);
+        let no_extra_escaping = HashSet::new();
+        Self::build_full(
+            "::conditional_original_body",
+            cfg,
+            FunctionBuildInputs {
+                initial_state: crate::sccp::ExistenceInitialState::InheritedFrame,
+                source_metadata_input,
+                entry_context: Some(&entry),
+                config,
+                params: &[],
+                registry,
+                param_constants: None,
+                known_classes,
+                extra_global_escaping: &no_extra_escaping,
+                trace_facts,
+                analysis_context: Some(analysis_context),
+                command_trust,
+                object_state: None,
+                initial_global: false,
+                procedures: None,
+            },
+        )
     }
 
     /// [`Self::build_with_param_constants_and_classes`] under the module's
@@ -1342,6 +1392,7 @@ impl FunctionUnit {
             name.into(),
             cfg,
             FunctionBuildInputs {
+                initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
                 source_metadata_input,
                 entry_context: None,
                 config,
@@ -1383,6 +1434,7 @@ impl FunctionUnit {
             name.to_owned(),
             cfg,
             FunctionBuildInputs {
+                initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
                 source_metadata_input,
                 entry_context: None,
                 config,
@@ -1425,6 +1477,7 @@ impl FunctionUnit {
             "::top".to_owned(),
             cfg,
             FunctionBuildInputs {
+                initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
                 source_metadata_input,
                 entry_context: None,
                 config,
@@ -1507,6 +1560,7 @@ impl FunctionUnit {
             name.into(),
             cfg,
             FunctionBuildInputs {
+                initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
                 source_metadata_input,
                 entry_context: Some(&entry_context),
                 config,
@@ -1559,6 +1613,7 @@ impl FunctionUnit {
             .analysis_context
             .map_or(AnalysisTier::Deep, |key| key.tier);
         let FunctionBuildInputs {
+            initial_state,
             source_metadata_input,
             entry_context,
             config,
@@ -1678,25 +1733,31 @@ impl FunctionUnit {
         // parameter/existence facts to fold them itself.  A method body's
         // instance variables are handed over too, so the fold abstains on
         // object state instead of calling it absent.
-        extend_existence_folds(
-            &mut sccp,
-            &cfg,
-            &ssa,
-            crate::sccp::ExistenceFrame {
-                params,
-                object_state,
-                initial_global,
-            },
-            crate::sccp::ExistenceMetadataInputs {
-                registry,
-                context: source_metadata_input.and_then(|input| {
-                    crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
-                        registry, input,
-                    )
-                }),
-            },
-            config,
-        );
+        // Inherited frames need genuine point contexts for this source-presence
+        // extension; only declared frames may use its fresh-local fallback.
+        if initial_state == crate::sccp::ExistenceInitialState::DeclaredFrame
+            || ssa.point_contexts.is_some()
+        {
+            extend_existence_folds(
+                &mut sccp,
+                &cfg,
+                &ssa,
+                crate::sccp::ExistenceFrame {
+                    params,
+                    object_state,
+                    initial_global,
+                },
+                crate::sccp::ExistenceMetadataInputs {
+                    registry,
+                    context: source_metadata_input.and_then(|input| {
+                        crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                            registry, input,
+                        )
+                    }),
+                },
+                config,
+            );
+        }
         #[cfg(any(test, debug_assertions))]
         phase_trace.phase(5);
         let type_metadata = TypePropagationMetadata {
@@ -2152,6 +2213,9 @@ pub struct CompilationUnit {
     /// Whole-module command trust projected from the binding summary already
     /// prepared for CFG construction.
     pub command_mutations: crate::command_binding::ModuleCommandMutations,
+    /// Complete descriptive source class roster retained by the genuine CU build.
+    /// Synthetic units explicitly retain absence; names grant no Native identity.
+    pub source_class_facts: Option<Arc<RetainedSourceClassFacts>>,
     /// Top-level script analysis.
     pub top_level: FunctionUnit,
     /// Per-procedure analyses keyed by qualified name.
@@ -2227,11 +2291,82 @@ pub struct UnitCallerScope {
     pub(crate) proc_binding_trust: crate::command_binding::ProcBindingTrustProjection,
 }
 
+/// Immutable descriptive class spellings from the genuine source producer.
+/// Construction stays private; the actual Module joins every projection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetainedSourceClassFacts {
+    source: tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    registry: tcl_registry::RegistrySemanticKey,
+    input: Option<crate::analyser::ResolvedAnalysisInput>,
+    entry: crate::command_binding::SourceAnalysisEntry,
+    owner: Option<Arc<crate::command_binding::RetainedSourceModuleBindings>>,
+    names: Arc<HashSet<String>>,
+}
+
+impl RetainedSourceClassFacts {
+    fn retain(
+        module: &IrModule,
+        registry: &CommandRegistry,
+        names: Arc<HashSet<String>>,
+    ) -> Option<Arc<Self>> {
+        if let Some(input) = &module.source_metadata_input {
+            crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)?;
+            if input.lexer_config() != module.lexer_config {
+                return None;
+            }
+            module
+                .retained_source_bindings
+                .as_deref()?
+                .positioned_for_module(module, registry)?;
+        } else if !module.source_entry.metadata_context.is_standalone() {
+            return None;
+        }
+        Some(Arc::new(Self {
+            source: module.source.clone(),
+            config: module.lexer_config,
+            registry: registry.snapshot().semantic_key(),
+            input: module.source_metadata_input.clone(),
+            entry: module.source_entry.clone(),
+            owner: module.retained_source_bindings.clone(),
+            names,
+        }))
+    }
+
+    /// Borrow the complete roster only under its actual source/config/input/store.
+    /// Class spellings provide no occupied Native class or receiver allocation.
+    pub(crate) fn for_module(
+        &self,
+        module: &IrModule,
+        registry: &CommandRegistry,
+    ) -> Option<&HashSet<String>> {
+        if self.source != module.source
+            || self.config != module.lexer_config
+            || self.registry != registry.snapshot().semantic_key()
+            || self.input != module.source_metadata_input
+            || self.entry != module.source_entry
+        {
+            return None;
+        }
+        match (&self.owner, &module.retained_source_bindings) {
+            (Some(owner), Some(current)) if Arc::ptr_eq(owner, current) || owner == current => {
+                owner.positioned_for_module(module, registry)?;
+            }
+            (None, None)
+                if module.source_metadata_input.is_none()
+                    && module.source_entry.metadata_context.is_standalone() => {}
+            _ => return None,
+        }
+        Some(&self.names)
+    }
+}
+
 /// Whole-module facts every per-function build in a [`CompilationUnit`] build
 /// consumes, gathered once.
 struct ModuleWideFacts {
     /// Fully-qualified names of every class defined in the unit.
-    known_class_set: HashSet<String>,
+    known_class_set: Arc<HashSet<String>>,
+    source_class_facts: Option<Arc<RetainedSourceClassFacts>>,
     /// [`Self::known_class_set`], sorted — the form each `LatticeRequest`
     /// carries into its memo key, so a class-set change invalidates the
     /// per-procedure lattices.
@@ -2248,11 +2383,19 @@ impl ModuleWideFacts {
         // Classes come from the signature scanner so this build and the
         // incremental/db build derive an identical set (⇒ identical
         // OBJECT-constructor typing on both paths).
-        let known_class_set = collect_known_classes(source, registry);
+        let roster = collect_known_classes(source, ir_module, registry);
+        let available = roster.is_some();
+        let known_class_set = Arc::new(roster.unwrap_or_default());
+        let source_class_facts = available
+            .then(|| {
+                RetainedSourceClassFacts::retain(ir_module, registry, Arc::clone(&known_class_set))
+            })
+            .flatten();
         let mut known_classes: Vec<String> = known_class_set.iter().cloned().collect();
         known_classes.sort_unstable();
         Self {
             known_class_set,
+            source_class_facts,
             known_classes,
             // A top-level bare name already lives in the global frame, so a
             // call to a procedure that declares it `global` can reassign it
@@ -3117,6 +3260,7 @@ impl CompilationUnit {
         let has_cross_file_evidence = options.external_call_sites.is_some();
         let ModuleWideFacts {
             known_class_set,
+            source_class_facts,
             known_classes,
             top_level_extra_escaping,
             traced_variable_names,
@@ -3212,6 +3356,7 @@ impl CompilationUnit {
             ir_module,
             cfg_module,
             command_mutations,
+            source_class_facts,
             top_level,
             procedures,
             methods,
@@ -3430,6 +3575,7 @@ impl CompilationUnit {
                         qname.clone(),
                         cfg,
                         FunctionBuildInputs {
+                            initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
                             source_metadata_input: module_source_metadata_input(
                                 ir_module, registry,
                             ),
@@ -3893,6 +4039,85 @@ impl CompilationUnit {
             .map(|m| &m.instance_vars)
     }
 
+    /// Build conditional CFG/lattice facts for an authentic original child body.
+    /// The actual CU function and original parent vector select the source;
+    /// report labels supply no body, namespace or entered-frame assumptions.
+    pub(crate) fn conditional_original_body_unit(
+        &self,
+        registry: &CommandRegistry,
+        original_function: &FunctionUnit,
+        parent: &crate::ir::CommandTokens,
+        argument: usize,
+    ) -> Option<FunctionUnit> {
+        // naming.source.original-collection-body-owner
+        // docs/design/analysis/name-resolution-proofs/original-collection-body-owner.md
+        let module = &self.ir_module;
+        if module.source != tcl_lexer::SourceImage::document(&self.source) {
+            return None;
+        }
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)?;
+        let input = module.source_metadata_input.as_ref()?;
+        if input.lexer_config() != module.lexer_config {
+            return None;
+        }
+        module
+            .retained_source_bindings
+            .as_deref()?
+            .positioned_for_module(module, registry)?;
+        original_function.invocation_metadata_context_for_module(registry, module)?;
+        if !self
+            .all_body_function_units()
+            .any(|owned| std::ptr::eq(owned, original_function))
+        {
+            return None;
+        }
+        let script =
+            crate::lowering::Lowerer::original_body_for_module(module, registry, parent, argument)?;
+        script.executed_source.as_ref()?;
+        script.namespace_context.as_ref()?;
+        let config = tcl_lexer::SourceSegmentationPurpose::NestedScript
+            .config(original_function.source_lexer_config());
+        let child_input = input.for_nested_source();
+        let cfg = crate::cfg_builder::build_analysis_body(
+            "::conditional_original_body",
+            &script,
+            crate::ir::ExecutionNamespace::RuntimeSelected,
+            registry,
+            config,
+            child_input.context_registry(),
+        );
+        let known_classes = self
+            .source_class_facts
+            .as_deref()?
+            .for_module(module, registry)?;
+        let context = crate::value_transfer::AnalysisContextKey::for_module(
+            &self.command_mutations,
+            registry,
+        )
+        .with_deferred_writes(module.deferred_writes.clone());
+        Some(FunctionUnit::build_conditional_original_body(
+            cfg,
+            FunctionLatticeInputs {
+                dialect: UnitDialect {
+                    registry,
+                    config,
+                    source_metadata_input: Some(&child_input),
+                },
+                param_constants: None,
+                known_classes,
+                trace_facts: ModuleTraceFacts {
+                    traced_variables: &module.traced_variables,
+                    has_dynamic_variable_trace: module.has_dynamic_variable_trace,
+                    deferred_writes: &module.deferred_writes,
+                },
+                analysis_context: &context,
+                command_trust: &self.command_mutations,
+                // A child script is not the original enclosing event body.
+                event_body: None,
+            },
+        ))
+    }
+
     /// Like [`Self::functions`] but skips the functions the complexity guard
     /// excluded from deep analysis (oversized bodies). Per-proc diagnostic and
     /// optimiser passes iterate this so a guarded body — whose `ssa` and
@@ -3994,6 +4219,24 @@ fn extend_existence_folds(
     );
 }
 
+/// Explicit unknown-frame fallback for an original conditional child.
+/// Genuine child source points still select their own original context.
+fn conditional_function_source_entry(
+    cfg: &CfgFunction,
+    input: Option<&crate::analyser::ResolvedAnalysisInput>,
+) -> crate::var_resolve::ResolveContext {
+    let mut entry = crate::var_resolve::ResolveContext::for_frame(
+        crate::var_resolve::VariableFrameKind::Unknown,
+        crate::var_resolve::BindingIdentity::Bound,
+        input.map(crate::command_binding::source_analysis_entry::source_input_dialect),
+    );
+    entry.namespace_known = false;
+    if let Some(namespace) = cfg.namespace_context.as_deref() {
+        entry = entry.with_namespace_identity(namespace.clone());
+    }
+    entry
+}
+
 /// Preserve the actual retained activation before applying a method overlay.
 pub(crate) fn function_source_entry(
     cfg: &CfgFunction,
@@ -4049,11 +4292,14 @@ pub(crate) fn function_source_entry(
 /// `itcl::class` definitions) so the standalone analyser build and the
 /// incremental/db build derive an *identical* set from the same source — the
 /// precondition for the two paths agreeing on constructor (`Foo new`) typing.
-/// Gated on a cheap substring probe (`class`, the only token both class-defining
-/// heads share) so the overwhelmingly common non-OO source skips the scan
-/// entirely.  A false-positive probe just runs the (still fast) scan; the probe
-/// can never miss a real definition because both heads contain `class`.
-fn collect_known_classes(source: &str, registry: &CommandRegistry) -> HashSet<String> {
+/// The signature result is a descriptive source inventory, independent of
+/// Native allocation or execution. The stock-family scheduling probe below
+/// does not certify the absence of custom or dynamically selected definers.
+fn collect_known_classes(
+    source: &str,
+    module: &IrModule,
+    registry: &CommandRegistry,
+) -> Option<HashSet<String>> {
     // Cheap gate before the full signature scan.  A class is created by
     // `oo::class` / `itcl::class` (both contain "class") **or** by another stock
     // `TclOO` metaclass — `oo::configurable` / `oo::abstract` / `oo::singleton`,
@@ -4063,13 +4309,35 @@ fn collect_known_classes(source: &str, registry: &CommandRegistry) -> HashSet<St
     // `snit::widgetadaptor`) contain neither "class" nor "oo::", so admit
     // `snit::` too, or a pure-snit file's `[Name create obj]` stays untyped.
     if !source.contains("class") && !source.contains("oo::") && !source.contains("snit::") {
-        return HashSet::new();
+        return Some(HashSet::new());
     }
-    crate::signature_scan::extract_signatures(source, registry)
-        .class_declarations
-        .into_iter()
-        .filter_map(|declaration| declaration.source_spelling())
-        .collect()
+    let signatures = if let Some(retained) = module.retained_source_bindings.as_deref() {
+        let Some(bindings) = retained.positioned_for_module(module, registry) else {
+            return None;
+        };
+        if !bindings.matches_original_source_image(&module.source, module.lexer_config) {
+            return None;
+        }
+        crate::signature_scan::extract_signatures_with_original_bindings(
+            source,
+            module.lexer_config,
+            registry,
+            bindings,
+        )
+    } else if module.source_metadata_input.is_none()
+        && module.source_entry.metadata_context.is_standalone()
+    {
+        crate::signature_scan::extract_signatures_with_config(source, module.lexer_config, registry)
+    } else {
+        return None;
+    };
+    Some(
+        signatures
+            .class_declarations
+            .into_iter()
+            .filter_map(|declaration| declaration.source_spelling())
+            .collect(),
+    )
 }
 
 /// Encode interprocedural `param_constants` (caller-uniform-literal SCCP seeds)
@@ -6982,5 +7250,433 @@ mod original_receiver_method_facts_tests {
         assert!(entry.instance_owner.is_empty());
         assert_eq!(entry.execution, original.execution);
         assert_eq!(entry.interpreter, original.interpreter);
+    }
+}
+
+#[cfg(test)]
+mod conditional_original_body_tests {
+    use super::*;
+
+    fn supplied(
+        source: &str,
+        dialect: &str,
+        config: tcl_lexer::LexerConfig,
+    ) -> (CompilationUnit, Arc<tcl_registry::model::ContextRegistry>) {
+        let environment = tcl_registry::model::resolve_known_environment(dialect).unwrap();
+        let context = environment.default_context_registry();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            environment.unit_profile(),
+            Arc::clone(&context),
+            config,
+        );
+        let unit = CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(environment.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        (unit, context)
+    }
+
+    fn side_parent(unit: &CompilationUnit) -> (&FunctionUnit, &crate::ir::CommandTokens) {
+        let function = unit
+            .procedures
+            .values()
+            .find(|fu| fu.name.starts_with("::when::"))
+            .expect("actual event function");
+        let tokens = function
+            .cfg
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .filter_map(|statement| statement.tokens())
+            .find(|tokens| {
+                tokens
+                    .argv_texts
+                    .first()
+                    .is_some_and(|head| head == "clientside")
+            })
+            .expect("original side-switch vector");
+        (function, tokens)
+    }
+
+    #[test]
+    fn conditional_original_child_keeps_source_config_namespace_and_has_no_event_grant() {
+        // naming.source.original-collection-body-owner
+        // docs/design/analysis/name-resolution-proofs/original-collection-body-owner.md
+        // Conditional original syntax/CFG only; no BIG-IP entry or worker claim.
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            base_line: 11,
+            ..tcl_lexer::LexerConfig::from_grammar(environment.grammar())
+        };
+        let (unit, context) = supplied(
+            "when HTTP_REQUEST {clientside {HTTP::collect}; HTTP::release}",
+            "f5-irules",
+            config,
+        );
+        let (function, tokens) = side_parent(&unit);
+        let script = crate::lowering::Lowerer::original_body_for_module(
+            &unit.ir_module,
+            context.commands(),
+            tokens,
+            0,
+        )
+        .expect("genuine retained child source");
+        assert!(script.namespace_context.is_some());
+        let original_source = script.executed_source.as_ref().unwrap();
+        assert_eq!(original_source.try_text().unwrap(), "HTTP::collect");
+        let child = unit
+            .conditional_original_body_unit(context.commands(), function, tokens, 0)
+            .expect("conditional original child");
+        assert_eq!(
+            child.source_lexer_config(),
+            function.source_lexer_config().nested()
+        );
+        assert_eq!(
+            child.source_metadata_input(),
+            Some(
+                &unit
+                    .ir_module
+                    .source_metadata_input
+                    .as_ref()
+                    .unwrap()
+                    .for_nested_source()
+            )
+        );
+        assert_eq!(child.cfg.executed_source.as_ref(), Some(original_source));
+        assert!(child.irules_event_body.is_none());
+        assert!(
+            child
+                .invocation_metadata_context(context.commands())
+                .is_some()
+        );
+        assert!(
+            child
+                .invocation_metadata_context_for_module(context.commands(), &unit.ir_module)
+                .is_some()
+        );
+        assert_eq!(child.cfg.namespace_context, script.namespace_context);
+        assert!(
+            unit.conditional_original_body_unit(context.commands(), &child, tokens, 0)
+                .is_none()
+        );
+        let detached = function.clone();
+        assert!(
+            unit.conditional_original_body_unit(context.commands(), &detached, tokens, 0)
+                .is_none()
+        );
+        let mut changed = tokens.clone();
+        changed.argv_texts[1].push_str("foreign");
+        assert!(
+            unit.conditional_original_body_unit(context.commands(), function, &changed, 0)
+                .is_none()
+        );
+        assert!(
+            unit.conditional_original_body_unit(context.commands(), function, tokens, 1)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn nested_original_children_share_the_actual_root_function_owner() {
+        // naming.source.original-collection-body-owner
+        // docs/design/analysis/name-resolution-proofs/original-collection-body-owner.md
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let (unit, context) = supplied(
+            "when HTTP_REQUEST {clientside {serverside {TCP::collect}}}",
+            "f5-irules",
+            config,
+        );
+        let (original_function, parent) = side_parent(&unit);
+        let child = unit
+            .conditional_original_body_unit(context.commands(), original_function, parent, 0)
+            .expect("first original child");
+        let nested = child
+            .cfg
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .filter_map(|statement| statement.tokens())
+            .find(|tokens| {
+                tokens
+                    .argv_texts
+                    .first()
+                    .is_some_and(|head| head == "serverside")
+            })
+            .expect("actual nested parent vector");
+        let grandchild = unit
+            .conditional_original_body_unit(context.commands(), original_function, nested, 0)
+            .expect("nested original child");
+        assert_eq!(
+            grandchild
+                .cfg
+                .executed_source
+                .as_ref()
+                .unwrap()
+                .try_text()
+                .unwrap(),
+            "TCP::collect"
+        );
+        assert_eq!(
+            grandchild.source_metadata_input(),
+            original_function.source_metadata_input()
+        );
+        assert!(grandchild.irules_event_body.is_none());
+        assert!(
+            unit.conditional_original_body_unit(context.commands(), &child, nested, 0)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_child_withdraws_missing_foreign_and_changed_complete_owners() {
+        // naming.source.original-collection-body-owner
+        // docs/design/analysis/name-resolution-proofs/original-collection-body-owner.md
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let source = "when HTTP_REQUEST {clientside {HTTP::collect}}";
+        let (original, context) = supplied(source, "f5-irules", config);
+        let (function, tokens) = side_parent(&original);
+        assert!(
+            original
+                .conditional_original_body_unit(context.commands(), function, tokens, 0)
+                .is_some()
+        );
+        for axis in 0..6 {
+            let mut changed = original.clone();
+            match axis {
+                0 => changed.source.push_str("foreign"),
+                1 => changed.ir_module.source_metadata_input = None,
+                2 => changed.ir_module.retained_source_bindings = None,
+                3 => changed.ir_module.lexer_config.leading_bom = tcl_lexer::LeadingBom::Skip,
+                4 => changed.source_class_facts = None,
+                _ => {
+                    for function in changed.procedures.values_mut() {
+                        function.source_metadata_input = None;
+                    }
+                }
+            }
+            let (function, tokens) = side_parent(&changed);
+            assert!(
+                changed
+                    .conditional_original_body_unit(context.commands(), function, tokens, 0)
+                    .is_none(),
+                "axis {axis}"
+            );
+        }
+        let foreign = tcl_registry::model::resolve_known_environment("tcl9.1")
+            .unwrap()
+            .default_context_registry();
+        assert!(
+            original
+                .conditional_original_body_unit(foreign.commands(), function, tokens, 0)
+                .is_none()
+        );
+        let foreign_config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..config
+        };
+        let (fresh, _) = supplied(source, "f5-irules", foreign_config);
+        let mut donated = original.clone();
+        donated.source_class_facts = fresh.source_class_facts;
+        let (function, tokens) = side_parent(&donated);
+        assert!(
+            donated
+                .conditional_original_body_unit(context.commands(), function, tokens, 0)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn genuine_roster_retains_empty_classes_and_refuses_owner_donation() {
+        // naming.source.original-collection-body-owner
+        // docs/design/analysis/name-resolution-proofs/original-collection-body-owner.md
+        // Descriptive class spelling only; no Native class allocation/constructor.
+        let environment = tcl_registry::model::resolve_known_environment("tcl").unwrap();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            base_line: 9,
+            ..tcl_lexer::LexerConfig::from_grammar(environment.grammar())
+        };
+        let source = "oo::class create Empty {}";
+        let (unit, context) = supplied(source, "tcl", config);
+        assert!(unit.ir_module.methods.is_empty());
+        let facts = unit.source_class_facts.as_ref().expect("actual roster");
+        assert!(
+            facts
+                .for_module(&unit.ir_module, context.commands())
+                .unwrap()
+                .contains("::Empty")
+        );
+        let same = unit.clone();
+        assert!(Arc::ptr_eq(
+            facts,
+            same.source_class_facts.as_ref().unwrap()
+        ));
+        assert!(
+            facts
+                .for_module(&same.ir_module, context.commands())
+                .is_some()
+        );
+        // A semantic Eq source owner is descriptive, not an allocation or
+        // lifetime receipt. Fresh-vs-memo CU equality must not depend on Arc addresses.
+        let fresh = CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(environment.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            unit.ir_module.source_metadata_input.as_ref().unwrap(),
+        );
+        assert_eq!(
+            unit.ir_module.retained_source_bindings,
+            fresh.ir_module.retained_source_bindings
+        );
+        assert_eq!(unit.source_class_facts, fresh.source_class_facts);
+        assert!(
+            facts
+                .for_module(&fresh.ir_module, context.commands())
+                .is_some()
+        );
+        let (foreign, _) = supplied("oo::class create Foreign {}", "tcl", config);
+        assert!(
+            facts
+                .for_module(&foreign.ir_module, context.commands())
+                .is_none()
+        );
+        let mut changed = unit.ir_module.clone();
+        changed.lexer_config.base_line += 1;
+        assert!(facts.for_module(&changed, context.commands()).is_none());
+        changed = unit.ir_module.clone();
+        changed.source = tcl_lexer::SourceImage::native(source.as_bytes());
+        assert!(facts.for_module(&changed, context.commands()).is_none());
+        changed = unit.ir_module.clone();
+        changed.source_metadata_input = None;
+        assert!(facts.for_module(&changed, context.commands()).is_none());
+    }
+
+    #[test]
+    fn conditional_original_child_inherits_unknown_presence_and_refines_local_stores() {
+        // naming.source.original-collection-body-owner
+        // docs/design/analysis/name-resolution-proofs/original-collection-body-owner.md
+        // Conditional source/lattice facts only; no provider or physical frame claim.
+        let environment = tcl_registry::model::resolve_known_environment("tcl8.6").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let source = "proc p {} {set inherited prior; eval {set copy $inherited; set own fresh; set before $own; unset own; set after $own}}; p";
+        let (unit, context) = supplied(source, "tcl8.6", config);
+        let original = unit.function("::p").expect("actual caller function");
+        let tokens = original
+            .cfg
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .filter_map(|statement| statement.tokens())
+            .find(|tokens| tokens.argv_texts.first().is_some_and(|head| head == "eval"))
+            .expect("original eval parent");
+        let child = unit
+            .conditional_original_body_unit(context.commands(), original, tokens, 0)
+            .expect("actual conditional eval body");
+        let inherited = child.ssa.var_symbol("inherited").expect("inherited read");
+        let own = child.ssa.var_symbol("own").expect("written local");
+        assert_eq!(
+            child.sccp.existence.get(&(inherited, 0)),
+            Some(&tcl_registry::value_transfer::Existence::MayBound)
+        );
+        assert_eq!(
+            child.sccp.existence.get(&(own, 0)),
+            Some(&tcl_registry::value_transfer::Existence::MayBound)
+        );
+        let mut reads: Vec<_> = child.sccp.existence_reads.iter()
+            .filter(|((_, _, symbol), _)| *symbol == own)
+            .filter_map(|(&(block, index, _), &fact)| {
+                let statement = &child.cfg.blocks[&block].statements[index as usize];
+                matches!(statement, crate::ir::Statement::AssignValue { value, .. } if value == "$own")
+                    .then_some((statement.span().start(), fact))
+            }).collect();
+        reads.sort_by_key(|(offset, _)| *offset);
+        assert_eq!(
+            reads.iter().map(|(_, fact)| *fact).collect::<Vec<_>>(),
+            vec![
+                tcl_registry::value_transfer::Existence::Bound(
+                    tcl_registry::value_transfer::BindingKind::Scalar
+                ),
+                tcl_registry::value_transfer::Existence::Unbound,
+            ]
+        );
+        assert!(child.irules_event_body.is_none());
+        assert!(
+            !child
+                .sccp
+                .values
+                .get(&(inherited, 0))
+                .is_some_and(|value| matches!(value, crate::analyses::LatticeValue::Const(_)))
+        );
+    }
+
+    #[test]
+    fn conditional_empty_child_has_no_report_selected_frame_or_parent_entry_donation() {
+        // naming.source.original-collection-body-owner
+        // docs/design/analysis/name-resolution-proofs/original-collection-body-owner.md
+        // Source entry/API control only; no entered caller, event or Native frame.
+        let environment = tcl_registry::model::resolve_known_environment("tcl8.6").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let (unit, context) = supplied("eval {}", "tcl8.6", config);
+        let tokens = unit
+            .top_level
+            .cfg
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .filter_map(|statement| statement.tokens())
+            .find(|tokens| tokens.argv_texts.first().is_some_and(|head| head == "eval"))
+            .expect("original empty body parent");
+        let child = unit
+            .conditional_original_body_unit(context.commands(), &unit.top_level, tokens, 0)
+            .expect("genuine empty conditional body");
+        let fallback = conditional_function_source_entry(&child.cfg, child.source_metadata_input());
+        assert_eq!(
+            fallback.frame_kind,
+            crate::var_resolve::VariableFrameKind::Unknown
+        );
+        assert!(fallback.activation.is_none());
+        assert!(fallback.execution.is_none());
+        assert!(fallback.instance_vars.is_empty());
+        assert!(fallback.execution_name_policy.is_none());
+        assert_eq!(
+            fallback.namespace_identity.as_ref(),
+            child.cfg.namespace_context.as_deref()
+        );
+        let selected = function_source_entry(&child.cfg, Some(&fallback));
+        assert_eq!(
+            selected.frame_kind,
+            crate::var_resolve::VariableFrameKind::Unknown
+        );
+        assert!(selected.activation.is_none());
+        let mut renamed = child.cfg.clone();
+        renamed.name = "::invented::procedure".to_owned();
+        assert_eq!(function_source_entry(&renamed, Some(&fallback)), selected);
+        let mut changed = unit.clone();
+        changed.ir_module.source_entry.unknown_entry = true;
+        assert!(
+            changed
+                .conditional_original_body_unit(context.commands(), &changed.top_level, tokens, 0)
+                .is_none()
+        );
     }
 }

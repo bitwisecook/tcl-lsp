@@ -787,19 +787,6 @@ unsafe fn c_bytes(text: *const c_char) -> Vec<u8> {
     unsafe { CStr::from_ptr(text) }.to_bytes().to_vec()
 }
 
-/// Leave an error in `interp` when the call was given one, answering
-/// `TCL_ERROR`: a C call with a null interpreter reports nothing.
-///
-/// # Safety
-/// `interp` must be null or live.
-unsafe fn report(interp: *mut Interp, message: &[u8], code: Option<&[u8]>) -> c_int {
-    // SAFETY: forwarded per this fn's contract.
-    if let Some(interp) = unsafe { interp.as_mut() } {
-        interp.c_api_error(message, code);
-    }
-    TCL_ERROR
-}
-
 /// A C `long` as a `Tcl_WideInt`, whichever width `long` has.
 fn wide_of_long(value: c_long) -> TclWideInt {
     TclWideInt::try_from(i128::from(value)).unwrap_or(TclWideInt::MAX)

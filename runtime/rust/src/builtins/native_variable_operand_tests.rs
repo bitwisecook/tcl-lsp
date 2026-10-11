@@ -122,6 +122,39 @@ fn compare_public(interp: &mut Interp, code: Code, capture: &str, case: usize) {
     assert_eq!(EVENTS.with(|v| v.borrow().clone()), events);
 }
 
+// Inspect the reached physical GLOBAL table without starting another variable
+// naming operation after refusal. This takes no native value or cell reference.
+fn global_storage(interp: &Interp, tail: &[u8]) -> Option<*mut TclObj> {
+    interp
+        .namespaces()
+        .var_table(crate::namespace::GLOBAL)
+        .load_scalar(tail)
+}
+
+fn reached_refusal(interp: &Interp, mode: u8) -> tcl_runtime_api::NativeExecutionError {
+    let first = interp
+        .native_execution_refusal()
+        .expect("the reached original callback must retain its Host cause");
+    match mode {
+        1 => match &first {
+            tcl_runtime_api::NativeExecutionError::HostCommandRefusal(error) => {
+                assert_eq!(error.reason, "first original builtin variable stage");
+            }
+            _ => panic!("the actual updater's first Host cause must be retained: {first:?}"),
+        },
+        2 => assert_eq!(
+            first,
+            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "stale entered native operation"
+                )
+            )
+        ),
+        _ => panic!("the refusal control must select a real callback mode"),
+    }
+    first
+}
+
 fn bind_jim(interp: &Interp, originals: &[*mut TclObj]) {
     if interp
         .native_invocation_dialect()
@@ -243,7 +276,13 @@ fn original_increment_first_refusal_retains_selected_reached_operand_and_amount_
             }));
             assert_eq!(unsafe { (*amount.as_ptr()).ref_count }, amount_refs);
             assert_eq!(interp.get_obj_result(), prior);
-            assert_eq!(obj::bytes_of(interp.var_get(b"::target").unwrap()), b"1");
+            let first = reached_refusal(&interp, mode);
+            assert_eq!(
+                obj::bytes_of(global_storage(&interp, b"target").unwrap()),
+                b"1"
+            );
+            assert!(interp.var_get(b"::target").is_none());
+            assert_eq!(interp.native_execution_refusal(), Some(first));
             assert!(interp.native_execution_refusal().is_some());
             drop(current);
             assert_eq!(interp.entered_native_operation_count(), 0);
@@ -285,11 +324,15 @@ fn original_unset_prefix_effect_survives_host_refusal_without_reading_later_name
                 Code::Error
             );
             assert_eq!(EVENTS.with(|v| v.borrow().clone()), vec![b'B']);
-            assert!(interp.var_get(b"::target").is_none());
+            let first = reached_refusal(&interp, mode);
+            assert!(global_storage(&interp, b"target").is_none());
             assert_eq!(
-                obj::bytes_of(interp.var_get(b"::survivor").unwrap()),
+                obj::bytes_of(global_storage(&interp, b"survivor").unwrap()),
                 b"STILL"
             );
+            assert!(interp.var_get(b"::target").is_none());
+            assert!(interp.var_get(b"::survivor").is_none());
+            assert_eq!(interp.native_execution_refusal(), Some(first));
             assert!(!obj::has_string_rep(later.as_ptr()));
             assert_eq!(interp.get_obj_result(), prior);
             assert!(interp.native_execution_refusal().is_some());
@@ -344,7 +387,13 @@ fn original_increment_write_callback_keeps_reached_store_before_first_cause_sett
                 &[head.as_ptr(), name.as_ptr(), amount.as_ptr()],
             );
             assert_eq!(code, Code::Error);
-            assert_eq!(obj::bytes_of(interp.var_get(b"::target").unwrap()), b"3");
+            let first = reached_refusal(&interp, mode);
+            assert_eq!(
+                obj::bytes_of(global_storage(&interp, b"target").unwrap()),
+                b"3"
+            );
+            assert!(interp.var_get(b"::target").is_none());
+            assert_eq!(interp.native_execution_refusal(), Some(first));
             assert_eq!(interp.get_obj_result(), prior);
             assert!(interp.native_execution_refusal().is_some());
             assert_eq!(unsafe { (*amount.as_ptr()).ref_count }, amount_refs);

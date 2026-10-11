@@ -252,7 +252,7 @@ fn original_named_declarations_keep_record_name_and_table_key_roles_separate() {
             Some(method_name.as_ptr())
         );
         assert_eq!(unsafe { (*method_name.as_ptr()).ref_count }, 3);
-        assert_eq!(interpreter.eval_str(b"oo::define RenameClass constructor {} {}; oo::define RenameClass destructor {} {}"), Code::Ok);
+        assert_eq!(interpreter.eval_str(b"oo::define RenameClass constructor {} {return}; oo::define RenameClass destructor {return}"), Code::Ok);
         {
             let state = interpreter.oo.borrow();
             let class = &state.classes[&target];
@@ -304,7 +304,7 @@ fn original_rename_verdict_and_counted_headers_match_reached_stock_worker_stages
                 let source = name(0);
                 let destination = name(1);
                 let head = word(b"renamemethod");
-                interpreter.error_with_code(b"PRIOR", b"SEEDED CODE");
+                interpreter.error_with_code(b"BEFORE", b"SEEDED CODE");
                 let code = def_renamemethod(
                     &mut interpreter,
                     &[head.as_ptr(), source.as_ptr(), destination.as_ptr()],
@@ -505,7 +505,7 @@ fn original_self_method_report_keeps_current_entered_name_and_unnamed_roles_dist
         assert_eq!(interpreter.entered_native_operation_count(), 0);
         // Unnamed slots retain no named-record role. Foundation-owned report
         // headers are a separate consumer purpose, not supplied by this owner.
-        assert_eq!(interpreter.eval_str(b"oo::define RenameClass constructor {} {}; oo::define RenameClass destructor {} {}"), Code::Ok);
+        assert_eq!(interpreter.eval_str(b"oo::define RenameClass constructor {} {return}; oo::define RenameClass destructor {return}"), Code::Ok);
         let state = interpreter.oo.borrow();
         assert_eq!(
             state.classes[&target]

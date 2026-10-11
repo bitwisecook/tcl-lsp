@@ -175,6 +175,9 @@ fails.
 - [native-scalar-getters.md](contracts/native-scalar-getters.md) — original-object
   primitive getter purposes, queried C target widths, host numeric effects,
   single-probe failure rendering, and raw Boolean output.
+- [original-secondary-body-analysis.md](contracts/original-secondary-body-analysis.md) —
+  actual source ownership, full parser policy and shared class roster for
+  conditional original child CFG/lattice facts.
 - [retained-explorer-source-views.md](contracts/retained-explorer-source-views.md) —
   actual Module source/configuration/store owners and unavailable Explorer view rendering.
 - [retained-positioned-command-realm.md](contracts/retained-positioned-command-realm.md) —

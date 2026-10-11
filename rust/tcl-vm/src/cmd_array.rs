@@ -194,7 +194,7 @@ fn array_op_entered(
         return array_default_command(vm, rest, None);
     }
     if sub == "set" {
-        return array_set(vm, rest, currency);
+        return array_set_original(vm, rest, currency);
     }
     // `LocateArray` is the one semantic entry for every array subcommand,
     // including the compiler-lowered `::tcl::array::*` commands above. Derive
@@ -381,7 +381,7 @@ fn original_list(
     reached.map_err(|error| completion_from_cmd_error(vm, error))
 }
 
-fn array_set(vm: &mut Vm, rest: &[Value], currency: &NativeOperationCurrency) -> Completion<Value> {
+fn array_set_original(vm: &mut Vm, rest: &[Value], currency: &NativeOperationCurrency) -> Completion<Value> {
     let [name, list] = rest else {
         return crate::command::native_wrong_arguments_message(
             vm,
@@ -711,15 +711,7 @@ fn array_for_loop(
             Ok(false) => continue,
             Err(error) => return completion_from_cmd_error(vm, error.into()),
         }
-        let original_key = match target
-            .cell_id()
-            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "array for actual receiver",
-            ))
-            .and_then(|array| {
-                vm.var_arena
-                    .original_array_key(array, &tcl_core_types::NameBytes::from(key.as_slice()))
-            }) {
+        let original_key = match vm.original_array_key_at(target, key) {
             Ok(key) => key,
             Err(error) => return completion_from_cmd_error(vm, error.into()),
         };

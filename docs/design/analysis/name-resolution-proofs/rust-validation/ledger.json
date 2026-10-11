@@ -214851,6 +214851,51 @@
         "authority": "Reported actual tool outcomes only; not raw process receipts"
       },
       "limits": "The directly retained Python unittest command reports20 tests/OK and closes exit0 with uniform source true. Its complete command/log/source inventory and five actual maintained input hashes are preserved. These finite synthetic controls validate proof integrity/refusal behavior only, including known plain actual test binding, unknown/helper/literal refusal and exact actual document comments. They do not run the full current proof catalog or establish Rust executable/assertion, Native/appliance or benchmark outcomes. The independent Root-reported e5778e20-tests/3-failures and ae23ef20-tests/OK tool observations remain reported observations only; they have no manufactured raw process logs, source snapshots or uniform-source receipts."
+    },
+    {
+      "id": "rust.frozen331.integration-compiler-own-test-build331",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen331/integration-compiler-own-test-build331/receipt.json.gz",
+        "sha256": "b31471c454de72f71100d8409241641ba3048ab9e69bb89074f8b37aeea80f4c",
+        "compression": "gzip",
+        "uncompressed_sha256": "b729b6872fa3263d32a0fe145d81f6fbb0d9d6b4f774db15944c3493913d9540"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen331/integration-compiler-own-test-build331/build.log",
+        "sha256": "53be97880510a6f2e8e2232618ef8bc60ec9e7020c04ca0e68d6476fccb1c5b9"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 240.6902290719736,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen331/integration-proof-gate-finite-tests331/receipt.json.gz",
+        "sha256": "7757f0ae3b82e61d1e683fdc0d1124a9724cb9c6e0453077c17e96f8e081df47",
+        "compression": "gzip",
+        "uncompressed_sha256": "a730304eb53d59cd91891f687a39a05324cc6741c90b26520aec7abc85ff0d70",
+        "json_pointer": "/source/source",
+        "authority": "Identical original37800-leaf Source331 inventory in the directly closed maintained Python receipt. This is source reuse only: Python control results supply no Compiler executable, build or assertion outcome."
+      },
+      "tests": [],
+      "question_ids": [],
+      "sealed_images": {},
+      "limits": "The exact own tcl-compiler --lib --no-run producer closes exit101. Its original log reports rustc-LLVM IO failure on output stream: No space left on device, followed by failure to compile the lib test. The log retains ordinary library/artifact events and warning diagnostics; none is an own test executable. There are zero executable creation events, admitted own Compiler image, executable inventory or assertion summaries. The message establishes the reported output-stream failure only; it does not establish a source correctness result, affected output-file identity or a benchmark/resource-cause conclusion for another operation. Complete original command/source/head/actual-root identities remain exact. The common Source331 Python receipt supplies identical source inventory only, not Compiler credit."
     }
   ]
 }

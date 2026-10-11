@@ -1288,6 +1288,9 @@ mod original_slot_boundary_tests {
             let (mut interpreter, target) = native();
             MODE.with(|selected| selected.set(mode));
             let original = obj::Owned::fresh(obj::alloc_typed(&UPDATER, 0));
+            let original_cache = obj::native_object_snapshot(original.as_ptr()).unwrap().cache;
+            let original_primary = obj::internal_rep(original.as_ptr());
+            assert!(matches!(original_cache, NativeObjectCacheSnapshot::Other));
             interpreter.set_result_bytes(b"PRIOR");
             let prior = interpreter.get_obj_result();
             let epoch = interpreter.oo.borrow().property_foundation_epoch;
@@ -1305,12 +1308,11 @@ mod original_slot_boundary_tests {
                 obj::obj_type_ptr(original.as_ptr()),
                 &UPDATER
             ));
-            assert!(matches!(
-                obj::native_object_snapshot(original.as_ptr())
-                    .unwrap()
-                    .cache,
-                NativeObjectCacheSnapshot::None,
-            ));
+            assert_eq!(
+                obj::native_object_snapshot(original.as_ptr()).unwrap().cache,
+                original_cache,
+            );
+            assert_eq!(obj::internal_rep(original.as_ptr()), original_primary);
             let state = interpreter.oo.borrow();
             assert!(state.classes[&target].readable_properties.is_empty());
             assert!(!state.property_members.contains_key(&(target, true, false)));

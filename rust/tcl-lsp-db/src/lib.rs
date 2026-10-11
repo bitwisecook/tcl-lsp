@@ -4080,6 +4080,7 @@ pub fn function_optimisations<'db>(
         // This per-procedure memo path is entered only after the whole-unit
         // solver proves there are no command mutations.
         command_mutations: tcl_compiler::command_binding::ModuleCommandMutations::default(),
+        source_class_facts: None,
         top_level: top_fu,
         procedures: fu_procs,
         methods: HashMap::new(),
@@ -4313,6 +4314,7 @@ fn top_level_only_unit(
             procedures: HashMap::new(),
         },
         command_mutations: cu.command_mutations.clone(),
+        source_class_facts: cu.source_class_facts.clone(),
         top_level: cu.top_level.clone(),
         procedures: HashMap::new(),
         methods: HashMap::new(),

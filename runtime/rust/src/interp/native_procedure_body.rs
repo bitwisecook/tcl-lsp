@@ -286,9 +286,12 @@ mod tests {
             true,
         )
         .is_err());
-        assert!(
-            crate::typed_value::boolean_in(pointer, interp.native_invocation_dialect()).is_err()
-        );
+        assert!(crate::typed_value::native_boolean_for_interp(
+            interp,
+            pointer,
+            tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
+        )
+        .is_err());
         assert!(ValueOps::discard_native_internal_representation(interp, &pointer).is_err());
         assert!(crate::typed_value::native_scalar_probe(
             pointer,

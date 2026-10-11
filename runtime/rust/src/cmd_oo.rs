@@ -2602,7 +2602,7 @@ fn def_renamemethod(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         oo_original_check!(interp, originals);
         oo_checked!(interp, target_owner.check(interp));
-        interp.set_result_bytes(b"");
+        // The selected stock worker preserves the result on successful rename.
         Code::Ok
     })
 }

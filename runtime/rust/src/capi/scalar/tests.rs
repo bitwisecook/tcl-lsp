@@ -84,10 +84,10 @@ fn scalar_context_rejects_foreign_engine_and_policy_change_and_restore() {
     let value = string(b"17");
     bind(&interpreter, &value);
     let before = obj::native_object_snapshot(value.as_ptr()).unwrap();
-    assert!(
-        unsafe { probe_scalar_getter(Some(&foreign), value.as_ptr(), NativeScalarGetterKind::Int) }
-            .is_err()
-    );
+    assert!(unsafe {
+        probe_scalar_getter(Some(&foreign), value.as_ptr(), NativeScalarGetterKind::Int)
+    }
+    .is_err());
     assert_eq!(obj::native_object_snapshot(value.as_ptr()).unwrap(), before);
     assert!(probe(&value, NativeScalarGetterKind::Int).unwrap().is_ok());
     let value = string(b"19");
@@ -177,11 +177,9 @@ fn scalar_context_duplicate_and_replacement_keep_owner_without_native_refs() {
     bind(&interpreter, &original);
     let refs = unsafe { (*original.as_ptr()).ref_count };
     let duplicate = Owned::fresh(obj::duplicate(original.as_ptr()));
-    assert!(
-        probe(&duplicate, NativeScalarGetterKind::Wide)
-            .unwrap()
-            .is_ok()
-    );
+    assert!(probe(&duplicate, NativeScalarGetterKind::Wide)
+        .unwrap()
+        .is_ok());
     assert_eq!(unsafe { (*original.as_ptr()).ref_count }, refs);
     let unbound = string(b"19");
     obj::duplicate_into(original.as_ptr(), unbound.as_ptr());
@@ -261,13 +259,11 @@ fn scalar_context_missing_numeric_abi_and_first_host_cause_are_terminal() {
         ))
     ));
     assert!(obj::obj_type_ptr(value.as_ptr()).is_null());
-    assert!(
-        crate::engine_abi::value_carriers::scalar(
-            &mut interpreter,
-            &tcl_core_types::NativeScalarCache::Integer(17)
-        )
-        .is_err()
-    );
+    assert!(crate::engine_abi::value_carriers::scalar(
+        &mut interpreter,
+        &tcl_core_types::NativeScalarCache::Integer(17)
+    )
+    .is_err());
     let mut interpreter = core("tcl8.6");
     bind(&interpreter, &value);
     let first = tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
@@ -310,11 +306,9 @@ fn scalar_engine_importer_issues_context_only_for_selected_scalar_purpose() {
     ));
     interpreter.set_host(Rc::new(NoNumeric(interpreter.host())));
     let binary = crate::engine_abi::value_carriers::byte_array(&mut interpreter, b"17").unwrap();
-    assert!(
-        obj::scalar_object_context(binary.as_ptr())
-            .unwrap()
-            .is_none()
-    );
+    assert!(obj::scalar_object_context(binary.as_ptr())
+        .unwrap()
+        .is_none());
     assert!(probe(&binary, NativeScalarGetterKind::Wide).is_err());
 }
 
@@ -384,7 +378,8 @@ fn cache_name(value: &Owned, version: tcl_dialect::TclVersion) -> &'static str {
 }
 
 unsafe fn call(interpreter: *mut Interp, value: &Owned, getter: usize) -> (c_int, String) {
-    let (mut int, mut long, mut wide, mut double) = (777, 777, 777, 777.0_f64);
+    // Match the original public-API probe's output seeds, including its fraction.
+    let (mut int, mut long, mut wide, mut double) = (777, 777, 777, 777.25_f64);
     let code = match getter {
         0 => unsafe { capi::Tcl_GetIntFromObj(interpreter, value.as_ptr(), &mut int) },
         1 => unsafe { capi::Tcl_GetLongFromObj(interpreter, value.as_ptr(), &mut long) },
@@ -533,11 +528,9 @@ fn scalar_jim_context_cannot_borrow_a_foreign_original_numeric_host() {
         .unwrap();
     let before = obj::native_object_snapshot(value.as_ptr()).unwrap();
     assert!(unsafe { bind_scalar_getter_context(&interpreter, value.as_ptr()) }.is_err());
-    assert!(
-        obj::scalar_object_context(value.as_ptr())
-            .unwrap()
-            .is_none()
-    );
+    assert!(obj::scalar_object_context(value.as_ptr())
+        .unwrap()
+        .is_none());
     assert_eq!(obj::native_object_snapshot(value.as_ptr()).unwrap(), before);
     bind(&foreign, &value);
     assert!(matches!(

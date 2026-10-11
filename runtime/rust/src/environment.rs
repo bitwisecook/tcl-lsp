@@ -72,25 +72,6 @@ pub(crate) fn pin_context(
     tcl_registry::model::pin(context)
 }
 
-/// The profile a `trace` subcommand table is gated under: the pinned dialect
-/// profile as it states one, and the plain profile of the release the
-/// interpreter emulates when that is the permissive fallback, which states
-/// none.
-///
-/// Reading the release name alone answered for a vendor pin with the plain
-/// release's table: an iRules interpreter, which emulates 8.4, took `trace
-/// add` from `tcl8.4` though the TMM's Tcl has only the three legacy forms.
-pub(crate) fn gate_profile(
-    pinned: &'static DialectProfile,
-    release: tcl_dialect::TclVersion,
-) -> &'static DialectProfile {
-    if pinned.is_fallback() {
-        profile_for_dialect(release.dialect_profile_name())
-    } else {
-        pinned
-    }
-}
-
 /// The command **store** for `profile` — the resolved environment's
 /// registry generation, replacing the retired
 /// `tcl_registry::cache::registry_for_profile(profile)`.

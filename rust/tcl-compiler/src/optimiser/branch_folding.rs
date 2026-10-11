@@ -707,6 +707,7 @@ mod tests {
                 procedures: HashMap::new(),
             },
             command_mutations: crate::command_binding::ModuleCommandMutations::default(),
+            source_class_facts: None,
             top_level: fu,
             procedures: HashMap::new(),
             methods: HashMap::new(),

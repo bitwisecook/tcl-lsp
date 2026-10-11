@@ -8,6 +8,7 @@ mod native_exists;
 #[path = "native_variable_names/native_tcloo.rs"]
 mod native_tcloo;
 use super::{HashSet, ResolvedVar, Value, VarBinding, VarTableOwner, Vm};
+use crate::command::completion_from_cmd_error;
 use crate::value::NativeObjectLifetimeLease;
 use std::rc::Rc;
 use tcl_runtime_api::Completion;
@@ -26,6 +27,22 @@ type PreparedOriginalVariable = (
 );
 
 impl Vm {
+    /// Delegate the captured actual array target to its original-key owner.
+    /// This creates neither a key header nor a native reference.
+    pub(crate) fn original_array_key_at(
+        &self,
+        target: &tcl_runtime_api::ArrayTarget,
+        key: &[u8],
+    ) -> Result<NativeObjectLifetimeLease, tcl_syntax::value::ValueError> {
+        let array = target.cell_id().ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "array for actual receiver",
+            ),
+        )?;
+        self.var_arena
+            .original_array_key(array, &tcl_core_types::NameBytes::from(key))
+    }
+
     pub(crate) fn native_c_variable_name_protocol(
         &self,
     ) -> Option<tcl_syntax::native_variable_name::NativeVariableNameProtocol> {

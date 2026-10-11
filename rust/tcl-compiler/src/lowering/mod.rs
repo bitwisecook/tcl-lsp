@@ -1739,6 +1739,39 @@ impl<'r> Lowerer<'r> {
         script
     }
 
+    /// Project an original body from the same actual Module and parent vector.
+    /// Only its retained child source and entry namespace select lowering.
+    /// This readonly Script provides no new native compiler, frame or Normal
+    /// receipt; absent child/origin/stage correspondence is terminal.
+    pub(crate) fn original_body_for_module(
+        module: &Module,
+        registry: &'r CommandRegistry,
+        parent: &CommandTokens,
+        argument: usize,
+    ) -> Option<Script> {
+        // naming.source.original-collection-body-owner
+        // docs/design/analysis/name-resolution-proofs/original-collection-body-owner.md
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)?;
+        let input = module.source_metadata_input.as_ref()?;
+        let retained = module.retained_source_bindings.as_deref()?;
+        let bindings = retained.positioned_for_module(module, registry)?;
+        if !retained.owns_original_tokens(parent) {
+            return None;
+        }
+        let body_word = parent.argv.get(argument.checked_add(1)?)?;
+        let source = bindings.executed_script_for_word(*body_word)?.clone();
+        source.try_text().ok()?;
+        let mut lowerer = Self::with_config(registry, module.lexer_config)
+            .with_resolved_analysis_input(input.clone());
+        lowerer.set_source_analysis_options(module.source_entry.options());
+        lowerer.source_bindings = Some(bindings.clone());
+        let namespace = lowerer.original_body_namespace_context(parent, argument, &source)?;
+        // Preserve the independently selected child stage and namespace issuer
+        // before delegating the same original-body semantic owner.
+        bindings.selected_source_in_context(&source, &namespace)?;
+        Some(lowerer.lower_original_body(source, Some(&namespace)))
+    }
+
     /// Retain an original body without inventing a namespace when its entry
     /// context is unknown. Known contexts survive unsupported text/admission.
     fn lower_original_body(

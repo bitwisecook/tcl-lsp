@@ -111,9 +111,20 @@ fn original_lazy_boolean_input_keeps_capacity_and_existing_first_host_metadata()
     let result = interp.get_obj_result();
     interp.refuse_host_command("original scalar first cause");
     let first = interp.native_execution_refusal().unwrap();
-    let error = match super::boolean_in(original.as_ptr(), interp.native_invocation_dialect()) {
+    // This neutral C operand probe measures the original capacity refusal
+    // independently of the prior interpreter cause; it enters no operation.
+    let failure = match super::native_boolean_in(
+        original.as_ptr(),
+        interp.native_invocation_dialect(),
+        tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
+        None,
+    ) {
         Err(error) => error,
         Ok(_) => panic!("original lazy Boolean input must retain the materialisation refusal"),
+    };
+    let error = match failure.native_execution_refusal() {
+        Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(error)) => *error,
+        cause => panic!("original Boolean input must keep its typed capacity refusal: {cause:?}"),
     };
     assert_eq!(error, capacity());
     assert_eq!(

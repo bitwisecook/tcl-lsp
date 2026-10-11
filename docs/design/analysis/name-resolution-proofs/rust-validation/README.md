@@ -4029,3 +4029,25 @@ and `ae23ef` outcome (`20` tests, `OK`, exit `0`). Whole original tool output
 was not retained as filesystem process bytes. These are reported observations,
 with no manufactured raw logs, source snapshots or uniform-source attestations;
 the directly retained Source331 receipt supplies its own bounded result only.
+
+## Source331 own Compiler output-stream failure
+
+The exact `tcl-compiler --lib --no-run` test producer closes exit `101`
+after 240.6902290719736 seconds with uniform source `true`.
+The [whole original log](frozen331/integration-compiler-own-test-build331/build.log)
+reports `rustc-LLVM ERROR: IO failure on output stream: No space left on device`
+and failure to compile the library test. Its ordinary library/artifact events
+and warning diagnostics do not identify an own test executable.
+
+This operation has no executable creation event, admitted own Compiler image,
+executable inventory or assertion summary. The reported output-stream failure
+establishes no source correctness or performance result, no affected output-file
+identity, and no resource-cause conclusion for another operation.
+
+The [exact closed receipt](frozen331/integration-compiler-own-test-build331/receipt.json.gz)
+round-trips to the original bytes and retains complete command, source, HEAD
+and actual compile-root identities. Its source object equals the immutable
+`naming331` snapshot. The independently retained [common 37,800-leaf source inventory](frozen331/integration-proof-gate-finite-tests331/receipt.json.gz)
+at `/source/source` has the same whole source object. That reuse transfers
+source provenance only; the Python suite supplies no Compiler build,
+executable or assertion result.

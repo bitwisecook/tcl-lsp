@@ -358,8 +358,15 @@ impl NativeBooleanExpressionResultOps for OriginalOps<'_> {
             self.currency.as_ref(),
         );
         self.current()?;
-        outcome?;
-        Ok(())
+        match outcome? {
+            Ok(_numeric) => Ok(()),
+            Err(_guest_rejection) => {
+                // TRY_CVT_TO_NUMERIC accepts the reached nonnumeric operand.
+                // The original Number cache/String effects remain in place;
+                // only the outer checked operational failure is terminal.
+                Ok(())
+            }
+        }
     }
     fn original_is_shared(&mut self, value: &Self::Value) -> Result<bool, CmdError> {
         obj::check_native_liveness(*value)?;

@@ -133,14 +133,12 @@ impl NativeOperationCurrency {
 pub(crate) struct NativeOperationScope {
     interpreter: Interp,
     currency: Rc<NativeOperationCurrency>,
-    previous_len: usize,
 }
 
 impl NativeOperationScope {
     pub(crate) fn enter(interpreter: &Interp) -> Result<Self, NativeExecutionError> {
         let currency = Rc::new(NativeOperationCurrency::issue(interpreter)?);
         currency.ensure_current_or_refuse()?;
-        let previous_len = interpreter.entered_native_operations.borrow().len();
         interpreter
             .entered_native_operations
             .borrow_mut()
@@ -148,7 +146,6 @@ impl NativeOperationScope {
         Ok(Self {
             interpreter: interpreter.clone(),
             currency,
-            previous_len,
         })
     }
 
@@ -172,9 +169,15 @@ impl NativeOperationScope {
 impl Drop for NativeOperationScope {
     fn drop(&mut self) {
         let mut entered = self.interpreter.entered_native_operations.borrow_mut();
-        debug_assert_eq!(entered.len(), self.previous_len + 1);
-        let original = entered.pop();
-        debug_assert!(original.is_some_and(|original| Rc::ptr_eq(&original, &self.currency)));
+        // Retained argument and target carriers can retire in a different order
+        // from entry. Withdraw this actual owner without retiring a live sibling.
+        let original = entered
+            .iter()
+            .position(|original| Rc::ptr_eq(original, &self.currency));
+        debug_assert!(original.is_some());
+        if let Some(original) = original {
+            entered.remove(original);
+        }
     }
 }
 
@@ -333,6 +336,69 @@ mod tests {
         NativeExecutionError::ValueAccessRefusal(
             NativeValueAccessRefusal::CommandProtocolUnavailable("stale entered native operation"),
         )
+    }
+
+    #[test]
+    fn original_argument_carriers_retire_independently_without_withdrawing_live_siblings() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Software ownership control; leases do not acquire native references.
+        use crate::interp::native_arguments::OriginalArguments;
+
+        let interpreter = original();
+        let value = obj::Owned::fresh(obj::new_string_bytes(b"retained\0argument"));
+        let argv = [value.as_ptr()];
+        let earliest = OriginalArguments::enter(&interpreter, &argv).unwrap();
+        let middle = OriginalArguments::enter(&interpreter, &argv).unwrap();
+        let latest = OriginalArguments::enter(&interpreter, &argv).unwrap();
+        assert_eq!(interpreter.entered_native_operation_count(), 3);
+        assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 1);
+
+        drop(middle);
+        assert_eq!(interpreter.entered_native_operation_count(), 2);
+        earliest.check().unwrap();
+        latest.check().unwrap();
+        assert_eq!(latest.original(0).unwrap(), value.as_ptr());
+        let nested = OriginalArguments::enter(&interpreter, &argv).unwrap();
+        drop(earliest);
+        assert_eq!(interpreter.entered_native_operation_count(), 2);
+        latest.check().unwrap();
+        nested.check().unwrap();
+        drop(latest);
+        assert_eq!(interpreter.entered_native_operation_count(), 1);
+        nested.check().unwrap();
+        assert_eq!(nested.original(0).unwrap(), value.as_ptr());
+        drop(nested);
+        assert_eq!(interpreter.entered_native_operation_count(), 0);
+        assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 1);
+        assert!(interpreter.native_execution_refusal().is_none());
+    }
+
+    #[test]
+    fn original_argument_early_retirement_does_not_refresh_a_surviving_context_receipt() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual context ABA remains terminal after a different carrier retires.
+        use crate::interp::native_arguments::OriginalArguments;
+
+        let mut interpreter = original();
+        let value = obj::Owned::fresh(obj::new_string_bytes(b"original"));
+        let argv = [value.as_ptr()];
+        let earliest = OriginalArguments::enter(&interpreter, &argv).unwrap();
+        let surviving = OriginalArguments::enter(&interpreter, &argv).unwrap();
+        drop(earliest);
+        assert_eq!(interpreter.entered_native_operation_count(), 1);
+        surviving.check().unwrap();
+        change_and_restore(&mut interpreter);
+        let error = surviving.check().err().expect("original context retired");
+        assert_eq!(error.native_execution_refusal(), Some(&stale()));
+        assert_eq!(interpreter.native_execution_refusal(), Some(stale()));
+        assert!(OriginalArguments::enter(&interpreter, &argv).is_err());
+        assert_eq!(interpreter.entered_native_operation_count(), 1);
+        drop(surviving);
+        assert_eq!(interpreter.entered_native_operation_count(), 0);
+        assert_eq!(interpreter.native_execution_refusal(), Some(stale()));
+        assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 1);
     }
 
     #[test]

@@ -630,32 +630,6 @@ pub fn list_elements(obj: *mut TclObj) -> Result<Vec<*mut TclObj>, tcl_syntax::v
     Ok(unsafe { list_ref(obj) }.elems.elements().to_vec())
 }
 
-/// Selected native byte-list conversion, retaining current element objects
-/// when a list representation already exists. Conversion withdraws any prior
-/// cached Jim string count through the central object type-change owner.
-pub(crate) fn list_elements_in(
-    value: *mut TclObj,
-    syntax: tcl_dialect::ListParse,
-    escapes: tcl_dialect::EscapeSyntax,
-) -> Result<Vec<*mut TclObj>, ListError> {
-    list_elements_using(
-        value,
-        None,
-        syntax,
-        escapes,
-        None,
-        |error| error,
-        |backing| {
-            obj::change_type(
-                value,
-                &TCL_LIST_TYPE,
-                Box::into_raw(backing) as usize as u64,
-            );
-            Ok(())
-        },
-    )
-}
-
 /// Convert original native object-list storage while preserving host refusals.
 pub(crate) fn list_elements_native_checked(
     value: *mut TclObj,
@@ -1175,16 +1149,6 @@ pub(crate) fn replace_elements_native(
     }
     obj::invalidate_string(value.as_ptr());
     Ok(value)
-}
-
-/// `Tcl_ListObjGetElements`'s view: the list's own element array and its
-/// length, after shimmering a string to a list. The array belongs to the list
-/// and is good until the list changes or is freed.
-pub(crate) fn elements_raw(obj: *mut TclObj) -> Result<(*mut *mut TclObj, usize), ListError> {
-    ensure_list(obj)?;
-    // SAFETY: list rep guaranteed; the pointer stays the list's own.
-    let list = unsafe { list_mut(obj) };
-    Ok((list.elems.elements().as_ptr().cast_mut(), list.elems.len()))
 }
 
 /// `Tcl_ListObjAppendElement` — append `elem` (retained) in place and invalidate

@@ -784,15 +784,27 @@ impl TraceInputs<'_> {
     }
 }
 
+/// Initial variable presence, independently of a place's external mutability.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExistenceInitialState {
+    /// A genuine declared frame supplies its parameter and linked-state facts.
+    DeclaredFrame,
+    /// A conditional child may inherit earlier caller writes or destruction.
+    InheritedFrame,
+}
+
 /// What a function's frame binds on entry, for the existence rung
 /// (`docs/design/compiler/value-transfers.md` § *Existence*, the entry
 /// state): parameters bound as scalars; a `TclOO` method's instance
 /// variables and, in an iRules `when` handler, the connection's variables,
 /// linked to state another invocation may have bound; in the document's
 /// initial global frame the registry's special variables as startup binds
-/// them. Every other local enters unbound.
+/// them. Other locals in a declared frame enter unbound; an inherited frame
+/// supplies no incoming absence and starts may-bound.
 #[derive(Clone, Copy)]
 pub struct ExistenceEntry<'a> {
+    /// Whether ordinary places begin in a new declared or inherited frame.
+    pub initial_state: ExistenceInitialState,
     /// The formal parameter names: bound as scalars on entry.
     pub params: &'a [String],
     /// A `TclOO` method body's instance variables
@@ -2951,6 +2963,9 @@ fn entry_fact(
     registry: &CommandRegistry,
     dialect: Option<tcl_dialect::model::SurfaceQuery<'static>>,
 ) -> Existence {
+    if entry.initial_state == ExistenceInitialState::InheritedFrame {
+        return Existence::MayBound;
+    }
     let linked = |name: &str| linked_to_state(name, entry);
     let special = |name: &str| special_at_entry(name, entry, registry, dialect);
     let base = place_base(name);

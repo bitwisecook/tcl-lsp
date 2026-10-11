@@ -859,6 +859,7 @@ impl<'a> ModuleProcedures<'a> {
                 deferred_writes: trace.deferred_writes,
                 analysis_context: self.analysis_context,
                 existence: Some(ExistenceEntry {
+                    initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
                     params: &declared.params,
                     object_state: None,
                     initial_global: false,
@@ -1615,6 +1616,7 @@ impl<'a> ModuleProcedures<'a> {
                 deferred_writes: trace.deferred_writes,
                 analysis_context: Some(inputs.analysis_context),
                 existence: Some(ExistenceEntry {
+                    initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
                     params: &declared.params,
                     object_state: None,
                     initial_global: false,
