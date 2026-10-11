@@ -283,6 +283,17 @@ pub(super) fn word_unwrap(text: &str, word: &[Token]) -> Option<String> {
 /// * `[file join $dir X …]` — path components after `$dir` joined by `/`.
 /// * `$dir/X` — the path tail after a bare `$dir/` prefix.
 fn source_filename(text: &str, arg: &[Token]) -> Option<String> {
+    // Independent on-disk index compatibility, without a document input.
+    source_filename_with_config(text, arg, tcl_lexer::LexerConfig::default())
+}
+
+/// Parse the genuine command-substitution operand with its supplied grammar.
+/// The caller retains the parent word and input; this supplies path syntax only.
+fn source_filename_with_config(
+    text: &str,
+    arg: &[Token],
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
     let raw = word_raw(text, arg);
 
     // `[file join $dir X]` — a single command-substitution word.
@@ -290,7 +301,10 @@ fn source_filename(text: &str, arg: &[Token]) -> Option<String> {
         let start = arg[0].span.start() as usize + arg[0].content_offset as usize;
         let end = arg[0].span.end() as usize;
         let inner = text.get(start..end)?;
-        let cmds = walk_command_words(inner);
+        let cmds = walk_command_words_with_config(
+            inner,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+        );
         if cmds.len() != 1 {
             return None;
         }

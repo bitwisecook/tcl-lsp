@@ -18,7 +18,7 @@
 
 //! Actual-engine package command and package-loader source inventory.
 
-use crate::interp::{Code, Interp};
+use crate::interp::{native_arguments::OriginalArguments, Code, Interp};
 use crate::obj::{self, TclObj};
 use std::collections::BTreeMap;
 use tcl_dialect::{
@@ -109,9 +109,12 @@ fn operand(
     object: *mut TclObj,
     counted: bool,
 ) -> Result<Vec<u8>, Code> {
-    let bytes = interp
-        .native_string_bytes(&object)
-        .map_err(|error| interp.report_cmd_error(error.into()))?;
+    // The command entry survives all effects; lease only the word reached here.
+    let argument = OriginalArguments::enter(interp, &[object])
+        .map_err(|error| interp.report_cmd_error(error))?;
+    let bytes = argument
+        .bytes(0)
+        .map_err(|error| interp.report_cmd_error(error))?;
     Ok(if counted {
         bytes.to_vec()
     } else {
@@ -137,6 +140,19 @@ macro_rules! counted {
 }
 
 fn package_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = package_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn package_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
     let Some(protocol) = interp.native_invocation_dialect().native_package_protocol() else {
         return interp.report_cmd_error(
             tcl_syntax::value::ValueError::CommandProtocolUnavailable("package command").into(),
@@ -154,12 +170,16 @@ fn package_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args_for_invocation(argv, suffix);
     }
     if protocol == NativePackageProtocol::Jim084 {
-        return jim_package(interp, argv, protocol);
+        return jim_package(interp, argv, protocol, arguments);
     }
     let options = protocol.c_members().expect("selected C package table");
     let table =
         tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(options);
-    let sub = match interp.native_index_from_original(argv[1], &table, false, "option") {
+    let selected = interp.native_index_from_original(argv[1], &table, false, "option");
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
+    let sub = match selected {
         Ok(Ok(index)) => options[index],
         Ok(Err(message)) => {
             let word = word!(interp, protocol, argv[1]);
@@ -177,8 +197,8 @@ fn package_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     match sub {
         "provide" => provide(interp, argv, protocol, release),
-        "require" => package_lookup(interp, argv, protocol, release, true),
-        "present" => package_lookup(interp, argv, protocol, release, false),
+        "require" => package_lookup(interp, argv, protocol, release, true, arguments),
+        "present" => package_lookup(interp, argv, protocol, release, false, arguments),
         "ifneeded" => ifneeded(interp, argv, protocol, release),
         "unknown" => unknown(interp, argv, protocol),
         "names" => names(interp, argv),
@@ -186,13 +206,18 @@ fn package_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         "vsatisfies" => vsatisfies_cmd(interp, argv, protocol, release),
         "vcompare" => vcompare_cmd(interp, argv, protocol, release),
         "forget" => forget(interp, argv, protocol),
-        "prefer" => prefer(interp, argv, protocol),
+        "prefer" => prefer(interp, argv, protocol, arguments),
         "files" => files(interp, argv, protocol),
         _ => unreachable!("shared package roster"),
     }
 }
 
-fn jim_package(interp: &mut Interp, argv: &[*mut TclObj], protocol: NativePackageProtocol) -> Code {
+fn jim_package(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    protocol: NativePackageProtocol,
+    arguments: &OriginalArguments,
+) -> Code {
     let member = counted!(interp, protocol, argv[1]);
     let target = if member == b"-help" && argv.len() > 2 {
         Some(counted!(interp, protocol, argv[2]))
@@ -234,7 +259,7 @@ fn jim_package(interp: &mut Interp, argv: &[*mut TclObj], protocol: NativePackag
         }
         "require" if (3..=4).contains(&argv.len()) => {
             let name = word!(interp, protocol, argv[2]);
-            jim_require(interp, &name)
+            jim_require(interp, &name, arguments)
         }
         "forget" if argv.len() >= 3 => forget(interp, argv, protocol),
         "names" | "list" if argv.len() == 2 => names(interp, argv),
@@ -252,17 +277,25 @@ fn jim_package(interp: &mut Interp, argv: &[*mut TclObj], protocol: NativePackag
     }
 }
 
-fn jim_require(interp: &mut Interp, name: &[u8]) -> Code {
+fn jim_require(interp: &mut Interp, name: &[u8], arguments: &OriginalArguments) -> Code {
     let protocol = NativePackageProtocol::Jim084;
     let provided = interp.packages.borrow().provided.get(name).cloned();
     if let Some(version) = provided {
         return publish_version(interp, protocol, name, &version);
     }
-    let Some(paths) = interp.var_get(b"::auto_path") else {
+    let paths = interp.var_get(b"::auto_path");
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
+    let Some(paths) = paths else {
         return jim_load_error(interp, name, b"");
     };
     let paths = obj::Owned::retain(paths);
-    let directories = match interp.list_elements(&paths.as_ptr()) {
+    let selected = interp.list_elements(&paths.as_ptr());
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
+    let directories = match selected {
         Ok(directories) => {
             let mut bytes = Vec::new();
             for directory in directories {
@@ -277,10 +310,18 @@ fn jim_require(interp: &mut Interp, name: &[u8]) -> Code {
             tcl_dialect::PackageProtocol::Jim.direct_files_bytes(&directory, name, true)
         {
             let host = interp.host();
-            let Some(filesystem) = host.filesystem() else {
+            let selected = host.filesystem();
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            let Some(filesystem) = selected else {
                 return jim_load_error(interp, name, b"");
             };
-            let Ok(bytes) = filesystem.read_bytes(&candidate.path) else {
+            let read = filesystem.read_bytes(&candidate.path);
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            let Ok(bytes) = read else {
                 continue;
             };
             {
@@ -299,11 +340,16 @@ fn jim_require(interp: &mut Interp, name: &[u8]) -> Code {
                 }
             };
             if code != Code::Ok {
-                {
+                let retired = {
                     let mut state = interp.packages.borrow_mut();
                     state.provided.remove(name);
-                    state.version_objects.remove(name);
+                    let retired = state.version_objects.remove(name);
                     state.entry_order.remove(name);
+                    retired
+                };
+                drop(retired);
+                if let Err(error) = arguments.check() {
+                    return interp.report_cmd_error(error);
                 }
                 let prior = interp.result_bytes();
                 let message = [
@@ -315,6 +361,9 @@ fn jim_require(interp: &mut Interp, name: &[u8]) -> Code {
                 .concat();
                 interp.set_result_bytes(&message);
                 return code;
+            }
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
             }
             let version = {
                 let mut state = interp.packages.borrow_mut();
@@ -487,6 +536,7 @@ fn package_lookup(
     protocol: NativePackageProtocol,
     release: TclVersion,
     load: bool,
+    arguments: &OriginalArguments,
 ) -> Code {
     let mut index = 2;
     let exact = if let Some(&arg) = argv.get(index) {
@@ -584,18 +634,30 @@ fn package_lookup(
                 }
             }
             if let Some(origin) = origin {
-                if let Err(error) = interp.record_package_source_file(&origin) {
+                let recorded = interp.record_package_source_file(&origin);
+                if let Err(error) = arguments.check() {
                     interp.end_package_loader_files(protocol);
+                    return interp.report_cmd_error(error);
+                }
+                if let Err(error) = recorded {
+                    interp.end_package_loader_files(protocol);
+                    if let Err(first) = arguments.check() {
+                        return interp.report_cmd_error(first);
+                    }
                     return interp.report_cmd_error(error.into());
                 }
             }
             let code = interp.eval_uplevel(0, protocol.c_word(&script));
             interp.end_package_loader_files(protocol);
             if code != Code::Ok {
-                {
+                let retired = {
                     let mut state = interp.packages.borrow_mut();
                     state.provided.remove(&name);
-                    state.version_objects.remove(&name);
+                    state.version_objects.remove(&name)
+                };
+                drop(retired);
+                if let Err(error) = arguments.check() {
+                    return interp.report_cmd_error(error);
                 }
                 if let Some(message) = tcl_dialect::PackageProtocol::Tcl
                     .ifneeded_completion_error_bytes(&name, &version, code.as_int())
@@ -609,6 +671,9 @@ fn package_lookup(
                     );
                 }
                 return code;
+            }
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
             }
             let provided = interp.packages.borrow().provided.get(&name).cloned();
             match provided {
@@ -694,6 +759,9 @@ fn package_lookup(
                 script.extend_from_slice(b" -exact");
             }
             let code = interp.eval_uplevel(0, &script);
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
             if code != Code::Ok {
                 if code != Code::Error {
                     return interp.error_with_code(
@@ -923,7 +991,12 @@ fn forget(interp: &mut Interp, argv: &[*mut TclObj], protocol: NativePackageProt
     Code::Ok
 }
 
-fn prefer(interp: &mut Interp, argv: &[*mut TclObj], protocol: NativePackageProtocol) -> Code {
+fn prefer(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    protocol: NativePackageProtocol,
+    arguments: &OriginalArguments,
+) -> Code {
     if argv.len() > 3 {
         return interp.wrong_args_for_prefix(argv, 2, b"?latest|stable?");
     }
@@ -931,7 +1004,11 @@ fn prefer(interp: &mut Interp, argv: &[*mut TclObj], protocol: NativePackageProt
         let table = tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
             protocol.preference_members().expect("C preference table"),
         );
-        match interp.native_index_from_original(argv[2], &table, false, "preference") {
+        let selected = interp.native_index_from_original(argv[2], &table, false, "preference");
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
+        match selected {
             Ok(Ok(0)) => interp.packages.borrow_mut().prefer = PackagePrefer::Latest,
             Ok(Ok(_)) => {}
             Ok(Err(message)) => {
@@ -1169,6 +1246,9 @@ impl Interp {
         })
     }
 }
+
+#[cfg(test)]
+mod original_argument_tests;
 
 #[cfg(test)]
 mod tests {

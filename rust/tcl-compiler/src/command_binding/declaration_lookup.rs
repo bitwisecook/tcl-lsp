@@ -733,7 +733,7 @@ impl SourceInvocationBinding {
         let Some(segments) = crate::segmenter::segment_commands_image_with_offset_and_config(
             &image,
             body.start(),
-            observation.config,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript.config(observation.config),
         ) else {
             return false;
         };
@@ -899,4 +899,80 @@ fn original_formal_word_retains_root(
             context.contents_origin(&actual),
             crate::var_resolve::ContentsOrigin::Incoming
         )
+}
+
+#[cfg(test)]
+mod original_bracket_parser_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_declaration_bracket_keeps_bom_child_and_complete_parent_owner() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Conditional lookup preservation, without reached or Native dispatch.
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..input.lexer_config()
+        };
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            config,
+        );
+        let context = input.context_registry();
+        let registry = context.commands();
+        for (source, expected) in [
+            ("\u{feff}proc p {} {list [list kept]}", true),
+            ("\u{feff}proc p {} {list [\u{feff}list kept]}", false),
+        ] {
+            let analysis = crate::analyser::Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "tcl9.1");
+            let bindings = analysis
+                .retained_command_realm()
+                .unwrap()
+                .source_bindings_ref();
+            let offset = u32::try_from(source.find("list [").unwrap()).unwrap();
+            let binding = bindings.invocation_at_source("list", offset);
+            let mut tokens = binding.original_recorded_command_tokens().unwrap();
+            bindings.stamp_original_tokens(&mut tokens);
+            let rows = original_declaration_layouts(
+                binding.declaration_layout_observations.as_deref().unwrap(),
+            )
+            .unwrap();
+            let site = binding.invocation_site().unwrap();
+            let words = crate::registry_invocation::original_native_compiler_words(
+                site.source.source_image(),
+                tokens.words(),
+                offset,
+                config,
+            )
+            .unwrap();
+            let word = &words[1];
+            let arena = word.executable_parts();
+            let [part] = arena.list(arena.root()) else {
+                panic!("genuine sole bracket");
+            };
+            let ExecutablePart::Command { body } = part.part else {
+                panic!("original bracket body");
+            };
+            for row in rows {
+                assert_eq!(row.config, config);
+                assert_eq!(word.config(), config);
+                assert_eq!(word.image(), site.source.source_image());
+                assert_eq!(
+                    SourceInvocationBinding::original_bracket_preserves_lookup(
+                        word, body, &tokens, registry, row, 0,
+                    ),
+                    expected,
+                    "{source}"
+                );
+            }
+            assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
+        }
+    }
 }

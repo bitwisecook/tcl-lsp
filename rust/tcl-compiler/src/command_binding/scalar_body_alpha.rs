@@ -162,7 +162,7 @@ fn scalar_alpha_body_site(
     let body_commands = crate::segmenter::segment_commands_image_with_offset_and_config(
         &body.source.text,
         base,
-        config,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
     )?;
     let [body_command] = body_commands.as_slice() else {
         return None;
@@ -574,5 +574,69 @@ mod tests {
         }
         assert!(receipt("proc p {&original} {return $original}", "jimtcl", b"x").is_none());
         assert!(receipt("proc p {original} {return $original}", "jimtcl", b"&x").is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_alpha_body_parser_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_scalar_body_site_keeps_body_bom_and_original_declaration_geometry() {
+        // naming.variable.scalar-formal-body-alpha-equivalence
+        // docs/design/analysis/name-resolution-proofs/scalar-formal-body-alpha-equivalence.md
+        // Genuine declared body geometry, independently of an alpha rewrite receipt.
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let config = LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..input.lexer_config()
+        };
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            config,
+        );
+        let context = input.context_registry();
+        for (source, single) in [
+            ("\u{feff}proc p {original} {\u{feff}return $original}", true),
+            (
+                "\u{feff}proc p {original} {return $original; list other}",
+                false,
+            ),
+        ] {
+            let analysis = crate::analyser::Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "tcl9.1");
+            let declaration = analysis.original_procedure_declarations().next().unwrap();
+            let bindings = analysis
+                .retained_command_realm()
+                .unwrap()
+                .source_bindings_ref();
+            let body = bindings
+                .original_declared_procedure_at(declaration.declaration_site(), context.commands())
+                .unwrap();
+            assert_eq!(declaration.name_input().lexer_config(), config);
+            assert_eq!(declaration.declaration_site().offset, 3);
+            let selected = scalar_alpha_body_site(&body, declaration.declaration_site(), config);
+            assert_eq!(selected.is_some(), single, "{source}");
+            if let Some(selected) = selected {
+                assert_eq!(selected.offset, body.source.base());
+                assert_eq!(selected.source, declaration.declaration_site().source);
+                assert!(
+                    body.source
+                        .text
+                        .bytes()
+                        .starts_with("\u{feff}return".as_bytes())
+                );
+                assert_eq!(
+                    source.get(selected.offset as usize..selected.offset as usize + 3),
+                    Some("\u{feff}")
+                );
+            }
+            assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
+        }
     }
 }

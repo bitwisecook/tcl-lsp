@@ -645,9 +645,11 @@ pub(crate) fn command_substitution_regions(
     match token.kind {
         TokenType::Cmd => vec![strip(start, end)],
         TokenType::Esc if source.as_bytes()[start..end].contains(&b'[') => {
-            let Ok(tokens) =
-                Lexer::with_source_map(SourceMap::new(&source[start..end]), config).tokenise_all()
-            else {
+            let Ok(tokens) = Lexer::with_source_map(
+                SourceMap::new(&source[start..end]),
+                tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+            )
+            .tokenise_all() else {
                 return Vec::new();
             };
             tokens
@@ -1108,5 +1110,57 @@ mod tests {
             vec![u32::try_from(source.rfind("frame").expect("live body")).unwrap()],
             "a reference-only script is matched metadata, not potential execution"
         );
+    }
+}
+
+#[cfg(test)]
+mod original_compound_region_parser_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_compound_operand_keeps_bom_comment_boundary_and_child_coordinates() {
+        // naming.core.original-executable-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-executable-region-context.md
+        // Original compound-word geometry only, without evaluated child or frame authority.
+        let mut prepared = tcl_compiler::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let config = LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..input.lexer_config()
+        };
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            config,
+        );
+        let source = "\u{feff}puts \u{feff}#prefix[format ${a{b}]";
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, "tcl9.1");
+        let commands = segment_commands_with_offset_and_config(source, 0, config);
+        assert_eq!(commands[0].name(), "puts");
+        assert_eq!(commands[0].argv[0].span.start(), 3);
+        let operand = commands[0].argv[1];
+        assert_eq!(operand.kind, TokenType::Esc);
+        let regions = command_substitution_regions(source, config, operand);
+        assert_eq!(regions.len(), 1);
+        assert_eq!(
+            source.get(regions[0].0..regions[0].1),
+            Some("format ${a{b}")
+        );
+        let content = LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Content,
+            ..config
+        };
+        assert_eq!(
+            command_substitution_regions(source, content, operand),
+            regions
+        );
+        let mut foreign = operand;
+        foreign.span = tcl_lexer::Span::new(0, u32::try_from(source.len() + 1).unwrap());
+        assert!(command_substitution_regions(source, config, foreign).is_empty());
+        assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
     }
 }

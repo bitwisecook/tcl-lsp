@@ -21,13 +21,19 @@
 use tcl_lexer::{Lexer, Span, TokenType};
 
 /// Parse one authored Tcl word through the canonical word model. Multiple
-/// words or commands do not supply a value shape.
+/// words or commands do not supply a value shape. The authored word is an
+/// extracted operand; its local parser keeps a leading BOM as content while
+/// the word model retains the complete parent configuration.
 #[must_use]
 pub fn value_word_with_config(
     text: &str,
     config: tcl_lexer::LexerConfig,
 ) -> Option<crate::ir::WordExpr> {
-    let mut commands = crate::segmenter::segment_commands_with_offset_and_config(text, 0, config);
+    let mut commands = crate::segmenter::segment_commands_with_offset_and_config(
+        text,
+        0,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+    );
     if commands.len() != 1 {
         return None;
     }
@@ -850,5 +856,52 @@ mod tests {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod original_value_word_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_authored_value_word_keeps_bom_and_parent_variable_grammar() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Authored operand syntax, without a source entry or evaluated value receipt.
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::default()
+        };
+        let text = "\u{feff}VALUE";
+        let word = value_word_with_config(text, config).unwrap();
+        let crate::ir::WordExpr::Literal {
+            text: value,
+            source,
+        } = word
+        else {
+            panic!("one genuine literal operand");
+        };
+        assert_eq!(value, text);
+        assert_eq!(
+            source.span,
+            Span::new(0, u32::try_from(text.len()).unwrap())
+        );
+        let whole = crate::segmenter::segment_commands_with_offset_and_config(text, 0, config);
+        assert_eq!(whole[0].name(), "VALUE");
+        assert_eq!(whole[0].argv[0].span.start(), 3);
+        let variable = value_word_with_config("${a{b}", config).unwrap();
+        assert_eq!(variable.sole_variable_substitution().unwrap().0, "${a{b}");
+        assert!(value_word_with_config("VALUE other", config).is_none());
+        assert!(value_word_with_config("VALUE; other", config).is_none());
+        let content = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Content,
+            ..config
+        };
+        assert_eq!(
+            value_word_with_config(text, content).unwrap().legacy_text(),
+            text
+        );
     }
 }

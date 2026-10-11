@@ -509,10 +509,11 @@ fn split_command_words(text: &str, config: tcl_lexer::LexerConfig) -> Option<Vec
     if trimmed.is_empty() {
         return Some(Vec::new());
     }
-    let tokens = tcl_lexer::Lexer::with_config(trimmed, config)
+    let local_config = tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config);
+    let tokens = tcl_lexer::Lexer::with_config(trimmed, local_config)
         .tokenise_all()
         .ok()?;
-    let commands = tcl_lexer::group_commands(&tokens, trimmed, config);
+    let commands = tcl_lexer::group_commands(&tokens, trimmed, local_config);
     let [command] = commands.as_slice() else {
         return None;
     };
@@ -582,7 +583,7 @@ fn original_return_command(
     let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
         &image,
         body.start(),
-        ctx.lexer_config(),
+        tcl_lexer::SourceSegmentationPurpose::NestedScript.config(ctx.lexer_config()),
     )?;
     let [command] = commands.as_slice() else {
         return None;
@@ -1372,5 +1373,64 @@ mod tests {
             "expected O121 via run_passes, got {:?}",
             ctx.optimisations,
         );
+    }
+}
+
+#[cfg(test)]
+mod original_tail_parser_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_tail_command_slices_keep_bom_and_retained_return_geometry() {
+        // naming.optimiser.original-tail-call-inventory
+        // docs/design/analysis/name-resolution-proofs/original-tail-call-inventory.md
+        // Original parser geometry only; the inventory retains independent rewrite obligations.
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..input.lexer_config()
+        };
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            config,
+        );
+        let source = "\u{feff}return [\u{feff}f ${a{b}]";
+        let analysis = crate::analyser::Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, "tcl9.1");
+        let bindings = analysis
+            .retained_command_realm()
+            .unwrap()
+            .source_bindings_ref();
+        let binding = bindings.invocation_at_source("return", 3);
+        let mut tokens = binding.original_recorded_command_tokens().unwrap();
+        bindings.stamp_original_tokens(&mut tokens);
+        let mut ctx = PassContext::with_dialect(
+            source,
+            crate::interprocedural::InterproceduralAnalysis::default(),
+            Some(input.analyser_profile()),
+        );
+        ctx.source_lexer_config = Some(config);
+        let (span, command) = original_return_command(&ctx, &tokens).unwrap();
+        let base = source.find("\u{feff}f").unwrap();
+        assert_eq!(span.start(), u32::try_from(base).unwrap());
+        assert_eq!(source.get(span.as_range()), Some(command.as_str()));
+        assert_eq!(command, "\u{feff}f ${a{b}");
+        assert_eq!(
+            split_command_words(&command, config).unwrap(),
+            ["\u{feff}f", "${a{b}"]
+        );
+        assert_eq!(split_call_arguments(&command, config).unwrap(), ["${a{b}"]);
+        assert!(split_command_words("f {*}$args", config).is_none());
+        assert!(split_command_words("f; other", config).is_none());
+        let mut missing = tokens.clone();
+        missing.source_binding = None;
+        assert!(original_return_command(&ctx, &missing).is_none());
+        assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
     }
 }
