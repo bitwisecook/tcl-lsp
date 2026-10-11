@@ -3837,3 +3837,27 @@ path before launching that command. Restoration must preserve any active
 image. Neither the own producer nor the listing extends the selected
 result to current source, complete Core coverage, Native parity or a
 combined validation gate.
+
+## Source325 Runtime engine compilation failure
+
+The own Runtime325 engine library-test no-run producer closes exit `101`
+after 54.759773233992746 seconds with uniform source `true`. The original log
+records seven cfg(test) errors: one `E0616` private `namespaces` field access
+at `cmd_array/original_argument_tests.rs:382` and six `E0716` temporary-borrow
+errors at `cmd_alias.rs:3619`/`:3685` and
+`cmd_array/original_argument_tests.rs:174`/`:176–181`/`:281`/`:283`.
+
+No executable creation event, own Runtime image, inventory or assertion is
+admitted. The [whole original log](frozen325/integration-runtime-own-test-build325/tests.log)
+and [exact failed receipt](frozen325/integration-runtime-own-test-build325/receipt.json.gz)
+retain the actual command, exit and empty assertion summaries.
+This failed producer has no executable or assertion result. Other producers
+do not establish an outcome for this run.
+
+The [complete original source snapshot](frozen325/integration-runtime-own-test-build325/source-snapshot.json.gz)
+retains all 36,960 independently verified source leaves, HEAD
+`657cd39a6fa934edd59f0b4903873dcb6e79382f`, immutable archive `naming325` and its recorded compile
+root `naming-current-validation323`. The checkpoint number does not
+substitute a derived compile-root path. Receipt and snapshot gzip copies
+round-trip to their exact original bytes; the original source and Native
+provider observations retain their separate scopes.

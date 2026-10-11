@@ -214304,6 +214304,52 @@
           "uncompressed_sha256": "9b43cb76b4b144f8bc41747f20633081441134cca8ff0f4b51c1b2fca60e1c32"
         }
       }
+    },
+    {
+      "id": "rust.frozen325.integration-runtime-own-test-build325",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen325/integration-runtime-own-test-build325/receipt.json.gz",
+        "sha256": "d9175645fb7f63260852056833925c024010f151c555b34c04fb90666cd51fa4",
+        "compression": "gzip",
+        "uncompressed_sha256": "b325ced80d9c64f7350fa93b0922af9d7fc163460bacf112ec10199a9e6f1650"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen325/integration-runtime-own-test-build325/tests.log",
+        "sha256": "a7fe73cb470203b33fe3d8306089d072aae813094d1f8ce0ff65e436ed29f118"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "TCL_TOMMATH_DIR=/workspace/tcl-lsp/tmp/tcl9.0.4/libtommath",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "runtime/rust/Cargo.toml",
+        "--features",
+        "engine",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 54.759773233992746,
+      "uniform_source": true,
+      "status": "compile-failed",
+      "result": null,
+      "source_inventory": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen325/integration-runtime-own-test-build325/source-snapshot.json.gz",
+        "sha256": "68bb33883d08cf223b0bb44fc0b816b58cc000d98c4fd7128ca4d7b992729d50",
+        "compression": "gzip",
+        "uncompressed_sha256": "87554577d8dc7d81f7c6695da29ccc7e15a14fdb738e3916e19e31ef9ec4f7fd",
+        "json_pointer": "/source",
+        "authority": "Complete original36960-leaf immutable Source325 is independently verified by every whole-file SHA and exactly equals the failed own receipt source. The actual compile root and two original error-source bodies retain their recorded associations. No source, artifact or operation substitution."
+      },
+      "tests": [],
+      "question_ids": [],
+      "sealed_images": {},
+      "limits": "The own Runtime325 engine library-test no-run producer closes exit101 with seven cfg(test) compile errors: one E0616 private namespaces field access and six E0716 temporary-borrow errors in the alias and array fixtures. No executable creation event, own Runtime image, inventory or assertion is admitted. The original36960-leaf immutable source/head and actual naming-current-validation323 compile root remain distinct exact associations. This failed producer has no executable or assertion result. Independent successful producers and external Native observations do not establish an outcome for this run."
     }
   ]
 }

@@ -505230,6 +505230,268 @@
           "evidence": "rust-tcl-registry-tests-data-native_jim_core_alias_prefix273-jim.h"
         }
       ]
+    },
+    {
+      "id": "naming.source.retained-explorer-consumers",
+      "kind": "implementation-contract",
+      "document": "docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md",
+      "problem_statement": "An Explorer result retains a CompilationUnit, original Module source and complete metadata. Reconstructing a registry or parser from its display dialect label can replace those owners; collapsing an unavailable retained view into an empty array presents a completed analysis that did not occur.",
+      "question": "Do the selected Explorer event-order, optimiser, statistics, annotation and rewritten-source views retain the actual Module full source/input/configuration/command store, and do missing, foreign or changed owners withdraw those views while presentation distinguishes unavailable from completed empty rows?",
+      "conclusion": "The inspected common retained_explorer_source query checks exact result/CU/Module image correspondence, retained positioned realm, original registry, complete resolved input and full lexer configuration. Its selected consumers query the actual CompilationUnit and use explicit local parser purpose. Missing or mismatched owners return unavailable data; independently rewritten source receives its own source producer under supplied complete metadata. Wire/render consumers retain null or absent fields separately from completed arrays, including empty arrays, and preserve independent warning rows.",
+      "scope": "Current inspected Rust and shipped JavaScript/TypeScript source plus eight genuine unexecuted software control definitions: six C/Jim known-environment model ingresses, custom BOM/store selection, thirteen owner changes, independent rewritten source, two Rust view-tree controls and one Node DOM-stand-in integration definition. The common query covers only the listed retained consumers. Other Explorer analyses and standalone fresh-source APIs keep their own independent guards; no exhaustive all-consumer closure is asserted. No matching successful own image, executable inventory, assertion receipt, browser, external C/Jim/BIG-IP execution, Native admission, source-edit permission or measured performance result is attached.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "not tested",
+          "build": "No external provider process for this source/render contract",
+          "input_channel": "Current inspected source and unexecuted software definitions",
+          "dialect": "tcl8.4",
+          "status": "not-tested",
+          "answer": "The linked source/model/render definitions do not execute this external provider. Source advice supplies no handler, Native, body, frame, Normal, cache, effect or edit authority.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.5",
+          "version": "not tested",
+          "build": "No external provider process for this source/render contract",
+          "input_channel": "Current inspected source and unexecuted software definitions",
+          "dialect": "tcl8.5",
+          "status": "not-tested",
+          "answer": "The linked source/model/render definitions do not execute this external provider. Source advice supplies no handler, Native, body, frame, Normal, cache, effect or edit authority.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.6",
+          "version": "not tested",
+          "build": "No external provider process for this source/render contract",
+          "input_channel": "Current inspected source and unexecuted software definitions",
+          "dialect": "tcl8.6",
+          "status": "not-tested",
+          "answer": "The linked source/model/render definitions do not execute this external provider. Source advice supplies no handler, Native, body, frame, Normal, cache, effect or edit authority.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.0",
+          "version": "not tested",
+          "build": "No external provider process for this source/render contract",
+          "input_channel": "Current inspected source and unexecuted software definitions",
+          "dialect": "tcl9.0",
+          "status": "not-tested",
+          "answer": "The linked source/model/render definitions do not execute this external provider. Source advice supplies no handler, Native, body, frame, Normal, cache, effect or edit authority.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.1",
+          "version": "not tested",
+          "build": "No external provider process for this source/render contract",
+          "input_channel": "Current inspected source and unexecuted software definitions",
+          "dialect": "tcl9.1",
+          "status": "not-tested",
+          "answer": "The linked source/model/render definitions do not execute this external provider. Source advice supplies no handler, Native, body, frame, Normal, cache, effect or edit authority.",
+          "evidence": []
+        },
+        {
+          "id": "jim",
+          "version": "not tested",
+          "build": "No external provider process for this source/render contract",
+          "input_channel": "Current inspected source and unexecuted software definitions",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "The linked source/model/render definitions do not execute this external provider. Source advice supplies no handler, Native, body, frame, Normal, cache, effect or edit authority.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "not tested",
+          "build": "No external provider process for this source/render contract",
+          "input_channel": "Current inspected source and unexecuted software definitions",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "The linked source/model/render definitions do not execute this external provider. Source advice supplies no handler, Native, body, frame, Normal, cache, effect or edit authority.",
+          "evidence": []
+        }
+      ],
+      "evidence": [
+        {
+          "id": "retained-explorer-source-0",
+          "path": "editors/vscode/src/compilerExplorerHtml.ts",
+          "sha256": "548dd883db9804c4153bc51286882334a0b9b54a9d6abcf9bd70f478e8ecfa85",
+          "role": "implementation",
+          "description": "Current inspected shared source/render implementation, actual module registration or Node stand-in driver. Definition and ownership purpose only; no executed software, browser or external provider result."
+        },
+        {
+          "id": "retained-explorer-source-1",
+          "path": "rust/tcl-cli/gui/explorer-core.js",
+          "sha256": "071db52767f81c775a45aac30e876ec408cde9284bc4f63b294d2b721a4fcbb4",
+          "role": "implementation",
+          "description": "Current inspected shared source/render implementation, actual module registration or Node stand-in driver. Definition and ownership purpose only; no executed software, browser or external provider result."
+        },
+        {
+          "id": "retained-explorer-source-2",
+          "path": "rust/tcl-cli/gui/index.html",
+          "sha256": "48bbd9f9569800f32e4a682d58fc17974b5482223b178ed89c7238d23d4848f6",
+          "role": "implementation",
+          "description": "Current inspected shared source/render implementation, actual module registration or Node stand-in driver. Definition and ownership purpose only; no executed software, browser or external provider result."
+        },
+        {
+          "id": "retained-explorer-source-3",
+          "path": "rust/tcl-cli/tests/explorer_gui.rs",
+          "sha256": "281aa9090ddcec9ab468355446cd2def4c2c973602793d01c5c846f0135eac37",
+          "role": "implementation",
+          "description": "Current inspected shared source/render implementation, actual module registration or Node stand-in driver. Definition and ownership purpose only; no executed software, browser or external provider result."
+        },
+        {
+          "id": "retained-explorer-source-4",
+          "path": "rust/tcl-cli/tests/gui/explorer-core-retained-views.mjs",
+          "sha256": "77323eb24b6077a3f4d0669bf852e030af5ff8a6dee672293aa4abf1a0369ef3",
+          "role": "implementation",
+          "description": "Current inspected shared source/render implementation, actual module registration or Node stand-in driver. Definition and ownership purpose only; no executed software, browser or external provider result."
+        },
+        {
+          "id": "retained-explorer-source-5",
+          "path": "rust/tcl-compiler/src/realm.rs",
+          "sha256": "91c8ab7cb00140e740eb0eabbe3398be30f6b4bd26b635b1432b3ce22da092c1",
+          "role": "implementation",
+          "description": "Current inspected shared source/render implementation, actual module registration or Node stand-in driver. Definition and ownership purpose only; no executed software, browser or external provider result."
+        },
+        {
+          "id": "retained-explorer-source-6",
+          "path": "rust/tcl-explorer/src/lib.rs",
+          "sha256": "44ee02e5f98c855cc390ad61231510dda89deae387e6b0c7c134584592552eac",
+          "role": "implementation",
+          "description": "Current inspected shared source/render implementation, actual module registration or Node stand-in driver. Definition and ownership purpose only; no executed software, browser or external provider result."
+        },
+        {
+          "id": "retained-explorer-source-7",
+          "path": "rust/tcl-explorer/src/serialise.rs",
+          "sha256": "10fdf5fc9efdd68d82549044b53ac5a9d4d23b3accb6788a28d12e2ab26ba36a",
+          "role": "implementation",
+          "description": "Current inspected shared source/render implementation, actual module registration or Node stand-in driver. Definition and ownership purpose only; no executed software, browser or external provider result."
+        },
+        {
+          "id": "retained-explorer-source-8",
+          "path": "rust/tcl-explorer/src/view_tree.rs",
+          "sha256": "8eedda12f4a29c71953409a1709141c0007332da096c8be3b7d88f17328a907e",
+          "role": "implementation",
+          "description": "Current inspected shared source/render implementation, actual module registration or Node stand-in driver. Definition and ownership purpose only; no executed software, browser or external provider result."
+        },
+        {
+          "id": "retained-explorer-source-9",
+          "path": "rust/tcl-registry/src/events.rs",
+          "sha256": "fd0d722082469b14dbe23693214f6d71e2bd33fd8240462a33b4a644c8213bcc",
+          "role": "implementation",
+          "description": "Current inspected shared source/render implementation, actual module registration or Node stand-in driver. Definition and ownership purpose only; no executed software, browser or external provider result."
+        },
+        {
+          "id": "retained-explorer-source-10",
+          "path": "rust/tcl-registry/src/lib.rs",
+          "sha256": "05be728ead70e6c8e011883a6ee7b96302297673fbb7ff02875c520b754600ea",
+          "role": "implementation",
+          "description": "Current inspected shared source/render implementation, actual module registration or Node stand-in driver. Definition and ownership purpose only; no executed software, browser or external provider result."
+        }
+      ],
+      "source_anchors": [],
+      "owners": [
+        {
+          "path": "rust/tcl-explorer/src/serialise.rs",
+          "symbol": "retained_explorer_source",
+          "purpose": "Check exact result/CU/Module image and complete retained positioned source, registry, resolved input and lexer configuration. Display dialect labels cannot repair a refused actual Module owner."
+        },
+        {
+          "path": "rust/tcl-explorer/src/serialise.rs",
+          "symbol": "rewritten_explorer_result",
+          "purpose": "Construct an independent rewritten source image with supplied actual input, profile, configuration and command store; retain no old-image execution ownership."
+        },
+        {
+          "path": "rust/tcl-explorer/src/serialise.rs",
+          "symbol": "serialise_event_order_for_result",
+          "purpose": "Produce conditional event-order source rows using the retained actual registry/realm, complete configuration and explicit WholeInput parser purpose."
+        },
+        {
+          "path": "rust/tcl-explorer/src/serialise.rs",
+          "symbol": "serialise_optimisations",
+          "purpose": "Query the actual CompilationUnit optimiser under its retained input/configuration/store; refuse unavailable owners as null."
+        },
+        {
+          "path": "rust/tcl-explorer/src/serialise.rs",
+          "symbol": "serialise_optimiser_passes",
+          "purpose": "Use the actual-unit pass producer and retain unavailable versus completed inventory state."
+        },
+        {
+          "path": "rust/tcl-explorer/src/serialise.rs",
+          "symbol": "serialise_stats",
+          "purpose": "Retain the checked original source owner before conditional statistics publication."
+        },
+        {
+          "path": "rust/tcl-explorer/src/serialise.rs",
+          "symbol": "serialise_annotations",
+          "purpose": "Retain the checked original source owner and actual unit when deriving conditional source annotations."
+        },
+        {
+          "path": "rust/tcl-registry/src/events.rs",
+          "symbol": "top_level_when_handlers_with_source_config_and_head_resolver",
+          "purpose": "Select explicit WholeInput or NestedScript parser purpose independently of full parent metadata; use the same selected configuration for event boundaries and priority declarations. No handler execution grant."
+        },
+        {
+          "path": "rust/tcl-compiler/src/realm.rs",
+          "symbol": "document_realm_bindings_for_module",
+          "purpose": "Project the actual retained positioned Module inventory without fresh-analysis fallback; independent Native and edit gates remain required."
+        }
+      ],
+      "tests": [
+        {
+          "path": "rust/tcl-registry/src/events.rs",
+          "selector": "events::original_event_source_config_tests::event_boundary_keeps_full_input_and_nested_bom_purposes_distinct",
+          "status": "linked",
+          "assertion": "A genuine source parser/registry fixture distinguishes WholeInput leading BOM handling from NestedScript and retains the selected configuration for inherited priorities. It establishes source geometry, not BIG-IP handler execution or configuration acceptance."
+        },
+        {
+          "path": "rust/tcl-explorer/src/serialise.rs",
+          "selector": "serialise::retained_explorer_source_tests::retained_explorer_source_keeps_actual_profiles_and_ignores_display_labels",
+          "status": "linked",
+          "assertion": "Six known-environment C/Jim model ingresses retain their actual input, profile, full configuration and command store while a changed display label supplies no semantics. These Rust model definitions are not external provider runs."
+        },
+        {
+          "path": "rust/tcl-explorer/src/serialise.rs",
+          "selector": "serialise::retained_explorer_source_tests::retained_event_order_uses_the_custom_full_config_and_actual_command_store",
+          "status": "linked",
+          "assertion": "A custom full BOM configuration retains exact event-span geometry. An independently changed actual command store removes the event-handler trait and supplies a completed empty inventory. Display labels do not replace either owner."
+        },
+        {
+          "path": "rust/tcl-explorer/src/serialise.rs",
+          "selector": "serialise::retained_explorer_source_tests::retained_explorer_views_refuse_missing_changed_and_foreign_source_owners",
+          "status": "linked",
+          "assertion": "Thirteen missing, changed or foreign image/channel/input/configuration/profile/entry/availability/store owners withdraw the checked event, optimiser, pass, statistics, annotation and rewritten-image views. Independently supplied foreign source strings also refuse; the original retained owner remains positive."
+        },
+        {
+          "path": "rust/tcl-explorer/src/serialise.rs",
+          "selector": "serialise::retained_explorer_source_tests::rewritten_explorer_image_retains_metadata_without_reusing_old_source_ownership",
+          "status": "linked",
+          "assertion": "A new source producer retains complete resolved metadata, command context and configuration while constructing its own image. The rewritten result refuses the old source image and receives no old-image execution or edit receipt."
+        },
+        {
+          "path": "rust/tcl-explorer/src/view_tree.rs",
+          "selector": "view_tree::retained_source_view_tests::unavailable_source_fields_are_distinct_from_completed_empty_views",
+          "status": "linked",
+          "assertion": "Direct Rust wire/render definitions distinguish null and absent retained fields from completed empty arrays and attach no navigable source range to the unavailable row."
+        },
+        {
+          "path": "rust/tcl-explorer/src/view_tree.rs",
+          "selector": "view_tree::retained_source_view_tests::unavailable_event_section_preserves_independent_irules_warnings",
+          "status": "linked",
+          "assertion": "An unavailable event section retains a separately supplied iRules warning row; a completed empty event/warning inventory keeps its empty presentation. This is structural rendering only."
+        },
+        {
+          "path": "rust/tcl-cli/tests/explorer_gui.rs",
+          "selector": "retained_source_unavailable_payload_renders_without_empty_success_claims",
+          "status": "linked",
+          "assertion": "The integration definition removes a real retained owner from an Explorer payload, then drives shipped JavaScript through Node with a DOM stand-in. Actual null payloads, completed empty/current inventories and shell badges remain distinct. Existing Node prerequisite/strict-mode handling remains required; no browser or Tcl-provider execution is asserted."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "Execute each target only through an independently successful matching own producer and exact inventory with its original prerequisites. The CLI Node control is an integration target with existing prerequisite strict-mode handling; a DOM stand-in is not a browser. Keep all execution receipts separate from source/model definitions and obtain complete actual measurements before any performance claim."
+      }
     }
   ]
 }
