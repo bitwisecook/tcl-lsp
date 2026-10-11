@@ -194,7 +194,7 @@ impl NativeOperationCurrency {
         Err(tcl_platform::NumericEnvironmentUnavailable::Target)
     }
 
-    fn retain_refusal(&self, first: &NativeExecutionError) {
+    pub(crate) fn retain_refusal(&self, first: &NativeExecutionError) {
         if let Some(mut interpreter) = self.interpreter.upgrade().map(Interp) {
             interpreter.refuse_native_execution(first.clone());
         }

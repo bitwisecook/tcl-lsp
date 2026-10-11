@@ -61,7 +61,7 @@ use tcl_syntax::number::{self, Number};
 use tcl_syntax::value::IntegerMagnitude;
 use tcl_syntax::value::{ValueError, ValueOps};
 
-use crate::interp::{obj_bytes, Interp};
+use crate::interp::{Interp, obj_bytes};
 use crate::list;
 use crate::obj::{self, TclObj};
 
@@ -338,9 +338,14 @@ impl IncrementContext {
         match self.after(outcome)? {
             Ok(value) => Ok(value),
             Err(failure) => {
-                let presentation = crate::typed_value::native_scalar_failure_presentation(
-                    value, dialect, kind, failure,
-                );
+                let presentation =
+                    crate::typed_value::native_scalar_failure_presentation_with_currency(
+                        value,
+                        dialect,
+                        kind,
+                        failure,
+                        Some(&self.currency),
+                    );
                 let presentation = self.after(presentation)?;
                 Err(ValueError::NativeScalarGetter(Box::new(presentation)).into())
             }
@@ -356,7 +361,10 @@ impl IncrementContext {
         let protocol = dialect
             .native_scalar_getter_protocol()
             .ok_or(ValueError::ScalarNumericInputUnavailable)?;
-        let stored = obj::adopt_native_scalar_cache(value, cache, protocol);
+        let mut check =
+            || crate::typed_value::scalar_object_stage_current(value, Some(&self.currency));
+        let stored =
+            obj::adopt_native_scalar_cache_with_stage_check(value, cache, protocol, &mut check);
         self.after(stored)?;
         obj::invalidate_string(value);
         self.check()
@@ -1223,7 +1231,7 @@ impl ValueOps for Interp {
 
     fn array_existence_result(&mut self, present: bool) -> Result<*mut TclObj, ValueError> {
         use tcl_registry::native_array_compilation::{
-            native_array_existence_result, NativeArrayExistenceResult,
+            NativeArrayExistenceResult, native_array_existence_result,
         };
         if self.observed_name_policy_selected() {
             return Ok(self.new_bool(present));
@@ -1622,7 +1630,9 @@ impl ValueOps for Interp {
     }
 
     fn native_command_full_name_result(&mut self, bytes: &[u8]) -> Result<*mut TclObj, ValueError> {
-        Ok(self.native_namespace_origin_result(bytes)?.into_native_unowned())
+        Ok(self
+            .native_namespace_origin_result(bytes)?
+            .into_native_unowned())
     }
 
     fn try_append_bytes_in_place(&mut self, v: &mut *mut TclObj, bytes: &[u8]) -> bool {

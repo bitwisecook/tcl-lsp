@@ -105,6 +105,32 @@ impl NativeJimObjectContext {
         tcl_cmd_core::native_numeric::fresh_jim_conversion(protocol, kind, original, environment)
     }
 
+    /// Forward this context's actual retained Host through the caller's
+    /// original header/currency checker and single ABI observation cell.
+    /// Pure target/fresh-conversion entries retain their independent route.
+    pub(crate) fn with_numeric_environment_checked<T>(
+        &self,
+        check: &dyn Fn() -> Result<(), ValueError>,
+        abi: &std::cell::Cell<Option<tcl_platform::NativeCIntegerAbi>>,
+        operation: impl FnOnce(&dyn tcl_platform::NumericEnvironment) -> Result<T, ValueError>,
+    ) -> Result<T, ValueError> {
+        check()?;
+        let host = self
+            .numeric_host
+            .borrow()
+            .clone()
+            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+        check()?;
+        let environment = host.numeric_environment();
+        check()?;
+        let environment = environment.ok_or(ValueError::ScalarNumericInputUnavailable)?;
+        let stage = || check().map_err(|_| tcl_platform::NumericEnvironmentUnavailable::Target);
+        let checked = tcl_platform::CheckedNumericEnvironment::new(environment, &stage, abi);
+        let result = operation(&checked);
+        check()?;
+        result
+    }
+
     pub(crate) fn is_live(&self) -> bool {
         self.live.get()
     }

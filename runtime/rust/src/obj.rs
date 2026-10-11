@@ -479,6 +479,7 @@ struct ObjectAuxiliary {
     lifetime_pins: Cell<usize>,
     live: Cell<bool>,
     retiring: Cell<bool>,
+    primary_epoch: Cell<Option<u64>>,
     cache: RefCell<Option<Rc<dyn Any>>>,
     scalar_context: RefCell<
         Option<
@@ -827,6 +828,7 @@ fn obj_alloc() -> *mut TclObj {
                 lifetime_pins: Cell::new(0),
                 live: Cell::new(true),
                 retiring: Cell::new(false),
+                primary_epoch: Cell::new(Some(0)),
                 cache: RefCell::new(None),
                 scalar_context: RefCell::new(None),
             },
@@ -926,27 +928,114 @@ pub(crate) fn obj_type_ptr(obj: *mut TclObj) -> *const TclObjType {
 /// string→typed shimmer (Tcl's dual-rep: the original spelling survives until
 /// the typed value is mutated, which invalidates it via [`invalidate_string`]).
 pub(crate) fn change_type(obj: *mut TclObj, new_type: *const TclObjType, new_rep: u64) {
+    let _ = change_type_using::<tcl_syntax::value::ValueError>(obj, new_type, new_rep, None);
+}
+
+/// Retire the selected old primary before transferring the incoming backing.
+/// Every Err leaves `new_rep` unadopted and owned by the caller. On Ok the
+/// object owns it; no callback or checker runs after the raw field adoption.
+/// A lifetime lease supplies allocation safety, never an extra native reference.
+pub(crate) fn change_type_with_stage_check<E: From<tcl_syntax::value::ValueError>>(
+    value: *mut TclObj,
+    new_type: *const TclObjType,
+    new_rep: u64,
+    check: &mut dyn FnMut() -> Result<(), E>,
+) -> Result<(), E> {
+    change_type_using(value, new_type, new_rep, Some(check))
+}
+
+fn next_primary_epoch(value: *mut TclObj) -> Option<u64> {
+    let state = auxiliary(value);
+    let next = state
+        .primary_epoch
+        .get()
+        .and_then(|epoch| epoch.checked_add(1));
+    state.primary_epoch.set(next);
+    next
+}
+
+fn change_type_using<E: From<tcl_syntax::value::ValueError>>(
+    obj: *mut TclObj,
+    new_type: *const TclObjType,
+    new_rep: u64,
+    mut check: Option<&mut dyn FnMut() -> Result<(), E>>,
+) -> Result<(), E> {
+    use tcl_syntax::value::ValueError;
+    if let Some(check) = check.as_mut() {
+        check()?;
+        check_native_liveness(obj)?;
+    }
+    let _lease = check.as_ref().map(|_| NativeObjectLifetime::retain(obj));
+    let epoch = next_primary_epoch(obj);
+    if check.is_some() && epoch.is_none() {
+        return Err(
+            ValueError::CommandProtocolUnavailable("native primary publication epoch").into(),
+        );
+    }
+    let old = obj_type_ptr(obj);
+    let mut old_rep = internal_rep(obj);
     let retired_cache = auxiliary(obj).cache.take();
-    // SAFETY: `obj` is live; free the prior rep before overwriting `internal_rep`.
+    // SAFETY: the original live header and selected old primary are retained.
     unsafe {
-        let old = (*obj).type_ptr;
         if old.is_null() {
-            // Leaving a *plain string*: its capacity lives in `internal_rep`,
-            // which `new_type` is about to claim for its backing. Keep the bytes
-            // as the cached (immutable) string rep, but first shrink the buffer
-            // to exactly `length + 1` — once `type_ptr` is non-null,
-            // `free_string_buffer` computes the dealloc size as `length + 1`, so
-            // the buffer must match (any spare capacity from `append` would
-            // otherwise be a layout mismatch). The next read returns these bytes
-            // verbatim; an in-place mutation of the new rep drops them.
             shrink_string_to_exact(obj);
+            old_rep = internal_rep(obj);
         } else if let Some(free) = (*old).free_int_rep_proc {
             free(obj);
         }
+    }
+    if let Some(check) = check.as_mut() {
+        // Check first cause now, but settle the reached old primary even when
+        // that check refuses. A reentrant publication must never be cleared.
+        let after_free = check();
+        let same_slot = allocation_is_live(obj)
+            && auxiliary(obj).primary_epoch.get() == epoch
+            && obj_type_ptr(obj) == old
+            && internal_rep(obj) == old_rep;
+        if same_slot {
+            // SAFETY: only this original operation owns the vacated live slot.
+            unsafe {
+                (*obj).type_ptr = core::ptr::null();
+                (*obj).internal_rep = if (*obj).bytes.is_null() || has_canonical_empty_string(obj) {
+                    0
+                } else {
+                    (*obj).length as u64 + 1
+                };
+            }
+        }
+        drop(retired_cache);
+        let after_retirement = check();
+        after_free?;
+        after_retirement?;
+        if !same_slot {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "changed native primary publication slot",
+            )
+            .into());
+        }
+        if auxiliary(obj).primary_epoch.get() != epoch || !obj_type_ptr(obj).is_null() {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "changed native primary publication slot",
+            )
+            .into());
+        }
+        check()?;
+    } else {
+        // Neutral utilities retain their original free -> adoption -> auxiliary
+        // retirement order and perform no entered-operation checks.
+        unsafe {
+            (*obj).type_ptr = new_type;
+            (*obj).internal_rep = new_rep;
+        }
+        drop(retired_cache);
+        return Ok(());
+    }
+    // SAFETY: final original check precedes this callback-free ownership transfer.
+    unsafe {
         (*obj).type_ptr = new_type;
         (*obj).internal_rep = new_rep;
     }
-    drop(retired_cache);
+    Ok(())
 }
 
 /// Drop a reached cache while retaining exact resident storage and capacity.
@@ -1932,6 +2021,39 @@ pub(crate) fn adopt_native_scalar_cache(
     cache: tcl_syntax::scalar_getter::NativeScalarCache,
     protocol: tcl_syntax::scalar_getter::NativeScalarGetterProtocol,
 ) -> Result<(), tcl_syntax::value::ValueError> {
+    adopt_native_scalar_cache_using(value, cache, protocol, None)
+}
+
+pub(crate) fn adopt_native_scalar_cache_with_stage_check(
+    value: *mut TclObj,
+    cache: tcl_syntax::scalar_getter::NativeScalarCache,
+    protocol: tcl_syntax::scalar_getter::NativeScalarGetterProtocol,
+    check: &mut impl FnMut() -> Result<(), tcl_syntax::value::ValueError>,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    let original = scalar_object_context(value)?;
+    let mut current = || {
+        check()?;
+        let now = scalar_object_context(value)?;
+        if match (&original, &now) {
+            (Some(original), Some(now)) => !original.same_issuer(now),
+            (None, None) => false,
+            _ => true,
+        } {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "changed native scalar cache issuer",
+            ));
+        }
+        Ok(())
+    };
+    adopt_native_scalar_cache_using(value, cache, protocol, Some(&mut current))
+}
+
+fn adopt_native_scalar_cache_using(
+    value: *mut TclObj,
+    cache: tcl_syntax::scalar_getter::NativeScalarCache,
+    protocol: tcl_syntax::scalar_getter::NativeScalarGetterProtocol,
+    check: Option<&mut dyn FnMut() -> Result<(), tcl_syntax::value::ValueError>>,
+) -> Result<(), tcl_syntax::value::ValueError> {
     use tcl_syntax::{number::Number, scalar_getter::NativeScalarCache};
     check_native_liveness(value)?;
     if let Some(issuer) = scalar_object_context(value)? {
@@ -1942,19 +2064,19 @@ pub(crate) fn adopt_native_scalar_cache(
             if protocol.tcl_version() != Some(tcl_dialect::TclVersion::V8_4) {
                 return Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable);
             }
-            change_type(value, &TCL_LONG84_TYPE, integer as u64);
+            change_type_using(value, &TCL_LONG84_TYPE, integer as u64, check)?;
         }
         NativeScalarCache::Number(Number::Int(integer)) => {
-            change_type(value, &TCL_INT_TYPE, integer as u64);
+            change_type_using(value, &TCL_INT_TYPE, integer as u64, check)?;
         }
         NativeScalarCache::Number(Number::Double(double)) => {
-            change_type(value, &TCL_DOUBLE_TYPE, double.to_bits());
+            change_type_using(value, &TCL_DOUBLE_TYPE, double.to_bits(), check)?;
         }
         NativeScalarCache::Number(Number::Nan { negative, payload }) => {
             let bits = (u64::from(negative) << 63)
                 | 0x7ff8_0000_0000_0000
                 | (payload.unwrap_or(0) & 0x0007_ffff_ffff_ffff);
-            change_type(value, &TCL_DOUBLE_TYPE, bits);
+            change_type_using(value, &TCL_DOUBLE_TYPE, bits, check)?;
         }
         NativeScalarCache::Number(Number::Big {
             negative,
@@ -1962,7 +2084,11 @@ pub(crate) fn adopt_native_scalar_cache(
             digits,
         }) => {
             #[cfg(have_tommath)]
-            if crate::bignum::adopt_native_big(value, negative, radix, &digits) {
+            if if let Some(check) = check {
+                crate::bignum::adopt_native_big_using(value, negative, radix, &digits, Some(check))?
+            } else {
+                crate::bignum::adopt_native_big(value, negative, radix, &digits)
+            } {
                 return Ok(());
             }
             #[cfg(not(have_tommath))]
@@ -1978,10 +2104,10 @@ pub(crate) fn adopt_native_scalar_cache(
                 Some(tcl_dialect::TclVersion::V9_1) => &NATIVE_WORD_BOOLEAN_91_TYPE,
                 None => return Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable),
             };
-            change_type(value, descriptor, u64::from(boolean));
+            change_type_using(value, descriptor, u64::from(boolean), check)?;
         }
         NativeScalarCache::JimCoercedInteger(integer) => {
-            change_type(value, &JIM_COERCED_DOUBLE_TYPE, integer as u64);
+            change_type_using(value, &JIM_COERCED_DOUBLE_TYPE, integer as u64, check)?;
         }
     }
     Ok(())
@@ -2206,6 +2332,7 @@ pub(crate) fn duplicate(src: *mut TclObj) -> *mut TclObj {
 
 /// Replace one live object's representations with a duplicate, keeping its identity and refs.
 pub(crate) fn duplicate_into(receiver: *mut TclObj, source: *mut TclObj) {
+    let _ = next_primary_epoch(receiver);
     let duplicate = duplicate(source);
     replace_scalar_object_context(receiver, source);
     // SAFETY: both objects are live, and duplicate owns independent string/type storage.
@@ -2666,3 +2793,7 @@ mod double_precision_tests {
 pub(crate) mod native_jim_enum;
 pub(crate) mod native_method_name;
 pub(crate) mod native_property_name;
+
+#[cfg(test)]
+#[path = "obj/native_scalar_adoption_tests.rs"]
+mod native_scalar_adoption_tests;

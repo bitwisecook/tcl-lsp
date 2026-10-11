@@ -5,26 +5,26 @@
 
 use crate::{
     interp::{
-        native_operation_currency::{CheckedNumericEnvironment, NativeOperationCurrency},
         Interp,
+        native_operation_currency::{CheckedNumericEnvironment, NativeOperationCurrency},
     },
     obj::{self, Owned, TclObj},
 };
 use std::{cell::Cell, rc::Rc};
 use tcl_cmd_core::{
-    native_boolean_truth::{
-        original_boolean_expression_result, original_boolean_truth,
-        NativeBooleanExpressionResultOps, NativeBooleanTruthOps,
-    },
     CmdError,
+    native_boolean_truth::{
+        NativeBooleanExpressionResultOps, NativeBooleanTruthOps,
+        original_boolean_expression_result, original_boolean_truth,
+    },
 };
 use tcl_registry::{
+    InvocationDialect,
     native_boolean_truth::{
         NativeBooleanExpressionResultProduction as Production,
         NativeBooleanExpressionResultProtocol as ResultProtocol,
         NativeBooleanTruthProtocol as TruthProtocol, NativeBooleanTruthPurpose as Purpose,
     },
-    InvocationDialect,
 };
 use tcl_syntax::{
     native_boolean_truth::NativeBooleanTruthProbe as Probe,
@@ -261,8 +261,13 @@ impl NativeBooleanTruthOps for OriginalOps<'_> {
         failure: Failure,
     ) -> Result<CmdError, CmdError> {
         self.checked(*value, protocol)?;
-        let record =
-            super::native_scalar_failure_presentation(*value, self.dialect, kind, failure)?;
+        let record = super::native_scalar_failure_presentation_with_currency(
+            *value,
+            self.dialect,
+            kind,
+            failure,
+            self.currency.as_ref(),
+        )?;
         Ok(ValueError::NativeScalarGetter(Box::new(record)).into())
     }
     fn publish_intermediate_failure(&mut self, failure: CmdError) -> Result<(), CmdError> {

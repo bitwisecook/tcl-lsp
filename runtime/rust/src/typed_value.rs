@@ -115,12 +115,68 @@ pub(crate) fn native_scalar_probe_with_environment_and_currency(
     >,
     tcl_syntax::value::ValueError,
 > {
+    scalar_with_original_lifetime(value, currency, || {
+        let abi = std::cell::Cell::new(None);
+        let check = || {
+            scalar_object_stage_current(value, currency)
+                .map_err(|_| tcl_platform::NumericEnvironmentUnavailable::Target)
+        };
+        let checked = environment
+            .filter(|_| currency.is_some())
+            .map(|actual| tcl_platform::CheckedNumericEnvironment::new(actual, &check, &abi));
+        let environment = checked
+            .as_ref()
+            .map(|actual| actual as &dyn tcl_platform::NumericEnvironment)
+            .or(environment);
+        scalar_probe_using(value, dialect, kind, environment, currency, &abi)
+    })
+}
+
+// An outer environment supplies no Jim issuer. Query the retained context's
+// actual Host only when the existing recipe reaches an environment stage.
+fn scalar_numeric_environment_using<T>(
+    value: *mut TclObj,
+    protocol: tcl_syntax::scalar_getter::NativeScalarGetterProtocol,
+    environment: Option<&dyn tcl_platform::NumericEnvironment>,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+    abi: &std::cell::Cell<Option<tcl_platform::NativeCIntegerAbi>>,
+    operation: impl FnOnce(
+        &dyn tcl_platform::NumericEnvironment,
+    ) -> Result<T, tcl_syntax::value::ValueError>,
+) -> Result<T, tcl_syntax::value::ValueError> {
+    if currency.is_some() && protocol.is_jim084() {
+        let context = crate::native_source::context(value)?;
+        let check = || scalar_jim_stage_current(value, currency, &context);
+        context.with_numeric_environment_checked(&check, abi, operation)
+    } else {
+        operation(environment.ok_or(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable)?)
+    }
+}
+
+fn scalar_probe_using(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
+    environment: Option<&dyn tcl_platform::NumericEnvironment>,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+    abi: &std::cell::Cell<Option<tcl_platform::NativeCIntegerAbi>>,
+) -> Result<
+    Result<
+        tcl_syntax::scalar_getter::NativeScalarGetterValue,
+        tcl_syntax::scalar_getter::NativeScalarGetterFailure,
+    >,
+    tcl_syntax::value::ValueError,
+> {
     use tcl_syntax::value::ValueError;
-    scalar_stage_current(currency)?;
+    scalar_object_stage_current(value, currency)?;
     obj::check_native_liveness(value)?;
     let protocol = dialect
         .native_scalar_getter_protocol()
         .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+    if currency.is_some() && protocol.is_jim084() {
+        let context = crate::native_source::context(value)?;
+        scalar_jim_stage_current(value, currency, &context)?;
+    }
     if obj::native_word_boolean_version(value)
         .is_some_and(|version| Some(version) != protocol.tcl_version())
     {
@@ -128,20 +184,45 @@ pub(crate) fn native_scalar_probe_with_environment_and_currency(
     }
     let cache = obj::native_scalar_cache(value)?;
     if let (Some(environment), Some(cache)) = (environment, cache.as_ref()) {
-        let admitted = tcl_cmd_core::native_numeric::scalar_getter_recipe_abi(
+        let admitted = scalar_numeric_environment_using(
+            value,
             protocol,
-            kind,
-            tcl_syntax::scalar_getter::NativeScalarGetterStage::Cached(cache),
-            environment,
+            Some(environment),
+            currency,
+            abi,
+            |actual| {
+                tcl_cmd_core::native_numeric::scalar_getter_recipe_abi(
+                    protocol,
+                    kind,
+                    tcl_syntax::scalar_getter::NativeScalarGetterStage::Cached(cache),
+                    actual,
+                )
+            },
         );
-        scalar_stage_current(currency)?;
+        scalar_object_stage_current(value, currency)?;
         admitted?;
     }
     let target = if protocol.requires_target(kind, cache.as_ref()) {
-        Some(if let Some(environment) = environment {
-            tcl_cmd_core::native_numeric::scalar_getter_target(environment)?
+        Some(if currency.is_some() && protocol.is_jim084() {
+            let result = scalar_numeric_environment_using(
+                value,
+                protocol,
+                environment,
+                currency,
+                abi,
+                |actual| tcl_cmd_core::native_numeric::scalar_getter_target(actual),
+            );
+            scalar_object_stage_current(value, currency)?;
+            result?
+        } else if let Some(environment) = environment {
+            let result = tcl_cmd_core::native_numeric::scalar_getter_target(environment);
+            scalar_object_stage_current(value, currency)?;
+            result?
         } else if protocol.is_jim084() {
-            crate::native_source::context(value)?.scalar_getter_target()?
+            let context = crate::native_source::context(value)?;
+            let result = context.scalar_getter_target();
+            scalar_object_stage_current(value, currency)?;
+            result?
         } else {
             return Err(ValueError::ScalarNumericInputUnavailable);
         })
@@ -159,18 +240,27 @@ pub(crate) fn native_scalar_probe_with_environment_and_currency(
     } else {
         if kind != tcl_syntax::scalar_getter::NativeScalarGetterKind::Boolean {
             if let Some(environment) = environment {
-                let admitted = tcl_cmd_core::native_numeric::scalar_getter_recipe_abi(
+                let admitted = scalar_numeric_environment_using(
+                    value,
                     protocol,
-                    kind,
-                    tcl_syntax::scalar_getter::NativeScalarGetterStage::Fresh,
-                    environment,
+                    Some(environment),
+                    currency,
+                    abi,
+                    |actual| {
+                        tcl_cmd_core::native_numeric::scalar_getter_recipe_abi(
+                            protocol,
+                            kind,
+                            tcl_syntax::scalar_getter::NativeScalarGetterStage::Fresh,
+                            actual,
+                        )
+                    },
                 );
-                scalar_stage_current(currency)?;
+                scalar_object_stage_current(value, currency)?;
                 admitted?;
             }
         }
         let original = crate::bytearray::scalar_getter_string(value, protocol);
-        scalar_stage_current(currency)?;
+        scalar_object_stage_current(value, currency)?;
         let original = original?;
         if protocol.is_jim084()
             && matches!(
@@ -182,16 +272,31 @@ pub(crate) fn native_scalar_probe_with_environment_and_currency(
         {
             let context = crate::native_source::context(value)
                 .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
-            if let Some(environment) = environment {
+            let result = if currency.is_some() {
+                scalar_numeric_environment_using(
+                    value,
+                    protocol,
+                    environment,
+                    currency,
+                    abi,
+                    |actual| {
+                        tcl_cmd_core::native_numeric::fresh_jim_conversion(
+                            protocol, kind, &original, actual,
+                        )
+                    },
+                )
+            } else if let Some(environment) = environment {
                 tcl_cmd_core::native_numeric::fresh_jim_conversion(
                     protocol,
                     kind,
                     &original,
                     environment,
-                )?
+                )
             } else {
-                context.fresh_numeric_conversion(protocol, kind, &original)?
-            }
+                context.fresh_numeric_conversion(protocol, kind, &original)
+            };
+            scalar_object_stage_current(value, currency)?;
+            result?
         } else if let Some(environment) =
             environment.filter(|_| protocol.tcl_version() == Some(tcl_dialect::TclVersion::V8_4))
         {
@@ -211,12 +316,12 @@ pub(crate) fn native_scalar_probe_with_environment_and_currency(
     let (materialize, cache, outcome) = conversion.into_parts();
     if materialize {
         let original = crate::bytearray::scalar_getter_string(value, protocol);
-        scalar_stage_current(currency)?;
+        scalar_object_stage_current(value, currency)?;
         original?;
     }
-    scalar_stage_current(currency)?;
+    scalar_object_stage_current(value, currency)?;
     if let Some(cache) = cache {
-        obj::adopt_native_scalar_cache(value, cache, protocol)?;
+        adopt_scalar_cache_for_original(value, cache, protocol, currency)?;
     }
     Ok(outcome)
 }
@@ -228,6 +333,100 @@ fn scalar_stage_current(
         currency
             .ensure_current_or_refuse()
             .map_err(|_| tcl_syntax::value::ValueError::ScalarNumericInputUnavailable)?;
+    }
+    Ok(())
+}
+
+/// Check the actual operand header and retained operation before another stage.
+/// Compatibility ValueError never replaces the full first cause retained here.
+pub(crate) fn scalar_object_stage_current(
+    value: *mut TclObj,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    scalar_stage_current(currency)?;
+    if currency.is_none() {
+        return Ok(());
+    }
+    if let Err(error) = obj::check_native_liveness(value) {
+        if let (Some(currency), Some(refusal)) = (currency, error.native_access_refusal()) {
+            currency.retain_refusal(&tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                refusal,
+            ));
+        }
+        return Err(error);
+    }
+    Ok(())
+}
+
+fn adopt_scalar_cache_for_original(
+    value: *mut TclObj,
+    cache: tcl_syntax::scalar_getter::NativeScalarCache,
+    protocol: tcl_syntax::scalar_getter::NativeScalarGetterProtocol,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    if currency.is_some() {
+        let mut check = || scalar_object_stage_current(value, currency);
+        let result =
+            obj::adopt_native_scalar_cache_with_stage_check(value, cache, protocol, &mut check);
+        scalar_object_stage_current(value, currency)?;
+        if let Err(error) = &result {
+            if let (Some(currency), Some(refusal)) = (currency, error.native_access_refusal()) {
+                currency.retain_refusal(
+                    &tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(refusal),
+                );
+            }
+        }
+        result
+    } else {
+        obj::adopt_native_scalar_cache(value, cache, protocol)
+    }
+}
+
+fn scalar_with_original_lifetime<T>(
+    value: *mut TclObj,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+    operation: impl FnOnce() -> Result<T, tcl_syntax::value::ValueError>,
+) -> Result<T, tcl_syntax::value::ValueError> {
+    if currency.is_none() {
+        return operation();
+    }
+    scalar_object_stage_current(value, currency)?;
+    let lease = obj::NativeObjectLifetime::retain(value);
+    let result = operation();
+    if let Err(error) = &result {
+        retain_scalar_refusal(currency, error);
+    }
+    let current = scalar_object_stage_current(value, currency);
+    drop(lease);
+    current?;
+    // After final allocation-only retirement the old header may no longer
+    // exist. Only the genuine operation receipt is queried at this boundary.
+    scalar_stage_current(currency)?;
+    result
+}
+
+fn retain_scalar_refusal(
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+    error: &tcl_syntax::value::ValueError,
+) {
+    if let (Some(currency), Some(refusal)) = (currency, error.native_access_refusal()) {
+        currency.retain_refusal(&tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+            refusal,
+        ));
+    }
+}
+
+fn scalar_jim_stage_current(
+    value: *mut TclObj,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+    context: &crate::native_source::NativeJimObjectContext,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    scalar_object_stage_current(value, currency)?;
+    if !context.is_live() {
+        let error =
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("retired Jim interpreter");
+        retain_scalar_refusal(currency, &error);
+        return Err(error);
     }
     Ok(())
 }
@@ -256,8 +455,22 @@ pub(crate) fn native_number_probe_with_currency(
     Result<tcl_syntax::number::Number, tcl_syntax::scalar_getter::NativeScalarGetterFailure>,
     tcl_syntax::value::ValueError,
 > {
+    scalar_with_original_lifetime(value, currency, || {
+        native_number_probe_using(value, dialect, kind, currency)
+    })
+}
+
+fn native_number_probe_using(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    kind: tcl_syntax::scalar_getter::NativeNumberGetterKind,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+) -> Result<
+    Result<tcl_syntax::number::Number, tcl_syntax::scalar_getter::NativeScalarGetterFailure>,
+    tcl_syntax::value::ValueError,
+> {
     use tcl_syntax::value::ValueError;
-    scalar_stage_current(currency)?;
+    scalar_object_stage_current(value, currency)?;
     obj::check_native_liveness(value)?;
     let protocol = dialect
         .native_scalar_getter_protocol()
@@ -284,16 +497,16 @@ pub(crate) fn native_number_probe_with_currency(
         conversion
     } else {
         let original = crate::bytearray::scalar_getter_string(value, protocol);
-        scalar_stage_current(currency)?;
+        scalar_object_stage_current(value, currency)?;
         let original = original?;
         protocol
             .fresh_number_conversion(kind, &original)
             .ok_or(ValueError::ScalarNumericInputUnavailable)?
     };
     let (cache, outcome) = conversion.into_parts();
-    scalar_stage_current(currency)?;
+    scalar_object_stage_current(value, currency)?;
     if let Some(cache) = cache {
-        obj::adopt_native_scalar_cache(value, cache, protocol)?;
+        adopt_scalar_cache_for_original(value, cache, protocol, currency)?;
     }
     Ok(outcome)
 }
@@ -314,11 +527,30 @@ pub(crate) fn native_scalar_getter_with_environment(
     kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
     environment: Option<&dyn tcl_platform::NumericEnvironment>,
 ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterValue, tcl_syntax::value::ValueError> {
+    native_scalar_getter_with_environment_and_currency(value, dialect, kind, environment, None)
+}
+
+pub(crate) fn native_scalar_getter_with_environment_and_currency(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
+    environment: Option<&dyn tcl_platform::NumericEnvironment>,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterValue, tcl_syntax::value::ValueError> {
     use tcl_syntax::value::ValueError;
-    match native_scalar_probe_with_environment(value, dialect, kind, environment)? {
+    match native_scalar_probe_with_environment_and_currency(
+        value,
+        dialect,
+        kind,
+        environment,
+        currency,
+    )? {
         Ok(result) => Ok(result),
         Err(failure) => {
-            let record = native_scalar_failure_presentation(value, dialect, kind, failure)?;
+            let record = native_scalar_failure_presentation_with_currency(
+                value, dialect, kind, failure, currency,
+            )?;
+            scalar_object_stage_current(value, currency)?;
             Err(ValueError::NativeScalarGetter(Box::new(record)))
         }
     }
@@ -333,7 +565,30 @@ pub(crate) fn native_scalar_failure_presentation(
     kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
     failure: tcl_syntax::scalar_getter::NativeScalarGetterFailure,
 ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterError, tcl_syntax::value::ValueError> {
+    native_scalar_failure_presentation_with_currency(value, dialect, kind, failure, None)
+}
+
+pub(crate) fn native_scalar_failure_presentation_with_currency(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
+    failure: tcl_syntax::scalar_getter::NativeScalarGetterFailure,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterError, tcl_syntax::value::ValueError> {
+    scalar_with_original_lifetime(value, currency, || {
+        scalar_failure_presentation_using(value, dialect, kind, failure, currency)
+    })
+}
+
+fn scalar_failure_presentation_using(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
+    failure: tcl_syntax::scalar_getter::NativeScalarGetterFailure,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterError, tcl_syntax::value::ValueError> {
     use tcl_syntax::value::ValueError;
+    scalar_object_stage_current(value, currency)?;
     obj::check_native_liveness(value)?;
     let protocol = dialect
         .native_scalar_getter_protocol()
@@ -342,7 +597,9 @@ pub(crate) fn native_scalar_failure_presentation(
         .failure_requires_original_string(kind, failure)
         .ok_or(ValueError::ScalarNumericInputUnavailable)?;
     let record = if requires_string {
-        let original = crate::bytearray::scalar_getter_string(value, protocol)?;
+        let original = crate::bytearray::scalar_getter_string(value, protocol);
+        scalar_object_stage_current(value, currency)?;
+        let original = original?;
         protocol.failure_presentation(kind, failure, &original)
     } else {
         protocol.failure_presentation_without_original_string(kind, failure)
@@ -485,7 +742,7 @@ fn scalar_number_impl<E: From<tcl_syntax::raw_string::NativeValueAccessRefusal>>
         return Ok(None);
     };
     if policy == NativeScalarNumericInputPolicy::NulTerminatedJim084 {
-        use tcl_syntax::expr::mathfunc::{jim_numeric_operand, NumValue};
+        use tcl_syntax::expr::mathfunc::{NumValue, jim_numeric_operand};
         let Some(number) = jim_numeric_operand::<tcl_syntax::expr::mathfunc::NoBig>(&parsed) else {
             return Ok(None);
         };

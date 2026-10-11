@@ -33,7 +33,7 @@
 //! target). Also: the `u` unsigned scan modifier, and `binary encode`/`decode`
 //! (`hex`/`base64`/`uuencode`). Verified against tclsh 9.0.
 
-use crate::interp::{obj_bytes, Code, Interp};
+use crate::interp::{Code, Interp, obj_bytes};
 use crate::obj::{self, TclObj};
 use tcl_registry::native_binary_usage::NativeBinaryArgumentUsage;
 
@@ -167,10 +167,26 @@ const BINARY_SUBS: &[&[u8]] = &[b"decode", b"encode", b"format", b"scan"];
 const BINARY_FORMATS: &[&[u8]] = &[b"base64", b"hex", b"uuencode"];
 
 fn binary_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match crate::interp::native_arguments::OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = binary_cmd_with_arguments(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn binary_cmd_with_arguments(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &crate::interp::native_arguments::OriginalArguments,
+) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args_for_invocation(argv, b"subcommand ?arg ...?");
     }
-    let word = obj_bytes(argv[1]);
+    let word = match arguments.bytes(1) {
+        Ok(word) => word,
+        Err(error) => return interp.report_cmd_error(error),
+    };
     let subs = crate::environment::release_subcommands(
         interp.native_ensemble_profile_name(),
         "binary",
@@ -204,7 +220,7 @@ fn binary_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     match subs[index] {
         b"format" => binary_format(interp, argv),
         b"scan" => binary_scan(interp, argv),
-        b"encode" => binary_encode(interp, argv),
+        b"encode" => binary_encode(interp, argv, arguments),
         // Unreachable: `BINARY_SUBS` has exactly the four arms here.
         _ => binary_decode(interp, argv),
     }
@@ -213,12 +229,19 @@ fn binary_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `binary encode hex|base64|uuencode ?options? data` (`BinaryEncodeHex`/
 /// `BinaryEncode64`/`BinaryEncodeUu`). The byte codecs are shared with the VM in
 /// `tcl_cmd_core::binary`; this adapter handles option parsing + result/error.
-fn binary_encode(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+fn binary_encode(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &crate::interp::native_arguments::OriginalArguments,
+) -> Code {
     if argv.len() < 3 {
         return interp.wrong_args_for_prefix(argv, 2, b"subcommand ?arg ...?");
     }
-    let fmt = obj_bytes(argv[2]);
-    match fmt.as_slice() {
+    let fmt = match arguments.bytes(2) {
+        Ok(fmt) => fmt,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    match fmt.as_ref() {
         b"hex" => {
             if argv.len() != 4 {
                 return binary_wrong_args(interp, argv, 3, NativeBinaryArgumentUsage::EncodeHex);
@@ -231,8 +254,8 @@ fn binary_encode(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result_bytes(&out);
             Code::Ok
         }
-        b"base64" => binary_encode_wrapped(interp, argv, false),
-        b"uuencode" => binary_encode_wrapped(interp, argv, true),
+        b"base64" => binary_encode_wrapped(interp, argv, false, arguments),
+        b"uuencode" => binary_encode_wrapped(interp, argv, true, arguments),
         _ => binary_encode_bad(interp, &fmt),
     }
 }
@@ -247,47 +270,115 @@ fn binary_encode_bad(interp: &mut Interp, fmt: &[u8]) -> Code {
 }
 
 /// `binary encode base64|uuencode ?-maxlen n? ?-wrapchar c? data`.
-fn binary_encode_wrapped(interp: &mut Interp, argv: &[*mut TclObj], uu: bool) -> Code {
+fn binary_encode_wrapped(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    uu: bool,
+    arguments: &crate::interp::native_arguments::OriginalArguments,
+) -> Code {
+    let result = binary_encode_wrapped_with_arguments(interp, argv, uu, arguments);
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
+    match result {
+        Ok(code) => code,
+        Err(error) => interp.report_cmd_error(error),
+    }
+}
+
+fn binary_encode_wrapped_with_arguments(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    uu: bool,
+    arguments: &crate::interp::native_arguments::OriginalArguments,
+) -> Result<Code, tcl_cmd_core::CmdError> {
+    use tcl_registry::native_numeric_error::NativeNumericCommandPurpose;
+    use tcl_syntax::{scalar_getter::NativeScalarGetterValue, value::ValueError};
+    arguments.check()?;
+    let dialect = interp.native_invocation_dialect();
+    let selected = dialect
+        .native_numeric_command_protocol(if uu {
+            NativeNumericCommandPurpose::UuencodeLineLength
+        } else {
+            NativeNumericCommandPurpose::Base64LineLength
+        })
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "binary encoder line-length conversion",
+        ))?;
+    dialect
+        .native_string_protocol()
+        .ok_or(ValueError::ScalarNumericInputUnavailable)?;
     let mut maxlen: usize = if uu { 61 } else { 0 };
     let mut wrapchar: Vec<u8> = b"\n".to_vec();
     let mut i = 3;
     while i < argv.len() - 1 {
-        match obj_bytes(argv[i]).as_slice() {
+        let option = arguments.bytes(i)?;
+        match option.as_ref() {
             b"-maxlen" if i + 1 < argv.len() - 1 => {
-                match crate::cmd_list::index_spec(interp, &obj_bytes(argv[i + 1]), 0) {
-                    Some(n) if n >= 0 => maxlen = n as usize,
-                    _ => return interp.set_error(b"line length out of range"),
+                let original = arguments.original(i + 1)?;
+                let host = interp.host();
+                let environment = host.numeric_environment();
+                arguments.check()?;
+                let result = crate::typed_value::native_scalar_getter_with_environment_and_currency(
+                    original,
+                    dialect,
+                    selected.getter_kind(),
+                    environment,
+                    Some(arguments.currency()),
+                );
+                arguments.check()?;
+                let integer = match result? {
+                    NativeScalarGetterValue::Wide(integer) => integer,
+                    _ => return Err(ValueError::ScalarNumericInputUnavailable.into()),
+                };
+                if integer < 0 {
+                    let error = selected
+                        .negative_line_length_error()
+                        .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+                    return Err(tcl_cmd_core::CmdError::with_error_code_bytes(
+                        error.message,
+                        error.error_code,
+                    ));
                 }
+                maxlen = usize::try_from(integer)
+                    .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
                 i += 2;
             }
             b"-wrapchar" if i + 1 < argv.len() - 1 => {
-                wrapchar = obj_bytes(argv[i + 1]);
+                wrapchar = arguments.bytes(i + 1)?.to_vec();
                 i += 2;
             }
             _ => {
-                return binary_wrong_args(
-                    interp,
-                    argv,
-                    3,
-                    NativeBinaryArgumentUsage::EncodeWrapped,
-                );
+                arguments.check()?;
+                let code =
+                    binary_wrong_args(interp, argv, 3, NativeBinaryArgumentUsage::EncodeWrapped);
+                arguments.check()?;
+                return Ok(code);
             }
         }
     }
     if argv.len() - i != 1 {
-        return binary_wrong_args(interp, argv, 3, NativeBinaryArgumentUsage::EncodeWrapped);
+        let code = binary_wrong_args(interp, argv, 3, NativeBinaryArgumentUsage::EncodeWrapped);
+        arguments.check()?;
+        return Ok(code);
     }
-    let data = match interp.binary_bytes(argv[i]) {
+    let original = arguments.original(i)?;
+    let data = interp.binary_bytes(original);
+    arguments.check()?;
+    arguments.original(i)?;
+    let data = match data {
         Ok(data) => data,
-        Err(code) => return code,
+        Err(code) => return Ok(code),
     };
     let out = if uu {
         tcl_cmd_core::binary::uu_encode(&data, maxlen, &wrapchar)
     } else {
         tcl_cmd_core::binary::base64_encode(&data, maxlen, &wrapchar)
     };
+    arguments.check()?;
     interp.set_result_bytes(&out);
-    Code::Ok
+    arguments.check()?;
+    Ok(Code::Ok)
 }
 
 /// `binary decode hex|base64|uuencode ?options? string`. The byte codecs are
@@ -830,3 +921,7 @@ mod tests {
         });
     }
 }
+
+#[cfg(test)]
+#[path = "cmd_binary/original_line_length_tests.rs"]
+mod original_line_length_tests;

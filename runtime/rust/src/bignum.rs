@@ -1078,6 +1078,16 @@ pub(crate) fn adopt_native_big(
     radix: Radix,
     digits: &str,
 ) -> bool {
+    adopt_native_big_using(value, negative, radix, digits, None).unwrap_or(false)
+}
+
+pub(crate) fn adopt_native_big_using(
+    value: *mut TclObj,
+    negative: bool,
+    radix: Radix,
+    digits: &str,
+    check: Option<&mut dyn FnMut() -> Result<(), tcl_syntax::value::ValueError>>,
+) -> Result<bool, tcl_syntax::value::ValueError> {
     let mut source = Vec::with_capacity(digits.len() + 2);
     if negative {
         source.push(b'-');
@@ -1088,7 +1098,7 @@ pub(crate) fn adopt_native_big(
     // SAFETY: initialise and parse a new integer before replacing the old cache.
     unsafe {
         if mp_init(&mut integer) != MP_OKAY {
-            return false;
+            return Ok(false);
         }
         if mp_read_radix(
             &mut integer,
@@ -1097,12 +1107,25 @@ pub(crate) fn adopt_native_big(
         ) != MP_OKAY
         {
             mp_clear(&mut integer);
-            return false;
+            return Ok(false);
         }
     }
     let backing = Box::into_raw(Box::new(integer));
-    obj::change_type(value, &TCL_BIGNUM_TYPE, backing as u64);
-    true
+    let adopted = if let Some(check) = check {
+        obj::change_type_with_stage_check(value, &TCL_BIGNUM_TYPE, backing as u64, check)
+    } else {
+        obj::change_type(value, &TCL_BIGNUM_TYPE, backing as u64);
+        Ok(())
+    };
+    if let Err(error) = adopted {
+        // This prepared backing was never adopted; release its actual resources.
+        unsafe {
+            let mut incoming = Box::from_raw(backing);
+            mp_clear(&mut *incoming);
+        }
+        return Err(error);
+    }
+    Ok(true)
 }
 
 /// Build a numeric object from a parsed [`Number::Big`](tcl_syntax::number::Number)

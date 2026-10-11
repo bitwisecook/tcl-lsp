@@ -523,3 +523,31 @@ cursor mutation. The public conversion and side-effect observations are in
 [numeric-io-debug-public-conversion-and-side-effect-order](../analysis/name-resolution-proofs/numeric-io-debug-public-conversion-and-side-effect-order.md).
 The software callback controls establish continuation and lifetime boundaries
 separately from those public C Tcl/Jim measurements.
+
+
+Runtime primitive consumers use
+`typed_value::native_scalar_getter_with_environment_and_currency` with the
+same `OriginalArguments` receipt. The checked probe and failure presenter use
+the original header and an allocation-only lease through each reached String,
+Host worker and cache effect. The shared Platform environment forwards the
+actual supplied Host for C. Checked Jim stages instead retain that context's
+own Host and the same ABI observation cell, queried only at an actual existing
+ABI/target/fresh worker stage. Cache-only and Boolean word paths add no query. Failed workers are checked before
+later conversion or Guest formatting, and the actual first Host or header
+cause remains in the interpreter.
+
+`obj::change_type_with_stage_check` shares the existing primary retirement
+worker. The issued publication epoch, original descriptor and original backing
+identify the selected slot. After the reached old free, only that same live slot
+can become vacant. Reentrant replacement is preserved. The extracted auxiliary
+owner retires outside storage borrows, and the final original check precedes
+incoming adoption. Epoch overflow stays unavailable. Every error leaves the
+incoming backing owned by the caller; successful adoption transfers it to the
+object, with no checker or callback afterward. Prepared Bignum backing follows
+this same ownership rule. The neutral entry retains its independent role order.
+
+Runtime encoder line lengths use the Registry command-purpose primitive,
+not container Index grammar. The whole original argv receipt covers option,
+numeric, data and result stages. Primitive failure retains its structured
+error; only a successful negative integer selects the encoder line-length
+error. Descriptive width and currency do not supply another conversion purpose.
