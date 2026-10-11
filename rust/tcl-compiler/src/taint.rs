@@ -3533,7 +3533,7 @@ fn find_callback_substitution_warnings(
                         source_is_command_substitution,
                         "__tcl_lsp_callback_probe",
                         "::__tcl_lsp_callback_probe",
-                        dialect,
+                        lexer_config,
                         head_identities.map(|identities| (identities, callback_span.start())),
                     )
                     .is_none()
@@ -3573,7 +3573,7 @@ fn find_callback_substitution_warnings(
                 candidate.source_is_command_substitution,
                 &input_var,
                 &proc_name,
-                dialect,
+                lexer_config,
                 callback_head_identities
                     .get()
                     .and_then(Option::as_ref)
@@ -3720,7 +3720,7 @@ fn callback_replay_source(
     source_is_command_substitution: bool,
     input_var: &str,
     proc_name: &str,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    config: tcl_lexer::LexerConfig,
     builder_context: Option<(&crate::realm::CommandBindingRealm, u32)>,
 ) -> Option<CallbackReplaySource> {
     let callback = callback.trim().strip_prefix('+').unwrap_or(callback.trim());
@@ -3736,12 +3736,12 @@ fn callback_replay_source(
             callback_command,
             inputs,
             input_var,
-            dialect,
+            config,
             builder_context,
         )?;
         return Some(callback_replay_with_input(&script, proc_name, input_var));
     }
-    let script = callback_replay_script(callback, inputs, input_var, dialect)?;
+    let script = callback_replay_script(callback, inputs, input_var, config)?;
     Some(callback_replay_with_input(&script, proc_name, input_var))
 }
 
@@ -3754,13 +3754,11 @@ fn callback_replay_list_prefix(
     callback: &str,
     inputs: &[tcl_registry::CallbackTaintInput],
     input_var: &str,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    config: tcl_lexer::LexerConfig,
     builder_context: Option<(&crate::realm::CommandBindingRealm, u32)>,
 ) -> Option<String> {
     let inner = callback.strip_prefix('[')?.strip_suffix(']')?;
-    let config = dialect.map_or_else(tcl_lexer::LexerConfig::default, |profile| {
-        tcl_lexer::LexerConfig::from_grammar(profile.grammar)
-    });
+    let config = config.nested();
     let commands = crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config);
     let [command] = commands.as_slice() else {
         return None;
@@ -3831,11 +3829,9 @@ fn callback_replay_script(
     callback: &str,
     inputs: &[tcl_registry::CallbackTaintInput],
     input_var: &str,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<String> {
-    let config = dialect.map_or_else(tcl_lexer::LexerConfig::default, |profile| {
-        tcl_lexer::LexerConfig::from_grammar(profile.grammar)
-    });
+    let config = config.nested();
     let commands = crate::segmenter::segment_commands_with_offset_and_config(callback, 0, config);
     if commands.is_empty() {
         return None;
@@ -4387,7 +4383,7 @@ fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>
     // IRULE3002 subcommand gate.
     let assign_parsed: Option<(String, Vec<String>)> = match stmt {
         Statement::AssignValue { value, .. } => {
-            parse_taint_command_substitution(value.trim(), dialect)
+            parse_taint_command_substitution(value.trim(), context.source.config)
         }
         _ => None,
     };
@@ -5246,11 +5242,9 @@ fn emit_expr_statement_warnings<S: std::hash::BuildHasher>(
 /// handled conservatively by command-head provenance.
 fn parse_taint_command_substitution(
     text: &str,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<(String, Vec<String>)> {
-    let config = dialect.map_or_else(tcl_lexer::LexerConfig::default, |profile| {
-        tcl_lexer::LexerConfig::from_grammar(profile.grammar)
-    });
+    let config = config.nested();
     let (written_head, args) = parse_command_substitution_with_config(text, config)?;
     let inner = text.trim().strip_prefix('[')?.strip_suffix(']')?;
     let commands = crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config);
@@ -12284,5 +12278,90 @@ mod tests {
             found.iter().any(|w| w.code == DiagCode::T101),
             "expected T101 for the sink after the switch, got {found:?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod original_taint_local_parser_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_taint_callback_and_bracket_shapes_keep_actual_full_config() {
+        // naming.source.retained-positioned-command-realm
+        // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
+        // These local source/synthetic replay projections grant no callback execution.
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.0").unwrap();
+        for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let config = tcl_lexer::LexerConfig {
+                leading_bom: bom,
+                strict_quoting: true,
+                braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+                ..input.lexer_config()
+            };
+            let actual_input = crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                input.context_registry(),
+                config,
+            );
+            let registry = actual_input.borrowed_context_registry().commands();
+            let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+                "set value VALUE",
+                crate::compilation_unit::UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(actual_input.unit_profile()),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &actual_input,
+            );
+            let source =
+                TaintSourceContext::for_module_function(registry, &unit.ir_module, &unit.top_level);
+            assert_eq!(source.config, config);
+            assert!(source.metadata.is_some());
+            let callback =
+                callback_replay_script("\u{feff}eval literal", &[], "input", source.config)
+                    .unwrap();
+            assert!(
+                callback.starts_with('\u{feff}'),
+                "body mark is not the file prologue: {callback:?}"
+            );
+            let (head, args) =
+                parse_taint_command_substitution("[\u{feff}eval literal]", source.config).unwrap();
+            assert_eq!(head, "\u{feff}eval");
+            assert_eq!(args, ["literal"]);
+            let first_close = "eval ${a{b}; eval literal";
+            assert!(callback_replay_script(first_close, &[], "input", source.config).is_some());
+            let nesting = tcl_lexer::LexerConfig {
+                braced_var: tcl_lexer::BracedVarStyle::Tcl9Nesting,
+                ..source.config
+            };
+            assert!(callback_replay_script(first_close, &[], "input", nesting).is_none());
+            let mut changed = unit.clone();
+            changed.ir_module.lexer_config.strict_quoting = !config.strict_quoting;
+            assert!(
+                TaintSourceContext::for_module_function(
+                    registry,
+                    &changed.ir_module,
+                    &changed.top_level
+                )
+                .metadata
+                .is_none()
+            );
+            changed.ir_module.source_metadata_input = None;
+            assert!(
+                TaintSourceContext::for_module_function(
+                    registry,
+                    &changed.ir_module,
+                    &changed.top_level
+                )
+                .metadata
+                .is_none()
+            );
+        }
     }
 }

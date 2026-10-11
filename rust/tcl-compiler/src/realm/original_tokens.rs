@@ -94,10 +94,15 @@ impl CommandBindingRealm {
                 self.original_zero_argument_head_end(image, config, offset)?
             };
             let text = image.try_text().ok()?.get(offset as usize..end as usize)?;
-            let segmented =
-                crate::segmenter::segment_commands_with_offset_and_config(text, offset, config)
-                    .into_iter()
-                    .next()?;
+            // This is an original command slice, including at site zero.
+            // Its file prologue has already been handled by the parent producer.
+            let segmented = crate::segmenter::segment_commands_with_offset_and_config(
+                text,
+                offset,
+                config.nested(),
+            )
+            .into_iter()
+            .next()?;
             let mut tokens = CommandTokens::from_segmented(&source_map, config, &segmented);
             self.stamp_original_tokens(&mut tokens);
             #[cfg(debug_assertions)]
@@ -312,5 +317,81 @@ mod tests {
             realm.original_tokens.entries.lock().unwrap().len(),
             MAX_RETAINED_COMMANDS
         );
+    }
+}
+
+#[cfg(test)]
+mod original_command_slice_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_token_memo_preserves_bom_heads_after_the_actual_file_prologue() {
+        // naming.source.original-command-token-memo
+        // docs/design/analysis/name-resolution-proofs/original-command-token-memo.md
+        // Original command geometry/cache sharing only; an unknown head stays unknown.
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.0").unwrap();
+        for (source, bom, expected_offset, expected_head) in [
+            (
+                "\u{feff}\u{feff}puts value",
+                tcl_lexer::LeadingBom::Skip,
+                3,
+                "\u{feff}puts",
+            ),
+            (
+                "\u{feff}puts value",
+                tcl_lexer::LeadingBom::Content,
+                0,
+                "\u{feff}puts",
+            ),
+            ("\u{feff}puts value", tcl_lexer::LeadingBom::Skip, 3, "puts"),
+        ] {
+            let config = LexerConfig {
+                leading_bom: bom,
+                braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+                ..input.lexer_config()
+            };
+            let actual_input = crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                input.context_registry(),
+                config,
+            );
+            let realm = crate::realm::document_realm_bindings_with_resolved_input(
+                source,
+                &actual_input,
+                None,
+            );
+            let image = SourceImage::document(source);
+            let parent =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+            assert_eq!(parent[0].span.start(), expected_offset);
+            let first = realm
+                .retained_original_tokens(&image, config, expected_offset, &parent[0].argv)
+                .unwrap();
+            assert_eq!(first.argv_texts[0], expected_head);
+            assert_eq!(first.argv[0], parent[0].argv[0].span);
+            assert_eq!(
+                first
+                    .source_binding
+                    .as_ref()
+                    .and_then(|binding| binding.original_lexer_config_for_tokens(&first)),
+                Some(config)
+            );
+            let again = realm
+                .retained_original_tokens(&image, config, expected_offset, &parent[0].argv)
+                .unwrap();
+            assert!(Arc::ptr_eq(&first, &again));
+            assert!(realm.matches_resolved_analysis_input(&actual_input));
+            assert!(realm.matches_original_source_image(&image, config));
+            if expected_head.starts_with('\u{feff}') {
+                assert!(
+                    realm
+                        .invocation_at_source(expected_head, expected_offset)
+                        .proved_execution_target()
+                        .is_none()
+                );
+            }
+        }
     }
 }

@@ -156,8 +156,11 @@ impl Builder<'_> {
     fn command(&mut self, body: tcl_lexer::Span) -> Option<PathPart> {
         let config = self.analysis.resolved_input.as_ref()?.lexer_config();
         let source = self.source.get(body.as_range())?;
-        let commands =
-            crate::segmenter::segment_commands_with_offset_and_config(source, body.start(), config);
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            body.start(),
+            config.nested(),
+        );
         let [command] = commands.as_slice() else {
             return None;
         };
@@ -776,5 +779,73 @@ mod tests {
             .with_resolved_input(unknown_input)
             .analyse(source, unknown.name);
         assert!(capture_source_path_expression(source, &unknown_analysis, &word).is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_path_child_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_path_bracket_keeps_body_bom_and_complete_parent_input() {
+        // naming.navigation.retained-path-source-inventory
+        // docs/design/analysis/name-resolution-proofs/retained-path-source-inventory.md
+        // Conditional authored path expression only; no source worker or filesystem grant.
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let config = tcl_lexer::LexerConfig {
+                leading_bom: bom,
+                strict_quoting: true,
+                braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+                ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+            };
+            let input = ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                tcl_registry::model::ingress::context_for_profile(profile),
+                config,
+            );
+            for (source, expected) in [
+                ("set p [file join ROOT child]", Some("ROOT/child")),
+                ("set p [\u{feff}file join ROOT child]", None),
+            ] {
+                let analysis = crate::analyser::Analyser::new()
+                    .with_resolved_input(input.clone())
+                    .analyse(source, "presentation-only");
+                let plan = tcl_lexer::native_script_words_in(
+                    SourceImage::document(source),
+                    tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                    config,
+                )
+                .unwrap();
+                let word = &plan.commands[0].words[2];
+                let expression = capture_source_path_expression(source, &analysis, word);
+                assert_eq!(
+                    expression
+                        .as_ref()
+                        .and_then(|expression| expression.evaluate(None, &|_| None))
+                        .as_deref(),
+                    expected,
+                    "{bom:?}: {source:?}"
+                );
+                assert_eq!(word.image().bytes(), source.as_bytes());
+                assert_eq!(word.config(), config.normalized());
+                assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
+                if let Some(expression) = expression {
+                    assert!(expression.matches_analysis(&analysis));
+                    let mut changed = analysis.clone();
+                    changed.body_lexer_config = Some(config.nested());
+                    if config != config.nested() {
+                        assert!(!expression.matches_analysis(&changed));
+                    }
+                    changed.resolved_input = None;
+                    assert!(!expression.matches_analysis(&changed));
+                    assert!(
+                        capture_source_path_expression(&format!("{source} "), &analysis, word)
+                            .is_none()
+                    );
+                }
+            }
+        }
     }
 }
