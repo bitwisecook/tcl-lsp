@@ -26,30 +26,39 @@ impl Vm {
         original: &Value,
         element: Option<&Value>,
     ) -> Result<bool, Completion<Value>> {
-        // TclObjLookupVarEx obtains part2 before inspecting part1's cache.
-        let element_bytes = element
-            .map(|element| self.native_name_operand_bytes(element))
-            .transpose()
-            .map_err(|error| self.refuse_host_command(error.to_string()))?;
-        let prepared = self.prepare_native_original_variable_parts(
-            original,
-            NativeVariableNameLookupPurpose::Exists,
-            None,
-            element_bytes.as_deref(),
-        );
-        let (_root, bytes, element_bytes, mut resolved) = match prepared {
-            Ok(prepared) => prepared,
-            Err(error) if self.refused_completion().is_some() => return Err(error),
-            Err(_) => return Ok(false),
-        };
-        self.prepare_existing_array_read(&mut resolved)?;
-        self.retain_original_exists_element_key(original, element, &resolved);
-        self.exists_selected_original_variable(
-            &bytes,
-            element_bytes.as_deref(),
-            &resolved,
-            Some((original, element.is_some())),
-        )
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            // TclObjLookupVarEx obtains part2 before inspecting part1's cache.
+            let element_bytes = element
+                .map(|element| original_names.read(self, element))
+                .transpose()
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            let prepared = self.prepare_native_original_variable_parts(
+                original,
+                NativeVariableNameLookupPurpose::Exists,
+                None,
+                element_bytes.as_deref(),
+            );
+            let (_root, bytes, element_bytes, mut resolved) = match prepared {
+                Ok(prepared) => prepared,
+                Err(error) if self.refused_completion().is_some() => return Err(error),
+                Err(_) => return Ok(false),
+            };
+            self.prepare_existing_array_read(&mut resolved)?;
+            self.retain_original_exists_element_key(original, element, &resolved);
+            self.exists_selected_original_variable(
+                &bytes,
+                element_bytes.as_deref(),
+                &resolved,
+                Some((original, element.is_some())),
+            )
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
 
     fn retain_original_exists_element_key(
@@ -84,54 +93,63 @@ impl Vm {
         resolved: &ResolvedVar,
         original: Option<(&Value, bool)>,
     ) -> Result<bool, Completion<Value>> {
-        let cell = self.trace_cell_from_resolved(resolved);
-        let check = |vm: &mut Self| {
-            let name = if let Some((original, separate)) = original.filter(|_| {
-                cell.as_ref().is_some_and(|cell| {
-                    vm.original_variable_trace_requires_name(cell, element.is_some(), "read")
-                })
-            }) {
-                let bytes = vm
-                    .native_name_operand_bytes(original)
-                    .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-                let policy = vm
-                    .name_policy_protocol()
-                    .expect("selected original C name policy");
-                let input = if separate {
-                    policy.recipe().separate_variable_input(&bytes, element)
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            let cell = self.trace_cell_from_resolved(resolved);
+            let check = |vm: &mut Self| {
+                let name = if let Some((original, separate)) = original.filter(|_| {
+                    cell.as_ref().is_some_and(|cell| {
+                        vm.original_variable_trace_requires_name(cell, element.is_some(), "read")
+                    })
+                }) {
+                    let bytes = original_names
+                        .read(vm, original)
+                        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                    let policy = vm
+                        .name_policy_protocol()
+                        .expect("selected original C name policy");
+                    let input = if separate {
+                        policy.recipe().separate_variable_input(&bytes, element)
+                    } else {
+                        policy.recipe().combined_variable_input(&bytes)
+                    };
+                    std::rc::Rc::from(input.root().selected())
                 } else {
-                    policy.recipe().combined_variable_input(&bytes)
+                    std::rc::Rc::from(name)
                 };
-                std::rc::Rc::from(input.root().selected())
-            } else {
-                std::rc::Rc::from(name)
+                vm.fire_original_existence_read(&name, element, cell.clone())
+                    .map_err(|first| {
+                        vm.refuse_tcl_host_failure(crate::error::TclHostFailure::Execution(first))
+                    })?;
+                if let Some(refusal) = vm.refused_completion() {
+                    return Err(refusal);
+                }
+                Ok(vm.read_variable_contents(resolved).is_some()
+                    || resolved.elem.is_none()
+                        && resolved.id.is_some_and(|id| {
+                            matches!(
+                                vm.var_arena.get(id).map(crate::vars::VarCell::state),
+                                Some(super::super::Local::Array(_))
+                            )
+                        }))
             };
-            vm.fire_original_existence_read(&name, element, cell.clone())
-                .map_err(|first| {
-                    vm.refuse_tcl_host_failure(crate::error::TclHostFailure::Execution(first))
-                })?;
-            if let Some(refusal) = vm.refused_completion() {
-                return Err(refusal);
+            let found = match cell.as_ref() {
+                Some(cell) => self.with_variable_operation(cell, check),
+                None => check(self),
+            }?;
+            if let (Some(parent), Some(index), Some(id)) =
+                (resolved.base_id, resolved.elem.as_ref(), resolved.id)
+            {
+                self.discard_undefined_array_shell(parent, index, id);
             }
-            Ok(vm.read_variable_contents(resolved).is_some()
-                || resolved.elem.is_none()
-                    && resolved.id.is_some_and(|id| {
-                        matches!(
-                            vm.var_arena.get(id).map(crate::vars::VarCell::state),
-                            Some(super::super::Local::Array(_))
-                        )
-                    }))
-        };
-        let found = match cell.as_ref() {
-            Some(cell) => self.with_variable_operation(cell, check),
-            None => check(self),
-        }?;
-        if let (Some(parent), Some(index), Some(id)) =
-            (resolved.base_id, resolved.elem.as_ref(), resolved.id)
-        {
-            self.discard_undefined_array_shell(parent, index, id);
-        }
-        Ok(found)
+            Ok(found)
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
 
     pub(in crate::interp) fn fire_original_existence_read(

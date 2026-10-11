@@ -22,79 +22,103 @@ impl Vm {
         &mut self,
         original: &Value,
     ) -> Result<(NativeObjectLifetimeLease, NativeObjectLifetimeLease), Completion<Value>> {
-        let context = self
-            .native_jim_object_context()
-            .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
-        original
-            .ensure_native_jim_dictionary_substitution(&context)
-            .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
-        Ok(original
-            .with_native_jim_dictionary_substitution(|name, key| {
-                (name.native_lifetime_lease(), key.native_lifetime_lease())
-            })
-            .expect("installed original tuple"))
+        let original_names =
+            super::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            let context = self
+                .native_jim_object_context()
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
+            let reached = original
+                .ensure_native_jim_dictionary_substitution_checked(&context, &mut || {
+                    original_names.current_for_value(self, original)
+                });
+            original_names
+                .check(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            reached.map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            Ok(original
+                .with_native_jim_dictionary_substitution(|name, key| {
+                    (name.native_lifetime_lease(), key.native_lifetime_lease())
+                })
+                .expect("installed original tuple"))
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
 
     fn read_original_jim_update(
         &mut self,
         original: &Value,
     ) -> Result<Option<NativeObjectLifetimeLease>, Completion<Value>> {
-        if let Some(cell) = self
-            .current_jim_variable_cell(original)
-            .map_err(|error| self.refuse_host_command(error.to_string()))?
-            && let Some(Local::Scalar(value)) =
-                self.var_arena.get(cell).map(crate::vars::VarCell::state)
-        {
-            return Ok(Some(value.native_lifetime_lease()));
-        }
-        if let Some((target, level)) = self.original_jim_alias_target(original) {
-            let frame = self.select_execution_frame(level).map_err(super::err)?;
-            let result = self.read_original_jim_update(target.value());
-            self.restore_execution_frame(frame);
-            return result;
-        }
-        let bytes = self
-            .native_name_operand_bytes(original)
-            .map_err(|error| self.refuse_host_command(error.to_string()))?;
-        if Self::is_original_jim_dictionary_name(original, &bytes) {
-            let (name, key) = self.original_jim_dictionary_children(original)?;
-            let found = match self.read_native_jim_dictionary_member(name.value(), key.value()) {
-                Ok(found) => found,
-                Err(error) if self.refused_completion().is_some() => return Err(error),
-                Err(_) => return Ok(None),
-            };
-            let member = found.native_lifetime_lease();
-            drop(found);
-            // Remove the ordinary getter's temporary native reference before
-            // testing genuine root sharing. Only the variable/aliases own it.
-            let root = self.read_original_named_variable(name.value())?;
-            let root_lease = root.native_lifetime_lease();
-            drop(root);
-            if root_lease.value().native_object_is_shared() {
-                let duplicate = root_lease
-                    .value()
-                    .duplicate_native_object_in(NativeStringProtocol::Jim084);
-                drop(self.store_original_named_variable(name.value(), duplicate)?);
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            if let Some(cell) = self
+                .current_jim_variable_cell(original)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?
+                && let Some(Local::Scalar(value)) =
+                    self.var_arena.get(cell).map(crate::vars::VarCell::state)
+            {
+                return Ok(Some(value.native_lifetime_lease()));
             }
-            return Ok(Some(member));
-        }
-        self.install_original_jim_variable(original, &bytes)
-            .map_err(|error| self.refuse_host_command(error.to_string()))?;
-        if let Some((target, level)) = self.original_jim_alias_target(original) {
-            let frame = self.select_execution_frame(level).map_err(super::err)?;
-            let result = self.read_original_jim_update(target.value());
-            self.restore_execution_frame(frame);
-            return result;
-        }
-        let raw = self
-            .current_jim_variable_cell(original)
-            .map_err(|error| self.refuse_host_command(error.to_string()))?;
-        Ok(raw.and_then(
-            |cell| match self.var_arena.get(cell).map(crate::vars::VarCell::state) {
-                Some(Local::Scalar(value)) => Some(value.native_lifetime_lease()),
-                _ => None,
-            },
-        ))
+            if let Some((target, level)) = self.original_jim_alias_target(original) {
+                let frame = self.select_execution_frame(level).map_err(super::err)?;
+                let result = self.read_original_jim_update(target.value());
+                self.restore_execution_frame(frame);
+                return result;
+            }
+            let bytes = original_names
+                .read(self, original)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            if Self::is_original_jim_dictionary_name(original, &bytes) {
+                let (name, key) = self.original_jim_dictionary_children(original)?;
+                let found = match self.read_native_jim_dictionary_member(name.value(), key.value())
+                {
+                    Ok(found) => found,
+                    Err(error) if self.refused_completion().is_some() => return Err(error),
+                    Err(_) => return Ok(None),
+                };
+                let member = found.native_lifetime_lease();
+                drop(found);
+                // Remove the ordinary getter's temporary native reference before
+                // testing genuine root sharing. Only the variable/aliases own it.
+                let root = self.read_original_named_variable(name.value())?;
+                let root_lease = root.native_lifetime_lease();
+                drop(root);
+                if root_lease.value().native_object_is_shared() {
+                    let duplicate = root_lease
+                        .value()
+                        .duplicate_native_object_in(NativeStringProtocol::Jim084);
+                    drop(self.store_original_named_variable(name.value(), duplicate)?);
+                }
+                return Ok(Some(member));
+            }
+            self.install_original_jim_variable(original, &bytes, &original_names)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
+            if let Some((target, level)) = self.original_jim_alias_target(original) {
+                let frame = self.select_execution_frame(level).map_err(super::err)?;
+                let result = self.read_original_jim_update(target.value());
+                self.restore_execution_frame(frame);
+                return result;
+            }
+            let raw = self
+                .current_jim_variable_cell(original)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
+            Ok(raw.and_then(|cell| {
+                match self.var_arena.get(cell).map(crate::vars::VarCell::state) {
+                    Some(Local::Scalar(value)) => Some(value.native_lifetime_lease()),
+                    _ => None,
+                }
+            }))
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
 
     pub(super) fn store_original_jim_dictionary_name(
@@ -142,60 +166,71 @@ impl Vm {
         &mut self,
         original: &Value,
     ) -> Result<(), Completion<Value>> {
-        let (name, key) = self.original_jim_dictionary_children(original)?;
-        if let Some(root) = self.read_original_jim_update(name.value())? {
-            // The real dictionary getter supplies this interpreter context to
-            // the SAME stored object before its native conversion or COW test.
-            // A variable may contain a fresh result with no previous Source.
-            let context = self
-                .native_jim_object_context()
-                .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
-            root.value()
-                .bind_native_jim_context(&context)
-                .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            let (name, key) = self.original_jim_dictionary_children(original)?;
+            if let Some(root) = self.read_original_jim_update(name.value())? {
+                // The real dictionary getter supplies this interpreter context to
+                // the SAME stored object before its native conversion or COW test.
+                // A variable may contain a fresh result with no previous Source.
+                let context = self.native_jim_object_context().map_err(|error| {
+                    crate::command::completion_from_cmd_error(self, error.into())
+                })?;
+                root.value()
+                    .bind_native_jim_context(&context)
+                    .map_err(|error| {
+                        crate::command::completion_from_cmd_error(self, error.into())
+                    })?;
 
-            let outcome = (|| -> Result<Option<Value>, tcl_syntax::value::ValueError> {
-                // The getter's lifetime view adds no native pin: duplication
-                // observes only the actual variable and alias owners.
-                let mut working = root
-                    .value()
-                    .prepare_native_dictionary(NativeStringProtocol::Jim084)?;
-                if working.remove_member(key.value())? {
-                    Ok(Some(working.into_value()))
-                } else {
-                    Ok(None)
+                let outcome = (|| -> Result<Option<Value>, tcl_syntax::value::ValueError> {
+                    // The getter's lifetime view adds no native pin: duplication
+                    // observes only the actual variable and alias owners.
+                    let mut working = root
+                        .value()
+                        .prepare_native_dictionary(NativeStringProtocol::Jim084)?;
+                    if working.remove_member(key.value())? {
+                        Ok(Some(working.into_value()))
+                    } else {
+                        Ok(None)
+                    }
+                })();
+                match outcome {
+                    Ok(Some(working)) => {
+                        drop(self.store_original_named_variable(name.value(), working)?);
+                        return Ok(());
+                    }
+                    Err(error) if error.native_access_refusal().is_some() => {
+                        return Err(crate::command::completion_from_cmd_error(
+                            self,
+                            error.into(),
+                        ));
+                    }
+                    Ok(None) | Err(_) => {}
                 }
-            })();
-            match outcome {
-                Ok(Some(working)) => {
-                    drop(self.store_original_named_variable(name.value(), working)?);
-                    return Ok(());
-                }
-                Err(error) if error.native_access_refusal().is_some() => {
-                    return Err(crate::command::completion_from_cmd_error(
-                        self,
-                        error.into(),
-                    ));
-                }
-                Ok(None) | Err(_) => {}
             }
-        }
-        // JimDictSugarSet retries the SAME parent with JIM_NONE, even when
-        // conversion or member removal failed on a malformed existing value.
-        let parent_exists = self.read_original_jim_update(name.value())?.is_some();
-        let bytes = self
-            .native_name_operand_bytes(original)
-            .map_err(|error| self.refuse_host_command(error.to_string()))?;
-        let recipe = self
-            .actual_native_invocation_dialect()
-            .native_jim_lookup_protocol()
-            .expect("selected Jim original unset");
-        let message = recipe
-            .dictionary_unset_error(&bytes, parent_exists)
-            .map_err(|error| {
-                self.refuse_host_command(format!("Jim unset diagnostic: {error:?}"))
-            })?;
-        Err(super::err(message))
+            // JimDictSugarSet retries the SAME parent with JIM_NONE, even when
+            // conversion or member removal failed on a malformed existing value.
+            let parent_exists = self.read_original_jim_update(name.value())?.is_some();
+            let bytes = original_names
+                .read(self, original)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            let recipe = self
+                .actual_native_invocation_dialect()
+                .native_jim_lookup_protocol()
+                .expect("selected Jim original unset");
+            let message = recipe
+                .dictionary_unset_error(&bytes, parent_exists)
+                .map_err(|error| {
+                    self.refuse_host_command(format!("Jim unset diagnostic: {error:?}"))
+                })?;
+            Err(super::err(message))
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
 
     pub(crate) fn increment_original_jim_name(

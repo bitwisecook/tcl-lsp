@@ -117,18 +117,29 @@ const ARRAY_SUBS: &[&str] = &[
 
 /// `array option arrayName ?arg ...?` — dispatch to the subcommand handler.
 fn cmd_array(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let scope = match NativeOperationScope::enter(vm) {
-        Ok(scope) => scope,
-        Err(error) => return completion_from_cmd_error(vm, error),
-    };
-    let result = cmd_array_entered(vm, args, scope.currency());
-    match scope.check(vm) {
-        Ok(()) => result,
-        Err(error) => {
-            drop(result);
-            completion_from_cmd_error(vm, error)
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+    let reached = (|| {
+        let scope = match NativeOperationScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return completion_from_cmd_error(vm, error),
+        };
+        let result = cmd_array_entered(vm, args, scope.currency());
+        match scope.check(vm) {
+            Ok(()) => result,
+            Err(error) => {
+                drop(result);
+                completion_from_cmd_error(vm, error)
+            }
         }
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
+    reached
 }
 
 fn cmd_array_entered(
@@ -170,18 +181,29 @@ fn cmd_array_entered(
 }
 
 fn array_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
-    let scope = match NativeOperationScope::enter(vm) {
-        Ok(scope) => scope,
-        Err(error) => return completion_from_cmd_error(vm, error),
-    };
-    let result = array_op_entered(vm, sub, rest, scope.currency());
-    match scope.check(vm) {
-        Ok(()) => result,
-        Err(error) => {
-            drop(result);
-            completion_from_cmd_error(vm, error)
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+    let reached = (|| {
+        let scope = match NativeOperationScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return completion_from_cmd_error(vm, error),
+        };
+        let result = array_op_entered(vm, sub, rest, scope.currency());
+        match scope.check(vm) {
+            Ok(()) => result,
+            Err(error) => {
+                drop(result);
+                completion_from_cmd_error(vm, error)
+            }
         }
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
+    reached
 }
 
 fn array_op_entered(
@@ -341,19 +363,25 @@ fn original_bytes(
     original: &Value,
     currency: &NativeOperationCurrency,
 ) -> Result<std::rc::Rc<[u8]>, Completion<Value>> {
-    currency
-        .check(vm)
-        .map_err(|error| completion_from_cmd_error(vm, error))?;
-    original
-        .check_native_header()
-        .map_err(|error| completion_from_cmd_error(vm, error.into()))?;
-    let reached = vm.native_name_operand_bytes(original);
-    currency
-        .check(vm)
-        .map_err(|error| completion_from_cmd_error(vm, error))?;
+    let original_names = crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let reached = (|| {
+        currency
+            .check(vm)
+            .map_err(|error| completion_from_cmd_error(vm, error))?;
+        original
+            .check_native_header()
+            .map_err(|error| completion_from_cmd_error(vm, error.into()))?;
+        let reached = original_names.read(vm, original);
+        currency
+            .check(vm)
+            .map_err(|error| completion_from_cmd_error(vm, error))?;
+        reached.map_err(|error| completion_from_cmd_error(vm, error))
+    })();
+    original_names
+        .finish(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
     reached
-        .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
-        .map_err(|error| completion_from_cmd_error(vm, error.into()))
 }
 
 fn original_list(
@@ -381,7 +409,11 @@ fn original_list(
     reached.map_err(|error| completion_from_cmd_error(vm, error))
 }
 
-fn array_set_original(vm: &mut Vm, rest: &[Value], currency: &NativeOperationCurrency) -> Completion<Value> {
+fn array_set_original(
+    vm: &mut Vm,
+    rest: &[Value],
+    currency: &NativeOperationCurrency,
+) -> Completion<Value> {
     let [name, list] = rest else {
         return crate::command::native_wrong_arguments_message(
             vm,

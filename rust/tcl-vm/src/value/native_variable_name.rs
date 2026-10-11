@@ -32,50 +32,85 @@ impl Value {
             _ => None,
         }
     }
-    pub(crate) fn install_native_parsed_variable(
+    pub(crate) fn install_native_parsed_variable_checked<E: From<ValueError>>(
         &self,
-        cache: ParsedVariableName,
         dialect: tcl_registry::InvocationDialect,
-    ) -> Result<(), ValueError> {
+        build: impl FnOnce() -> Result<ParsedVariableName, E>,
+        check: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<(), E> {
         let protocol = dialect.native_variable_name_protocol().ok_or(
             ValueError::CommandProtocolUnavailable("native parsed variable issuer"),
         )?;
-        let shape = cache.array.as_ref().is_none_or(|(_, element)| {
-            matches!(
-                (element, protocol.has_parsed_array_updater()),
-                (NativeParsedVariableElement::Bytes(_), true)
-                    | (NativeParsedVariableElement::Object(_), false)
-            )
-        });
-        if protocol != cache.protocol || self.resident_string_bytes().is_none() || !shape {
+        if self.resident_string_bytes().is_none() {
             return Err(ValueError::CommandProtocolUnavailable(
-                "native parsed variable origin, shape or storage",
-            ));
+                "native parsed variable resident spelling",
+            )
+            .into());
         }
-        self.replace_primary(IntRep::NativeParsedVariableName(cache));
-        Ok(())
+        self.replace_primary_using_with(
+            || {
+                let cache = build()?;
+                let shape = cache.array.as_ref().is_none_or(|(_, element)| {
+                    matches!(
+                        (element, protocol.has_parsed_array_updater()),
+                        (NativeParsedVariableElement::Bytes(_), true)
+                            | (NativeParsedVariableElement::Object(_), false)
+                    )
+                });
+                if protocol != cache.protocol || self.resident_string_bytes().is_none() || !shape {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "native parsed variable origin, shape or storage",
+                    )
+                    .into());
+                }
+                Ok(IntRep::NativeParsedVariableName(cache))
+            },
+            &mut Some(check),
+        )
     }
-    pub(crate) fn install_native_local_variable(
+
+    pub(crate) fn install_native_local_variable_checked<E: From<ValueError>>(
         &self,
-        cache: LocalVariableName,
         dialect: tcl_registry::InvocationDialect,
-    ) -> Result<(), ValueError> {
+        build: impl FnOnce() -> Result<LocalVariableName, E>,
+        check: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<(), E> {
         let protocol = dialect.native_variable_name_protocol().ok_or(
             ValueError::CommandProtocolUnavailable("native local variable issuer"),
         )?;
-        let shape = matches!(
-            (&cache.owner, protocol.local_cache_owns_procedure()),
-            (NativeLocalVariableOwner::Procedure(_), true)
-                | (NativeLocalVariableOwner::Name(_), false)
-        );
-        if protocol != cache.protocol || !shape || self.resident_string_bytes().is_none() {
+        if self.resident_string_bytes().is_none() {
             return Err(ValueError::CommandProtocolUnavailable(
-                "native local variable origin, shape or storage",
-            ));
+                "native local variable resident spelling",
+            )
+            .into());
         }
-        self.replace_primary(IntRep::NativeLocalVariableName(cache));
-        Ok(())
+        self.replace_primary_using_with(
+            || {
+                let cache = build()?;
+                let shape = matches!(
+                    (&cache.owner, protocol.local_cache_owns_procedure()),
+                    (NativeLocalVariableOwner::Procedure(_), true)
+                        | (NativeLocalVariableOwner::Name(_), false)
+                );
+                if protocol != cache.protocol || !shape || self.resident_string_bytes().is_none() {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "native local variable origin, shape or storage",
+                    )
+                    .into());
+                }
+                Ok(IntRep::NativeLocalVariableName(cache))
+            },
+            &mut Some(check),
+        )
     }
+
+    pub(crate) fn retire_native_variable_primary_checked<E: From<ValueError>>(
+        &self,
+        check: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.replace_primary_using_with(|| Ok(IntRep::Str), &mut Some(check))
+    }
+
     pub(crate) fn native_primary_has_free_hook(&self) -> bool {
         !matches!(
             &*self.0.intrep.borrow(),
@@ -89,9 +124,6 @@ impl Value {
                 | IntRep::FrameLevel { .. }
                 | IntRep::NativeInstructionName(_)
         )
-    }
-    pub(crate) fn retire_native_variable_primary(&self) {
-        self.replace_primary(IntRep::Str);
     }
     pub(crate) fn copy_native_variable_primary_to(&self, duplicate: &Self) {
         let primary = match &*self.0.intrep.borrow() {

@@ -142,7 +142,9 @@ fn trace_add_remove(vm: &mut Vm, sub: &str, rest: &[Value], add: bool) -> Comple
                     if let Err(e) = vm.ensure_trace_variable_bytes(&name) {
                         return e;
                     }
-                    vm.add_var_trace_bytes(&name, ops, command, false);
+                    if let Err(error) = vm.add_var_trace_bytes_checked(&name, ops, command, false) {
+                        return error;
+                    }
                 } else {
                     let prefix = match original_names.read(vm, command) {
                         Ok(bytes) => bytes,
@@ -359,7 +361,9 @@ fn legacy_variable(vm: &mut Vm, args: &[Value], add: bool) -> Completion<Value> 
             if let Err(e) = vm.ensure_trace_variable_bytes(&name) {
                 return e;
             }
-            vm.add_var_trace_bytes(&name, ops, command, true);
+            if let Err(error) = vm.add_var_trace_bytes_checked(&name, ops, command, true) {
+                return error;
+            }
         } else {
             let prefix = match original_names.read(vm, command) {
                 Ok(bytes) => bytes,

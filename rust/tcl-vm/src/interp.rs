@@ -13743,6 +13743,7 @@ impl Vm {
         self.add_var_trace_bytes(name.as_bytes(), ops, &Value::string(command), old_style);
     }
 
+    #[cfg(test)]
     pub(crate) fn add_var_trace_bytes(
         &mut self,
         name: &[u8],
@@ -13750,53 +13751,68 @@ impl Vm {
         command: &Value,
         old_style: bool,
     ) {
-        if self.observed_names.is_some() {
-            let _ = self
-                .refuse_host_command("observed variable trace registration is unavailable".into());
-            return;
-        }
-        let Some(protocol) = self
-            .actual_native_invocation_dialect()
-            .native_variable_trace_protocol()
-        else {
-            let _ =
-                self.refuse_host_command("variable trace prefix protocol is unavailable".into());
-            return;
-        };
-        let copied = match self.native_name_operand_bytes(command) {
-            Ok(bytes) => Value::new_native_string_bytes(protocol.variable_prefix_storage(&bytes)),
-            Err(error) => {
-                let _ = self
-                    .refuse_host_command(format!("variable trace prefix is unavailable: {error}"));
-                return;
+        let _ = self.add_var_trace_bytes_checked(name, ops, command, old_style);
+    }
+
+    pub(crate) fn add_var_trace_bytes_checked(
+        &mut self,
+        name: &[u8],
+        ops: Vec<String>,
+        command: &Value,
+        old_style: bool,
+    ) -> Result<(), Completion<Value>> {
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            if self.observed_names.is_some() {
+                return Err(self.refuse_host_command(
+                    "observed variable trace registration is unavailable".into(),
+                ));
             }
-        };
-        if self.registered_trace_cell_bytes(name).is_none() {
-            let _ = self.ensure_trace_variable_bytes(name);
-        }
-        let Some(key) = self
-            .registered_trace_cell_bytes(name)
-            .and_then(|cell| cell.id)
-        else {
-            return;
-        };
-        self.next_var_trace_id += 1;
-        let id = self.next_var_trace_id;
-        if !self.variable_observers.script_traces.contains_key(&key) {
-            self.var_arena.pin(key);
-        }
-        self.variable_observers
-            .script_traces
-            .entry(key)
-            .or_default()
-            .push(VarTrace {
-                id,
-                ops,
-                command: Some(copied),
-                native: None,
-                old_style,
-            });
-        self.invalidate_guard_domain(GuardDomain::VariableTrace);
+            let Some(protocol) = self
+                .actual_native_invocation_dialect()
+                .native_variable_trace_protocol()
+            else {
+                return Err(self
+                    .refuse_host_command("variable trace prefix protocol is unavailable".into()));
+            };
+            let bytes = original_names
+                .read(self, command)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            let copied = Value::new_native_string_bytes(protocol.variable_prefix_storage(&bytes));
+            if self.registered_trace_cell_bytes(name).is_none() {
+                self.ensure_trace_variable_bytes(name)?;
+            }
+            let Some(key) = self
+                .registered_trace_cell_bytes(name)
+                .and_then(|cell| cell.id)
+            else {
+                return Ok(());
+            };
+            self.next_var_trace_id += 1;
+            let id = self.next_var_trace_id;
+            if !self.variable_observers.script_traces.contains_key(&key) {
+                self.var_arena.pin(key);
+            }
+            self.variable_observers
+                .script_traces
+                .entry(key)
+                .or_default()
+                .push(VarTrace {
+                    id,
+                    ops,
+                    command: Some(copied),
+                    native: None,
+                    old_style,
+                });
+            self.invalidate_guard_domain(GuardDomain::VariableTrace);
+            Ok(())
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
 
     pub(crate) fn ensure_trace_variable_bytes(
@@ -14122,51 +14138,60 @@ impl Vm {
         args: &[Value],
         interp_trace_in_progress: bool,
     ) -> Completion<Value> {
-        if let Some(refused) = self.refused_completion() {
-            return refused;
-        }
-        if entry.firing.get() {
-            return ok(Value::empty());
-        }
-        entry.firing.set(true);
-        let mut script = entry.callback.clone();
-        for argument in args {
-            let bytes = match self.native_name_operand_bytes(argument) {
-                Ok(bytes) => bytes,
-                Err(error) => {
-                    entry.firing.set(false);
-                    return self.refuse_host_command(format!(
-                        "command trace argument string is unavailable: {error:?}"
-                    ));
-                }
+        let original_names = match native_name_consumers::OriginalNameConsumerScope::enter(self) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(self, error),
+        };
+        let reached = (|| {
+            if let Some(refused) = self.refused_completion() {
+                return refused;
+            }
+            if entry.firing.get() {
+                return ok(Value::empty());
+            }
+            entry.firing.set(true);
+            let mut script = entry.callback.clone();
+            for argument in args {
+                let bytes = match original_names.read(self, argument) {
+                    Ok(bytes) => bytes,
+                    Err(error) => {
+                        entry.firing.set(false);
+                        return crate::command::completion_from_cmd_error(self, error);
+                    }
+                };
+                script.push(b' ');
+                tcl_syntax::list::append_list_element(&mut script, &bytes, false);
+            }
+            // Saved/restored, not merely set — a callback can itself be dispatched
+            // from inside another callback's evaluation only if re-entrant nesting
+            // is legitimate, but the common case is one level; save-restore keeps
+            // either correct, and keeps a command callback nested inside an
+            // execution one from clearing the gate that one raised.
+            let saved = self.trace_in_progress.get();
+            self.trace_in_progress
+                .set(saved || interp_trace_in_progress);
+            let Some(protocol) = self
+                .actual_native_invocation_dialect()
+                .native_variable_trace_protocol()
+            else {
+                self.trace_in_progress.set(saved);
+                entry.firing.set(false);
+                return self.refuse_host_command(
+                    "command trace callback protocol is unavailable".to_owned(),
+                );
             };
-            script.push(b' ');
-            tcl_syntax::list::append_list_element(&mut script, &bytes, false);
-        }
-        // Saved/restored, not merely set — a callback can itself be dispatched
-        // from inside another callback's evaluation only if re-entrant nesting
-        // is legitimate, but the common case is one level; save-restore keeps
-        // either correct, and keeps a command callback nested inside an
-        // execution one from clearing the gate that one raised.
-        let saved = self.trace_in_progress.get();
-        self.trace_in_progress
-            .set(saved || interp_trace_in_progress);
-        let Some(protocol) = self
-            .actual_native_invocation_dialect()
-            .native_variable_trace_protocol()
-        else {
+            let source = Value::from_native_string_bytes(
+                protocol.command_callback_source(interp_trace_in_progress, &script),
+            );
+            let res = self.eval_value_at_level(self.current_level(), &source);
             self.trace_in_progress.set(saved);
             entry.firing.set(false);
-            return self
-                .refuse_host_command("command trace callback protocol is unavailable".to_owned());
-        };
-        let source = Value::from_native_string_bytes(
-            protocol.command_callback_source(interp_trace_in_progress, &script),
-        );
-        let res = self.eval_value_at_level(self.current_level(), &source);
-        self.trace_in_progress.set(saved);
-        entry.firing.set(false);
-        res
+            res
+        })();
+        if let Err(error) = original_names.finish(self) {
+            return crate::command::completion_from_cmd_error(self, error);
+        }
+        reached
     }
 
     /// Fire the `rename`/`delete` command traces held at `key` as
@@ -14653,104 +14678,120 @@ impl Vm {
         mut resolved: ResolvedVar,
         original: Option<&Value>,
     ) -> Result<Value, Completion<Value>> {
-        use tcl_syntax::naming::{
-            NativeVariableFailureSite as Site, NativeVariableInputForm as Input,
-        };
-        let input = element.map_or(Input::Combined(root), |element| Input::Separate {
-            root,
-            element: Some(element),
-        });
-        if resolved.elem.is_some()
-            && !self.dictionary_variable_containers()
-            && resolved
-                .base_id
-                .and_then(|id| self.var_arena.get(id))
-                .is_some_and(|cell| matches!(cell.state(), Local::Scalar(_)))
-        {
-            if let Some(original) = original {
-                self.native_name_operand_bytes(original)
-                    .map_err(|error| self.refuse_host_command(error.to_string()))?;
-            }
-            return Err(self.variable_access_error_at(
-                "read",
-                input,
-                "variable isn't array",
-                Site::NameLookup,
-            ));
-        }
-        self.prepare_existing_array_read(&mut resolved)?;
-        let cell = self.trace_cell_from_resolved(&resolved);
-        let read = |vm: &mut Self| -> Result<Value, Completion<Value>> {
-            if let Some(original) = original
-                && cell.as_ref().is_some_and(|cell| {
-                    vm.original_variable_trace_requires_name(cell, element.is_some(), "read")
-                })
-            {
-                vm.native_name_operand_bytes(original)
-                    .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-            }
-            if let Some(element) = element {
-                vm.variable_trace_guest_or_unwind(|vm| {
-                    vm.fire_elem_traces_from_cell_bytes(root, element, "read", cell.clone())
-                })?;
-            } else {
-                vm.variable_trace_guest_or_unwind(|vm| {
-                    vm.fire_var_traces_from_cell_bytes(root, "read", None, None, cell.clone())
-                })?;
-            }
-            let current = if vm.dictionary_variable_containers() {
-                vm.read_variable_contents(&resolved)
-            } else if let Some(id) = resolved.id {
-                match vm.initial_value_at_cell(id, resolved.elem.as_ref().and(resolved.base_id)) {
-                    Ok(current) => current,
-                    Err(error) => {
-                        return Err(crate::command::completion_from_cmd_error(vm, error.into()));
-                    }
-                }
-                .cloned()
-            } else if let Some((base, element)) = resolved.base_id.zip(resolved.elem.as_ref()) {
-                vm.read_resolved_elem(base, element)
-            } else {
-                None
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            use tcl_syntax::naming::{
+                NativeVariableFailureSite as Site, NativeVariableInputForm as Input,
             };
-            if let Some(value) = current {
-                return Ok(value);
-            }
-            let reason = if resolved.elem.is_some() {
-                if resolved
+            let input = element.map_or(Input::Combined(root), |element| Input::Separate {
+                root,
+                element: Some(element),
+            });
+            if resolved.elem.is_some()
+                && !self.dictionary_variable_containers()
+                && resolved
                     .base_id
+                    .and_then(|id| self.var_arena.get(id))
+                    .is_some_and(|cell| matches!(cell.state(), Local::Scalar(_)))
+            {
+                if let Some(original) = original {
+                    original_names
+                        .read(self, original)
+                        .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+                }
+                return Err(self.variable_access_error_at(
+                    "read",
+                    input,
+                    "variable isn't array",
+                    Site::NameLookup,
+                ));
+            }
+            self.prepare_existing_array_read(&mut resolved)?;
+            let cell = self.trace_cell_from_resolved(&resolved);
+            let read = |vm: &mut Self| -> Result<Value, Completion<Value>> {
+                if let Some(original) = original
+                    && cell.as_ref().is_some_and(|cell| {
+                        vm.original_variable_trace_requires_name(cell, element.is_some(), "read")
+                    })
+                {
+                    original_names
+                        .read(vm, original)
+                        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                }
+                if let Some(element) = element {
+                    vm.variable_trace_guest_or_unwind(|vm| {
+                        vm.fire_elem_traces_from_cell_bytes(root, element, "read", cell.clone())
+                    })?;
+                } else {
+                    vm.variable_trace_guest_or_unwind(|vm| {
+                        vm.fire_var_traces_from_cell_bytes(root, "read", None, None, cell.clone())
+                    })?;
+                }
+                let current = if vm.dictionary_variable_containers() {
+                    vm.read_variable_contents(&resolved)
+                } else if let Some(id) = resolved.id {
+                    match vm.initial_value_at_cell(id, resolved.elem.as_ref().and(resolved.base_id))
+                    {
+                        Ok(current) => current,
+                        Err(error) => {
+                            return Err(crate::command::completion_from_cmd_error(
+                                vm,
+                                error.into(),
+                            ));
+                        }
+                    }
+                    .cloned()
+                } else if let Some((base, element)) = resolved.base_id.zip(resolved.elem.as_ref()) {
+                    vm.read_resolved_elem(base, element)
+                } else {
+                    None
+                };
+                if let Some(value) = current {
+                    return Ok(value);
+                }
+                let reason = if resolved.elem.is_some() {
+                    if resolved
+                        .base_id
+                        .and_then(|id| vm.var_arena.get(id))
+                        .is_some_and(|cell| matches!(cell.state(), Local::Array(_)))
+                    {
+                        "no such element in array"
+                    } else {
+                        "no such variable"
+                    }
+                } else if resolved
+                    .id
                     .and_then(|id| vm.var_arena.get(id))
                     .is_some_and(|cell| matches!(cell.state(), Local::Array(_)))
                 {
-                    "no such element in array"
+                    "variable is array"
                 } else {
                     "no such variable"
+                };
+                let site = if resolved.id.is_some() || resolved.base_id.is_some() {
+                    Site::ValueRead
+                } else {
+                    Site::NameLookup
+                };
+                if let Some(original) = original {
+                    original_names
+                        .read(vm, original)
+                        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
                 }
-            } else if resolved
-                .id
-                .and_then(|id| vm.var_arena.get(id))
-                .is_some_and(|cell| matches!(cell.state(), Local::Array(_)))
-            {
-                "variable is array"
-            } else {
-                "no such variable"
+                Err(vm.variable_access_error_at("read", input, reason, site))
             };
-            let site = if resolved.id.is_some() || resolved.base_id.is_some() {
-                Site::ValueRead
+            if let Some(cell) = cell.as_ref() {
+                self.with_variable_operation(cell, read)
             } else {
-                Site::NameLookup
-            };
-            if let Some(original) = original {
-                vm.native_name_operand_bytes(original)
-                    .map_err(|error| vm.refuse_host_command(error.to_string()))?;
+                read(self)
             }
-            Err(vm.variable_access_error_at("read", input, reason, site))
-        };
-        if let Some(cell) = cell.as_ref() {
-            self.with_variable_operation(cell, read)
-        } else {
-            read(self)
-        }
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
 
     fn prepare_existing_array_read(
@@ -15378,71 +15419,78 @@ impl Vm {
         reported: (&[u8], &[u8]),
         scope: &native_operation_currency::NativeOperationScope,
     ) -> Result<Completion<Value>, tcl_runtime_api::NativeExecutionError> {
-        scope.check_native(self)?;
-        let original = self.native_name_operand_bytes(command);
-        scope.check_native(self)?;
-        let mut script = original
-            .map_err(|error| {
-                self.retain_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(
-                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error).into(),
-                ))
-            })?
-            .to_vec();
-        for argument in [
-            reported.0,
-            reported.1,
-            tcl_cmd_core::trace::callback_op_word(op, old_style).as_bytes(),
-        ] {
-            script.push(b' ');
-            tcl_syntax::list::append_list_element(&mut script, argument, false);
-        }
-        let protocol = self
-            .actual_native_invocation_dialect()
-            .native_variable_trace_protocol()
-            .ok_or_else(|| {
-                self.retain_host_command_refusal(
-                    "variable trace callback source protocol is unavailable".into(),
-                )
-            })?;
-        let source = Value::new_native_string_bytes(protocol.variable_callback_source(&script));
-        let saved = self.save_native_script_trace_result()?;
+        let original_names = match native_name_consumers::OriginalNameConsumerScope::enter(self) {
+            Ok(scope) => scope,
+            Err(error) => return self.variable_trace_command_error(error),
+        };
         let reached = (|| {
             scope.check_native(self)?;
-            self.reset_native_error_objects_before_trace_script();
+            let original = original_names.read(self, command);
             scope.check_native(self)?;
-            let evaluated = self.eval_original_script_value(
-                &source,
-                tcl_registry::native_eval_object::EvalObjectPurpose::TraceCallback,
-                None,
-            );
-            let mut completion = match evaluated {
-                Ok(completion) => completion,
-                Err(crate::error::TclError::Guest(completion)) => completion,
-                Err(crate::error::TclError::Host(first)) => {
-                    return Err(self.retain_tcl_host_failure(first));
-                }
+            let mut script = match original {
+                Ok(bytes) => bytes.to_vec(),
+                Err(error) => return self.variable_trace_command_error(error),
             };
-            scope.check_native(self)?;
-            if !completion.code.is_ok() {
-                completion.result = completion.result.into_native_reference();
+            for argument in [
+                reported.0,
+                reported.1,
+                tcl_cmd_core::trace::callback_op_word(op, old_style).as_bytes(),
+            ] {
+                script.push(b' ');
+                tcl_syntax::list::append_list_element(&mut script, argument, false);
+            }
+            let protocol = self
+                .actual_native_invocation_dialect()
+                .native_variable_trace_protocol()
+                .ok_or_else(|| {
+                    self.retain_host_command_refusal(
+                        "variable trace callback source protocol is unavailable".into(),
+                    )
+                })?;
+            let source = Value::new_native_string_bytes(protocol.variable_callback_source(&script));
+            let saved = self.save_native_script_trace_result()?;
+            let reached = (|| {
                 scope.check_native(self)?;
-            }
-            Ok(completion)
-        })();
-        let cleanup = if let Some(saved) = saved {
-            self.restore_native_interp_trace_result(saved)
-        } else {
-            Ok(())
-        };
-        let current = scope.check_native(self);
-        match reached {
-            Err(first) => Err(first),
-            Ok(completion) => {
-                cleanup?;
-                current?;
+                self.reset_native_error_objects_before_trace_script();
+                scope.check_native(self)?;
+                let evaluated = self.eval_original_script_value(
+                    &source,
+                    tcl_registry::native_eval_object::EvalObjectPurpose::TraceCallback,
+                    None,
+                );
+                let mut completion = match evaluated {
+                    Ok(completion) => completion,
+                    Err(crate::error::TclError::Guest(completion)) => completion,
+                    Err(crate::error::TclError::Host(first)) => {
+                        return Err(self.retain_tcl_host_failure(first));
+                    }
+                };
+                scope.check_native(self)?;
+                if !completion.code.is_ok() {
+                    completion.result = completion.result.into_native_reference();
+                    scope.check_native(self)?;
+                }
                 Ok(completion)
+            })();
+            let cleanup = if let Some(saved) = saved {
+                self.restore_native_interp_trace_result(saved)
+            } else {
+                Ok(())
+            };
+            let current = scope.check_native(self);
+            match reached {
+                Err(first) => Err(first),
+                Ok(completion) => {
+                    cleanup?;
+                    current?;
+                    Ok(completion)
+                }
             }
+        })();
+        if let Err(error) = original_names.finish(self) {
+            return self.variable_trace_command_error(error);
         }
+        reached
     }
 
     fn present_variable_trace_failure(
@@ -19687,89 +19735,94 @@ impl Vm {
         original: Option<&Value>,
         leave_error_message: bool,
     ) -> Result<Value, Completion<Value>> {
-        use native_operation_currency::NativeOperationScope;
-        let scope = NativeOperationScope::enter(self)
-            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
-        let checked =
-            self.check_captured_update_with_errors(name, key, captured, leave_error_message);
-        if leave_error_message
-            && checked.is_err()
-            && let Some(original) = original
-        {
-            let reached = self.native_name_operand_bytes(original);
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            use native_operation_currency::NativeOperationScope;
+            let scope = NativeOperationScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            let checked =
+                self.check_captured_update_with_errors(name, key, captured, leave_error_message);
+            if leave_error_message
+                && checked.is_err()
+                && let Some(original) = original
+            {
+                let reached = original_names.read(self, original);
+                scope
+                    .check(self)
+                    .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+                reached.map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            }
             scope
                 .check(self)
                 .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
-            reached
-                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
-                .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
-        }
-        scope
-            .check(self)
-            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
-        checked?;
-        let cell = &captured.cell;
-        let id = cell.id.expect("captured update cell");
-        let _ = self.var_arena.replace_state(id, Local::Scalar(value));
-        scope
-            .check(self)
-            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
-        if self.var_arena.get(id).is_none() {
-            return Err(crate::command::completion_from_cmd_error(
-                self,
-                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                    "actual captured variable cell",
+            checked?;
+            let cell = &captured.cell;
+            let id = cell.id.expect("captured update cell");
+            let _ = self.var_arena.replace_state(id, Local::Scalar(value));
+            scope
+                .check(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            if self.var_arena.get(id).is_none() {
+                return Err(crate::command::completion_from_cmd_error(
+                    self,
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "actual captured variable cell",
+                    )
+                    .into(),
+                ));
+            }
+            if !self.var_arena.element_is_attached(id)
+                || captured.namespace.is_some_and(|namespace| {
+                    namespace != ROOT_NS && !self.ns_vars.contains_key(&namespace)
+                })
+            {
+                // Recheck actual retained storage, without repeating constant/type
+                // acceptance after a reached old-value retirement callback.
+                self.check_captured_update_with_errors(name, key, captured, leave_error_message)?;
+            }
+            if let Some(original) = original
+                && self.original_variable_trace_requires_name(cell, key.is_some(), "write")
+            {
+                let reached = original_names.read(self, original);
+                scope
+                    .check(self)
+                    .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+                reached.map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            }
+            let input = if let Some(key) = key {
+                let mut display = name.to_vec();
+                display.push(b'(');
+                display.extend_from_slice(key);
+                display.push(b')');
+                (display, (name, Some(key)), true)
+            } else {
+                (name.to_vec(), (name, None), false)
+            };
+            let reached = self.variable_trace_guest_or_unwind(|vm| {
+                vm.fire_var_traces_from_parts(
+                    VarTraceInvocation {
+                        leave_error_message,
+                        name: &input.0,
+                        op: "write",
+                        reported: input.1,
+                        element_access: input.2,
+                    },
+                    None,
+                    Some(cell.clone()),
                 )
-                .into(),
-            ));
-        }
-        if !self.var_arena.element_is_attached(id)
-            || captured.namespace.is_some_and(|namespace| {
-                namespace != ROOT_NS && !self.ns_vars.contains_key(&namespace)
-            })
-        {
-            // Recheck actual retained storage, without repeating constant/type
-            // acceptance after a reached old-value retirement callback.
-            self.check_captured_update_with_errors(name, key, captured, leave_error_message)?;
-        }
-        if let Some(original) = original
-            && self.original_variable_trace_requires_name(cell, key.is_some(), "write")
-        {
-            let reached = self.native_name_operand_bytes(original);
+            });
             scope
                 .check(self)
                 .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
-            reached
-                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
-                .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
-        }
-        let input = if let Some(key) = key {
-            let mut display = name.to_vec();
-            display.push(b'(');
-            display.extend_from_slice(key);
-            display.push(b')');
-            (display, (name, Some(key)), true)
-        } else {
-            (name.to_vec(), (name, None), false)
-        };
-        let reached = self.variable_trace_guest_or_unwind(|vm| {
-            vm.fire_var_traces_from_parts(
-                VarTraceInvocation {
-                    leave_error_message,
-                    name: &input.0,
-                    op: "write",
-                    reported: input.1,
-                    element_access: input.2,
-                },
-                None,
-                Some(cell.clone()),
-            )
-        });
-        scope
-            .check(self)
+            reached?;
+            Ok(self.read_resolved_cell(id).unwrap_or_else(Value::empty))
+        })();
+        original_names
+            .finish(self)
             .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
-        reached?;
-        Ok(self.read_resolved_cell(id).unwrap_or_else(Value::empty))
+        reached
     }
 
     pub(crate) fn increment_captured_bytes(

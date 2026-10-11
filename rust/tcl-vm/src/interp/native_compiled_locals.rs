@@ -344,19 +344,45 @@ impl Vm {
         level: usize,
         other: &Value,
     ) -> Result<(), Completion<Value>> {
-        let binding = self
-            .compiled_local_binding(slot)
-            .ok_or_else(|| self.refuse_host_command("compiled upvar local unavailable".into()))?;
-        if self.native_c_variable_name_protocol().is_some() {
-            return self.link_original_c_compiled_upvar(other, level, &binding);
-        }
-        let bytes = self
-            .native_name_operand_bytes(other)
-            .map_err(|error| self.refuse_host_command(error.to_string()))?;
-        self.link_upvar_with_binding_bytes(level, &bytes, binding.name.as_bytes(), Some(&binding))
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let target_frame = original_names
+            .capture_frame(self, level)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            let binding = self.compiled_local_binding(slot).ok_or_else(|| {
+                self.refuse_host_command("compiled upvar local unavailable".into())
+            })?;
+            let local_cell = original_names
+                .capture_binding(self, &binding)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            if self.native_c_variable_name_protocol().is_some() {
+                return self.link_original_c_compiled_upvar(other, level, &binding);
+            }
+            let bytes = original_names
+                .read(self, other)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            target_frame
+                .check(self, &original_names)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            local_cell
+                .check(self, &original_names)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            self.link_upvar_with_binding_bytes(
+                level,
+                &bytes,
+                binding.name.as_bytes(),
+                Some(&binding),
+            )
             .map_err(|error| {
                 crate::command::upvar_link_error_bytes(error, &bytes, binding.name.as_bytes())
             })
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
 
     pub(crate) fn link_compiled_namespace_original(
@@ -366,32 +392,51 @@ impl Vm {
         original: &Value,
         declare: bool,
     ) -> Result<(), Completion<Value>> {
-        let binding = self.compiled_local_binding(slot).ok_or_else(|| {
-            self.refuse_host_command("compiled namespace local unavailable".into())
-        })?;
-        if self.native_c_variable_name_protocol().is_some() {
-            return self.link_original_c_namespace_variable(original, namespace, &binding, declare);
-        }
-        let bytes = self
-            .native_name_operand_bytes(original)
-            .map_err(|error| self.refuse_host_command(error.to_string()))?;
-        let result = if declare {
-            self.link_namespace_variable_with_binding_bytes(
-                binding.name.as_bytes(),
-                &bytes,
-                Some(&binding),
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter_for_namespace(
+                self,
+                Some(namespace),
             )
-        } else {
-            self.link_namespace_upvar_with_binding_bytes(
-                namespace,
-                &bytes,
-                binding.name.as_bytes(),
-                Some(&binding),
-            )
-        };
-        result.map_err(|error| {
-            crate::command::upvar_link_error_bytes(error, &bytes, binding.name.as_bytes())
-        })
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            let binding = self.compiled_local_binding(slot).ok_or_else(|| {
+                self.refuse_host_command("compiled namespace local unavailable".into())
+            })?;
+            let local_cell = original_names
+                .capture_binding(self, &binding)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            if self.native_c_variable_name_protocol().is_some() {
+                return self
+                    .link_original_c_namespace_variable(original, namespace, &binding, declare);
+            }
+            let bytes = original_names
+                .read(self, original)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            local_cell
+                .check(self, &original_names)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            let result = if declare {
+                self.link_namespace_variable_with_binding_bytes(
+                    binding.name.as_bytes(),
+                    &bytes,
+                    Some(&binding),
+                )
+            } else {
+                self.link_namespace_upvar_with_binding_bytes(
+                    namespace,
+                    &bytes,
+                    binding.name.as_bytes(),
+                    Some(&binding),
+                )
+            };
+            result.map_err(|error| {
+                crate::command::upvar_link_error_bytes(error, &bytes, binding.name.as_bytes())
+            })
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
 
     pub(crate) fn bind_compiled_formal_slot(
@@ -510,13 +555,26 @@ impl Vm {
         slot: usize,
         element: Option<&Value>,
     ) -> Result<bool, Completion<Value>> {
-        let bytes = element
-            .map(|element| self.native_name_operand_bytes(element))
-            .transpose()
-            .map_err(|error| self.refuse_host_command(error.to_string()))?;
-        let (name, mut resolved) = self.compiled_operand(slot, bytes.as_deref())?;
-        self.prepare_existing_array_read(&mut resolved)?;
-        if self
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let binding = self.compiled_local_binding(slot).ok_or_else(|| {
+            self.refuse_host_command("compiled local receiver is unavailable".into())
+        })?;
+        let local_cell = original_names
+            .capture_binding(self, &binding)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            let bytes = element
+                .map(|element| original_names.read(self, element))
+                .transpose()
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            local_cell
+                .check(self, &original_names)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            let (name, mut resolved) = self.compiled_operand(slot, bytes.as_deref())?;
+            self.prepare_existing_array_read(&mut resolved)?;
+            if self
             .native_c_variable_name_protocol()
             .is_some_and(
                 tcl_syntax::native_variable_name::NativeVariableNameProtocol::element_table_retains_original,
@@ -527,7 +585,17 @@ impl Vm {
             self.var_arena
                 .retain_original_array_key(array, index, original.clone());
         }
-        self.exists_selected_original_variable(name.as_bytes(), bytes.as_deref(), &resolved, None)
+            self.exists_selected_original_variable(
+                name.as_bytes(),
+                bytes.as_deref(),
+                &resolved,
+                None,
+            )
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
 
     pub(crate) fn unset_compiled_variable(

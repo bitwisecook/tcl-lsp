@@ -39,6 +39,26 @@ impl Value {
         &self,
         context: &Rc<NativeJimObjectContext>,
     ) -> Result<(), ValueError> {
+        self.ensure_native_jim_dictionary_substitution_using::<ValueError>(context, &mut None)
+    }
+
+    /// Check the same original operand at the reached free and adoption stages.
+    pub(crate) fn ensure_native_jim_dictionary_substitution_checked<E: From<ValueError>>(
+        &self,
+        context: &Rc<NativeJimObjectContext>,
+        check: &mut impl FnMut() -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.ensure_native_jim_dictionary_substitution_using(context, &mut Some(check))
+    }
+
+    fn ensure_native_jim_dictionary_substitution_using<E: From<ValueError>>(
+        &self,
+        context: &Rc<NativeJimObjectContext>,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+    ) -> Result<(), E> {
+        if let Some(check) = check.as_deref_mut() {
+            check()?;
+        }
         self.bind_native_jim_context(context)?;
         let converted =
             {
@@ -59,13 +79,17 @@ impl Value {
         let (name, index) = if let Some(children) = converted {
             children
         } else {
-            let bytes = self
+            let reached = self
                 .native_string_bytes(tcl_syntax::native_string::NativeStringProtocol::Jim084)
                 .map_err(|error| {
                     ValueError::NativeStringAccess(
                         tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
                     )
-                })?;
+                });
+            if let Some(check) = check.as_deref_mut() {
+                check()?;
+            }
+            let bytes = reached?;
             let extents = dictionary_substitution_extents(&bytes)?;
             let name = Value::new_native_string_bytes(&bytes[extents.name]);
             let index = Value::new_native_string_bytes(&bytes[extents.key]);
@@ -73,11 +97,13 @@ impl Value {
             index.bind_native_jim_context(context)?;
             (name, index)
         };
-        self.replace_primary(IntRep::JimDictionarySubstitution {
+        // SetDictSubstFromAny creates these true incoming child references
+        // before Jim_FreeIntRep; the same checked kernel retires then adopts.
+        let incoming = IntRep::JimDictionarySubstitution {
             name: name.into_native_reference(),
             index: index.into_native_reference(),
-        });
-        Ok(())
+        };
+        self.replace_primary_using_with(|| Ok(incoming), check)
     }
 
     /// Borrow the actual owned tuple without preparing it or cloning children.

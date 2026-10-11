@@ -34,11 +34,12 @@ impl Vm {
         target: &tcl_runtime_api::ArrayTarget,
         key: &[u8],
     ) -> Result<NativeObjectLifetimeLease, tcl_syntax::value::ValueError> {
-        let array = target.cell_id().ok_or(
-            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "array for actual receiver",
-            ),
-        )?;
+        let array =
+            target
+                .cell_id()
+                .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "array for actual receiver",
+                ))?;
         self.var_arena
             .original_array_key(array, &tcl_core_types::NameBytes::from(key))
     }
@@ -126,7 +127,9 @@ impl Vm {
         &mut self,
         original: &Value,
         binding: &VarBinding,
+        original_names: &super::native_name_consumers::OriginalNameConsumerScope,
     ) -> Result<(), Completion<Value>> {
+        use tcl_cmd_core::CmdError;
         if self.native_original_local_binding(original).as_ref() == Some(binding) {
             return Ok(());
         }
@@ -134,21 +137,62 @@ impl Vm {
         let protocol = self
             .native_c_variable_name_protocol()
             .expect("selected actual C lookup");
-        let cache = if let VarTableOwner::CompiledLocal { level, slot } = binding.owner {
-            let owner = if protocol.local_cache_owns_procedure() {
-                let procedure = self
-                    .frames
-                    .get(level)
-                    .and_then(|frame| frame.native_c_procedure.clone())
-                    .ok_or_else(|| {
-                        self.refuse_host_command(
-                            "actual C8.4 local procedure owner unavailable".into(),
-                        )
-                    })?;
-                NativeLocalVariableOwner::Procedure(
-                    crate::command::NativeProcedureReference::acquire(&procedure),
-                )
-            } else {
+        let raw = self.raw_variable_binding(binding).ok_or_else(|| {
+            completion_from_cmd_error(
+                self,
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable("original C cache cell")
+                    .into(),
+            )
+        })?;
+        let cell = self.var_arena.weak_jim_cell(raw).ok_or_else(|| {
+            completion_from_cmd_error(
+                self,
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable("original C cache birth")
+                    .into(),
+            )
+        })?;
+        let check_binding = |vm: &mut Vm| -> Result<(), CmdError> {
+            original_names.current_for_value(vm, original)?;
+            let current = vm.raw_variable_binding(binding) == Some(raw)
+                && vm.var_arena.validate_jim_cell(&cell) == Some(raw);
+            original_names.require(vm, current, "original C variable cache binding")
+        };
+        let reached: Result<(), CmdError> = (|| {
+            if let VarTableOwner::CompiledLocal { level, slot } = binding.owner {
+                if protocol.local_cache_owns_procedure() {
+                    let procedure = self
+                        .frames
+                        .get(level)
+                        .and_then(|frame| frame.native_c_procedure.clone())
+                        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "actual C8.4 local procedure owner unavailable",
+                        ))?;
+                    return original.install_native_local_variable_checked(
+                        dialect,
+                        || {
+                            Ok(NativeLocalVariableName {
+                                protocol,
+                                index: slot,
+                                owner: NativeLocalVariableOwner::Procedure(
+                                    crate::command::NativeProcedureReference::acquire(&procedure),
+                                ),
+                            })
+                        },
+                        &mut || {
+                            check_binding(self)?;
+                            let current = self
+                                .frames
+                                .get(level)
+                                .and_then(|frame| frame.native_c_procedure.as_ref())
+                                .is_some_and(|actual| Rc::ptr_eq(actual, &procedure));
+                            original_names.require(
+                                self,
+                                current,
+                                "original C local procedure cache owner",
+                            )
+                        },
+                    );
+                }
                 let canonical = self
                     .frames
                     .get(level)
@@ -156,72 +200,97 @@ impl Vm {
                     .and_then(|table| table.names.get(slot))
                     .and_then(Option::as_ref)
                     .map(Value::native_lifetime_lease)
-                    .ok_or_else(|| {
-                        self.refuse_host_command("actual canonical local name unavailable".into())
-                    })?;
-                // A lifetime view does not add a native name reference while converting.
+                    .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "actual canonical local name unavailable",
+                    ))?;
                 let canonical = canonical.value();
-                let owner = if canonical.is_same_object(original) {
+                let same = canonical.is_same_object(original);
+                let owner = if same {
                     NativeLocalVariableOwner::Name(None)
                 } else {
                     NativeLocalVariableOwner::Name(Some(canonical.clone()))
                 };
-                original
-                    .install_native_local_variable(
-                        NativeLocalVariableName {
+                // C9's LocalSet prepares this actual incoming name reference before
+                // the same StoreInternalRep free/adoption worker. C8 cleared the
+                // root before lookup, so this role still follows that retirement.
+                original.install_native_local_variable_checked(
+                    dialect,
+                    || {
+                        Ok(NativeLocalVariableName {
                             protocol,
                             index: slot,
                             owner,
-                        },
+                        })
+                    },
+                    &mut || {
+                        check_binding(self)?;
+                        original_names.current_for_value(self, canonical)?;
+                        let current = self
+                            .frames
+                            .get(level)
+                            .and_then(|frame| frame.native_local_names.as_ref())
+                            .and_then(|table| table.names.get(slot))
+                            .and_then(Option::as_ref)
+                            .is_some_and(|actual| actual.is_same_object(canonical));
+                        original_names.require(
+                            self,
+                            current,
+                            "original canonical local cache owner",
+                        )
+                    },
+                )?;
+                let check_canonical = |vm: &mut Vm| -> Result<(), CmdError> {
+                    check_binding(vm)?;
+                    original_names.current_for_value(vm, canonical)?;
+                    let current = vm
+                        .frames
+                        .get(level)
+                        .and_then(|frame| frame.native_local_names.as_ref())
+                        .and_then(|table| table.names.get(slot))
+                        .and_then(Option::as_ref)
+                        .is_some_and(|actual| actual.is_same_object(canonical));
+                    original_names.require(vm, current, "original canonical local cache owner")
+                };
+                if !same && protocol.installs_canonical_local_self_cache() {
+                    canonical.install_native_local_variable_checked(
                         dialect,
-                    )
-                    .map_err(|error| self.refuse_host_command(error.to_string()))?;
-                if !canonical.is_same_object(original)
-                    && protocol.installs_canonical_local_self_cache()
-                {
-                    canonical.retire_native_variable_primary();
-                    canonical
-                        .install_native_local_variable(
-                            NativeLocalVariableName {
+                        || {
+                            Ok(NativeLocalVariableName {
                                 protocol,
                                 index: slot,
                                 owner: NativeLocalVariableOwner::Name(None),
-                            },
-                            dialect,
-                        )
-                        .map_err(|error| self.refuse_host_command(error.to_string()))?;
+                            })
+                        },
+                        &mut || check_canonical(self),
+                    )?;
                 } else if protocol.version() == tcl_dialect::TclVersion::V8_6
-                    && !canonical.is_same_object(original)
+                    && !same
                     && !canonical
                         .with_native_local_variable(|cache| {
                             matches!(cache.owner, NativeLocalVariableOwner::Name(None))
                         })
                         .unwrap_or(false)
                 {
-                    canonical.retire_native_variable_primary();
+                    canonical
+                        .retire_native_variable_primary_checked(&mut || check_canonical(self))?;
                 }
                 return Ok(());
-            };
-            Some(NativeLocalVariableName {
-                protocol,
-                index: slot,
-                owner,
-            })
-        } else {
-            None
-        };
-        if let Some(cache) = cache {
-            original.install_native_local_variable(cache, dialect)
-        } else {
-            original.install_native_parsed_variable(
-                NativeParsedVariableName {
-                    protocol,
-                    array: None,
-                },
+            }
+            original.install_native_parsed_variable_checked(
                 dialect,
+                || {
+                    Ok(NativeParsedVariableName {
+                        protocol,
+                        array: None,
+                    })
+                },
+                &mut || check_binding(self),
             )
-        }
-        .map_err(|error| self.refuse_host_command(error.to_string()))
+        })();
+        original_names
+            .check(self)
+            .map_err(|error| completion_from_cmd_error(self, error))?;
+        reached.map_err(|error| completion_from_cmd_error(self, error))
     }
 
     /// Prepare the original name before any selected receiver observers run.
@@ -249,29 +318,49 @@ impl Vm {
         original: &Value,
         protocol: tcl_syntax::native_variable_name::NativeVariableNameProtocol,
         dialect: tcl_registry::InvocationDialect,
+        original_names: &super::native_name_consumers::OriginalNameConsumerScope,
     ) -> Result<bool, Completion<Value>> {
-        let original_bytes = self
-            .native_name_operand_bytes(original)
-            .map_err(|error| self.refuse_host_command(error.to_string()))?;
-        if let Some((root, element)) = protocol.parsed_array_parts(&original_bytes) {
-            let root = Value::new_native_string_bytes(root);
-            let element = if let Some(bytes) = protocol.new_element_bytes(element) {
-                NativeParsedVariableElement::Bytes(bytes)
-            } else {
-                NativeParsedVariableElement::Object(Value::new_native_string_bytes(element))
-            };
-            original
-                .install_native_parsed_variable(
-                    NativeParsedVariableName {
+        let original_bytes = original_names
+            .read(self, original)
+            .map_err(|error| completion_from_cmd_error(self, error))?;
+        let Some((root, element)) = protocol.parsed_array_parts(&original_bytes) else {
+            return Ok(false);
+        };
+        let reached: Result<(), tcl_cmd_core::CmdError> = if let Some(bytes) =
+            protocol.new_element_bytes(element)
+        {
+            original.install_native_parsed_variable_checked(
+                dialect,
+                || {
+                    Ok(NativeParsedVariableName {
                         protocol,
-                        array: Some((root, element)),
-                    },
-                    dialect,
-                )
-                .map_err(|error| self.refuse_host_command(error.to_string()))?;
-            return Ok(true);
-        }
-        Ok(false)
+                        array: Some((
+                            Value::new_native_string_bytes(root),
+                            NativeParsedVariableElement::Bytes(bytes),
+                        )),
+                    })
+                },
+                &mut || original_names.current_for_value(self, original),
+            )
+        } else {
+            // The C9 ParsedSet macro prepares both actual incoming member roles
+            // before the old primary's free callback, then installs that tuple.
+            let cache = NativeParsedVariableName {
+                protocol,
+                array: Some((
+                    Value::new_native_string_bytes(root),
+                    NativeParsedVariableElement::Object(Value::new_native_string_bytes(element)),
+                )),
+            };
+            original.install_native_parsed_variable_checked(dialect, || Ok(cache), &mut || {
+                original_names.current_for_value(self, original)
+            })
+        };
+        original_names
+            .check(self)
+            .map_err(|error| completion_from_cmd_error(self, error))?;
+        reached.map_err(|error| completion_from_cmd_error(self, error))?;
+        Ok(true)
     }
 
     fn select_native_original_root_binding(
@@ -282,12 +371,16 @@ impl Vm {
         protocol: tcl_syntax::native_variable_name::NativeVariableNameProtocol,
         namespace: Option<tcl_core_types::NsId>,
         purpose: NativeVariableNameLookupPurpose,
+        original_names: &super::native_name_consumers::OriginalNameConsumerScope,
     ) -> Result<VarBinding, Completion<Value>> {
         let (root_bytes, element) = reported;
         if cached.is_none()
             && protocol.retires_before_simple_lookup(root.native_primary_has_free_hook())
         {
-            root.retire_native_variable_primary();
+            root.retire_native_variable_primary_checked(&mut || {
+                original_names.current_for_value(self, root)
+            })
+            .map_err(|error| completion_from_cmd_error(self, error))?;
         }
         let binding = cached.or_else(|| {
             let selected = tcl_syntax::naming::NativeNameProtocol::C(protocol.version())
@@ -327,6 +420,7 @@ impl Vm {
         binding: &VarBinding,
         protocol: tcl_syntax::native_variable_name::NativeVariableNameProtocol,
         purpose: NativeVariableNameLookupPurpose,
+        original_names: &super::native_name_consumers::OriginalNameConsumerScope,
     ) -> Result<ResolvedVar, Completion<Value>> {
         let (root_bytes, element) = reported;
         let create = purpose.creates_entries();
@@ -363,7 +457,7 @@ impl Vm {
         }
         // Only a successful simple-variable lookup converts the original root.
         if resolved.id.is_some() {
-            self.install_selected_original_variable_cache(root, binding)?;
+            self.install_selected_original_variable_cache(root, binding, original_names)?;
         }
         if create
             && !purpose.creates_element_entries()
@@ -385,40 +479,71 @@ impl Vm {
         original: &Value,
         protocol: tcl_syntax::native_variable_name::NativeVariableNameProtocol,
         explicit_element: Option<&[u8]>,
+        original_names: &super::native_name_consumers::OriginalNameConsumerScope,
     ) -> Result<CachedOriginalVariableParts, Completion<Value>> {
-        let parts = explicit_element
-            .is_none()
-            .then(|| {
-                original.with_native_parsed_variable(|cache| {
-                    if cache.protocol != protocol {
-                        return None;
-                    }
-                    cache.array.as_ref().map(|(root, element)| {
-                        (|| {
-                            let element = match element {
-                                NativeParsedVariableElement::Bytes(bytes) => {
-                                    Rc::<[u8]>::from(tcl_core_types::c_string_extent(bytes))
-                                }
-                                NativeParsedVariableElement::Object(element) => element
-                                    .native_string_bytes(
-                                        tcl_syntax::native_string::NativeStringProtocol::C(
-                                            protocol.version(),
-                                        ),
-                                    )?,
-                            };
-                            Ok::<_, tcl_syntax::native_string::NativeStringUnavailable>((
-                                root.native_lifetime_lease(),
-                                element,
-                            ))
-                        })()
-                    })
+        if explicit_element.is_some() {
+            return Ok(None);
+        }
+        // Only allocation leases and Rust bytes leave the short primary borrow.
+        let parts = original
+            .with_native_parsed_variable(|cache| {
+                if cache.protocol != protocol {
+                    return None;
+                }
+                cache.array.as_ref().map(|(root, element)| {
+                    let element = match element {
+                        NativeParsedVariableElement::Bytes(bytes) => Ok(bytes.clone()),
+                        NativeParsedVariableElement::Object(original) => {
+                            Err(original.native_lifetime_lease())
+                        }
+                    };
+                    (root.native_lifetime_lease(), element)
                 })
             })
-            .flatten()
-            .flatten()
-            .transpose()
-            .map_err(|error| self.refuse_host_command(error.to_string()))?;
-        Ok(parts)
+            .flatten();
+        let Some((root, element)) = parts else {
+            return Ok(None);
+        };
+        let bytes = match &element {
+            Ok(bytes) => Rc::<[u8]>::from(tcl_core_types::c_string_extent(bytes)),
+            Err(element) => original_names
+                .read(self, element.value())
+                .map_err(|error| completion_from_cmd_error(self, error))?,
+        };
+        original_names
+            .current_for_value(self, original)
+            .map_err(|error| completion_from_cmd_error(self, error))?;
+        original_names
+            .current_for_value(self, root.value())
+            .map_err(|error| completion_from_cmd_error(self, error))?;
+        let current = original
+            .with_native_parsed_variable(|cache| {
+                cache.protocol == protocol
+                    && cache
+                        .array
+                        .as_ref()
+                        .is_some_and(|(actual_root, actual_element)| {
+                            actual_root.is_same_object(root.value())
+                                && match (actual_element, &element) {
+                                    (NativeParsedVariableElement::Bytes(actual), Ok(saved)) => {
+                                        actual.as_ref() == saved.as_ref()
+                                    }
+                                    (NativeParsedVariableElement::Object(actual), Err(saved)) => {
+                                        actual.is_same_object(saved.value())
+                                    }
+                                    _ => false,
+                                }
+                        })
+            })
+            .unwrap_or(false);
+        original_names
+            .require(self, current, "original parsed variable member owner")
+            .map_err(|error| completion_from_cmd_error(self, error))?;
+        drop(element);
+        original_names
+            .check(self)
+            .map_err(|error| completion_from_cmd_error(self, error))?;
+        Ok(Some((root, bytes)))
     }
 
     fn prepare_native_original_variable_parts(
@@ -428,86 +553,109 @@ impl Vm {
         namespace: Option<tcl_core_types::NsId>,
         explicit_element: Option<&[u8]>,
     ) -> Result<PreparedOriginalVariable, Completion<Value>> {
-        self.retire_released_native_alias_entries();
-        let dialect = self.actual_native_invocation_dialect();
-        let protocol = self
-            .native_c_variable_name_protocol()
-            .expect("actual C variable issuer");
-        if !protocol.cache_precedes_string_getter() {
-            self.native_name_operand_bytes(original)
-                .map_err(|error| self.refuse_host_command(error.to_string()))?;
-        }
-        let mut parts =
-            self.cached_original_variable_parts(original, protocol, explicit_element)?;
-        let parsed_scalar = original
-            .with_native_parsed_variable(|cache| {
-                cache.protocol == protocol && cache.array.is_none()
-            })
-            .unwrap_or(false);
-        if parts.is_none()
-            && explicit_element.is_none()
-            && !parsed_scalar
-            && original.with_native_local_variable(|_| ()).is_none()
-            && self.cache_native_original_array_name(original, protocol, dialect)?
-        {
-            return self.prepare_native_original_variable_in(original, purpose, namespace);
-        }
-        let (root, element) = parts.take().map_or_else(
-            || {
-                (
-                    original.native_lifetime_lease(),
-                    explicit_element.map(Rc::<[u8]>::from),
-                )
-            },
-            |(root, element)| (root, Some(element)),
-        );
-        let cached = namespace
-            .is_none()
-            .then(|| self.native_original_local_binding(root.value()))
-            .flatten();
-        let root_bytes: Rc<[u8]> = match &cached {
-            Some(binding) if protocol.cache_precedes_string_getter() => {
-                Rc::from(binding.name.as_bytes())
-            }
-            _ => self
-                .native_name_operand_bytes(root.value())
-                .map_err(|error| self.refuse_host_command(error.to_string()))?,
-        };
-        let binding = self.select_native_original_root_binding(
-            root.value(),
-            (&root_bytes, element.as_deref()),
-            cached,
-            protocol,
-            namespace,
-            purpose,
-        )?;
-        let resolved = self.ensure_native_original_root_entry(
-            root.value(),
-            (&root_bytes, element.as_deref()),
-            &binding,
-            protocol,
-            purpose,
-        )?;
-        let resolved = if let Some(element) = &element {
-            let selected = self
-                .name_policy_protocol()
-                .expect("selected native names")
-                .recipe()
-                .separate_variable_input(&root_bytes, Some(element));
-            self.resolve_binding_var(
-                resolved.binding,
-                selected
-                    .element()
-                    .map(|part| tcl_core_types::NameBytes::from(part.selected())),
-                &mut HashSet::new(),
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter_for_namespace(
+                self, namespace,
             )
-            .ok_or_else(|| {
-                self.refuse_host_command("actual original array receiver unavailable".into())
-            })?
-        } else {
-            resolved
-        };
-        Ok((root, root_bytes, element, resolved))
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            self.retire_released_native_alias_entries();
+            let dialect = self.actual_native_invocation_dialect();
+            let protocol = self
+                .native_c_variable_name_protocol()
+                .expect("actual C variable issuer");
+            if !protocol.cache_precedes_string_getter() {
+                original_names
+                    .read(self, original)
+                    .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            }
+            let mut parts = self.cached_original_variable_parts(
+                original,
+                protocol,
+                explicit_element,
+                &original_names,
+            )?;
+            let parsed_scalar = original
+                .with_native_parsed_variable(|cache| {
+                    cache.protocol == protocol && cache.array.is_none()
+                })
+                .unwrap_or(false);
+            if parts.is_none()
+                && explicit_element.is_none()
+                && !parsed_scalar
+                && original.with_native_local_variable(|_| ()).is_none()
+                && self.cache_native_original_array_name(
+                    original,
+                    protocol,
+                    dialect,
+                    &original_names,
+                )?
+            {
+                return self.prepare_native_original_variable_in(original, purpose, namespace);
+            }
+            let (root, element) = parts.take().map_or_else(
+                || {
+                    (
+                        original.native_lifetime_lease(),
+                        explicit_element.map(Rc::<[u8]>::from),
+                    )
+                },
+                |(root, element)| (root, Some(element)),
+            );
+            let cached = namespace
+                .is_none()
+                .then(|| self.native_original_local_binding(root.value()))
+                .flatten();
+            let root_bytes: Rc<[u8]> = match &cached {
+                Some(binding) if protocol.cache_precedes_string_getter() => {
+                    Rc::from(binding.name.as_bytes())
+                }
+                _ => original_names
+                    .read(self, root.value())
+                    .map_err(|error| crate::command::completion_from_cmd_error(self, error))?,
+            };
+            let binding = self.select_native_original_root_binding(
+                root.value(),
+                (&root_bytes, element.as_deref()),
+                cached,
+                protocol,
+                namespace,
+                purpose,
+                &original_names,
+            )?;
+            let resolved = self.ensure_native_original_root_entry(
+                root.value(),
+                (&root_bytes, element.as_deref()),
+                &binding,
+                protocol,
+                purpose,
+                &original_names,
+            )?;
+            let resolved = if let Some(element) = &element {
+                let selected = self
+                    .name_policy_protocol()
+                    .expect("selected native names")
+                    .recipe()
+                    .separate_variable_input(&root_bytes, Some(element));
+                self.resolve_binding_var(
+                    resolved.binding,
+                    selected
+                        .element()
+                        .map(|part| tcl_core_types::NameBytes::from(part.selected())),
+                    &mut HashSet::new(),
+                )
+                .ok_or_else(|| {
+                    self.refuse_host_command("actual original array receiver unavailable".into())
+                })?
+            } else {
+                resolved
+            };
+            Ok((root, root_bytes, element, resolved))
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
 
     fn original_c_parsed_element_key(original: &Value) -> Option<Value> {
@@ -533,43 +681,61 @@ impl Vm {
         local: &VarBinding,
         declare: bool,
     ) -> Result<(), Completion<Value>> {
-        let (_root, bytes, _element, resolved) = self.prepare_native_original_variable_in(
-            original,
-            NativeVariableNameLookupPurpose::Link,
-            Some(namespace),
-        )?;
-        let target = self.settle_original_c_link_target(original, &resolved)?;
-        if self
-            .native_c_variable_name_protocol()
-            .is_some_and(|protocol| protocol.version() >= tcl_dialect::TclVersion::V8_5)
-            && let Some((array, key)) = self
-                .var_arena
-                .element_parent(target)
-                .map(|(array, key)| (array, key.clone()))
-            && let Some(original_key) = Self::original_c_parsed_element_key(original)
-        {
-            self.var_arena
-                .retain_original_array_key(array, &key, original_key);
-        }
-        if declare {
-            self.var_arena.mark_namespace_declared(target);
-        }
-        let result = self
-            .bind_variable_link(local, super::VariableLinkTarget::Cell(target))
-            .map_err(|error| {
-                let protocol = self
-                    .native_c_variable_name_protocol()
-                    .expect("actual C alias diagnostic");
-                let failure = crate::command::upvar_link_error_bytes_in(
-                    error,
-                    &bytes,
-                    local.name.as_bytes(),
-                    Some(protocol),
-                );
-                self.present_original_c_alias_error(failure, error)
-            });
-        self.retire_released_native_alias_entries();
-        result
+        let original_names =
+            super::native_name_consumers::OriginalNameConsumerScope::enter_for_namespace(
+                self,
+                Some(namespace),
+            )
+            .map_err(|error| completion_from_cmd_error(self, error))?;
+        let local_cell = original_names
+            .capture_binding(self, local)
+            .map_err(|error| completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            let (_root, bytes, _element, resolved) = self.prepare_native_original_variable_in(
+                original,
+                NativeVariableNameLookupPurpose::Link,
+                Some(namespace),
+            )?;
+            let target = self.settle_original_c_link_target(original, &resolved)?;
+            if self
+                .native_c_variable_name_protocol()
+                .is_some_and(|protocol| protocol.version() >= tcl_dialect::TclVersion::V8_5)
+                && let Some((array, key)) = self
+                    .var_arena
+                    .element_parent(target)
+                    .map(|(array, key)| (array, key.clone()))
+                && let Some(original_key) = Self::original_c_parsed_element_key(original)
+            {
+                self.var_arena
+                    .retain_original_array_key(array, &key, original_key);
+            }
+            if declare {
+                self.var_arena.mark_namespace_declared(target);
+            }
+            local_cell
+                .check(self, &original_names)
+                .map_err(|error| completion_from_cmd_error(self, error))?;
+            let result = self
+                .bind_variable_link(local, super::VariableLinkTarget::Cell(target))
+                .map_err(|error| {
+                    let protocol = self
+                        .native_c_variable_name_protocol()
+                        .expect("actual C alias diagnostic");
+                    let failure = crate::command::upvar_link_error_bytes_in(
+                        error,
+                        &bytes,
+                        local.name.as_bytes(),
+                        Some(protocol),
+                    );
+                    self.present_original_c_alias_error(failure, error)
+                });
+            self.retire_released_native_alias_entries();
+            result
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| completion_from_cmd_error(self, error))?;
+        reached
     }
 
     pub(crate) fn define_original_c_namespace_variable(
@@ -577,73 +743,82 @@ impl Vm {
         original: &Value,
         value: Option<&Value>,
     ) -> Result<(), Completion<Value>> {
-        // The command obtains its spelling before namespace-only cache lookup.
-        let spelling = self
-            .native_name_operand_bytes(original)
-            .map_err(|error| self.refuse_host_command(error.to_string()))?;
-        let namespace = self.current_ns_id();
-        let (_root, bytes, element, resolved) = self.prepare_native_original_variable_in(
-            original,
-            NativeVariableNameLookupPurpose::Define,
-            Some(namespace),
-        )?;
-        if element.is_some() {
-            return Err(self.variable_access_error_input(
-                "define",
-                tcl_syntax::naming::NativeVariableInputForm::Combined(&spelling),
-                "name refers to an element in an array",
-            ));
-        }
-        let target = resolved.id.ok_or_else(|| {
-            self.refuse_host_command("namespace declaration cell unavailable".into())
-        })?;
-        self.var_arena.mark_namespace_declared(target);
-        if let Some(value) = value {
-            let captured = self.capture_selected_update(&bytes, None, &resolved)?;
-            value
-                .check_native_header()
-                .map_err(|error| completion_from_cmd_error(self, error.into()))?;
-            self.with_variable_operation(&captured.cell, |vm| {
-                vm.store_captured_update_with_original(
-                    &bytes,
-                    None,
-                    &captured,
-                    value.clone(),
-                    Some(original),
-                )
-            })?;
-        }
-        if self.frame_owns_local_variables(self.current_level()) {
-            let local = tcl_syntax::naming::variable_local_name_bytes(
-                self.name_policy_protocol()
-                    .expect("actual C declaration names")
-                    .recipe(),
-                &spelling,
-            );
-            let qualified = self
-                .native_c_variable_name_protocol()
-                .expect("actual C declaration")
-                .alias_local_input(&spelling)
-                .qualification()
-                != tcl_syntax::naming::NativeNameQualification::Unqualified;
-            let local = if qualified {
-                Value::new_native_string_bytes(local)
-            } else {
-                original.native_lifetime_lease().into_value()
-            };
-            // ObjMakeUpvar resolves the original target again after setter callbacks.
-            let (_root, bytes, _element, other) = self.prepare_native_original_variable_in(
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            // The command obtains its spelling before namespace-only cache lookup.
+            let spelling = original_names
+                .read(self, original)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            let namespace = self.current_ns_id();
+            let (_root, bytes, element, resolved) = self.prepare_native_original_variable_in(
                 original,
-                NativeVariableNameLookupPurpose::Link,
+                NativeVariableNameLookupPurpose::Define,
                 Some(namespace),
             )?;
-            let target = other.id.ok_or_else(|| {
-                self.refuse_host_command("namespace alias cell unavailable".into())
+            if element.is_some() {
+                return Err(self.variable_access_error_input(
+                    "define",
+                    tcl_syntax::naming::NativeVariableInputForm::Combined(&spelling),
+                    "name refers to an element in an array",
+                ));
+            }
+            let target = resolved.id.ok_or_else(|| {
+                self.refuse_host_command("namespace declaration cell unavailable".into())
             })?;
-            self.bind_original_c_alias_local(&local, target, false, &bytes)?;
-        }
-        self.retire_released_native_alias_entries();
-        Ok(())
+            self.var_arena.mark_namespace_declared(target);
+            if let Some(value) = value {
+                let captured = self.capture_selected_update(&bytes, None, &resolved)?;
+                value
+                    .check_native_header()
+                    .map_err(|error| completion_from_cmd_error(self, error.into()))?;
+                self.with_variable_operation(&captured.cell, |vm| {
+                    vm.store_captured_update_with_original(
+                        &bytes,
+                        None,
+                        &captured,
+                        value.clone(),
+                        Some(original),
+                    )
+                })?;
+            }
+            if self.frame_owns_local_variables(self.current_level()) {
+                let local = tcl_syntax::naming::variable_local_name_bytes(
+                    self.name_policy_protocol()
+                        .expect("actual C declaration names")
+                        .recipe(),
+                    &spelling,
+                );
+                let qualified = self
+                    .native_c_variable_name_protocol()
+                    .expect("actual C declaration")
+                    .alias_local_input(&spelling)
+                    .qualification()
+                    != tcl_syntax::naming::NativeNameQualification::Unqualified;
+                let local = if qualified {
+                    Value::new_native_string_bytes(local)
+                } else {
+                    original.native_lifetime_lease().into_value()
+                };
+                // ObjMakeUpvar resolves the original target again after setter callbacks.
+                let (_root, bytes, _element, other) = self.prepare_native_original_variable_in(
+                    original,
+                    NativeVariableNameLookupPurpose::Link,
+                    Some(namespace),
+                )?;
+                let target = other.id.ok_or_else(|| {
+                    self.refuse_host_command("namespace alias cell unavailable".into())
+                })?;
+                self.bind_original_c_alias_local(&local, target, false, &bytes)?;
+            }
+            self.retire_released_native_alias_entries();
+            Ok(())
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
 
     /// The local side of `ObjMakeUpvar` is a simple scalar lookup. It retains
@@ -719,73 +894,90 @@ impl Vm {
         owner_is_proc: bool,
         other: &[u8],
     ) -> Result<(), (Completion<Value>, Option<super::UpvarLinkError>)> {
-        let protocol = self
-            .native_c_variable_name_protocol()
-            .expect("actual C alias local");
-        let bytes = self
-            .native_name_operand_bytes(original)
-            .map_err(|error| (self.refuse_host_command(error.to_string()), None))?;
-        let input = protocol.alias_local_input(&bytes);
-        let qualified =
-            input.qualification() != tcl_syntax::naming::NativeNameQualification::Unqualified;
-        let namespace = qualified || !self.frame_owns_local_variables(self.current_level());
-        let failure = |error| {
-            (
-                crate::command::upvar_link_error_bytes_in(
-                    error,
-                    other,
-                    tcl_core_types::c_string_extent(&bytes),
-                    Some(protocol),
-                ),
-                Some(error),
-            )
-        };
-        if owner_is_proc && namespace {
-            return Err(failure(super::UpvarLinkError::Inverted));
-        }
-        if protocol.alias_local_is_element(&bytes) {
-            return Err(failure(super::UpvarLinkError::LocalElement));
-        }
-        let binding = if namespace {
-            self.namespace_var_binding_from_token_bytes(self.current_ns_id(), input.selected())
-                .ok_or_else(|| failure(super::UpvarLinkError::LocalNamespace))?
-        } else {
-            let level = self.current_level();
-            VarBinding {
-                owner: self
-                    .compiled_local_dynamic_slot(level, input.selected())
-                    .map_or(VarTableOwner::Frame(level), |slot| {
-                        VarTableOwner::CompiledLocal { level, slot }
-                    }),
-                name: tcl_core_types::NameBytes::from(input.selected()),
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| (crate::command::completion_from_cmd_error(self, error), None))?;
+        let target_cell = original_names
+            .capture_cell(self, target)
+            .map_err(|error| (crate::command::completion_from_cmd_error(self, error), None))?;
+        let reached = (|| {
+            let protocol = self
+                .native_c_variable_name_protocol()
+                .expect("actual C alias local");
+            let bytes = original_names
+                .read(self, original)
+                .map_err(|error| (crate::command::completion_from_cmd_error(self, error), None))?;
+            original_names
+                .check_cell(self, target, &target_cell)
+                .map_err(|error| (crate::command::completion_from_cmd_error(self, error), None))?;
+            let input = protocol.alias_local_input(&bytes);
+            let qualified =
+                input.qualification() != tcl_syntax::naming::NativeNameQualification::Unqualified;
+            let namespace = qualified || !self.frame_owns_local_variables(self.current_level());
+            let failure = |error| {
+                (
+                    crate::command::upvar_link_error_bytes_in(
+                        error,
+                        other,
+                        tcl_core_types::c_string_extent(&bytes),
+                        Some(protocol),
+                    ),
+                    Some(error),
+                )
+            };
+            if owner_is_proc && namespace {
+                return Err(failure(super::UpvarLinkError::Inverted));
             }
-        };
-        let birth = self.raw_variable_binding(&binding).is_none();
-        if birth {
-            self.bind_new_var(&binding, crate::vars::VarState::Undefined)
-                .ok_or_else(|| {
-                    (
-                        self.refuse_host_command("original alias local cell unavailable".into()),
-                        None,
-                    )
-                })?;
-            if protocol.version() >= tcl_dialect::TclVersion::V8_5
-                && !matches!(binding.owner, VarTableOwner::CompiledLocal { .. })
-            {
-                let key = if qualified {
-                    Value::new_native_string_bytes(binding.name.as_bytes())
-                } else {
-                    original.clone()
-                };
-                self.var_table_mut(binding.owner)
+            if protocol.alias_local_is_element(&bytes) {
+                return Err(failure(super::UpvarLinkError::LocalElement));
+            }
+            let binding = if namespace {
+                self.namespace_var_binding_from_token_bytes(self.current_ns_id(), input.selected())
                     .ok_or_else(|| failure(super::UpvarLinkError::LocalNamespace))?
-                    .retain_original_native_key(&binding.name, key);
+            } else {
+                let level = self.current_level();
+                VarBinding {
+                    owner: self
+                        .compiled_local_dynamic_slot(level, input.selected())
+                        .map_or(VarTableOwner::Frame(level), |slot| {
+                            VarTableOwner::CompiledLocal { level, slot }
+                        }),
+                    name: tcl_core_types::NameBytes::from(input.selected()),
+                }
+            };
+            let birth = self.raw_variable_binding(&binding).is_none();
+            if birth {
+                self.bind_new_var(&binding, crate::vars::VarState::Undefined)
+                    .ok_or_else(|| {
+                        (
+                            self.refuse_host_command(
+                                "original alias local cell unavailable".into(),
+                            ),
+                            None,
+                        )
+                    })?;
+                if protocol.version() >= tcl_dialect::TclVersion::V8_5
+                    && !matches!(binding.owner, VarTableOwner::CompiledLocal { .. })
+                {
+                    let key = if qualified {
+                        Value::new_native_string_bytes(binding.name.as_bytes())
+                    } else {
+                        original.clone()
+                    };
+                    self.var_table_mut(binding.owner)
+                        .ok_or_else(|| failure(super::UpvarLinkError::LocalNamespace))?
+                        .retain_original_native_key(&binding.name, key);
+                }
             }
-        }
-        self.bind_variable_link(&binding, super::VariableLinkTarget::Cell(target))
-            .map_err(failure)?;
-        self.retire_released_native_alias_entries();
-        Ok(())
+            self.bind_variable_link(&binding, super::VariableLinkTarget::Cell(target))
+                .map_err(failure)?;
+            self.retire_released_native_alias_entries();
+            Ok(())
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| (crate::command::completion_from_cmd_error(self, error), None))?;
+        reached
     }
 
     /// A resolved undefined target is a genuine link cell. Array access to an
@@ -796,28 +988,37 @@ impl Vm {
         original: &Value,
         resolved: &ResolvedVar,
     ) -> Result<tcl_core_types::VarId, Completion<Value>> {
-        if let Some(target) = resolved.id {
-            return Ok(target);
-        }
-        if resolved.elem.is_some()
-            && resolved
-                .base_id
-                .and_then(|id| self.var_arena.get(id))
-                .is_some_and(|cell| matches!(cell.state(), super::Local::Scalar(_)))
-        {
-            let bytes = self
-                .native_name_operand_bytes(original)
-                .map_err(|error| self.refuse_host_command(error.to_string()))?;
-            return Err(self.variable_access_error_input(
-                "access",
-                tcl_syntax::naming::NativeVariableInputForm::Combined(&bytes),
-                "variable isn't array",
-            ));
-        }
-        self.ensure_target_var_at_binding(&resolved.binding, resolved.elem.as_deref())
-            .ok_or_else(|| {
-                self.refuse_host_command("original alias target cell unavailable".into())
-            })
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            if let Some(target) = resolved.id {
+                return Ok(target);
+            }
+            if resolved.elem.is_some()
+                && resolved
+                    .base_id
+                    .and_then(|id| self.var_arena.get(id))
+                    .is_some_and(|cell| matches!(cell.state(), super::Local::Scalar(_)))
+            {
+                let bytes = original_names
+                    .read(self, original)
+                    .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+                return Err(self.variable_access_error_input(
+                    "access",
+                    tcl_syntax::naming::NativeVariableInputForm::Combined(&bytes),
+                    "variable isn't array",
+                ));
+            }
+            self.ensure_target_var_at_binding(&resolved.binding, resolved.elem.as_deref())
+                .ok_or_else(|| {
+                    self.refuse_host_command("original alias target cell unavailable".into())
+                })
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
 
     fn original_c_upvar_target(
@@ -881,22 +1082,40 @@ impl Vm {
         target_level: usize,
         local: &VarBinding,
     ) -> Result<(), Completion<Value>> {
-        let (target, _, bytes) = self.original_c_upvar_target(original, target_level, None)?;
-        if let Err(error) = self.bind_variable_link(local, super::VariableLinkTarget::Cell(target))
-        {
-            let protocol = self
-                .native_c_variable_name_protocol()
-                .expect("actual C alias diagnostic");
-            let failure = crate::command::upvar_link_error_bytes_in(
-                error,
-                &bytes,
-                local.name.as_bytes(),
-                Some(protocol),
-            );
-            return Err(self.present_original_c_alias_error(failure, error));
-        }
-        self.retire_released_native_alias_entries();
-        Ok(())
+        let original_names =
+            super::native_name_consumers::OriginalNameConsumerScope::enter_for_namespace(
+                self, None,
+            )
+            .map_err(|error| completion_from_cmd_error(self, error))?;
+        let local_cell = original_names
+            .capture_binding(self, local)
+            .map_err(|error| completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            let (target, _, bytes) = self.original_c_upvar_target(original, target_level, None)?;
+            local_cell
+                .check(self, &original_names)
+                .map_err(|error| completion_from_cmd_error(self, error))?;
+            if let Err(error) =
+                self.bind_variable_link(local, super::VariableLinkTarget::Cell(target))
+            {
+                let protocol = self
+                    .native_c_variable_name_protocol()
+                    .expect("actual C alias diagnostic");
+                let failure = crate::command::upvar_link_error_bytes_in(
+                    error,
+                    &bytes,
+                    local.name.as_bytes(),
+                    Some(protocol),
+                );
+                return Err(self.present_original_c_alias_error(failure, error));
+            }
+            self.retire_released_native_alias_entries();
+            Ok(())
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| completion_from_cmd_error(self, error))?;
+        reached
     }
 
     pub(super) fn unset_original_c_variable(
@@ -904,7 +1123,10 @@ impl Vm {
         original: &Value,
         complain: bool,
     ) -> Result<(), Completion<Value>> {
-        match self
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| match self
             .prepare_native_original_variable(original, Self::original_unset_purpose(complain))
         {
             Ok((_root, root_bytes, element, resolved)) => {
@@ -918,22 +1140,28 @@ impl Vm {
                         )
                     });
                 let bytes = if element.is_some() || observes {
-                    self.native_name_operand_bytes(original)
-                        .map_err(|error| self.refuse_host_command(error.to_string()))?
+                    original_names
+                        .read(self, original)
+                        .map_err(|error| crate::command::completion_from_cmd_error(self, error))?
                 } else {
                     root_bytes
                 };
                 let result =
                     self.unset_selected_original_variable(&bytes, Some(&resolved), complain);
                 if result.is_err() {
-                    self.native_name_operand_bytes(original)
-                        .map_err(|error| self.refuse_host_command(error.to_string()))?;
+                    original_names
+                        .read(self, original)
+                        .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
                 }
                 result
             }
             Err(error) if self.refused_completion().is_some() || complain => Err(error),
             Err(_) => Ok(()),
-        }
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
 
     pub(crate) fn unset_original_c_variable_parts(
@@ -942,28 +1170,37 @@ impl Vm {
         element: &Value,
         complain: bool,
     ) -> Result<(), Completion<Value>> {
-        let element_bytes = self
-            .native_name_operand_bytes(element)
-            .map_err(|error| self.refuse_host_command(error.to_string()))?;
-        let selected = self.prepare_native_original_variable_parts(
-            original,
-            Self::original_unset_purpose(complain),
-            None,
-            Some(&element_bytes),
-        );
-        match selected {
-            Ok((_root, root_bytes, _element, resolved)) => {
-                // These bytes present the diagnostic/trace spelling only. The
-                // receiver remains the original part1 cache and selected cell.
-                let mut spelling = root_bytes.to_vec();
-                spelling.push(b'(');
-                spelling.extend_from_slice(&element_bytes);
-                spelling.push(b')');
-                self.unset_selected_original_variable(&spelling, Some(&resolved), complain)
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            let element_bytes = original_names
+                .read(self, element)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            let selected = self.prepare_native_original_variable_parts(
+                original,
+                Self::original_unset_purpose(complain),
+                None,
+                Some(&element_bytes),
+            );
+            match selected {
+                Ok((_root, root_bytes, _element, resolved)) => {
+                    // These bytes present the diagnostic/trace spelling only. The
+                    // receiver remains the original part1 cache and selected cell.
+                    let mut spelling = root_bytes.to_vec();
+                    spelling.push(b'(');
+                    spelling.extend_from_slice(&element_bytes);
+                    spelling.push(b')');
+                    self.unset_selected_original_variable(&spelling, Some(&resolved), complain)
+                }
+                Err(error) if self.refused_completion().is_some() || complain => Err(error),
+                Err(_) => Ok(()),
             }
-            Err(error) if self.refused_completion().is_some() || complain => Err(error),
-            Err(_) => Ok(()),
-        }
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
 
     fn original_unset_purpose(complain: bool) -> NativeVariableNameLookupPurpose {
@@ -1051,17 +1288,26 @@ impl Vm {
         lookup: &Value,
         reported: &Value,
     ) -> Result<Value, Completion<Value>> {
-        let (_root, _bytes, element, resolved) =
-            self.prepare_native_original_variable(lookup, NativeVariableNameLookupPurpose::Link)?;
-        let bytes = self
-            .native_name_operand_bytes(reported)
-            .map_err(|error| self.refuse_host_command(error.to_string()))?;
-        self.read_selected_variable_result_bytes_with_original(
-            &bytes,
-            element.as_deref(),
-            resolved,
-            Some(reported),
-        )
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            let (_root, _bytes, element, resolved) = self
+                .prepare_native_original_variable(lookup, NativeVariableNameLookupPurpose::Link)?;
+            let bytes = original_names
+                .read(self, reported)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            self.read_selected_variable_result_bytes_with_original(
+                &bytes,
+                element.as_deref(),
+                resolved,
+                Some(reported),
+            )
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
 
     /// Native `PropertySetter` uses the selected cell without publishing its value
@@ -1072,24 +1318,37 @@ impl Vm {
         reported: &Value,
         value: Value,
     ) -> Result<(), Completion<Value>> {
-        let (_root, _bytes, element, resolved) =
-            self.prepare_native_original_variable(lookup, NativeVariableNameLookupPurpose::Write)?;
-        let bytes = self
-            .native_name_operand_bytes(reported)
-            .map_err(|error| self.refuse_host_command(error.to_string()))?;
-        let captured =
-            self.capture_selected_update_with_errors(&bytes, element.as_deref(), &resolved, true)?;
-        self.with_variable_operation(&captured.cell, |vm| {
-            vm.store_captured_update_with_original_and_errors(
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            let (_root, _bytes, element, resolved) = self
+                .prepare_native_original_variable(lookup, NativeVariableNameLookupPurpose::Write)?;
+            let bytes = original_names
+                .read(self, reported)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            let captured = self.capture_selected_update_with_errors(
                 &bytes,
                 element.as_deref(),
-                &captured,
-                value,
-                Some(reported),
+                &resolved,
                 true,
-            )
-            .map(|_| ())
-        })
+            )?;
+            self.with_variable_operation(&captured.cell, |vm| {
+                vm.store_captured_update_with_original_and_errors(
+                    &bytes,
+                    element.as_deref(),
+                    &captured,
+                    value,
+                    Some(reported),
+                    true,
+                )
+                .map(|_| ())
+            })
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
 
     pub(crate) fn store_original_regex_variable(
@@ -1097,46 +1356,63 @@ impl Vm {
         original: &Value,
         value: Value,
     ) -> Result<Value, Completion<Value>> {
-        let Some(protocol) = self.native_c_variable_name_protocol() else {
-            return self.store_original_named_variable(original, value);
-        };
-        let purpose = protocol.regex_write_purpose();
-        match self.store_original_c_variable_for(original, value, purpose) {
-            Ok(value) => Ok(value),
-            Err(failure)
-                if !purpose.leaves_error_message() && self.refused_completion().is_none() =>
-            {
-                let bytes = self
-                    .native_name_operand_bytes(original)
-                    .map_err(|error| self.refuse_host_command(error.to_string()))?;
-                let current = self
-                    .with_native_interp_result(|value| value.native_lifetime_lease().into_value())
-                    .map_err(|error| self.refuse_host_command(error.to_string()))?;
-                let mut message = self
-                    .native_name_operand_bytes(&current)
-                    .map_err(|error| self.refuse_host_command(error.to_string()))?
-                    .to_vec();
-                message.extend_from_slice(b"couldn't set variable \"");
-                message.extend_from_slice(tcl_core_types::c_string_extent(&bytes));
-                message.push(b'"');
-                let mut failure = failure;
-                failure.result = Value::from_string_bytes(message);
-                if protocol.diagnostic_string_protocol().is_some() {
-                    let recipe = self
-                        .actual_native_invocation_dialect()
-                        .native_string_materialization(None)
-                        .ok_or_else(|| {
-                            self.refuse_host_command("actual variable-error String producer".into())
-                        })?;
-                    failure
-                        .result
-                        .retain_native_string_representation(recipe)
-                        .map_err(|error| self.refuse_host_command(error.to_string()))?;
-                }
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            let Some(protocol) = self.native_c_variable_name_protocol() else {
+                return self.store_original_named_variable(original, value);
+            };
+            let purpose = protocol.regex_write_purpose();
+            match self.store_original_c_variable_for(original, value, purpose) {
+                Ok(value) => Ok(value),
                 Err(failure)
+                    if !purpose.leaves_error_message() && self.refused_completion().is_none() =>
+                {
+                    let bytes = original_names
+                        .read(self, original)
+                        .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+                    let current = self
+                        .with_native_interp_result(|value| {
+                            value.native_lifetime_lease().into_value()
+                        })
+                        .map_err(|error| {
+                            crate::command::completion_from_cmd_error(self, error.into())
+                        })?;
+                    let mut message = original_names
+                        .read(self, &current)
+                        .map_err(|error| crate::command::completion_from_cmd_error(self, error))?
+                        .to_vec();
+                    message.extend_from_slice(b"couldn't set variable \"");
+                    message.extend_from_slice(tcl_core_types::c_string_extent(&bytes));
+                    message.push(b'"');
+                    let mut failure = failure;
+                    failure.result = Value::from_string_bytes(message);
+                    if protocol.diagnostic_string_protocol().is_some() {
+                        let recipe = self
+                            .actual_native_invocation_dialect()
+                            .native_string_materialization(None)
+                            .ok_or_else(|| {
+                                self.refuse_host_command(
+                                    "actual variable-error String producer".into(),
+                                )
+                            })?;
+                        failure
+                            .result
+                            .retain_native_string_representation(recipe)
+                            .map_err(|error| {
+                                crate::command::completion_from_cmd_error(self, error.into())
+                            })?;
+                    }
+                    Err(failure)
+                }
+                Err(failure) => Err(failure),
             }
-            Err(failure) => Err(failure),
-        }
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
 
     pub(super) fn store_original_c_variable(
@@ -1155,91 +1431,99 @@ impl Vm {
         key: &Value,
         value: &Value,
     ) -> Result<Value, Completion<Value>> {
-        use super::native_operation_currency::NativeOperationScope;
-        use crate::command::completion_from_cmd_error;
-        let scope = NativeOperationScope::enter(self)
-            .map_err(|error| completion_from_cmd_error(self, error))?;
-        let root_lifetime = original.native_lifetime_lease();
-        let key_lifetime = key.native_lifetime_lease();
-        let result = (|| {
-            if self.native_c_variable_name_protocol().is_none() {
-                return Err(completion_from_cmd_error(
-                    self,
-                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "original C array variable name owner",
-                    )
-                    .into(),
-                ));
-            }
-            original
-                .check_native_header()
-                .map_err(|error| completion_from_cmd_error(self, error.into()))?;
-            key.check_native_header()
-                .map_err(|error| completion_from_cmd_error(self, error.into()))?;
-            value
-                .check_native_header()
-                .map_err(|error| completion_from_cmd_error(self, error.into()))?;
-            let reached = self.native_name_operand_bytes(key);
-            scope
-                .check(self)
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            use super::native_operation_currency::NativeOperationScope;
+            use crate::command::completion_from_cmd_error;
+            let scope = NativeOperationScope::enter(self)
                 .map_err(|error| completion_from_cmd_error(self, error))?;
-            let key_bytes = reached
-                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
-                .map_err(|error| completion_from_cmd_error(self, error.into()))?;
-            let reached = self.prepare_native_original_variable_parts(
-                original,
-                NativeVariableNameLookupPurpose::Write,
-                None,
-                Some(&key_bytes),
-            );
-            scope
-                .check(self)
-                .map_err(|error| completion_from_cmd_error(self, error))?;
-            let (_root, bytes, element, resolved) = reached?;
-            let element_birth = resolved.elem.is_some() && resolved.id.is_none();
-            let captured = self.capture_selected_update(&bytes, element.as_deref(), &resolved)?;
-            if element_birth
-                && self
-                    .native_c_variable_name_protocol()
-                    .is_some_and(|protocol| protocol.element_table_retains_original())
-                && let (Some(array), Some(member)) =
-                    (captured.cell.array, captured.cell.elem.as_ref())
-            {
-                if !self
-                    .var_arena
-                    .retain_original_array_key(array, member, key.clone())
-                {
+            let root_lifetime = original.native_lifetime_lease();
+            let key_lifetime = key.native_lifetime_lease();
+            let result = (|| {
+                if self.native_c_variable_name_protocol().is_none() {
                     return Err(completion_from_cmd_error(
                         self,
                         tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                            "original array member key publication",
+                            "original C array variable name owner",
                         )
                         .into(),
                     ));
                 }
-            }
+                original
+                    .check_native_header()
+                    .map_err(|error| completion_from_cmd_error(self, error.into()))?;
+                key.check_native_header()
+                    .map_err(|error| completion_from_cmd_error(self, error.into()))?;
+                value
+                    .check_native_header()
+                    .map_err(|error| completion_from_cmd_error(self, error.into()))?;
+                let reached = original_names.read(self, key);
+                scope
+                    .check(self)
+                    .map_err(|error| completion_from_cmd_error(self, error))?;
+                let key_bytes = reached.map_err(|error| completion_from_cmd_error(self, error))?;
+                let reached = self.prepare_native_original_variable_parts(
+                    original,
+                    NativeVariableNameLookupPurpose::Write,
+                    None,
+                    Some(&key_bytes),
+                );
+                scope
+                    .check(self)
+                    .map_err(|error| completion_from_cmd_error(self, error))?;
+                let (_root, bytes, element, resolved) = reached?;
+                let element_birth = resolved.elem.is_some() && resolved.id.is_none();
+                let captured =
+                    self.capture_selected_update(&bytes, element.as_deref(), &resolved)?;
+                if element_birth
+                    && self
+                        .native_c_variable_name_protocol()
+                        .is_some_and(|protocol| protocol.element_table_retains_original())
+                    && let (Some(array), Some(member)) =
+                        (captured.cell.array, captured.cell.elem.as_ref())
+                {
+                    if !self
+                        .var_arena
+                        .retain_original_array_key(array, member, key.clone())
+                    {
+                        return Err(completion_from_cmd_error(
+                            self,
+                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "original array member key publication",
+                            )
+                            .into(),
+                        ));
+                    }
+                }
+                scope
+                    .check(self)
+                    .map_err(|error| completion_from_cmd_error(self, error))?;
+                value
+                    .check_native_header()
+                    .map_err(|error| completion_from_cmd_error(self, error.into()))?;
+                self.with_variable_operation(&captured.cell, |vm| {
+                    vm.store_captured_update_with_original(
+                        &bytes,
+                        element.as_deref(),
+                        &captured,
+                        value.native_lifetime_lease().into_value(),
+                        Some(original),
+                    )
+                })
+            })();
+            drop(key_lifetime);
+            drop(root_lifetime);
             scope
                 .check(self)
                 .map_err(|error| completion_from_cmd_error(self, error))?;
-            value
-                .check_native_header()
-                .map_err(|error| completion_from_cmd_error(self, error.into()))?;
-            self.with_variable_operation(&captured.cell, |vm| {
-                vm.store_captured_update_with_original(
-                    &bytes,
-                    element.as_deref(),
-                    &captured,
-                    value.native_lifetime_lease().into_value(),
-                    Some(original),
-                )
-            })
+            result
         })();
-        drop(key_lifetime);
-        drop(root_lifetime);
-        scope
-            .check(self)
-            .map_err(|error| completion_from_cmd_error(self, error))?;
-        result
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
 
     fn store_original_c_variable_for(

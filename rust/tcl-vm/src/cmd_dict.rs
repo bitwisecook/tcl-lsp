@@ -259,55 +259,66 @@ type StringPairs = Vec<(String, Value)>;
 
 /// `dict subcommand ?arg ...?` — dispatch to the subcommand handler.
 fn cmd_dict(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let Some((sub, rest)) = args.split_first() else {
-        return crate::command::native_wrong_arguments_message(
-            vm,
-            "wrong # args: should be \"dict subcommand ?arg ...?\"",
-        );
-    };
-    let word = match vm.native_name_operand_bytes(sub) {
-        Ok(word) => word,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    // `dict` is a `TclMakeEnsemble` command: exact match, else a unique
-    // prefix, so `dict k` is `dict keys`.
-    // `getdef`/`getwithdefault` are Tcl 9 (TIP 342): under an 8.6 pin they
-    // must not resolve, and — the reason this matters for words that have
-    // nothing to do with them — must not make `dict g` ambiguous either.
-    let subs = crate::environment::release_subcommands(
-        vm.command_surface_profile().name,
-        "dict",
-        DICT_SUBS,
-    );
-    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(subs, &word, true) else {
-        return err(tcl_cmd_core::ensemble::unknown_subcommand_message(
-            subs,
-            &word,
-            true,
-            b"::tcl::dict",
-        ));
-    };
-    if let Some(dispatch) = tcl_registry::dictionary_scope::scripted_dictionary_dispatch(
-        vm.native_invocation_dialect(),
-        subs[index],
-        &word,
-        rest.len(),
-    ) {
-        let Some(count) = dispatch.arguments() else {
-            return crate::command::native_wrong_args_bytes(vm, dispatch.usage());
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
-        let target = Value::from_native_string_bytes(dispatch.command().to_vec());
-        return vm.invoke_command_value_at(
-            vm.current_ns_id(),
-            &target,
-            &rest[..count],
-            &[],
-            tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+    let reached = (|| {
+        let Some((sub, rest)) = args.split_first() else {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"dict subcommand ?arg ...?\"",
+            );
+        };
+        let word = match original_names.read(vm, sub) {
+            Ok(word) => word,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        // `dict` is a `TclMakeEnsemble` command: exact match, else a unique
+        // prefix, so `dict k` is `dict keys`.
+        // `getdef`/`getwithdefault` are Tcl 9 (TIP 342): under an 8.6 pin they
+        // must not resolve, and — the reason this matters for words that have
+        // nothing to do with them — must not make `dict g` ambiguous either.
+        let subs = crate::environment::release_subcommands(
+            vm.command_surface_profile().name,
+            "dict",
+            DICT_SUBS,
         );
+        let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(subs, &word, true) else {
+            return err(tcl_cmd_core::ensemble::unknown_subcommand_message(
+                subs,
+                &word,
+                true,
+                b"::tcl::dict",
+            ));
+        };
+        if let Some(dispatch) = tcl_registry::dictionary_scope::scripted_dictionary_dispatch(
+            vm.native_invocation_dialect(),
+            subs[index],
+            &word,
+            rest.len(),
+        ) {
+            let Some(count) = dispatch.arguments() else {
+                return crate::command::native_wrong_args_bytes(vm, dispatch.usage());
+            };
+            let target = Value::from_native_string_bytes(dispatch.command().to_vec());
+            return vm.invoke_command_value_at(
+                vm.current_ns_id(),
+                &target,
+                &rest[..count],
+                &[],
+                tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+            );
+        }
+        let invoked = vm.invoked_name().unwrap_or("dict").to_owned();
+        let usage_prefix = format!("{invoked} {}", subs[index]);
+        dict_op(vm, subs[index], rest, &usage_prefix)
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
-    let invoked = vm.invoked_name().unwrap_or("dict").to_owned();
-    let usage_prefix = format!("{invoked} {}", subs[index]);
-    dict_op(vm, subs[index], rest, &usage_prefix)
+    reached
 }
 
 /// Dispatch a separately invocable ensemble implementation command. Its arity
@@ -341,30 +352,42 @@ fn dict_update(
     preparation: tcl_cmd_core::native_dictionary::NativeDictionaryPreparation,
     operation: impl FnOnce(&mut Vm, Option<&Value>) -> Result<Value, tcl_cmd_core::CmdError>,
 ) -> Completion<Value> {
-    let Ok(name) = vm.native_name_operand_bytes(varname) else {
-        return vm.refuse_host_command("native dictionary variable string is unavailable".into());
-    };
-    let objects = match VmDictionaryObjects::selected(vm) {
-        Ok(objects) => objects.with_preparation(preparation),
-        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-    };
-    match vm.dictionary_variable_update_bytes(
-        &name,
-        crate::interp::native_dictionary::DictionaryVariablePublication::CommandName,
-        &objects,
-        |vm, prepared| {
-            tcl_cmd_core::native_dictionary::update_prepared_member(
-                &objects,
-                prepared,
-                key,
-                |member| operation(vm, member),
-            )
-            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))
-        },
-    ) {
-        Ok(result) => Completion::new(Code::Ok, result.value, result.options),
-        Err(error) => error,
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+    let reached = (|| {
+        let name = match original_names.read(vm, varname) {
+            Ok(name) => name,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        let objects = match VmDictionaryObjects::selected(vm) {
+            Ok(objects) => objects.with_preparation(preparation),
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        match vm.dictionary_variable_update_bytes(
+            &name,
+            crate::interp::native_dictionary::DictionaryVariablePublication::CommandName,
+            &objects,
+            |vm, prepared| {
+                tcl_cmd_core::native_dictionary::update_prepared_member(
+                    &objects,
+                    prepared,
+                    key,
+                    |member| operation(vm, member),
+                )
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))
+            },
+        ) {
+            Ok(result) => Completion::new(Code::Ok, result.value, result.options),
+            Err(error) => error,
+        }
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
+    reached
 }
 
 fn dictionary_path_update(
@@ -373,19 +396,31 @@ fn dictionary_path_update(
     keys: &[Value],
     value: Option<Value>,
 ) -> Completion<Value> {
-    let Ok(name) = vm.native_name_operand_bytes(name) else {
-        return vm.refuse_host_command("native dictionary variable string is unavailable".into());
-    };
-    match dictionary_path_update_bytes(
-        vm,
-        &name,
-        crate::interp::native_dictionary::DictionaryVariablePublication::CommandName,
-        keys,
-        value,
-    ) {
-        Ok(result) => Completion::new(Code::Ok, result.value, result.options),
-        Err(error) => error,
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+    let reached = (|| {
+        let name = match original_names.read(vm, name) {
+            Ok(name) => name,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        match dictionary_path_update_bytes(
+            vm,
+            &name,
+            crate::interp::native_dictionary::DictionaryVariablePublication::CommandName,
+            keys,
+            value,
+        ) {
+            Ok(result) => Completion::new(Code::Ok, result.value, result.options),
+            Err(error) => error,
+        }
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
+    reached
 }
 
 fn dictionary_append(
@@ -394,23 +429,29 @@ fn dictionary_append(
     key: &Value,
     sources: &[Value],
 ) -> Completion<Value> {
-    let Some(policy) = vm
-        .native_invocation_dialect()
-        .native_dictionary_append_policy()
-    else {
-        return vm.refuse_host_command(
-            "native dictionary append primitive policy is unavailable".into(),
-        );
-    };
-    let name = match vm.native_name_operand_bytes(name) {
-        Ok(name) => name,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    let objects = match VmDictionaryObjects::selected(vm) {
-        Ok(objects) => objects,
-        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-    };
-    match vm.dictionary_variable_update_bytes(&name,
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+    let reached = (|| {
+        let Some(policy) = vm
+            .native_invocation_dialect()
+            .native_dictionary_append_policy()
+        else {
+            return vm.refuse_host_command(
+                "native dictionary append primitive policy is unavailable".into(),
+            );
+        };
+        let name = match original_names.read(vm, name) {
+            Ok(name) => name,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        let objects = match VmDictionaryObjects::selected(vm) {
+            Ok(objects) => objects,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        match vm.dictionary_variable_update_bytes(&name,
         crate::interp::native_dictionary::DictionaryVariablePublication::CommandName,
         &objects, |vm, prepared| {
             tcl_cmd_core::native_dictionary::update_prepared_member_if(&objects, prepared, key, |member| {
@@ -425,6 +466,11 @@ fn dictionary_append(
         Ok(result) => Completion::new(Code::Ok, result.value, result.options),
         Err(error) => error,
     }
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    reached
 }
 
 pub(crate) fn dictionary_path_update_bytes(
@@ -766,31 +812,33 @@ fn reflect_dictionary_scope_leaf(
     mut leaf: crate::value::PreparedNativeDictionary,
     mappings: &[(Value, Value)],
 ) -> Result<Value, tcl_cmd_core::CmdError> {
-    for (key, variable) in mappings {
-        let name = vm.native_name_operand_bytes(variable).map_err(|_| {
-            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "dictionary scope variable string",
-            )
-        })?;
-        if let Ok(value) = vm.read_variable_result_bytes(&name, None) {
-            let value = if leaf.is_same_object(&value) {
-                leaf.duplicate_value(&value)
+    let original_names =
+        crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm)?;
+    let reached = (|| {
+        for (key, variable) in mappings {
+            let name = original_names.read(vm, variable)?;
+            if let Ok(value) = vm.read_variable_result_bytes(&name, None) {
+                let value = if leaf.is_same_object(&value) {
+                    leaf.duplicate_value(&value)
+                } else {
+                    value
+                };
+                leaf.set_member(key.clone(), value)?;
             } else {
-                value
-            };
-            leaf.set_member(key.clone(), value)?;
-        } else {
-            if vm.refused_completion().is_some() {
-                return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                    "dictionary scope target read",
-                )
-                .into());
+                if vm.refused_completion().is_some() {
+                    return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "dictionary scope target read",
+                    )
+                    .into());
+                }
+                vm.publish_swallowed_trace_error();
+                leaf.remove_member(key)?;
             }
-            vm.publish_swallowed_trace_error();
-            leaf.remove_member(key)?;
         }
-    }
-    Ok(leaf.into_value())
+        Ok(leaf.into_value())
+    })();
+    original_names.finish(vm)?;
+    reached
 }
 
 pub(crate) fn expand_dictionary_scope(
@@ -798,36 +846,44 @@ pub(crate) fn expand_dictionary_scope(
     dictionary: &Value,
     path: &Value,
 ) -> Result<Value, Completion<Value>> {
-    let objects = VmDictionaryObjects::selected(vm)
+    let original_names = crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm)
         .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
-    let path = vm
-        .native_object_list_elements_in(path, objects.string_protocol())
-        .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
-    let leaf = if path.is_empty() {
-        dictionary.clone()
-    } else {
-        tcl_cmd_core::dict::get(vm, dictionary, &path)
-            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?
-    };
-    let pairs = native_dictionary_pairs(vm, &leaf)?;
-    let keys = pairs.into_iter().map(|(key, _)| key).collect::<Vec<_>>();
-    for key in &keys {
-        let bytes = key
-            .native_string_bytes(objects.string_protocol())
-            .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-        let value = leaf
-            .with_cached_dictionary_member(&bytes, Value::retain_borrowed_member)
-            .expect("selected Dictionary cache")
-            .expect("retained Dictionary key");
-        let name = vm
-            .native_name_operand_bytes(key)
-            .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-        vm.store_var_result_bytes(&name, value)?;
-    }
-    Ok(Value::native_list_constructor(
-        keys,
-        objects.string_protocol(),
-    ))
+    let reached = (|| {
+        let objects = VmDictionaryObjects::selected(vm)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+        let path = vm
+            .native_object_list_elements_in(path, objects.string_protocol())
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+        let leaf = if path.is_empty() {
+            dictionary.clone()
+        } else {
+            tcl_cmd_core::dict::get(vm, dictionary, &path)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?
+        };
+        let pairs = native_dictionary_pairs(vm, &leaf)?;
+        let keys = pairs.into_iter().map(|(key, _)| key).collect::<Vec<_>>();
+        for key in &keys {
+            let bytes = key
+                .native_string_bytes(objects.string_protocol())
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+            let value = leaf
+                .with_cached_dictionary_member(&bytes, Value::retain_borrowed_member)
+                .expect("selected Dictionary cache")
+                .expect("retained Dictionary key");
+            let name = original_names
+                .read(vm, key)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+            vm.store_var_result_bytes(&name, value)?;
+        }
+        Ok(Value::native_list_constructor(
+            keys,
+            objects.string_protocol(),
+        ))
+    })();
+    original_names
+        .finish(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    reached
 }
 
 pub(crate) fn recombine_dictionary_scope(
@@ -867,104 +923,115 @@ pub(crate) fn recombine_dictionary_scope(
 /// Map original dictionary keys into actual caller variables and synchronize
 /// the reached subtree according to the selected native completion policy.
 fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    let Some((variable, tail)) = rest.split_first() else {
-        return crate::command::native_wrong_arguments_message(
-            vm,
-            "wrong # args: should be \"dict with dictVarName ?key ...? script\"",
-        );
-    };
-    let Some((body, path)) = tail.split_last() else {
-        return crate::command::native_wrong_arguments_message(
-            vm,
-            "wrong # args: should be \"dict with dictVarName ?key ...? script\"",
-        );
-    };
-    let plan = match dictionary_scope_plan(
-        vm,
-        tcl_registry::dictionary_scope::DictionaryScopeSpec::With,
-        rest.len(),
-    ) {
-        Ok(plan) => plan,
-        Err(error) => return error,
-    };
-    let name = match vm.native_name_operand_bytes(variable) {
-        Ok(name) => name,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    let root = match vm.read_variable_result_bytes(&name, None) {
-        Ok(root) => root,
-        Err(error) => return error,
-    };
-    let leaf = if path.is_empty() {
-        root.clone()
-    } else {
-        match tcl_cmd_core::dict::get(vm, &root, path) {
-            Ok(leaf) => leaf,
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
             Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-        }
-    };
-    let pairs = match native_dictionary_pairs(vm, &leaf) {
-        Ok(pairs) => pairs,
-        Err(error) => return error,
-    };
-    let mut mappings = Vec::with_capacity(pairs.len());
-    for (key, value) in pairs {
-        let written = match vm.native_name_operand_bytes(&key) {
-            Ok(name) => name,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
         };
-        if let Err(error) = vm.store_var_result_bytes(&written, value) {
+    let reached = (|| {
+        let Some((variable, tail)) = rest.split_first() else {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"dict with dictVarName ?key ...? script\"",
+            );
+        };
+        let Some((body, path)) = tail.split_last() else {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"dict with dictVarName ?key ...? script\"",
+            );
+        };
+        let plan = match dictionary_scope_plan(
+            vm,
+            tcl_registry::dictionary_scope::DictionaryScopeSpec::With,
+            rest.len(),
+        ) {
+            Ok(plan) => plan,
+            Err(error) => return error,
+        };
+        let name = match original_names.read(vm, variable) {
+            Ok(name) => name,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        let root = match vm.read_variable_result_bytes(&name, None) {
+            Ok(root) => root,
+            Err(error) => return error,
+        };
+        let leaf = if path.is_empty() {
+            root.clone()
+        } else {
+            match tcl_cmd_core::dict::get(vm, &root, path) {
+                Ok(leaf) => leaf,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            }
+        };
+        let pairs = match native_dictionary_pairs(vm, &leaf) {
+            Ok(pairs) => pairs,
+            Err(error) => return error,
+        };
+        let mut mappings = Vec::with_capacity(pairs.len());
+        for (key, value) in pairs {
+            let written = match original_names.read(vm, &key) {
+                Ok(name) => name,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            };
+            if let Err(error) = vm.store_var_result_bytes(&written, value) {
+                return error;
+            }
+            mappings.push((key.clone(), key));
+        }
+        drop(leaf);
+        drop(root);
+        let mut outcome = vm.eval_value_at_level(vm.current_level(), body);
+        if let Some(refusal) = vm.refused_completion() {
+            return refusal;
+        }
+        if plan.writeback == tcl_registry::dictionary_scope::DictionaryWriteback::NormalOnly
+            && outcome.code != Code::Ok
+        {
+            return outcome;
+        }
+        // The saved body result owns a native reference while writeback invokes
+        // commands that can replace the interpreter's current result.
+        outcome.result = outcome.result.into_native_reference();
+        let objects = match VmDictionaryObjects::selected(vm) {
+            Ok(objects) => objects.with_preparation(
+                tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::ConvertBeforeCopy,
+            ),
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        let publication = if objects.string_protocol().is_jim084() {
+            crate::interp::native_dictionary::DictionaryVariablePublication::CommandName
+        } else {
+            crate::interp::native_dictionary::DictionaryVariablePublication::RetainedLocalCell
+        };
+        let writeback =
+            vm.dictionary_scope_writeback_bytes(&name, publication, &objects, |vm, root| {
+                tcl_cmd_core::native_dictionary::transform_existing_prepared_path(
+                    &objects,
+                    root,
+                    path,
+                    |leaf| reflect_dictionary_scope_leaf(vm, leaf, &mappings),
+                )
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))
+            });
+        if let Some(refusal) = vm.refused_completion() {
+            return refusal;
+        }
+        if let Err(mut error) = writeback {
+            if plan.writeback_failure
+                == tcl_registry::dictionary_scope::DictionaryWritebackFailure::NormalWithErrorResult
+            {
+                error.code = Code::Ok;
+            }
             return error;
         }
-        mappings.push((key.clone(), key));
+        outcome
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
-    drop(leaf);
-    drop(root);
-    let mut outcome = vm.eval_value_at_level(vm.current_level(), body);
-    if let Some(refusal) = vm.refused_completion() {
-        return refusal;
-    }
-    if plan.writeback == tcl_registry::dictionary_scope::DictionaryWriteback::NormalOnly
-        && outcome.code != Code::Ok
-    {
-        return outcome;
-    }
-    // The saved body result owns a native reference while writeback invokes
-    // commands that can replace the interpreter's current result.
-    outcome.result = outcome.result.into_native_reference();
-    let objects = match VmDictionaryObjects::selected(vm) {
-        Ok(objects) => objects.with_preparation(
-            tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::ConvertBeforeCopy,
-        ),
-        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-    };
-    let publication = if objects.string_protocol().is_jim084() {
-        crate::interp::native_dictionary::DictionaryVariablePublication::CommandName
-    } else {
-        crate::interp::native_dictionary::DictionaryVariablePublication::RetainedLocalCell
-    };
-    let writeback =
-        vm.dictionary_scope_writeback_bytes(&name, publication, &objects, |vm, root| {
-            tcl_cmd_core::native_dictionary::transform_existing_prepared_path(
-                &objects,
-                root,
-                path,
-                |leaf| reflect_dictionary_scope_leaf(vm, leaf, &mappings),
-            )
-            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))
-        });
-    if let Some(refusal) = vm.refused_completion() {
-        return refusal;
-    }
-    if let Err(mut error) = writeback {
-        if plan.writeback_failure
-            == tcl_registry::dictionary_scope::DictionaryWritebackFailure::NormalWithErrorResult
-        {
-            error.code = Code::Ok;
-        }
-        return error;
-    }
-    outcome
+    reached
 }
 
 fn native_dictionary_pairs(
@@ -979,18 +1046,26 @@ fn native_dictionary_loop_names(
     vm: &mut Vm,
     vars: &Value,
 ) -> Result<DictionaryIterationNames, Completion<Value>> {
-    let names = tcl_syntax::value::ValueOps::list_elements(vm, vars)
-        .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
-    let [key, value] = names.as_slice() else {
-        return Err(err("must have exactly two variable names"));
-    };
-    let key = vm
-        .native_name_operand_bytes(key)
-        .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-    let value = vm
-        .native_name_operand_bytes(value)
-        .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-    Ok((key, value))
+    let original_names = crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let reached = (|| {
+        let names = tcl_syntax::value::ValueOps::list_elements(vm, vars)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+        let [key, value] = names.as_slice() else {
+            return Err(err("must have exactly two variable names"));
+        };
+        let key = original_names
+            .read(vm, key)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+        let value = original_names
+            .read(vm, value)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+        Ok((key, value))
+    })();
+    original_names
+        .finish(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    reached
 }
 
 type DictionaryIterationNames = (std::rc::Rc<[u8]>, std::rc::Rc<[u8]>);
@@ -1098,97 +1173,109 @@ fn cmd_dict_map(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 
 /// Explicit original key/variable pairs surround a caller-frame body.
 fn cmd_dict_update(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    const USAGE: &str =
-        "wrong # args: should be \"dict update dictVarName key varName ?key varName ...? script\"";
-    let [variable, tail @ ..] = rest else {
-        return crate::command::native_wrong_arguments_message(vm, USAGE);
-    };
-    let Some((body, pairs)) = tail.split_last() else {
-        return crate::command::native_wrong_arguments_message(vm, USAGE);
-    };
-    if pairs.is_empty() || !pairs.len().is_multiple_of(2) {
-        return crate::command::native_wrong_arguments_message(vm, USAGE);
-    }
-    let plan = match dictionary_scope_plan(
-        vm,
-        tcl_registry::dictionary_scope::DictionaryScopeSpec::Update,
-        rest.len(),
-    ) {
-        Ok(plan) => plan,
-        Err(error) => return error,
-    };
-    if plan.implementation
-        != tcl_registry::dictionary_scope::DictionaryScopeImplementation::NativePrimitive
-    {
-        return vm
-            .refuse_host_command("dictionary update requires its actual scripted wrapper".into());
-    }
-    let name = match vm.native_name_operand_bytes(variable) {
-        Ok(name) => name,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    let root = match vm.read_variable_result_bytes(&name, None) {
-        Ok(root) => root,
-        Err(error) => return error,
-    };
-    let objects = match VmDictionaryObjects::selected(vm) {
-        Ok(objects) => objects.with_preparation(
-            tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::ConvertBeforeCopy,
-        ),
-        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-    };
-    if let Err(error) = vm.native_object_dict_pairs_in(&root, objects.string_protocol()) {
-        return crate::command::completion_from_cmd_error(vm, error.into());
-    }
-    let mut mappings = Vec::with_capacity(pairs.len() / 2);
-    for pair in pairs.as_chunks::<2>().0 {
-        let name = match vm.native_name_operand_bytes(&pair[1]) {
-            Ok(name) => name,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
-        };
-        let selected = match tcl_cmd_core::dict::getdef(vm, &root, &pair[..1], &Value::empty()) {
-            Ok(value) => value,
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
             Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
-        let exists = match tcl_cmd_core::dict::exists(vm, &root, &pair[..1]) {
-            Ok(exists) => exists,
-            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    let reached = (|| {
+        const USAGE: &str = "wrong # args: should be \"dict update dictVarName key varName ?key varName ...? script\"";
+        let [variable, tail @ ..] = rest else {
+            return crate::command::native_wrong_arguments_message(vm, USAGE);
         };
-        let exists = match tcl_syntax::value::ValueOps::as_bool(vm, &exists) {
-            Ok(exists) => exists,
-            Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+        let Some((body, pairs)) = tail.split_last() else {
+            return crate::command::native_wrong_arguments_message(vm, USAGE);
         };
-        if exists {
-            if let Err(error) = vm.store_var_result_bytes(&name, selected) {
-                return error;
-            }
-        } else {
-            let _ = vm.unset_var_bytes(&name);
-            if let Some(refusal) = vm.refused_completion() {
-                return refusal;
-            }
+        if pairs.is_empty() || !pairs.len().is_multiple_of(2) {
+            return crate::command::native_wrong_arguments_message(vm, USAGE);
         }
-        mappings.push((pair[0].clone(), pair[1].clone()));
+        let plan = match dictionary_scope_plan(
+            vm,
+            tcl_registry::dictionary_scope::DictionaryScopeSpec::Update,
+            rest.len(),
+        ) {
+            Ok(plan) => plan,
+            Err(error) => return error,
+        };
+        if plan.implementation
+            != tcl_registry::dictionary_scope::DictionaryScopeImplementation::NativePrimitive
+        {
+            return vm.refuse_host_command(
+                "dictionary update requires its actual scripted wrapper".into(),
+            );
+        }
+        let name = match original_names.read(vm, variable) {
+            Ok(name) => name,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        let root = match vm.read_variable_result_bytes(&name, None) {
+            Ok(root) => root,
+            Err(error) => return error,
+        };
+        let objects = match VmDictionaryObjects::selected(vm) {
+            Ok(objects) => objects.with_preparation(
+                tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::ConvertBeforeCopy,
+            ),
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        if let Err(error) = vm.native_object_dict_pairs_in(&root, objects.string_protocol()) {
+            return crate::command::completion_from_cmd_error(vm, error.into());
+        }
+        let mut mappings = Vec::with_capacity(pairs.len() / 2);
+        for pair in pairs.as_chunks::<2>().0 {
+            let name = match original_names.read(vm, &pair[1]) {
+                Ok(name) => name,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            };
+            let selected = match tcl_cmd_core::dict::getdef(vm, &root, &pair[..1], &Value::empty())
+            {
+                Ok(value) => value,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            };
+            let exists = match tcl_cmd_core::dict::exists(vm, &root, &pair[..1]) {
+                Ok(exists) => exists,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            };
+            let exists = match tcl_syntax::value::ValueOps::as_bool(vm, &exists) {
+                Ok(exists) => exists,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+            };
+            if exists {
+                if let Err(error) = vm.store_var_result_bytes(&name, selected) {
+                    return error;
+                }
+            } else {
+                let _ = vm.unset_var_bytes(&name);
+                if let Some(refusal) = vm.refused_completion() {
+                    return refusal;
+                }
+            }
+            mappings.push((pair[0].clone(), pair[1].clone()));
+        }
+        drop(root);
+        let mut outcome = vm.eval_value_at_level(vm.current_level(), body);
+        if let Some(refusal) = vm.refused_completion() {
+            return refusal;
+        }
+        outcome.result = outcome.result.into_native_reference();
+        match vm.dictionary_scope_writeback_bytes(
+            &name,
+            crate::interp::native_dictionary::DictionaryVariablePublication::CommandName,
+            &objects,
+            |vm, root| {
+                reflect_dictionary_scope_leaf(vm, root, &mappings)
+                    .map(Some)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))
+            },
+        ) {
+            Ok(()) => outcome,
+            Err(error) => error,
+        }
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
-    drop(root);
-    let mut outcome = vm.eval_value_at_level(vm.current_level(), body);
-    if let Some(refusal) = vm.refused_completion() {
-        return refusal;
-    }
-    outcome.result = outcome.result.into_native_reference();
-    match vm.dictionary_scope_writeback_bytes(
-        &name,
-        crate::interp::native_dictionary::DictionaryVariablePublication::CommandName,
-        &objects,
-        |vm, root| {
-            reflect_dictionary_scope_leaf(vm, root, &mappings)
-                .map(Some)
-                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))
-        },
-    ) {
-        Ok(()) => outcome,
-        Err(error) => error,
-    }
+    reached
 }
 
 /// `dict filter dictionary script {keyVar valueVar} body` — the Family-B `script`

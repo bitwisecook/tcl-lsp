@@ -81,13 +81,13 @@ impl Value {
         self.replace_primary_using_with(|| build().map(IntRep::JimCommand), &mut Some(check))
     }
 
-    pub(crate) fn install_jim_variable_cache(
+    pub(crate) fn install_jim_variable_cache_checked<E: From<ValueError>>(
         &self,
-        cache: JimVariableCache,
         dialect: tcl_registry::InvocationDialect,
-    ) -> Result<(), ValueError> {
+        build: impl FnOnce() -> Result<JimVariableCache, E>,
+        check: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<(), E> {
         self.require_jim_lookup_origin(dialect)?;
-        self.replace_primary(IntRep::JimVariable(cache));
-        Ok(())
+        self.replace_primary_using_with(|| build().map(IntRep::JimVariable), &mut Some(check))
     }
 }

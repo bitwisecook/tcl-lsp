@@ -22,12 +22,20 @@ pub(crate) struct OriginalNameConsumerScope {
     frame: Option<(Rc<ActivationIdentity>, usize)>,
     namespace: NsId,
     namespace_owner: QueryNamespace,
+    selected_namespace: Option<QueryNamespace>,
     world: Rc<RefCell<NativeNameWorld>>,
     operation: NativeOperationScope,
 }
 
 impl OriginalNameConsumerScope {
     pub(crate) fn enter(vm: &mut Vm) -> Result<Self, CmdError> {
+        Self::enter_for_namespace(vm, None)
+    }
+
+    pub(crate) fn enter_for_namespace(
+        vm: &mut Vm,
+        selected: Option<NsId>,
+    ) -> Result<Self, CmdError> {
         let operation = NativeOperationScope::enter(vm)?;
         let frame = vm
             .frames
@@ -36,6 +44,9 @@ impl OriginalNameConsumerScope {
             .map(|level| (vm.retained_frame_identity(false), level));
         let namespace = vm.current_ns_id();
         let namespace_owner = QueryNamespace::capture(vm, namespace)?;
+        let selected_namespace = selected
+            .map(|id| QueryNamespace::capture(vm, id))
+            .transpose()?;
         let world = Rc::clone(&vm.name_world);
         let jim_namespace = if vm.uses_native_jim_lookup() && frame.is_some() {
             Some(vm.with_jim_current_namespace(|original| Ok(original.native_lifetime_lease()))?)
@@ -47,6 +58,7 @@ impl OriginalNameConsumerScope {
             frame,
             namespace,
             namespace_owner,
+            selected_namespace,
             world,
             operation,
         };
@@ -58,7 +70,11 @@ impl OriginalNameConsumerScope {
         self.operation.check(vm)?;
         let world_current = Rc::ptr_eq(&self.world, &vm.name_world)
             && self.world.borrow().is_live()
-            && self.namespace_owner.current(vm);
+            && self.namespace_owner.current(vm)
+            && self
+                .selected_namespace
+                .as_ref()
+                .is_none_or(|selected| selected.current(vm));
         self.require(
             vm,
             world_current,
@@ -102,8 +118,67 @@ impl OriginalNameConsumerScope {
         self.operation.check(vm)
     }
 
+    pub(crate) fn capture_binding(
+        &self,
+        vm: &mut Vm,
+        binding: &super::VarBinding,
+    ) -> Result<OriginalNameBinding, CmdError> {
+        self.check(vm)?;
+        let raw = vm.raw_variable_binding(binding);
+        let cell = raw.and_then(|id| vm.var_arena.weak_jim_cell(id));
+        self.require(vm, cell.is_some(), "original Name selected binding cell")?;
+        Ok(OriginalNameBinding {
+            binding: binding.clone(),
+            raw: raw.expect("checked original binding"),
+            cell: cell.expect("checked original cell"),
+        })
+    }
+
+    pub(crate) fn capture_cell(
+        &self,
+        vm: &mut Vm,
+        id: super::VarId,
+    ) -> Result<crate::vars::WeakJimVariableCell, CmdError> {
+        self.check(vm)?;
+        let cell = vm.var_arena.weak_jim_cell(id);
+        self.require(vm, cell.is_some(), "original Name selected cell birth")?;
+        Ok(cell.expect("checked original cell"))
+    }
+
+    pub(crate) fn check_cell(
+        &self,
+        vm: &mut Vm,
+        id: super::VarId,
+        cell: &crate::vars::WeakJimVariableCell,
+    ) -> Result<(), CmdError> {
+        self.check(vm)?;
+        let current = vm.var_arena.validate_jim_cell(cell) == Some(id);
+        self.require(vm, current, "original Name selected cell birth")
+    }
+
+    pub(crate) fn capture_frame(
+        &self,
+        vm: &mut Vm,
+        level: usize,
+    ) -> Result<OriginalNameFrame, CmdError> {
+        self.check(vm)?;
+        Ok(OriginalNameFrame {
+            level,
+            identity: vm
+                .frames
+                .get(level)
+                .map(|frame| Rc::clone(&frame.activation)),
+        })
+    }
+
     pub(super) fn currency(&self) -> &super::native_operation_currency::NativeOperationCurrency {
         self.operation.currency()
+    }
+
+    pub(crate) fn current_for_value(&self, vm: &mut Vm, original: &Value) -> Result<(), CmdError> {
+        self.check(vm)?;
+        super::native_numeric_ops::OriginalNumericOps::in_original_scope(vm, &self.operation)?
+            .current_for_value(original)
     }
 
     pub(crate) fn read(&self, vm: &mut Vm, original: &Value) -> Result<Rc<[u8]>, CmdError> {
@@ -119,6 +194,45 @@ impl OriginalNameConsumerScope {
         drop(self.jim_namespace.take());
         self.check(vm)?;
         before
+    }
+}
+
+/// A weak observation of the actual selected slot, never a variable role grant.
+pub(crate) struct OriginalNameBinding {
+    binding: super::VarBinding,
+    raw: super::VarId,
+    cell: crate::vars::WeakJimVariableCell,
+}
+impl OriginalNameBinding {
+    pub(crate) fn check(
+        &self,
+        vm: &mut Vm,
+        scope: &OriginalNameConsumerScope,
+    ) -> Result<(), CmdError> {
+        scope.check_cell(vm, self.raw, &self.cell)?;
+        let current = vm.raw_variable_binding(&self.binding) == Some(self.raw);
+        scope.require(vm, current, "original Name selected binding slot")
+    }
+}
+
+/// The already selected target frame; a missing frame stays missing.
+pub(crate) struct OriginalNameFrame {
+    level: usize,
+    identity: Option<Rc<ActivationIdentity>>,
+}
+impl OriginalNameFrame {
+    pub(crate) fn check(
+        &self,
+        vm: &mut Vm,
+        scope: &OriginalNameConsumerScope,
+    ) -> Result<(), CmdError> {
+        scope.check(vm)?;
+        let current = match (&self.identity, vm.frames.get(self.level)) {
+            (Some(saved), Some(actual)) => Rc::ptr_eq(saved, &actual.activation),
+            (None, None) => true,
+            _ => false,
+        };
+        scope.require(vm, current, "original Name selected target activation")
     }
 }
 

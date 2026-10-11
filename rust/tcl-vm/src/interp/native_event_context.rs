@@ -32,7 +32,7 @@ impl Vm {
             let reached = (|| {
                 if vm
                     .current_jim_variable_cell(original)
-                    .map_err(|e| vm.refuse_host_command(e.to_string()))?
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?
                     .is_some()
                 {
                     return vm.read_original_named_variable(original).map(Some);
@@ -43,11 +43,11 @@ impl Vm {
                 if Self::is_original_jim_dictionary_name(original, &name) {
                     return vm.read_original_named_variable(original).map(Some);
                 }
-                vm.install_original_jim_variable(original, &name)
-                    .map_err(|e| vm.refuse_host_command(e.to_string()))?;
+                vm.install_original_jim_variable(original, &name, &original_names)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
                 if vm
                     .current_jim_variable_cell(original)
-                    .map_err(|e| vm.refuse_host_command(e.to_string()))?
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?
                     .is_none()
                 {
                     return Ok(None);

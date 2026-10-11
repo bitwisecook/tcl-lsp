@@ -58,26 +58,35 @@ impl Vm {
         &mut self,
         original: &Value,
     ) -> Result<(), Completion<Value>> {
-        let (_, name, _, resolved) = self.prepare_native_original_variable(
-            original,
-            NativeVariableNameLookupPurpose::ArrayMake,
-        )?;
-        if let Some(element) = resolved.elem.as_ref() {
-            let exists = resolved.id.and_then(|id| self.var_arena.get(id)).is_some_and(|cell| matches!(cell.state(), super::super::Local::Array(elements) if elements.contains_key(element.as_bytes())));
-            let original_bytes = self
-                .native_name_operand_bytes(original)
-                .map_err(|error| self.refuse_host_command(error.to_string()))?;
-            if !exists {
-                return Err(self.variable_access_error_input(
-                    "set",
-                    tcl_syntax::naming::NativeVariableInputForm::Combined(&original_bytes),
-                    "no such element in array",
-                ));
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            let (_, name, _, resolved) = self.prepare_native_original_variable(
+                original,
+                NativeVariableNameLookupPurpose::ArrayMake,
+            )?;
+            if let Some(element) = resolved.elem.as_ref() {
+                let exists = resolved.id.and_then(|id| self.var_arena.get(id)).is_some_and(|cell| matches!(cell.state(), super::super::Local::Array(elements) if elements.contains_key(element.as_bytes())));
+                let original_bytes = original_names
+                    .read(self, original)
+                    .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+                if !exists {
+                    return Err(self.variable_access_error_input(
+                        "set",
+                        tcl_syntax::naming::NativeVariableInputForm::Combined(&original_bytes),
+                        "no such element in array",
+                    ));
+                }
+                return Err(self.array_make_opcode_error(&original_bytes));
             }
-            return Err(self.array_make_opcode_error(&original_bytes));
-        }
-        self.confine_store_bytes(&name, self.current_level(), false)?;
-        self.ensure_array_original_selected_opcode(&name, &resolved)
+            self.confine_store_bytes(&name, self.current_level(), false)?;
+            self.ensure_array_original_selected_opcode(&name, &resolved)
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
     pub(in crate::interp) fn ensure_array_original_selected_opcode(
         &mut self,

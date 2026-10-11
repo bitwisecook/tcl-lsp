@@ -11,43 +11,72 @@ impl Vm {
         local: &[u8],
         target_level: usize,
         original: &Value,
-    ) -> Result<(), UpvarLinkError> {
-        let Some(protocol) = self
-            .actual_native_invocation_dialect()
-            .native_jim_lookup_protocol()
-        else {
-            return Ok(());
-        };
-        let bytes = self
-            .native_name_operand_bytes(original)
-            .map_err(|_| UpvarLinkError::TargetNamespace)?;
-        let (level, name) = match protocol.link_target_input(&bytes) {
-            NativeJimLinkTargetInput::Original => (target_level, original.clone()),
-            NativeJimLinkTargetInput::StrippedGlobal(tail) => {
-                (0, Value::new_native_string_bytes(tail))
+    ) -> Result<(), Completion<Value>> {
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let target_frame = original_names
+            .capture_frame(self, target_level)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            let Some(protocol) = self
+                .actual_native_invocation_dialect()
+                .native_jim_lookup_protocol()
+            else {
+                return Ok(());
+            };
+            let selected_local = self.var_binding_from_bytes(local, self.current_level());
+            let selected_cell = selected_local
+                .as_ref()
+                .map(|binding| original_names.capture_binding(self, binding))
+                .transpose()
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            let bytes = original_names
+                .read(self, original)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            target_frame
+                .check(self, &original_names)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            if let Some(selected) = &selected_cell {
+                selected
+                    .check(self, &original_names)
+                    .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
             }
-        };
-        let frame = self
-            .frames
-            .get(level)
-            .ok_or(UpvarLinkError::TargetNamespace)?;
-        let receipt = crate::vars::JimNameLinkOriginal {
-            name,
-            frame: frame.jim_storage.reference(),
-        };
-        let binding = self
-            .var_binding_from_bytes(local, self.current_level())
-            .ok_or(UpvarLinkError::LocalNamespace)?;
-        let raw = self
-            .raw_variable_binding(&binding)
-            .ok_or(UpvarLinkError::LocalNamespace)?;
-        let mut link = match self.var_arena.get(raw).map(crate::vars::VarCell::state) {
-            Some(Local::NameLink(link)) => link.clone(),
-            _ => return Ok(()),
-        };
-        link.original_target = Some(receipt);
-        self.var_arena.replace_state(raw, Local::NameLink(link));
-        Ok(())
+            let result = (|| -> Result<(), UpvarLinkError> {
+                let (level, name) = match protocol.link_target_input(&bytes) {
+                    NativeJimLinkTargetInput::Original => (target_level, original.clone()),
+                    NativeJimLinkTargetInput::StrippedGlobal(tail) => {
+                        (0, Value::new_native_string_bytes(tail))
+                    }
+                };
+                let frame = self
+                    .frames
+                    .get(level)
+                    .ok_or(UpvarLinkError::TargetNamespace)?;
+                let receipt = crate::vars::JimNameLinkOriginal {
+                    name,
+                    frame: frame.jim_storage.reference(),
+                };
+                let binding = self
+                    .var_binding_from_bytes(local, self.current_level())
+                    .ok_or(UpvarLinkError::LocalNamespace)?;
+                let raw = self
+                    .raw_variable_binding(&binding)
+                    .ok_or(UpvarLinkError::LocalNamespace)?;
+                let mut link = match self.var_arena.get(raw).map(crate::vars::VarCell::state) {
+                    Some(Local::NameLink(link)) => link.clone(),
+                    _ => return Ok(()),
+                };
+                link.original_target = Some(receipt);
+                self.var_arena.replace_state(raw, Local::NameLink(link));
+                Ok(())
+            })();
+            result.map_err(|error| self.original_jim_link_failure(error, &bytes, local))
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
     pub(crate) fn link_upvar_original(
         &mut self,
@@ -55,21 +84,40 @@ impl Vm {
         other: &Value,
         local: &Value,
     ) -> Result<(), tcl_runtime_api::Completion<Value>> {
-        if self.native_c_variable_name_protocol().is_some() {
-            return self.link_original_c_variable_objects(other, target_level, None, local);
-        }
-        let bytes = self
-            .native_name_operand_bytes(other)
-            .map_err(|error| self.refuse_host_command(error.to_string()))?;
-        let local_bytes = self
-            .native_name_operand_bytes(local)
-            .map_err(|error| self.refuse_host_command(error.to_string()))?;
-        let result = (|| {
-            self.link_upvar_bytes(target_level, &bytes, &local_bytes)?;
-            self.attach_original_jim_link(&local_bytes, target_level, other)?;
-            self.retain_original_jim_link_local(local, &local_bytes)
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let target_frame = original_names
+            .capture_frame(self, target_level)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            if self.native_c_variable_name_protocol().is_some() {
+                return self.link_original_c_variable_objects(other, target_level, None, local);
+            }
+            let bytes = original_names
+                .read(self, other)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            target_frame
+                .check(self, &original_names)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            let local_bytes = original_names
+                .read(self, local)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            target_frame
+                .check(self, &original_names)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            let result = (|| {
+                self.link_upvar_bytes(target_level, &bytes, &local_bytes)
+                    .map_err(|error| self.original_jim_link_failure(error, &bytes, &local_bytes))?;
+                self.attach_original_jim_link(&local_bytes, target_level, other)?;
+                self.retain_original_jim_link_local(local, &local_bytes, &original_names)
+            })();
+            result
         })();
-        result.map_err(|error| self.original_jim_link_failure(error, &bytes, &local_bytes))
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
     pub(crate) fn add_link_original(
         &mut self,
@@ -77,32 +125,48 @@ impl Vm {
         level: usize,
         target: &Value,
     ) -> Result<(), tcl_runtime_api::Completion<Value>> {
-        let bytes = self
-            .native_name_operand_bytes(target)
-            .map_err(|error| self.refuse_host_command(error.to_string()))?;
-        if self.native_c_variable_name_protocol().is_some() {
-            let original = if self
-                .native_c_variable_name_protocol()
-                .expect("actual C alias")
-                .alias_local_input(&bytes)
-                .qualification()
-                == tcl_syntax::naming::NativeNameQualification::Unqualified
-            {
-                target.native_lifetime_lease().into_value()
-            } else {
-                Value::new_native_string_bytes(local)
-            };
-            return self.link_original_c_variable_objects(target, level, None, &original);
-        }
-        let result = (|| {
-            self.add_link_bytes(local, level, &bytes)?;
-            self.attach_original_jim_link(local, level, target)?;
-            if self.uses_native_jim_lookup() {
-                self.retain_original_jim_link_local(target, &bytes)?;
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let target_frame = original_names
+            .capture_frame(self, level)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            let bytes = original_names
+                .read(self, target)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            target_frame
+                .check(self, &original_names)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            if self.native_c_variable_name_protocol().is_some() {
+                let original = if self
+                    .native_c_variable_name_protocol()
+                    .expect("actual C alias")
+                    .alias_local_input(&bytes)
+                    .qualification()
+                    == tcl_syntax::naming::NativeNameQualification::Unqualified
+                {
+                    target.native_lifetime_lease().into_value()
+                } else {
+                    Value::new_native_string_bytes(local)
+                };
+                return self.link_original_c_variable_objects(target, level, None, &original);
             }
-            Ok(())
+            let result = (|| {
+                self.add_link_bytes(local, level, &bytes)
+                    .map_err(|error| self.original_jim_link_failure(error, &bytes, local))?;
+                self.attach_original_jim_link(local, level, target)?;
+                if self.uses_native_jim_lookup() {
+                    self.retain_original_jim_link_local(target, &bytes, &original_names)?;
+                }
+                Ok(())
+            })();
+            result
         })();
-        result.map_err(|error| self.original_jim_link_failure(error, &bytes, local))
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
     fn original_jim_link_failure(
         &mut self,
@@ -136,23 +200,31 @@ impl Vm {
         &mut self,
         local: &Value,
         bytes: &[u8],
-    ) -> Result<(), UpvarLinkError> {
+        original_names: &super::native_name_consumers::OriginalNameConsumerScope,
+    ) -> Result<(), Completion<Value>> {
         if !self.uses_native_jim_lookup() {
             return Ok(());
         }
         let binding = self
             .var_binding_from_bytes(bytes, self.current_level())
-            .ok_or(UpvarLinkError::LocalNamespace)?;
+            .ok_or_else(|| {
+                self.original_jim_link_failure(UpvarLinkError::LocalNamespace, bytes, bytes)
+            })?;
         let key = if bytes.starts_with(b"::") {
             Value::new_native_string_bytes(binding.name.as_bytes())
         } else {
             local.clone()
         };
-        self.var_table_mut(binding.owner)
-            .ok_or(UpvarLinkError::LocalNamespace)?
-            .retain_original_native_key(&binding.name, key);
-        self.install_original_jim_variable(local, bytes)
-            .map_err(|_| UpvarLinkError::LocalNamespace)
+        let Some(table) = self.var_table_mut(binding.owner) else {
+            return Err(self.original_jim_link_failure(
+                UpvarLinkError::LocalNamespace,
+                bytes,
+                bytes,
+            ));
+        };
+        table.retain_original_native_key(&binding.name, key);
+        self.install_original_jim_variable(local, bytes, original_names)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))
     }
     pub(super) fn original_jim_alias_target(
         &self,
@@ -174,34 +246,45 @@ impl Vm {
         original: &Value,
         complain: bool,
     ) -> Result<(), Completion<Value>> {
-        if self.native_c_variable_name_protocol().is_some() {
-            return self.unset_original_c_variable(original, complain);
-        }
-        let bytes = self
-            .native_name_operand_bytes(original)
-            .map_err(|error| self.refuse_host_command(error.to_string()))?;
-        if self.uses_native_jim_lookup() {
-            if Self::is_original_jim_dictionary_name(original, &bytes) {
-                return match self.unset_original_jim_dictionary_name(original) {
-                    Err(_) if !complain && self.refused_completion().is_none() => Ok(()),
-                    result => result,
-                };
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            if self.native_c_variable_name_protocol().is_some() {
+                return self.unset_original_c_variable(original, complain);
             }
-            self.install_original_jim_variable(original, &bytes)
-                .map_err(|error| self.refuse_host_command(error.to_string()))?;
-            if let Some((target, level)) = self.original_jim_alias_target(original) {
-                let frame = self.select_execution_frame(level).map_err(super::err)?;
-                let result = self.unset_original_named_variable(target.value(), complain);
-                self.restore_execution_frame(frame);
-                return match result {
-                    Err(_) if self.refused_completion().is_none() => {
-                        Err(self.variable_access_error_bytes("unset", &bytes, "no such variable"))
-                    }
-                    result => result,
-                };
+            let bytes = original_names
+                .read(self, original)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            if self.uses_native_jim_lookup() {
+                if Self::is_original_jim_dictionary_name(original, &bytes) {
+                    return match self.unset_original_jim_dictionary_name(original) {
+                        Err(_) if !complain && self.refused_completion().is_none() => Ok(()),
+                        result => result,
+                    };
+                }
+                self.install_original_jim_variable(original, &bytes, &original_names)
+                    .map_err(|error| {
+                        crate::command::completion_from_cmd_error(self, error.into())
+                    })?;
+                if let Some((target, level)) = self.original_jim_alias_target(original) {
+                    let frame = self.select_execution_frame(level).map_err(super::err)?;
+                    let result = self.unset_original_named_variable(target.value(), complain);
+                    self.restore_execution_frame(frame);
+                    return match result {
+                        Err(_) if self.refused_completion().is_none() => Err(
+                            self.variable_access_error_bytes("unset", &bytes, "no such variable")
+                        ),
+                        result => result,
+                    };
+                }
             }
-        }
-        self.unset_one_bytes(&bytes, complain)
+            self.unset_one_bytes(&bytes, complain)
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
     pub(super) fn read_original_jim_alias(
         &mut self,
@@ -209,28 +292,37 @@ impl Vm {
         target: &Value,
         level: usize,
     ) -> Result<Value, Completion<Value>> {
-        let frame = self.select_execution_frame(level).map_err(super::err)?;
-        let result = self.read_original_named_variable(target);
-        self.restore_execution_frame(frame);
-        match result {
-            Err(error) if self.refused_completion().is_some() => Err(error),
-            Err(_) => {
-                let bytes = self
-                    .native_name_operand_bytes(original)
-                    .map_err(|error| self.refuse_host_command(error.to_string()))?;
-                let protocol = self
-                    .actual_native_invocation_dialect()
-                    .native_jim_lookup_protocol()
-                    .expect("actual Jim link read");
-                let message = protocol
-                    .linked_variable_read_error(&bytes)
-                    .map_err(|error| {
-                        self.refuse_host_command(format!("Jim alias diagnostic: {error:?}"))
-                    })?;
-                Err(super::err(message))
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            let frame = self.select_execution_frame(level).map_err(super::err)?;
+            let result = self.read_original_named_variable(target);
+            self.restore_execution_frame(frame);
+            match result {
+                Err(error) if self.refused_completion().is_some() => Err(error),
+                Err(_) => {
+                    let bytes = original_names
+                        .read(self, original)
+                        .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+                    let protocol = self
+                        .actual_native_invocation_dialect()
+                        .native_jim_lookup_protocol()
+                        .expect("actual Jim link read");
+                    let message = protocol
+                        .linked_variable_read_error(&bytes)
+                        .map_err(|error| {
+                            self.refuse_host_command(format!("Jim alias diagnostic: {error:?}"))
+                        })?;
+                    Err(super::err(message))
+                }
+                Ok(value) => Ok(value),
             }
-            Ok(value) => Ok(value),
-        }
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
     pub(super) fn store_original_jim_alias(
         &mut self,
