@@ -3537,3 +3537,22 @@ Stored variable-link roles belong to the actual published cell. `NativeScalarAli
 For selected C aliases, `NativeVariableNameProtocol::alias_publication_order` selects the original old-target retirement before new assignment/reference acquisition. `PreparedAliasReplacement` captures the original local cell and old-link identity, then checks that cell plus the selected target, frame/table observations, and original operation around outside-borrow cleanup and before adoption. Same-target no-op precedes mutation. The original C8.4 target-reference recipe includes compiled cells; C8.5/C8.6/C9.0/C9.1 acquire target references only for hash-owned entries. Actual object upvar/namespace/classvariable adapters and the automatic TclOO compiled-slot resolver consume this prepared worker. Generic logical link publication separately retains adoption before old-role retirement through `PublishedVariableLink`, with ordinary errors and the first full execution refusal checked before later consumers.
 
 These are software storage/continuation contracts with independently pinned original source recipes. The destructor/metadata controls do not establish Native callback chronology or transfer any earlier test outcome. Jim original-link publication prepares the target before its final local binding; it does not model the source's earlier link-frame detachment. Withdrawing an existing Jim stored-name owner supplies no equivalence for that caller schedule. Checked original member/indexed materialisation retains its actual captured receiver boundaries; ordinary array, trace-shell and container preparation also has neutral ports whose callbacks are not covered by this link-publication contract.
+
+The VM Jim indexed-variable continuation uses `OriginalNameConsumerScope::park`
+to retain the exact existing Name state and original operation currency while
+dropping its entered scope. The pending record retains the actual tuple root
+and name as allocation-only leases. Before lookup or continuation, its opaque
+parked context delegates `NativeOperationScope::resume_saved`; mandatory
+same-target completion/key/context retirement delegates `cleanup_saved`,
+including refusal paths. Saved metadata alone supplies no execution admission,
+and a foreign target is refused before state publication.
+
+All actual tuple preparation consumers use the checked original Jim tuple
+worker at its existing String/parse/free/adopt stages. Dictionary lookup uses
+`OriginalNumericOps::dictionary_with_currency` and the same checked Dictionary
+projection kernel, then selects a weak original Dict backing/epoch cursor after
+the actual key getter. Short member borrows issue allocation-only views before
+canonical String checks; no mutable borrow crosses a getter and no new Native
+hold or Dictionary COW is introduced. Cursor or String refusal retains the full
+first cause before cleanup or Guest presentation. Existing independent Script
+continuations keep their explicit unchanged route.

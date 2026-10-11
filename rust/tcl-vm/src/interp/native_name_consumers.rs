@@ -2,8 +2,10 @@
 //! Original consumer context, independent of selected command and table roles.
 
 use super::{
-    Vm, native_name_queries::QueryNamespace, native_name_world::NativeNameWorld,
-    native_operation_currency::NativeOperationScope,
+    Vm,
+    native_name_queries::QueryNamespace,
+    native_name_world::NativeNameWorld,
+    native_operation_currency::{NativeOperationCurrency, NativeOperationScope},
 };
 use crate::{
     Value, error::TclHostFailure, frame::ActivationIdentity, value::NativeObjectLifetimeLease,
@@ -18,13 +20,23 @@ use tcl_syntax::raw_string::NativeValueAccessRefusal;
 /// Keep the entered currency and the existing caller context through cleanup.
 /// A Jim header lease protects allocation only; it issues no table identity.
 pub(crate) struct OriginalNameConsumerScope {
+    state: OriginalNameConsumerState,
+    operation: NativeOperationScope,
+}
+
+struct OriginalNameConsumerState {
     jim_namespace: Option<NativeObjectLifetimeLease>,
     frame: Option<(Rc<ActivationIdentity>, usize)>,
     namespace: NsId,
     namespace_owner: QueryNamespace,
     selected_namespace: Option<QueryNamespace>,
     world: Rc<RefCell<NativeNameWorld>>,
-    operation: NativeOperationScope,
+}
+
+/// Saved context is descriptive until its same original currency is resumed.
+pub(crate) struct ParkedOriginalNameConsumerScope {
+    state: OriginalNameConsumerState,
+    currency: NativeOperationCurrency,
 }
 
 impl OriginalNameConsumerScope {
@@ -54,12 +66,14 @@ impl OriginalNameConsumerScope {
             None
         };
         let scope = Self {
-            jim_namespace,
-            frame,
-            namespace,
-            namespace_owner,
-            selected_namespace,
-            world,
+            state: OriginalNameConsumerState {
+                jim_namespace,
+                frame,
+                namespace,
+                namespace_owner,
+                selected_namespace,
+                world,
+            },
             operation,
         };
         scope.check(vm)?;
@@ -68,10 +82,11 @@ impl OriginalNameConsumerScope {
 
     pub(crate) fn check(&self, vm: &mut Vm) -> Result<(), CmdError> {
         self.operation.check(vm)?;
-        let world_current = Rc::ptr_eq(&self.world, &vm.name_world)
-            && self.world.borrow().is_live()
-            && self.namespace_owner.current(vm)
+        let world_current = Rc::ptr_eq(&self.state.world, &vm.name_world)
+            && self.state.world.borrow().is_live()
+            && self.state.namespace_owner.current(vm)
             && self
+                .state
                 .selected_namespace
                 .as_ref()
                 .is_none_or(|selected| selected.current(vm));
@@ -80,19 +95,19 @@ impl OriginalNameConsumerScope {
             world_current,
             "original Name consumer namespace and world",
         )?;
-        let frame_current = self.frame.as_ref().is_none_or(|(identity, level)| {
+        let frame_current = self.state.frame.as_ref().is_none_or(|(identity, level)| {
             vm.retained_frame_level(identity) == Some(*level)
                 && vm.frames.len().checked_sub(1) == Some(*level)
         });
         self.require(vm, frame_current, "original Name consumer frame activation")?;
-        let namespace_current = vm.current_ns_id() == self.namespace
-            && vm.native_namespace_token_has_owner(self.namespace);
+        let namespace_current = vm.current_ns_id() == self.state.namespace
+            && vm.native_namespace_token_has_owner(self.state.namespace);
         self.require(
             vm,
             namespace_current,
             "original Name consumer namespace incarnation",
         )?;
-        if let Some(original) = &self.jim_namespace {
+        if let Some(original) = &self.state.jim_namespace {
             let same = vm.with_jim_current_namespace(|current| {
                 Ok(current.is_same_object(original.value()))
             })?;
@@ -179,6 +194,17 @@ impl OriginalNameConsumerScope {
         self.operation.currency()
     }
 
+    pub(crate) fn operation_scope(&self) -> &NativeOperationScope {
+        &self.operation
+    }
+
+    pub(crate) fn park(self) -> ParkedOriginalNameConsumerScope {
+        let Self { state, operation } = self;
+        let currency = operation.currency().clone();
+        drop(operation);
+        ParkedOriginalNameConsumerScope { state, currency }
+    }
+
     pub(crate) fn current_for_value(&self, vm: &mut Vm, original: &Value) -> Result<(), CmdError> {
         self.check(vm)?;
         super::native_numeric_ops::OriginalNumericOps::in_original_scope(vm, &self.operation)?
@@ -195,9 +221,37 @@ impl OriginalNameConsumerScope {
     /// Retire the allocation lease while its original operation is entered.
     pub(crate) fn finish(mut self, vm: &mut Vm) -> Result<(), CmdError> {
         let before = self.check(vm);
-        drop(self.jim_namespace.take());
+        drop(self.state.jim_namespace.take());
         self.check(vm)?;
         before
+    }
+}
+
+impl ParkedOriginalNameConsumerScope {
+    pub(crate) fn currency(&self) -> &NativeOperationCurrency {
+        &self.currency
+    }
+
+    pub(crate) fn resume(self, vm: &mut Vm) -> Result<OriginalNameConsumerScope, CmdError> {
+        let Self { state, currency } = self;
+        let operation = match NativeOperationScope::resume_saved(vm, &currency) {
+            Ok(operation) => operation,
+            Err(first) => {
+                if let Ok(cleanup) = NativeOperationScope::cleanup_saved(vm, &currency) {
+                    drop(state);
+                    let _ = cleanup.check(vm);
+                } else {
+                    drop(state);
+                }
+                return Err(CmdError::from_execution_refusal(first));
+            }
+        };
+        let original = OriginalNameConsumerScope { state, operation };
+        if let Err(first) = original.check(vm) {
+            let _ = original.finish(vm);
+            return Err(first);
+        }
+        Ok(original)
     }
 }
 

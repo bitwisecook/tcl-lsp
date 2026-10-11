@@ -717,24 +717,14 @@ impl Vm {
                 .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
             if self.uses_native_jim_lookup() {
                 if Self::is_original_jim_dictionary_name(original, &bytes) {
-                    let context = self.native_jim_object_context().map_err(|error| {
-                        crate::command::completion_from_cmd_error(self, error.into())
-                    })?;
-                    let reached = original
-                        .ensure_native_jim_dictionary_substitution_checked(&context, &mut || {
-                            original_names.current_for_value(self, original)
-                        });
-                    original_names
-                        .check(self)
+                    let (name, key) = self
+                        .original_jim_tuple_children_in_context(original, &original_names)
                         .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
-                    reached
-                        .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
-                    let (name, key) = original
-                        .with_native_jim_dictionary_substitution(|name, key| {
-                            (name.native_lifetime_lease(), key.native_lifetime_lease())
-                        })
-                        .expect("installed original tuple");
-                    return self.read_native_jim_dictionary_member(name.value(), key.value());
+                    return self.read_native_jim_dictionary_member(
+                        name.value(),
+                        key.value(),
+                        &original_names,
+                    );
                 }
                 self.install_original_jim_variable(original, &bytes, &original_names)
                     .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;

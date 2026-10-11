@@ -331,6 +331,17 @@ impl<'a> OriginalNumericOps<'a> {
         })
     }
 
+    pub(crate) fn dictionary_with_currency(
+        &self,
+        original: &Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        currency: &NativeOperationCurrency,
+    ) -> Result<Vec<(Value, Value)>, CmdError> {
+        self.compound_with_currency(original, protocol, currency, |check, strings| {
+            original.native_object_dict_pairs_with_strings(protocol, check, strings)
+        })
+    }
+
     pub(crate) fn prepare_dictionary_with_currency(
         &self,
         original: &Value,

@@ -4,6 +4,10 @@
 
 use crate::{
     Code, Completion, Value,
+    interp::{
+        native_name_consumers::{OriginalNameConsumerScope, ParkedOriginalNameConsumerScope},
+        native_operation_currency::NativeOperationScope,
+    },
     value::{NativeJimScript, NativeJimScriptLease},
 };
 use std::{cell::RefCell, rc::Rc};
@@ -77,7 +81,91 @@ pub(crate) struct NativeJimScriptState {
     substitution_flags: Option<u8>,
     stopped: bool,
     skipped_first: bool,
-    pending_dictionary: Option<crate::NativeObjectLifetimeLease>,
+    pending_dictionary: Option<PendingOriginalDictionary>,
+}
+
+struct PendingOriginalDictionary {
+    original: crate::NativeObjectLifetimeLease,
+    name: crate::NativeObjectLifetimeLease,
+    context: ParkedOriginalNameConsumerScope,
+}
+
+impl PendingOriginalDictionary {
+    fn accept(
+        self,
+        state: &mut NativeJimScriptState,
+        vm: &mut crate::Vm,
+        completion: Completion<Value>,
+    ) {
+        let Self {
+            original,
+            name,
+            context,
+        } = self;
+        let cleanup = match NativeOperationScope::cleanup_saved(vm, context.currency()) {
+            Ok(cleanup) => cleanup,
+            Err(first) => {
+                drop(completion);
+                drop(context);
+                drop(name);
+                drop(original);
+                state.completion = Some(crate::command::completion_from_cmd_error(
+                    vm,
+                    tcl_cmd_core::CmdError::from_execution_refusal(first),
+                ));
+                return;
+            }
+        };
+        let mut incoming = Some(completion);
+        let reached = (|| -> Result<(), tcl_cmd_core::CmdError> {
+            let context = context.resume(vm)?;
+            let reached = (|| {
+                context.current_for_value(vm, original.value())?;
+                context.current_for_value(vm, name.value())?;
+                let completion = incoming
+                    .take()
+                    .expect("actual pending Dictionary completion");
+                let completion = if completion.code == Code::Ok {
+                    // The original Jim worker owns this substituted key during lookup.
+                    context.current_for_value(vm, &completion.result)?;
+                    let Completion {
+                        result, options, ..
+                    } = completion;
+                    let key = result.into_native_reference();
+                    let read = vm.read_native_jim_dictionary_member(name.value(), &key, &context);
+                    drop(key);
+                    drop(options);
+                    context.current_for_value(vm, original.value())?;
+                    match read {
+                        Ok(value) => crate::interp::ok(value),
+                        Err(completion) => completion,
+                    }
+                } else {
+                    completion
+                };
+                state.accept_completion(vm, completion, Some((&context, original.value())))
+            })();
+            if let Err(error) = &reached {
+                vm.retain_original_jim_tuple_failure(error);
+            }
+            let retired = context.finish(vm);
+            cleanup.check(vm)?;
+            retired?;
+            reached
+        })();
+        if let Err(error) = &reached {
+            vm.retain_original_jim_tuple_failure(error);
+        }
+        drop(incoming);
+        drop(name);
+        drop(original);
+        let current = cleanup.check(vm);
+        if let Err(first) = current.and(reached) {
+            // All reached key/completion/context cleanup precedes this unwind.
+            state.completion = Some(crate::command::completion_from_cmd_error(vm, first));
+            let _ = cleanup.check(vm);
+        }
+    }
 }
 
 impl NativeJimScriptState {
@@ -298,21 +386,45 @@ impl NativeJimScriptState {
         }
     }
 
-    pub(crate) fn begin_dictionary(&mut self, name: crate::NativeObjectLifetimeLease) {
-        self.pending_dictionary = Some(name);
+    pub(crate) fn begin_dictionary(
+        &mut self,
+        original: crate::NativeObjectLifetimeLease,
+        name: crate::NativeObjectLifetimeLease,
+        context: ParkedOriginalNameConsumerScope,
+    ) {
+        self.pending_dictionary = Some(PendingOriginalDictionary {
+            original,
+            name,
+            context,
+        });
     }
 
-    pub(crate) fn accept(&mut self, vm: &mut crate::Vm, mut completion: Completion<Value>) {
-        if let Some(name) = self.pending_dictionary.take()
-            && completion.code == Code::Ok
-        {
-            // JimExpandDictSugar owns the actual substituted key during lookup.
-            let key = completion.result.into_native_reference();
-            completion = match vm.read_native_jim_dictionary_member(name.value(), &key) {
-                Ok(value) => crate::interp::ok(value),
-                Err(completion) => completion,
-            };
+    pub(crate) fn accept(&mut self, vm: &mut crate::Vm, completion: Completion<Value>) {
+        if let Some(pending) = self.pending_dictionary.take() {
+            pending.accept(self, vm, completion);
+        } else {
+            // Independent existing Script consumers preserve their old None route.
+            let _ = self.accept_completion(vm, completion, None);
         }
+    }
+
+    fn check_dictionary_continuation(
+        vm: &mut crate::Vm,
+        original: Option<(&OriginalNameConsumerScope, &Value)>,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        if let Some((context, root)) = original {
+            context.current_for_value(vm, root)?;
+        }
+        Ok(())
+    }
+
+    fn accept_completion(
+        &mut self,
+        vm: &mut crate::Vm,
+        completion: Completion<Value>,
+        original: Option<(&OriginalNameConsumerScope, &Value)>,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        Self::check_dictionary_continuation(vm, original)?;
         if self.invocation {
             self.invocation = false;
             if completion.code == Code::Ok {
@@ -320,7 +432,7 @@ impl NativeJimScriptState {
             } else {
                 self.completion = Some(completion);
             }
-            return;
+            return Self::check_dictionary_continuation(vm, original);
         }
         assert!(
             self.awaiting == TokenContinuation::Awaiting,
@@ -338,10 +450,24 @@ impl NativeJimScriptState {
         if completion.code == Code::Ok || completion.code == Code::Return && interpolates {
             // intv acquires a real native reference BEFORE Jim_String.
             let value = completion.result.into_native_reference();
-            if interpolates && let Err(error) = native_script_bytes(&value) {
-                self.completion = Some(crate::command::completion_from_tcl_error(vm, error));
-                return;
+            if interpolates {
+                if let Some((context, root)) = original {
+                    let reached = context.read(vm, &value);
+                    if let Err(error) = &reached {
+                        vm.retain_original_jim_tuple_failure(error);
+                    }
+                    context.current_for_value(vm, root)?;
+                    if let Err(error) = reached {
+                        self.completion =
+                            Some(crate::command::completion_from_cmd_error(vm, error));
+                        return Self::check_dictionary_continuation(vm, original);
+                    }
+                } else if let Err(error) = native_script_bytes(&value) {
+                    self.completion = Some(crate::command::completion_from_tcl_error(vm, error));
+                    return Ok(());
+                }
             }
+            Self::check_dictionary_continuation(vm, original)?;
             self.parts.push(value);
             self.token += 1;
         } else if self
@@ -371,6 +497,7 @@ impl NativeJimScriptState {
                 },
             );
         }
+        Self::check_dictionary_continuation(vm, original)
     }
 
     pub(crate) fn original_token(&self, index: usize) -> (JimScriptObjectKind, &Value) {

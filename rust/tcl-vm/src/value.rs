@@ -725,6 +725,47 @@ impl DictRep {
     }
 }
 
+/// Readonly observation of the original table during an actual member scan.
+/// It owns neither a Dictionary backing nor a native child reference.
+pub(crate) struct OriginalNativeDictionaryCursor {
+    backing: std::rc::Weak<DictRep>,
+    epoch: u64,
+}
+
+impl OriginalNativeDictionaryCursor {
+    pub(crate) fn check(&self, original: &Value) -> Result<(), ValueError> {
+        original.check_native_header()?;
+        let cache = original.0.intrep.borrow();
+        let current = matches!(&*cache, IntRep::Dict(actual)
+            if self.backing.ptr_eq(&Rc::downgrade(actual)) && self.epoch == actual.epoch.get());
+        if current {
+            Ok(())
+        } else {
+            Err(ValueError::CommandProtocolUnavailable(
+                "original Dictionary lookup table",
+            ))
+        }
+    }
+
+    pub(crate) fn member(
+        &self,
+        original: &Value,
+        index: usize,
+    ) -> Result<Option<(NativeObjectLifetimeLease, NativeObjectLifetimeLease)>, ValueError> {
+        self.check(original)?;
+        let cache = original.0.intrep.borrow();
+        let IntRep::Dict(actual) = &*cache else {
+            unreachable!("checked original Dictionary table")
+        };
+        let pair = actual.with_pairs(|pairs| {
+            pairs
+                .get(index)
+                .map(|(key, value)| (key.native_lifetime_lease(), value.native_lifetime_lease()))
+        });
+        Ok(pair)
+    }
+}
+
 /// Failure of a native byte-array object conversion, separate from guest
 /// conversion errors and checked host Unicode access.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -5744,6 +5785,31 @@ impl Value {
         protocol: tcl_syntax::native_string::NativeStringProtocol,
     ) -> Result<Vec<(Value, Value)>, ValueError> {
         self.native_object_dict_pairs_using(protocol, &mut None, &mut None)
+    }
+
+    pub(crate) fn native_object_dict_pairs_with_strings(
+        &self,
+        protocol: NativeStringProtocol,
+        check: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
+        strings: &mut dyn FnMut(&Value) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
+    ) -> Result<Vec<(Value, Value)>, tcl_cmd_core::CmdError> {
+        self.native_object_dict_pairs_using(protocol, &mut Some(check), &mut Some(strings))
+    }
+
+    pub(crate) fn original_dictionary_cursor(
+        &self,
+    ) -> Result<OriginalNativeDictionaryCursor, ValueError> {
+        self.check_native_header()?;
+        let cache = self.0.intrep.borrow();
+        let IntRep::Dict(actual) = &*cache else {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original Dictionary lookup table",
+            ));
+        };
+        Ok(OriginalNativeDictionaryCursor {
+            backing: Rc::downgrade(actual),
+            epoch: actual.epoch.get(),
+        })
     }
 
     fn native_compound_string_using<E: From<ValueError>>(
