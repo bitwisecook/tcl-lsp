@@ -10,18 +10,14 @@ impl Namespaces {
         entry: super::NativeCommandCreation,
         name: &[u8],
         command: Command,
-    ) {
+    ) -> u64 {
         let ns = entry.namespace;
         let previous = self.arena[ns].commands.take_slot(name);
-        self.insert_bound_after_entry(entry, name.to_vec(), command);
+        let token = self.insert_bound_after_entry(entry, name.to_vec(), command);
         if let Some(previous) = previous {
             if let Some(node) = self.native_command_nodes.get_mut(&previous.generation) {
                 node.placement = None;
             }
-            let token = self.arena[ns]
-                .commands
-                .generation(name)
-                .expect("new local node");
             self.jim_previous_locations
                 .insert(previous.generation, (ns, name.to_vec()));
             self.jim_previous_commands.insert(token, previous);
@@ -29,6 +25,7 @@ impl Namespaces {
                 self.advance_jim_procedure_epoch();
             }
         }
+        token
     }
 
     pub(crate) fn jim_node_command(&self, token: u64) -> Option<Command> {
@@ -99,6 +96,7 @@ impl Namespaces {
                 .retired
                 .borrow_mut()
                 .push(super::RetiredCommandSlot {
+                    procedure: None,
                     original_jim_key: None,
                     binding: Some(top),
                 });
@@ -122,6 +120,7 @@ impl Namespaces {
                 .retired
                 .borrow_mut()
                 .push(super::RetiredCommandSlot {
+                    procedure: None,
                     original_jim_key: None,
                     binding: Some(previous),
                 });

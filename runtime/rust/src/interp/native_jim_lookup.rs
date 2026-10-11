@@ -24,7 +24,9 @@ impl Drop for JimActiveCommandScope {
         // Neither its delete hook nor previous cleanup may run under a borrow.
         drop(command);
         self.interp.namespaces.borrow_mut().leave_jim_command(token);
-        self.interp.retire_pending_native_ensemble_roles();
+        if let Err(first) = self.interp.retire_pending_native_ensemble_roles() {
+            self.interp.refuse_native_execution(first);
+        }
     }
 }
 impl Interp {

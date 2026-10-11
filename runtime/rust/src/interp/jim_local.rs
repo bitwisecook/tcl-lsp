@@ -54,7 +54,9 @@ impl Interp {
             // is the original flat name; it does not perform GetCommand again.
             let bytes = obj::bytes_of(name.as_ptr());
             self.namespaces.borrow_mut().clean_jim_local_key(&bytes);
-            self.retire_pending_native_ensemble_roles();
+            if let Err(first) = self.retire_pending_native_ensemble_roles() {
+                self.refuse_native_execution(first);
+            }
         }
     }
 }

@@ -134,13 +134,33 @@ struct CommandSlot {
 /// Extracted original owners, released after the namespace borrow. Jim releases
 /// the key before the value on deletion; replacement contains only the value.
 pub(crate) struct RetiredCommandSlot {
+    procedure: Option<
+        tcl_runtime_api::native_procedure_roles::NativeProcedureReference<crate::interp::ProcDef>,
+    >,
     original_jim_key: Option<std::rc::Rc<crate::obj::Owned>>,
     binding: Option<CommandBinding>,
 }
 impl RetiredCommandSlot {
-    pub(crate) fn retire(mut self) {
+    pub(crate) fn retire_checked(
+        mut self,
+        current: &dyn Fn() -> Result<(), tcl_runtime_api::NativeExecutionError>,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let mut first = None;
+        // C's existing Proc binding is withdrawn independently of command views.
+        // Jim has no extracted Proc role and keeps its key-before-value release.
+        drop(self.procedure.take());
+        if let Err(error) = current() {
+            first.get_or_insert(error);
+        }
         drop(self.original_jim_key.take());
+        if let Err(error) = current() {
+            first.get_or_insert(error);
+        }
         drop(self.binding.take());
+        if let Err(error) = current() {
+            first.get_or_insert(error);
+        }
+        first.map_or(Ok(()), Err)
     }
 }
 
@@ -215,16 +235,24 @@ impl CommandTable {
         }
         let result = displaced.map(|binding| {
             let command = binding.command.clone();
-            if jim {
-                self.retired.borrow_mut().push(RetiredCommandSlot {
-                    original_jim_key: None,
-                    binding: Some(binding),
-                });
-            }
+            let procedure = if jim {
+                None
+            } else {
+                match &binding.command {
+                    Command::Proc(procedure) => procedure.take_for_retirement(),
+                    _ => None,
+                }
+            };
+            self.retired.borrow_mut().push(RetiredCommandSlot {
+                procedure,
+                original_jim_key: None,
+                binding: Some(binding),
+            });
             command
         });
         if unused_incoming.is_some() {
             self.retired.borrow_mut().push(RetiredCommandSlot {
+                procedure: None,
                 original_jim_key: unused_incoming,
                 binding: None,
             });
@@ -237,6 +265,7 @@ impl CommandTable {
         if slot.original_jim_key.is_some() {
             let result = slot.binding.clone();
             self.retired.borrow_mut().push(RetiredCommandSlot {
+                procedure: None,
                 original_jim_key: slot.original_jim_key,
                 binding: slot.binding,
             });
@@ -278,6 +307,7 @@ impl CommandTable {
         let slot = self.entries.remove(key);
         self.order.remove(key);
         self.retired.borrow_mut().push(RetiredCommandSlot {
+            procedure: None,
             original_jim_key: slot.and_then(|slot| slot.original_jim_key),
             binding: Some(binding),
         });
@@ -285,12 +315,11 @@ impl CommandTable {
     fn clear(&mut self) {
         let entries = std::mem::take(&mut self.entries);
         for (_, slot) in entries {
-            if slot.original_jim_key.is_some() {
-                self.retired.borrow_mut().push(RetiredCommandSlot {
-                    original_jim_key: slot.original_jim_key,
-                    binding: slot.binding,
-                });
-            }
+            self.retired.borrow_mut().push(RetiredCommandSlot {
+                procedure: None,
+                original_jim_key: slot.original_jim_key,
+                binding: slot.binding,
+            });
         }
         self.order.clear();
     }
@@ -912,7 +941,7 @@ impl Namespaces {
         }
     }
 
-    fn remove_native_binding(&mut self, ns: NsId, simple: &[u8]) -> Option<CommandBinding> {
+    fn unlink_native_binding(&mut self, ns: NsId, simple: &[u8]) -> Option<CommandBinding> {
         let binding = self.arena[ns].commands.remove_binding(simple)?;
         self.increment_native_command_epoch(binding.generation);
         self.native_command_nodes
@@ -920,13 +949,32 @@ impl Namespaces {
             .expect("bound command retains its native command node")
             .placement = None;
         self.invalidate_native_command_lookup(ns);
-        if self.variable_name_protocol != Some(tcl_syntax::naming::NativeNameProtocol::Jim084) {
-            if let Command::Proc(procedure) = &binding.command {
-                procedure.retire();
-            }
-        }
         self.note_jim_command_retirement(binding.generation);
         Some(binding)
+    }
+
+    fn remove_native_binding(&mut self, ns: NsId, simple: &[u8]) -> Option<CommandBinding> {
+        let binding = self.unlink_native_binding(ns, simple)?;
+        if self.variable_name_protocol != Some(tcl_syntax::naming::NativeNameProtocol::Jim084) {
+            let procedure = match &binding.command {
+                Command::Proc(procedure) => procedure.take_for_retirement(),
+                _ => None,
+            };
+            let view = binding.clone();
+            self.arena[ns]
+                .commands
+                .retired
+                .borrow_mut()
+                .push(RetiredCommandSlot {
+                    procedure,
+                    original_jim_key: None,
+                    binding: Some(binding),
+                });
+            Some(view)
+        } else {
+            // remove_binding already extracted Jim's real key and value owners.
+            Some(binding)
+        }
     }
 
     fn take_native_binding_for_replacement(
@@ -1070,6 +1118,38 @@ impl Namespaces {
         let (namespace, simple) = node.placement.as_ref()?;
         (self.arena[*namespace].commands.generation(simple) == Some(generation))
             .then_some(simple.as_slice())
+    }
+
+    /// Check the original published slot without retaining its callable payload.
+    pub(crate) fn original_publication_is_current(
+        &self,
+        namespace: NsId,
+        name: &[u8],
+        generation: u64,
+    ) -> bool {
+        self.native_command_nodes
+            .get(&generation)
+            .is_some_and(|node| {
+                node.placement.as_ref().is_some_and(|(holder, key)| {
+                    *holder == namespace
+                        && key.as_slice() == name
+                        && self.arena[*holder].commands.generation(key) == Some(generation)
+                })
+            })
+    }
+
+    /// Join a genuine prepared Proc observation to the same original table node.
+    pub(crate) fn original_procedure_publication_is_current(
+        &self,
+        namespace: NsId,
+        name: &[u8],
+        generation: u64,
+        original: &crate::interp::OriginalProcedureBinding,
+    ) -> bool {
+        self.original_publication_is_current(namespace, name, generation)
+            && self.arena[namespace].commands.get(name).is_some_and(|command| {
+                matches!(command, Command::Proc(procedure) if procedure.observes_original_binding(original))
+            })
     }
 
     /// Clone a live worker only after its actual node placement is checked.
@@ -1219,7 +1299,7 @@ impl Namespaces {
         mut entry: NativeCommandCreation,
         simple: Vec<u8>,
         command: Command,
-    ) {
+    ) -> u64 {
         let ns = entry.namespace;
         // C redefines a command by deleting the old hash entry and creating a
         // new one, so the name moves to its bucket head
@@ -1235,6 +1315,7 @@ impl Namespaces {
                     .retired
                     .borrow_mut()
                     .push(RetiredCommandSlot {
+                        procedure: None,
                         original_jim_key: None,
                         binding: Some(displaced),
                     });
@@ -1297,6 +1378,7 @@ impl Namespaces {
             jim_table_key,
             original_jim_key,
         );
+        generation
     }
 
     /// Publish an existing command token at a new placement. Visibility and
@@ -2067,8 +2149,30 @@ impl Namespaces {
     pub(crate) fn retire_rename_source(&mut self, publication: &RenamePublication) {
         let (ns, simple) = &publication.source;
         if let Some(removed) = self.arena[*ns].commands.remove_binding(simple) {
-            if removed.generation != publication.generation {
+            let replaced = removed.generation != publication.generation;
+            if replaced {
                 self.retire_native_command_node(removed.generation);
+            }
+            if self.variable_name_protocol != Some(tcl_syntax::naming::NativeNameProtocol::Jim084) {
+                // The moved source view does not withdraw its surviving binding.
+                // A callback-created different token owns a distinct Proc role.
+                let procedure = if replaced {
+                    match &removed.command {
+                        Command::Proc(procedure) => procedure.take_for_retirement(),
+                        _ => None,
+                    }
+                } else {
+                    None
+                };
+                self.arena[*ns]
+                    .commands
+                    .retired
+                    .borrow_mut()
+                    .push(RetiredCommandSlot {
+                        procedure,
+                        original_jim_key: None,
+                        binding: Some(removed),
+                    });
             }
         }
         self.increment_native_command_epoch(publication.generation);
@@ -2842,7 +2946,16 @@ impl Namespaces {
         // including a value recreated by the original delete procedure.
         // The shared replacement worker preserves that key; C removes its
         // independent entry using the existing selected replacement recipe.
-        self.take_native_binding_for_replacement(entry.namespace, name)
+        if self
+            .variable_name_protocol
+            .is_some_and(|protocol| protocol.is_jim084())
+        {
+            self.take_native_binding_for_replacement(entry.namespace, name)
+        } else {
+            // This separately admitted ObjCmd must remain uniquely transferred:
+            // its disposal purpose does not execute a second delete procedure.
+            self.unlink_native_binding(entry.namespace, name)
+        }
     }
 
     /// Consume the original creation entry after its callbacks have returned.
@@ -2851,8 +2964,8 @@ impl Namespaces {
         entry: NativeCommandCreation,
         name: &[u8],
         command: Command,
-    ) {
-        self.insert_bound_after_entry(entry, name.to_vec(), command);
+    ) -> u64 {
+        self.insert_bound_after_entry(entry, name.to_vec(), command)
     }
 
     /// `ns`'s `namespace path` (the resolver's step-b list).

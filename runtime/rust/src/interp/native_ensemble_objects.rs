@@ -13,24 +13,43 @@ use tcl_cmd_core::ensemble::EnsembleObjectRole;
 use tcl_syntax::value::ValueError;
 
 impl Interp {
-    pub(crate) fn retire_pending_native_ensemble_roles(&mut self) {
+    pub(crate) fn retire_pending_native_ensemble_roles(
+        &mut self,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let saved = super::native_operation_currency::SavedNativeOperationCurrency::capture(self);
+        let cleanup = super::native_operation_currency::NativeOperationScope::enter_saved_cleanup(
+            &saved, self,
+        )?;
+        let mut first = None;
         loop {
             let command_slots = self.namespaces.borrow().take_retired_command_slots();
             let had_command_slots = !command_slots.is_empty();
-            // The extracted slot owns the real key and value. Callback cleanup
-            // is mandatory even with a first cause, and runs outside all borrows.
+            // Already extracted original owners require cleanup even after a
+            // refusal. No table or exception borrow spans their real release.
             for slot in command_slots {
-                slot.retire();
+                if let Err(error) = slot.retire_checked(&|| cleanup.check()) {
+                    first.get_or_insert(error);
+                }
             }
             self.retire_pending_children();
+            if let Err(error) = cleanup.check() {
+                first.get_or_insert(error);
+            }
             let retired = self.namespaces.borrow().take_retired_ensemble_roles();
             if !had_command_slots && retired.is_empty() {
                 break;
             }
             for token in retired {
                 token.mark_deleted();
+                if let Err(error) = cleanup.check() {
+                    first.get_or_insert(error);
+                }
             }
         }
+        if let Err(error) = cleanup.check() {
+            first.get_or_insert(error);
+        }
+        first.map_or(Ok(()), Err)
     }
 
     /// Construct the real private objects installed by stock ensemble setup.

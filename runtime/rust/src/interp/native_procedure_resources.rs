@@ -44,6 +44,13 @@ pub struct NativeProcedureCommand {
     identity: Rc<()>,
 }
 
+/// Non-owning observation of the existing binding and its selected declaration.
+/// It supplies neither a native procedure reference nor an active command role.
+pub(crate) struct OriginalProcedureBinding {
+    identity: Weak<()>,
+    declaration: Weak<ProcDef>,
+}
+
 /// A genuine method or lambda clientData role on a commandless native Proc.
 /// Query clones do not postpone the native owner's retirement. An entered
 /// ProcedureMethod keeps its clientData independently until post-call cleanup.
@@ -280,8 +287,28 @@ impl NativeProcedureCommand {
     pub(crate) fn is_same_binding(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.identity, &other.identity)
     }
+    pub(crate) fn observe_original_binding(&self) -> OriginalProcedureBinding {
+        OriginalProcedureBinding {
+            identity: Rc::downgrade(&self.identity),
+            declaration: Rc::downgrade(&self.declaration()),
+        }
+    }
+    pub(crate) fn observes_original_binding(&self, original: &OriginalProcedureBinding) -> bool {
+        Weak::ptr_eq(&original.identity, &Rc::downgrade(&self.identity))
+            && self.binding.owner().is_some_and(|current| {
+                original.declaration.upgrade().is_some_and(|declaration| {
+                    Rc::ptr_eq(&current, &declaration)
+                        && !declaration.native_procedure_role_ledger().is_retired()
+                })
+            })
+    }
     pub(crate) fn retire(&self) {
         self.binding.retire();
+    }
+    pub(crate) fn take_for_retirement(
+        &self,
+    ) -> Option<tcl_runtime_api::native_procedure_roles::NativeProcedureReference<ProcDef>> {
+        self.binding.take_for_retirement()
     }
     pub(crate) fn replace_declaration(&self, replacement: &Self) {
         self.binding

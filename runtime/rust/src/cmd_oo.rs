@@ -7176,6 +7176,31 @@ impl Interp {
     fn oo_clone_namespace(&mut self, src_ns: NsId, dst_ns: NsId) -> Result<(), Code> {
         let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self)
             .map_err(|first| self.refuse_native_execution(first))?;
+        let source_holder = self.native_namespace_token_at(src_ns).ok_or_else(|| {
+            self.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original clone source namespace",
+                ),
+            )
+        })?;
+        let destination_holder = self.native_namespace_token_at(dst_ns).ok_or_else(|| {
+            self.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original clone destination namespace",
+                ),
+            )
+        })?;
+        let source_lifecycle = source_holder.lifecycle();
+        let destination_lifecycle = destination_holder.lifecycle();
+        if !self.original_publication_namespace_is_current(src_ns, &source_holder, source_lifecycle)
+            || !self.original_publication_namespace_is_current(
+                dst_ns,
+                &destination_holder,
+                destination_lifecycle,
+            )
+        {
+            return Err(Code::Error);
+        }
         // Procedures (skip built-ins like the per-object `my`/`myclass`).
         let names: Vec<Vec<u8>> = self
             .namespaces()
@@ -7207,14 +7232,44 @@ impl Interp {
                     .currency()
                     .ensure_current_or_refuse()
                     .map_err(|first| self.refuse_native_execution(first))?;
+                if !self.original_publication_namespace_is_current(
+                    src_ns,
+                    &source_holder,
+                    source_lifecycle,
+                ) || !self.original_publication_namespace_is_current(
+                    dst_ns,
+                    &destination_holder,
+                    destination_lifecycle,
+                ) {
+                    return Err(Code::Error);
+                }
                 let duplicate = duplicate.map_err(|error| self.report_cmd_error(error.into()))?;
-                self.namespaces_mut()
-                    .bind(dst_ns, n, Command::Proc(duplicate));
+                self.bind_command_replacement(dst_ns, n, Command::Proc(duplicate));
                 scope
                     .currency()
                     .ensure_current_or_refuse()
                     .map_err(|first| self.refuse_native_execution(first))?;
+                if !self.original_publication_namespace_is_current(
+                    src_ns,
+                    &source_holder,
+                    source_lifecycle,
+                ) || !self.original_publication_namespace_is_current(
+                    dst_ns,
+                    &destination_holder,
+                    destination_lifecycle,
+                ) {
+                    return Err(Code::Error);
+                }
             }
+        }
+        if !self.original_publication_namespace_is_current(src_ns, &source_holder, source_lifecycle)
+            || !self.original_publication_namespace_is_current(
+                dst_ns,
+                &destination_holder,
+                destination_lifecycle,
+            )
+        {
+            return Err(Code::Error);
         }
         // Variables (scalars and array elements; `store_*` retains the values).
         type ArrayCopy = (Vec<u8>, Vec<(Vec<u8>, obj::NativeObjectLifetime)>);
@@ -7241,16 +7296,39 @@ impl Interp {
             }
         }
         for (name, value) in scalars {
-            let _ = self.store_captured_byte_variable(dst_ns, None, &name, None, value.as_ptr());
+            if !self.original_publication_namespace_is_current(
+                dst_ns,
+                &destination_holder,
+                destination_lifecycle,
+            ) {
+                return Err(Code::Error);
+            }
+            let reached =
+                self.store_captured_byte_variable(dst_ns, None, &name, None, value.as_ptr());
             drop(value);
             scope
                 .currency()
                 .ensure_current_or_refuse()
                 .map_err(|first| self.refuse_native_execution(first))?;
+            if !self.original_publication_namespace_is_current(
+                dst_ns,
+                &destination_holder,
+                destination_lifecycle,
+            ) {
+                return Err(Code::Error);
+            }
+            reached.map_err(|error| crate::builtins::var_error(self, &name, error))?;
         }
         for (name, elems) in arrays {
             for (key, value) in elems {
-                let _ = self.store_captured_byte_variable(
+                if !self.original_publication_namespace_is_current(
+                    dst_ns,
+                    &destination_holder,
+                    destination_lifecycle,
+                ) {
+                    return Err(Code::Error);
+                }
+                let reached = self.store_captured_byte_variable(
                     dst_ns,
                     None,
                     &name,
@@ -7262,6 +7340,14 @@ impl Interp {
                     .currency()
                     .ensure_current_or_refuse()
                     .map_err(|first| self.refuse_native_execution(first))?;
+                if !self.original_publication_namespace_is_current(
+                    dst_ns,
+                    &destination_holder,
+                    destination_lifecycle,
+                ) {
+                    return Err(Code::Error);
+                }
+                reached.map_err(|error| crate::builtins::var_error(self, &name, error))?;
             }
         }
         scope
@@ -11388,3 +11474,6 @@ mod original_argument_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod original_namespace_copy_tests;

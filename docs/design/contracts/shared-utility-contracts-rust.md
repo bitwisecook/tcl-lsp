@@ -1520,6 +1520,28 @@ retained expression source and read-site owners.
   attached to that stable token. Every consumer uses this owner rather than
   declaring a private object-identity type.
 
+Runtime command retirement transfers the existing procedure binding reference
+with `NativeProcedureBinding::take_for_retirement` into an extracted command
+slot. The shared retirement drain releases that reference, then the actual key
+and binding owners, outside namespace and frame borrows. Metadata views add no
+procedure role; active frames keep their independently acquired role. Jim
+slots preserve their distinct key-before-value deletion and value-only
+replacement, while C slots release their selected procedure binding role.
+
+Command replacement, procedure installation and copied namespace publication
+retain the original operation through registration-name and argument cleanup.
+The same namespace token and lifecycle are checked after reached retirements
+before compiler-header handoff, token activation or another store. Copied
+variable stores propagate their full typed failure as well as checking the
+original operation. Insertion returns its actual minted generation before retirement. Fixed-slot
+publication continuations check that token and original Proc binding after
+registration cleanup and each header getter; they cannot adopt a replacement
+or a renamed slot. This software refusal boundary does not assert Native
+command-pointer rename chronology. A callback-recreated idle ObjCmd uses its existing unique
+raw-token disposal purpose; other recreated native payloads without an admitted
+disposal owner refuse before incoming adoption and preserve the reached slot.
+Those unsupported payloads require their own concrete disposal contract.
+
 ### `tcl-syntax` — event-handler boundaries
 
 - `event_handlers` is the dependency-low extractor for live

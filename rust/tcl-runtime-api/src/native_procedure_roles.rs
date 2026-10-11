@@ -152,10 +152,17 @@ impl<T: NativeProcedureRoleOwner> NativeProcedureBinding<T> {
             .map(|role| Rc::clone(role.owner()))
     }
 
+    /// Extract the existing binding reference for retirement after the caller
+    /// releases its command-table borrow. This transfers the actual reference;
+    /// it neither acquires a role nor extends the declaration through a view.
+    #[must_use]
+    pub fn take_for_retirement(&self) -> Option<NativeProcedureReference<T>> {
+        self.reference.borrow_mut().take()
+    }
+
     /// Withdraw the real command binding even while dispatch views survive.
     pub fn retire(&self) {
-        let role = self.reference.borrow_mut().take();
-        drop(role);
+        drop(self.take_for_retirement());
     }
 
     /// Transfer a freshly published replacement's actual binding role into

@@ -44,8 +44,10 @@ impl Interp {
         &mut self,
         parameters: Option<*mut TclObj>,
         original_body: *mut TclObj,
-    ) -> Result<tcl_dialect::NativeProcedureHeaderCompilation, ValueError> {
+        current: &impl Fn(&mut Self) -> Result<(), tcl_runtime_api::NativeExecutionError>,
+    ) -> Result<tcl_dialect::NativeProcedureHeaderCompilation, tcl_cmd_core::CmdError> {
         use tcl_dialect::NativeProcedureHeaderCompilation as Header;
+        current(self)?;
         let dialect = self.native_invocation_dialect();
         if dialect.family() == Some(tcl_dialect::model::Family::Jim) {
             return Ok(Header::Absent);
@@ -53,7 +55,9 @@ impl Interp {
         let Some(parameters) = parameters else {
             return Ok(Header::Unknown);
         };
-        let parameters = ValueOps::native_string_bytes(self, &parameters)?;
+        let reached = ValueOps::native_string_bytes(self, &parameters);
+        current(self)?;
+        let parameters = reached?;
         let incomplete = tcl_registry::native_procedure::procedure_header_compilation_bytes(
             dialect,
             Some(&parameters),
@@ -63,7 +67,10 @@ impl Interp {
         if incomplete != Header::Unknown {
             return Ok(incomplete);
         }
-        let body = ValueOps::native_string_bytes(self, &original_body)?;
+        current(self)?;
+        let reached = ValueOps::native_string_bytes(self, &original_body);
+        current(self)?;
+        let body = reached?;
         Ok(
             tcl_registry::native_procedure::procedure_header_compilation_bytes(
                 dialect,

@@ -737,6 +737,9 @@ mod tests {
         let view = Command::ObjCmd(original.clone());
         let retained = OriginalIdleObjectRetirement::capture(Some(&view)).unwrap();
         interpreter.namespaces_mut().remove_in(GLOBAL, b"retiring");
+        // The direct table setup uses the same outside-borrow retirement door
+        // as its actual interpreter callers; it acquires no native reference.
+        interpreter.retire_pending_native_ensemble_roles().unwrap();
         drop(view);
         assert!(
             !retained.completed_delete(true),
